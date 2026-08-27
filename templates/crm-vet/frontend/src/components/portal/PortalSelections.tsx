@@ -70,12 +70,12 @@ export default function PortalSelections() {
     return (
       <div>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Selections</h1>
-          <p className="text-gray-600">Choose finishes, fixtures, and materials for your project.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Selections</h1>
+          <p className="text-gray-600 dark:text-slate-400">Choose finishes, fixtures, and materials for your project.</p>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <Palette className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No projects available.</p>
+          <p className="text-gray-500 dark:text-slate-400">No projects available.</p>
         </div>
       </div>
     );
@@ -92,18 +92,18 @@ export default function PortalSelections() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Selections</h1>
-        <p className="text-gray-600">Choose finishes, fixtures, and materials for your project.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Selections</h1>
+        <p className="text-gray-600 dark:text-slate-400">Choose finishes, fixtures, and materials for your project.</p>
       </div>
 
       {/* Project selector */}
       {projects.length > 1 && (
         <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
           <select
             value={selectedProjectId || ''}
             onChange={(e) => setSelectedProjectId(e.target.value)}
-            className="block w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+            className="block w-full max-w-md rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:border-slate-700"
           >
             {projects.map((p) => (
               <option key={p.id} value={p.id}>{p.name} ({p.number})</option>
@@ -117,9 +117,9 @@ export default function PortalSelections() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : selections.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <Palette className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No selections available for this project yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No selections available for this project yet.</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -168,7 +168,7 @@ function CategoryGroup({
   const pendingCount = items.filter((s) => s.status === 'pending').length;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -178,8 +178,8 @@ function CategoryGroup({
             <Palette className="w-5 h-5 text-purple-600" />
           </div>
           <div className="text-left">
-            <h2 className="font-semibold text-gray-900">{category}</h2>
-            <p className="text-sm text-gray-500">
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">{category}</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               {items.length} selection{items.length !== 1 ? 's' : ''}
               {pendingCount > 0 && (
                 <span className="ml-2 text-orange-600 font-medium">
@@ -192,13 +192,13 @@ function CategoryGroup({
         <div className="flex items-center gap-4">
           {totalAllowance > 0 && (
             <div className="text-right text-sm">
-              <p className="text-gray-500">Allowance</p>
+              <p className="text-gray-500 dark:text-slate-400">Allowance</p>
               <p className="font-medium">${totalAllowance.toLocaleString()}</p>
             </div>
           )}
           {totalSelected > 0 && (
             <div className="text-right text-sm">
-              <p className="text-gray-500">Selected</p>
+              <p className="text-gray-500 dark:text-slate-400">Selected</p>
               <p className={`font-medium ${totalSelected > totalAllowance ? 'text-red-600' : 'text-green-600'}`}>
                 ${totalSelected.toLocaleString()}
                 {totalAllowance > 0 && (
@@ -276,13 +276,13 @@ function SelectionItem({
       <div className="flex items-start justify-between mb-2">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="font-medium text-gray-900">{selection.name}</h3>
+            <h3 className="font-medium text-gray-900 dark:text-slate-100">{selection.name}</h3>
             <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLES[selection.status] || 'bg-gray-100 text-gray-700'}`}>
               {selection.status}
             </span>
           </div>
           {selection.description && (
-            <p className="text-sm text-gray-500 mt-1">{selection.description}</p>
+            <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{selection.description}</p>
           )}
           {selection.location && (
             <p className="text-xs text-gray-400 mt-1">Location: {selection.location}</p>
@@ -295,12 +295,12 @@ function SelectionItem({
         </div>
         <div className="text-right text-sm">
           {allowance > 0 && (
-            <p className="text-gray-500">
-              Allowance: <span className="font-medium text-gray-700">${allowance.toLocaleString()}</span>
+            <p className="text-gray-500 dark:text-slate-400">
+              Allowance: <span className="font-medium text-gray-700 dark:text-slate-200">${allowance.toLocaleString()}</span>
             </p>
           )}
           {selection.selected_option && (
-            <p className="text-gray-700 font-medium">
+            <p className="text-gray-700 font-medium dark:text-slate-200">
               Selected: ${(Number(selection.selected_option.price) * quantity).toLocaleString()}
               {allowance > 0 && (
                 <span className={`ml-1 text-xs ${Number(selection.selected_option.price) * quantity > allowance ? 'text-red-600' : 'text-green-600'}`}>
@@ -357,7 +357,7 @@ function SelectionItem({
             <div className="mt-3 space-y-3">
               {/* Notes field */}
               <div>
-                <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1">
+                <label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">
                   <StickyNote className="w-3 h-3" />
                   Add a note (optional)
                 </label>
@@ -366,7 +366,7 @@ function SelectionItem({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="e.g., Prefer matte finish..."
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:border-slate-700"
                 />
               </div>
 
@@ -390,19 +390,19 @@ function SelectionItem({
                       {option.image_url ? (
                         <img src={option.image_url} alt={option.name} className="w-full h-32 object-cover rounded mb-2" />
                       ) : (
-                        <div className="w-full h-32 bg-gray-100 rounded mb-2 flex items-center justify-center">
+                        <div className="w-full h-32 bg-gray-100 rounded mb-2 flex items-center justify-center dark:bg-slate-800">
                           <ImageIcon className="w-8 h-8 text-gray-300" />
                         </div>
                       )}
-                      <p className="font-medium text-sm text-gray-900">{option.name}</p>
+                      <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{option.name}</p>
                       {option.manufacturer && (
-                        <p className="text-xs text-gray-500">{option.manufacturer}{option.model ? ` - ${option.model}` : ''}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{option.manufacturer}{option.model ? ` - ${option.model}` : ''}</p>
                       )}
                       {option.description && (
                         <p className="text-xs text-gray-400 mt-1 line-clamp-2">{option.description}</p>
                       )}
                       <div className="mt-2 flex items-center justify-between">
-                        <p className="text-sm font-bold text-gray-900">${totalPrice.toLocaleString()}</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-slate-100">${totalPrice.toLocaleString()}</p>
                         {allowance > 0 && (
                           <span className={`text-xs font-medium ${priceDiff > 0 ? 'text-red-600' : priceDiff < 0 ? 'text-green-600' : 'text-gray-500'}`}>
                             {priceDiff > 0 ? '+' : ''}{priceDiff !== 0 ? `$${priceDiff.toLocaleString()}` : 'Within allowance'}
@@ -426,7 +426,7 @@ function SelectionItem({
               </div>
 
               {submitting && (
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Saving your selection...
                 </div>

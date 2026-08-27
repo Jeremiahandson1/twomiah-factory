@@ -290,7 +290,7 @@ export default function SchedulingPage() {
               {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setWeekOffset(0)} className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200">Today</button>
+              <button onClick={() => setWeekOffset(0)} className="px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200 dark:bg-slate-800">Today</button>
               <button onClick={() => setWeekOffset(w => w + 1)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <ChevronRight className="w-5 h-5" />
               </button>
@@ -312,10 +312,10 @@ export default function SchedulingPage() {
             <div className="overflow-x-auto border rounded-lg">
               <table className="w-full min-w-[800px]">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-40">Employee</th>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 w-40 dark:text-slate-400">Employee</th>
                     {weekDates.map((d, i) => (
-                      <th key={i} className="px-2 py-3 text-center text-sm font-medium text-gray-600">
+                      <th key={i} className="px-2 py-3 text-center text-sm font-medium text-gray-600 dark:text-slate-400">
                         <div>{DAYS[i]}</div>
                         <div className="text-xs text-gray-400">{d.getMonth() + 1}/{d.getDate()}</div>
                       </th>
@@ -348,7 +348,7 @@ export default function SchedulingPage() {
                     </tr>
                   ))}
                   {employees.length === 0 && (
-                    <tr><td colSpan={8} className="text-center py-8 text-gray-500">No employees found. Add team members first.</td></tr>
+                    <tr><td colSpan={8} className="text-center py-8 text-gray-500 dark:text-slate-400">No employees found. Add team members first.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -362,17 +362,17 @@ export default function SchedulingPage() {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2"><ArrowLeftRight className="w-5 h-5" />Pending Swap Requests</h3>
           {swapRequests.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No pending swap requests</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No pending swap requests</div>
           ) : (
             <div className="space-y-3">
               {swapRequests.map(req => (
-                <div key={req.id} className="border rounded-lg p-4 flex items-center justify-between bg-white">
+                <div key={req.id} className="border rounded-lg p-4 flex items-center justify-between bg-white dark:bg-slate-900">
                   <div>
                     <div className="font-medium">{req.requesterName} <span className="text-gray-400 mx-2">&harr;</span> {req.targetName}</div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-500 dark:text-slate-400">
                       {req.shiftDate} &middot; {formatTime(req.startTime)}-{formatTime(req.endTime)}
                     </div>
-                    {req.reason && <div className="text-sm text-gray-600 mt-1">{req.reason}</div>}
+                    {req.reason && <div className="text-sm text-gray-600 mt-1 dark:text-slate-400">{req.reason}</div>}
                   </div>
                   {isManager && (
                     <div className="flex gap-2">
@@ -403,14 +403,14 @@ export default function SchedulingPage() {
           <div className="overflow-x-auto border rounded-lg">
             <table className="w-full">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Employee</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Date</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Clock In</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Clock Out</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Hours</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-                  {isManager && <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>}
+                <tr className="bg-gray-50 dark:bg-slate-900">
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Employee</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Date</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Clock In</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Clock Out</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Hours</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
+                  {isManager && <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -438,7 +438,7 @@ export default function SchedulingPage() {
                   </tr>
                 ))}
                 {timeEntries.length === 0 && (
-                  <tr><td colSpan={7} className="text-center py-8 text-gray-500">No time entries for this week</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-gray-500 dark:text-slate-400">No time entries for this week</td></tr>
                 )}
               </tbody>
             </table>
@@ -450,7 +450,7 @@ export default function SchedulingPage() {
       {tab === 'payroll' && (
         <div className="max-w-lg">
           <h3 className="text-lg font-semibold flex items-center gap-2 mb-4"><Download className="w-5 h-5" />Payroll Export</h3>
-          <div className="bg-white border rounded-lg p-6 space-y-4">
+          <div className="bg-white border rounded-lg p-6 space-y-4 dark:bg-slate-900">
             <div>
               <label className="block text-sm font-medium mb-1">Start Date</label>
               <input type="date" value={exportStart} onChange={e => setExportStart(e.target.value)}
@@ -476,13 +476,13 @@ export default function SchedulingPage() {
             <Button onClick={() => setTemplateModal(true)}><Save className="w-4 h-4 mr-2 inline" />Save Current Week as Template</Button>
           </div>
           {templates.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No saved templates. Save your current week schedule as a template to reuse it.</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No saved templates. Save your current week schedule as a template to reuse it.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {templates.map(t => (
-                <div key={t.id} className="border rounded-lg p-4 bg-white">
+                <div key={t.id} className="border rounded-lg p-4 bg-white dark:bg-slate-900">
                   <div className="font-medium mb-1">{t.name}</div>
-                  <div className="text-sm text-gray-500 mb-3">{t.shiftCount || 0} shifts &middot; Created {formatDate(t.createdAt)}</div>
+                  <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">{t.shiftCount || 0} shifts &middot; Created {formatDate(t.createdAt)}</div>
                   <Button onClick={() => applyTemplate(t.id)}>Apply to Current Week</Button>
                 </div>
               ))}
@@ -509,8 +509,8 @@ export default function SchedulingPage() {
       {tab === 'forecast' && (
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2 mb-4"><BarChart3 className="w-5 h-5" />Labor Forecast</h3>
-          <div className="border rounded-lg bg-white p-6">
-            <div className="text-center text-gray-500 mb-4">Optimal Staffing by Hour</div>
+          <div className="border rounded-lg bg-white p-6 dark:bg-slate-900">
+            <div className="text-center text-gray-500 mb-4 dark:text-slate-400">Optimal Staffing by Hour</div>
             <div className="h-64 flex items-end justify-between gap-1 px-4">
               {Array.from({ length: 14 }, (_, i) => {
                 const hour = i + 8; // 8am to 10pm
@@ -518,7 +518,7 @@ export default function SchedulingPage() {
                 return (
                   <div key={i} className="flex flex-col items-center flex-1">
                     <div className="bg-green-500 rounded-t w-full transition-all" style={{ height: `${heights[i]}%` }} />
-                    <div className="text-xs text-gray-500 mt-1">{hour > 12 ? hour - 12 : hour}{hour >= 12 ? 'p' : 'a'}</div>
+                    <div className="text-xs text-gray-500 mt-1 dark:text-slate-400">{hour > 12 ? hour - 12 : hour}{hour >= 12 ? 'p' : 'a'}</div>
                   </div>
                 );
               })}

@@ -64,38 +64,38 @@ export default function DrawSchedulesPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" />Draw Schedules</h1><p className="text-sm text-gray-500 mt-1">Track construction loan draws against project milestones</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-orange-500" />Draw Schedules</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Track construction loan draws against project milestones</p></div>
         <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Schedule</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-2">
-          {schedules.length === 0 && <div className="bg-white rounded-lg border p-6 text-center text-gray-400 text-sm">No draw schedules yet.</div>}
+          {schedules.length === 0 && <div className="bg-white rounded-lg border p-6 text-center text-gray-400 text-sm dark:bg-slate-900">No draw schedules yet.</div>}
           {schedules.map((s) => (
             <button key={s.id} onClick={() => loadDetail(s.id)} className={`w-full text-left bg-white rounded-lg border p-4 hover:shadow ${selected?.id === s.id ? 'border-orange-500 shadow' : ''}`}>
               <div className="flex items-start justify-between">
-                <div><div className="font-semibold">{s.name}</div><div className="text-xs text-gray-500 mt-1">{s.lenderName || 'No lender'}</div></div>
+                <div><div className="font-semibold">{s.name}</div><div className="text-xs text-gray-500 mt-1 dark:text-slate-400">{s.lenderName || 'No lender'}</div></div>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status]}`}>{s.status}</span>
               </div>
               <div className="mt-3 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-mono">${Number(s.totalAmount).toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Drawn</span><span className="font-mono text-green-600">${Number(s.drawnAmount || 0).toLocaleString()}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Remaining</span><span className="font-mono">${Number(s.remainingAmount || s.totalAmount).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Total</span><span className="font-mono">${Number(s.totalAmount).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Drawn</span><span className="font-mono text-green-600">${Number(s.drawnAmount || 0).toLocaleString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Remaining</span><span className="font-mono">${Number(s.remainingAmount || s.totalAmount).toLocaleString()}</span></div>
               </div>
-              <div className="mt-2 text-xs text-gray-500">{s.drawCount || 0} draws</div>
+              <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">{s.drawCount || 0} draws</div>
             </button>
           ))}
         </div>
 
         <div className="lg:col-span-2">
           {selected ? (
-            <div className="bg-white rounded-lg border">
+            <div className="bg-white rounded-lg border dark:bg-slate-900">
               <div className="p-4 border-b flex items-center justify-between">
-                <div><h2 className="font-bold">{selected.name}</h2><div className="text-sm text-gray-500">{selected.lenderName}</div></div>
+                <div><h2 className="font-bold">{selected.name}</h2><div className="text-sm text-gray-500 dark:text-slate-400">{selected.lenderName}</div></div>
                 <button onClick={() => setShowDraw(true)} className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1"><Plus className="w-3 h-3" />Draw</button>
               </div>
               <table className="w-full">
-                <thead className="bg-gray-50 border-b"><tr className="text-left text-xs font-semibold text-gray-500 uppercase"><th className="px-4 py-3">#</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Approved</th><th className="px-4 py-3">% Complete</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
+                <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">#</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Approved</th><th className="px-4 py-3">% Complete</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
                 <tbody>
                   {(selected.requests || []).length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No draws yet.</td></tr> :
                     selected.requests.map((r: any) => (
@@ -117,13 +117,13 @@ export default function DrawSchedulesPage() {
                 </tbody>
               </table>
             </div>
-          ) : <div className="bg-white rounded-lg border p-12 text-center text-gray-400">Select a draw schedule to view its draws</div>}
+          ) : <div className="bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">Select a draw schedule to view its draws</div>}
         </div>
       </div>
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New Draw Schedule</h2>
             <form onSubmit={createSchedule} className="space-y-3">
               <select required value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="w-full border rounded-lg px-3 py-2"><option value="">Select project...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
@@ -140,7 +140,7 @@ export default function DrawSchedulesPage() {
 
       {showDraw && selected && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New Draw Request</h2>
             <form onSubmit={createDraw} className="space-y-3">
               <input required type="number" step="0.01" placeholder="Amount requested" value={drawForm.amountRequested} onChange={(e) => setDrawForm({ ...drawForm, amountRequested: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />

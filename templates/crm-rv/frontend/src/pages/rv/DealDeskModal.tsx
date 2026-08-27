@@ -170,7 +170,7 @@ export default function DealDeskModal({ lead, onClose, onSaved }: DealDeskModalP
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white text-gray-900 rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white text-gray-900 rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900 dark:text-slate-100">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Calculator className="w-5 h-5 text-orange-500" /> Deal Desk
@@ -202,8 +202,8 @@ export default function DealDeskModal({ lead, onClose, onSaved }: DealDeskModalP
               </div>
 
               {/* Breakdown */}
-              <div className="bg-gray-50 border rounded-lg p-4 flex flex-col">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Breakdown</h3>
+              <div className="bg-gray-50 border rounded-lg p-4 flex flex-col dark:bg-slate-900">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 dark:text-slate-200">Breakdown</h3>
                 <dl className="space-y-2 text-sm">
                   {row('Net Trade Equity', money(calc.netTrade))}
                   {row('Taxable Amount', money(calc.taxableAmount))}
@@ -213,7 +213,7 @@ export default function DealDeskModal({ lead, onClose, onSaved }: DealDeskModalP
                   {row('Total of Payments', money(calc.totalOfPayments))}
                 </dl>
                 <div className="mt-4 pt-4 border-t">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">Est. Monthly Payment</p>
+                  <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Est. Monthly Payment</p>
                   <p className="text-3xl font-bold text-orange-600">
                     {calc.term > 0 ? money(calc.monthlyPayment) : '—'}
                   </p>
@@ -247,7 +247,7 @@ export default function DealDeskModal({ lead, onClose, onSaved }: DealDeskModalP
 function numField(label: string, value: string, onChange: (v: string) => void, step = '0.01') {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
       <input
         type="number"
         step={step}
@@ -262,7 +262,7 @@ function numField(label: string, value: string, onChange: (v: string) => void, s
 function row(label: string, value: string, bold = false) {
   return (
     <div className="flex items-center justify-between">
-      <dt className="text-gray-500">{label}</dt>
+      <dt className="text-gray-500 dark:text-slate-400">{label}</dt>
       <dd className={bold ? 'font-semibold text-gray-900' : 'text-gray-700'}>{value}</dd>
     </div>
   );

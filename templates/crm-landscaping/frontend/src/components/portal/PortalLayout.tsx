@@ -8,10 +8,10 @@ export default function PortalLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-gray-400 mx-auto" />
-          <p className="mt-2 text-gray-500">Loading your portal...</p>
+          <p className="mt-2 text-gray-500 dark:text-slate-400">Loading your portal...</p>
         </div>
       </div>
     );
@@ -19,14 +19,14 @@ export default function PortalLayout() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
         <div className="max-w-md text-center p-8">
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">⚠️</span>
           </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Portal Unavailable</h1>
-          <p className="text-gray-600">{error}</p>
-          <p className="mt-4 text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Portal Unavailable</h1>
+          <p className="text-gray-600 dark:text-slate-400">{error}</p>
+          <p className="mt-4 text-sm text-gray-500 dark:text-slate-400">
             Please contact the company for assistance.
           </p>
         </div>
@@ -46,10 +46,10 @@ export default function PortalLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
       <header 
-        className="bg-white border-b shadow-sm"
+        className="bg-white border-b shadow-sm dark:bg-slate-900"
         style={{ borderTopColor: company?.primaryColor || '{{PRIMARY_COLOR}}', borderTopWidth: '4px' }}
       >
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -66,20 +66,20 @@ export default function PortalLayout() {
                 </div>
               )}
               <div>
-                <h1 className="font-bold text-gray-900">{company?.name}</h1>
-                <p className="text-sm text-gray-500">Customer Portal</p>
+                <h1 className="font-bold text-gray-900 dark:text-slate-100">{company?.name}</h1>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Customer Portal</p>
               </div>
             </div>
             <div className="text-right text-sm">
-              <p className="font-medium text-gray-900">{contact?.name}</p>
-              <p className="text-gray-500">{contact?.email}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{contact?.name}</p>
+              <p className="text-gray-500 dark:text-slate-400">{contact?.email}</p>
             </div>
           </div>
         </div>
       </header>
 
       {/* Navigation */}
-      <nav className="bg-white border-b">
+      <nav className="bg-white border-b dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex gap-1 overflow-x-auto">
             {navItems.map((item) => (
@@ -110,8 +110,8 @@ export default function PortalLayout() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-white mt-auto">
-        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
+      <footer className="border-t bg-white mt-auto dark:bg-slate-900">
+        <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500 dark:text-slate-400">
           <p>Need help? Contact us at {company?.email || company?.phone}</p>
         </div>
       </footer>

@@ -58,14 +58,14 @@ export default function PortalSharedDocuments() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Shared Documents</h1>
-        <p className="text-gray-600">Documents shared with you by the contractor.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Shared Documents</h1>
+        <p className="text-gray-600 dark:text-slate-400">Documents shared with you by the contractor.</p>
       </div>
 
       {docs.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No documents shared with you yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No documents shared with you yet.</p>
         </div>
       ) : (
         <>
@@ -108,28 +108,28 @@ function FilterBtn({ active, onClick, children }: { active: boolean; onClick: ()
 function DocCard({ doc }: { doc: SharedDoc }) {
   const sizeKb = doc.size ? Math.round(doc.size / 1024) : 0;
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 dark:bg-slate-900 dark:border-slate-700">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 bg-gray-100 rounded-lg shrink-0">
-            <FolderOpen className="w-5 h-5 text-gray-600" />
+          <div className="p-2 bg-gray-100 rounded-lg shrink-0 dark:bg-slate-800">
+            <FolderOpen className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-gray-900 truncate">{doc.name || doc.originalName}</p>
-            <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-500">
-              <span className="px-1.5 py-0.5 bg-gray-100 rounded">{TYPE_LABELS[doc.type] || doc.type}</span>
+            <p className="font-medium text-gray-900 truncate dark:text-slate-100">{doc.name || doc.originalName}</p>
+            <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+              <span className="px-1.5 py-0.5 bg-gray-100 rounded dark:bg-slate-800">{TYPE_LABELS[doc.type] || doc.type}</span>
               {doc.projectName && <span>Project: {doc.projectName}</span>}
               {sizeKb > 0 && <span>{sizeKb} KB</span>}
               <span>Shared {formatDate(doc.sharedAt)}</span>
             </div>
-            {doc.description && <p className="text-xs text-gray-500 mt-1">{doc.description}</p>}
+            {doc.description && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{doc.description}</p>}
           </div>
         </div>
         <a
           href={doc.url}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0"
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
         >
           <Download className="w-3.5 h-3.5" /> Download
         </a>

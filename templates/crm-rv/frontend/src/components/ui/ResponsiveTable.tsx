@@ -42,7 +42,7 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
     return (
       <div className="animate-pulse space-y-3 p-4">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-16 bg-gray-100 rounded-lg" />
+          <div key={i} className="h-16 bg-gray-100 rounded-lg dark:bg-slate-800" />
         ))}
       </div>
     );
@@ -50,7 +50,7 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
 
   if (data.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">
         {emptyMessage}
       </div>
     );
@@ -76,11 +76,11 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
                     {columns.slice(0, 2).map((col) => (
                       <div key={col.key}>
                         {col.key === columns[0].key ? (
-                          <p className="font-medium text-gray-900 truncate">
+                          <p className="font-medium text-gray-900 truncate dark:text-slate-100">
                             {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : (row as Record<string, unknown>)[col.key] as React.ReactNode}
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm text-gray-500 dark:text-slate-400">
                             {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : (row as Record<string, unknown>)[col.key] as React.ReactNode}
                           </p>
                         )}
@@ -108,7 +108,7 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
                             className="fixed inset-0 z-10"
                             onClick={() => setOpenMenu(null)}
                           />
-                          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20 py-1">
+                          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-20 py-1 dark:bg-slate-900">
                             {actions.map((action, i) => (
                               <button
                                 key={i}
@@ -138,7 +138,7 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
                   <>
                     <button
                       onClick={() => setExpandedRow(expandedRow === idx ? null : idx)}
-                      className="mt-2 text-sm text-gray-500 flex items-center gap-1"
+                      className="mt-2 text-sm text-gray-500 flex items-center gap-1 dark:text-slate-400"
                     >
                       {expandedRow === idx ? 'Less' : 'More'}
                       {expandedRow === idx ? (
@@ -152,7 +152,7 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
                       <div className="mt-3 pt-3 border-t space-y-2">
                         {columns.slice(2).map((col) => (
                           <div key={col.key} className="flex justify-between text-sm">
-                            <span className="text-gray-500">{col.label}</span>
+                            <span className="text-gray-500 dark:text-slate-400">{col.label}</span>
                             <span className="font-medium">
                               {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : ((row as Record<string, unknown>)[col.key] as React.ReactNode) || '-'}
                             </span>
@@ -174,18 +174,18 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
-        <thead className="bg-gray-50">
+        <thead className="bg-gray-50 dark:bg-slate-900">
           <tr>
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
+                className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-slate-400"
               >
                 {col.label}
               </th>
             ))}
             {actions.length > 0 && (
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase dark:text-slate-400">
                 Actions
               </th>
             )}
@@ -199,7 +199,7 @@ export function ResponsiveTable<T extends Record<string, unknown> = Record<strin
               className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3 text-sm text-gray-900">
+                <td key={col.key} className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                   {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : (row as Record<string, unknown>)[col.key] as React.ReactNode}
                 </td>
               ))}

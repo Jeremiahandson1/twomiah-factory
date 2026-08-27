@@ -61,10 +61,10 @@ export default function ContactSupportPage() {
   return (
     <div className="p-6 max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
           <LifeBuoy className="w-6 h-6" /> Contact Twomiah
         </h1>
-        <p className="text-gray-500 mt-1">
+        <p className="text-gray-500 mt-1 dark:text-slate-400">
           Something wrong with the software itself? Tell us here — it goes straight to our team.
         </p>
         {statusUrl && (
@@ -90,9 +90,9 @@ export default function ContactSupportPage() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border p-5 space-y-4">
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl border p-5 space-y-4 dark:bg-slate-900">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">What is happening?</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What is happening?</label>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
@@ -102,7 +102,7 @@ export default function ContactSupportPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Any detail that helps</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Any detail that helps</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -112,7 +112,7 @@ export default function ContactSupportPage() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">How urgent is it?</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">How urgent is it?</label>
           <select
             value={priority}
             onChange={(e) => setPriority(e.target.value)}
@@ -134,16 +134,16 @@ export default function ContactSupportPage() {
       </form>
 
       <div className="mt-8">
-        <h2 className="font-semibold text-gray-900 mb-3">Your requests to Twomiah</h2>
+        <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Your requests to Twomiah</h2>
         {tickets.length === 0 ? (
-          <p className="text-gray-500 text-sm">Nothing yet.</p>
+          <p className="text-gray-500 text-sm dark:text-slate-400">Nothing yet.</p>
         ) : (
-          <div className="bg-white rounded-xl border divide-y">
+          <div className="bg-white rounded-xl border divide-y dark:bg-slate-900">
             {tickets.map((t) => (
               <div key={t.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className="font-medium text-gray-900">{t.subject}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{t.subject}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {t.number} - {formatDate(t.created_at)}
                   </p>
                 </div>

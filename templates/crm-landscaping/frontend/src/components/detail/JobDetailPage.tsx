@@ -101,8 +101,8 @@ export default function JobDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <p className="text-sm font-mono text-gray-500">{job.number}</p>
-            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
+            <p className="text-sm font-mono text-gray-500 dark:text-slate-400">{job.number}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{job.title}</h1>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${priorityColors[job.priority]}`}>{job.priority}</span>
@@ -120,7 +120,7 @@ export default function JobDetailPage() {
               <CheckCircle className="w-4 h-4" /> Complete
             </button>
           )}
-          <Link to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2">
@@ -131,14 +131,14 @@ export default function JobDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold mb-4">Service Call Details</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {job.scheduledDate && (
                 <div className="flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Scheduled</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p>
                     <p>{formatDate(job.scheduledDate)} {job.scheduledTime}</p>
                   </div>
                 </div>
@@ -147,7 +147,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center gap-3">
                   <Clock className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Estimated</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Estimated</p>
                     <p>{job.estimatedHours} hours</p>
                   </div>
                 </div>
@@ -156,7 +156,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center gap-3">
                   <MapPin className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Location</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Location</p>
                     <p>{job.address}{job.city && `, ${job.city}`}</p>
                   </div>
                 </div>
@@ -165,7 +165,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Assigned To</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Assigned To</p>
                     <p>{job.assignedTo.firstName} {job.assignedTo.lastName}</p>
                   </div>
                 </div>
@@ -173,21 +173,21 @@ export default function JobDetailPage() {
             </div>
             {job.description && (
               <div className="mt-4 pt-4 border-t">
-                <p className="text-sm text-gray-500 mb-2">Description</p>
-                <p className="text-gray-700 whitespace-pre-wrap">{job.description}</p>
+                <p className="text-sm text-gray-500 mb-2 dark:text-slate-400">Description</p>
+                <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{job.description}</p>
               </div>
             )}
           </div>
 
           {/* Photos */}
           {photos.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
               <h2 className="font-semibold mb-4 flex items-center gap-2">
                 <Camera className="w-4 h-4" /> Photos ({photos.length})
               </h2>
               <div className="grid grid-cols-4 gap-3">
                 {photos.map(p => (
-                  <button key={p.id} onClick={() => setFullscreenPhoto(p)} className="aspect-square rounded-lg overflow-hidden bg-gray-100 hover:opacity-80 transition-opacity">
+                  <button key={p.id} onClick={() => setFullscreenPhoto(p)} className="aspect-square rounded-lg overflow-hidden bg-gray-100 hover:opacity-80 transition-opacity dark:bg-slate-800">
                     <img src={p.thumbnailUrl || p.url} alt={p.caption || 'Job photo'} className="w-full h-full object-cover" />
                   </button>
                 ))}
@@ -197,26 +197,26 @@ export default function JobDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold mb-4">Related</h2>
             <div className="space-y-3">
               {job.project && (
-                <Link to={`/crm/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                  <p className="text-sm text-gray-500">Project</p>
+                <Link to={`/crm/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-900">
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Project</p>
                   <p className="font-medium">{job.project.name}</p>
                 </Link>
               )}
               {job.contact && (
-                <Link to={`/crm/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
-                  <p className="text-sm text-gray-500">Contact</p>
+                <Link to={`/crm/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-900">
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Contact</p>
                   <p className="font-medium">{job.contact.name}</p>
                 </Link>
               )}
               {job.equipment && (
                 <Link to={`/crm/equipment`} className="block p-3 bg-orange-50 rounded-lg hover:bg-orange-100">
-                  <p className="text-sm text-gray-500 flex items-center gap-1"><Wrench className="w-3.5 h-3.5" /> Equipment</p>
+                  <p className="text-sm text-gray-500 flex items-center gap-1 dark:text-slate-400"><Wrench className="w-3.5 h-3.5" /> Equipment</p>
                   <p className="font-medium">{job.equipment.name}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
                     {[job.equipment.manufacturer, job.equipment.model].filter(Boolean).join(' ')}
                     {job.equipment.serialNumber && <span className="ml-1 font-mono text-xs">S/N: {job.equipment.serialNumber}</span>}
                   </p>

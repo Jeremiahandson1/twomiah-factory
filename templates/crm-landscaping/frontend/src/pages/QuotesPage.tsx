@@ -122,7 +122,7 @@ export default function QuotesPage() {
 
   const columns = [
     { key: 'number', label: 'Number', render: (v) => <span className="font-mono text-sm">{v}</span> },
-    { key: 'name', label: 'Name', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500">{r.contact.name}</p>}</div> },
+    { key: 'name', label: 'Name', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500 dark:text-slate-400">{r.contact.name}</p>}</div> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', render: (v) => `$${Number(v).toLocaleString()}` },
     { key: 'expiryDate', label: 'Expires', render: (v) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
@@ -176,7 +176,7 @@ export default function QuotesPage() {
           </div>
           <div><label className="block text-sm font-medium mb-2">Line Items</label>
             <div className="border rounded-lg overflow-hidden">
-              <table className="w-full"><thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 text-left text-xs font-medium w-24">Qty</th><th className="px-4 py-2 text-left text-xs font-medium w-32">Unit Price</th><th className="px-4 py-2 text-right text-xs font-medium w-32">Total</th><th className="w-10"></th></tr></thead>
+              <table className="w-full"><thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 text-left text-xs font-medium w-24">Qty</th><th className="px-4 py-2 text-left text-xs font-medium w-32">Unit Price</th><th className="px-4 py-2 text-right text-xs font-medium w-32">Total</th><th className="w-10"></th></tr></thead>
                 <tbody className="divide-y">{form.lineItems.map((li, idx) => (
                   <tr key={idx}><td className="px-4 py-2"><input value={li.description} onChange={(e) => updateLineItem(idx, 'description', e.target.value)} placeholder="Description" className="w-full px-2 py-1 border rounded" /></td>
                     <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', Number(e.target.value))} className="w-full px-2 py-1 border rounded" /></td>
@@ -193,7 +193,7 @@ export default function QuotesPage() {
             <div><label className="block text-sm font-medium mb-1">Discount ($)</label><input type="number" value={form.discount} onChange={(e) => setForm({...form, discount: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Expiry Date</label><input type="date" value={form.expiryDate} onChange={(e) => setForm({...form, expiryDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg text-right space-y-1"><p>Subtotal: <span className="font-medium">${subtotal.toLocaleString()}</span></p><p>Tax: <span className="font-medium">${taxAmount.toLocaleString()}</span></p>{form.discount > 0 && <p>Discount: <span className="font-medium">-${form.discount.toLocaleString()}</span></p>}<p className="text-lg font-bold">Total: ${total.toLocaleString()}</p></div>
+          <div className="bg-gray-50 p-4 rounded-lg text-right space-y-1 dark:bg-slate-900"><p>Subtotal: <span className="font-medium">${subtotal.toLocaleString()}</span></p><p>Tax: <span className="font-medium">${taxAmount.toLocaleString()}</span></p>{form.discount > 0 && <p>Discount: <span className="font-medium">-${form.discount.toLocaleString()}</span></p>}<p className="text-lg font-bold">Total: ${total.toLocaleString()}</p></div>
           <div><label className="block text-sm font-medium mb-1">Customer Message <span className="text-gray-400 font-normal">(shown on quote)</span></label><textarea value={form.customerMessage} onChange={(e) => setForm({...form, customerMessage: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" placeholder="Thank you for choosing us..." /></div>
           <div><label className="block text-sm font-medium mb-1">Internal Notes <span className="text-gray-400 font-normal">(not shown to customer)</span></label><textarea value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>

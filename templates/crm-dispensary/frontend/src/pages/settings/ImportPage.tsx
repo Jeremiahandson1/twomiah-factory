@@ -84,13 +84,13 @@ export default function ImportPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Import Data</h1>
-        <p className="text-gray-500">Import contacts, projects, jobs, and more from CSV files</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Import Data</h1>
+        <p className="text-gray-500 dark:text-slate-400">Import contacts, projects, jobs, and more from CSV files</p>
       </div>
 
       {/* Type Selection */}
-      <div className="bg-white rounded-xl border p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">What do you want to import?</h2>
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">What do you want to import?</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {IMPORT_TYPES.map((type) => {
             const Icon = type.icon;
@@ -110,8 +110,8 @@ export default function ImportPage() {
                 <Icon className={`w-6 h-6 mb-2 ${
                   selectedType === type.id ? 'text-orange-600' : 'text-gray-400'
                 }`} />
-                <p className="font-medium text-gray-900">{type.label}</p>
-                <p className="text-xs text-gray-500 mt-1">{type.description}</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">{type.label}</p>
+                <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{type.description}</p>
               </button>
             );
           })}
@@ -134,13 +134,13 @@ export default function ImportPage() {
       </div>
 
       {/* File Upload */}
-      <div className="bg-white rounded-xl border p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Upload CSV File</h2>
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Upload CSV File</h2>
         
         {!file ? (
-          <label className="block border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors text-gray-900">
+          <label className="block border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors text-gray-900 dark:border-slate-700 dark:text-slate-100">
             <Upload className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-            <p className="text-gray-600 mb-1">Drop your CSV file here or click to browse</p>
+            <p className="text-gray-600 mb-1 dark:text-slate-400">Drop your CSV file here or click to browse</p>
             <p className="text-sm text-gray-400">Maximum file size: 10MB</p>
             <input
               type="file"
@@ -152,12 +152,12 @@ export default function ImportPage() {
         ) : (
           <div className="space-y-4">
             {/* Selected file */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
               <div className="flex items-center gap-3">
                 <FileText className="w-8 h-8 text-orange-500" />
                 <div>
-                  <p className="font-medium text-gray-900">{file.name}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{file.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
                     {(file.size / 1024).toFixed(1)} KB
                     {preview && ` • ${preview.rowCount} rows`}
                   </p>
@@ -174,13 +174,13 @@ export default function ImportPage() {
             {/* Preview */}
             {preview && !results && (
               <div>
-                <h3 className="font-medium text-gray-900 mb-2">Preview (first 5 rows)</h3>
+                <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Preview (first 5 rows)</h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm border rounded-lg overflow-hidden">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 dark:bg-slate-900">
                       <tr>
                         {preview.columns.map((col, i) => (
-                          <th key={i} className="px-3 py-2 text-left font-medium text-gray-700 border-b">
+                          <th key={i} className="px-3 py-2 text-left font-medium text-gray-700 border-b dark:text-slate-200">
                             {col}
                           </th>
                         ))}
@@ -190,7 +190,7 @@ export default function ImportPage() {
                       {preview.preview.map((row, i) => (
                         <tr key={i} className="border-b last:border-0">
                           {preview.columns.map((col, j) => (
-                            <td key={j} className="px-3 py-2 text-gray-600 truncate max-w-48">
+                            <td key={j} className="px-3 py-2 text-gray-600 truncate max-w-48 dark:text-slate-400">
                               {row[col]}
                             </td>
                           ))}
@@ -207,30 +207,30 @@ export default function ImportPage() {
 
       {/* Options */}
       {file && !results && (
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Import Options</h2>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Import Options</h2>
           <div className="space-y-3">
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={options.skipDuplicates}
                 onChange={(e) => setOptions({ ...options, skipDuplicates: e.target.checked })}
-                className="w-4 h-4 rounded border-gray-300 text-gray-900"
+                className="w-4 h-4 rounded border-gray-300 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
-              <span className="text-gray-700">Skip duplicate records</span>
+              <span className="text-gray-700 dark:text-slate-200">Skip duplicate records</span>
             </label>
             <label className="flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={options.updateExisting}
                 onChange={(e) => setOptions({ ...options, updateExisting: e.target.checked })}
-                className="w-4 h-4 rounded border-gray-300 text-gray-900"
+                className="w-4 h-4 rounded border-gray-300 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
-              <span className="text-gray-700">Update existing records if found</span>
+              <span className="text-gray-700 dark:text-slate-200">Update existing records if found</span>
             </label>
             {selectedType === 'contacts' && (
               <div className="flex items-center gap-3">
-                <span className="text-gray-700">Default contact type:</span>
+                <span className="text-gray-700 dark:text-slate-200">Default contact type:</span>
                 <select
                   value={options.defaultType}
                   onChange={(e) => setOptions({ ...options, defaultType: e.target.value })}
@@ -257,27 +257,27 @@ export default function ImportPage() {
 
       {/* Results */}
       {results && (
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Import Results</h2>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Import Results</h2>
           
           <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="text-center p-4 bg-gray-50 rounded-lg">
-              <p className="text-3xl font-bold text-gray-900">{results.total}</p>
-              <p className="text-sm text-gray-500">Total Rows</p>
+            <div className="text-center p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{results.total}</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Total Rows</p>
             </div>
             <div className="text-center p-4 bg-green-50 rounded-lg">
               <p className="text-3xl font-bold text-green-600">{results.imported}</p>
-              <p className="text-sm text-gray-500">Imported</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Imported</p>
             </div>
             <div className="text-center p-4 bg-yellow-50 rounded-lg">
               <p className="text-3xl font-bold text-yellow-600">{results.skipped}</p>
-              <p className="text-sm text-gray-500">Skipped</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Skipped</p>
             </div>
           </div>
 
           {results.errors?.length > 0 && (
             <div>
-              <h3 className="font-medium text-gray-900 mb-2">Errors ({results.errors.length})</h3>
+              <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Errors ({results.errors.length})</h3>
               <div className="max-h-40 overflow-y-auto space-y-1">
                 {results.errors.map((err, i) => (
                   <div key={i} className="text-sm text-red-600 bg-red-50 px-3 py-1.5 rounded">
@@ -291,7 +291,7 @@ export default function ImportPage() {
           <div className="mt-6 flex gap-3">
             <button
               onClick={resetImport}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               Import More
             </button>

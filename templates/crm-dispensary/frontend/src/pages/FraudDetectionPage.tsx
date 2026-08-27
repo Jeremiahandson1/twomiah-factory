@@ -215,19 +215,19 @@ export default function FraudDetectionPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : alerts.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No alerts found</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No alerts found</div>
           ) : (
             <div className="overflow-x-auto border rounded-lg">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Severity</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Type</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Description</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Employee</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Time</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Severity</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Type</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Description</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Employee</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Time</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -254,7 +254,7 @@ export default function FraudDetectionPage() {
                           {alert.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{alert.createdAt ? new Date(alert.createdAt).toLocaleString() : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{alert.createdAt ? new Date(alert.createdAt).toLocaleString() : '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
                           {alert.status === 'open' && (
@@ -270,7 +270,7 @@ export default function FraudDetectionPage() {
                                 <CheckCircle className="w-3 h-3" />Resolve
                               </button>
                               <button onClick={() => handleAlertAction(alert.id, 'dismiss')}
-                                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 flex items-center gap-1">
+                                className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 flex items-center gap-1 dark:bg-slate-800 dark:text-slate-400">
                                 <XCircle className="w-3 h-3" />Dismiss
                               </button>
                             </>
@@ -297,11 +297,11 @@ export default function FraudDetectionPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : rules.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No detection rules configured</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No detection rules configured</div>
           ) : (
             <div className="space-y-3">
               {rules.map(rule => (
-                <div key={rule.id} className="border rounded-lg p-4 bg-white flex items-center justify-between">
+                <div key={rule.id} className="border rounded-lg p-4 bg-white flex items-center justify-between dark:bg-slate-900">
                   <div className="flex-1" onClick={() => openEditRule(rule)} role="button">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium">{rule.name}</span>
@@ -309,13 +309,13 @@ export default function FraudDetectionPage() {
                         {(rule.type || '').replace(/_/g, ' ')}
                       </span>
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-500 dark:text-slate-400">
                       Threshold: {rule.threshold} &middot; Period: {rule.period}
                       {rule.description && <span> &middot; {rule.description}</span>}
                     </div>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer ml-4">
-                    <span className="text-sm text-gray-500">{rule.active ? 'Active' : 'Inactive'}</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">{rule.active ? 'Active' : 'Inactive'}</span>
                     <div className={`relative w-10 h-5 rounded-full transition-colors ${rule.active ? 'bg-green-500' : 'bg-gray-300'}`}
                       onClick={() => toggleRule(rule.id, !rule.active)}>
                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${rule.active ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -338,30 +338,30 @@ export default function FraudDetectionPage() {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-500">Open Alerts</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">Open Alerts</span>
                     <AlertTriangle className="w-5 h-5 text-yellow-500" />
                   </div>
                   <div className="text-2xl font-bold">{dashboardData?.openAlerts || 0}</div>
                 </div>
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-500">Critical</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">Critical</span>
                     <ShieldAlert className="w-5 h-5 text-red-500" />
                   </div>
                   <div className="text-2xl font-bold text-red-600">{dashboardData?.criticalCount || 0}</div>
                 </div>
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-500">Est. Shrinkage</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">Est. Shrinkage</span>
                     <DollarSign className="w-5 h-5 text-orange-500" />
                   </div>
                   <div className="text-2xl font-bold">${(dashboardData?.estimatedShrinkage || 0).toLocaleString()}</div>
                 </div>
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-500">Top Flagged</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">Top Flagged</span>
                     <Users className="w-5 h-5 text-purple-500" />
                   </div>
                   <div className="text-lg font-bold truncate">{dashboardData?.topFlaggedEmployee || 'None'}</div>
@@ -369,7 +369,7 @@ export default function FraudDetectionPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="border rounded-lg bg-white p-6">
+                <div className="border rounded-lg bg-white p-6 dark:bg-slate-900">
                   <h3 className="font-semibold mb-4">Alerts Over Time</h3>
                   <div className="h-48 flex items-end justify-between gap-2 px-4">
                     {(dashboardData?.alertsByWeek || Array.from({ length: 8 }, () => Math.floor(Math.random() * 20))).map((v: number, i: number) => (
@@ -380,7 +380,7 @@ export default function FraudDetectionPage() {
                     ))}
                   </div>
                 </div>
-                <div className="border rounded-lg bg-white p-6">
+                <div className="border rounded-lg bg-white p-6 dark:bg-slate-900">
                   <h3 className="font-semibold mb-4">Shrinkage Trend</h3>
                   <div className="h-48 flex items-end justify-between gap-2 px-4">
                     {(dashboardData?.shrinkageByMonth || Array.from({ length: 6 }, () => Math.floor(Math.random() * 5000))).map((v: number, i: number) => (

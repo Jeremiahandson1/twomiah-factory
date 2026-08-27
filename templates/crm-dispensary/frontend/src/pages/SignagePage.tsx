@@ -130,10 +130,10 @@ export default function SignagePage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Digital Signage</h1>
-          <p className="text-gray-600">Manage menu boards, promos, and in-store displays</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Digital Signage</h1>
+          <p className="text-gray-600 dark:text-slate-400">Manage menu boards, promos, and in-store displays</p>
         </div>
-        <button onClick={loadScreens} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
+        <button onClick={loadScreens} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>
@@ -173,11 +173,11 @@ export default function SignagePage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {screens.map(screen => (
-                <div key={screen.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <div key={screen.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Monitor className="w-5 h-5 text-green-600" />
-                      <h3 className="font-semibold text-gray-900">{screen.name}</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-slate-100">{screen.name}</h3>
                     </div>
                     <div className="flex items-center gap-2">
                       {screen.online !== false ? (
@@ -200,7 +200,7 @@ export default function SignagePage() {
                       </span>
                     </div>
                     {screen.location && (
-                      <p className="text-gray-600">Location: {screen.location}</p>
+                      <p className="text-gray-600 dark:text-slate-400">Location: {screen.location}</p>
                     )}
                     {screen.lastHeartbeat && (
                       <p className="text-gray-400 text-xs flex items-center gap-1">
@@ -210,7 +210,7 @@ export default function SignagePage() {
                     )}
                   </div>
                   <div className="flex gap-2 mt-4 pt-3 border-t">
-                    <button onClick={() => openEditScreen(screen)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                    <button onClick={() => openEditScreen(screen)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
                       <Edit className="w-3 h-3" /> Edit
                     </button>
                     <button
@@ -229,7 +229,7 @@ export default function SignagePage() {
                 </div>
               ))}
               {screens.length === 0 && (
-                <div className="col-span-full text-center py-12 text-gray-500">
+                <div className="col-span-full text-center py-12 text-gray-500 dark:text-slate-400">
                   <Monitor className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No screens configured</p>
                   <p className="text-sm mt-1">Add a screen to get started with digital signage</p>
@@ -244,7 +244,7 @@ export default function SignagePage() {
       {tab === 'content' && (
         <div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Screen</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Select Screen</label>
             <select
               value={selectedScreen?.id || ''}
               onChange={(e) => {
@@ -252,7 +252,7 @@ export default function SignagePage() {
                 setSelectedScreen(s || null);
                 if (s) loadContent(s.id);
               }}
-              className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">Choose a screen...</option>
               {screens.map(s => (
@@ -270,38 +270,38 @@ export default function SignagePage() {
               ) : (
                 <div className="space-y-4">
                   {selectedScreen.type === 'menu_board' && (
-                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-                      <h3 className="font-semibold text-gray-900 mb-3">Menu Board Content</h3>
-                      <p className="text-sm text-gray-600 mb-4">Auto-populated from your product catalog. Items update automatically when products change.</p>
+                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+                      <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Menu Board Content</h3>
+                      <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Auto-populated from your product catalog. Items update automatically when products change.</p>
                       <div className="space-y-2">
                         {contentItems.map((item, i) => (
                           <div key={item.id || i} className="flex items-center justify-between py-2 border-b border-gray-50">
                             <div>
-                              <p className="text-sm font-medium text-gray-900">{item.name || item.productName}</p>
-                              <p className="text-xs text-gray-500">{item.category || '—'}</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{item.name || item.productName}</p>
+                              <p className="text-xs text-gray-500 dark:text-slate-400">{item.category || '—'}</p>
                             </div>
-                            <span className="text-sm font-medium text-gray-900">{item.price ? `$${Number(item.price).toFixed(2)}` : '—'}</span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{item.price ? `$${Number(item.price).toFixed(2)}` : '—'}</span>
                           </div>
                         ))}
                         {contentItems.length === 0 && (
-                          <p className="text-sm text-gray-500 py-4 text-center">No products to display</p>
+                          <p className="text-sm text-gray-500 py-4 text-center dark:text-slate-400">No products to display</p>
                         )}
                       </div>
                     </div>
                   )}
 
                   {selectedScreen.type === 'promo' && (
-                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-                      <h3 className="font-semibold text-gray-900 mb-3">Promotional Content</h3>
-                      <p className="text-sm text-gray-600 mb-4">Select active promotions to display on this screen.</p>
+                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+                      <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Promotional Content</h3>
+                      <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Select active promotions to display on this screen.</p>
                       <div className="space-y-2">
                         {contentItems.map((item, i) => (
                           <div key={item.id || i} className="flex items-center justify-between py-2 border-b border-gray-50">
                             <div className="flex items-center gap-3">
                               <Image className="w-8 h-8 text-gray-300" />
                               <div>
-                                <p className="text-sm font-medium text-gray-900">{item.title || item.name}</p>
-                                <p className="text-xs text-gray-500">{item.description || '—'}</p>
+                                <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{item.title || item.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-slate-400">{item.description || '—'}</p>
                               </div>
                             </div>
                             <span className={`px-2 py-0.5 text-xs rounded-full ${item.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -310,16 +310,16 @@ export default function SignagePage() {
                           </div>
                         ))}
                         {contentItems.length === 0 && (
-                          <p className="text-sm text-gray-500 py-4 text-center">No promotions configured</p>
+                          <p className="text-sm text-gray-500 py-4 text-center dark:text-slate-400">No promotions configured</p>
                         )}
                       </div>
                     </div>
                   )}
 
                   {selectedScreen.type === 'wait_time' && (
-                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-                      <h3 className="font-semibold text-gray-900 mb-3">Wait Time Display</h3>
-                      <p className="text-sm text-gray-600 mb-4">Automatically updates from the queue system.</p>
+                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+                      <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Wait Time Display</h3>
+                      <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Automatically updates from the queue system.</p>
                       <div className="grid grid-cols-2 gap-4 mt-4">
                         <div className="bg-green-50 rounded-lg p-4 text-center">
                           <p className="text-3xl font-bold text-green-700">{contentItems[0]?.currentWait || '—'}</p>
@@ -334,17 +334,17 @@ export default function SignagePage() {
                   )}
 
                   {selectedScreen.type === 'custom' && (
-                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-                      <h3 className="font-semibold text-gray-900 mb-3">Custom Content</h3>
+                    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+                      <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Custom Content</h3>
                       <div className="space-y-2">
                         {contentItems.map((item, i) => (
                           <div key={item.id || i} className="py-2 border-b border-gray-50">
-                            <p className="text-sm font-medium text-gray-900">{item.title || item.name || `Item ${i + 1}`}</p>
-                            <p className="text-xs text-gray-500">{item.content || item.description || '—'}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{item.title || item.name || `Item ${i + 1}`}</p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">{item.content || item.description || '—'}</p>
                           </div>
                         ))}
                         {contentItems.length === 0 && (
-                          <p className="text-sm text-gray-500 py-4 text-center">No content configured</p>
+                          <p className="text-sm text-gray-500 py-4 text-center dark:text-slate-400">No content configured</p>
                         )}
                       </div>
                     </div>
@@ -353,7 +353,7 @@ export default function SignagePage() {
               )}
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Monitor className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>Select a screen to manage its content</p>
             </div>
@@ -365,7 +365,7 @@ export default function SignagePage() {
       {tab === 'preview' && (
         <div>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Screen</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Select Screen</label>
             <select
               value={previewScreen?.id || ''}
               onChange={(e) => {
@@ -373,7 +373,7 @@ export default function SignagePage() {
                 setPreviewScreen(s || null);
                 if (s) loadPreview(s.id);
               }}
-              className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">Choose a screen...</option>
               {screens.map(s => (
@@ -389,7 +389,7 @@ export default function SignagePage() {
                   <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <Monitor className="w-16 h-16 text-gray-600 mb-4" />
+                    <Monitor className="w-16 h-16 text-gray-600 mb-4 dark:text-slate-400" />
                     <h3 className="text-xl font-bold mb-2">{previewScreen.name}</h3>
                     <p className="text-sm text-gray-400 mb-4">{screenTypeLabels[previewScreen.type] || previewScreen.type}</p>
                     {previewData?.html ? (
@@ -404,14 +404,14 @@ export default function SignagePage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-gray-500">Preview will appear here when content is configured</p>
+                      <p className="text-gray-500 dark:text-slate-400">Preview will appear here when content is configured</p>
                     )}
                   </>
                 )}
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Eye className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>Select a screen to preview its display</p>
             </div>
@@ -427,21 +427,21 @@ export default function SignagePage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Screen Name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Screen Name *</label>
             <input
               type="text"
               value={screenForm.name}
               onChange={(e) => setScreenForm({ ...screenForm, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Main Menu Board"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
             <select
               value={screenForm.type}
               onChange={(e) => setScreenForm({ ...screenForm, type: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="menu_board">Menu Board</option>
               <option value="promo">Promotional</option>
@@ -450,18 +450,18 @@ export default function SignagePage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
             <input
               type="text"
               value={screenForm.location}
               onChange={(e) => setScreenForm({ ...screenForm, location: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Front counter, Waiting room, etc."
             />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setScreenModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+          <button onClick={() => setScreenModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSaveScreen} disabled={saving}>
             {saving ? 'Saving...' : editingScreen ? 'Update' : 'Create'}
           </Button>

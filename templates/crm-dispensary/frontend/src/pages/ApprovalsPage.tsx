@@ -183,7 +183,7 @@ export default function ApprovalsPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : pendingRequests.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <ShieldCheck className="w-12 h-12 mx-auto mb-3 text-green-400" />
               No pending approval requests
             </div>
@@ -193,7 +193,7 @@ export default function ApprovalsPage() {
                 const typeInfo = TYPE_STYLES[req.type] || TYPE_STYLES.void;
                 const TypeIcon = typeInfo.icon;
                 return (
-                  <div key={req.id} className="border rounded-lg p-5 bg-white">
+                  <div key={req.id} className="border rounded-lg p-5 bg-white dark:bg-slate-900">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeInfo.bg}`}>
@@ -205,17 +205,17 @@ export default function ApprovalsPage() {
 
                     <div className="mb-3">
                       <div className="text-2xl font-bold">${Number(req.amount || 0).toFixed(2)}</div>
-                      <div className="text-sm text-gray-500">Requested by <span className="font-medium text-gray-700">{req.requesterName}</span></div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Requested by <span className="font-medium text-gray-700 dark:text-slate-200">{req.requesterName}</span></div>
                     </div>
 
                     {req.reason && (
-                      <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-3">
+                      <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-3 dark:text-slate-400 dark:bg-slate-900">
                         <span className="font-medium">Reason:</span> {req.reason}
                       </div>
                     )}
 
                     {req.type === 'void' && req.orderDetails && (
-                      <div className="text-sm text-gray-500 border-t pt-3 mb-3">
+                      <div className="text-sm text-gray-500 border-t pt-3 mb-3 dark:text-slate-400">
                         <div>Order #{req.orderDetails.orderNumber}</div>
                         <div>{req.orderDetails.items?.length || 0} items &middot; {req.orderDetails.customerName || 'Walk-in'}</div>
                       </div>
@@ -252,14 +252,14 @@ export default function ApprovalsPage() {
             <div className="overflow-x-auto border rounded-lg">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Type</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Amount</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Requester</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Reason</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Reviewed By</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Date</th>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Type</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Amount</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Requester</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Reason</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Reviewed By</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Date</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -272,19 +272,19 @@ export default function ApprovalsPage() {
                         </td>
                         <td className="px-4 py-3 text-sm font-medium">${Number(req.amount || 0).toFixed(2)}</td>
                         <td className="px-4 py-3 text-sm">{req.requesterName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{req.reason || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{req.reason || '-'}</td>
                         <td className="px-4 py-3">
                           <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-700'}`}>
                             {req.status}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm">{req.reviewerName || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{req.createdAt ? new Date(req.createdAt).toLocaleString() : '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{req.createdAt ? new Date(req.createdAt).toLocaleString() : '-'}</td>
                       </tr>
                     );
                   })}
                   {history.length === 0 && (
-                    <tr><td colSpan={7} className="text-center py-8 text-gray-500">No approval history</td></tr>
+                    <tr><td colSpan={7} className="text-center py-8 text-gray-500 dark:text-slate-400">No approval history</td></tr>
                   )}
                 </tbody>
               </table>
@@ -302,11 +302,11 @@ export default function ApprovalsPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white border rounded-lg p-6 space-y-5">
+            <div className="bg-white border rounded-lg p-6 space-y-5 dark:bg-slate-900">
               <label className="flex items-center justify-between cursor-pointer">
                 <div>
                   <div className="font-medium">Voids Require Approval</div>
-                  <div className="text-sm text-gray-500">All void transactions need manager approval</div>
+                  <div className="text-sm text-gray-500 dark:text-slate-400">All void transactions need manager approval</div>
                 </div>
                 <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.voidsRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
                   onClick={() => setConfig({ ...config, voidsRequireApproval: !config.voidsRequireApproval })}>
@@ -316,7 +316,7 @@ export default function ApprovalsPage() {
 
               <div>
                 <label className="block font-medium mb-1">Discount Threshold ($)</label>
-                <div className="text-sm text-gray-500 mb-2">Discounts above this amount require approval</div>
+                <div className="text-sm text-gray-500 mb-2 dark:text-slate-400">Discounts above this amount require approval</div>
                 <input type="number" value={config.discountThreshold} onChange={e => setConfig({ ...config, discountThreshold: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
@@ -324,7 +324,7 @@ export default function ApprovalsPage() {
               <label className="flex items-center justify-between cursor-pointer">
                 <div>
                   <div className="font-medium">Refunds Require Approval</div>
-                  <div className="text-sm text-gray-500">All refund transactions need manager approval</div>
+                  <div className="text-sm text-gray-500 dark:text-slate-400">All refund transactions need manager approval</div>
                 </div>
                 <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.refundsRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
                   onClick={() => setConfig({ ...config, refundsRequireApproval: !config.refundsRequireApproval })}>
@@ -335,7 +335,7 @@ export default function ApprovalsPage() {
               <label className="flex items-center justify-between cursor-pointer">
                 <div>
                   <div className="font-medium">Price Overrides Require Approval</div>
-                  <div className="text-sm text-gray-500">Manual price changes need manager approval</div>
+                  <div className="text-sm text-gray-500 dark:text-slate-400">Manual price changes need manager approval</div>
                 </div>
                 <div className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer ${config.priceOverridesRequireApproval ? 'bg-green-500' : 'bg-gray-300'}`}
                   onClick={() => setConfig({ ...config, priceOverridesRequireApproval: !config.priceOverridesRequireApproval })}>
@@ -345,7 +345,7 @@ export default function ApprovalsPage() {
 
               <div>
                 <label className="block font-medium mb-1">Expiration (minutes)</label>
-                <div className="text-sm text-gray-500 mb-2">Pending requests expire after this time</div>
+                <div className="text-sm text-gray-500 mb-2 dark:text-slate-400">Pending requests expire after this time</div>
                 <input type="number" value={config.expirationMinutes} onChange={e => setConfig({ ...config, expirationMinutes: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>

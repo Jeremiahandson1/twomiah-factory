@@ -38,36 +38,36 @@ export default function PortalEquipmentDetail() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/portal/equipment')} className="p-2 -ml-2 rounded-lg hover:bg-gray-100">
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
+          <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-slate-400" />
         </button>
-        <h1 className="text-xl font-bold text-gray-900 truncate">{eq.name}</h1>
+        <h1 className="text-xl font-bold text-gray-900 truncate dark:text-slate-100">{eq.name}</h1>
       </div>
 
       {/* Equipment Info Card */}
-      <div className="bg-white rounded-xl p-5 shadow-sm">
+      <div className="bg-white rounded-xl p-5 shadow-sm dark:bg-slate-900">
         <div className="space-y-3">
           {(eq.manufacturer || eq.model) && (
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider">Model</p>
-              <p className="font-medium text-gray-900">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</p>
             </div>
           )}
           {eq.serialNumber && (
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider">Serial Number</p>
-              <p className="font-mono text-gray-900">{eq.serialNumber}</p>
+              <p className="font-mono text-gray-900 dark:text-slate-100">{eq.serialNumber}</p>
             </div>
           )}
           {eq.purchaseDate && (
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider">Install Date</p>
-              <p className="text-gray-900">{formatDate(eq.purchaseDate)}</p>
+              <p className="text-gray-900 dark:text-slate-100">{formatDate(eq.purchaseDate)}</p>
             </div>
           )}
           {eq.location && (
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider">Location</p>
-              <p className="text-gray-900">{eq.location}</p>
+              <p className="text-gray-900 dark:text-slate-100">{eq.location}</p>
             </div>
           )}
         </div>
@@ -86,11 +86,11 @@ export default function PortalEquipmentDetail() {
 
       {/* Service History */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">Service History</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">Service History</h2>
         {data.history.length === 0 ? (
-          <div className="bg-white rounded-xl p-6 shadow-sm text-center">
+          <div className="bg-white rounded-xl p-6 shadow-sm text-center dark:bg-slate-900">
             <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-            <p className="text-gray-500">No service visits yet</p>
+            <p className="text-gray-500 dark:text-slate-400">No service visits yet</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -111,20 +111,20 @@ function ServiceVisitCard({ visit }: { visit: any }) {
   const flaggedCount = items.filter((i: any) => i.status !== 'pass').length;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl shadow-sm overflow-hidden dark:bg-slate-900">
       <div className="p-4">
         <div className="flex items-start justify-between">
           <div>
-            <p className="font-medium text-gray-900">{visit.title}</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">{visit.title}</p>
             <div className="flex items-center gap-2 mt-1 text-sm">
-              <span className="text-gray-500">
+              <span className="text-gray-500 dark:text-slate-400">
                 {visit.completedAt
                   ? formatDate(visit.completedAt)
                   : visit.scheduledDate
                     ? formatDate(visit.scheduledDate)
                     : ''}
               </span>
-              <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 capitalize dark:bg-slate-800 dark:text-slate-200">
                 {JOB_TYPE_LABELS[visit.jobType] || visit.jobType}
               </span>
             </div>
@@ -135,10 +135,10 @@ function ServiceVisitCard({ visit }: { visit: any }) {
         </div>
 
         {visit.techName && (
-          <p className="text-sm text-gray-500 mt-2">Technician: {visit.techName}</p>
+          <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">Technician: {visit.techName}</p>
         )}
         {visit.notes && (
-          <p className="text-sm text-gray-600 mt-2">{visit.notes}</p>
+          <p className="text-sm text-gray-600 mt-2 dark:text-slate-400">{visit.notes}</p>
         )}
       </div>
 
@@ -151,7 +151,7 @@ function ServiceVisitCard({ visit }: { visit: any }) {
           >
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-600" />
-              <span className="text-gray-700">
+              <span className="text-gray-700 dark:text-slate-200">
                 All systems checked
                 {flaggedCount > 0 && ` — ${flaggedCount} item${flaggedCount > 1 ? 's' : ''} flagged`}
               </span>
@@ -167,13 +167,13 @@ function ServiceVisitCard({ visit }: { visit: any }) {
                   {item.status === 'fail' && <X className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />}
                   {item.status === 'attention' && <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />}
                   <div>
-                    <span className="text-gray-700">{item.label}</span>
+                    <span className="text-gray-700 dark:text-slate-200">{item.label}</span>
                     {item.notes && <p className="text-xs text-gray-400 mt-0.5">{item.notes}</p>}
                   </div>
                 </div>
               ))}
               {checklist.overallNotes && (
-                <p className="text-xs text-gray-500 mt-2 pt-2 border-t">{checklist.overallNotes}</p>
+                <p className="text-xs text-gray-500 mt-2 pt-2 border-t dark:text-slate-400">{checklist.overallNotes}</p>
               )}
             </div>
           )}

@@ -48,21 +48,21 @@ export default function PortalQuotes() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Quotes</h1>
-        <p className="text-gray-600">Review and approve quotes from your contractor.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Quotes</h1>
+        <p className="text-gray-600 dark:text-slate-400">Review and approve quotes from your contractor.</p>
       </div>
 
       {quotes.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No quotes yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No quotes yet.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Pending quotes */}
           {pendingQuotes.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
                 <Clock className="w-5 h-5 text-orange-500" />
                 Awaiting Your Response ({pendingQuotes.length})
               </h2>
@@ -77,7 +77,7 @@ export default function PortalQuotes() {
           {/* Other quotes */}
           {otherQuotes.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">All Quotes</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">All Quotes</h2>
               <div className="space-y-3">
                 {otherQuotes.map((quote) => (
                   <QuoteCard key={quote.id} quote={quote} token={token} />
@@ -105,12 +105,12 @@ function QuoteCard({ quote, token, highlight }) {
             <FileText className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <p className="font-medium text-gray-900">{quote.name || quote.number}</p>
-            <p className="text-sm text-gray-500">{quote.number}</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">{quote.name || quote.number}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{quote.number}</p>
           </div>
         </div>
         <div className="text-right">
-          <p className="text-lg font-bold text-gray-900">
+          <p className="text-lg font-bold text-gray-900 dark:text-slate-100">
             ${Number(quote.total).toLocaleString()}
           </p>
           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLES[quote.status]}`}>
@@ -119,7 +119,7 @@ function QuoteCard({ quote, token, highlight }) {
         </div>
       </div>
       {quote.validUntil && (
-        <p className="mt-2 text-sm text-gray-500">
+        <p className="mt-2 text-sm text-gray-500 dark:text-slate-400">
           Valid until {formatDate(quote.validUntil)}
         </p>
       )}
@@ -202,7 +202,7 @@ export function PortalQuoteDetail() {
   }
 
   if (!quote) {
-    return <div className="text-center py-12 text-gray-500">Quote not found.</div>;
+    return <div className="text-center py-12 text-gray-500 dark:text-slate-400">Quote not found.</div>;
   }
 
   const canRespond = ['sent', 'viewed'].includes(quote.status);
@@ -213,13 +213,13 @@ export function PortalQuoteDetail() {
         ← Back to Quotes
       </Link>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
         {/* Header */}
         <div className="p-6 border-b">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{quote.name || quote.number}</h1>
-              <p className="text-gray-500">{quote.number}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{quote.name || quote.number}</h1>
+              <p className="text-gray-500 dark:text-slate-400">{quote.number}</p>
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[quote.status]}`}>
               {quote.status}
@@ -231,7 +231,7 @@ export function PortalQuoteDetail() {
         <div className="p-6 border-b">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-sm text-gray-500 border-b">
+              <tr className="text-left text-sm text-gray-500 border-b dark:text-slate-400">
                 <th className="pb-2">Description</th>
                 <th className="pb-2 text-right">Qty</th>
                 <th className="pb-2 text-right">Price</th>
@@ -252,21 +252,21 @@ export function PortalQuoteDetail() {
         </div>
 
         {/* Totals */}
-        <div className="p-6 bg-gray-50">
+        <div className="p-6 bg-gray-50 dark:bg-slate-900">
           <div className="max-w-xs ml-auto space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Subtotal</span>
+              <span className="text-gray-600 dark:text-slate-400">Subtotal</span>
               <span>${Number(quote.subtotal).toLocaleString()}</span>
             </div>
             {quote.taxAmount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax ({quote.taxRate}%)</span>
+                <span className="text-gray-600 dark:text-slate-400">Tax ({quote.taxRate}%)</span>
                 <span>${Number(quote.taxAmount).toLocaleString()}</span>
               </div>
             )}
             {quote.discount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Discount</span>
+                <span className="text-gray-600 dark:text-slate-400">Discount</span>
                 <span>-${Number(quote.discount).toLocaleString()}</span>
               </div>
             )}
@@ -280,7 +280,7 @@ export function PortalQuoteDetail() {
         {/* Actions */}
         {canRespond && (
           <div className="p-6 bg-orange-50 border-t">
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
               Please review this quote and provide your signature to approve.
             </p>
             <div className="flex gap-3">
@@ -295,7 +295,7 @@ export function PortalQuoteDetail() {
               <button
                 onClick={handleReject}
                 disabled={actionLoading}
-                className="flex items-center gap-2 px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
               >
                 <XCircle className="w-4 h-4" />
                 Decline

@@ -149,16 +149,16 @@ export default function DocumentsPage() {
         const Icon = getFileIcon(row.mimeType);
         return (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center dark:bg-slate-800">
               {row.thumbnailUrl ? (
                 <img src={row.thumbnailUrl as string} alt="" className="w-10 h-10 rounded-lg object-cover" />
               ) : (
-                <Icon className="w-5 h-5 text-gray-500" />
+                <Icon className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               )}
             </div>
             <div>
-              <p className="font-medium text-gray-900">{v as string}</p>
-              <p className="text-xs text-gray-500">{row.originalName as string}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{v as string}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">{row.originalName as string}</p>
             </div>
           </div>
         );
@@ -192,7 +192,7 @@ export default function DocumentsPage() {
       />
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 dark:bg-slate-900">
         <div className="grid md:grid-cols-4 gap-4">
           <input
             type="text"
@@ -223,7 +223,7 @@ export default function DocumentsPage() {
           </select>
           <button
             onClick={() => setFilter({ type: '', projectId: '', search: '' })}
-            className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+            className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400"
           >
             Clear Filters
           </button>
@@ -261,8 +261,8 @@ export default function DocumentsPage() {
       {/* Upload Modal */}
       <Modal isOpen={uploadModalOpen} onClose={() => { setUploadModalOpen(false); setSelectedFiles([]); }} title="Upload Document" size="md">
         <div className="space-y-4">
-          <div className="p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm text-gray-600">
+          <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+            <p className="text-sm text-gray-600 dark:text-slate-400">
               {selectedFiles.length} file(s) selected
             </p>
             <div className="mt-2 space-y-1">
@@ -330,14 +330,14 @@ export default function DocumentsPage() {
           <div className="relative max-w-4xl max-h-[90vh] overflow-auto" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
             <button
               onClick={() => setPreviewDoc(null)}
-              className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-lg z-10"
+              className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-lg z-10 dark:bg-slate-900"
             >
               <X className="w-5 h-5" />
             </button>
             {(previewDoc.mimeType as string)?.startsWith('image/') ? (
               <img src={previewDoc.url as string} alt={previewDoc.name as string} className="max-w-full max-h-[90vh] rounded-lg" />
             ) : (
-              <iframe src={previewDoc.url as string} className="w-[800px] h-[90vh] bg-white rounded-lg" />
+              <iframe src={previewDoc.url as string} className="w-[800px] h-[90vh] bg-white rounded-lg dark:bg-slate-900" />
             )}
           </div>
         </div>

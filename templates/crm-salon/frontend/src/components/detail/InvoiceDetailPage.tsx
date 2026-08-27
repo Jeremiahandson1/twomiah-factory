@@ -131,7 +131,7 @@ export default function InvoiceDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <p className="text-sm font-mono text-gray-500">{invoice.number}</p>
+            <p className="text-sm font-mono text-gray-500 dark:text-slate-400">{invoice.number}</p>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Invoice</h1>
             <StatusBadge status={invoice.status} />
           </div>
@@ -163,10 +163,10 @@ export default function InvoiceDetailPage() {
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Description</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Qty</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Price</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400">Description</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Qty</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -222,18 +222,18 @@ export default function InvoiceDetailPage() {
             <div className="space-y-3 text-sm">
               {invoice.contact && (
                 <div>
-                  <p className="text-gray-500">Client</p>
+                  <p className="text-gray-500 dark:text-slate-400">Client</p>
                   <Link to={`/crm/contacts/${invoice.contact.id}`} className="text-orange-500 hover:underline">{invoice.contact.name}</Link>
                 </div>
               )}
               {invoice.dueDate && (
                 <div>
-                  <p className="text-gray-500">Due Date</p>
+                  <p className="text-gray-500 dark:text-slate-400">Due Date</p>
                   <p className={new Date(invoice.dueDate) < new Date() && balance > 0 ? 'text-red-600 font-medium' : ''}>{formatDate(String(invoice.dueDate).split('T')[0] + 'T00:00:00')}</p>
                 </div>
               )}
               <div>
-                <p className="text-gray-500">Created</p>
+                <p className="text-gray-500 dark:text-slate-400">Created</p>
                 <p>{formatDate(invoice.createdAt)}</p>
               </div>
             </div>
@@ -241,7 +241,7 @@ export default function InvoiceDetailPage() {
 
           <div className={`rounded-lg p-6 text-center ${balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
             <p className={`text-3xl font-bold ${balanceColor}`}>${balance.toLocaleString()}</p>
-            <p className="text-gray-600">{balance > 0 ? 'Balance Due' : 'Paid in Full'}</p>
+            <p className="text-gray-600 dark:text-slate-400">{balance > 0 ? 'Balance Due' : 'Paid in Full'}</p>
           </div>
         </div>
       </div>

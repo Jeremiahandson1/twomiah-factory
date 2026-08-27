@@ -256,8 +256,8 @@ export default function LabelsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Labels</h1>
-          <p className="text-gray-600">Design and print product labels</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Labels</h1>
+          <p className="text-gray-600 dark:text-slate-400">Design and print product labels</p>
         </div>
       </div>
 
@@ -293,28 +293,28 @@ export default function LabelsPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : templates.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <div className="bg-white rounded-lg shadow-sm p-12 text-center dark:bg-slate-900">
               <Tag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 mb-2">No label templates yet</p>
+              <p className="text-gray-500 mb-2 dark:text-slate-400">No label templates yet</p>
               <p className="text-sm text-gray-400">Create your first template to start printing labels</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {templates.map(tpl => (
-                <div key={tpl.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <div key={tpl.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-gray-900">{tpl.name}</h3>
-                      <p className="text-xs text-gray-500 capitalize">{tpl.type} label</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-slate-100">{tpl.name}</h3>
+                      <p className="text-xs text-gray-500 capitalize dark:text-slate-400">{tpl.type} label</p>
                     </div>
                     <span className="text-xs text-gray-400">{tpl.width}" x {tpl.height}"</span>
                   </div>
                   <div className="flex flex-wrap gap-1 mb-3">
                     {(tpl.fields || []).slice(0, 5).map((f: string) => (
-                      <span key={f} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">{f}</span>
+                      <span key={f} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded dark:bg-slate-800 dark:text-slate-400">{f}</span>
                     ))}
                     {(tpl.fields || []).length > 5 && (
-                      <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded">+{tpl.fields.length - 5}</span>
+                      <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded dark:bg-slate-800 dark:text-slate-400">+{tpl.fields.length - 5}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
@@ -323,10 +323,10 @@ export default function LabelsPage() {
                     {tpl.showLogo && <span className="flex items-center gap-1"><Image className="w-3 h-3" /> Logo</span>}
                   </div>
                   <div className="flex gap-2 pt-3 border-t">
-                    <button onClick={() => previewTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                    <button onClick={() => previewTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
                       <Eye className="w-3 h-3" /> Preview
                     </button>
-                    <button onClick={() => openEditTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                    <button onClick={() => openEditTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
                       <Edit className="w-3 h-3" /> Edit
                     </button>
                     <button onClick={() => { setTemplateToDelete(tpl); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
@@ -344,16 +344,16 @@ export default function LabelsPage() {
       {tab === 'print' && (
         <div className="grid lg:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Print Settings</h3>
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+              <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Print Settings</h3>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Template</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Template</label>
                   <select
                     value={selectedTemplate}
                     onChange={(e) => setSelectedTemplate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   >
                     <option value="">Select template</option>
                     {templates.map(tpl => (
@@ -363,38 +363,38 @@ export default function LabelsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity per Product</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity per Product</label>
                   <input
                     type="number"
                     min={1}
                     value={printQuantity}
                     onChange={(e) => setPrintQuantity(parseInt(e.target.value) || 1)}
-                    className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">
                     Select Products ({selectedProductIds.length} selected)
                   </label>
-                  <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg">
+                  <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-lg dark:border-slate-700">
                     {loadingPrintProducts ? (
                       <div className="flex justify-center py-6">
                         <div className="w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
                       </div>
                     ) : printProducts.length === 0 ? (
-                      <p className="text-gray-500 text-sm text-center py-6">No products found</p>
+                      <p className="text-gray-500 text-sm text-center py-6 dark:text-slate-400">No products found</p>
                     ) : printProducts.map(product => (
                       <label key={product.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer border-b last:border-b-0">
                         <input
                           type="checkbox"
                           checked={selectedProductIds.includes(product.id)}
                           onChange={() => toggleProductSelection(product.id)}
-                          className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                          className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
-                          <p className="text-xs text-gray-500">{product.sku || product.category || ''}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{product.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">{product.sku || product.category || ''}</p>
                         </div>
                       </label>
                     ))}
@@ -416,10 +416,10 @@ export default function LabelsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Preview</h3>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Preview</h3>
             {generatedPreview ? (
-              <div className="border border-gray-200 rounded-lg p-4 overflow-auto max-h-[500px]">
+              <div className="border border-gray-200 rounded-lg p-4 overflow-auto max-h-[500px] dark:border-slate-700">
                 <div dangerouslySetInnerHTML={{ __html: generatedPreview }} />
               </div>
             ) : (
@@ -434,16 +434,16 @@ export default function LabelsPage() {
 
       {/* Print History Tab */}
       {tab === 'history' && (
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Template</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Products</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Labels</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Printed By</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Template</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Products</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Labels</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Printed By</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -455,17 +455,17 @@ export default function LabelsPage() {
                 </tr>
               ) : printJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No print jobs yet</td>
+                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No print jobs yet</td>
                 </tr>
               ) : printJobs.map(job => (
                 <tr key={job.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-900">
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                     {job.createdAt ? new Date(job.createdAt).toLocaleString() : '—'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{job.templateName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-600">{job.productCount || 0}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{job.labelCount || 0}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{job.printedBy || job.userName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{job.templateName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{job.productCount || 0}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">{job.labelCount || 0}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{job.printedBy || job.userName || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 text-xs rounded-full ${
                       job.status === 'completed' ? 'bg-green-100 text-green-700' :
@@ -631,7 +631,7 @@ export default function LabelsPage() {
         title="Label Preview"
         size="lg"
       >
-        <div className="border border-slate-600 rounded-lg p-6 bg-white overflow-auto max-h-96">
+        <div className="border border-slate-600 rounded-lg p-6 bg-white overflow-auto max-h-96 dark:bg-slate-900">
           <div dangerouslySetInnerHTML={{ __html: previewHtml }} />
         </div>
       </Modal>

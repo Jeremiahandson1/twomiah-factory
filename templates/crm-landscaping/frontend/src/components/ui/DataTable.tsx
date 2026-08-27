@@ -17,7 +17,7 @@ export function DataTable({
   const [openMenu, setOpenMenu] = useState(null);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
       {/* Search bar */}
       {onSearch && (
         <div className="p-4 border-b">
@@ -28,7 +28,7 @@ export function DataTable({
               placeholder={searchPlaceholder}
               value={searchValue}
               onChange={(e) => onSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
         </div>
@@ -37,7 +37,7 @@ export function DataTable({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-gray-50 border-b dark:bg-slate-900">
             <tr>
               {columns.map((col) => (
                 <th
@@ -59,7 +59,7 @@ export function DataTable({
               </tr>
             ) : data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                   {emptyMessage}
                 </td>
               </tr>
@@ -83,14 +83,14 @@ export function DataTable({
                             e.stopPropagation();
                             setOpenMenu(openMenu === row.id ? null : row.id);
                           }}
-                          className="p-1.5 rounded-md border border-gray-200 hover:bg-gray-100 hover:border-gray-300 text-gray-500 hover:text-gray-700 transition-colors"
+                          className="p-1.5 rounded-md border border-gray-200 hover:bg-gray-100 hover:border-gray-300 text-gray-500 hover:text-gray-700 transition-colors dark:border-slate-700 dark:text-slate-400"
                         >
-                          <MoreVertical className="w-4 h-4 text-gray-500" />
+                          <MoreVertical className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                         </button>
                         {openMenu === row.id && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border z-20 py-1">
+                            <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border z-20 py-1 dark:bg-slate-900">
                               {actions.map((action, idx) => (
                                 <button
                                   key={idx}
@@ -121,7 +121,7 @@ export function DataTable({
       {/* Pagination */}
       {pagination && pagination.pages > 1 && (
         <div className="px-4 py-3 border-t flex items-center justify-between">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-slate-400">
             Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
           </p>
           <div className="flex items-center gap-2">
@@ -132,7 +132,7 @@ export function DataTable({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-slate-400">
               Page {pagination.page} of {pagination.pages}
             </span>
             <button
@@ -181,8 +181,8 @@ export function PageHeader({ title, subtitle, action }) {
   return (
     <div className="flex items-center justify-between mb-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        {subtitle && <p className="text-gray-600">{subtitle}</p>}
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{title}</h1>
+        {subtitle && <p className="text-gray-600 dark:text-slate-400">{subtitle}</p>}
       </div>
       {action}
     </div>

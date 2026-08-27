@@ -60,29 +60,29 @@ export default function PortalDashboard() {
     <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
       {/* Welcome */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
-        <p className="text-gray-500 text-sm mt-0.5">Here's an overview of your account</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Welcome back, {firstName}</h1>
+        <p className="text-gray-500 text-sm mt-0.5 dark:text-slate-400">Here's an overview of your account</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-3">
-        <Link to="/portal/equipment" className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+        <Link to="/portal/equipment" className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow dark:bg-slate-900">
           <Wrench className="w-6 h-6 text-blue-500 mb-2" />
-          <p className="text-2xl font-bold text-gray-900">{data.equipmentCount}</p>
-          <p className="text-sm text-gray-500">Equipment Units</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{data.equipmentCount}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Equipment Units</p>
         </Link>
 
-        <Link to="/portal/agreements" className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+        <Link to="/portal/agreements" className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow dark:bg-slate-900">
           <Calendar className="w-6 h-6 text-green-500 mb-2" />
           {data.nextVisitDate ? (
             <>
-              <p className="text-lg font-bold text-gray-900">{new Date(data.nextVisitDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
-              <p className="text-sm text-gray-500">Next Service</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{new Date(data.nextVisitDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Next Service</p>
             </>
           ) : (
             <>
-              <p className="text-lg font-bold text-gray-900">{data.agreementCount}</p>
-              <p className="text-sm text-gray-500">Active Plans</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{data.agreementCount}</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Active Plans</p>
             </>
           )}
         </Link>
@@ -116,9 +116,9 @@ export default function PortalDashboard() {
 
       {/* Company Contact */}
       {data.company && (
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Contact Us</h3>
-          <p className="font-medium text-gray-900">{data.company.name}</p>
+          <p className="font-medium text-gray-900 dark:text-slate-100">{data.company.name}</p>
           {data.company.phone && (
             <a href={`tel:${data.company.phone}`} className="text-sm text-blue-600 hover:underline block mt-1">{data.company.phone}</a>
           )}

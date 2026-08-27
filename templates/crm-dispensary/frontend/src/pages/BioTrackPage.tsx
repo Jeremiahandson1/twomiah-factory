@@ -142,13 +142,13 @@ export default function BioTrackPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">BioTrack Compliance</h1>
-          <p className="text-gray-600">Track-and-trace integration with BioTrack THC</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">BioTrack Compliance</h1>
+          <p className="text-gray-600 dark:text-slate-400">Track-and-trace integration with BioTrack THC</p>
         </div>
       </div>
 
       {/* Sync Status Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center justify-between">
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center justify-between dark:bg-slate-900">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             {syncStatus?.status === 'success' ? (
@@ -163,11 +163,11 @@ export default function BioTrackPage() {
             </span>
           </div>
           {syncStatus?.lastSyncAt && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 dark:text-slate-400">
               Last sync: {new Date(syncStatus.lastSyncAt).toLocaleString()}
             </span>
           )}
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-slate-400">
             Auto-sync: {config.autoSync ? 'On' : 'Off'}
           </span>
         </div>
@@ -197,57 +197,57 @@ export default function BioTrackPage() {
 
       {/* Config Tab */}
       {tab === 'config' && (
-        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6">
+        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Username</label>
             <input
               type="text"
               value={config.username}
               onChange={(e) => setConfig({ ...config, username: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Enter BioTrack username"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Password</label>
             <input
               type="password"
               value={config.password}
               onChange={(e) => setConfig({ ...config, password: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Enter BioTrack password"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">License Number</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">License Number</label>
             <input
               type="text"
               value={config.licenseNumber}
               onChange={(e) => setConfig({ ...config, licenseNumber: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="e.g., 412345"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">API URL</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">API URL</label>
             <input
               type="url"
               value={config.apiUrl}
               onChange={(e) => setConfig({ ...config, apiUrl: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="https://wslcb.mjtraceability.com/serverjson.asp"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State</label>
             <select
               value={config.state}
               onChange={(e) => setConfig({ ...config, state: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">Select state</option>
               {US_STATES.map(s => (
@@ -262,19 +262,19 @@ export default function BioTrackPage() {
                 type="checkbox"
                 checked={config.autoSync}
                 onChange={(e) => setConfig({ ...config, autoSync: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
               />
-              <span className="text-sm font-medium text-gray-700">Enable Auto-Sync</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Enable Auto-Sync</span>
             </label>
             {config.autoSync && (
               <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Interval (min):</label>
+                <label className="text-sm text-gray-600 dark:text-slate-400">Interval (min):</label>
                 <input
                   type="number"
                   min={5}
                   value={config.syncInterval}
                   onChange={(e) => setConfig({ ...config, syncInterval: parseInt(e.target.value) || 60 })}
-                  className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             )}
@@ -300,16 +300,16 @@ export default function BioTrackPage() {
               {syncing ? 'Syncing...' : 'Manual Sync'}
             </Button>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Records</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Timestamp</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Records</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Duration</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -321,14 +321,14 @@ export default function BioTrackPage() {
                   </tr>
                 ) : syncLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No sync history</td>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No sync history</td>
                   </tr>
                 ) : syncLogs.map(log => (
                   <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{log.syncType || log.type || 'Full'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{log.syncType || log.type || 'Full'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 text-xs rounded-full ${
                         log.status === 'success' ? 'bg-green-100 text-green-700' :
@@ -339,9 +339,9 @@ export default function BioTrackPage() {
                         {log.status || 'unknown'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{log.recordCount ?? '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{log.duration ? `${log.duration}s` : '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">{log.details || log.error || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{log.recordCount ?? '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{log.duration ? `${log.duration}s` : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs dark:text-slate-400">{log.details || log.error || '—'}</td>
                   </tr>
                 ))}
               </tbody>

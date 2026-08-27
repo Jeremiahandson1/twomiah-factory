@@ -209,7 +209,7 @@ function NewExperimentModal({ onClose, onCreated }: { onClose: () => void; onCre
       <div className="bg-white dark:bg-slate-900 rounded-lg p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 dark:text-white">New A/B test</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700"><X className="w-4 h-4" /></button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-slate-400"><X className="w-4 h-4" /></button>
         </div>
         <form onSubmit={submit} className="space-y-3">
           <div>

@@ -83,10 +83,10 @@ export default function WellnessPlansPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
             <HeartPulse className="w-6 h-6 text-rose-500" /> Wellness Plans
           </h1>
-          <p className="text-gray-500">Recurring preventive-care memberships</p>
+          <p className="text-gray-500 dark:text-slate-400">Recurring preventive-care memberships</p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
           <Plus className="w-4 h-4" /> New Plan
@@ -101,30 +101,30 @@ export default function WellnessPlansPage() {
         <>
           {/* Plans */}
           {plans.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No wellness plans yet</div>
+            <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No wellness plans yet</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {plans.map((p) => (
-                <div key={p.id} className="bg-white rounded-xl border p-5 flex flex-col">
+                <div key={p.id} className="bg-white rounded-xl border p-5 flex flex-col dark:bg-slate-900">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-semibold text-gray-900">{p.name || 'Untitled Plan'}</p>
-                      {p.species && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full capitalize">{p.species}</span>}
+                      <p className="font-semibold text-gray-900 dark:text-slate-100">{p.name || 'Untitled Plan'}</p>
+                      {p.species && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{p.species}</span>}
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  {p.description && <p className="text-sm text-gray-500 mt-2">{p.description}</p>}
+                  {p.description && <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">{p.description}</p>}
                   <div className="flex items-baseline gap-3 mt-3">
-                    <span className="text-2xl font-bold text-gray-900">{money(p.monthlyPrice)}</span>
+                    <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{money(p.monthlyPrice)}</span>
                     <span className="text-sm text-gray-400">/mo</span>
                     {p.annualPrice ? <span className="text-sm text-gray-400">· {money(p.annualPrice)}/yr</span> : null}
                   </div>
                   {(p.benefits || []).length > 0 && (
                     <ul className="mt-3 space-y-1">
                       {(p.benefits || []).map((b, i) => (
-                        <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                        <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-slate-400">
                           <Check className="w-4 h-4 text-teal-500 flex-shrink-0 mt-0.5" /> {b}
                         </li>
                       ))}
@@ -140,17 +140,17 @@ export default function WellnessPlansPage() {
           )}
 
           {/* Enrollments */}
-          <div className="bg-white rounded-xl border p-5">
-            <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
               <Users className="w-4 h-4 text-teal-500" /> Enrollments
-              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full">{enrollments.length}</span>
+              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
             </h2>
             {enrollments.length === 0 ? (
               <p className="text-sm text-gray-400 py-6 text-center">No active enrollments</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-500 text-left">
+                  <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
                     <tr>
                       <th className="px-4 py-3 font-medium">Patient</th>
                       <th className="px-4 py-3 font-medium">Owner</th>
@@ -162,12 +162,12 @@ export default function WellnessPlansPage() {
                   <tbody className="divide-y">
                     {enrollments.map((e) => (
                       <tr key={e.id}>
-                        <td className="px-4 py-3 font-medium text-gray-900">{e.patientName || '—'}</td>
-                        <td className="px-4 py-3 text-gray-600">{e.ownerName || '—'}</td>
-                        <td className="px-4 py-3 text-gray-600">{e.planName || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500">{fmtDate(e.startDate)}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{e.patientName || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.ownerName || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.planName || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{fmtDate(e.startDate)}</td>
                         <td className="px-4 py-3">
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">{e.status || 'active'}</span>
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{e.status || 'active'}</span>
                         </td>
                       </tr>
                     ))}
@@ -235,43 +235,43 @@ function PlanModal({ plan, onSave, onClose }: { plan: WellnessPlan | null; onSav
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{plan ? 'Edit Plan' : 'New Plan'}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Species</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Species</label>
                 <select value={form.species} onChange={(e) => set('species', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
                   {SPECIES.map((s) => <option key={s} value={s}>{s || 'Any'}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Monthly ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Monthly ($)</label>
                 <input type="number" step="any" value={form.monthlyPrice} onChange={(e) => set('monthlyPrice', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Annual ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Annual ($)</label>
                 <input type="number" step="any" value={form.annualPrice} onChange={(e) => set('annualPrice', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Benefits <span className="text-xs text-gray-400">(one per line)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Benefits <span className="text-xs text-gray-400">(one per line)</span></label>
               <textarea value={form.benefits} onChange={(e) => set('benefits', e.target.value)} rows={4} className="w-full px-3 py-2 border rounded-lg" placeholder={'2 wellness exams\nCore vaccines\n10% off services'} />
             </div>
             <div className="flex items-center gap-2">
               <input id="active" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
-              <label htmlFor="active" className="text-sm font-medium text-gray-700">Active</label>
+              <label htmlFor="active" className="text-sm font-medium text-gray-700 dark:text-slate-200">Active</label>
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>

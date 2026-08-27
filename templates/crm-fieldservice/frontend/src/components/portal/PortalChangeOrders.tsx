@@ -46,21 +46,21 @@ export default function PortalChangeOrders() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Change Orders</h1>
-        <p className="text-gray-600">Review and approve change orders for your projects.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Change Orders</h1>
+        <p className="text-gray-600 dark:text-slate-400">Review and approve change orders for your projects.</p>
       </div>
 
       {changeOrders.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No change orders.</p>
+          <p className="text-gray-500 dark:text-slate-400">No change orders.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Pending */}
           {pendingOrders.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
                 <Clock className="w-5 h-5 text-orange-500" />
                 Awaiting Your Approval ({pendingOrders.length})
               </h2>
@@ -75,7 +75,7 @@ export default function PortalChangeOrders() {
           {/* Other */}
           {otherOrders.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">All Change Orders</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">All Change Orders</h2>
               <div className="space-y-3">
                 {otherOrders.map((co) => (
                   <ChangeOrderCard key={co.id} changeOrder={co} token={token} />
@@ -105,8 +105,8 @@ function ChangeOrderCard({ changeOrder, token, highlight }) {
             <ClipboardList className={`w-5 h-5 ${isAddition ? 'text-red-600' : 'text-green-600'}`} />
           </div>
           <div>
-            <p className="font-medium text-gray-900">{changeOrder.title || changeOrder.number}</p>
-            <p className="text-sm text-gray-500">
+            <p className="font-medium text-gray-900 dark:text-slate-100">{changeOrder.title || changeOrder.number}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               {changeOrder.number} • {changeOrder.project?.name}
             </p>
           </div>
@@ -199,7 +199,7 @@ export function PortalChangeOrderDetail() {
   }
 
   if (!changeOrder) {
-    return <div className="text-center py-12 text-gray-500">Change order not found.</div>;
+    return <div className="text-center py-12 text-gray-500 dark:text-slate-400">Change order not found.</div>;
   }
 
   const canRespond = changeOrder.status === 'pending';
@@ -211,15 +211,15 @@ export function PortalChangeOrderDetail() {
         ← Back to Change Orders
       </Link>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
         {/* Header */}
         <div className="p-6 border-b">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{changeOrder.title || changeOrder.number}</h1>
-              <p className="text-gray-500">{changeOrder.number}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{changeOrder.title || changeOrder.number}</h1>
+              <p className="text-gray-500 dark:text-slate-400">{changeOrder.number}</p>
               {changeOrder.project && (
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
                   Project: {changeOrder.project.name}
                 </p>
               )}
@@ -235,7 +235,7 @@ export function PortalChangeOrderDetail() {
           <div className="flex items-center gap-3">
             <AlertTriangle className={`w-6 h-6 ${isAddition ? 'text-red-600' : 'text-green-600'}`} />
             <div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-gray-600 dark:text-slate-400">
                 {isAddition ? 'This change order will ADD to your project cost' : 'This change order will REDUCE your project cost'}
               </p>
               <p className={`text-2xl font-bold ${isAddition ? 'text-red-600' : 'text-green-600'}`}>
@@ -247,8 +247,8 @@ export function PortalChangeOrderDetail() {
 
         {/* Description */}
         <div className="p-6 border-b">
-          <h3 className="font-medium text-gray-900 mb-2">Description</h3>
-          <p className="text-gray-700 whitespace-pre-wrap">
+          <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Description</h3>
+          <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">
             {changeOrder.description || 'No description provided.'}
           </p>
         </div>
@@ -256,23 +256,23 @@ export function PortalChangeOrderDetail() {
         {/* Reason */}
         {changeOrder.reason && (
           <div className="p-6 border-b">
-            <h3 className="font-medium text-gray-900 mb-2">Reason for Change</h3>
-            <p className="text-gray-700">{changeOrder.reason}</p>
+            <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Reason for Change</h3>
+            <p className="text-gray-700 dark:text-slate-200">{changeOrder.reason}</p>
           </div>
         )}
 
         {/* Schedule impact */}
         {changeOrder.scheduleImpact && (
           <div className="p-6 border-b">
-            <h3 className="font-medium text-gray-900 mb-2">Schedule Impact</h3>
-            <p className="text-gray-700">{changeOrder.scheduleImpact}</p>
+            <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Schedule Impact</h3>
+            <p className="text-gray-700 dark:text-slate-200">{changeOrder.scheduleImpact}</p>
           </div>
         )}
 
         {/* Actions */}
         {canRespond && (
           <div className="p-6 bg-orange-50 border-t">
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
               Please review this change order carefully. Your signature is required to approve.
             </p>
             <div className="flex gap-3">
@@ -287,7 +287,7 @@ export function PortalChangeOrderDetail() {
               <button
                 onClick={handleReject}
                 disabled={actionLoading}
-                className="flex items-center gap-2 px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
               >
                 <XCircle className="w-4 h-4" />
                 Decline

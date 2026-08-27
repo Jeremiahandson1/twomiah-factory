@@ -85,12 +85,12 @@ export default function CrewsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Crews</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{crews.length} {crews.length === 1 ? 'crew' : 'crews'}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Crews</h1>
+            <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{crews.length} {crews.length === 1 ? 'crew' : 'crews'}</p>
           </div>
           <button
             onClick={openCreate}
@@ -102,28 +102,28 @@ export default function CrewsPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {crews.map((crew) => (
-            <div key={crew.id} className="bg-white rounded-xl shadow-sm border p-5">
+            <div key={crew.id} className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                     <Users className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{crew.name}</h3>
+                    <h3 className="font-semibold text-gray-900 dark:text-slate-100">{crew.name}</h3>
                     {crew.isSubcontractor && (
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Subcontractor</span>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50">Edit</button>
+                  <button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>
                   <button onClick={() => deleteCrew(crew)} className="px-2 py-0.5 text-xs font-medium border border-red-200 text-red-600 rounded hover:bg-red-50">Delete</button>
                 </div>
               </div>
 
               <div className="space-y-2 text-sm">
                 {crew.foremanName && (
-                  <div className="flex items-center gap-2 text-gray-700">
+                  <div className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
                     <HardHat className="w-4 h-4 text-gray-400" />
                     <span>{crew.foremanName}</span>
                   </div>
@@ -134,7 +134,7 @@ export default function CrewsPage() {
                     <span>{crew.foremanPhone}</span>
                   </a>
                 )}
-                <div className="flex items-center gap-4 pt-2 border-t text-gray-500">
+                <div className="flex items-center gap-4 pt-2 border-t text-gray-500 dark:text-slate-400">
                   <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5" />
                     {crew.size || '—'} members
@@ -159,39 +159,39 @@ export default function CrewsPage() {
       {/* Create Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Crew' : 'Add Crew'}</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{editingId ? 'Edit Crew' : 'Add Crew'}</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Crew Name *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew Name *</label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Foreman Name</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Foreman Name</label>
                 <input value={form.foremanName} onChange={(e) => setForm({ ...form, foremanName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Foreman Phone</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Foreman Phone</label>
                 <input value={form.foremanPhone} onChange={(e) => setForm({ ...form, foremanPhone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Crew Size</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew Size</label>
                 <input type="number" value={form.crewSize} onChange={(e) => setForm({ ...form, crewSize: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200">
                 <input type="checkbox" checked={form.isSubcontractor} onChange={(e) => setForm({ ...form, isSubcontractor: e.target.checked })} className="rounded" />
                 Subcontractor
               </label>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Notes</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Crew'}
               </button>

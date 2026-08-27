@@ -62,8 +62,8 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.firstName}!</h1>
-        <p className="text-gray-600">{company?.name} Dashboard</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Welcome back, {user?.firstName}!</h1>
+        <p className="text-gray-600 dark:text-slate-400">{company?.name} Dashboard</p>
       </div>
 
       {/* Stats Grid */}
@@ -72,36 +72,36 @@ export default function DashboardPage() {
           <Link
             key={stat.label}
             to={stat.link}
-            className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow dark:bg-slate-900"
           >
             <div className={`w-10 h-10 rounded-lg ${colorClasses[stat.color]} flex items-center justify-center mb-3`}>
               <stat.icon className="w-5 h-5" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-            <p className="text-sm text-gray-500">{stat.label}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.value}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{stat.label}</p>
           </Link>
         ))}
       </div>
 
       {/* Today's Dispatch Summary */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Today's Dispatch</h2>
+      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Today's Dispatch</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center p-3 bg-blue-50 rounded-lg">
             <p className="text-2xl font-bold text-blue-600">{stats?.jobs?.today || 0}</p>
-            <p className="text-sm text-gray-600">Scheduled</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400">Scheduled</p>
           </div>
           <div className="text-center p-3 bg-yellow-50 rounded-lg">
             <p className="text-2xl font-bold text-yellow-600">{stats?.jobs?.byStatus?.dispatched || 0}</p>
-            <p className="text-sm text-gray-600">Dispatched</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400">Dispatched</p>
           </div>
           <div className="text-center p-3 bg-purple-50 rounded-lg">
             <p className="text-2xl font-bold text-purple-600">{stats?.jobs?.byStatus?.in_progress || 0}</p>
-            <p className="text-sm text-gray-600">In Progress</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400">In Progress</p>
           </div>
           <div className="text-center p-3 bg-green-50 rounded-lg">
             <p className="text-2xl font-bold text-green-600">{stats?.jobs?.byStatus?.completed_today || 0}</p>
-            <p className="text-sm text-gray-600">Completed Today</p>
+            <p className="text-sm text-gray-600 dark:text-slate-400">Completed Today</p>
           </div>
         </div>
       </div>
@@ -109,16 +109,16 @@ export default function DashboardPage() {
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Recent Service Calls */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Service Calls</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Service Calls</h2>
             <Link to="/crm/jobs" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {activity?.recentJobs?.length > 0 ? activity.recentJobs.map((job) => (
               <div key={job.id} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{job.title}</p>
-                <p className="text-sm text-gray-500">{job.number}</p>
+                <p className="font-medium text-gray-900 truncate dark:text-slate-100">{job.title}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{job.number}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   job.status === 'completed' ? 'bg-green-100 text-green-700' :
                   job.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
@@ -128,22 +128,22 @@ export default function DashboardPage() {
                 </span>
               </div>
             )) : (
-              <p className="p-4 text-gray-500 text-sm">No recent service calls</p>
+              <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No recent service calls</p>
             )}
           </div>
         </div>
 
         {/* Recent Quotes */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Quotes</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Quotes</h2>
             <Link to="/crm/quotes" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {activity?.recentQuotes?.length > 0 ? activity.recentQuotes.map((quote) => (
               <div key={quote.id} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{quote.name}</p>
-                <p className="text-sm text-gray-500">{quote.number} • ${Number(quote.total).toLocaleString()}</p>
+                <p className="font-medium text-gray-900 truncate dark:text-slate-100">{quote.name}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{quote.number} • ${Number(quote.total).toLocaleString()}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   quote.status === 'approved' ? 'bg-green-100 text-green-700' :
                   quote.status === 'sent' ? 'bg-blue-100 text-blue-700' :
@@ -154,22 +154,22 @@ export default function DashboardPage() {
                 </span>
               </div>
             )) : (
-              <p className="p-4 text-gray-500 text-sm">No recent quotes</p>
+              <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No recent quotes</p>
             )}
           </div>
         </div>
 
         {/* Recent Invoices */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Invoices</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Invoices</h2>
             <Link to="/crm/invoices" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {activity?.recentInvoices?.length > 0 ? activity.recentInvoices.map((invoice) => (
               <div key={invoice.id} className="p-4">
-                <p className="font-medium text-gray-900">{invoice.number}</p>
-                <p className="text-sm text-gray-500">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{invoice.number}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   ${Number(invoice.total).toLocaleString()}
                   {Number(invoice.balance) > 0 && (
                     <span className="text-orange-500"> (${Number(invoice.balance).toLocaleString()} due)</span>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
                 </span>
               </div>
             )) : (
-              <p className="p-4 text-gray-500 text-sm">No recent invoices</p>
+              <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No recent invoices</p>
             )}
           </div>
         </div>

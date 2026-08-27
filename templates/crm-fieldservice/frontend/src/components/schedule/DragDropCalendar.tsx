@@ -137,7 +137,7 @@ export default function DragDropCalendar() {
   };
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       {/* Header */}
       <div className="p-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -262,7 +262,7 @@ function MonthView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDra
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
+          <div key={day} className="p-2 text-center text-sm font-medium text-gray-500 dark:text-slate-400">
             {day}
           </div>
         ))}
@@ -303,7 +303,7 @@ function MonthView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDra
                   />
                 ))}
                 {dayJobs.length > 3 && (
-                  <div className="text-xs text-gray-500 px-1">
+                  <div className="text-xs text-gray-500 px-1 dark:text-slate-400">
                     +{dayJobs.length - 3} more
                   </div>
                 )}
@@ -354,7 +354,7 @@ function WeekView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDrag
           >
             {/* Day header */}
             <div className={`p-3 text-center border-b ${isToday ? 'bg-orange-50' : ''}`}>
-              <div className="text-xs text-gray-500 uppercase">
+              <div className="text-xs text-gray-500 uppercase dark:text-slate-400">
                 {date.toLocaleDateString('en-US', { weekday: 'short' })}
               </div>
               <div className={`text-lg font-semibold ${
@@ -405,7 +405,7 @@ function DayView({ currentDate, jobs, onDragStart }) {
 
         return (
           <div key={hour} className="flex border-b min-h-16">
-            <div className="w-20 p-2 text-sm text-gray-500 text-right border-r flex-shrink-0">
+            <div className="w-20 p-2 text-sm text-gray-500 text-right border-r flex-shrink-0 dark:text-slate-400">
               {timeLabel}
             </div>
             <div className="flex-1 p-2">
@@ -470,9 +470,9 @@ function JobChip({ job, onDragStart, compact = false, detailed = false }) {
       <div className="flex items-start gap-2">
         <GripVertical className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm text-gray-900 truncate">{job.title}</p>
+          <p className="font-medium text-sm text-gray-900 truncate dark:text-slate-100">{job.title}</p>
           {detailed && (
-            <div className="mt-1 space-y-1 text-xs text-gray-500">
+            <div className="mt-1 space-y-1 text-xs text-gray-500 dark:text-slate-400">
               {time && (
                 <div className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
@@ -494,7 +494,7 @@ function JobChip({ job, onDragStart, compact = false, detailed = false }) {
             </div>
           )}
           {!detailed && time && (
-            <p className="text-xs text-gray-500">{time}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{time}</p>
           )}
         </div>
       </div>

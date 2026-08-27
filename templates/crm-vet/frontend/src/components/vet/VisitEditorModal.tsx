@@ -102,7 +102,7 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
 
   const numField = (k: string, label: string) => (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
       <input
         type="number"
         step="any"
@@ -115,7 +115,7 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
 
   const soapField = (k: string, label: string, placeholder: string) => (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
       <textarea
         value={(form as Record<string, string>)[k]}
         onChange={(e) => set(k, e.target.value)}
@@ -130,7 +130,7 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Stethoscope className="w-5 h-5 text-purple-500" />
@@ -142,18 +142,18 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Visit Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Visit Date</label>
                 <input type="date" value={form.visitDate} onChange={(e) => set('visitDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reason</label>
                 <input type="text" value={form.reason} onChange={(e) => set('reason', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
 
             {/* Vitals */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Vitals</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">Vitals</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {numField('weightLb', 'Weight (lb)')}
                 {numField('temperatureF', 'Temp (°F)')}
@@ -164,7 +164,7 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
 
             {/* SOAP */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">SOAP</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">SOAP</h3>
               <div className="space-y-3">
                 {soapField('subjective', 'Subjective', "Owner's report / history")}
                 {soapField('objective', 'Objective', 'Exam findings')}
@@ -174,22 +174,22 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Diagnoses <span className="text-xs text-gray-400">(comma-separated)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Diagnoses <span className="text-xs text-gray-400">(comma-separated)</span></label>
               <input type="text" value={form.diagnoses} onChange={(e) => set('diagnoses', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Otitis externa, Dental disease" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Treatments</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Treatments</label>
               <textarea value={form.treatments} onChange={(e) => set('treatments', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Total ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Total ($)</label>
                 <input type="number" step="any" value={form.total} onChange={(e) => set('total', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 

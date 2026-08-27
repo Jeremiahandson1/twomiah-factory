@@ -99,10 +99,10 @@ export default function SEOPagesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">SEO Product Pages</h1>
-          <p className="text-gray-600">Manage product page SEO and search appearance</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">SEO Product Pages</h1>
+          <p className="text-gray-600 dark:text-slate-400">Manage product page SEO and search appearance</p>
         </div>
-        <button onClick={loadPages} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
+        <button onClick={loadPages} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>
@@ -140,24 +140,24 @@ export default function SEOPagesPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Slug</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Meta Title</th>
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Published</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Indexed</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Slug</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Meta Title</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Published</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Last Indexed</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {pages.map(page => (
                     <tr key={page.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{page.productName || page.product || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 font-mono">{page.slug || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{page.metaTitle || '—'}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{page.productName || page.product || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 font-mono dark:text-slate-400">{page.slug || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate dark:text-slate-400">{page.metaTitle || '—'}</td>
                       <td className="px-4 py-3 text-center">
                         {page.published ? (
                           <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
@@ -165,7 +165,7 @@ export default function SEOPagesPage() {
                           <XCircle className="w-4 h-4 text-gray-300 mx-auto" />
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {page.lastIndexed ? formatDate(page.lastIndexed) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -180,7 +180,7 @@ export default function SEOPagesPage() {
                   ))}
                   {pages.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                         <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p>No SEO pages generated yet</p>
                         <p className="text-sm mt-1">Click "Generate All" to create pages for your products</p>
@@ -197,12 +197,12 @@ export default function SEOPagesPage() {
       {/* Sitemap Tab */}
       {tab === 'sitemap' && (
         <div className="max-w-xl space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
               <Globe className="w-5 h-5 text-green-600" />
               Sitemap
             </h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
               Your sitemap is automatically generated from published SEO pages.
             </p>
             <div className="flex items-center gap-3">
@@ -228,11 +228,11 @@ export default function SEOPagesPage() {
       {tab === 'preview' && (
         <div className="space-y-6">
           <div className="max-w-md">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select Product Page</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Select Product Page</label>
             <select
               value={previewPage?.id || ''}
               onChange={(e) => setPreviewPage(pages.find(p => p.id === e.target.value) || null)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">Choose a page...</option>
               {pages.map(p => (
@@ -242,8 +242,8 @@ export default function SEOPagesPage() {
           </div>
 
           {previewPage ? (
-            <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 max-w-2xl">
-              <h3 className="text-sm font-medium text-gray-500 mb-4">Google Search Preview</h3>
+            <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 max-w-2xl dark:bg-slate-900">
+              <h3 className="text-sm font-medium text-gray-500 mb-4 dark:text-slate-400">Google Search Preview</h3>
               <div className="space-y-1">
                 <p className="text-xl text-blue-700 hover:underline cursor-pointer leading-snug">
                   {previewPage.metaTitle || previewPage.productName || 'Untitled Page'}
@@ -251,13 +251,13 @@ export default function SEOPagesPage() {
                 <p className="text-sm text-green-700">
                   {window.location.origin}/products/{previewPage.slug || 'product-name'}
                 </p>
-                <p className="text-sm text-gray-600 leading-relaxed">
+                <p className="text-sm text-gray-600 leading-relaxed dark:text-slate-400">
                   {previewPage.metaDescription || 'No meta description set. Add one to improve click-through rates.'}
                 </p>
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Eye className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>Select a product page to preview its search appearance</p>
             </div>
@@ -273,42 +273,42 @@ export default function SEOPagesPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Meta Title</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Meta Title</label>
             <input
               type="text"
               value={editForm.metaTitle}
               onChange={(e) => setEditForm({ ...editForm, metaTitle: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Product Name | Your Dispensary"
               maxLength={60}
             />
             <p className="text-xs text-gray-400 mt-1">{editForm.metaTitle.length}/60 characters</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Meta Description</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Meta Description</label>
             <textarea
               value={editForm.metaDescription}
               onChange={(e) => setEditForm({ ...editForm, metaDescription: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="A compelling description for search results..."
               maxLength={160}
             />
             <p className="text-xs text-gray-400 mt-1">{editForm.metaDescription.length}/160 characters</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Custom Content</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Custom Content</label>
             <textarea
               value={editForm.customContent}
               onChange={(e) => setEditForm({ ...editForm, customContent: e.target.value })}
               rows={5}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Additional page content..."
             />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setEditModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+          <button onClick={() => setEditModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? 'Saving...' : 'Save'}
           </Button>

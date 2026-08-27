@@ -68,10 +68,10 @@ export default function ServiceMenuPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
             <Scissors className="w-6 h-6 text-teal-600" /> Service Menu
           </h1>
-          <p className="text-gray-500">What you offer, how long it takes, when they're due back</p>
+          <p className="text-gray-500 dark:text-slate-400">What you offer, how long it takes, when they're due back</p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
           <Plus className="w-4 h-4" /> New Service
@@ -83,28 +83,28 @@ export default function ServiceMenuPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : services.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No services yet</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No services yet</div>
       ) : (
         <div className="space-y-6">
           {byCategory.map((group) => (
             <div key={group.cat}>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">{group.cat}</h2>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-slate-400">{group.cat}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {group.items.map((s) => (
                   <div key={s.id} className={`bg-white rounded-xl border p-5 flex flex-col ${s.active ? '' : 'opacity-60'}`}>
                     <div className="flex items-start justify-between gap-2">
-                      <p className="font-semibold text-gray-900">{s.name || 'Untitled'}</p>
-                      {!s.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Retired</span>}
+                      <p className="font-semibold text-gray-900 dark:text-slate-100">{s.name || 'Untitled'}</p>
+                      {!s.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Retired</span>}
                     </div>
-                    {s.description && <p className="text-sm text-gray-500 mt-1">{s.description}</p>}
+                    {s.description && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{s.description}</p>}
 
                     <div className="flex items-baseline gap-2 mt-3">
                       {s.priceIsFrom && <span className="text-sm text-gray-400">from</span>}
-                      <span className="text-2xl font-bold text-gray-900">{money(s.price)}</span>
+                      <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{money(s.price)}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-2 mt-3 text-xs">
-                      <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
                         <Clock className="w-3 h-3" /> {s.durationMin ?? 60} min
                       </span>
                       {s.rebookIntervalDays ? (
@@ -112,7 +112,7 @@ export default function ServiceMenuPage() {
                           <RotateCcw className="w-3 h-3" /> rebook {s.rebookIntervalDays}d
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-400 px-2 py-0.5 rounded-full dark:bg-slate-900">
                           no rebook reminder
                         </span>
                       )}
@@ -197,7 +197,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{service ? 'Edit Service' : 'New Service'}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -205,31 +205,31 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
                 <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
                 <select value={form.category} onChange={(e) => set('category', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
                   {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (min)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Duration (min)</label>
                 <input type="number" value={form.durationMin} onChange={(e) => set('durationMin', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price ($)</label>
                 <input type="number" step="any" value={form.price} onChange={(e) => set('price', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rebook (days)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Rebook (days)</label>
                 <input type="number" value={form.rebookIntervalDays} onChange={(e) => set('rebookIntervalDays', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="42" />
               </div>
             </div>
@@ -240,15 +240,15 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <input id="priceIsFrom" type="checkbox" checked={form.priceIsFrom} onChange={(e) => set('priceIsFrom', e.target.checked)} className="w-4 h-4" />
-                <label htmlFor="priceIsFrom" className="text-sm font-medium text-gray-700">Price is a starting point ("from $250")</label>
+                <label htmlFor="priceIsFrom" className="text-sm font-medium text-gray-700 dark:text-slate-200">Price is a starting point ("from $250")</label>
               </div>
               <div className="flex items-center gap-2">
                 <input id="requiresPatchTest" type="checkbox" checked={form.requiresPatchTest} onChange={(e) => set('requiresPatchTest', e.target.checked)} className="w-4 h-4" />
-                <label htmlFor="requiresPatchTest" className="text-sm font-medium text-gray-700">Requires a patch test</label>
+                <label htmlFor="requiresPatchTest" className="text-sm font-medium text-gray-700 dark:text-slate-200">Requires a patch test</label>
               </div>
               <div className="flex items-center gap-2">
                 <input id="active" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
-                <label htmlFor="active" className="text-sm font-medium text-gray-700">Active on the menu</label>
+                <label htmlFor="active" className="text-sm font-medium text-gray-700 dark:text-slate-200">Active on the menu</label>
               </div>
             </div>
 

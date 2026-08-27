@@ -112,12 +112,12 @@ export default function DeliveryPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Delivery Management</h1>
-          <p className="text-gray-600">Track and manage cannabis deliveries</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Delivery Management</h1>
+          <p className="text-gray-600 dark:text-slate-400">Track and manage cannabis deliveries</p>
         </div>
         <button
           onClick={() => tab === 'active' || tab === 'queue' ? loadDeliveries() : loadZones()}
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -168,35 +168,35 @@ export default function DeliveryPage() {
           ) : (
             <div className="space-y-3">
               {deliveries.map(delivery => (
-                <div key={delivery.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <div key={delivery.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <span className="font-semibold text-gray-900">#{delivery.orderNumber || delivery.id?.slice(0, 8)}</span>
+                        <span className="font-semibold text-gray-900 dark:text-slate-100">#{delivery.orderNumber || delivery.id?.slice(0, 8)}</span>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[delivery.status] || 'bg-gray-100 text-gray-600'}`}>
                           {(delivery.status || 'queued').replace('_', ' ')}
                         </span>
                       </div>
                       <div className="grid md:grid-cols-3 gap-3 text-sm">
-                        <div className="flex items-center gap-2 text-gray-600">
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
                           <User className="w-4 h-4" />
                           <span>{delivery.customerName || 'Unknown'}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
                           <Phone className="w-4 h-4" />
                           <span>{delivery.customerPhone || '—'}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
+                        <div className="flex items-center gap-2 text-gray-600 dark:text-slate-400">
                           <MapPin className="w-4 h-4" />
                           <span>{delivery.address || '—'}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 mt-2 text-sm">
-                        <span className="text-gray-500">
+                        <span className="text-gray-500 dark:text-slate-400">
                           <Package className="w-3 h-3 inline mr-1" />
                           {delivery.itemCount || 0} items
                         </span>
-                        <span className="font-medium text-gray-900">${Number(delivery.total || 0).toFixed(2)}</span>
+                        <span className="font-medium text-gray-900 dark:text-slate-100">${Number(delivery.total || 0).toFixed(2)}</span>
                         {delivery.driverName && (
                           <span className="text-blue-600">Driver: {delivery.driverName}</span>
                         )}
@@ -232,7 +232,7 @@ export default function DeliveryPage() {
                 </div>
               ))}
               {deliveries.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                   <Truck className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No deliveries found</p>
                 </div>
@@ -253,9 +253,9 @@ export default function DeliveryPage() {
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {zones.map(zone => (
-              <div key={zone.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+              <div key={zone.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                     <MapPin className="w-4 h-4 text-green-600" />
                     {zone.name}
                   </h3>
@@ -263,7 +263,7 @@ export default function DeliveryPage() {
                     {zone.isActive ? 'Active' : 'Inactive'}
                   </span>
                 </div>
-                <div className="space-y-1 text-sm text-gray-600">
+                <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
                   <p>ZIP codes: {Array.isArray(zone.zipCodes) ? zone.zipCodes.join(', ') : zone.zipCodes || '—'}</p>
                   <p>Delivery fee: ${Number(zone.fee || 0).toFixed(2)}</p>
                   <p>Min order: ${Number(zone.minOrder || 0).toFixed(2)}</p>
@@ -271,7 +271,7 @@ export default function DeliveryPage() {
               </div>
             ))}
             {zones.length === 0 && !loading && (
-              <p className="col-span-full text-center text-gray-500 py-8">No delivery zones configured</p>
+              <p className="col-span-full text-center text-gray-500 py-8 dark:text-slate-400">No delivery zones configured</p>
             )}
           </div>
 
@@ -282,45 +282,45 @@ export default function DeliveryPage() {
           >
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Zone Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Zone Name *</label>
                 <input
                   type="text"
                   value={zoneForm.name}
                   onChange={(e) => setZoneForm({ ...zoneForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="Downtown"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Codes (comma-separated)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">ZIP Codes (comma-separated)</label>
                 <input
                   type="text"
                   value={zoneForm.zipCodes}
                   onChange={(e) => setZoneForm({ ...zoneForm, zipCodes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="90210, 90211, 90212"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Fee ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Delivery Fee ($)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={zoneForm.fee}
                     onChange={(e) => setZoneForm({ ...zoneForm, fee: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="5.00"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Order ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Min Order ($)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={zoneForm.minOrder}
                     onChange={(e) => setZoneForm({ ...zoneForm, minOrder: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="50.00"
                   />
                 </div>
@@ -330,13 +330,13 @@ export default function DeliveryPage() {
                   type="checkbox"
                   checked={zoneForm.isActive}
                   onChange={(e) => setZoneForm({ ...zoneForm, isActive: e.target.checked })}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
                 />
-                <span className="text-sm text-gray-700">Active</span>
+                <span className="text-sm text-gray-700 dark:text-slate-200">Active</span>
               </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setZoneModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+              <button onClick={() => setZoneModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={handleSaveZone} disabled={savingZone}>
                 {savingZone ? 'Saving...' : 'Create Zone'}
               </Button>

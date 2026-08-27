@@ -187,20 +187,20 @@ export default function RecurringForm() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
             {isEdit ? 'Edit Recurring Invoice' : 'New Recurring Invoice'}
           </h1>
-          <p className="text-gray-500">Set up automatic billing</p>
+          <p className="text-gray-500 dark:text-slate-400">Set up automatic billing</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Contact & Project */}
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Customer</h2>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Customer</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                 Contact <span className="text-red-500">*</span>
               </label>
               <select
@@ -216,7 +216,7 @@ export default function RecurringForm() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
               <select
                 value={form.projectId}
                 onChange={(e) => handleChange('projectId', e.target.value)}
@@ -232,11 +232,11 @@ export default function RecurringForm() {
         </div>
 
         {/* Schedule */}
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Schedule</h2>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Schedule</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Frequency</label>
               <select
                 value={form.frequency}
                 onChange={(e) => handleChange('frequency', e.target.value)}
@@ -250,7 +250,7 @@ export default function RecurringForm() {
 
             {form.frequency === 'weekly' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Day of Week</label>
                 <select
                   value={form.dayOfWeek}
                   onChange={(e) => handleChange('dayOfWeek', e.target.value)}
@@ -265,7 +265,7 @@ export default function RecurringForm() {
 
             {['monthly', 'quarterly'].includes(form.frequency) && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Day of Month</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Day of Month</label>
                 <select
                   value={form.dayOfMonth}
                   onChange={(e) => handleChange('dayOfMonth', e.target.value)}
@@ -279,7 +279,7 @@ export default function RecurringForm() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
               <input
                 type="date"
                 value={form.startDate}
@@ -289,7 +289,7 @@ export default function RecurringForm() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End Date (optional)</label>
               <input
                 type="date"
                 value={form.endDate}
@@ -299,7 +299,7 @@ export default function RecurringForm() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Terms (days)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Payment Terms (days)</label>
               <input
                 type="number"
                 value={form.paymentTermsDays}
@@ -316,9 +316,9 @@ export default function RecurringForm() {
                 type="checkbox"
                 checked={form.autoSend}
                 onChange={(e) => handleChange('autoSend', e.target.checked)}
-                className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 text-gray-900"
+                className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
-              <span className="text-sm text-gray-700">
+              <span className="text-sm text-gray-700 dark:text-slate-200">
                 Automatically send invoice when generated
               </span>
             </label>
@@ -326,8 +326,8 @@ export default function RecurringForm() {
         </div>
 
         {/* Line Items */}
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Line Items</h2>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Line Items</h2>
           <div className="space-y-3">
             {form.lineItems.map((item, index) => (
               <div key={index} className="flex gap-3 items-start">
@@ -389,11 +389,11 @@ export default function RecurringForm() {
           <div className="mt-6 pt-4 border-t">
             <div className="max-w-xs ml-auto space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Subtotal</span>
+                <span className="text-gray-600 dark:text-slate-400">Subtotal</span>
                 <span>${subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm items-center gap-2">
-                <span className="text-gray-600">Tax %</span>
+                <span className="text-gray-600 dark:text-slate-400">Tax %</span>
                 <input
                   type="number"
                   value={form.taxRate}
@@ -405,7 +405,7 @@ export default function RecurringForm() {
                 <span className="w-24 text-right">${taxAmount.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm items-center gap-2">
-                <span className="text-gray-600">Discount</span>
+                <span className="text-gray-600 dark:text-slate-400">Discount</span>
                 <input
                   type="number"
                   value={form.discount}
@@ -425,11 +425,11 @@ export default function RecurringForm() {
         </div>
 
         {/* Notes */}
-        <div className="bg-white rounded-xl border p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Notes</h2>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Notes</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes (visible to customer)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes (visible to customer)</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => handleChange('notes', e.target.value)}
@@ -438,7 +438,7 @@ export default function RecurringForm() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Terms</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Terms</label>
               <textarea
                 value={form.terms}
                 onChange={(e) => handleChange('terms', e.target.value)}
@@ -454,7 +454,7 @@ export default function RecurringForm() {
           <button
             type="button"
             onClick={() => navigate('/recurring')}
-            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             Cancel
           </button>

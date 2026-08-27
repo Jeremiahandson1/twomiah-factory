@@ -198,7 +198,7 @@ export default function RoofReportsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
-        <p className="text-gray-600 font-medium">Generating your roof report...</p>
+        <p className="text-gray-600 font-medium dark:text-slate-400">Generating your roof report...</p>
         <p className="text-sm text-gray-400">Analyzing satellite imagery and computing measurements</p>
       </div>
     )
@@ -232,7 +232,7 @@ export default function RoofReportsPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         <button
           onClick={() => setPreview(null)}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -240,11 +240,11 @@ export default function RoofReportsPage() {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">
                 {preview.mode === 'manual' ? 'Draw Roof Measurements' : 'Professional Report'}
               </h1>
             </div>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
               {preview.address}, {preview.city}, {preview.state} {preview.zip} —
               {preview.mode === 'manual'
                 ? ' Draw ridge, valley, hip, and eave lines on the satellite image.'
@@ -283,8 +283,8 @@ export default function RoofReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Roof Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Professional satellite-based roof measurement reports</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Roof Reports</h1>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Professional satellite-based roof measurement reports</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -297,13 +297,13 @@ export default function RoofReportsPage() {
 
       {/* New Report Form */}
       {showForm && (
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
           <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Generate Roof Report</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Generate Roof Report</h2>
           </div>
           <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Street Address *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Street Address *</label>
               <AddressAutocomplete
                 value={form.address}
                 onChange={(val) => setForm({ ...form, address: val })}
@@ -313,7 +313,7 @@ export default function RoofReportsPage() {
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">City *</label>
                 <input
                   type="text"
                   value={form.city}
@@ -324,7 +324,7 @@ export default function RoofReportsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State *</label>
                 <input
                   type="text"
                   value={form.state}
@@ -335,7 +335,7 @@ export default function RoofReportsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Zip *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Zip *</label>
                 <input
                   type="text"
                   value={form.zip}
@@ -347,7 +347,7 @@ export default function RoofReportsPage() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Link to Contact (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Link to Contact (optional)</label>
               <select
                 value={form.contactId}
                 onChange={(e) => setForm({ ...form, contactId: e.target.value })}
@@ -362,7 +362,7 @@ export default function RoofReportsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Eave Overhang Offset</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Eave Overhang Offset</label>
               <div className="flex items-center gap-3">
                 <input
                   type="number"
@@ -372,7 +372,7 @@ export default function RoofReportsPage() {
                   onChange={(e) => setForm({ ...form, eaveOverhangInches: Number(e.target.value) || 0 })}
                   className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <span className="text-sm text-gray-500">inches (expands roof segments outward to account for eave overhang)</span>
+                <span className="text-sm text-gray-500 dark:text-slate-400">inches (expands roof segments outward to account for eave overhang)</span>
               </div>
             </div>
             <div className="pt-4 border-t space-y-3">
@@ -381,10 +381,10 @@ export default function RoofReportsPage() {
                   type="button"
                   onClick={() => handleGenerate('manual')}
                   disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-gray-200 bg-gray-50 rounded-xl hover:border-gray-400 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-gray-200 bg-gray-50 rounded-xl hover:border-gray-400 hover:bg-gray-100 transition-colors disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900"
                 >
-                  <span className="text-sm font-semibold text-gray-700">DIY Measurement</span>
-                  <span className="text-xs text-gray-500">Draw lines on satellite image yourself</span>
+                  <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">DIY Measurement</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400">Draw lines on satellite image yourself</span>
                   <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Free</span>
                 </button>
                 <button
@@ -399,7 +399,7 @@ export default function RoofReportsPage() {
                 </button>
               </div>
               {purchasing && (
-                <div className="flex items-center justify-center gap-2 py-2 text-sm text-gray-500">
+                <div className="flex items-center justify-center gap-2 py-2 text-sm text-gray-500 dark:text-slate-400">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Fetching satellite imagery...
                 </div>
@@ -411,7 +411,7 @@ export default function RoofReportsPage() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors dark:text-slate-200"
                 >
                   Cancel
                 </button>
@@ -427,10 +427,10 @@ export default function RoofReportsPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       ) : reports.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
+        <div className="bg-white rounded-xl shadow-sm border p-12 text-center dark:bg-slate-900">
           <FileBarChart className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <h3 className="text-lg font-medium text-gray-900 mb-1">No roof reports yet</h3>
-          <p className="text-sm text-gray-500 mb-1">Professional satellite-based roof measurements for $9.99/report.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-1 dark:text-slate-100">No roof reports yet</h3>
+          <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Professional satellite-based roof measurements for $9.99/report.</p>
           <p className="text-xs text-gray-400 mb-4">Ridges, valleys, hips, rakes, eaves, waste factor, ice & water shield — all computed from satellite data.</p>
           <button
             onClick={() => setShowForm(true)}
@@ -441,16 +441,16 @@ export default function RoofReportsPage() {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Squares</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Segments</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Quality</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Address</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Squares</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Segments</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Quality</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Date</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -460,19 +460,19 @@ export default function RoofReportsPage() {
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{report.address}</p>
-                        <p className="text-xs text-gray-500">{report.city}, {report.state} {report.zip}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{report.address}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{report.city}, {report.state} {report.zip}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">
                     {report.status === 'pending_review' ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
                         <Loader2 className="w-3 h-3 animate-spin" /> Processing
                       </span>
                     ) : report.totalSquares ?? '-'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{report.segmentCount ?? '-'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{report.segmentCount ?? '-'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
                       {report.imageryQuality ? qualityBadge(report.imageryQuality) : '-'}
@@ -483,7 +483,7 @@ export default function RoofReportsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col">
-                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400">
                         <Calendar className="w-3.5 h-3.5" />
                         {formatDate(report.createdAt)}
                       </div>
@@ -496,14 +496,14 @@ export default function RoofReportsPage() {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => navigate(`/crm/roof-reports/${report.id}`)}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors dark:text-slate-400"
                         title="View details"
                       >
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDownloadPdf(report.id)}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors dark:text-slate-400"
                         title="Print / PDF"
                       >
                         <Download className="w-4 h-4" />
@@ -511,7 +511,7 @@ export default function RoofReportsPage() {
                       <button
                         onClick={() => handleDelete(report.id)}
                         disabled={deleting === report.id}
-                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                        className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 dark:text-slate-400"
                         title="Delete report"
                       >
                         <Trash2 className="w-4 h-4" />

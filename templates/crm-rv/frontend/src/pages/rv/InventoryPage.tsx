@@ -194,8 +194,8 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
-          <p className="text-gray-500">RV & powersports units</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Inventory</h1>
+          <p className="text-gray-500 dark:text-slate-400">RV & powersports units</p>
         </div>
         <div className="flex items-center gap-2">
           {canSyndicate && (
@@ -261,15 +261,15 @@ export default function InventoryPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : units.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No units found</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No units found</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {units.map((u) => (
-            <div key={u.id} className="bg-white rounded-xl border overflow-hidden flex flex-col">
+            <div key={u.id} className="bg-white rounded-xl border overflow-hidden flex flex-col dark:bg-slate-900">
               {u.photos && u.photos.length > 0 ? (
                 <img src={u.photos[0]} alt={u.modelName || 'Unit'} className="h-40 w-full object-cover" />
               ) : (
-                <div className="h-40 w-full bg-gray-100 flex items-center justify-center">
+                <div className="h-40 w-full bg-gray-100 flex items-center justify-center dark:bg-slate-800">
                   <Caravan className="w-10 h-10 text-gray-300" />
                 </div>
               )}
@@ -284,14 +284,14 @@ export default function InventoryPage() {
                     </span>
                   )}
                 </div>
-                <p className="font-semibold text-gray-900">
+                <p className="font-semibold text-gray-900 dark:text-slate-100">
                   {[u.year, u.make, u.modelName].filter(Boolean).join(' ') || 'Untitled Unit'}
                 </p>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 capitalize">{u.condition || '—'}</span>
-                  <span className="text-gray-500">{keySpec(u)}</span>
+                  <span className="text-gray-500 capitalize dark:text-slate-400">{u.condition || '—'}</span>
+                  <span className="text-gray-500 dark:text-slate-400">{keySpec(u)}</span>
                 </div>
-                <div className="flex items-center gap-1 text-lg font-bold text-gray-900">
+                <div className="flex items-center gap-1 text-lg font-bold text-gray-900 dark:text-slate-100">
                   <DollarSign className="w-4 h-4 text-green-600" />
                   {price(u).replace('$', '')}
                 </div>
@@ -406,7 +406,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Link2 className="w-5 h-5 text-orange-500" />
@@ -415,7 +415,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
             Give these URLs to RV Trader / Cycle Trader / Boat Trader to auto-pull your inventory.
           </p>
 
@@ -432,14 +432,14 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
                 if (!value) return null;
                 return (
                   <div key={key}>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">{label}</label>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1 dark:text-slate-400">{label}</label>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
                         readOnly
                         value={value}
                         onFocus={(e) => e.currentTarget.select()}
-                        className="flex-1 px-3 py-2 border rounded-lg text-sm bg-gray-50 text-gray-700"
+                        className="flex-1 px-3 py-2 border rounded-lg text-sm bg-gray-50 text-gray-700 dark:bg-slate-900 dark:text-slate-200"
                       />
                       <button
                         type="button"
@@ -447,7 +447,7 @@ function FeedUrlModal({ onClose }: { onClose: () => void }) {
                         title="Copy"
                         className="p-2 border rounded-lg hover:bg-gray-50"
                       >
-                        {copied === key ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-500" />}
+                        {copied === key ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-500 dark:text-slate-400" />}
                       </button>
                     </div>
                   </div>
@@ -617,7 +617,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
 
   const numField = (k: string, label: string, step?: string) => (
     <div key={k}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
       <input
         type="number"
         step={step}
@@ -630,7 +630,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
 
   const textField = (k: string, label: string) => (
     <div key={k}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
       <input
         type="text"
         value={form[k]}
@@ -642,7 +642,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
 
   const selectField = (k: string, label: string, opts: { value: string; label: string }[]) => (
     <div key={k}>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
       <select value={form[k]} onChange={(e) => set(k, e.target.value)} className="w-full px-3 py-2 border rounded-lg">
         <option value="">—</option>
         {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -659,7 +659,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
         onChange={(e) => set(k, e.target.checked)}
         className="w-4 h-4"
       />
-      <label htmlFor={`field-${k}`} className="text-sm font-medium text-gray-700">{label}</label>
+      <label htmlFor={`field-${k}`} className="text-sm font-medium text-gray-700 dark:text-slate-200">{label}</label>
     </div>
   );
 
@@ -778,7 +778,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{unit ? 'Edit Unit' : 'Add Unit'}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -787,7 +787,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Category — required, drives the form */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category <span className="text-red-500">*</span></label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -831,7 +831,7 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
             {/* Category-specific */}
             {category && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">{categoryLabel(category)} Details</h3>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">{categoryLabel(category)} Details</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {renderCategoryFields()}
                 </div>
@@ -842,16 +842,16 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {textField('floorplanImg', 'Floorplan Image URL')}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Photo URLs (comma-separated)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Photo URLs (comma-separated)</label>
                 <input type="text" value={form.photos} onChange={(e) => set('photos', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Features (comma-separated)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Features (comma-separated)</label>
               <input type="text" value={form.features} onChange={(e) => set('features', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 
@@ -913,7 +913,7 @@ function RecallModal({ unit, onClose }: RecallModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-amber-600" />
@@ -937,20 +937,20 @@ function RecallModal({ unit, onClose }: RecallModalProps) {
                   <p className="text-sm font-medium text-green-700">No open recalls</p>
                 )}
                 {source && (
-                  <span className="inline-flex items-center text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full dark:text-slate-400 dark:bg-slate-800">
                     Source: {source}
                   </span>
                 )}
               </div>
               {note && (
-                <p className="text-sm text-gray-500 bg-gray-50 border rounded-lg p-3">{note}</p>
+                <p className="text-sm text-gray-500 bg-gray-50 border rounded-lg p-3 dark:text-slate-400 dark:bg-slate-900">{note}</p>
               )}
               {recalls.map((r, i) => (
                 <div key={r.campaignNumber || i} className="border rounded-lg p-3 space-y-1">
-                  {r.component && <p className="font-medium text-gray-900">{r.component}</p>}
+                  {r.component && <p className="font-medium text-gray-900 dark:text-slate-100">{r.component}</p>}
                   {r.campaignNumber && <p className="text-xs text-gray-400">{r.campaignNumber}</p>}
-                  {r.summary && <p className="text-sm text-gray-600"><span className="font-medium">Summary:</span> {r.summary}</p>}
-                  {r.remedy && <p className="text-sm text-gray-600"><span className="font-medium">Remedy:</span> {r.remedy}</p>}
+                  {r.summary && <p className="text-sm text-gray-600 dark:text-slate-400"><span className="font-medium">Summary:</span> {r.summary}</p>}
+                  {r.remedy && <p className="text-sm text-gray-600 dark:text-slate-400"><span className="font-medium">Remedy:</span> {r.remedy}</p>}
                 </div>
               ))}
             </div>

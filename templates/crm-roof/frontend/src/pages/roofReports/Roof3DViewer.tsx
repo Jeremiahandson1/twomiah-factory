@@ -245,7 +245,7 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
       {/* Controls bar */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-sm">
-          <label className="text-gray-500">Elevation:</label>
+          <label className="text-gray-500 dark:text-slate-400">Elevation:</label>
           <input
             type="range"
             min="0.5"
@@ -255,11 +255,11 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
             onChange={(e) => setExaggeration(parseFloat(e.target.value))}
             className="w-24"
           />
-          <span className="text-gray-700 font-medium w-8">{exaggeration}x</span>
+          <span className="text-gray-700 font-medium w-8 dark:text-slate-200">{exaggeration}x</span>
         </div>
         <button
           onClick={resetCamera}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border rounded-lg hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 border rounded-lg hover:bg-gray-50 transition-colors dark:text-slate-400"
         >
           <RotateCcw className="w-3.5 h-3.5" /> Reset View
         </button>
@@ -282,7 +282,7 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
       </div>
 
       {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-gray-500">
+      <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-slate-400">
         <span className="font-medium">Segments:</span>
         {segments.slice(0, 8).map((seg, i) => (
           <div key={i} className="flex items-center gap-1">

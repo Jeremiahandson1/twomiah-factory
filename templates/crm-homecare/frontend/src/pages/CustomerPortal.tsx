@@ -57,7 +57,7 @@ export default function CustomerPortal() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-white border-b border-slate-200 dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -103,7 +103,7 @@ export default function CustomerPortal() {
           {/* Home Care CRM - always available */}
           <div
             onClick={() => navigate('/crm')}
-            className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden"
+            className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div
               className="absolute top-0 left-0 right-0 h-1"
@@ -130,7 +130,7 @@ export default function CustomerPortal() {
               href={siteUrl || '#'}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden block"
+              className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden block dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
               <div className="flex items-start justify-between mb-4">
@@ -152,7 +152,7 @@ export default function CustomerPortal() {
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden block"
+              className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden block dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
               <div className="flex items-start justify-between mb-4">
@@ -171,7 +171,7 @@ export default function CustomerPortal() {
           {/* Settings */}
           <div
             onClick={() => navigate('/crm/settings')}
-            className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden"
+            className="bg-white rounded-2xl shadow p-6 cursor-pointer hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400" />
             <div className="flex items-start justify-between mb-4">

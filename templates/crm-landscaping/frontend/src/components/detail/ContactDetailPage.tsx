@@ -205,13 +205,13 @@ export default function ContactDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{contact.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{contact.name}</h1>
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${typeColors[contact.type]}`}>
                 {contact.type}
               </span>
             </div>
             {contact.company && (
-              <p className="text-gray-500 flex items-center gap-1 mt-1">
+              <p className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400">
                 <Building2 className="w-4 h-4" />
                 {contact.company}
               </p>
@@ -229,7 +229,7 @@ export default function ContactDetailPage() {
           )}
           <Link
             to={`/crm/contacts?edit=${id}`}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200"
           >
             <Edit className="w-4 h-4" />
             Edit
@@ -249,8 +249,8 @@ export default function ContactDetailPage() {
         {/* Main info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Contact info card */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Contact Information</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Contact Information</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {contact.email && (
                 <div className="flex items-center gap-3">
@@ -258,7 +258,7 @@ export default function ContactDetailPage() {
                     <Mail className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Email</p>
                     <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline">
                       {contact.email}
                     </a>
@@ -271,8 +271,8 @@ export default function ContactDetailPage() {
                     <Phone className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Phone</p>
-                    <a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Phone</p>
+                    <a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">
                       {contact.phone}
                     </a>
                   </div>
@@ -284,8 +284,8 @@ export default function ContactDetailPage() {
                     <Phone className="w-5 h-5 text-purple-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Mobile</p>
-                    <a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p>
+                    <a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">
                       {contact.mobile}
                     </a>
                   </div>
@@ -297,8 +297,8 @@ export default function ContactDetailPage() {
                     <MapPin className="w-5 h-5 text-orange-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Address</p>
-                    <p className="text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Address</p>
+                    <p className="text-gray-900 dark:text-slate-100">
                       {contact.address && <span>{contact.address}<br /></span>}
                       {contact.city && `${contact.city}, `}{contact.state} {contact.zip}
                     </p>
@@ -310,18 +310,18 @@ export default function ContactDetailPage() {
 
           {/* Notes */}
           {contact.notes && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="font-semibold text-gray-900 mb-4">Notes</h2>
-              <p className="text-gray-600 whitespace-pre-wrap">{contact.notes}</p>
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+              <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Notes</h2>
+              <p className="text-gray-600 whitespace-pre-wrap dark:text-slate-400">{contact.notes}</p>
             </div>
           )}
 
           {/* Related Projects */}
           {contact.projects?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+            <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Projects</h2>
-                <span className="text-sm text-gray-500">{contact.projects.length}</span>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Projects</h2>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{contact.projects.length}</span>
               </div>
               <div className="divide-y">
                 {contact.projects.map(project => (
@@ -333,8 +333,8 @@ export default function ContactDetailPage() {
                     <div className="flex items-center gap-3">
                       <Briefcase className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">{project.name}</p>
-                        <p className="text-sm text-gray-500">{project.number}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{project.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{project.number}</p>
                       </div>
                     </div>
                     <StatusBadge status={project.status} />
@@ -346,10 +346,10 @@ export default function ContactDetailPage() {
 
           {/* Related Quotes */}
           {contact.quotes?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+            <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Quotes</h2>
-                <span className="text-sm text-gray-500">{contact.quotes.length}</span>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Quotes</h2>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{contact.quotes.length}</span>
               </div>
               <div className="divide-y">
                 {contact.quotes.map(quote => (
@@ -361,8 +361,8 @@ export default function ContactDetailPage() {
                     <div className="flex items-center gap-3">
                       <FileText className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">{quote.name}</p>
-                        <p className="text-sm text-gray-500">{quote.number}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{quote.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{quote.number}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -376,11 +376,11 @@ export default function ContactDetailPage() {
           )}
 
           {/* Equipment */}
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
             <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900">Equipment</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-slate-100">Equipment</h2>
               <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-500">{contact.equipment?.length || 0}</span>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{contact.equipment?.length || 0}</span>
                 <Link
                   to={`/crm/equipment?contactId=${id}`}
                   className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"
@@ -403,8 +403,8 @@ export default function ContactDetailPage() {
                         <Wrench className="w-5 h-5 text-orange-500" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{eq.name}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{eq.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">
                           {[eq.manufacturer, eq.model].filter(Boolean).join(' ') || 'No model info'}
                           {eq.serialNumber && <span className="ml-2 font-mono text-xs">S/N: {eq.serialNumber}</span>}
                         </p>
@@ -441,11 +441,11 @@ export default function ContactDetailPage() {
 
           {/* Locations / Sites */}
           {(contact.sites?.length > 0 || contact.type === 'client') && (
-            <div className="bg-white rounded-lg shadow-sm">
+            <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Locations</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Locations</h2>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-500">{contact.sites?.length || 0}</span>
+                  <span className="text-sm text-gray-500 dark:text-slate-400">{contact.sites?.length || 0}</span>
                   <button
                     onClick={() => setSiteModalOpen(true)}
                     className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 flex items-center gap-1"
@@ -468,8 +468,8 @@ export default function ContactDetailPage() {
                           <MapPinned className="w-5 h-5 text-blue-500" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900">{s.name}</p>
-                          <p className="text-sm text-gray-500">
+                          <p className="font-medium text-gray-900 dark:text-slate-100">{s.name}</p>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">
                             {[s.address, s.city].filter(Boolean).join(', ') || 'No address'}
                           </p>
                         </div>
@@ -488,9 +488,9 @@ export default function ContactDetailPage() {
           )}
 
           {/* Messages */}
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
             <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <MessageSquare className="w-4 h-4" /> Messages
               </h2>
               <button onClick={handleToggleOptOut} className={`text-xs px-2 py-1 rounded ${contact.optedOutSms ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
@@ -532,28 +532,28 @@ export default function ContactDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Quick stats */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Summary</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Summary</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Projects</span>
+                <span className="text-gray-500 dark:text-slate-400">Projects</span>
                 <span className="font-medium">{contact.projects?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Quotes</span>
+                <span className="text-gray-500 dark:text-slate-400">Quotes</span>
                 <span className="font-medium">{contact.quotes?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Invoices</span>
+                <span className="text-gray-500 dark:text-slate-400">Invoices</span>
                 <span className="font-medium">{contact.invoices?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Equipment</span>
+                <span className="text-gray-500 dark:text-slate-400">Equipment</span>
                 <span className="font-medium">{contact.equipment?.length || 0}</span>
               </div>
               {contact.source && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Source</span>
+                  <span className="text-gray-500 dark:text-slate-400">Source</span>
                   <span className="font-medium">{contact.source}</span>
                 </div>
               )}
@@ -561,45 +561,45 @@ export default function ContactDetailPage() {
           </div>
 
           {/* Timeline */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Activity</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Activity</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{formatDate(contact.createdAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Created</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(contact.createdAt)}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-gray-500">Updated</span>
-                <span className="text-gray-900">{formatDate(contact.updatedAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Updated</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(contact.updatedAt)}</span>
               </div>
             </div>
           </div>
 
           {/* Quick actions */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
               <Link
                 to={`/crm/quotes?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <FileText className="w-4 h-4 text-gray-500" />
+                <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Quote
               </Link>
               <Link
                 to={`/crm/jobs?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <Briefcase className="w-4 h-4 text-gray-500" />
+                <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Schedule Job
               </Link>
               <Link
                 to={`/crm/invoices?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <Receipt className="w-4 h-4 text-gray-500" />
+                <Receipt className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Invoice
               </Link>
             </div>
@@ -607,14 +607,14 @@ export default function ContactDetailPage() {
 
           {/* Portal Access */}
           {contact.email && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
                 <Globe className="w-4 h-4 text-blue-500" />
                 Portal Access
               </h2>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Status</span>
+                  <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
                   <button
                     onClick={togglePortal}
                     disabled={portalLoading}
@@ -632,14 +632,14 @@ export default function ContactDetailPage() {
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Email</span>
-                  <span className="text-gray-900">{contact.email}</span>
+                  <span className="text-gray-500 dark:text-slate-400">Email</span>
+                  <span className="text-gray-900 dark:text-slate-100">{contact.email}</span>
                 </div>
 
                 {portalStatus?.lastVisit && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Last Login</span>
-                    <span className="text-gray-900">{formatDate(portalStatus.lastVisit)}</span>
+                    <span className="text-gray-500 dark:text-slate-400">Last Login</span>
+                    <span className="text-gray-900 dark:text-slate-100">{formatDate(portalStatus.lastVisit)}</span>
                   </div>
                 )}
 
@@ -691,14 +691,14 @@ export default function ContactDetailPage() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="fixed inset-0 bg-black/50" onClick={() => setSiteDetail(null)} />
           <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-bold flex items-center gap-2">
                     <MapPinned className="w-5 h-5 text-blue-500" />
                     {siteDetail.name}
                   </h2>
-                  <p className="text-sm text-gray-500">{[siteDetail.address, siteDetail.city, siteDetail.state, siteDetail.zip].filter(Boolean).join(', ')}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{[siteDetail.address, siteDetail.city, siteDetail.state, siteDetail.zip].filter(Boolean).join(', ')}</p>
                 </div>
                 <button onClick={() => setSiteDetail(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
               </div>
@@ -712,15 +712,15 @@ export default function ContactDetailPage() {
 
               <div className="space-y-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Equipment at this location ({siteDetail.equipment?.length || 0})</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Equipment at this location ({siteDetail.equipment?.length || 0})</h3>
                   {siteDetail.equipment?.length > 0 ? (
                     <div className="divide-y border rounded-lg">
                       {siteDetail.equipment.map((eq: any) => (
                         <div key={eq.id} className="p-3 flex items-center gap-3">
                           <Wrench className="w-4 h-4 text-orange-500" />
                           <div>
-                            <p className="font-medium text-gray-900 text-sm">{eq.name}</p>
-                            <p className="text-xs text-gray-500">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</p>
+                            <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{eq.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</p>
                           </div>
                         </div>
                       ))}
@@ -737,14 +737,14 @@ export default function ContactDetailPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Service History ({siteDetail.jobs?.length || 0})</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Service History ({siteDetail.jobs?.length || 0})</h3>
                   {siteDetail.jobs?.length > 0 ? (
                     <div className="divide-y border rounded-lg">
                       {siteDetail.jobs.map((j: any) => (
                         <Link key={j.id} to={`/crm/jobs/${j.id}`} className="p-3 flex items-center justify-between hover:bg-gray-50">
                           <div>
-                            <p className="font-medium text-gray-900 text-sm">{j.title}</p>
-                            <p className="text-xs text-gray-500">{j.number} — {j.scheduledDate ? formatDate(j.scheduledDate) : ''}</p>
+                            <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{j.title}</p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">{j.number} — {j.scheduledDate ? formatDate(j.scheduledDate) : ''}</p>
                           </div>
                           <StatusBadge status={j.status} />
                         </Link>

@@ -285,17 +285,17 @@ export default function SignupPage() {
   const price = billingCycle === 'annual' ? plan?.priceAnnual : plan?.price;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <header className="bg-white border-b dark:bg-slate-900">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{{COMPANY_NAME}}</span>
             </Link>
-            <Link to="/login" className="text-gray-600 hover:text-gray-900">
+            <Link to="/login" className="text-gray-600 hover:text-gray-900 dark:text-slate-400">
               Already have an account? Log in
             </Link>
           </div>
@@ -341,7 +341,7 @@ export default function SignupPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border p-6 md:p-8">
+        <div className="bg-white rounded-xl shadow-sm border p-6 md:p-8 dark:bg-slate-900">
           {step === 0 && (
             <PlanSelection
               selectedPlan={selectedPlan}
@@ -382,7 +382,7 @@ export default function SignupPage() {
             ) : (
               <button
                 onClick={handleBack}
-                className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-gray-700 hover:bg-gray-100"
+                className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-gray-700 hover:bg-gray-100 dark:text-slate-200"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -416,8 +416,8 @@ export default function SignupPage() {
 function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h2>
-      <p className="text-gray-600 mb-6">Start with a 30-day free trial. No credit card required.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Choose Your Plan</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">Start with a 30-day free trial. No credit card required.</p>
 
       <div className="flex justify-center items-center gap-4 mb-8">
         <span className={billingCycle === 'monthly' ? 'text-gray-900 font-medium' : 'text-gray-500'}>Monthly</span>
@@ -449,19 +449,19 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
               {plan.popular && (
                 <span className="text-xs font-semibold text-orange-500 uppercase">Most Popular</span>
               )}
-              <h3 className="text-lg font-bold text-gray-900 mt-1">{plan.name}</h3>
+              <h3 className="text-lg font-bold text-gray-900 mt-1 dark:text-slate-100">{plan.name}</h3>
               <div className="mt-2">
                 {plan.custom ? (
-                  <span className="text-2xl font-bold text-gray-900">Custom</span>
+                  <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">Custom</span>
                 ) : (
                   <>
-                    <span className="text-2xl font-bold text-gray-900">${price}</span>
-                    <span className="text-gray-500">/mo</span>
+                    <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">${price}</span>
+                    <span className="text-gray-500 dark:text-slate-400">/mo</span>
                   </>
                 )}
               </div>
-              <p className="text-sm text-gray-500 mt-1">{plan.custom ? `${plan.users}+ seats` : `Up to ${plan.users} seats`}</p>
-              <p className="text-sm text-gray-600 mt-2">{plan.description}</p>
+              <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{plan.custom ? `${plan.users}+ seats` : `Up to ${plan.users} seats`}</p>
+              <p className="text-sm text-gray-600 mt-2 dark:text-slate-400">{plan.description}</p>
               <div className="mt-3 flex items-center justify-center">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                   isSelected ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
@@ -480,27 +480,27 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
 function CompanyInfo({ formData, updateForm }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Company Information</h2>
-      <p className="text-gray-600 mb-6">Tell us about your business.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Company Information</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">Tell us about your business.</p>
 
       <div className="grid md:grid-cols-2 gap-6">
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Company Name *</label>
           <input
             type="text"
             value={formData.companyName}
             onChange={(e) => updateForm('companyName', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="Acme Plumbing Co."
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Industry *</label>
           <select
             value={formData.industry}
             onChange={(e) => updateForm('industry', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             <option value="">Select your industry</option>
             {INDUSTRIES.map((ind) => (
@@ -510,78 +510,78 @@ function CompanyInfo({ formData, updateForm }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Phone Number *</label>
           <input
             type="tel"
             value={formData.phone}
             onChange={(e) => updateForm('phone', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="(555) 123-4567"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Address</label>
           <input
             type="text"
             value={formData.address}
             onChange={(e) => updateForm('address', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="123 Main Street"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">City</label>
           <input
             type="text"
             value={formData.city}
             onChange={(e) => updateForm('city', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="Austin"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State</label>
             <input
               type="text"
               value={formData.state}
               onChange={(e) => updateForm('state', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="TX"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">ZIP Code</label>
             <input
               type="text"
               value={formData.zip}
               onChange={(e) => updateForm('zip', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="78701"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Website</label>
           <input
             type="url"
             value={formData.website}
             onChange={(e) => updateForm('website', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="https://acmeplumbing.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Number of Employees</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Number of Employees</label>
           <select
             value={formData.employeeCount}
             onChange={(e) => updateForm('employeeCount', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             <option value="1-5">1-5</option>
             <option value="6-10">6-10</option>
@@ -599,71 +599,71 @@ function CompanyInfo({ formData, updateForm }) {
 function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agreedToTerms, setAgreedToTerms }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Account</h2>
-      <p className="text-gray-600 mb-6">You'll be the admin of your company's account.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Create Your Account</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">You'll be the admin of your company's account.</p>
 
       <div className="grid md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">First Name *</label>
           <input
             type="text"
             value={formData.firstName}
             onChange={(e) => updateForm('firstName', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="John"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Last Name *</label>
           <input
             type="text"
             value={formData.lastName}
             onChange={(e) => updateForm('lastName', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="Smith"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email Address *</label>
           <input
             type="email"
             value={formData.email}
             onChange={(e) => updateForm('email', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="john@acmeplumbing.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Password *</label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e) => updateForm('password', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 pr-12 text-gray-900"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 pr-12 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="••••••••"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400"
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
-          <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+          <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Minimum 8 characters</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Confirm Password *</label>
           <input
             type={showPassword ? 'text' : 'password'}
             value={formData.confirmPassword}
             onChange={(e) => updateForm('confirmPassword', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="••••••••"
           />
         </div>
@@ -674,9 +674,9 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
               type="checkbox"
               checked={agreedToTerms}
               onChange={(e) => setAgreedToTerms(e.target.checked)}
-              className="w-5 h-5 text-orange-500 border-gray-300 rounded focus:ring-orange-500 mt-0.5 text-gray-900"
+              className="w-5 h-5 text-orange-500 border-gray-300 rounded focus:ring-orange-500 mt-0.5 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-slate-400">
               I agree to the{' '}
               <a href="/terms" className="text-orange-500 hover:underline">Terms of Service</a>
               {' '}and{' '}
@@ -692,29 +692,29 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
 function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loading }) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Start Your Free Trial</h2>
-      <p className="text-gray-600 mb-6">Try {{COMPANY_NAME}} free for 30 days. No credit card required.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Start Your Free Trial</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">Try {{COMPANY_NAME}} free for 30 days. No credit card required.</p>
 
-      <div className="bg-gray-50 rounded-lg p-6 mb-8">
-        <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
+      <div className="bg-gray-50 rounded-lg p-6 mb-8 dark:bg-slate-900">
+        <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Order Summary</h3>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">{plan.name} Plan</span>
+          <span className="text-gray-600 dark:text-slate-400">{plan.name} Plan</span>
           <span className="font-medium">{plan.custom ? 'Custom' : `$${price}/mo`}</span>
         </div>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">Billing Cycle</span>
+          <span className="text-gray-600 dark:text-slate-400">Billing Cycle</span>
           <span className="font-medium capitalize">{billingCycle}</span>
         </div>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">Seats</span>
+          <span className="text-gray-600 dark:text-slate-400">Seats</span>
           <span className="font-medium">{plan.custom ? `${plan.users}+` : `Up to ${plan.users}`}</span>
         </div>
         <hr className="my-4" />
         <div className="flex justify-between items-center">
-          <span className="text-gray-600">Due Today</span>
+          <span className="text-gray-600 dark:text-slate-400">Due Today</span>
           <span className="text-xl font-bold text-green-600">$0.00</span>
         </div>
-        <p className="text-sm text-gray-500 mt-2">
+        <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">
           Your trial ends in 30 days. You can add payment info anytime.
         </p>
       </div>
@@ -738,12 +738,12 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
           )}
         </button>
 
-        <div className="text-center text-gray-500">or</div>
+        <div className="text-center text-gray-500 dark:text-slate-400">or</div>
 
         <button
           onClick={onSubscribe}
           disabled={loading}
-          className="w-full border-2 border-gray-300 text-gray-700 py-4 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50"
+          className="w-full border-2 border-gray-300 text-gray-700 py-4 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
         >
           Subscribe Now & Skip Trial
         </button>

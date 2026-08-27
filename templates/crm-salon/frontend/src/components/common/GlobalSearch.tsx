@@ -136,11 +136,11 @@ export default function GlobalSearch() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors dark:text-slate-400 dark:bg-slate-800"
       >
         <Search className="w-4 h-4" />
         <span className="hidden sm:inline">Search...</span>
-        <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-white rounded border border-gray-300">
+        <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-white rounded border border-gray-300 dark:bg-slate-900 dark:border-slate-700">
           <span className="text-xs">⌘</span>K
         </kbd>
       </button>
@@ -157,9 +157,9 @@ export default function GlobalSearch() {
 
       {/* Modal */}
       <div className="relative min-h-screen flex items-start justify-center pt-[15vh] px-4">
-        <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl overflow-hidden">
+        <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl overflow-hidden dark:bg-slate-900">
           {/* Search input */}
-          <div className="flex items-center px-4 border-b border-gray-200">
+          <div className="flex items-center px-4 border-b border-gray-200 dark:border-slate-700">
             <Search className="w-5 h-5 text-gray-400" />
             <input
               ref={inputRef}
@@ -181,13 +181,13 @@ export default function GlobalSearch() {
           {/* Results */}
           <div className="max-h-96 overflow-y-auto">
             {displayItems.length === 0 && query.length >= 2 && !loading && (
-              <div className="px-4 py-8 text-center text-gray-500">
+              <div className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                 No results for "{query}"
               </div>
             )}
 
             {displayItems.length === 0 && query.length < 2 && recentItems.length === 0 && (
-              <div className="px-4 py-8 text-center text-gray-500">
+              <div className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                 Start typing to search...
               </div>
             )}
@@ -195,7 +195,7 @@ export default function GlobalSearch() {
             {displayItems.length > 0 && (
               <div className="py-2">
                 {query.length < 2 && recentItems.length > 0 && (
-                  <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div className="px-4 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">
                     Recent
                   </div>
                 )}
@@ -217,11 +217,11 @@ export default function GlobalSearch() {
                         <Icon className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 truncate">
+                        <div className="font-medium text-gray-900 truncate dark:text-slate-100">
                           {item.name}
                         </div>
                         {item.description && (
-                          <div className="text-sm text-gray-500 truncate">
+                          <div className="text-sm text-gray-500 truncate dark:text-slate-400">
                             {item.description}
                           </div>
                         )}
@@ -237,20 +237,20 @@ export default function GlobalSearch() {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-400">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-white rounded border">↑</kbd>
-                <kbd className="px-1.5 py-0.5 bg-white rounded border">↓</kbd>
+                <kbd className="px-1.5 py-0.5 bg-white rounded border dark:bg-slate-900">↑</kbd>
+                <kbd className="px-1.5 py-0.5 bg-white rounded border dark:bg-slate-900">↓</kbd>
                 navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-white rounded border">↵</kbd>
+                <kbd className="px-1.5 py-0.5 bg-white rounded border dark:bg-slate-900">↵</kbd>
                 select
               </span>
             </div>
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white rounded border">esc</kbd>
+              <kbd className="px-1.5 py-0.5 bg-white rounded border dark:bg-slate-900">esc</kbd>
               close
             </span>
           </div>

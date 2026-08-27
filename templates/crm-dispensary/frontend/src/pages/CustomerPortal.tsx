@@ -113,7 +113,7 @@ export default function CustomerPortal() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-white border-b border-slate-200 dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export default function CustomerPortal() {
         {/* Today's Quick Stats */}
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
               <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center mb-2">
                 <DollarSign className="w-4 h-4 text-green-500" />
               </div>
@@ -166,7 +166,7 @@ export default function CustomerPortal() {
               </p>
               <p className="text-xs text-slate-500">Revenue Today</p>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center mb-2">
                 <ClipboardList className="w-4 h-4 text-blue-500" />
               </div>
@@ -175,7 +175,7 @@ export default function CustomerPortal() {
               </p>
               <p className="text-xs text-slate-500">Orders Today</p>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mb-2">
                 <ShoppingCart className="w-4 h-4 text-emerald-500" />
               </div>
@@ -215,7 +215,7 @@ export default function CustomerPortal() {
 
         {/* Low Stock Alerts */}
         {lowStock.length > 0 && (
-          <div className="bg-white rounded-xl border border-amber-200 mb-8">
+          <div className="bg-white rounded-xl border border-amber-200 mb-8 dark:bg-slate-900">
             <div className="px-6 py-4 border-b border-amber-100 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
               <h3 className="font-semibold text-slate-900">Low Stock Alerts</h3>
@@ -253,7 +253,7 @@ export default function CustomerPortal() {
 
         {/* Empty state when no stats */}
         {!stats && !loading && (
-          <div className="bg-white rounded-xl border border-slate-200 px-6 py-8 text-center mb-8">
+          <div className="bg-white rounded-xl border border-slate-200 px-6 py-8 text-center mb-8 dark:bg-slate-900">
             <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
             <p className="text-sm text-slate-500">No data yet</p>
             <p className="text-xs text-slate-400 mt-1">Start by adding products and processing orders</p>

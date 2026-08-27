@@ -110,8 +110,8 @@ export default function AppointmentsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">The Book</h1>
-          <p className="text-gray-500">Today's chairs</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">The Book</h1>
+          <p className="text-gray-500 dark:text-slate-400">Today's chairs</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
           <Plus className="w-4 h-4" /> New Appointment
@@ -124,7 +124,7 @@ export default function AppointmentsPage() {
           <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg" />
         </div>
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Today</button>
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-slate-400">
           {booked} booked{appts.length !== booked ? ` · ${appts.length - booked} closed/cancelled` : ''}
         </span>
       </div>
@@ -134,25 +134,25 @@ export default function AppointmentsPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : appts.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">Nothing booked this day</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">Nothing booked this day</div>
       ) : (
         <div className="space-y-2">
           {appts.map((a) => (
-            <div key={a.id} className="bg-white rounded-xl border p-4 flex items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-2 text-gray-900 font-medium w-40">
+            <div key={a.id} className="bg-white rounded-xl border p-4 flex items-center gap-4 flex-wrap dark:bg-slate-900">
+              <div className="flex items-center gap-2 text-gray-900 font-medium w-40 dark:text-slate-100">
                 <Clock className="w-4 h-4 text-gray-400" />
                 {fmtTime(a.startTime)}
                 {a.endTime && <span className="text-xs text-gray-400">– {fmtTime(a.endTime)}</span>}
               </div>
               <div className="flex-1 min-w-[180px]">
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-gray-900 dark:text-slate-100">
                   {a.contactId ? (
                     <Link to={`/crm/clients/${a.contactId}`} className="hover:text-teal-600">{a.clientName || 'Client'}</Link>
                   ) : (
                     a.clientName || 'Walk-in'
                   )}
                 </p>
-                <p className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
+                <p className="text-sm text-gray-500 flex items-center gap-2 flex-wrap dark:text-slate-400">
                   {a.serviceName && <span className="flex items-center gap-1"><Scissors className="w-3 h-3" /> {a.serviceName}</span>}
                   {(a.clientMobile || a.clientPhone) && (
                     <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {a.clientMobile || a.clientPhone}</span>
@@ -276,26 +276,26 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">New Appointment</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500">*</span></label>
               <ClientPicker value={contactId} onChange={(id) => setContactId(id)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Service</label>
                 <select value={form.serviceId} onChange={(e) => onService(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Select service...</option>
                   {services.map((s) => <option key={s.id} value={s.id}>{s.name || 'Untitled'}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stylist</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stylist</label>
                 <select value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
                   {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
@@ -304,30 +304,30 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
                 <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start</label>
                 <input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End</label>
                 <input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Chair / Room</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Chair / Room</label>
                 <input type="text" value={form.station} onChange={(e) => set('station', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quoted price ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quoted price ($)</label>
                 <input type="number" step="any" value={form.quotedPrice} onChange={(e) => set('quotedPrice', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-2">

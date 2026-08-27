@@ -103,8 +103,8 @@ export default function EventsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Events</h1>
-          <p className="text-gray-500">Every enquiry, booking and party in one place</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Events</h1>
+          <p className="text-gray-500 dark:text-slate-400">Every enquiry, booking and party in one place</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
           <Plus className="w-4 h-4" /> New Enquiry
@@ -136,7 +136,7 @@ export default function EventsPage() {
             <List className="w-4 h-4" /> List
           </button>
         </div>
-        <span className="text-sm text-gray-500">{open.length} open · {events.length} total</span>
+        <span className="text-sm text-gray-500 dark:text-slate-400">{open.length} open · {events.length} total</span>
       </div>
 
       {loading ? (
@@ -144,7 +144,7 @@ export default function EventsPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : events.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No events yet</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No events yet</div>
       ) : view === 'pipeline' ? (
         <PipelineView events={events} />
       ) : (
@@ -170,18 +170,18 @@ function PipelineView({ events }: { events: EventRow[] }) {
       {columns.map((col) => {
         const rows = events.filter((e) => (e.status || 'enquiry') === col);
         return (
-          <div key={col} className="bg-gray-50 rounded-xl border p-3">
+          <div key={col} className="bg-gray-50 rounded-xl border p-3 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3 px-1">
-              <h2 className="font-semibold text-gray-700 capitalize text-sm">{col}</h2>
-              <span className="text-xs bg-white text-gray-500 px-2 py-0.5 rounded-full border">{rows.length}</span>
+              <h2 className="font-semibold text-gray-700 capitalize text-sm dark:text-slate-200">{col}</h2>
+              <span className="text-xs bg-white text-gray-500 px-2 py-0.5 rounded-full border dark:bg-slate-900 dark:text-slate-400">{rows.length}</span>
             </div>
             <div className="space-y-2">
               {rows.length === 0 ? (
                 <p className="text-xs text-gray-400 text-center py-6">Nothing here</p>
               ) : rows.map((e) => (
-                <Link key={e.id} to={`/crm/events/${e.id}`} className="block bg-white rounded-lg border p-3 hover:shadow-md transition">
-                  <p className="font-medium text-gray-900 text-sm">{e.name || 'Untitled'}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{e.clientName || 'No client attached'}</p>
+                <Link key={e.id} to={`/crm/events/${e.id}`} className="block bg-white rounded-lg border p-3 hover:shadow-md transition dark:bg-slate-900">
+                  <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{e.name || 'Untitled'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{e.clientName || 'No client attached'}</p>
                   <div className="flex items-center gap-3 mt-2 text-xs text-gray-400 flex-wrap">
                     <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {fmtEventDate(e.eventDate)}</span>
                     {(e.guestCountFinal || e.guestCount) && (
@@ -189,7 +189,7 @@ function PipelineView({ events }: { events: EventRow[] }) {
                     )}
                   </div>
                   {e.spaceName && <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {e.spaceName}</p>}
-                  {e.quotedTotal ? <p className="text-sm font-semibold text-gray-700 mt-2">{money(e.quotedTotal)}</p> : null}
+                  {e.quotedTotal ? <p className="text-sm font-semibold text-gray-700 mt-2 dark:text-slate-200">{money(e.quotedTotal)}</p> : null}
                 </Link>
               ))}
             </div>
@@ -204,9 +204,9 @@ function PipelineView({ events }: { events: EventRow[] }) {
 
 function ListView({ events }: { events: EventRow[] }) {
   return (
-    <div className="bg-white rounded-xl border overflow-x-auto">
+    <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
       <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-gray-500 text-left">
+        <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
           <tr>
             <th className="px-4 py-3 font-medium">Date</th>
             <th className="px-4 py-3 font-medium">Event</th>
@@ -220,18 +220,18 @@ function ListView({ events }: { events: EventRow[] }) {
         <tbody className="divide-y">
           {events.map((e) => (
             <tr key={e.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+              <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-slate-400">
                 {fmtEventDate(e.eventDate)}
                 {e.startTime && <span className="block text-xs text-gray-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}
               </td>
               <td className="px-4 py-3">
-                <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-teal-600">{e.name || 'Untitled'}</Link>
+                <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">{e.name || 'Untitled'}</Link>
                 <span className="block text-xs text-gray-400 capitalize">{prettyType(e.eventType)}</span>
               </td>
-              <td className="px-4 py-3 text-gray-600">{e.clientName || '—'}</td>
-              <td className="px-4 py-3 text-gray-600">{e.spaceName || '—'}</td>
-              <td className="px-4 py-3 text-gray-600">{e.guestCountFinal ?? e.guestCount ?? '—'}</td>
-              <td className="px-4 py-3 text-gray-600">{money(e.quotedTotal)}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.clientName || '—'}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.spaceName || '—'}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.guestCountFinal ?? e.guestCount ?? '—'}</td>
+              <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(e.quotedTotal)}</td>
               <td className="px-4 py-3">
                 <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${STATUS_COLORS[e.status || ''] || 'bg-gray-100 text-gray-700'}`}>
                   {e.status || 'enquiry'}
@@ -308,49 +308,49 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">New Enquiry</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Event name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Harper / Diaz wedding" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client</label>
               <ClientPicker value={contactId} onChange={(id) => setContactId(id)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
                 <select value={form.eventType} onChange={(e) => set('eventType', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
                   {EVENT_TYPES.map((t) => <option key={t} value={t}>{prettyType(t)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Guests</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Guests</label>
                 <input type="number" value={form.guestCount} onChange={(e) => set('guestCount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date <span className="text-red-500">*</span></label>
                 <input type="date" value={form.eventDate} onChange={(e) => set('eventDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">From</label>
                 <input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
                 <input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Space</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Space</label>
                 <select value={form.spaceId} onChange={(e) => set('spaceId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Not decided yet</option>
                   {spaces.map((s) => (
@@ -361,7 +361,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Coordinator</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Coordinator</label>
                 <select value={form.coordinatorId} onChange={(e) => set('coordinatorId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
                   {staff.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
@@ -372,11 +372,11 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
               An enquiry doesn't hold the room — the space is only blocked once you move it to Tentative.
             </p>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">How did they find you?</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">How did they find you?</label>
               <input type="text" value={form.source} onChange={(e) => set('source', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Website, walk-in, referral..." />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-2">

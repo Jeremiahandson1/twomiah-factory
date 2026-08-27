@@ -113,8 +113,8 @@ export default function AgencyDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Agency Dashboard</h1>
-          <p className="text-gray-500">Manage your customer CRM deployments</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Agency Dashboard</h1>
+          <p className="text-gray-500 dark:text-slate-400">Manage your customer CRM deployments</p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -150,9 +150,9 @@ export default function AgencyDashboard() {
       )}
 
       {/* Customers List */}
-      <div className="bg-white rounded-xl shadow-sm border">
+      <div className="bg-white rounded-xl shadow-sm border dark:bg-slate-900">
         <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Customers</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Customers</h2>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -179,7 +179,7 @@ export default function AgencyDashboard() {
         ) : (
           <div className="p-12 text-center">
             <Building2 className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500">No customers yet</p>
+            <p className="text-gray-500 dark:text-slate-400">No customers yet</p>
             <button
               onClick={() => setShowCreateModal(true)}
               className="mt-4 text-orange-600 hover:text-orange-700 font-medium"
@@ -222,14 +222,14 @@ function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-6">
+    <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
       <div className="flex items-center gap-4">
         <div className={`w-12 h-12 rounded-lg ${colors[color]} flex items-center justify-center`}>
           <Icon className="w-6 h-6" />
         </div>
         <div>
-          <p className="text-2xl font-bold text-gray-900">{value.toLocaleString()}</p>
-          <p className="text-sm text-gray-500">{label}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{value.toLocaleString()}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{label}</p>
         </div>
       </div>
     </div>
@@ -260,7 +260,7 @@ function CustomerRow({ customer, onEditFeatures, onRefresh }: CustomerRowProps) 
   return (
     <div className="p-4 flex items-center hover:bg-gray-50">
       {/* Logo/Avatar */}
-      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center mr-4 overflow-hidden">
+      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center mr-4 overflow-hidden dark:bg-slate-800">
         {customer.logo ? (
           <img src={customer.logo} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -271,10 +271,10 @@ function CustomerRow({ customer, onEditFeatures, onRefresh }: CustomerRowProps) 
       {/* Info */}
       <div className="flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="font-medium text-gray-900">{customer.name}</h3>
+          <h3 className="font-medium text-gray-900 dark:text-slate-100">{customer.name}</h3>
           <span className="text-xs text-gray-400">/{customer.slug}</span>
         </div>
-        <div className="flex items-center gap-4 text-sm text-gray-500">
+        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
           <span>{customer.email}</span>
           <span className="flex items-center gap-1">
             <Package className="w-3 h-3" />
@@ -286,16 +286,16 @@ function CustomerRow({ customer, onEditFeatures, onRefresh }: CustomerRowProps) 
       {/* Stats */}
       <div className="flex items-center gap-6 mr-4 text-sm">
         <div className="text-center">
-          <p className="font-semibold text-gray-900">{customer.stats?.users || 0}</p>
-          <p className="text-gray-500">Users</p>
+          <p className="font-semibold text-gray-900 dark:text-slate-100">{customer.stats?.users || 0}</p>
+          <p className="text-gray-500 dark:text-slate-400">Users</p>
         </div>
         <div className="text-center">
-          <p className="font-semibold text-gray-900">{customer.stats?.contacts || 0}</p>
-          <p className="text-gray-500">Contacts</p>
+          <p className="font-semibold text-gray-900 dark:text-slate-100">{customer.stats?.contacts || 0}</p>
+          <p className="text-gray-500 dark:text-slate-400">Contacts</p>
         </div>
         <div className="text-center">
-          <p className="font-semibold text-gray-900">{customer.stats?.jobs || 0}</p>
-          <p className="text-gray-500">Jobs</p>
+          <p className="font-semibold text-gray-900 dark:text-slate-100">{customer.stats?.jobs || 0}</p>
+          <p className="text-gray-500 dark:text-slate-400">Jobs</p>
         </div>
       </div>
 
@@ -327,7 +327,7 @@ function CustomerRow({ customer, onEditFeatures, onRefresh }: CustomerRowProps) 
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-20">
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-20 dark:bg-slate-900">
                 <button
                   onClick={() => {
                     setShowMenu(false);

@@ -181,10 +181,10 @@ export default function ContactsPage() {
   const totalPages = Math.ceil(total / limit) || 1;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Contacts</h1>
           <button
             onClick={openCreate}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg"
@@ -207,7 +207,7 @@ export default function ContactsPage() {
               />
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border divide-y">
+            <div className="bg-white rounded-xl shadow-sm border divide-y dark:bg-slate-900">
               {loading ? (
                 <div className="py-12 text-center text-gray-400">Loading...</div>
               ) : contacts.length === 0 ? (
@@ -221,10 +221,10 @@ export default function ContactsPage() {
                       selected?.id === contact.id ? 'bg-blue-50 border-l-2 border-l-blue-600' : ''
                     }`}
                   >
-                    <p className="font-medium text-gray-900 text-sm">
+                    <p className="font-medium text-gray-900 text-sm dark:text-slate-100">
                       {contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown'}
                     </p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-slate-400">
                       {contact.phone && (
                         <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{contact.phone}</span>
                       )}
@@ -239,7 +239,7 @@ export default function ContactsPage() {
 
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-3">
-                <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
                 <div className="flex gap-1">
                   <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
                     <ChevronLeft className="w-4 h-4" />
@@ -255,16 +255,16 @@ export default function ContactsPage() {
           {/* Detail Panel */}
           {selected && (
             <div className="w-[420px] flex-shrink-0">
-              <div className="bg-white rounded-xl shadow-sm border sticky top-6">
+              <div className="bg-white rounded-xl shadow-sm border sticky top-6 dark:bg-slate-900">
                 <div className="p-6 border-b">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h2 className="text-lg font-bold text-gray-900">
+                      <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">
                         {selected.name || `${selected.firstName || ''} ${selected.lastName || ''}`.trim()}
                       </h2>
                     </div>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50">Edit</button>
+                      <button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>
                       <button onClick={() => deleteContact(selected)} className="px-2.5 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Delete</button>
                       <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 ml-1">
                         <X className="w-4 h-4" />
@@ -302,7 +302,7 @@ export default function ContactsPage() {
                         </a>
                       )}
                       {(selected.address || selected.city) && (
-                        <div className="flex items-start gap-2 text-sm text-gray-700">
+                        <div className="flex items-start gap-2 text-sm text-gray-700 dark:text-slate-200">
                           <MapPin className="w-4 h-4 text-gray-400 mt-0.5" />
                           <span>{[selected.address, selected.city, selected.state, selected.zip].filter(Boolean).join(', ')}</span>
                         </div>
@@ -310,9 +310,9 @@ export default function ContactsPage() {
 
                       {/* Portal Access */}
                       <div className="pt-4 border-t space-y-3">
-                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Portal</h3>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-slate-400">Customer Portal</h3>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-700">Portal Access</span>
+                          <span className="text-sm text-gray-700 dark:text-slate-200">Portal Access</span>
                           <button
                             onClick={togglePortal}
                             disabled={togglingPortal}
@@ -349,12 +349,12 @@ export default function ContactsPage() {
                             className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer border"
                           >
                             <div>
-                              <p className="text-sm font-mono font-semibold text-gray-700">
+                              <p className="text-sm font-mono font-semibold text-gray-700 dark:text-slate-200">
                                 {job.jobNumber || `ROOF-${String(job.id).padStart(4, '0')}`}
                               </p>
-                              <p className="text-xs text-gray-500 mt-0.5">{job.address || '—'}</p>
+                              <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{job.address || '—'}</p>
                             </div>
-                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                            <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">
                               {(job.status || '').replace(/_/g, ' ')}
                             </span>
                           </div>
@@ -413,9 +413,9 @@ export default function ContactsPage() {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && setShowCreate(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Contact' : 'New Contact'}</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{editingId ? 'Edit Contact' : 'New Contact'}</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="px-6 py-5 grid grid-cols-2 gap-4">
@@ -426,18 +426,18 @@ export default function ContactsPage() {
                 ['state', 'State'], ['zip', 'ZIP'],
               ] as [keyof typeof form, string][]).map(([key, label]) => (
                 <label key={key} className={`text-sm ${key === 'address' ? 'col-span-2' : ''}`}>
-                  <span className="block text-gray-600 mb-1">{label}</span>
+                  <span className="block text-gray-600 mb-1 dark:text-slate-400">{label}</span>
                   <input
                     type={key === 'email' ? 'email' : 'text'}
                     value={form[key]}
                     onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none dark:border-slate-700"
                   />
                 </label>
               ))}
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
-              <button onClick={() => setShowCreate(false)} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900">Cancel</button>
+              <button onClick={() => setShowCreate(false)} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-slate-400">Cancel</button>
               <button onClick={saveContact} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
                 {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Contact'}
               </button>

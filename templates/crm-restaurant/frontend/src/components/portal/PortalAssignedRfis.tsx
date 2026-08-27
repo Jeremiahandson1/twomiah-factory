@@ -77,14 +77,14 @@ export default function PortalAssignedRfis() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">RFIs</h1>
-        <p className="text-gray-600">Requests for information assigned to you.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">RFIs</h1>
+        <p className="text-gray-600 dark:text-slate-400">Requests for information assigned to you.</p>
       </div>
 
       {rfis.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <HelpCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No RFIs assigned to you yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No RFIs assigned to you yet.</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -107,24 +107,24 @@ export default function PortalAssignedRfis() {
 
       {responding && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Respond to RFI</h2>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 dark:bg-slate-900">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1 dark:text-slate-100">Respond to RFI</h2>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
               {responding.number} — {responding.subject}
             </p>
-            <div className="bg-gray-50 rounded-lg p-3 mb-4">
-              <p className="text-xs font-medium text-gray-500 mb-1">Question</p>
-              <p className="text-sm text-gray-900 whitespace-pre-wrap">{responding.question}</p>
+            <div className="bg-gray-50 rounded-lg p-3 mb-4 dark:bg-slate-900">
+              <p className="text-xs font-medium text-gray-500 mb-1 dark:text-slate-400">Question</p>
+              <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{responding.question}</p>
             </div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Your Response</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Your Response</label>
             <textarea
               value={response}
               onChange={(e) => setResponse(e.target.value)}
               rows={5}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:border-slate-700"
             />
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setResponding(null)} disabled={busy} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setResponding(null)} disabled={busy} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg dark:text-slate-200">
                 Cancel
               </button>
               <button
@@ -145,7 +145,7 @@ export default function PortalAssignedRfis() {
 function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">{title}</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">{title}</h2>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -153,30 +153,30 @@ function Section({ title, children }: { title: React.ReactNode; children: React.
 
 function RfiCard({ rfi, onRespond }: { rfi: AssignedRfi; onRespond: (() => void) | null }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 dark:bg-slate-900 dark:border-slate-700">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div className="p-2 bg-indigo-100 rounded-lg shrink-0">
             <HelpCircle className="w-5 h-5 text-indigo-600" />
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-gray-900">
+            <p className="font-medium text-gray-900 dark:text-slate-100">
               {rfi.number} — {rfi.subject}
             </p>
             {rfi.projectName && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-slate-400">
                 Project: {rfi.projectNumber ? `${rfi.projectNumber} · ` : ''}
                 {rfi.projectName}
               </p>
             )}
-            <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{rfi.question}</p>
+            <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap dark:text-slate-200">{rfi.question}</p>
             {rfi.response && (
               <div className="bg-green-50 rounded-lg p-2 mt-2">
                 <p className="text-xs font-medium text-green-700">Response</p>
-                <p className="text-sm text-gray-900 whitespace-pre-wrap">{rfi.response}</p>
+                <p className="text-sm text-gray-900 whitespace-pre-wrap dark:text-slate-100">{rfi.response}</p>
               </div>
             )}
-            <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
+            <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400">
               {rfi.dueDate && <span>Due {formatDate(rfi.dueDate)}</span>}
               <span>Opened {formatDate(rfi.createdAt)}</span>
               {rfi.respondedAt && <span>Answered {formatDate(rfi.respondedAt)}</span>}

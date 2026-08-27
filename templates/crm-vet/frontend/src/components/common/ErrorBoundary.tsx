@@ -61,8 +61,8 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
               <AlertTriangle className="w-8 h-8 text-red-500" />
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Something went wrong</h2>
-            <p className="text-gray-600 mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-slate-100">Something went wrong</h2>
+            <p className="text-gray-600 mb-6 dark:text-slate-400">
               {this.props.message || "We're sorry, but something unexpected happened. Please try again."}
             </p>
 
@@ -92,7 +92,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
               </button>
               <button
                 onClick={this.handleGoHome}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors dark:bg-slate-800 dark:text-slate-200"
               >
                 <Home className="w-4 h-4" />
                 Go Home

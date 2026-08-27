@@ -88,7 +88,7 @@ export default function SelectionsPage({ projectId: propProjectId }) {
       <div className="flex items-center justify-center h-full">
         <div className="text-center p-8">
           <Palette className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500 mb-4">Select a project to view selections</p>
+          <p className="text-gray-500 mb-4 dark:text-slate-400">Select a project to view selections</p>
           {projects.length > 0 ? (
             <select
               value={projectId}
@@ -110,8 +110,8 @@ export default function SelectionsPage({ projectId: propProjectId }) {
     <div className="space-y-6">
       {/* Project selector (standalone mode) */}
       {!propProjectId && projects.length > 1 && (
-        <div className="px-4 py-2 border rounded-lg bg-white flex items-center gap-2">
-          <span className="text-sm text-gray-500">Project:</span>
+        <div className="px-4 py-2 border rounded-lg bg-white flex items-center gap-2 dark:bg-slate-900">
+          <span className="text-sm text-gray-500 dark:text-slate-400">Project:</span>
           <select
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
@@ -125,8 +125,8 @@ export default function SelectionsPage({ projectId: propProjectId }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Selections</h2>
-          <p className="text-gray-500">Client finish and fixture selections</p>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Selections</h2>
+          <p className="text-gray-500 dark:text-slate-400">Client finish and fixture selections</p>
         </div>
         <button
           onClick={() => setShowAddSelection(true)}
@@ -196,16 +196,16 @@ export default function SelectionsPage({ projectId: propProjectId }) {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : Object.keys(grouped).length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <Palette className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No selections yet</p>
+          <p className="text-gray-500 dark:text-slate-400">No selections yet</p>
         </div>
       ) : (
         <div className="space-y-6">
           {Object.entries(grouped).map(([category, items]) => (
-            <div key={category} className="bg-white rounded-xl border overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b">
-                <h3 className="font-medium text-gray-900">{category}</h3>
+            <div key={category} className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+              <div className="px-4 py-3 bg-gray-50 border-b dark:bg-slate-900">
+                <h3 className="font-medium text-gray-900 dark:text-slate-100">{category}</h3>
               </div>
               <div className="divide-y">
                 {items.map(selection => (
@@ -313,7 +313,7 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
     <div className="p-4 hover:bg-gray-50">
       <div className="flex items-start gap-4">
         {/* Image or placeholder */}
-        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+        <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden dark:bg-slate-800">
           {selection.selectedOption?.imageUrl ? (
             <img
               src={selection.selectedOption.imageUrl}
@@ -329,9 +329,9 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between">
             <div>
-              <p className="font-medium text-gray-900">{selection.name}</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">{selection.name}</p>
               {selection.location && (
-                <p className="text-sm text-gray-500">{selection.location}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{selection.location}</p>
               )}
             </div>
             <span className={`px-2 py-1 text-xs rounded-full bg-${status.color}-100 text-${status.color}-700`}>
@@ -341,9 +341,9 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
 
           {/* Selected option */}
           {selection.selectedOption ? (
-            <div className="mt-2 p-2 bg-gray-50 rounded-lg">
+            <div className="mt-2 p-2 bg-gray-50 rounded-lg dark:bg-slate-900">
               <p className="text-sm font-medium">{selection.selectedOption.name}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-slate-400">
                 {selection.selectedOption.manufacturer} {selection.selectedOption.model}
               </p>
             </div>
@@ -358,7 +358,7 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
 
           {/* Pricing */}
           <div className="mt-2 flex items-center gap-4 text-sm">
-            <span className="text-gray-500">
+            <span className="text-gray-500 dark:text-slate-400">
               Allowance: ${selection.allowance?.toLocaleString() || 0}
             </span>
             {selection.priceDifference !== 0 && selection.priceDifference !== undefined && (
@@ -447,11 +447,11 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col dark:bg-slate-900">
           {/* Header */}
           <div className="p-4 border-b">
             <h2 className="text-lg font-bold">Select {selection.name}</h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               Allowance: ${selection.allowance?.toLocaleString() || 0} • 
               Qty: {selection.quantity} {selection.unit}
             </p>
@@ -478,7 +478,7 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
                 <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
               </div>
             ) : filtered.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                 No options found
               </div>
             ) : (
@@ -500,12 +500,12 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
                           className="w-full h-32 object-cover rounded-lg mb-3"
                         />
                       ) : (
-                        <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 flex items-center justify-center">
+                        <div className="w-full h-32 bg-gray-100 rounded-lg mb-3 flex items-center justify-center dark:bg-slate-800">
                           <Image className="w-8 h-8 text-gray-400" />
                         </div>
                       )}
-                      <p className="font-medium text-gray-900 truncate">{option.name}</p>
-                      <p className="text-sm text-gray-500 truncate">
+                      <p className="font-medium text-gray-900 truncate dark:text-slate-100">{option.name}</p>
+                      <p className="text-sm text-gray-500 truncate dark:text-slate-400">
                         {option.manufacturer} {option.model}
                       </p>
                       <div className="mt-2 flex items-center justify-between">
@@ -564,12 +564,12 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Selection</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
               <select
                 value={form.categoryId}
                 onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
@@ -584,7 +584,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
               <input
                 type="text"
                 value={form.name}
@@ -596,7 +596,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
               <input
                 type="text"
                 value={form.location}
@@ -608,7 +608,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Allowance ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Allowance ($)</label>
                 <input
                   type="number"
                   value={form.allowance}
@@ -617,7 +617,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
                 <input
                   type="number"
                   value={form.quantity}
@@ -628,7 +628,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Due Date</label>
               <input
                 type="date"
                 value={form.dueDate}

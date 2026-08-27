@@ -148,8 +148,8 @@ export default function MarketplacePage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Integrations Marketplace</h1>
-          <p className="text-gray-600">Connect with third-party services and partners</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Integrations Marketplace</h1>
+          <p className="text-gray-600 dark:text-slate-400">Connect with third-party services and partners</p>
         </div>
       </div>
 
@@ -180,7 +180,7 @@ export default function MarketplacePage() {
           {/* Featured Section */}
           {featured.length > 0 && (
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
                 <Star className="w-5 h-5 text-yellow-500" />
                 Featured Partners
               </h2>
@@ -196,13 +196,13 @@ export default function MarketplacePage() {
                         </div>
                       )}
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{integration.name}</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-slate-100">{integration.name}</h3>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColors[integration.category] || 'bg-gray-100 text-gray-600'}`}>
                           {integration.category || 'other'}
                         </span>
                       </div>
                     </div>
-                    <p className="text-sm text-gray-600 mb-4">{integration.description || 'No description available'}</p>
+                    <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{integration.description || 'No description available'}</p>
                     <Button
                       onClick={() => handleInstall(integration.id)}
                       disabled={installing === integration.id || integration.installed}
@@ -224,13 +224,13 @@ export default function MarketplacePage() {
                 placeholder="Search integrations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">All Categories</option>
               {categories.map(cat => (
@@ -246,23 +246,23 @@ export default function MarketplacePage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredIntegrations.map(integration => (
-                <div key={integration.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <div key={integration.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start gap-3 mb-3">
                     {integration.logoUrl ? (
                       <img src={integration.logoUrl} alt={integration.name} className="w-10 h-10 rounded-lg object-contain" />
                     ) : (
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center dark:bg-slate-800">
                         <Zap className="w-5 h-5 text-gray-400" />
                       </div>
                     )}
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{integration.name}</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-slate-100">{integration.name}</h3>
                       <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColors[integration.category] || 'bg-gray-100 text-gray-600'}`}>
                         {integration.category || 'other'}
                       </span>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-2">{integration.description || 'No description available'}</p>
+                  <p className="text-sm text-gray-600 mb-4 line-clamp-2 dark:text-slate-400">{integration.description || 'No description available'}</p>
                   <button
                     onClick={() => handleInstall(integration.id)}
                     disabled={installing === integration.id || integration.installed}
@@ -277,7 +277,7 @@ export default function MarketplacePage() {
                 </div>
               ))}
               {filteredIntegrations.length === 0 && (
-                <div className="col-span-full text-center py-12 text-gray-500">
+                <div className="col-span-full text-center py-12 text-gray-500 dark:text-slate-400">
                   <Store className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No integrations found</p>
                   {searchQuery && <p className="text-sm mt-1">Try adjusting your search</p>}
@@ -298,29 +298,29 @@ export default function MarketplacePage() {
           ) : (
             <div className="space-y-3">
               {installed.map(integration => (
-                <div key={integration.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center justify-between">
+                <div key={integration.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center justify-between dark:bg-slate-900">
                   <div className="flex items-center gap-4">
                     {integration.logoUrl ? (
                       <img src={integration.logoUrl} alt={integration.name} className="w-10 h-10 rounded-lg object-contain" />
                     ) : (
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center dark:bg-slate-800">
                         <Zap className="w-5 h-5 text-gray-400" />
                       </div>
                     )}
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-gray-900">{integration.name}</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-slate-100">{integration.name}</h3>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[integration.status] || 'bg-gray-100 text-gray-500'}`}>
                           {integration.status || 'active'}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500">{integration.category || '—'}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{integration.category || '—'}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleTestConnection(integration.id)}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
                     >
                       Test
                     </button>
@@ -348,7 +348,7 @@ export default function MarketplacePage() {
                 </div>
               ))}
               {installed.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                   <Download className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No integrations installed</p>
                   <p className="text-sm mt-1">Browse the marketplace to find integrations for your dispensary</p>
@@ -369,12 +369,12 @@ export default function MarketplacePage() {
           {configIntegration?.configFields && Array.isArray(configIntegration.configFields) ? (
             configIntegration.configFields.map((field: any) => (
               <div key={field.key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{field.label || field.key}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{field.label || field.key}</label>
                 <input
                   type={field.type === 'password' ? 'password' : 'text'}
                   value={configValues[field.key] || ''}
                   onChange={(e) => setConfigValues({ ...configValues, [field.key]: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder={field.placeholder || ''}
                 />
                 {field.help && <p className="text-xs text-gray-400 mt-1">{field.help}</p>}
@@ -383,22 +383,22 @@ export default function MarketplacePage() {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">API Key</label>
                 <input
                   type="password"
                   value={configValues.apiKey || ''}
                   onChange={(e) => setConfigValues({ ...configValues, apiKey: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="Enter API key..."
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Webhook URL</label>
                 <input
                   type="text"
                   value={configValues.webhookUrl || ''}
                   onChange={(e) => setConfigValues({ ...configValues, webhookUrl: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="https://..."
                 />
               </div>
@@ -406,7 +406,7 @@ export default function MarketplacePage() {
           )}
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setConfigModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+          <button onClick={() => setConfigModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSaveConfig} disabled={savingConfig}>
             {savingConfig ? 'Saving...' : 'Save'}
           </Button>

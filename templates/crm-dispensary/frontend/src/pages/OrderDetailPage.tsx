@@ -90,20 +90,20 @@ export default function OrderDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/crm/orders')} className="p-2 hover:bg-gray-100 rounded-lg">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
               Order #{order.orderNumber || order.id?.slice(0, 8)}
             </h1>
-            <p className="text-gray-500">
+            <p className="text-gray-500 dark:text-slate-400">
               {order.createdAt ? new Date(order.createdAt).toLocaleString() : '—'}
               {order.customerName && ` — ${order.customerName}`}
             </p>
           </div>
         </div>
         <div className="flex gap-3">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+          <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2 dark:border-slate-700 dark:text-slate-200">
             <Printer className="w-4 h-4" /> Print Receipt
           </button>
           {isManager && order.status !== 'refunded' && order.status !== 'cancelled' && (
@@ -118,8 +118,8 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Status Timeline */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Order Status</h2>
+      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Order Status</h2>
         <div className="flex items-center gap-4">
           {statusSteps.map((step, idx) => {
             const isActive = idx <= currentStepIndex;
@@ -174,44 +174,44 @@ export default function OrderDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Line Items */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm">
+        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b">
-            <h2 className="font-semibold text-gray-900">Line Items</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Line Items</h2>
           </div>
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Qty</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Unit Price</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Qty</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Unit Price</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {(order.items || []).map((item: any, idx: number) => (
                 <tr key={idx}>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{item.productName || item.name}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{item.productName || item.name}</p>
                     {item.strainType && (
-                      <span className="text-xs text-gray-500">{item.strainType}</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">{item.strainType}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center text-gray-700">{item.quantity}</td>
-                  <td className="px-4 py-3 text-right text-gray-700">${Number(item.unitPrice || item.price || 0).toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-medium text-gray-900">
+                  <td className="px-4 py-3 text-center text-gray-700 dark:text-slate-200">{item.quantity}</td>
+                  <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(item.unitPrice || item.price || 0).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                     ${(Number(item.unitPrice || item.price || 0) * item.quantity).toFixed(2)}
                   </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-gray-50">
+            <tfoot className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600">Subtotal</td>
-                <td className="px-4 py-2 text-right font-medium text-gray-900">${Number(order.subtotal || 0).toFixed(2)}</td>
+                <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600 dark:text-slate-400">Subtotal</td>
+                <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-slate-100">${Number(order.subtotal || 0).toFixed(2)}</td>
               </tr>
               <tr>
-                <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600">Tax</td>
-                <td className="px-4 py-2 text-right text-gray-700">${Number(order.tax || 0).toFixed(2)}</td>
+                <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600 dark:text-slate-400">Tax</td>
+                <td className="px-4 py-2 text-right text-gray-700 dark:text-slate-200">${Number(order.tax || 0).toFixed(2)}</td>
               </tr>
               {order.loyaltyDiscount > 0 && (
                 <tr>
@@ -220,8 +220,8 @@ export default function OrderDetailPage() {
                 </tr>
               )}
               <tr className="border-t-2">
-                <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-900">Total</td>
-                <td className="px-4 py-3 text-right font-bold text-gray-900 text-lg">${Number(order.total || 0).toFixed(2)}</td>
+                <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">Total</td>
+                <td className="px-4 py-3 text-right font-bold text-gray-900 text-lg dark:text-slate-100">${Number(order.total || 0).toFixed(2)}</td>
               </tr>
             </tfoot>
           </table>
@@ -229,27 +229,27 @@ export default function OrderDetailPage() {
 
         {/* Payment & Info */}
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Payment Details</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Payment Details</h2>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-500">Method</span>
-                <span className="capitalize font-medium text-gray-900">{order.paymentMethod || '—'}</span>
+                <span className="text-gray-500 dark:text-slate-400">Method</span>
+                <span className="capitalize font-medium text-gray-900 dark:text-slate-100">{order.paymentMethod || '—'}</span>
               </div>
               {order.paymentMethod === 'cash' && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Cash Tendered</span>
-                    <span className="text-gray-900">${Number(order.cashTendered || 0).toFixed(2)}</span>
+                    <span className="text-gray-500 dark:text-slate-400">Cash Tendered</span>
+                    <span className="text-gray-900 dark:text-slate-100">${Number(order.cashTendered || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Change</span>
-                    <span className="text-gray-900">${(Number(order.cashTendered || 0) - Number(order.total || 0)).toFixed(2)}</span>
+                    <span className="text-gray-500 dark:text-slate-400">Change</span>
+                    <span className="text-gray-900 dark:text-slate-100">${(Number(order.cashTendered || 0) - Number(order.total || 0)).toFixed(2)}</span>
                   </div>
                 </>
               )}
               <div className="flex justify-between">
-                <span className="text-gray-500">Status</span>
+                <span className="text-gray-500 dark:text-slate-400">Status</span>
                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                   order.status === 'completed' ? 'bg-green-100 text-green-700' :
                   order.status === 'refunded' ? 'bg-red-100 text-red-700' :
@@ -259,32 +259,32 @@ export default function OrderDetailPage() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Type</span>
-                <span className="capitalize text-gray-900">{(order.type || 'walk_in').replace(/_/g, ' ')}</span>
+                <span className="text-gray-500 dark:text-slate-400">Type</span>
+                <span className="capitalize text-gray-900 dark:text-slate-100">{(order.type || 'walk_in').replace(/_/g, ' ')}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Processed by</span>
-                <span className="text-gray-900">{order.processedBy || order.createdByName || '—'}</span>
+                <span className="text-gray-500 dark:text-slate-400">Processed by</span>
+                <span className="text-gray-900 dark:text-slate-100">{order.processedBy || order.createdByName || '—'}</span>
               </div>
             </div>
           </div>
 
           {/* Audit Trail */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Audit Trail</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Audit Trail</h2>
             <div className="space-y-3">
               {auditLog.length > 0 ? auditLog.map((entry: any, idx: number) => (
                 <div key={idx} className="flex gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-green-400 mt-1.5 shrink-0" />
                   <div>
-                    <p className="text-gray-900">{entry.action || entry.description}</p>
-                    <p className="text-gray-500 text-xs">
+                    <p className="text-gray-900 dark:text-slate-100">{entry.action || entry.description}</p>
+                    <p className="text-gray-500 text-xs dark:text-slate-400">
                       {entry.userName || 'System'} — {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : ''}
                     </p>
                   </div>
                 </div>
               )) : (
-                <p className="text-gray-500 text-sm">No audit entries</p>
+                <p className="text-gray-500 text-sm dark:text-slate-400">No audit entries</p>
               )}
             </div>
           </div>

@@ -26,22 +26,22 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 dark:bg-slate-900">
         <div className="max-w-md w-full text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h1>
-          <p className="text-gray-600 mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Check your email</h1>
+          <p className="text-gray-600 mb-6 dark:text-slate-400">
             We sent a password reset link to <strong>{email}</strong>
           </p>
-          <p className="text-sm text-gray-500 mb-6">
+          <p className="text-sm text-gray-500 mb-6 dark:text-slate-400">
             Didn't receive the email? Check your spam folder or try again.
           </p>
           <div className="space-y-3">
             <button
               onClick={() => setSent(false)}
-              className="w-full py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+              className="w-full py-2 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               Try another email
             </button>
@@ -58,16 +58,16 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 dark:bg-slate-900">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <Link to="/login" className="inline-flex items-center text-gray-500 hover:text-gray-700 mb-6">
+        <div className="bg-white rounded-xl shadow-lg p-8 dark:bg-slate-900">
+          <Link to="/login" className="inline-flex items-center text-gray-500 hover:text-gray-700 mb-6 dark:text-slate-400">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to login
           </Link>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Forgot password?</h1>
-          <p className="text-gray-600 mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Forgot password?</h1>
+          <p className="text-gray-600 mb-6 dark:text-slate-400">
             No worries, we'll send you reset instructions.
           </p>
 
@@ -79,7 +79,7 @@ export default function ForgotPasswordPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                 Email
               </label>
               <div className="relative">

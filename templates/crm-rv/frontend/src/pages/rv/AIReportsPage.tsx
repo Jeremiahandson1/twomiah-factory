@@ -34,8 +34,8 @@ function renderMarkdown(md: string) {
       }
       out.push(
         <div key={out.length} className="overflow-x-auto my-3">
-          <table className="min-w-full text-sm border border-gray-200 rounded">
-            <thead className="bg-gray-50"><tr>{head.map((h, k) => <th key={k} className="px-3 py-2 text-left font-semibold border-b">{inline(h)}</th>)}</tr></thead>
+          <table className="min-w-full text-sm border border-gray-200 rounded dark:border-slate-700">
+            <thead className="bg-gray-50 dark:bg-slate-900"><tr>{head.map((h, k) => <th key={k} className="px-3 py-2 text-left font-semibold border-b">{inline(h)}</th>)}</tr></thead>
             <tbody>{rows.map((r, ri) => <tr key={ri} className="border-b last:border-0">{r.map((cell, ci) => <td key={ci} className="px-3 py-2">{inline(cell)}</td>)}</tr>)}</tbody>
           </table>
         </div>
@@ -86,11 +86,11 @@ export default function AIReportsPage() {
         <div className="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white"><Bot size={22} /></div>
         <div>
           <h1 className="text-2xl font-bold">AI Reports</h1>
-          <p className="text-sm text-gray-500">Ask anything about your dealership — inventory, sales, service, leads. Answered from your live data.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Ask anything about your dealership — inventory, sales, service, leads. Answered from your live data.</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm p-4 mt-5">
+      <div className="bg-white rounded-xl border shadow-sm p-4 mt-5 dark:bg-slate-900">
         <div className="flex gap-2">
           <textarea
             value={question}
@@ -108,7 +108,7 @@ export default function AIReportsPage() {
         <div className="flex flex-wrap gap-2 mt-3">
           {SUGGESTIONS.map((s, k) => (
             <button key={k} onClick={() => run(s)} disabled={loading}
-              className="text-xs px-3 py-1.5 rounded-full bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-600 border border-gray-200 disabled:opacity-50 inline-flex items-center gap-1">
+              className="text-xs px-3 py-1.5 rounded-full bg-gray-100 hover:bg-blue-50 hover:text-blue-700 text-gray-600 border border-gray-200 disabled:opacity-50 inline-flex items-center gap-1 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
               <Sparkles size={12} /> {s}
             </button>
           ))}
@@ -118,18 +118,18 @@ export default function AIReportsPage() {
       {error && <div className="mt-5 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{error}</div>}
 
       {loading && !report && (
-        <div className="mt-5 bg-white rounded-xl border p-8 text-center text-gray-500">
+        <div className="mt-5 bg-white rounded-xl border p-8 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">
           <Loader2 className="animate-spin mx-auto mb-2" /> Reading your data and writing the report…
         </div>
       )}
 
       {report && (
-        <div className="mt-5 bg-white rounded-xl border shadow-sm p-6">
+        <div className="mt-5 bg-white rounded-xl border shadow-sm p-6 dark:bg-slate-900">
           <div className="text-xs text-gray-400 mb-3 flex flex-wrap gap-x-4 gap-y-1">
             <span>Analyzed: {report.rowsAnalyzed?.units} units · {report.rowsAnalyzed?.leads} leads · {report.rowsAnalyzed?.service} service ROs · {report.rowsAnalyzed?.invoices} invoices</span>
             <span>{report.generatedAt ? new Date(report.generatedAt).toLocaleString() : ''}</span>
           </div>
-          <div className="text-gray-800">{renderMarkdown(report.report || '')}</div>
+          <div className="text-gray-800 dark:text-slate-200">{renderMarkdown(report.report || '')}</div>
         </div>
       )}
     </div>

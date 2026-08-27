@@ -158,8 +158,8 @@ export default function PlatformPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Platform</h1>
-          <p className="text-gray-600">System health, onboarding, and hardware</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Platform</h1>
+          <p className="text-gray-600 dark:text-slate-400">System health, onboarding, and hardware</p>
         </div>
       </div>
 
@@ -195,19 +195,19 @@ export default function PlatformPage() {
                 {services.map((service, i) => {
                   const Icon = serviceIcons[service.name] || Wifi;
                   return (
-                    <div key={service.name || i} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                    <div key={service.name || i} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <Icon className="w-5 h-5 text-gray-600" />
-                          <h3 className="font-semibold text-gray-900">{service.name}</h3>
+                          <Icon className="w-5 h-5 text-gray-600 dark:text-slate-400" />
+                          <h3 className="font-semibold text-gray-900 dark:text-slate-100">{service.name}</h3>
                         </div>
                         <span className={`w-3 h-3 rounded-full ${serviceStatusColors[service.status] || 'bg-gray-400'}`} />
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">
+                      <p className="text-sm text-gray-600 mb-1 dark:text-slate-400">
                         {serviceStatusLabels[service.status] || service.status || 'Unknown'}
                       </p>
                       {service.uptime != null && (
-                        <p className="text-lg font-bold text-gray-900">{service.uptime}% uptime</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{service.uptime}% uptime</p>
                       )}
                     </div>
                   );
@@ -215,9 +215,9 @@ export default function PlatformPage() {
               </div>
 
               {/* Incidents */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 dark:bg-slate-900">
                 <div className="px-6 py-4 border-b">
-                  <h3 className="font-semibold text-gray-900">Recent Incidents</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100">Recent Incidents</h3>
                 </div>
                 <div className="divide-y">
                   {incidents.length > 0 ? incidents.map((incident, i) => (
@@ -227,15 +227,15 @@ export default function PlatformPage() {
                         incident.severity === 'warning' ? 'text-yellow-500' : 'text-blue-500'
                       }`} />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{incident.title || incident.message}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{incident.title || incident.message}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">
                           {incident.createdAt ? new Date(incident.createdAt).toLocaleString() : '—'}
                           {incident.resolved && <span className="ml-2 text-green-600">Resolved</span>}
                         </p>
                       </div>
                     </div>
                   )) : (
-                    <div className="px-6 py-8 text-center text-gray-500 text-sm">
+                    <div className="px-6 py-8 text-center text-gray-500 text-sm dark:text-slate-400">
                       No recent incidents
                     </div>
                   )}
@@ -256,9 +256,9 @@ export default function PlatformPage() {
           ) : (
             <>
               {/* Progress */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900">Setup Progress</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100">Setup Progress</h3>
                   <span className="text-sm font-medium text-green-600">{progressPercent}% complete</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
@@ -267,25 +267,25 @@ export default function PlatformPage() {
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
-                <p className="text-sm text-gray-500 mt-2">{completedSteps} of {totalSteps} steps completed</p>
+                <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">{completedSteps} of {totalSteps} steps completed</p>
               </div>
 
               {/* Assigned Manager */}
               {manager && (
-                <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center gap-4">
+                <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center gap-4 dark:bg-slate-900">
                   <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                     <User className="w-6 h-6 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Your Onboarding Manager</p>
-                    <p className="font-semibold text-gray-900">{manager.name}</p>
-                    {manager.email && <p className="text-sm text-gray-600">{manager.email}</p>}
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Your Onboarding Manager</p>
+                    <p className="font-semibold text-gray-900 dark:text-slate-100">{manager.name}</p>
+                    {manager.email && <p className="text-sm text-gray-600 dark:text-slate-400">{manager.email}</p>}
                   </div>
                 </div>
               )}
 
               {/* Checklist */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-100">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-100 dark:bg-slate-900">
                 <div className="divide-y">
                   {checklist.map((step, i) => (
                     <div key={step.id || i} className="px-6 py-4 flex items-center justify-between">
@@ -306,7 +306,7 @@ export default function PlatformPage() {
                             {step.title || step.name || `Step ${i + 1}`}
                           </p>
                           {step.description && (
-                            <p className="text-xs text-gray-500">{step.description}</p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">{step.description}</p>
                           )}
                         </div>
                       </div>
@@ -321,7 +321,7 @@ export default function PlatformPage() {
                     </div>
                   ))}
                   {checklist.length === 0 && (
-                    <div className="px-6 py-8 text-center text-gray-500 text-sm">
+                    <div className="px-6 py-8 text-center text-gray-500 text-sm dark:text-slate-400">
                       No onboarding steps configured
                     </div>
                   )}
@@ -356,7 +356,7 @@ export default function PlatformPage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setCart([])}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white rounded-lg hover:bg-gray-50 border border-gray-200"
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white rounded-lg hover:bg-gray-50 border border-gray-200 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
                     >
                       Clear
                     </button>
@@ -370,22 +370,22 @@ export default function PlatformPage() {
               {/* Product Grid */}
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {hardwareProducts.map(product => (
-                  <div key={product.id} className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+                  <div key={product.id} className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden dark:bg-slate-900">
                     {product.imageUrl ? (
-                      <img src={product.imageUrl} alt={product.name} className="w-full h-40 object-cover bg-gray-100" />
+                      <img src={product.imageUrl} alt={product.name} className="w-full h-40 object-cover bg-gray-100 dark:bg-slate-800" />
                     ) : (
-                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center dark:bg-slate-800">
                         <Cpu className="w-12 h-12 text-gray-300" />
                       </div>
                     )}
                     <div className="p-5">
-                      <h3 className="font-semibold text-gray-900 mb-1">{product.name}</h3>
+                      <h3 className="font-semibold text-gray-900 mb-1 dark:text-slate-100">{product.name}</h3>
                       {product.specs && (
-                        <p className="text-xs text-gray-500 mb-2">{product.specs}</p>
+                        <p className="text-xs text-gray-500 mb-2 dark:text-slate-400">{product.specs}</p>
                       )}
-                      <p className="text-sm text-gray-600 mb-3">{product.description || 'No description'}</p>
+                      <p className="text-sm text-gray-600 mb-3 dark:text-slate-400">{product.description || 'No description'}</p>
                       <div className="flex items-center justify-between">
-                        <span className="text-lg font-bold text-gray-900">
+                        <span className="text-lg font-bold text-gray-900 dark:text-slate-100">
                           ${Number(product.price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </span>
                         <button
@@ -399,7 +399,7 @@ export default function PlatformPage() {
                   </div>
                 ))}
                 {hardwareProducts.length === 0 && (
-                  <div className="col-span-full text-center py-12 text-gray-500">
+                  <div className="col-span-full text-center py-12 text-gray-500 dark:text-slate-400">
                     <Cpu className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                     <p>No hardware products available</p>
                   </div>
@@ -416,26 +416,26 @@ export default function PlatformPage() {
                 </button>
 
                 {showOrderHistory && (
-                  <div className="mt-4 bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100">
+                  <div className="mt-4 bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:bg-slate-900">
                     <table className="w-full">
-                      <thead className="bg-gray-50">
+                      <thead className="bg-gray-50 dark:bg-slate-900">
                         <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Items</th>
-                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Order #</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Items</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Total</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {orders.map(order => (
                           <tr key={order.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 font-medium text-gray-900">#{order.orderNumber || order.id?.slice(0, 8)}</td>
-                            <td className="px-4 py-3 text-sm text-gray-600">
+                            <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id?.slice(0, 8)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                               {order.createdAt ? formatDate(order.createdAt) : '—'}
                             </td>
-                            <td className="px-4 py-3 text-right text-gray-700">{order.itemCount || order.items?.length || 0}</td>
-                            <td className="px-4 py-3 text-right font-medium text-gray-900">
+                            <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{order.itemCount || order.items?.length || 0}</td>
+                            <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                               ${Number(order.total || 0).toFixed(2)}
                             </td>
                             <td className="px-4 py-3">
@@ -452,7 +452,7 @@ export default function PlatformPage() {
                         ))}
                         {orders.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No order history</td>
+                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No order history</td>
                           </tr>
                         )}
                       </tbody>

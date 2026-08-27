@@ -76,7 +76,7 @@ export default function CustomerPortal() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-white border-b border-slate-200 dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -126,7 +126,7 @@ export default function CustomerPortal() {
               { label: 'Pending Quotes', value: stats.pendingQuoteCount || 0, icon: FileText, color: 'amber' },
               { label: 'Revenue (MTD)', value: `$${(stats.monthlyRevenue || 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ].map((stat) => (
-              <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4">
+              <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
                   <stat.icon className={`w-4 h-4 text-${stat.color}-500`} />
                 </div>
@@ -142,7 +142,7 @@ export default function CustomerPortal() {
           {/* CRM - always available */}
           <div
             onClick={() => navigate('/crm')}
-            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden"
+            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div 
               className="absolute top-0 left-0 right-0 h-1"
@@ -170,7 +170,7 @@ export default function CustomerPortal() {
                 href={siteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
+                className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block dark:bg-slate-900"
               >
                 <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
                 <div className="flex items-start justify-between mb-4">
@@ -183,7 +183,7 @@ export default function CustomerPortal() {
                 <p className="text-sm text-slate-500">View your public-facing website</p>
               </a>
             ) : (
-              <div className="bg-white rounded-xl border border-slate-200 p-6 relative overflow-hidden opacity-75">
+              <div className="bg-white rounded-xl border border-slate-200 p-6 relative overflow-hidden opacity-75 dark:bg-slate-900">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-slate-300" />
                 <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center mb-4">
                   <Globe className="w-6 h-6 text-slate-400" />
@@ -200,7 +200,7 @@ export default function CustomerPortal() {
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
+              className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
               <div className="flex items-start justify-between mb-4">
@@ -220,7 +220,7 @@ export default function CustomerPortal() {
           {!hasFeature('pricebook') && (
             <div
               onClick={() => navigate('/crm/pricebook-trial')}
-              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden"
+              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
               <div className="flex items-start justify-between mb-4">
@@ -242,7 +242,7 @@ export default function CustomerPortal() {
           {/* Settings */}
           <div
             onClick={() => navigate('/crm/settings')}
-            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden"
+            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400" />
             <div className="flex items-start justify-between mb-4">
@@ -259,7 +259,7 @@ export default function CustomerPortal() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl border border-slate-200">
+        <div className="bg-white rounded-xl border border-slate-200 dark:bg-slate-900">
           <div className="px-6 py-4 border-b border-slate-100">
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>

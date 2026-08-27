@@ -82,24 +82,24 @@ export default function EstimatorSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
         <div>
-          <button onClick={() => navigate('/crm/settings')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3">
+          <button onClick={() => navigate('/crm/settings')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3 dark:text-slate-400">
             <ArrowLeft className="w-4 h-4" /> Back to Settings
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">Instant Estimator</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Instant Estimator</h1>
+          <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">
             Embed a roof cost estimator on your website. Visitors enter their address and instantly see an estimated price range.
           </p>
         </div>
 
         {/* Enable toggle */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Enable Estimator</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Allow your website to serve instant estimates</p>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Enable Estimator</h2>
+              <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">Allow your website to serve instant estimates</p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -114,12 +114,12 @@ export default function EstimatorSettingsPage() {
         </div>
 
         {/* Pricing */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Pricing Range</h2>
-          <p className="text-xs text-gray-500 mb-3">Set the per-square price range shown to homeowners.</p>
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Pricing Range</h2>
+          <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">Set the per-square price range shown to homeowners.</p>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Low ($/square)</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Low ($/square)</label>
               <input
                 type="number"
                 step="0.01"
@@ -129,7 +129,7 @@ export default function EstimatorSettingsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">High ($/square)</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">High ($/square)</label>
               <input
                 type="number"
                 step="0.01"
@@ -145,11 +145,11 @@ export default function EstimatorSettingsPage() {
         </div>
 
         {/* Customization */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Customization</h2>
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Customization</h2>
           <div className="space-y-3">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Headline</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Headline</label>
               <input
                 value={settings.estimatorHeadline}
                 onChange={(e) => setSettings({ ...settings, estimatorHeadline: e.target.value })}
@@ -157,7 +157,7 @@ export default function EstimatorSettingsPage() {
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Disclaimer</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Disclaimer</label>
               <textarea
                 value={settings.estimatorDisclaimer}
                 onChange={(e) => setSettings({ ...settings, estimatorDisclaimer: e.target.value })}
@@ -170,9 +170,9 @@ export default function EstimatorSettingsPage() {
 
         {/* Embed Code */}
         {settings.estimatorEnabled && companySlug && (
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-2">Embed Code</h2>
-            <p className="text-xs text-gray-500 mb-3">Paste this snippet into your website HTML where you want the estimator to appear.</p>
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Embed Code</h2>
+            <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">Paste this snippet into your website HTML where you want the estimator to appear.</p>
             <div className="relative">
               <pre className="bg-gray-900 text-green-400 text-xs rounded-lg p-4 overflow-x-auto">
                 {embedSnippet}

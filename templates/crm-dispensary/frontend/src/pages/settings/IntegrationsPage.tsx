@@ -173,8 +173,8 @@ export default function IntegrationsPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Integrations</h1>
-      <p className="text-gray-500 mb-6">Connect your accounts to sync data and enable features.</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Integrations</h1>
+      <p className="text-gray-500 mb-6 dark:text-slate-400">Connect your accounts to sync data and enable features.</p>
 
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
@@ -192,15 +192,15 @@ export default function IntegrationsPage() {
 
       <div className="space-y-4">
         {/* QuickBooks */}
-        <div className="bg-white rounded-xl border p-6">
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
                 <BookOpen className="w-6 h-6 text-green-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">QuickBooks</h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <h3 className="font-semibold text-gray-900 dark:text-slate-100">QuickBooks</h3>
+                <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
                   Sync invoices, expenses, and customers with your books.
                 </p>
                 {integrations.quickbooks.connected && (
@@ -209,7 +209,7 @@ export default function IntegrationsPage() {
                       ✓ Connected to {integrations.quickbooks.companyName}
                     </p>
                     {integrations.quickbooks.lastSync && (
-                      <p className="text-gray-500">
+                      <p className="text-gray-500 dark:text-slate-400">
                         Last synced: {new Date(integrations.quickbooks.lastSync).toLocaleString()}
                       </p>
                     )}
@@ -223,7 +223,7 @@ export default function IntegrationsPage() {
                   <button
                     onClick={handleSyncNow}
                     disabled={saving === 'sync'}
-                    className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg flex items-center gap-1"
+                    className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg flex items-center gap-1 dark:text-slate-400"
                   >
                     {saving === 'sync' ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -254,15 +254,15 @@ export default function IntegrationsPage() {
         </div>
 
         {/* Stripe */}
-        <div className="bg-white rounded-xl border p-6">
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
                 <CreditCard className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Stripe Payments</h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <h3 className="font-semibold text-gray-900 dark:text-slate-100">Stripe Payments</h3>
+                <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
                   Accept credit card payments from customers.
                 </p>
                 {integrations.stripe.connected && (
@@ -299,19 +299,19 @@ export default function IntegrationsPage() {
         </div>
 
         {/* SMS */}
-        <div className="bg-white rounded-xl border p-6">
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                 <MessageSquare className="w-6 h-6 text-blue-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">SMS Notifications</h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <h3 className="font-semibold text-gray-900 dark:text-slate-100">SMS Notifications</h3>
+                <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
                   Send text updates to customers and crew members.
                 </p>
                 {integrations.sms.enabled && (
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
                     Usage this month: <span className="font-medium">{integrations.sms.usage} messages</span>
                   </p>
                 )}
@@ -334,19 +334,19 @@ export default function IntegrationsPage() {
         </div>
 
         {/* Email */}
-        <div className="bg-white rounded-xl border p-6">
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
                 <Mail className="w-6 h-6 text-orange-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-gray-900">Email</h3>
-                <p className="text-sm text-gray-500 mt-1">
+                <h3 className="font-semibold text-gray-900 dark:text-slate-100">Email</h3>
+                <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
                   Send invoices, quotes, and reminders via email.
                 </p>
                 {integrations.email.enabled && (
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
                     Usage this month: <span className="font-medium">{integrations.email.usage} emails</span>
                   </p>
                 )}
@@ -370,8 +370,8 @@ export default function IntegrationsPage() {
       </div>
 
       {/* Usage Note */}
-      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-        <p className="text-sm text-gray-600">
+      <div className="mt-6 p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+        <p className="text-sm text-gray-600 dark:text-slate-400">
           <strong>SMS & Email Usage:</strong> Your plan includes 500 SMS and 2,000 emails per month. 
           Additional messages are billed at $0.02/SMS and $0.001/email.
         </p>

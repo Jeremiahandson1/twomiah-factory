@@ -370,17 +370,17 @@ export default function SignupPage() {
   const price = billingCycle === 'annual' ? plan?.priceAnnual : plan?.price;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <header className="bg-white border-b dark:bg-slate-900">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{'{{COMPANY_NAME}}'}</span>
             </Link>
-            <Link to="/login" className="text-gray-600 hover:text-gray-900">
+            <Link to="/login" className="text-gray-600 hover:text-gray-900 dark:text-slate-400">
               Already have an account? Log in
             </Link>
           </div>
@@ -426,7 +426,7 @@ export default function SignupPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-sm border p-6 md:p-8">
+        <div className="bg-white rounded-xl shadow-sm border p-6 md:p-8 dark:bg-slate-900">
           {step === 0 && (
             <PlanSelection
               selectedPlan={selectedPlan}
@@ -508,8 +508,8 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
 
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h2>
-      <p className="text-gray-600 mb-6">Start with a 30-day free trial. No credit card required.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Choose Your Plan</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">Start with a 30-day free trial. No credit card required.</p>
 
       <div className="flex justify-center items-center gap-4 mb-8">
         <span className={billingCycle === 'monthly' ? 'text-gray-900 font-medium' : 'text-gray-500'}>Monthly</span>
@@ -541,16 +541,16 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
               {plan.popular && (
                 <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-semibold px-3 py-0.5 rounded-full">Most Popular</span>
               )}
-              <h3 className="text-lg font-bold text-gray-900 mt-1">{plan.name}</h3>
+              <h3 className="text-lg font-bold text-gray-900 mt-1 dark:text-slate-100">{plan.name}</h3>
               <div className="mt-2">
-                <span className="text-2xl font-bold text-gray-900">${price}</span>
-                <span className="text-gray-500">/mo</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">${price}</span>
+                <span className="text-gray-500 dark:text-slate-400">/mo</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">{plan.users} users included</p>
-              <p className="text-sm text-gray-600 mt-2 mb-3">{plan.description}</p>
+              <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{plan.users} users included</p>
+              <p className="text-sm text-gray-600 mt-2 mb-3 dark:text-slate-400">{plan.description}</p>
               <ul className="space-y-1 mb-3">
                 {plan.highlights.map((h: string, i: number) => (
-                  <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">
+                  <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600 dark:text-slate-400">
                     <Check className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
                     {h}
                   </li>
@@ -582,8 +582,8 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
         <div className="mt-6 overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="border-b-2 border-gray-200">
-                <th className="text-left py-3 pr-4 font-medium text-gray-500 w-1/3">Feature</th>
+              <tr className="border-b-2 border-gray-200 dark:border-slate-700">
+                <th className="text-left py-3 pr-4 font-medium text-gray-500 w-1/3 dark:text-slate-400">Feature</th>
                 {tierKeys.map((k: string) => (
                   <th key={k} className={`text-center py-3 px-2 font-semibold ${selectedPlan === k ? 'text-orange-600' : 'text-gray-700'}`}>
                     {PLANS[k].name}
@@ -595,20 +595,20 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
               {FEATURE_COMPARISON.map((group: FeatureGroup) => (
                 <React.Fragment key={group.category}>
                   <tr>
-                    <td colSpan={4} className="pt-4 pb-2 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                    <td colSpan={4} className="pt-4 pb-2 font-semibold text-gray-900 text-xs uppercase tracking-wider dark:text-slate-100">
                       {group.category}
                     </td>
                   </tr>
                   {group.features.map((f: FeatureComparisonItem) => (
                     <tr key={f.name} className="border-b border-gray-100">
-                      <td className="py-2 pr-4 text-gray-700">{f.name}</td>
+                      <td className="py-2 pr-4 text-gray-700 dark:text-slate-200">{f.name}</td>
                       {tierKeys.map((k: string) => {
                         const val = f[k];
                         return (
                           <td key={k} className={`text-center py-2 px-2 ${selectedPlan === k ? 'bg-orange-50/50' : ''}`}>
                             {val === true ? <Check className="w-4 h-4 text-green-500 mx-auto" /> :
                              val === false ? <X className="w-4 h-4 text-gray-300 mx-auto" /> :
-                             <span className="text-gray-700 font-medium">{val as string}</span>}
+                             <span className="text-gray-700 font-medium dark:text-slate-200">{val as string}</span>}
                           </td>
                         );
                       })}
@@ -632,27 +632,27 @@ interface CompanyInfoProps {
 function CompanyInfo({ formData, updateForm }: CompanyInfoProps) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Company Information</h2>
-      <p className="text-gray-600 mb-6">Tell us about your business.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Company Information</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">Tell us about your business.</p>
 
       <div className="grid md:grid-cols-2 gap-6">
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Company Name *</label>
           <input
             type="text"
             value={formData.companyName}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('companyName', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="Acme Plumbing Co."
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Industry *</label>
           <select
             value={formData.industry}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateForm('industry', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             <option value="">Select your industry</option>
             {INDUSTRIES.map((ind: { value: string; label: string }) => (
@@ -662,78 +662,78 @@ function CompanyInfo({ formData, updateForm }: CompanyInfoProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Phone Number *</label>
           <input
             type="tel"
             value={formData.phone}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('phone', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="(555) 123-4567"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Address</label>
           <input
             type="text"
             value={formData.address}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('address', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="123 Main Street"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">City</label>
           <input
             type="text"
             value={formData.city}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('city', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="Austin"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State</label>
             <input
               type="text"
               value={formData.state}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('state', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="TX"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">ZIP Code</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">ZIP Code</label>
             <input
               type="text"
               value={formData.zip}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('zip', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="78701"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Website</label>
           <input
             type="url"
             value={formData.website}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('website', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="https://acmeplumbing.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Number of Employees</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Number of Employees</label>
           <select
             value={formData.employeeCount}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateForm('employeeCount', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             <option value="1-5">1-5</option>
             <option value="6-10">6-10</option>
@@ -760,71 +760,71 @@ interface AccountInfoProps {
 function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agreedToTerms, setAgreedToTerms }: AccountInfoProps) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Account</h2>
-      <p className="text-gray-600 mb-6">You'll be the admin of your company's account.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Create Your Account</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">You'll be the admin of your company's account.</p>
 
       <div className="grid md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">First Name *</label>
           <input
             type="text"
             value={formData.firstName}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('firstName', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="John"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Last Name *</label>
           <input
             type="text"
             value={formData.lastName}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('lastName', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="Smith"
           />
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email Address *</label>
           <input
             type="email"
             value={formData.email}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('email', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="john@acmeplumbing.com"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Password *</label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('password', e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 pr-12 text-gray-900"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 pr-12 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="••••••••"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400"
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
-          <p className="text-xs text-gray-500 mt-1">Minimum 8 characters</p>
+          <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Minimum 8 characters</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Confirm Password *</label>
           <input
             type={showPassword ? 'text' : 'password'}
             value={formData.confirmPassword}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('confirmPassword', e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             placeholder="••••••••"
           />
         </div>
@@ -835,9 +835,9 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
               type="checkbox"
               checked={agreedToTerms}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgreedToTerms(e.target.checked)}
-              className="w-5 h-5 text-orange-500 border-gray-300 rounded focus:ring-orange-500 mt-0.5 text-gray-900"
+              className="w-5 h-5 text-orange-500 border-gray-300 rounded focus:ring-orange-500 mt-0.5 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-slate-400">
               I agree to the{' '}
               <a href="/terms" className="text-orange-500 hover:underline">Terms of Service</a>
               {' '}and{' '}
@@ -862,29 +862,29 @@ interface PaymentStepProps {
 function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loading }: PaymentStepProps) {
   return (
     <div>
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Start Your Free Trial</h2>
-      <p className="text-gray-600 mb-6">Try {'{{COMPANY_NAME}}'} free for 30 days. No credit card required.</p>
+      <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Start Your Free Trial</h2>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">Try {'{{COMPANY_NAME}}'} free for 30 days. No credit card required.</p>
 
-      <div className="bg-gray-50 rounded-lg p-6 mb-8">
-        <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
+      <div className="bg-gray-50 rounded-lg p-6 mb-8 dark:bg-slate-900">
+        <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Order Summary</h3>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">{plan.name} Plan</span>
+          <span className="text-gray-600 dark:text-slate-400">{plan.name} Plan</span>
           <span className="font-medium">${price}/mo</span>
         </div>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">Billing Cycle</span>
+          <span className="text-gray-600 dark:text-slate-400">Billing Cycle</span>
           <span className="font-medium capitalize">{billingCycle}</span>
         </div>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">Users Included</span>
+          <span className="text-gray-600 dark:text-slate-400">Users Included</span>
           <span className="font-medium">{plan.users}</span>
         </div>
         <hr className="my-4" />
         <div className="flex justify-between items-center">
-          <span className="text-gray-600">Due Today</span>
+          <span className="text-gray-600 dark:text-slate-400">Due Today</span>
           <span className="text-xl font-bold text-green-600">$0.00</span>
         </div>
-        <p className="text-sm text-gray-500 mt-2">
+        <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">
           Your trial ends in 30 days. You can add payment info anytime.
         </p>
       </div>
@@ -908,12 +908,12 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
           )}
         </button>
 
-        <div className="text-center text-gray-500">or</div>
+        <div className="text-center text-gray-500 dark:text-slate-400">or</div>
 
         <button
           onClick={onSubscribe}
           disabled={loading}
-          className="w-full border-2 border-gray-300 text-gray-700 py-4 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50"
+          className="w-full border-2 border-gray-300 text-gray-700 py-4 rounded-lg font-semibold hover:bg-gray-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
         >
           Subscribe Now & Skip Trial
         </button>

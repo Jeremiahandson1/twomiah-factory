@@ -435,7 +435,7 @@ export default function MigrationPage() {
                     <FileSpreadsheet className="w-6 h-6 text-blue-500" />
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white text-sm">{csvFile.name}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
                         {(csvFile.size / 1024).toFixed(1)} KB
                         {csvPreview && ` · ${csvPreview.rowCount} rows`}
                       </p>
@@ -478,15 +478,15 @@ export default function MigrationPage() {
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">{csvResults.total || (csvResults.imported + csvResults.skipped)}</p>
-                      <p className="text-xs text-gray-500">Total</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Total</p>
                     </div>
                     <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
                       <p className="text-2xl font-bold text-green-600">{csvResults.imported}</p>
-                      <p className="text-xs text-gray-500">Imported</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Imported</p>
                     </div>
                     <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
                       <p className="text-2xl font-bold text-yellow-600">{csvResults.skipped}</p>
-                      <p className="text-xs text-gray-500">Skipped</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Skipped</p>
                     </div>
                   </div>
                 )}

@@ -74,13 +74,13 @@ export default function TimesheetPage() {
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Time Tracking</h1>
-          <p className="text-gray-500">Track your work hours</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Time Tracking</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track your work hours</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowManualEntry(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             <Plus className="w-4 h-4" />
             Add Entry
@@ -104,7 +104,7 @@ export default function TimesheetPage() {
         {/* Timesheet */}
         <div className="lg:col-span-3">
           {/* View Toggle & Navigation */}
-          <div className="bg-white rounded-xl border p-4 mb-4">
+          <div className="bg-white rounded-xl border p-4 mb-4 dark:bg-slate-900">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <button
@@ -132,7 +132,7 @@ export default function TimesheetPage() {
                   </button>
                   <button 
                     onClick={handleThisWeek}
-                    className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
+                    className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400"
                   >
                     This Week
                   </button>
@@ -145,7 +145,7 @@ export default function TimesheetPage() {
           </div>
 
           {loading ? (
-            <div className="bg-white rounded-xl border p-12 flex items-center justify-center">
+            <div className="bg-white rounded-xl border p-12 flex items-center justify-center dark:bg-slate-900">
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : view === 'week' ? (
@@ -182,14 +182,14 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
   if (!timesheet) return null;
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       {/* Week header */}
-      <div className="grid grid-cols-8 border-b bg-gray-50">
-        <div className="p-3 text-sm font-medium text-gray-500">Date</div>
+      <div className="grid grid-cols-8 border-b bg-gray-50 dark:bg-slate-900">
+        <div className="p-3 text-sm font-medium text-gray-500 dark:text-slate-400">Date</div>
         {timesheet.days.map((day, i) => (
           <div key={i} className="p-3 text-center border-l">
-            <p className="text-sm font-medium text-gray-900">{day.dayName}</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{day.dayName}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">
               {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </p>
           </div>
@@ -198,7 +198,7 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
 
       {/* Hours row */}
       <div className="grid grid-cols-8 border-b">
-        <div className="p-3 text-sm font-medium text-gray-700">Hours</div>
+        <div className="p-3 text-sm font-medium text-gray-700 dark:text-slate-200">Hours</div>
         {timesheet.days.map((day, i) => (
           <div key={i} className="p-3 text-center border-l">
             <p className={`text-lg font-bold ${day.totalHours > 0 ? 'text-green-600' : 'text-gray-300'}`}>
@@ -214,14 +214,14 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
           day.entries.map(entry => (
             <div key={entry.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
               <div className="flex items-center gap-3">
-                <div className="w-20 text-sm text-gray-500">
+                <div className="w-20 text-sm text-gray-500 dark:text-slate-400">
                   {new Date(entry.startTime).toLocaleDateString('en-US', { weekday: 'short' })}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-medium text-gray-900 dark:text-slate-100">
                     {entry.job?.title || entry.project?.name || 'General'}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     {' - '}
                     {entry.endTime ? new Date(entry.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Active'}
@@ -229,7 +229,7 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
                   {formatDuration(entry.workedMinutes)}
                 </span>
                 <button
@@ -243,16 +243,16 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
           ))
         )}
         {timesheet.days.every(d => d.entries.length === 0) && (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-gray-500 dark:text-slate-400">
             No time entries this week
           </div>
         )}
       </div>
 
       {/* Week total */}
-      <div className="p-4 bg-gray-50 border-t">
+      <div className="p-4 bg-gray-50 border-t dark:bg-slate-900">
         <div className="flex items-center justify-between">
-          <span className="font-medium text-gray-900">Week Total</span>
+          <span className="font-medium text-gray-900 dark:text-slate-100">Week Total</span>
           <span className="text-xl font-bold text-green-600">
             {timesheet.totalHours} hours
           </span>
@@ -264,10 +264,10 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
 
 function ListView({ entries, formatDuration, onDelete }) {
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       <div className="divide-y">
         {entries.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-8 text-center text-gray-500 dark:text-slate-400">
             No time entries found
           </div>
         ) : (
@@ -276,18 +276,18 @@ function ListView({ entries, formatDuration, onDelete }) {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="text-center min-w-16">
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-gray-900 dark:text-slate-100">
                       {new Date(entry.startTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       {new Date(entry.startTime).toLocaleDateString('en-US', { weekday: 'short' })}
                     </p>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {entry.job?.title || entry.project?.name || 'General Work'}
                     </p>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
                       <span>
                         {new Date(entry.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         {' - '}
@@ -301,13 +301,13 @@ function ListView({ entries, formatDuration, onDelete }) {
                       )}
                     </div>
                     {entry.notes && (
-                      <p className="text-sm text-gray-500 mt-1">{entry.notes}</p>
+                      <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{entry.notes}</p>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="text-lg font-bold text-gray-900">{formatDuration(entry.workedMinutes)}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{formatDuration(entry.workedMinutes)}</p>
                     {entry.approved && (
                       <span className="text-xs text-green-600 flex items-center gap-1">
                         <Check className="w-3 h-3" /> Approved
@@ -378,12 +378,12 @@ function ManualEntryModal({ onClose, onSave }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Add Time Entry</h2>
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+          <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">Add Time Entry</h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
               <input
                 type="date"
                 value={form.date}
@@ -395,7 +395,7 @@ function ManualEntryModal({ onClose, onSave }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Time</label>
                 <input
                   type="time"
                   value={form.startTime}
@@ -405,7 +405,7 @@ function ManualEntryModal({ onClose, onSave }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End Time</label>
                 <input
                   type="time"
                   value={form.endTime}
@@ -417,7 +417,7 @@ function ManualEntryModal({ onClose, onSave }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Break (minutes)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Break (minutes)</label>
               <input
                 type="number"
                 value={form.breakMinutes}
@@ -428,7 +428,7 @@ function ManualEntryModal({ onClose, onSave }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Service Call</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Service Call</label>
               <select
                 value={form.jobId}
                 onChange={(e) => setForm({ ...form, jobId: e.target.value })}
@@ -442,7 +442,7 @@ function ManualEntryModal({ onClose, onSave }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
               <select
                 value={form.projectId}
                 onChange={(e) => setForm({ ...form, projectId: e.target.value })}
@@ -456,7 +456,7 @@ function ManualEntryModal({ onClose, onSave }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -469,7 +469,7 @@ function ManualEntryModal({ onClose, onSave }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 Cancel
               </button>

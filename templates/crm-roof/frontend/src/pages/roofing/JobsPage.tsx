@@ -142,13 +142,13 @@ export default function JobsPage() {
   const totalPages = Math.ceil(total / limit) || 1;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Jobs</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} total jobs</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Jobs</h1>
+            <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} total jobs</p>
           </div>
           <button
             onClick={openCreate}
@@ -189,20 +189,20 @@ export default function JobsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Job #</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Contact</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Address</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Type</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Crew</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Squares</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Revenue</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Created</th>
+                <tr className="bg-gray-50 border-b dark:bg-slate-900">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Job #</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Contact</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Address</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Type</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Crew</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Squares</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Revenue</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Created</th>
                 </tr>
               </thead>
               <tbody>
@@ -216,11 +216,11 @@ export default function JobsPage() {
                     onClick={() => navigate(`/crm/jobs/${job.id}`)}
                     className="border-b last:border-0 hover:bg-gray-50 cursor-pointer"
                   >
-                    <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700 dark:text-slate-200">
                       {job.jobNumber || `ROOF-${String(job.id).padStart(4, '0')}`}
                     </td>
-                    <td className="px-4 py-3 text-gray-900">{job.contact ? `${job.contact.firstName || ''} ${job.contact.lastName || ''}`.trim() : '—'}</td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate">{job.address || job.propertyAddress || '—'}</td>
+                    <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{job.contact ? `${job.contact.firstName || ''} ${job.contact.lastName || ''}`.trim() : '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate dark:text-slate-400">{job.address || job.propertyAddress || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded ${TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-600'}`}>
                         {(job.jobType || 'retail').replace('_', ' ')}
@@ -231,14 +231,14 @@ export default function JobsPage() {
                         {formatStatus(job.status)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{crewMap[job.assignedCrewId] || '—'}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{job.totalSquares || '—'}</td>
-                    <td className="px-4 py-3 text-right text-gray-900 font-medium">
+                    <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{crewMap[job.assignedCrewId] || '—'}</td>
+                    <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">{job.totalSquares || '—'}</td>
+                    <td className="px-4 py-3 text-right text-gray-900 font-medium dark:text-slate-100">
                       {job.finalRevenue != null || job.estimatedRevenue != null || job.rcv != null
                         ? `$${Number(job.finalRevenue ?? job.estimatedRevenue ?? job.rcv ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                         : '—'}
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
+                    <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                       {job.createdAt ? formatDate(job.createdAt) : '—'}
                     </td>
                   </tr>
@@ -249,8 +249,8 @@ export default function JobsPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
+              <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />
@@ -267,59 +267,59 @@ export default function JobsPage() {
       {/* Create Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <Briefcase className="w-5 h-5 text-blue-600" /> New Job
             </h2>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Contact *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Contact *</label>
                 <select value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                   <option value="">Select contact...</option>
                   {contacts.map((c: any) => <option key={c.id} value={c.id}>{c.name || `${c.firstName} ${c.lastName}`}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Job Type</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Job Type</label>
                 <select value={form.jobType} onChange={(e) => setForm({ ...form, jobType: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                   {JOB_TYPES.map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Address</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Address</label>
                 <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">City</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">City</label>
                   <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">State</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">State</label>
                   <input value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Zip</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Zip</label>
                   <input value={form.zip} onChange={(e) => setForm({ ...form, zip: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Roof Type</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Roof Type</label>
                   <input value={form.roofType} onChange={(e) => setForm({ ...form, roofType: e.target.value })} placeholder="e.g. Asphalt Shingle" className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Stories</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Stories</label>
                   <input type="number" value={form.stories} onChange={(e) => setForm({ ...form, stories: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Notes</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Creating...' : 'Create Job'}
               </button>

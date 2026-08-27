@@ -60,7 +60,7 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-        <span className="ml-2 text-gray-500">Preparing payment...</span>
+        <span className="ml-2 text-gray-500 dark:text-slate-400">Preparing payment...</span>
       </div>
     );
   }
@@ -161,8 +161,8 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <Check className="w-8 h-8 text-green-600" />
         </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Payment Successful!</h3>
-        <p className="text-gray-500">Thank you for your payment.</p>
+        <h3 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Payment Successful!</h3>
+        <p className="text-gray-500 dark:text-slate-400">Thank you for your payment.</p>
       </div>
     );
   }
@@ -171,14 +171,14 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Amount display */}
       {amount && (
-        <div className="bg-gray-50 rounded-lg p-4 text-center">
-          <p className="text-sm text-gray-500">Payment Amount</p>
-          <p className="text-3xl font-bold text-gray-900">${Number(amount).toLocaleString()}</p>
+        <div className="bg-gray-50 rounded-lg p-4 text-center dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">Payment Amount</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">${Number(amount).toLocaleString()}</p>
         </div>
       )}
 
       {/* Payment element */}
-      <div className="bg-white rounded-lg border p-4">
+      <div className="bg-white rounded-lg border p-4 dark:bg-slate-900">
         <PaymentElement 
           options={{
             layout: 'tabs',
@@ -195,7 +195,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
       )}
 
       {/* Security note */}
-      <div className="flex items-center gap-2 text-xs text-gray-500">
+      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
         <Lock className="w-3 h-3" />
         <span>Your payment info is encrypted and secure</span>
       </div>
@@ -207,7 +207,7 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
             type="button"
             onClick={onCancel}
             disabled={processing}
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             Cancel
           </button>
@@ -249,8 +249,8 @@ export function PaymentModal({ isOpen, onClose, invoiceId, amount, onSuccess, po
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Make Payment</h2>
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+          <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">Make Payment</h2>
           <PaymentForm
             invoiceId={invoiceId}
             amount={amount}
@@ -322,7 +322,7 @@ export function PaymentLinkButton({ invoiceId, onGenerated }) {
     <button
       onClick={handleGenerate}
       disabled={loading}
-      className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900"
+      className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
     >
       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
       Generate Payment Link

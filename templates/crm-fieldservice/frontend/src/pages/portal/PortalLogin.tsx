@@ -49,15 +49,15 @@ export default function PortalLogin() {
           <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Shield className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Customer Portal</h1>
-          <p className="text-gray-500 mt-1">View your equipment, service history, and invoices</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Customer Portal</h1>
+          <p className="text-gray-500 mt-1 dark:text-slate-400">View your equipment, service history, and invoices</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6 dark:bg-slate-900">
           {step === 'email' ? (
             <form onSubmit={handleRequestAccess} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 dark:text-slate-200">Email address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -67,7 +67,7 @@ export default function PortalLogin() {
                     placeholder="you@example.com"
                     required
                     autoFocus
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -85,11 +85,11 @@ export default function PortalLogin() {
           ) : (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="text-center mb-2">
-                <p className="text-sm text-gray-600">We sent a code to</p>
-                <p className="font-medium text-gray-900">{email}</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400">We sent a code to</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">{email}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Login Code</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5 dark:text-slate-200">Login Code</label>
                 <div className="relative">
                   <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
@@ -101,7 +101,7 @@ export default function PortalLogin() {
                     placeholder="000000"
                     required
                     autoFocus
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-center text-2xl font-mono tracking-[0.5em] focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-center text-2xl font-mono tracking-[0.5em] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:border-slate-700"
                   />
                 </div>
               </div>
@@ -117,7 +117,7 @@ export default function PortalLogin() {
               <button
                 type="button"
                 onClick={() => { setStep('email'); setPin(''); setError(''); }}
-                className="w-full text-sm text-gray-500 hover:text-gray-700"
+                className="w-full text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400"
               >
                 Use a different email
               </button>

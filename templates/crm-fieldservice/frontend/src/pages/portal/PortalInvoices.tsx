@@ -79,11 +79,11 @@ export default function PortalInvoices() {
       <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
         <div className="flex items-center gap-3">
           <button onClick={() => setSelectedInvoice(null)} className="p-2 -ml-2 rounded-lg hover:bg-gray-100">
-            <ChevronLeft className="w-6 h-6 text-gray-600" />
+            <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-slate-400" />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-gray-900">Invoice {inv.number}</h1>
-            <p className="text-sm text-gray-500">{formatDate(inv.issueDate)}</p>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Invoice {inv.number}</h1>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{formatDate(inv.issueDate)}</p>
           </div>
           <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${STATUS_COLORS[inv.status] || ''}`}>
             {STATUS_LABELS[inv.status] || inv.status}
@@ -91,37 +91,37 @@ export default function PortalInvoices() {
         </div>
 
         {/* Line Items */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden dark:bg-slate-900">
           <div className="p-4 border-b">
-            <h3 className="font-semibold text-gray-900">Items</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Items</h3>
           </div>
           <div className="divide-y">
             {(inv.lineItems || []).map((item: any, i: number) => (
               <div key={i} className="p-4 flex justify-between">
                 <div className="flex-1">
-                  <p className="text-gray-900">{item.description}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-gray-900 dark:text-slate-100">{item.description}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
                     {Number(item.quantity)} x ${Number(item.unitPrice).toFixed(2)}
                   </p>
                 </div>
-                <p className="font-medium text-gray-900">${Number(item.total).toFixed(2)}</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">${Number(item.total).toFixed(2)}</p>
               </div>
             ))}
           </div>
-          <div className="p-4 border-t bg-gray-50 space-y-1.5">
+          <div className="p-4 border-t bg-gray-50 space-y-1.5 dark:bg-slate-900">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Subtotal</span>
-              <span className="text-gray-900">${Number(inv.subtotal).toFixed(2)}</span>
+              <span className="text-gray-500 dark:text-slate-400">Subtotal</span>
+              <span className="text-gray-900 dark:text-slate-100">${Number(inv.subtotal).toFixed(2)}</span>
             </div>
             {Number(inv.taxAmount) > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Tax</span>
-                <span className="text-gray-900">${Number(inv.taxAmount).toFixed(2)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Tax</span>
+                <span className="text-gray-900 dark:text-slate-100">${Number(inv.taxAmount).toFixed(2)}</span>
               </div>
             )}
             {Number(inv.discount) > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Discount</span>
+                <span className="text-gray-500 dark:text-slate-400">Discount</span>
                 <span className="text-green-600">-${Number(inv.discount).toFixed(2)}</span>
               </div>
             )}
@@ -131,7 +131,7 @@ export default function PortalInvoices() {
             </div>
             {Number(inv.amountPaid) > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Paid</span>
+                <span className="text-gray-500 dark:text-slate-400">Paid</span>
                 <span className="text-green-600">${Number(inv.amountPaid).toFixed(2)}</span>
               </div>
             )}
@@ -145,10 +145,10 @@ export default function PortalInvoices() {
         </div>
 
         {inv.dueDate && (
-          <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Due Date</span>
-              <span className="text-gray-900">{formatDate(inv.dueDate)}</span>
+              <span className="text-gray-500 dark:text-slate-400">Due Date</span>
+              <span className="text-gray-900 dark:text-slate-100">{formatDate(inv.dueDate)}</span>
             </div>
           </div>
         )}
@@ -170,10 +170,10 @@ export default function PortalInvoices() {
   // Invoice List
   return (
     <div className="px-4 py-6 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Invoices</h1>
+      <h1 className="text-xl font-bold text-gray-900 mb-4 dark:text-slate-100">Invoices</h1>
 
       {/* Tabs */}
-      <div className="flex bg-gray-100 rounded-lg p-1 mb-4">
+      <div className="flex bg-gray-100 rounded-lg p-1 mb-4 dark:bg-slate-800">
         <button
           onClick={() => setTab('unpaid')}
           className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${tab === 'unpaid' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
@@ -191,7 +191,7 @@ export default function PortalInvoices() {
       {displayedInvoices.length === 0 ? (
         <div className="text-center py-12">
           <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">{tab === 'unpaid' ? 'No unpaid invoices' : 'No invoices yet'}</p>
+          <p className="text-gray-500 dark:text-slate-400">{tab === 'unpaid' ? 'No unpaid invoices' : 'No invoices yet'}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -202,7 +202,7 @@ export default function PortalInvoices() {
             return (
               <div
                 key={inv.id}
-                className="bg-white rounded-xl shadow-sm overflow-hidden"
+                className="bg-white rounded-xl shadow-sm overflow-hidden dark:bg-slate-900"
               >
                 <button
                   onClick={() => openDetail(inv.id)}
@@ -211,17 +211,17 @@ export default function PortalInvoices() {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">{inv.number}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{inv.number}</p>
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_COLORS[inv.status] || ''}`}>
                         {STATUS_LABELS[inv.status] || inv.status}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">
                       {formatDate(inv.issueDate)}
                       {inv.dueDate && ` — Due ${formatDate(inv.dueDate)}`}
                     </p>
                   </div>
-                  <p className="font-semibold text-gray-900">${Number(inv.total).toFixed(2)}</p>
+                  <p className="font-semibold text-gray-900 dark:text-slate-100">${Number(inv.total).toFixed(2)}</p>
                   <ChevronRight className="w-5 h-5 text-gray-300 flex-shrink-0" />
                 </button>
                 {isUnpaid && balance > 0 && (

@@ -39,7 +39,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, AccessibleSelectProps>(({
       {label && (
         <label
           htmlFor={id}
-          className="block text-sm font-medium text-gray-700 mb-1"
+          className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200"
         >
           {label}
           {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
@@ -96,7 +96,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, AccessibleSelectProps>(({
       )}
 
       {helperText && !hasError && (
-        <p id={helperId} className="mt-1 text-sm text-gray-500">
+        <p id={helperId} className="mt-1 text-sm text-gray-500 dark:text-slate-400">
           {helperText}
         </p>
       )}

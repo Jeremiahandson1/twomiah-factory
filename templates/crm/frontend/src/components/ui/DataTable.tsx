@@ -66,7 +66,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
               placeholder={searchPlaceholder}
               value={searchValue}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
         </div>
@@ -137,7 +137,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                           }}
                           className="p-1.5 rounded-md border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 hover:border-gray-300 text-gray-500 dark:text-slate-400 hover:text-gray-700 transition-colors"
                         >
-                          <MoreVertical className="w-4 h-4 text-gray-500" />
+                          <MoreVertical className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                         </button>
                         {openMenu === (row as Record<string, unknown>).id && (
                           <>

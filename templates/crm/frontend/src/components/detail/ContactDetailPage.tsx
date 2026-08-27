@@ -194,13 +194,13 @@ export default function ContactDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{contact.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{contact.name}</h1>
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${typeColors[contact.type] || ''}`}>
                 {contact.type}
               </span>
             </div>
             {contact.company && (
-              <p className="text-gray-500 flex items-center gap-1 mt-1">
+              <p className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400">
                 <Building2 className="w-4 h-4" />
                 {contact.company}
               </p>
@@ -239,7 +239,7 @@ export default function ContactDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Contact info card */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Contact Information</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Contact Information</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {contact.email && (
                 <div className="flex items-center gap-3">
@@ -247,7 +247,7 @@ export default function ContactDetailPage() {
                     <Mail className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Email</p>
                     <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline">
                       {contact.email}
                     </a>
@@ -260,8 +260,8 @@ export default function ContactDetailPage() {
                     <Phone className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Phone</p>
-                    <a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Phone</p>
+                    <a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">
                       {contact.phone}
                     </a>
                   </div>
@@ -273,8 +273,8 @@ export default function ContactDetailPage() {
                     <Phone className="w-5 h-5 text-purple-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Mobile</p>
-                    <a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p>
+                    <a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">
                       {contact.mobile as string}
                     </a>
                   </div>
@@ -286,8 +286,8 @@ export default function ContactDetailPage() {
                     <MapPin className="w-5 h-5 text-orange-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Address</p>
-                    <p className="text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Address</p>
+                    <p className="text-gray-900 dark:text-slate-100">
                       {contact.address && <span>{contact.address}<br /></span>}
                       {contact.city && `${contact.city}, `}{contact.state} {contact.zip}
                     </p>
@@ -300,8 +300,8 @@ export default function ContactDetailPage() {
           {/* Notes */}
           {contact.notes && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-              <h2 className="font-semibold text-gray-900 mb-4">Notes</h2>
-              <p className="text-gray-600 whitespace-pre-wrap">{contact.notes}</p>
+              <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Notes</h2>
+              <p className="text-gray-600 whitespace-pre-wrap dark:text-slate-400">{contact.notes}</p>
             </div>
           )}
 
@@ -309,8 +309,8 @@ export default function ContactDetailPage() {
           {(contact.projects?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Projects</h2>
-                <span className="text-sm text-gray-500">{contact.projects!.length}</span>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Projects</h2>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{contact.projects!.length}</span>
               </div>
               <div className="divide-y">
                 {contact.projects!.map((project) => (
@@ -322,8 +322,8 @@ export default function ContactDetailPage() {
                     <div className="flex items-center gap-3">
                       <Briefcase className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">{project.name}</p>
-                        <p className="text-sm text-gray-500">{project.number}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{project.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{project.number}</p>
                       </div>
                     </div>
                     <StatusBadge status={project.status} />
@@ -337,8 +337,8 @@ export default function ContactDetailPage() {
           {(contact.quotes?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Quotes</h2>
-                <span className="text-sm text-gray-500">{contact.quotes!.length}</span>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Quotes</h2>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{contact.quotes!.length}</span>
               </div>
               <div className="divide-y">
                 {contact.quotes!.map((quote) => (
@@ -350,8 +350,8 @@ export default function ContactDetailPage() {
                     <div className="flex items-center gap-3">
                       <FileText className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">{quote.name}</p>
-                        <p className="text-sm text-gray-500">{quote.number}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{quote.name}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{quote.number}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -369,23 +369,23 @@ export default function ContactDetailPage() {
         <div className="space-y-6">
           {/* Quick stats */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Summary</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Summary</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Projects</span>
+                <span className="text-gray-500 dark:text-slate-400">Projects</span>
                 <span className="font-medium">{contact.projects?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Quotes</span>
+                <span className="text-gray-500 dark:text-slate-400">Quotes</span>
                 <span className="font-medium">{contact.quotes?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Invoices</span>
+                <span className="text-gray-500 dark:text-slate-400">Invoices</span>
                 <span className="font-medium">{contact.invoices?.length || 0}</span>
               </div>
               {contact.source && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Source</span>
+                  <span className="text-gray-500 dark:text-slate-400">Source</span>
                   <span className="font-medium">{contact.source}</span>
                 </div>
               )}
@@ -394,44 +394,44 @@ export default function ContactDetailPage() {
 
           {/* Timeline */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Activity</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Activity</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{formatDate(contact.createdAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Created</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(contact.createdAt)}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-gray-500">Updated</span>
-                <span className="text-gray-900">{formatDate(contact.updatedAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Updated</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(contact.updatedAt)}</span>
               </div>
             </div>
           </div>
 
           {/* Quick actions */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
               <Link
                 to={`/crm/quotes?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <FileText className="w-4 h-4 text-gray-500" />
+                <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Quote
               </Link>
               <Link
                 to={`/crm/jobs?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <Briefcase className="w-4 h-4 text-gray-500" />
+                <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Schedule Job
               </Link>
               <Link
                 to={`/crm/invoices?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <Receipt className="w-4 h-4 text-gray-500" />
+                <Receipt className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Invoice
               </Link>
               {hasFeature('instant_estimator') && contact.address && (
@@ -451,8 +451,8 @@ export default function ContactDetailPage() {
           {hasFeature('instant_estimator') && roofReports.length > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Roof Reports</h2>
-                <span className="text-sm text-gray-500">{roofReports.length}</span>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Roof Reports</h2>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{roofReports.length}</span>
               </div>
               <div className="divide-y">
                 {roofReports.map((report: RoofReport) => (
@@ -464,8 +464,8 @@ export default function ContactDetailPage() {
                     <div className="flex items-center gap-3">
                       <FileBarChart className="w-5 h-5 text-blue-500" />
                       <div>
-                        <p className="font-medium text-gray-900 text-sm">{report.totalSquares} squares</p>
-                        <p className="text-xs text-gray-500">{formatDate(report.createdAt)}</p>
+                        <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{report.totalSquares} squares</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">{formatDate(report.createdAt)}</p>
                       </div>
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full ${
@@ -486,14 +486,14 @@ export default function ContactDetailPage() {
             const isArch = roleRaw === 'architect' || roleRaw === 'consultant' || roleRaw === 'inspector';
             const portalKind = isSub ? 'Subcontractor Portal' : isArch ? `${roleRaw.charAt(0).toUpperCase()}${roleRaw.slice(1)} Portal` : 'Customer Portal';
             return (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
                 <Globe className="w-4 h-4 text-blue-500" />
                 {portalKind}
               </h2>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Status</span>
+                  <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
                   <button onClick={togglePortal} disabled={portalLoading} className="flex items-center gap-1.5">
                     {portalStatus?.enabled ? (
                       <ToggleRight className="w-6 h-6 text-green-500" />
@@ -506,13 +506,13 @@ export default function ContactDetailPage() {
                   </button>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Email</span>
-                  <span className="text-gray-900">{contact.email}</span>
+                  <span className="text-gray-500 dark:text-slate-400">Email</span>
+                  <span className="text-gray-900 dark:text-slate-100">{contact.email}</span>
                 </div>
                 {portalStatus?.lastVisit && (
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">Last Login</span>
-                    <span className="text-gray-900">{formatDate(portalStatus.lastVisit)}</span>
+                    <span className="text-gray-500 dark:text-slate-400">Last Login</span>
+                    <span className="text-gray-900 dark:text-slate-100">{formatDate(portalStatus.lastVisit)}</span>
                   </div>
                 )}
                 {portalStatus?.enabled && (

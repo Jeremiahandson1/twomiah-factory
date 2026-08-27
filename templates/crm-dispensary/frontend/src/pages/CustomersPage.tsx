@@ -160,8 +160,8 @@ export default function CustomersPage() {
       label: 'Customer',
       render: (val: string, row: any) => (
         <div>
-          <p className="font-medium text-gray-900">{val}</p>
-          {row.phone && <p className="text-sm text-gray-500">{row.phone}</p>}
+          <p className="font-medium text-gray-900 dark:text-slate-100">{val}</p>
+          {row.phone && <p className="text-sm text-gray-500 dark:text-slate-400">{row.phone}</p>}
         </div>
       ),
     },
@@ -179,7 +179,7 @@ export default function CustomersPage() {
       key: 'totalSpent',
       label: 'Total Spent',
       render: (val: number) => (
-        <span className="font-medium text-gray-900">
+        <span className="font-medium text-gray-900 dark:text-slate-100">
           <DollarSign className="w-3 h-3 inline text-gray-400" />
           {Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </span>
@@ -188,18 +188,18 @@ export default function CustomersPage() {
     {
       key: 'loyaltyPoints',
       label: 'Points',
-      render: (val: number) => <span className="text-gray-700">{val || 0}</span>,
+      render: (val: number) => <span className="text-gray-700 dark:text-slate-200">{val || 0}</span>,
     },
     {
       key: 'orderCount',
       label: 'Orders',
-      render: (val: number) => <span className="text-gray-700">{val || 0}</span>,
+      render: (val: number) => <span className="text-gray-700 dark:text-slate-200">{val || 0}</span>,
     },
     {
       key: 'lastVisit',
       label: 'Last Visit',
       render: (val: string) => (
-        <span className="text-gray-500 text-sm">
+        <span className="text-gray-500 text-sm dark:text-slate-400">
           {val ? formatDate(val) : 'Never'}
         </span>
       ),
@@ -235,8 +235,8 @@ export default function CustomersPage() {
                 tierFilter === tier.value ? 'border-green-500 bg-green-50' : 'bg-white hover:border-gray-300'
               }`}
             >
-              <p className="text-2xl font-bold text-gray-900">{stats[tier.value] || 0}</p>
-              <p className="text-sm text-gray-500">{tier.label}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats[tier.value] || 0}</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">{tier.label}</p>
             </button>
           ))}
         </div>
@@ -251,13 +251,13 @@ export default function CustomersPage() {
             placeholder="Search customers..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           />
         </div>
         <select
           value={tierFilter}
           onChange={(e) => setTierFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
         >
           {loyaltyTiers.map(tier => (
             <option key={tier.value} value={tier.value}>{tier.label || 'All Tiers'}</option>
@@ -286,48 +286,48 @@ export default function CustomersPage() {
       >
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name *</label>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="John Smith"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email</label>
             <input
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Phone</label>
             <input
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date of Birth</label>
             <input
               type="date"
               value={formData.dateOfBirth}
               onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Loyalty Tier</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Loyalty Tier</label>
             <select
               value={formData.loyaltyTier}
               onChange={(e) => setFormData({ ...formData, loyaltyTier: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               {loyaltyTiers.filter(t => t.value).map(t => (
                 <option key={t.value} value={t.value}>{t.label}</option>
@@ -335,75 +335,75 @@ export default function CustomersPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Medical Card #</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Medical Card #</label>
             <input
               type="text"
               value={formData.medicalCardNumber}
               onChange={(e) => setFormData({ ...formData, medicalCardNumber: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Card Expiry</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Card Expiry</label>
             <input
               type="date"
               value={formData.medicalCardExpiry}
               onChange={(e) => setFormData({ ...formData, medicalCardExpiry: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Address</label>
             <input
               type="text"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">City</label>
             <input
               type="text"
               value={formData.city}
               onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State</label>
               <input
                 type="text"
                 value={formData.state}
                 onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">ZIP</label>
               <input
                 type="text"
                 value={formData.zip}
                 onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
           </div>
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button
             onClick={() => setModalOpen(false)}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium"
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200"
           >
             Cancel
           </button>

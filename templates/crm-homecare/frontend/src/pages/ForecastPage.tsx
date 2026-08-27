@@ -31,7 +31,7 @@ export default function ForecastPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><TrendingUp className="w-6 h-6 text-teal-600" />Revenue Forecast</h1>
-          <p className="text-sm text-gray-500 mt-1">Trailing revenue trend and projection</p>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Trailing revenue trend and projection</p>
         </div>
         <select value={months} onChange={(e) => setMonths(Number(e.target.value))} className="border rounded-lg px-3 py-2">
           <option value={3}>3 months</option>
@@ -41,13 +41,13 @@ export default function ForecastPage() {
       </div>
 
       {loading ? <Loader2 className="w-8 h-8 animate-spin text-teal-600 mx-auto mt-12" /> : (
-        <div className="bg-white rounded-lg border p-6">
+        <div className="bg-white rounded-lg border p-6 dark:bg-slate-900">
           {data.length === 0 ? <div className="text-center text-gray-400 py-12">No revenue data yet. Create clients and generate invoices to see the forecast.</div> : (
             <div className="space-y-3">
               {data.map((d: any, i: number) => (
                 <div key={i} className="flex items-center gap-4">
-                  <div className="w-20 text-sm font-mono text-gray-600">{d.month || d.label || '—'}</div>
-                  <div className="flex-1 h-8 bg-gray-100 rounded-full overflow-hidden relative">
+                  <div className="w-20 text-sm font-mono text-gray-600 dark:text-slate-400">{d.month || d.label || '—'}</div>
+                  <div className="flex-1 h-8 bg-gray-100 rounded-full overflow-hidden relative dark:bg-slate-800">
                     <div className="h-full bg-teal-500 rounded-full flex items-center justify-end pr-3 text-white text-xs font-semibold" style={{ width: `${(Number(d.revenue || 0) / maxRevenue) * 100}%` }}>
                       ${Number(d.revenue || 0).toLocaleString()}
                     </div>

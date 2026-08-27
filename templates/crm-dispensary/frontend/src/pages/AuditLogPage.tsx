@@ -98,15 +98,15 @@ export default function AuditLogPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
           <Shield className="w-6 h-6 text-green-600" />
           Audit Log
         </h1>
-        <p className="text-gray-600">Track all system activity and compliance events</p>
+        <p className="text-gray-600 dark:text-slate-400">Track all system activity and compliance events</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
         <div className="grid md:grid-cols-5 gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -115,13 +115,13 @@ export default function AuditLogPage() {
               placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
           >
             {actionTypes.map(a => (
               <option key={a.value} value={a.value}>{a.label}</option>
@@ -130,7 +130,7 @@ export default function AuditLogPage() {
           <select
             value={userFilter}
             onChange={(e) => setUserFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
           >
             <option value="">All Users</option>
             {users.map(u => (
@@ -141,48 +141,48 @@ export default function AuditLogPage() {
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
             placeholder="From"
           />
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
             placeholder="To"
           />
         </div>
       </div>
 
       {/* Log Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Timestamp</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">User</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Action</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Description</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">IP Address</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {logs.map((log: any, idx: number) => (
                 <tr key={log.id || idx} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <td className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap dark:text-slate-200">
                     {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-                        <User className="w-3 h-3 text-gray-500" />
+                        <User className="w-3 h-3 text-gray-500 dark:text-slate-400" />
                       </div>
-                      <span className="text-sm text-gray-900">{log.userName || log.userEmail || 'System'}</span>
+                      <span className="text-sm text-gray-900 dark:text-slate-100">{log.userName || log.userEmail || 'System'}</span>
                     </div>
                   </td>
                   <td className="px-4 py-3">
@@ -192,17 +192,17 @@ export default function AuditLogPage() {
                       {(log.action || 'unknown').replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-700 max-w-md truncate">
+                  <td className="px-4 py-3 text-sm text-gray-700 max-w-md truncate dark:text-slate-200">
                     {log.description || log.details || '—'}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 font-mono">
+                  <td className="px-4 py-3 text-sm text-gray-500 font-mono dark:text-slate-400">
                     {log.ipAddress || '—'}
                   </td>
                 </tr>
               ))}
               {logs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-gray-500">
+                  <td colSpan={5} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                     <Shield className="w-10 h-10 mx-auto mb-2 text-gray-300" />
                     No audit log entries found
                   </td>
@@ -215,7 +215,7 @@ export default function AuditLogPage() {
         {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
           <div className="px-4 py-3 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               Page {pagination.page} of {pagination.totalPages} ({pagination.total} entries)
             </p>
             <div className="flex gap-2">

@@ -31,12 +31,12 @@ export default function LocationsPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500" />Locations</h1><p className="text-sm text-gray-500 mt-1">Multi-branch dispatch — assign techs and jobs per location</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6 text-sky-500" />Locations</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Multi-branch dispatch — assign techs and jobs per location</p></div>
         <button onClick={() => setShowCreate(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Location</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-400">No locations yet. Add your first branch to enable multi-location dispatch.</div> :
+        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">No locations yet. Add your first branch to enable multi-location dispatch.</div> :
           locations.map((l) => (
             <div key={l.id} className={`bg-white rounded-lg border p-5 ${!l.isActive ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between mb-3">
@@ -46,11 +46,11 @@ export default function LocationsPage() {
                 </div>
                 {!l.isActive && <span className="text-xs text-gray-400">Inactive</span>}
               </div>
-              <div className="text-sm text-gray-600 space-y-1">
+              <div className="text-sm text-gray-600 space-y-1 dark:text-slate-400">
                 {l.address && <div>{l.address}</div>}
                 {(l.city || l.state) && <div>{l.city}{l.city && l.state ? ', ' : ''}{l.state} {l.zip}</div>}
-                {l.phone && <div className="text-gray-500">{l.phone}</div>}
-                <div className="text-xs text-gray-500 mt-2">Service radius: {l.serviceAreaRadiusMiles} mi · {l.timezone}</div>
+                {l.phone && <div className="text-gray-500 dark:text-slate-400">{l.phone}</div>}
+                <div className="text-xs text-gray-500 mt-2 dark:text-slate-400">Service radius: {l.serviceAreaRadiusMiles} mi · {l.timezone}</div>
               </div>
               {l.isActive && <button onClick={() => deactivate(l.id)} className="mt-3 text-xs text-red-600 hover:underline">Deactivate</button>}
             </div>
@@ -59,7 +59,7 @@ export default function LocationsPage() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New Location</h2>
             <form onSubmit={create} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">

@@ -148,15 +148,15 @@ function CustomersTab() {
   };
 
   const columns = [
-    { key: 'name', label: 'Name', render: (val: string) => <span className="font-medium text-gray-900">{val}</span> },
-    { key: 'licenseNumber', label: 'License #', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700">{val}</span> : <span className="text-gray-400">--</span> },
+    { key: 'name', label: 'Name', render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span> },
+    { key: 'licenseNumber', label: 'License #', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{val}</span> : <span className="text-gray-400">--</span> },
     { key: 'contactName', label: 'Contact', render: (val: string, row: any) => (
       <div>
-        <p className="text-gray-700">{val || '--'}</p>
-        {row.contactEmail && <p className="text-xs text-gray-500">{row.contactEmail}</p>}
+        <p className="text-gray-700 dark:text-slate-200">{val || '--'}</p>
+        {row.contactEmail && <p className="text-xs text-gray-500 dark:text-slate-400">{row.contactEmail}</p>}
       </div>
     )},
-    { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="capitalize text-gray-700">{val?.replace(/([A-Z])/g, ' $1') || '--'}</span> },
+    { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="capitalize text-gray-700 dark:text-slate-200">{val?.replace(/([A-Z])/g, ' $1') || '--'}</span> },
     { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600' : 'text-green-600'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-400">$0.00</span> },
   ];
 
@@ -165,7 +165,7 @@ function CustomersTab() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Search customers..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" />
+          <input type="text" placeholder="Search customers..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
         <Button onClick={openCreate} className="ml-auto"><Plus className="w-4 h-4 mr-2 inline" />Add Customer</Button>
       </div>
@@ -346,10 +346,10 @@ function OrdersTab() {
   };
 
   const columns = [
-    { key: 'orderNumber', label: 'Order #', render: (val: string) => <span className="font-mono font-medium text-gray-900">{val || '--'}</span> },
-    { key: 'customerName', label: 'Customer', render: (val: string) => <span className="text-gray-700">{val || '--'}</span> },
+    { key: 'orderNumber', label: 'Order #', render: (val: string) => <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{val || '--'}</span> },
+    { key: 'customerName', label: 'Customer', render: (val: string) => <span className="text-gray-700 dark:text-slate-200">{val || '--'}</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={orderStatusColors} /> },
-    { key: 'total', label: 'Total', render: (val: number) => <span className="font-medium text-gray-900">${Number(val || 0).toFixed(2)}</span> },
+    { key: 'total', label: 'Total', render: (val: number) => <span className="font-medium text-gray-900 dark:text-slate-100">${Number(val || 0).toFixed(2)}</span> },
     { key: 'paymentStatus', label: 'Payment', render: (val: string) => <StatusBadge status={val} statusColors={paymentStatusColors} /> },
     { key: 'dueDate', label: 'Due Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
   ];
@@ -367,7 +367,7 @@ function OrdersTab() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Search orders..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" />
+          <input type="text" placeholder="Search orders..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
         <Button onClick={() => setCreateModalOpen(true)} className="ml-auto"><Plus className="w-4 h-4 mr-2 inline" />Create Order</Button>
       </div>
@@ -570,12 +570,12 @@ function LabTestsTab() {
   };
 
   const columns = [
-    { key: 'sampleId', label: 'Sample ID', render: (val: string) => <span className="font-mono font-medium text-gray-900">{val}</span> },
-    { key: 'batchId', label: 'Batch', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700">{val}</span> : <span className="text-gray-400">--</span> },
+    { key: 'sampleId', label: 'Sample ID', render: (val: string) => <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{val}</span> },
+    { key: 'batchId', label: 'Batch', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{val}</span> : <span className="text-gray-400">--</span> },
     { key: 'labName', label: 'Lab', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={labStatusColors} /> },
-    { key: 'thc', label: 'THC%', render: (val: number) => val != null ? <span className="text-gray-700">{val}%</span> : <span className="text-gray-400">--</span> },
-    { key: 'cbd', label: 'CBD%', render: (val: number) => val != null ? <span className="text-gray-700">{val}%</span> : <span className="text-gray-400">--</span> },
+    { key: 'thc', label: 'THC%', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-400">--</span> },
+    { key: 'cbd', label: 'CBD%', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-400">--</span> },
     { key: 'overallResult', label: 'Result', render: (val: string) => val ? <StatusBadge status={val} statusColors={resultColors} /> : <span className="text-gray-400">--</span> },
   ];
 
@@ -589,7 +589,7 @@ function LabTestsTab() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Search tests..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" />
+          <input type="text" placeholder="Search tests..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
         <Button onClick={() => { setFormData({ sampleId: '', batchId: '', labName: '', notes: '' }); setCreateModalOpen(true); }} className="ml-auto">
           <Plus className="w-4 h-4 mr-2 inline" />New Test

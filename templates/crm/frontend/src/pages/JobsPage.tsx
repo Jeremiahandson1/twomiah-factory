@@ -125,7 +125,7 @@ export default function JobsPage() {
 
   const columns = [
     { key: 'number', label: 'Number', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
-    { key: 'title', label: 'Title', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
+    { key: 'title', label: 'Title', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500 dark:text-slate-400">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'priority', label: 'Priority', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' }} /> },
     { key: 'scheduledDate', label: 'Scheduled', render: (v: unknown) => v ? formatDate((v as string).split('T')[0] + 'T00:00:00') : '-' },
@@ -158,7 +158,7 @@ export default function JobsPage() {
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Status</label><select value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600">{statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Priority</label><select value={form.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, priority: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600">{priorities.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
-          {projects.length > 0 && <div><label className="block text-sm font-medium mb-1">Project</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>}
+          {projects.length > 0 && <div><label className="block text-sm font-medium mb-1">Project</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>}
           <div><label className="block text-sm font-medium mb-1">Contact</label><select value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                 const selectedContact = contacts.find((c: Record<string, unknown>) => c.id === e.target.value);
                 const hasAddress = selectedContact?.address || selectedContact?.city;
@@ -173,7 +173,7 @@ export default function JobsPage() {
                   } : {})
                 });
                 setUseAddressOnFile(!!hasAddress);
-              }} className="w-full px-3 py-2 border rounded-lg text-gray-900"><option value="">Select...</option>{contacts.map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{c.name as string}</option>)}</select></div>
+              }} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100"><option value="">Select...</option>{contacts.map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{c.name as string}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Scheduled Date</label><input type="date" value={form.scheduledDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, scheduledDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Scheduled Time</label><input type="time" value={form.scheduledTime} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, scheduledTime: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Estimated Hours</label><input type="number" value={form.estimatedHours} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, estimatedHours: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
@@ -193,7 +193,7 @@ export default function JobsPage() {
                 <input
                   value={form.address}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setUseAddressOnFile(false); setForm({...form, address: e.target.value}); }}
-                  className="w-full px-3 py-2 border rounded-lg text-gray-900"
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100"
                   placeholder={useAddressOnFile ? 'From contact on file' : 'Street address'}
                 />
               </div>

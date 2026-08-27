@@ -141,38 +141,38 @@ export default function IDScannerPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">ID Scanner</h1>
-          <p className="text-gray-600">Verify customer identity and age compliance</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">ID Scanner</h1>
+          <p className="text-gray-600 dark:text-slate-400">Verify customer identity and age compliance</p>
         </div>
       </div>
 
       {/* Stats Bar */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3">
+        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
             <ScanLine className="w-5 h-5 text-green-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{stats.scansToday || 0}</p>
-            <p className="text-sm text-gray-500">Scans Today</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.scansToday || 0}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Scans Today</p>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3">
+        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
             <XCircle className="w-5 h-5 text-red-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{stats.underageAttempts || 0}</p>
-            <p className="text-sm text-gray-500">Underage Attempts</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.underageAttempts || 0}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Underage Attempts</p>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3">
+        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
             <AlertTriangle className="w-5 h-5 text-orange-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{stats.expiredIds || 0}</p>
-            <p className="text-sm text-gray-500">Expired IDs</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.expiredIds || 0}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Expired IDs</p>
           </div>
         </div>
       </div>
@@ -199,12 +199,12 @@ export default function IDScannerPage() {
       {tab === 'scan' && (
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Scan Interface */}
-          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900">Scan Interface</h3>
+          <div className="bg-white rounded-lg shadow-sm p-6 space-y-6 dark:bg-slate-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Scan Interface</h3>
 
             {/* Method Selector */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Scan Method</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Scan Method</label>
               <div className="flex gap-2">
                 {scanMethods.map(m => (
                   <button
@@ -225,11 +225,11 @@ export default function IDScannerPage() {
             {/* Input */}
             {scanMethod !== 'manual' ? (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Raw Scan Data</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Raw Scan Data</label>
                 <textarea
                   value={rawData}
                   onChange={(e) => setRawData(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 font-mono text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 font-mono text-sm dark:border-slate-700 dark:text-slate-100"
                   rows={4}
                   placeholder={scanMethod === 'barcode' ? 'Scan barcode or paste PDF417 data...' : 'Swipe magnetic stripe or paste data...'}
                 />
@@ -237,54 +237,54 @@ export default function IDScannerPage() {
             ) : (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Full Name *</label>
                   <input
                     type="text"
                     value={manualForm.name}
                     onChange={(e) => setManualForm({ ...manualForm, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="John Doe"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date of Birth *</label>
                     <input
                       type="date"
                       value={manualForm.dob}
                       onChange={(e) => setManualForm({ ...manualForm, dob: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ID Number *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">ID Number *</label>
                     <input
                       type="text"
                       value={manualForm.idNumber}
                       onChange={(e) => setManualForm({ ...manualForm, idNumber: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       placeholder="D1234567"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State</label>
                     <input
                       type="text"
                       value={manualForm.state}
                       onChange={(e) => setManualForm({ ...manualForm, state: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       placeholder="CA"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Expiry Date</label>
                     <input
                       type="date"
                       value={manualForm.expiry}
                       onChange={(e) => setManualForm({ ...manualForm, expiry: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     />
                   </div>
                 </div>
@@ -298,8 +298,8 @@ export default function IDScannerPage() {
           </div>
 
           {/* Scan Result */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Scan Result</h3>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Scan Result</h3>
             {scanResult ? (
               <div className="space-y-4">
                 {/* Verification Status */}
@@ -314,7 +314,7 @@ export default function IDScannerPage() {
                     <XCircle className="w-8 h-8 text-red-600 flex-shrink-0" />
                   )}
                   <div>
-                    <p className="font-semibold text-gray-900">
+                    <p className="font-semibold text-gray-900 dark:text-slate-100">
                       {scanResult.status === 'verified' ? 'Identity Verified' :
                        scanResult.status === 'underage' ? 'UNDERAGE - DO NOT SERVE' :
                        scanResult.status === 'expired' ? 'EXPIRED ID' :
@@ -332,24 +332,24 @@ export default function IDScannerPage() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-sm">
                     <User className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500 w-24">Name:</span>
-                    <span className="font-medium text-gray-900">{scanResult.name || '—'}</span>
+                    <span className="text-gray-500 w-24 dark:text-slate-400">Name:</span>
+                    <span className="font-medium text-gray-900 dark:text-slate-100">{scanResult.name || '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <CreditCard className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500 w-24">ID Number:</span>
-                    <span className="font-medium text-gray-900">{scanResult.idNumber || '—'}</span>
+                    <span className="text-gray-500 w-24 dark:text-slate-400">ID Number:</span>
+                    <span className="font-medium text-gray-900 dark:text-slate-100">{scanResult.idNumber || '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500 w-24">Date of Birth:</span>
-                    <span className="font-medium text-gray-900">
+                    <span className="text-gray-500 w-24 dark:text-slate-400">Date of Birth:</span>
+                    <span className="font-medium text-gray-900 dark:text-slate-100">
                       {scanResult.dob ? formatDate(scanResult.dob) : '—'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <span className="w-4 h-4 text-gray-400 text-center font-bold">A</span>
-                    <span className="text-gray-500 w-24">Age:</span>
+                    <span className="text-gray-500 w-24 dark:text-slate-400">Age:</span>
                     <span className={`font-bold text-lg ${
                       (scanResult.age || calculateAge(scanResult.dob)) >= 21 ? 'text-green-600' : 'text-red-600'
                     }`}>
@@ -358,12 +358,12 @@ export default function IDScannerPage() {
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Shield className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500 w-24">State:</span>
-                    <span className="font-medium text-gray-900">{scanResult.state || '—'}</span>
+                    <span className="text-gray-500 w-24 dark:text-slate-400">State:</span>
+                    <span className="font-medium text-gray-900 dark:text-slate-100">{scanResult.state || '—'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <Clock className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500 w-24">Expires:</span>
+                    <span className="text-gray-500 w-24 dark:text-slate-400">Expires:</span>
                     <span className={`font-medium ${
                       scanResult.expiry && new Date(scanResult.expiry) < new Date() ? 'text-red-600' : 'text-gray-900'
                     }`}>
@@ -393,7 +393,7 @@ export default function IDScannerPage() {
                 </Button>
               </div>
             ) : (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                 <ScanLine className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p>No scan result yet</p>
                 <p className="text-sm text-gray-400 mt-1">Scan an ID to see verification results</p>
@@ -414,13 +414,13 @@ export default function IDScannerPage() {
                 placeholder="Search by name or ID..."
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
             <select
               value={historyFilter}
               onChange={(e) => setHistoryFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">All Statuses</option>
               <option value="verified">Verified</option>
@@ -429,19 +429,19 @@ export default function IDScannerPage() {
               <option value="flagged">Flagged</option>
             </select>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">DOB</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Age</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Number</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">State</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Timestamp</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">DOB</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Age</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">ID Number</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">State</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Method</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -453,21 +453,21 @@ export default function IDScannerPage() {
                     </tr>
                   ) : history.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No scan history found</td>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No scan history found</td>
                     </tr>
                   ) : history.map(scan => (
                     <tr key={scan.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {scan.createdAt ? new Date(scan.createdAt).toLocaleString() : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{scan.name || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{scan.name || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {scan.dob ? formatDate(scan.dob) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 font-medium">{scan.age || calculateAge(scan.dob) || '—'}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{scan.idNumber || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{scan.state || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{scan.method || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 font-medium dark:text-slate-100">{scan.age || calculateAge(scan.dob) || '—'}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-slate-400">{scan.idNumber || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{scan.state || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{scan.method || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${verificationColors[scan.status] || 'bg-gray-100 text-gray-600'}`}>
                           {scan.status || 'unknown'}
@@ -490,7 +490,7 @@ export default function IDScannerPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : flagged.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Shield className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No flagged scans</p>
               <p className="text-sm text-gray-400 mt-1">Suspicious or failed scans will appear here</p>
@@ -498,17 +498,17 @@ export default function IDScannerPage() {
           ) : (
             <div className="space-y-3">
               {flagged.map(scan => (
-                <div key={scan.id} className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-red-400">
+                <div key={scan.id} className="bg-white rounded-lg shadow-sm p-5 border-l-4 border-red-400 dark:bg-slate-900">
                   <div className="flex items-start justify-between">
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <AlertTriangle className="w-5 h-5 text-red-500" />
-                        <span className="font-semibold text-gray-900">{scan.name || 'Unknown'}</span>
+                        <span className="font-semibold text-gray-900 dark:text-slate-100">{scan.name || 'Unknown'}</span>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${verificationColors[scan.status]}`}>
                           {scan.status}
                         </span>
                       </div>
-                      <div className="grid md:grid-cols-3 gap-3 text-sm text-gray-600">
+                      <div className="grid md:grid-cols-3 gap-3 text-sm text-gray-600 dark:text-slate-400">
                         <span>ID: {scan.idNumber || '—'}</span>
                         <span>DOB: {scan.dob ? formatDate(scan.dob) : '—'}</span>
                         <span>Scanned: {scan.createdAt ? new Date(scan.createdAt).toLocaleString() : '—'}</span>

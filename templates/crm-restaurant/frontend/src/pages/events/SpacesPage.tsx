@@ -61,10 +61,10 @@ export default function SpacesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
             <DoorOpen className="w-6 h-6 text-teal-600" /> Spaces
           </h1>
-          <p className="text-gray-500">What you can sell, who it holds, what it has to spend</p>
+          <p className="text-gray-500 dark:text-slate-400">What you can sell, who it holds, what it has to spend</p>
         </div>
         <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
           <Plus className="w-4 h-4" /> New Space
@@ -76,32 +76,32 @@ export default function SpacesPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : spaces.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No spaces yet</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No spaces yet</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {spaces.map((s) => (
             <div key={s.id} className={`bg-white rounded-xl border p-5 flex flex-col ${s.active ? '' : 'opacity-60'}`}>
               <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold text-gray-900">{s.name || 'Untitled'}</p>
-                {!s.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Retired</span>}
+                <p className="font-semibold text-gray-900 dark:text-slate-100">{s.name || 'Untitled'}</p>
+                {!s.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Retired</span>}
               </div>
-              {s.description && <p className="text-sm text-gray-500 mt-1">{s.description}</p>}
+              {s.description && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{s.description}</p>}
 
               <div className="flex flex-wrap gap-2 mt-3 text-xs">
                 {s.seatedCapacity ? (
-                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
                     <Users className="w-3 h-3" /> {s.seatedCapacity} seated
                   </span>
                 ) : null}
                 {s.standingCapacity ? (
-                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
                     {s.standingCapacity} standing
                   </span>
                 ) : null}
               </div>
 
               <div className="mt-3 space-y-1 text-sm">
-                <p className="flex items-center gap-2 text-gray-700">
+                <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
                   <Wallet className="w-4 h-4 text-teal-500" />
                   <span className="font-semibold">{money(s.minimumSpend)}</span>
                   <span className="text-gray-400">minimum spend</span>
@@ -188,40 +188,40 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{space ? 'Edit Space' : 'New Space'}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="The Cellar" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Seated capacity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Seated capacity</label>
                 <input type="number" value={form.seatedCapacity} onChange={(e) => set('seatedCapacity', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Standing capacity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Standing capacity</label>
                 <input type="number" value={form.standingCapacity} onChange={(e) => set('standingCapacity', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Minimum spend ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Minimum spend ($)</label>
                 <input type="number" step="any" value={form.minimumSpend} onChange={(e) => set('minimumSpend', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hire fee ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Hire fee ($)</label>
                 <input type="number" step="any" value={form.hireFee} onChange={(e) => set('hireFee', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amenities</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amenities</label>
               <div className="flex flex-wrap gap-2">
                 {AMENITY_SUGGESTIONS.map((a) => (
                   <button
@@ -237,7 +237,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
             </div>
             <div className="flex items-center gap-2">
               <input id="spaceActive" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
-              <label htmlFor="spaceActive" className="text-sm font-medium text-gray-700">Bookable</label>
+              <label htmlFor="spaceActive" className="text-sm font-medium text-gray-700 dark:text-slate-200">Bookable</label>
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>

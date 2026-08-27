@@ -86,7 +86,7 @@ export default function MobileNav() {
   return (
     <>
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b h-14 px-4 flex items-center justify-between">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b h-14 px-4 flex items-center justify-between dark:bg-slate-900">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsOpen(true)}
@@ -96,7 +96,7 @@ export default function MobileNav() {
           >
             <Menu className="w-6 h-6" />
           </button>
-          <span className="font-bold text-gray-900 truncate">
+          <span className="font-bold text-gray-900 truncate dark:text-slate-100">
             {company?.name || '{{COMPANY_NAME}}'}
           </span>
         </div>
@@ -122,7 +122,7 @@ export default function MobileNav() {
       >
         {/* Menu Header */}
         <div className="h-14 px-4 flex items-center justify-between border-b">
-          <span className="font-bold text-gray-900">{company?.name || '{{COMPANY_NAME}}'}</span>
+          <span className="font-bold text-gray-900 dark:text-slate-100">{company?.name || '{{COMPANY_NAME}}'}</span>
           <button
             onClick={() => setIsOpen(false)}
             className="p-2 -mr-2 hover:bg-gray-100 rounded-lg"
@@ -138,7 +138,7 @@ export default function MobileNav() {
             <div key={group.label} className="mb-2">
               <button
                 onClick={() => toggleGroup(group.label)}
-                className="w-full px-4 py-2 flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider hover:bg-gray-50"
+                className="w-full px-4 py-2 flex items-center justify-between text-xs font-semibold text-gray-500 uppercase tracking-wider hover:bg-gray-50 dark:text-slate-400"
               >
                 {group.label}
                 {expandedGroups.includes(group.label) ? (

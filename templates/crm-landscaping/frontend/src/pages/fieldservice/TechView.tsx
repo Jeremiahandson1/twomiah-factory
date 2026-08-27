@@ -214,8 +214,8 @@ export default function TechView() {
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center p-8">
           <Wrench className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Tech View Not Available</h2>
-          <p className="text-gray-500">Upgrade to the Small Shop plan or higher to access the mobile technician view.</p>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2 dark:text-slate-200">Tech View Not Available</h2>
+          <p className="text-gray-500 dark:text-slate-400">Upgrade to the Small Shop plan or higher to access the mobile technician view.</p>
         </div>
       </div>
     );
@@ -243,11 +243,11 @@ export default function TechView() {
   // ─── Job List Screen ─────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3">
-        <h1 className="text-xl font-bold text-gray-900">My Jobs</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
+      <div className="bg-white border-b px-4 py-3 dark:bg-slate-900">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">My Jobs</h1>
+        <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">
           {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
       </div>
@@ -266,7 +266,7 @@ export default function TechView() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-gray-200 dark:divide-slate-700">
             {filteredJobs.map(job => (
               <JobCard key={job.id} job={job} onTap={() => openJob(job)} onNavigate={() => navigateToAddress(job)} />
             ))}
@@ -275,7 +275,7 @@ export default function TechView() {
       </div>
 
       {/* Bottom Tab Nav */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t flex z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t flex z-50 dark:bg-slate-900">
         <TabButton active={listTab === 'today'} label="Today" count={todayJobs.length} icon={Clock} onClick={() => setListTab('today')} />
         <TabButton active={listTab === 'upcoming'} label="Upcoming" count={upcomingJobs.length} icon={Calendar} onClick={() => setListTab('upcoming')} />
         <TabButton active={listTab === 'completed'} label="Done" count={completedJobs.length} icon={CheckCircle} onClick={() => setListTab('completed')} />
@@ -314,7 +314,7 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
   const addr = [job.address, job.city].filter(Boolean).join(', ');
 
   return (
-    <div className="bg-white px-4 py-4 active:bg-gray-50 transition-colors">
+    <div className="bg-white px-4 py-4 active:bg-gray-50 transition-colors dark:bg-slate-900">
       <div className="flex items-start gap-3" onClick={onTap}>
         <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
           <TypeIcon className="w-5 h-5 text-blue-700" />
@@ -329,11 +329,11 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
               {STATUS_LABELS[job.status] || job.status}
             </span>
           </div>
-          <h3 className="font-semibold text-gray-900 text-[15px] truncate">{job.title}</h3>
+          <h3 className="font-semibold text-gray-900 text-[15px] truncate dark:text-slate-100">{job.title}</h3>
           {job.contact && (
-            <p className="text-sm text-gray-600 mt-0.5">{job.contact.name}</p>
+            <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">{job.contact.name}</p>
           )}
-          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+          <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
             {job.scheduledTime && (
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
@@ -451,15 +451,15 @@ function JobDetailScreen({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3 flex items-center gap-3">
+      <div className="bg-white border-b px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
         <button onClick={onBack} className="p-2 -ml-2 rounded-lg active:bg-gray-100">
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
+          <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-slate-400" />
         </button>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-gray-400 font-mono">{job.number}</p>
-          <h2 className="text-lg font-bold text-gray-900 truncate">{job.title}</h2>
+          <h2 className="text-lg font-bold text-gray-900 truncate dark:text-slate-100">{job.title}</h2>
         </div>
         <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${STATUS_COLORS[job.status] || ''}`}>
           {STATUS_LABELS[job.status] || job.status}
@@ -470,9 +470,9 @@ function JobDetailScreen({
       <div className="flex-1 overflow-y-auto pb-32 px-4 py-4 space-y-4">
         {/* Customer Card */}
         {job.contact && (
-          <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Customer</h3>
-            <p className="font-semibold text-gray-900 text-lg">{job.contact.name}</p>
+            <p className="font-semibold text-gray-900 text-lg dark:text-slate-100">{job.contact.name}</p>
             {job.contact.phone && (
               <a href={`tel:${job.contact.phone}`} className="flex items-center gap-2 mt-2 py-2.5 px-4 bg-green-50 text-green-700 rounded-lg font-medium text-sm active:bg-green-100">
                 <Phone className="w-4 h-4" />
@@ -484,9 +484,9 @@ function JobDetailScreen({
 
         {/* Address + Navigate */}
         {addr && (
-          <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Location</h3>
-            <p className="text-gray-700">{addr}</p>
+            <p className="text-gray-700 dark:text-slate-200">{addr}</p>
             <button
               onClick={onNavigate}
               className="mt-3 w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-lg font-semibold text-sm active:bg-blue-700"
@@ -498,44 +498,44 @@ function JobDetailScreen({
         )}
 
         {/* Job Details */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Job Details</h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-gray-500">Type</span>
-              <span className="font-medium text-gray-900 capitalize">{job.jobType}</span>
+              <span className="text-gray-500 dark:text-slate-400">Type</span>
+              <span className="font-medium text-gray-900 capitalize dark:text-slate-100">{job.jobType}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Priority</span>
+              <span className="text-gray-500 dark:text-slate-400">Priority</span>
               <span className={`px-2 py-0.5 rounded text-xs font-bold ${PRIORITY_COLORS[job.priority] || ''}`}>{job.priority}</span>
             </div>
             {job.scheduledTime && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Scheduled</span>
-                <span className="font-medium text-gray-900">{job.scheduledTime}</span>
+                <span className="text-gray-500 dark:text-slate-400">Scheduled</span>
+                <span className="font-medium text-gray-900 dark:text-slate-100">{job.scheduledTime}</span>
               </div>
             )}
             {job.estimatedHours && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Est. Duration</span>
-                <span className="font-medium text-gray-900">{job.estimatedHours}h</span>
+                <span className="text-gray-500 dark:text-slate-400">Est. Duration</span>
+                <span className="font-medium text-gray-900 dark:text-slate-100">{job.estimatedHours}h</span>
               </div>
             )}
           </div>
           {job.description && (
             <div className="mt-3 pt-3 border-t">
-              <p className="text-sm text-gray-600">{job.description}</p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">{job.description}</p>
             </div>
           )}
         </div>
 
         {/* Equipment */}
         {job.equipment && (
-          <div className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-l-orange-400">
+          <div className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-l-orange-400 dark:bg-slate-900">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Equipment</h3>
-            <p className="font-semibold text-gray-900">{job.equipment.name}</p>
+            <p className="font-semibold text-gray-900 dark:text-slate-100">{job.equipment.name}</p>
             {(job.equipment.manufacturer || job.equipment.model) && (
-              <p className="text-sm text-gray-600 mt-0.5">
+              <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">
                 {[job.equipment.manufacturer, job.equipment.model].filter(Boolean).join(' ')}
               </p>
             )}
@@ -543,7 +543,7 @@ function JobDetailScreen({
               <p className="text-xs text-gray-400 font-mono mt-1">S/N: {job.equipment.serialNumber}</p>
             )}
             {job.equipment.location && (
-              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1 dark:text-slate-400">
                 <MapPin className="w-3 h-3" /> {job.equipment.location}
               </p>
             )}
@@ -554,12 +554,12 @@ function JobDetailScreen({
         {(job.jobType === 'maintenance' || job.jobType === 'repair') && job.status !== 'completed' && (
           <button
             onClick={onChecklist}
-            className="w-full flex items-center gap-3 bg-white rounded-xl p-4 shadow-sm active:bg-gray-50 border-l-4 border-l-purple-400"
+            className="w-full flex items-center gap-3 bg-white rounded-xl p-4 shadow-sm active:bg-gray-50 border-l-4 border-l-purple-400 dark:bg-slate-900"
           >
             <ClipboardList className="w-6 h-6 text-purple-600" />
             <div className="flex-1 text-left">
-              <p className="font-semibold text-gray-900">HVAC Inspection Checklist</p>
-              <p className="text-xs text-gray-500 mt-0.5">Refrigerant, coils, filter, thermostat, drain, electrical, airflow</p>
+              <p className="font-semibold text-gray-900 dark:text-slate-100">HVAC Inspection Checklist</p>
+              <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">Refrigerant, coils, filter, thermostat, drain, electrical, airflow</p>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />
           </button>
@@ -567,14 +567,14 @@ function JobDetailScreen({
 
         {/* Notes */}
         {job.internalNotes && (
-          <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Notes</h3>
-            <pre className="text-sm text-gray-600 whitespace-pre-wrap font-sans">{job.internalNotes}</pre>
+            <pre className="text-sm text-gray-600 whitespace-pre-wrap font-sans dark:text-slate-400">{job.internalNotes}</pre>
           </div>
         )}
 
         {/* Photos */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Photos</h3>
             <span className="text-xs text-gray-400">{photos.length}</span>
@@ -584,7 +584,7 @@ function JobDetailScreen({
           {photos.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mb-3">
               {photos.map(p => (
-                <button key={p.id} onClick={() => setFullscreenPhoto(p)} className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                <button key={p.id} onClick={() => setFullscreenPhoto(p)} className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800">
                   <img src={p.thumbnailUrl || p.url} alt={p.caption || 'Job photo'} className="w-full h-full object-cover" />
                 </button>
               ))}
@@ -602,7 +602,7 @@ function JobDetailScreen({
                 className="w-full border rounded-lg px-3 py-2 text-sm"
               />
               <div className="flex gap-2">
-                <button onClick={() => { setPreviewFile(null); setPreviewUrl(''); }} className="flex-1 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg">Cancel</button>
+                <button onClick={() => { setPreviewFile(null); setPreviewUrl(''); }} className="flex-1 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg dark:text-slate-400 dark:bg-slate-800">Cancel</button>
                 <button onClick={handleUpload} disabled={uploading} className="flex-1 py-2 text-sm text-white bg-blue-600 rounded-lg disabled:opacity-50">
                   {uploading ? 'Uploading...' : 'Upload'}
                 </button>
@@ -612,7 +612,7 @@ function JobDetailScreen({
 
           {/* Add Photo Button */}
           {!previewUrl && (
-            <label className="flex items-center justify-center gap-2 w-full py-3 bg-gray-100 rounded-lg text-sm font-medium text-gray-600 active:bg-gray-200 cursor-pointer">
+            <label className="flex items-center justify-center gap-2 w-full py-3 bg-gray-100 rounded-lg text-sm font-medium text-gray-600 active:bg-gray-200 cursor-pointer dark:bg-slate-800 dark:text-slate-400">
               <Camera className="w-5 h-5" />
               Take / Add Photo
               <input type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
@@ -644,11 +644,11 @@ function JobDetailScreen({
       {/* Complete confirmation overlay */}
       {showCompleteConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white w-full rounded-t-2xl p-6 space-y-4">
+          <div className="bg-white w-full rounded-t-2xl p-6 space-y-4 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-900">Complete Job</h3>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">Complete Job</h3>
               <button onClick={() => setShowCompleteConfirm(false)} className="p-2 rounded-lg active:bg-gray-100">
-                <X className="w-5 h-5 text-gray-500" />
+                <X className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               </button>
             </div>
             <textarea
@@ -670,7 +670,7 @@ function JobDetailScreen({
       )}
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-40 dark:bg-slate-900">
         {job.status === 'scheduled' && (
           <button
             onClick={onMyWay}
@@ -775,20 +775,20 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
   const attentionCount = items.filter(i => i.status === 'attention').length;
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3 flex items-center gap-3">
+      <div className="bg-white border-b px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
         <button onClick={onBack} className="p-2 -ml-2 rounded-lg active:bg-gray-100">
-          <ChevronLeft className="w-6 h-6 text-gray-600" />
+          <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-slate-400" />
         </button>
         <div className="flex-1">
-          <h2 className="text-lg font-bold text-gray-900">HVAC Inspection</h2>
-          <p className="text-xs text-gray-500">{job.number} — {job.title}</p>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">HVAC Inspection</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{job.number} — {job.title}</p>
         </div>
       </div>
 
       {/* Summary bar */}
-      <div className="bg-white border-b px-4 py-2 flex items-center gap-4 text-xs font-semibold">
+      <div className="bg-white border-b px-4 py-2 flex items-center gap-4 text-xs font-semibold dark:bg-slate-900">
         <span className="text-green-600">{items.filter(i => i.status === 'pass').length} Pass</span>
         <span className="text-yellow-600">{attentionCount} Attention</span>
         <span className="text-red-600">{failCount} Fail</span>
@@ -801,13 +801,13 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
           const isExpanded = expandedItem === item.id;
 
           return (
-            <div key={item.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div key={item.id} className="bg-white rounded-xl shadow-sm overflow-hidden dark:bg-slate-900">
               <button
                 onClick={() => setExpandedItem(isExpanded ? null : item.id)}
                 className="w-full flex items-center gap-3 p-4 active:bg-gray-50"
               >
                 <Icon className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                <span className="flex-1 text-left font-medium text-gray-900">{item.label}</span>
+                <span className="flex-1 text-left font-medium text-gray-900 dark:text-slate-100">{item.label}</span>
                 {statusIcon(item.status)}
               </button>
 
@@ -840,7 +840,7 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
         })}
 
         {/* Overall Notes */}
-        <div className="bg-white rounded-xl p-4 shadow-sm">
+        <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Overall Notes</h3>
           <textarea
             value={overallNotes}
@@ -853,7 +853,7 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
       </div>
 
       {/* Submit Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-40">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 z-40 dark:bg-slate-900">
         <button
           onClick={handleSubmit}
           disabled={submitting}

@@ -118,7 +118,7 @@ export default function QuotesPage() {
 
   const columns = [
     { key: 'number', label: 'Number', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
-    { key: 'name', label: 'Name', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
+    { key: 'name', label: 'Name', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500 dark:text-slate-400">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString()}` },
     { key: 'expiryDate', label: 'Expires', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
@@ -148,7 +148,7 @@ export default function QuotesPage() {
           </div>
           <div><label className="block text-sm font-medium mb-2">Line Items</label>
             <div className="border rounded-lg overflow-hidden">
-              <table className="w-full"><thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 text-left text-xs font-medium w-24">Qty</th><th className="px-4 py-2 text-left text-xs font-medium w-32">Unit Price</th><th className="px-4 py-2 text-right text-xs font-medium w-32">Total</th><th className="w-10"></th></tr></thead>
+              <table className="w-full"><thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 text-left text-xs font-medium w-24">Qty</th><th className="px-4 py-2 text-left text-xs font-medium w-32">Unit Price</th><th className="px-4 py-2 text-right text-xs font-medium w-32">Total</th><th className="w-10"></th></tr></thead>
                 <tbody className="divide-y">{form.lineItems.map((li: LineItem, idx: number) => (
                   <tr key={idx}><td className="px-4 py-2"><input value={li.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'description', e.target.value)} placeholder="Description" className="w-full px-2 py-1 border rounded" /></td>
                     <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', Number(e.target.value))} className="w-full px-2 py-1 border rounded" /></td>
@@ -165,7 +165,7 @@ export default function QuotesPage() {
             <div><label className="block text-sm font-medium mb-1">Discount ($)</label><input type="number" value={form.discount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, discount: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Expiry Date</label><input type="date" value={form.expiryDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, expiryDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg text-right space-y-1"><p>Subtotal: <span className="font-medium">${subtotal.toLocaleString()}</span></p><p>Tax: <span className="font-medium">${taxAmount.toLocaleString()}</span></p>{form.discount > 0 && <p>Discount: <span className="font-medium">-${form.discount.toLocaleString()}</span></p>}<p className="text-lg font-bold">Total: ${total.toLocaleString()}</p></div>
+          <div className="bg-gray-50 p-4 rounded-lg text-right space-y-1 dark:bg-slate-900"><p>Subtotal: <span className="font-medium">${subtotal.toLocaleString()}</span></p><p>Tax: <span className="font-medium">${taxAmount.toLocaleString()}</span></p>{form.discount > 0 && <p>Discount: <span className="font-medium">-${form.discount.toLocaleString()}</span></p>}<p className="text-lg font-bold">Total: ${total.toLocaleString()}</p></div>
           <div><label className="block text-sm font-medium mb-1">Notes</label><textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : editing ? 'Update' : 'Create'}</Button></div>

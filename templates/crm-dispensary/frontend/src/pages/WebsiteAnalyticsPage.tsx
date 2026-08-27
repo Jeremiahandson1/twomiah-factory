@@ -48,19 +48,19 @@ export default function WebsiteAnalyticsPage() {
 
       {/* Date Range Picker */}
       <div className="flex items-center gap-3 mb-6">
-        <Calendar className="w-4 h-4 text-gray-500" />
+        <Calendar className="w-4 h-4 text-gray-500 dark:text-slate-400" />
         <input
           type="date"
           value={dateRange.start}
           onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 text-sm"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 text-sm dark:border-slate-700 dark:text-slate-200"
         />
         <span className="text-gray-400">to</span>
         <input
           type="date"
           value={dateRange.end}
           onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 text-sm"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 text-sm dark:border-slate-700 dark:text-slate-200"
         />
       </div>
 
@@ -100,15 +100,15 @@ export default function WebsiteAnalyticsPage() {
 
 function KPICard({ icon: Icon, label, value, loading, suffix }: any) {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4">
+    <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
       <div className="flex items-center gap-2 mb-2">
         <Icon className="w-4 h-4 text-gray-400" />
-        <p className="text-sm text-gray-500">{label}</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">{label}</p>
       </div>
       {loading ? (
-        <div className="h-8 bg-gray-100 rounded animate-pulse" />
+        <div className="h-8 bg-gray-100 rounded animate-pulse dark:bg-slate-800" />
       ) : (
-        <p className="text-2xl font-bold text-gray-900">
+        <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
           {typeof value === 'number' ? value.toLocaleString() : value ?? '--'}
           {suffix}
         </p>
@@ -141,15 +141,15 @@ function PagesTab({ dateRange }: { dateRange: { start: string; end: string } }) 
   useEffect(() => { loadPages(); }, [loadPages]);
 
   const columns = [
-    { key: 'path', label: 'Page', render: (val: string) => <span className="font-medium text-gray-900">{val}</span> },
-    { key: 'views', label: 'Views', render: (val: number) => <span className="text-gray-700">{(val || 0).toLocaleString()}</span> },
-    { key: 'uniqueSessions', label: 'Unique Sessions', render: (val: number) => <span className="text-gray-700">{(val || 0).toLocaleString()}</span> },
+    { key: 'path', label: 'Page', render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span> },
+    { key: 'views', label: 'Views', render: (val: number) => <span className="text-gray-700 dark:text-slate-200">{(val || 0).toLocaleString()}</span> },
+    { key: 'uniqueSessions', label: 'Unique Sessions', render: (val: number) => <span className="text-gray-700 dark:text-slate-200">{(val || 0).toLocaleString()}</span> },
     {
       key: 'views', label: '', render: (val: number, row: any) => {
         const maxViews = Math.max(...pages.map(p => p.views || 0), 1);
         const width = Math.max(5, ((val || 0) / maxViews) * 100);
         return (
-          <div className="w-32 h-4 bg-gray-100 rounded-full overflow-hidden">
+          <div className="w-32 h-4 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
             <div className="h-full bg-orange-400 rounded-full" style={{ width: `${width}%` }} />
           </div>
         );
@@ -191,27 +191,27 @@ function TrafficTab({ dateRange }: { dateRange: { start: string; end: string } }
   return (
     <div className="space-y-6">
       {/* Referrers */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="px-4 py-3 border-b">
-          <h3 className="font-semibold text-gray-900">Referrer Breakdown</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Referrer Breakdown</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Source</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sessions</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">% of Total</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Source</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Sessions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">% of Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {referrers.length === 0 ? (
-                <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-500">No referrer data</td></tr>
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No referrer data</td></tr>
               ) : referrers.map((ref, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900 font-medium">{ref.source || 'Direct'}</td>
-                  <td className="px-4 py-3 text-gray-700">{(ref.sessions || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{ref.percentage != null ? `${ref.percentage}%` : '--'}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{ref.source || 'Direct'}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(ref.sessions || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{ref.percentage != null ? `${ref.percentage}%` : '--'}</td>
                 </tr>
               ))}
             </tbody>
@@ -220,29 +220,29 @@ function TrafficTab({ dateRange }: { dateRange: { start: string; end: string } }
       </div>
 
       {/* Campaigns */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="px-4 py-3 border-b">
-          <h3 className="font-semibold text-gray-900">UTM Campaign Performance</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">UTM Campaign Performance</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Campaign</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Source</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Medium</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sessions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Campaign</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Source</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Medium</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Sessions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {campaigns.length === 0 ? (
-                <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">No campaign data</td></tr>
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No campaign data</td></tr>
               ) : campaigns.map((camp, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900 font-medium">{camp.campaign || '--'}</td>
-                  <td className="px-4 py-3 text-gray-700">{camp.source || '--'}</td>
-                  <td className="px-4 py-3 text-gray-700">{camp.medium || '--'}</td>
-                  <td className="px-4 py-3 text-gray-700">{(camp.sessions || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{camp.campaign || '--'}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{camp.source || '--'}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{camp.medium || '--'}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(camp.sessions || 0).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -279,13 +279,13 @@ function DevicesTab({ dateRange }: { dateRange: { start: string; end: string } }
     const total = items.reduce((sum, item) => sum + (item.count || 0), 0) || 1;
     const Icon = icon;
     return (
-      <div className="bg-white rounded-lg shadow-sm p-5">
+      <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
         <div className="flex items-center gap-2 mb-4">
           <Icon className="w-5 h-5 text-gray-400" />
-          <h3 className="font-semibold text-gray-900">{title}</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">{title}</h3>
         </div>
         {items.length === 0 ? (
-          <p className="text-gray-500 text-center py-4">No data</p>
+          <p className="text-gray-500 text-center py-4 dark:text-slate-400">No data</p>
         ) : (
           <div className="space-y-3">
             {items.map((item, i) => {
@@ -293,10 +293,10 @@ function DevicesTab({ dateRange }: { dateRange: { start: string; end: string } }
               return (
                 <div key={i}>
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-gray-700">{item.name || 'Unknown'}</span>
-                    <span className="text-gray-500">{pct}% ({(item.count || 0).toLocaleString()})</span>
+                    <span className="text-gray-700 dark:text-slate-200">{item.name || 'Unknown'}</span>
+                    <span className="text-gray-500 dark:text-slate-400">{pct}% ({(item.count || 0).toLocaleString()})</span>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
                     <div className="h-full bg-orange-400 rounded-full" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -351,12 +351,12 @@ function RealtimeTab() {
   return (
     <div className="space-y-6">
       {/* Active Visitors */}
-      <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+      <div className="bg-white rounded-lg shadow-sm p-8 text-center dark:bg-slate-900">
         <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-3">
           <Activity className="w-8 h-8 text-green-600" />
         </div>
-        <p className="text-5xl font-bold text-gray-900">{realtime?.activeVisitors ?? 0}</p>
-        <p className="text-gray-500 mt-1">Active visitors right now</p>
+        <p className="text-5xl font-bold text-gray-900 dark:text-slate-100">{realtime?.activeVisitors ?? 0}</p>
+        <p className="text-gray-500 mt-1 dark:text-slate-400">Active visitors right now</p>
         <div className="flex items-center justify-center gap-2 mt-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-sm text-gray-400">Live</span>
@@ -364,28 +364,28 @@ function RealtimeTab() {
       </div>
 
       {/* Active Pages */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="px-4 py-3 border-b">
-          <h3 className="font-semibold text-gray-900">Active Pages</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Active Pages</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Page</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Active Users</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Page</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Active Users</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {(!realtime?.activePages || realtime.activePages.length === 0) ? (
-                <tr><td colSpan={2} className="px-4 py-8 text-center text-gray-500">No active pages</td></tr>
+                <tr><td colSpan={2} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No active pages</td></tr>
               ) : realtime.activePages.map((pg: any, i: number) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900 font-medium">{pg.path}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{pg.path}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-gray-700">{pg.count}</span>
+                      <span className="text-gray-700 dark:text-slate-200">{pg.count}</span>
                     </span>
                   </td>
                 </tr>

@@ -122,8 +122,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Salon overview</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
+        <p className="text-gray-500 dark:text-slate-400">Salon overview</p>
       </div>
 
       {/* Headline rebooking card */}
@@ -139,12 +139,12 @@ export default function DashboardPage() {
               <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600' : 'text-gray-500'}`} />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Due to Rebook</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Due to Rebook</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                 {overdue} overdue
-                <span className="text-base font-medium text-gray-500"> · {dueSoon} due soon</span>
+                <span className="text-base font-medium text-gray-500 dark:text-slate-400"> · {dueSoon} due soon</span>
               </p>
-              <p className="text-sm text-gray-500">Text them before they book somewhere else</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Text them before they book somewhere else</p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-gray-400" />
@@ -153,50 +153,50 @@ export default function DashboardPage() {
 
       {/* KPI grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Link to="/crm/clients" className="bg-white rounded-xl border p-5 hover:shadow-md transition block">
+        <Link to="/crm/clients" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Clients</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Clients</p>
             <Users className="w-5 h-5 text-teal-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{clients.total || 0}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{clients.total || 0}</p>
           <p className="text-xs text-gray-400">In your book</p>
         </Link>
 
-        <Link to="/crm/appointments" className="bg-white rounded-xl border p-5 hover:shadow-md transition block">
+        <Link to="/crm/appointments" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Appointments Today</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Appointments Today</p>
             <CalendarDays className="w-5 h-5 text-indigo-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{appts.today || 0}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{appts.today || 0}</p>
           <p className="text-xs text-gray-400">{appts.upcoming7 || 0} in the next 7 days</p>
         </Link>
 
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Services This Month</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Services This Month</p>
             <Scissors className="w-5 h-5 text-purple-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{services.thisMonth || 0}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{services.thisMonth || 0}</p>
           <p className="text-xs text-gray-400 flex items-center gap-1">
             <DollarSign className="w-3 h-3 text-green-600" />
             {money(services.revenueThisMonth)} in the chair
           </p>
         </div>
 
-        <Link to="/crm/memberships" className="bg-white rounded-xl border p-5 hover:shadow-md transition block">
+        <Link to="/crm/memberships" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Members</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Members</p>
             <CreditCard className="w-5 h-5 text-rose-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{memberships.activeEnrollments || 0}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{memberships.activeEnrollments || 0}</p>
           <p className="text-xs text-gray-400">Active memberships</p>
         </Link>
       </div>
 
       {/* Chair productivity */}
       {byStylist.length > 0 && (
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <Armchair className="w-4 h-4 text-teal-500" /> Chair Productivity
             <span className="text-xs text-gray-400 font-normal">this month</span>
           </h2>
@@ -204,12 +204,12 @@ export default function DashboardPage() {
             {byStylist.map((s) => (
               <li key={s.stylistId || s.name}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-gray-900">{s.name || 'Unassigned'}</span>
-                  <span className="text-gray-600">
+                  <span className="font-medium text-gray-900 dark:text-slate-100">{s.name || 'Unassigned'}</span>
+                  <span className="text-gray-600 dark:text-slate-400">
                     {money(s.revenue)} <span className="text-gray-400">· {s.visits || 0} service{s.visits === 1 ? '' : 's'}</span>
                   </span>
                 </div>
-                <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
                   <div className="h-full bg-teal-500" style={{ width: `${Math.round((Number(s.revenue || 0) / topRevenue) * 100)}%` }} />
                 </div>
               </li>
@@ -220,8 +220,8 @@ export default function DashboardPage() {
 
       {/* Recent activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <Users className="w-4 h-4 text-teal-500" /> Recent Clients
           </h2>
           {(activity.recentClients || []).length === 0 ? (
@@ -231,8 +231,8 @@ export default function DashboardPage() {
               {(activity.recentClients || []).map((c) => (
                 <li key={c.id} className="py-2">
                   <Link to={`/crm/clients/${c.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
-                    <p className="font-medium text-gray-900">{c.name || 'Unnamed'}</p>
-                    <p className="text-xs text-gray-500">{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{c.name || 'Unnamed'}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">{[c.phone, c.email].filter(Boolean).join(' · ') || '—'}</p>
                   </Link>
                 </li>
               ))}
@@ -240,8 +240,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <Scissors className="w-4 h-4 text-purple-500" /> Recent Services
           </h2>
           {(activity.recentServices || []).length === 0 ? (
@@ -251,10 +251,10 @@ export default function DashboardPage() {
               {(activity.recentServices || []).map((s) => (
                 <li key={s.id} className="py-2">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">{s.clientName || 'Client'}</p>
-                    <span className="text-xs text-gray-500">{money(s.priceCharged)}</span>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{s.clientName || 'Client'}</p>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{money(s.priceCharged)}</span>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {fmtDate(s.performedAt)}{s.serviceName ? ` · ${s.serviceName}` : ''}{stylistName(s) ? ` · ${stylistName(s)}` : ''}
                   </p>
                 </li>
@@ -263,8 +263,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <CalendarDays className="w-4 h-4 text-indigo-500" /> Upcoming Appointments
           </h2>
           {(activity.upcomingAppointments || []).length === 0 ? (
@@ -274,12 +274,12 @@ export default function DashboardPage() {
               {(activity.upcomingAppointments || []).map((a) => (
                 <li key={a.id} className="py-2">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">{a.clientName || 'Client'}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{a.clientName || 'Client'}</p>
                     {a.serviceName && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{a.serviceName}</span>
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{a.serviceName}</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {fmtDateTime(a.startTime)}{stylistName(a) ? ` · ${stylistName(a)}` : ''}{a.station ? ` · ${a.station}` : ''}
                   </p>
                 </li>

@@ -251,54 +251,54 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
           <Settings className="w-6 h-6 text-gray-400" /> Settings
         </h1>
 
         {/* SMS & AI Billing */}
-        <div className="bg-white rounded-xl shadow-sm border p-6 flex items-center justify-between gap-4">
+        <div className="bg-white rounded-xl shadow-sm border p-6 flex items-center justify-between gap-4 dark:bg-slate-900">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-gray-400" /> SMS &amp; AI Usage</h2>
-            <p className="text-sm text-gray-500 mt-1">Enable texting &amp; AI and manage your at-cost usage wallet.</p>
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100"><MessageSquare className="w-4 h-4 text-gray-400" /> SMS &amp; AI Usage</h2>
+            <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Enable texting &amp; AI and manage your at-cost usage wallet.</p>
           </div>
           <button onClick={openSmsBilling} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg whitespace-nowrap">Manage billing &rarr;</button>
         </div>
 
         {/* Company Info */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
             <Building2 className="w-4 h-4 text-gray-400" /> Company Info
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
-              <label className="text-xs text-gray-500 block mb-1">Company Name</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Company Name</label>
               <input value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Phone</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Phone</label>
               <input value={company.phone} onChange={(e) => setCompany({ ...company, phone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Email</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email</label>
               <input value={company.email} onChange={(e) => setCompany({ ...company, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
             </div>
             <div className="sm:col-span-2">
-              <label className="text-xs text-gray-500 block mb-1">Address</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Address</label>
               <input value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">City</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">City</label>
               <input value={company.city} onChange={(e) => setCompany({ ...company, city: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">State</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">State</label>
                 <input value={company.state} onChange={(e) => setCompany({ ...company, state: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Zip</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Zip</label>
                 <input value={company.zip} onChange={(e) => setCompany({ ...company, zip: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
             </div>
@@ -311,13 +311,13 @@ export default function SettingsPage() {
         </div>
 
         {/* Branding */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
             <Palette className="w-4 h-4 text-gray-400" /> Branding
           </h2>
           <div className="flex items-center gap-4">
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Primary Color</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Primary Color</label>
               <div className="flex items-center gap-2">
                 <input
                   type="color"
@@ -343,7 +343,7 @@ export default function SettingsPage() {
         {/* Features */}
         <div
           onClick={() => navigate('/crm/settings/features')}
-          className="bg-white rounded-xl shadow-sm border p-6 hover:border-green-300 cursor-pointer transition-colors"
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-green-300 cursor-pointer transition-colors dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -351,8 +351,8 @@ export default function SettingsPage() {
                 <SlidersHorizontal className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Features</h2>
-                <p className="text-xs text-gray-500">Turn optional modules on or off — every feature's included free</p>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Features</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Turn optional modules on or off — every feature's included free</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -362,7 +362,7 @@ export default function SettingsPage() {
         {/* Instant Estimator */}
         <div
           onClick={() => navigate('/crm/settings/estimator')}
-          className="bg-white rounded-xl shadow-sm border p-6 hover:border-purple-300 cursor-pointer transition-colors"
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-purple-300 cursor-pointer transition-colors dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -370,8 +370,8 @@ export default function SettingsPage() {
                 <Calculator className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Instant Estimator Widget</h2>
-                <p className="text-xs text-gray-500">Embed a roof cost estimator on your website</p>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Instant Estimator Widget</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Embed a roof cost estimator on your website</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -381,7 +381,7 @@ export default function SettingsPage() {
         {/* Branded Email */}
         <div
           onClick={() => navigate('/crm/settings/email')}
-          className="bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 cursor-pointer transition-colors"
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 cursor-pointer transition-colors dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -389,8 +389,8 @@ export default function SettingsPage() {
                 <AtSign className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Branded Email</h2>
-                <p className="text-xs text-gray-500">Set up email addresses at your own domain</p>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Branded Email</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Set up email addresses at your own domain</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -400,7 +400,7 @@ export default function SettingsPage() {
         {/* Email Domain */}
         <div
           onClick={() => navigate('/crm/settings/email-domain')}
-          className="bg-white rounded-xl shadow-sm border p-6 hover:border-sky-300 cursor-pointer transition-colors"
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-sky-300 cursor-pointer transition-colors dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -408,8 +408,8 @@ export default function SettingsPage() {
                 <Globe className="w-5 h-5 text-sky-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Email Domain</h2>
-                <p className="text-xs text-gray-500">Connect and verify your email domain</p>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Email Domain</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Connect and verify your email domain</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -419,7 +419,7 @@ export default function SettingsPage() {
         {/* Email Inbox */}
         <div
           onClick={() => navigate('/crm/settings/email-inbox')}
-          className="bg-white rounded-xl shadow-sm border p-6 hover:border-indigo-300 cursor-pointer transition-colors"
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-indigo-300 cursor-pointer transition-colors dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -427,8 +427,8 @@ export default function SettingsPage() {
                 <Inbox className="w-5 h-5 text-indigo-600" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-gray-900">Email Inbox</h2>
-                <p className="text-xs text-gray-500">View messages received at your branded addresses</p>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Email Inbox</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400">View messages received at your branded addresses</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />
@@ -437,22 +437,22 @@ export default function SettingsPage() {
 
         {/* QuickBooks Integration */}
         {hasQB && (
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
               <Link2 className="w-4 h-4 text-green-600" /> QuickBooks Integration
             </h2>
             {qbStatus?.connected ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                  <span className="text-sm text-gray-700 font-medium">Connected</span>
+                  <span className="text-sm text-gray-700 font-medium dark:text-slate-200">Connected</span>
                   {qbStatus.realmId && <span className="text-xs text-gray-400">Realm: {qbStatus.realmId}</span>}
                 </div>
                 {qbStatus.lastSyncedAt && (
-                  <p className="text-xs text-gray-500">Last synced: {new Date(qbStatus.lastSyncedAt).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Last synced: {new Date(qbStatus.lastSyncedAt).toLocaleString()}</p>
                 )}
                 {qbStatus.connectedSince && (
-                  <p className="text-xs text-gray-500">Connected since: {formatDate(qbStatus.connectedSince)}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Connected since: {formatDate(qbStatus.connectedSince)}</p>
                 )}
                 <div className="flex gap-2 pt-2">
                   <button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
@@ -465,7 +465,7 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-sm text-gray-500">Connect QuickBooks to automatically sync contacts and invoices.</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Connect QuickBooks to automatically sync contacts and invoices.</p>
                 <button onClick={connectQB} className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
                   <Link2 className="w-4 h-4" /> Connect QuickBooks
                 </button>
@@ -476,14 +476,14 @@ export default function SettingsPage() {
 
         {/* Storm Lead Settings */}
         {hasStorm && (
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
               <CloudLightning className="w-4 h-4 text-amber-500" /> Storm Lead Generation
             </h2>
             <div className="space-y-4">
               {/* Service Area Zip Codes */}
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Service Area Zip Codes</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Service Area Zip Codes</label>
                 <div className="flex gap-2 mb-2">
                   <input
                     value={zipInput}
@@ -497,7 +497,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {stormSettings.zipCodes.map((zip) => (
-                    <span key={zip} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full">
+                    <span key={zip} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full dark:bg-slate-800 dark:text-slate-200">
                       {zip}
                       <button onClick={() => removeZip(zip)} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
                     </span>
@@ -508,7 +508,7 @@ export default function SettingsPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Min Hail Size (inches)</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Min Hail Size (inches)</label>
                   <input
                     type="number"
                     step="0.25"
@@ -519,7 +519,7 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Max Leads Per Zip</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Max Leads Per Zip</label>
                   <input
                     type="number"
                     min="10"
@@ -537,18 +537,18 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={stormSettings.stormAlertEnabled}
                     onChange={(e) => setStormSettings(prev => ({ ...prev, stormAlertEnabled: e.target.checked }))}
-                    className="rounded border-gray-300"
+                    className="rounded border-gray-300 dark:border-slate-700"
                   />
-                  <span className="text-sm text-gray-700">Enable storm alerts for service area</span>
+                  <span className="text-sm text-gray-700 dark:text-slate-200">Enable storm alerts for service area</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={stormSettings.autoGenerate}
                     onChange={(e) => setStormSettings(prev => ({ ...prev, autoGenerate: e.target.checked }))}
-                    className="rounded border-gray-300"
+                    className="rounded border-gray-300 dark:border-slate-700"
                   />
-                  <span className="text-sm text-gray-700">Auto-generate leads when storms are detected</span>
+                  <span className="text-sm text-gray-700 dark:text-slate-200">Auto-generate leads when storms are detected</span>
                 </label>
               </div>
 
@@ -562,11 +562,11 @@ export default function SettingsPage() {
         )}
 
         {/* SMS / Twilio Configuration */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
-          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
             <MessageSquare className="w-4 h-4 text-blue-500" /> SMS / Twilio
           </h2>
-          <p className="text-sm text-gray-500 mb-3">
+          <p className="text-sm text-gray-500 mb-3 dark:text-slate-400">
             Automated SMS messages are sent at each pipeline stage when two-way texting is enabled.
             Your texting number is set up and managed for you during onboarding — contact support to
             turn on SMS or change your number.
@@ -577,9 +577,9 @@ export default function SettingsPage() {
         </div>
 
         {/* User Management */}
-        <div className="bg-white rounded-xl shadow-sm border p-6">
+        <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
               <Users className="w-4 h-4 text-gray-400" /> User Management
             </h2>
             {canManageUsers && (
@@ -597,10 +597,10 @@ export default function SettingsPage() {
               <div key={u.id} className="flex items-center justify-between py-3">
                 <div>
                   <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</p>
-                  <p className="text-xs text-gray-500">{u.email}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
+                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize dark:bg-slate-800 dark:text-slate-400">
                     {u.role || 'user'}
                   </span>
                   {u.id === currentUser?.userId
@@ -626,33 +626,33 @@ export default function SettingsPage() {
       {/* Invite Modal */}
       {inviteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setInviteOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Add User</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add User</h2>
               <button onClick={() => setInviteOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">First name *</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">First name *</label>
                   <input value={inviteForm.firstName} onChange={(e) => setInviteForm({ ...inviteForm, firstName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Last name *</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Last name *</label>
                   <input value={inviteForm.lastName} onChange={(e) => setInviteForm({ ...inviteForm, lastName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Email *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email *</label>
                 <input type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Temporary password *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Temporary password *</label>
                 <input type="text" value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="At least 8 characters" />
                 <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Role</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
                 <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                   {/* Only two levels, because only two are enforced. This app has
                       no PermissionsContext and `requireManager` is defined in
@@ -668,7 +668,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setInviteOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setInviteOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={inviteUser} disabled={inviting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 <Send className="w-4 h-4" /> {inviting ? 'Adding...' : 'Add User'}
               </button>

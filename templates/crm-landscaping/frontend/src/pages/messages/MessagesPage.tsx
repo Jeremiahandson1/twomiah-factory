@@ -61,7 +61,7 @@ export default function MessagesPage() {
         {/* Header */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-bold text-gray-900">Messages</h1>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-slate-100">Messages</h1>
             <button
               onClick={() => setShowNewMessage(true)}
               className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
@@ -106,7 +106,7 @@ export default function MessagesPage() {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : conversations.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No conversations yet</p>
             </div>
@@ -128,7 +128,7 @@ export default function MessagesPage() {
         {selectedConversation ? (
           <>
             {/* Thread Header */}
-            <div className="p-4 bg-white border-b flex items-center gap-3">
+            <div className="p-4 bg-white border-b flex items-center gap-3 dark:bg-slate-900">
               <button
                 onClick={() => setSelectedConversation(null)}
                 className="md:hidden p-2 hover:bg-gray-100 rounded-lg"
@@ -139,16 +139,16 @@ export default function MessagesPage() {
                 <User className="w-5 h-5 text-orange-600" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-gray-900 dark:text-slate-100">
                   {selectedConversation.contact?.name || selectedConversation.phoneNumber}
                 </p>
-                <p className="text-sm text-gray-500">{selectedConversation.phoneNumber}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{selectedConversation.phoneNumber}</p>
               </div>
               <button className="p-2 hover:bg-gray-100 rounded-lg">
-                <Phone className="w-5 h-5 text-gray-500" />
+                <Phone className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               </button>
               <button className="p-2 hover:bg-gray-100 rounded-lg">
-                <MoreVertical className="w-5 h-5 text-gray-500" />
+                <MoreVertical className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               </button>
             </div>
 
@@ -164,7 +164,7 @@ export default function MessagesPage() {
             />
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-slate-400">
             <div className="text-center">
               <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
               <p>Select a conversation to view messages</p>
@@ -201,8 +201,8 @@ function ConversationItem({ conversation, selected, onClick }) {
     >
       <div className="flex items-start gap-3">
         <div className="relative">
-          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-            <User className="w-5 h-5 text-gray-500" />
+          <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center dark:bg-slate-800">
+            <User className="w-5 h-5 text-gray-500 dark:text-slate-400" />
           </div>
           {conversation.unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
@@ -215,7 +215,7 @@ function ConversationItem({ conversation, selected, onClick }) {
             <p className={`font-medium truncate ${conversation.unreadCount > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
               {conversation.contact?.name || conversation.phoneNumber}
             </p>
-            <span className="text-xs text-gray-500">{timeAgo}</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400">{timeAgo}</span>
           </div>
           {lastMessage && (
             <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
@@ -275,7 +275,7 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }) {
       </div>
 
       {/* Compose */}
-      <form onSubmit={handleSend} className="p-4 bg-white border-t">
+      <form onSubmit={handleSend} className="p-4 bg-white border-t dark:bg-slate-900">
         <div className="flex gap-2">
           <input
             type="text"
@@ -397,12 +397,12 @@ function NewMessageModal({ onSend, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">New Message</h2>
 
           <div className="space-y-4">
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
               <input
                 type="text"
                 value={phone}
@@ -411,7 +411,7 @@ function NewMessageModal({ onSend, onClose }) {
                 className="w-full px-3 py-2 border rounded-lg"
               />
               {searchResults.length > 0 && (
-                <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg">
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg dark:bg-slate-900">
                   {searchResults.map(contact => (
                     <button
                       key={contact.id}
@@ -419,7 +419,7 @@ function NewMessageModal({ onSend, onClose }) {
                       className="w-full px-4 py-2 text-left hover:bg-gray-50"
                     >
                       <p className="font-medium">{contact.name}</p>
-                      <p className="text-sm text-gray-500">{contact.phone}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{contact.phone}</p>
                     </button>
                   ))}
                 </div>
@@ -427,7 +427,7 @@ function NewMessageModal({ onSend, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Message</label>
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}

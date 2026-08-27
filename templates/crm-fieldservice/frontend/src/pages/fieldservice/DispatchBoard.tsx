@@ -159,7 +159,7 @@ export default function DispatchBoard() {
             <div className="flex items-center gap-2 mb-4 pb-2 border-b">
               <div className="w-3 h-3 rounded-full bg-orange-500" />
               <h2 className="font-semibold text-gray-900 dark:text-white">Unassigned</h2>
-              <span className="ml-auto text-sm text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
+              <span className="ml-auto text-sm text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-400">
                 {unassigned.length}
               </span>
             </div>
@@ -186,7 +186,7 @@ export default function DispatchBoard() {
             <div className="flex items-center gap-2 mb-4 pb-2 border-b">
               <div className="w-3 h-3 rounded-full bg-blue-500" />
               <h2 className="font-semibold text-gray-900 dark:text-white">In Progress</h2>
-              <span className="ml-auto text-sm text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
+              <span className="ml-auto text-sm text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-400">
                 {inProgress.length}
               </span>
             </div>
@@ -213,7 +213,7 @@ export default function DispatchBoard() {
             <div className="flex items-center gap-2 mb-4 pb-2 border-b">
               <div className="w-3 h-3 rounded-full bg-green-500" />
               <h2 className="font-semibold text-gray-900 dark:text-white">Completed</h2>
-              <span className="ml-auto text-sm text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
+              <span className="ml-auto text-sm text-gray-500 bg-gray-100 dark:bg-slate-700 px-2 py-0.5 rounded-full dark:text-slate-400">
                 {completed.length}
               </span>
             </div>

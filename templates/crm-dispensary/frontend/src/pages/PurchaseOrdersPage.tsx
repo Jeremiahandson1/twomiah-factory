@@ -220,19 +220,19 @@ export default function PurchaseOrdersPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : orders.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No purchase orders yet</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No purchase orders yet</div>
           ) : (
             <div className="overflow-x-auto border rounded-lg">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">PO #</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Supplier</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Items</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Total</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Expected</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Created</th>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">PO #</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Supplier</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Items</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Total</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Expected</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Created</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -247,8 +247,8 @@ export default function PurchaseOrdersPage() {
                           {po.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{po.expectedDate || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{po.expectedDate || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -265,15 +265,15 @@ export default function PurchaseOrdersPage() {
             <div>
               <h3 className="text-lg font-semibold mb-4">Select a PO to Receive</h3>
               {receivableOrders.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">No POs waiting to be received</div>
+                <div className="text-center py-12 text-gray-500 dark:text-slate-400">No POs waiting to be received</div>
               ) : (
                 <div className="space-y-3">
                   {receivableOrders.map(po => (
-                    <div key={po.id} className="border rounded-lg p-4 bg-white flex items-center justify-between hover:bg-gray-50 cursor-pointer"
+                    <div key={po.id} className="border rounded-lg p-4 bg-white flex items-center justify-between hover:bg-gray-50 cursor-pointer dark:bg-slate-900"
                       onClick={() => selectPOForReceive(po)}>
                       <div>
                         <div className="font-medium">{po.poNumber || po.id?.slice(0, 8)} &mdash; {po.supplierName}</div>
-                        <div className="text-sm text-gray-500">{po.itemCount || 0} items &middot; ${(po.total || 0).toFixed(2)}</div>
+                        <div className="text-sm text-gray-500 dark:text-slate-400">{po.itemCount || 0} items &middot; ${(po.total || 0).toFixed(2)}</div>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || ''}`}>{po.status}</span>
@@ -290,24 +290,24 @@ export default function PurchaseOrdersPage() {
                 <h3 className="text-lg font-semibold">
                   Receiving: {selectedPO.poNumber || selectedPO.id?.slice(0, 8)} &mdash; {selectedPO.supplierName}
                 </h3>
-                <button onClick={() => setSelectedPO(null)} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
+                <button onClick={() => setSelectedPO(null)} className="text-gray-500 hover:text-gray-700 dark:text-slate-400"><X className="w-5 h-5" /></button>
               </div>
               <div className="overflow-x-auto border rounded-lg mb-4">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Product</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">SKU</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Ordered</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Already Received</th>
-                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Receive Now</th>
+                    <tr className="bg-gray-50 dark:bg-slate-900">
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Product</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">SKU</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Ordered</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Already Received</th>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Receive Now</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(selectedPO.items || []).map((item: any, index: number) => (
                       <tr key={index} className="border-t">
                         <td className="px-4 py-3 text-sm font-medium">{item.productName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{item.sku || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.sku || '-'}</td>
                         <td className="px-4 py-3 text-sm">{item.quantity}</td>
                         <td className="px-4 py-3 text-sm">{item.receivedQuantity || 0}</td>
                         <td className="px-4 py-3">
@@ -336,16 +336,16 @@ export default function PurchaseOrdersPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : supplierGroups.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No suppliers found</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No suppliers found</div>
           ) : (
             <div className="space-y-3">
               {supplierGroups.map(group => (
-                <div key={group.supplierName} className="border rounded-lg bg-white">
+                <div key={group.supplierName} className="border rounded-lg bg-white dark:bg-slate-900">
                   <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
                     onClick={() => setExpandedSupplier(expandedSupplier === group.supplierName ? null : group.supplierName)}>
                     <div>
                       <div className="font-semibold">{group.supplierName}</div>
-                      <div className="text-sm text-gray-500">{group.orderCount} orders &middot; Total: ${(group.totalSpent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">{group.orderCount} orders &middot; Total: ${(group.totalSpent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                     </div>
                     {expandedSupplier === group.supplierName ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
                   </div>
@@ -353,7 +353,7 @@ export default function PurchaseOrdersPage() {
                     <div className="border-t px-4 pb-4">
                       <table className="w-full mt-2">
                         <thead>
-                          <tr className="text-left text-xs text-gray-500">
+                          <tr className="text-left text-xs text-gray-500 dark:text-slate-400">
                             <th className="py-2">PO #</th>
                             <th className="py-2">Status</th>
                             <th className="py-2">Total</th>
@@ -368,7 +368,7 @@ export default function PurchaseOrdersPage() {
                                 <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || ''}`}>{po.status}</span>
                               </td>
                               <td className="py-2">${(po.total || 0).toFixed(2)}</td>
-                              <td className="py-2 text-gray-500">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
+                              <td className="py-2 text-gray-500 dark:text-slate-400">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -416,7 +416,7 @@ export default function PurchaseOrdersPage() {
               <input value={productSearch} onChange={e => searchProducts(e.target.value)}
                 className="w-full pl-10 pr-3 py-2 border rounded-lg text-sm" placeholder="Search products to add..." />
               {searchResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 bg-white border rounded-b-lg shadow-lg z-10 max-h-40 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 bg-white border rounded-b-lg shadow-lg z-10 max-h-40 overflow-y-auto dark:bg-slate-900">
                   {searchResults.map(p => (
                     <div key={p.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex justify-between"
                       onClick={() => addLineItem(p)}>
@@ -432,7 +432,7 @@ export default function PurchaseOrdersPage() {
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 text-left">
+                    <tr className="bg-gray-50 text-left dark:bg-slate-900">
                       <th className="px-3 py-2">Product</th>
                       <th className="px-3 py-2 w-20">Qty</th>
                       <th className="px-3 py-2 w-28">Unit Cost</th>
@@ -460,7 +460,7 @@ export default function PurchaseOrdersPage() {
                     ))}
                   </tbody>
                   <tfoot>
-                    <tr className="border-t bg-gray-50">
+                    <tr className="border-t bg-gray-50 dark:bg-slate-900">
                       <td colSpan={3} className="px-3 py-2 text-right font-medium">Total:</td>
                       <td className="px-3 py-2 font-bold">${getLineTotal().toFixed(2)}</td>
                       <td></td>

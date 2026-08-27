@@ -51,8 +51,8 @@ export default function PortalInvoices() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-        <p className="text-gray-600">View and download your invoices.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoices</h1>
+        <p className="text-gray-600 dark:text-slate-400">View and download your invoices.</p>
       </div>
 
       {/* Outstanding balance banner */}
@@ -62,8 +62,8 @@ export default function PortalInvoices() {
             <div className="flex items-center gap-3">
               <AlertCircle className="w-6 h-6 text-orange-500" />
               <div>
-                <p className="font-medium text-gray-900">Outstanding Balance</p>
-                <p className="text-sm text-gray-600">{unpaidInvoices.length} unpaid invoice(s)</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">Outstanding Balance</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400">{unpaidInvoices.length} unpaid invoice(s)</p>
               </div>
             </div>
             <p className="text-2xl font-bold text-orange-600">
@@ -74,16 +74,16 @@ export default function PortalInvoices() {
       )}
 
       {invoices.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No invoices yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No invoices yet.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Unpaid invoices */}
           {unpaidInvoices.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
                 <Clock className="w-5 h-5 text-orange-500" />
                 Unpaid ({unpaidInvoices.length})
               </h2>
@@ -98,7 +98,7 @@ export default function PortalInvoices() {
           {/* Paid invoices */}
           {paidInvoices.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
                 <CheckCircle className="w-5 h-5 text-green-500" />
                 Paid ({paidInvoices.length})
               </h2>
@@ -132,8 +132,8 @@ function InvoiceCard({ invoice, token }) {
             <Receipt className={`w-5 h-5 ${isOverdue ? 'text-red-600' : 'text-green-600'}`} />
           </div>
           <div>
-            <p className="font-medium text-gray-900">{invoice.number}</p>
-            <p className="text-sm text-gray-500">
+            <p className="font-medium text-gray-900 dark:text-slate-100">{invoice.number}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               {invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : 'No due date'}
             </p>
           </div>
@@ -141,10 +141,10 @@ function InvoiceCard({ invoice, token }) {
         <div className="text-right">
           {Number(invoice.balance) > 0 ? (
             <>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-lg font-bold text-gray-900 dark:text-slate-100">
                 ${Number(invoice.balance).toLocaleString()}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-gray-500 dark:text-slate-400">
                 of ${Number(invoice.total).toLocaleString()}
               </p>
             </>
@@ -201,7 +201,7 @@ export function PortalInvoiceDetail() {
   }
 
   if (!invoice) {
-    return <div className="text-center py-12 text-gray-500">Invoice not found.</div>;
+    return <div className="text-center py-12 text-gray-500 dark:text-slate-400">Invoice not found.</div>;
   }
 
   const isOverdue = invoice.status === 'overdue' || 
@@ -216,21 +216,21 @@ export function PortalInvoiceDetail() {
         </Link>
         <button
           onClick={handleDownloadPDF}
-          className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
         >
           <Download className="w-4 h-4" />
           Download PDF
         </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
         {/* Header */}
         <div className="p-6 border-b">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Invoice {invoice.number}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoice {invoice.number}</h1>
               {invoice.project && (
-                <p className="text-gray-500">Project: {invoice.project.name}</p>
+                <p className="text-gray-500 dark:text-slate-400">Project: {invoice.project.name}</p>
               )}
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status]}`}>
@@ -248,7 +248,7 @@ export function PortalInvoiceDetail() {
         <div className="p-6 border-b">
           <table className="w-full">
             <thead>
-              <tr className="text-left text-sm text-gray-500 border-b">
+              <tr className="text-left text-sm text-gray-500 border-b dark:text-slate-400">
                 <th className="pb-2">Description</th>
                 <th className="pb-2 text-right">Qty</th>
                 <th className="pb-2 text-right">Price</th>
@@ -269,21 +269,21 @@ export function PortalInvoiceDetail() {
         </div>
 
         {/* Totals */}
-        <div className="p-6 bg-gray-50 border-b">
+        <div className="p-6 bg-gray-50 border-b dark:bg-slate-900">
           <div className="max-w-xs ml-auto space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Subtotal</span>
+              <span className="text-gray-600 dark:text-slate-400">Subtotal</span>
               <span>${Number(invoice.subtotal).toLocaleString()}</span>
             </div>
             {invoice.taxAmount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Tax ({invoice.taxRate}%)</span>
+                <span className="text-gray-600 dark:text-slate-400">Tax ({invoice.taxRate}%)</span>
                 <span>${Number(invoice.taxAmount).toLocaleString()}</span>
               </div>
             )}
             {invoice.discount > 0 && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-600">Discount</span>
+                <span className="text-gray-600 dark:text-slate-400">Discount</span>
                 <span>-${Number(invoice.discount).toLocaleString()}</span>
               </div>
             )}
@@ -311,8 +311,8 @@ export function PortalInvoiceDetail() {
           <div className="p-6 bg-orange-50 border-t">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">Ready to pay?</p>
-                <p className="text-sm text-gray-600">Secure payment via credit card</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">Ready to pay?</p>
+                <p className="text-sm text-gray-600 dark:text-slate-400">Secure payment via credit card</p>
               </div>
               <button
                 onClick={() => setShowPayment(true)}
@@ -328,13 +328,13 @@ export function PortalInvoiceDetail() {
         {/* Payment history */}
         {invoice.payments?.length > 0 && (
           <div className="p-6">
-            <h3 className="font-semibold text-gray-900 mb-3">Payment History</h3>
+            <h3 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Payment History</h3>
             <div className="space-y-2">
               {invoice.payments.map((payment, i) => (
                 <div key={i} className="flex justify-between text-sm py-2 border-b last:border-0">
                   <div>
-                    <span className="text-gray-900">{formatDate(payment.paidAt)}</span>
-                    <span className="text-gray-500 ml-2">via {payment.method}</span>
+                    <span className="text-gray-900 dark:text-slate-100">{formatDate(payment.paidAt)}</span>
+                    <span className="text-gray-500 ml-2 dark:text-slate-400">via {payment.method}</span>
                   </div>
                   <span className="font-medium text-green-600">
                     ${Number(payment.amount).toLocaleString()}
@@ -346,8 +346,8 @@ export function PortalInvoiceDetail() {
         )}
 
         {/* Contact info */}
-        <div className="p-6 bg-gray-100 border-t">
-          <p className="text-sm text-gray-600">
+        <div className="p-6 bg-gray-100 border-t dark:bg-slate-800">
+          <p className="text-sm text-gray-600 dark:text-slate-400">
             Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}
           </p>
         </div>

@@ -127,7 +127,7 @@ export default function PortalDashboard() {
       {/* Active Jobs with Status Descriptions */}
       {data.activeJobs.length > 0 && (
         <div className="space-y-3">
-          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Your Projects</h2>
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-slate-400">Your Projects</h2>
           {data.activeJobs.map((job: any) => (
             <Link
               key={job.id}
@@ -162,7 +162,7 @@ export default function PortalDashboard() {
       {/* Company Contact */}
       {data.company && (
         <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Contact Us</h3>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 dark:text-slate-400">Contact Us</h3>
           <p className="font-medium text-white">{data.company.name}</p>
           {data.company.phone && (
             <a href={`tel:${data.company.phone}`} className="flex items-center gap-1.5 text-sm text-blue-400 hover:underline mt-1.5">

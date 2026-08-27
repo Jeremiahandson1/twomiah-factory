@@ -71,8 +71,8 @@ export default function PatientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Patients</h1>
-          <p className="text-gray-500">Pets under your care</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Patients</h1>
+          <p className="text-gray-500 dark:text-slate-400">Pets under your care</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
@@ -98,11 +98,11 @@ export default function PatientsPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : patients.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No patients found</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No patients found</div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-left">
+            <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-medium">Patient</th>
                 <th className="px-4 py-3 font-medium">Species / Breed</th>
@@ -115,20 +115,20 @@ export default function PatientsPage() {
               {patients.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <Link to={`/crm/patients/${p.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600">
+                    <Link to={`/crm/patients/${p.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">
                       <PawPrint className="w-4 h-4 text-teal-500" />
                       {p.name || 'Unnamed'}
                       {p.deceased && <span className="text-xs text-gray-400">(deceased)</span>}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 capitalize">
+                  <td className="px-4 py-3 text-gray-600 capitalize dark:text-slate-400">
                     {[p.species, p.breed].filter(Boolean).join(' · ') || '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     <div>{p.ownerName || '—'}</div>
                     {p.ownerPhone && <div className="text-xs text-gray-400">{p.ownerPhone}</div>}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{ageFromDob(p.dob) || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{ageFromDob(p.dob) || '—'}</td>
                   <td className="px-4 py-3">
                     {p.alerts && (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full" title={p.alerts}>
@@ -211,7 +211,7 @@ function NewPatientModal({ onSave, onClose }: NewPatientModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">New Patient</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -219,83 +219,83 @@ function NewPatientModal({ onSave, onClose }: NewPatientModalProps) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Owner <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Owner <span className="text-red-500">*</span></label>
               <OwnerPicker value={ownerId} onChange={(id, c) => { setOwnerId(id); setOwner(c); }} />
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
                 <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Species</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Species</label>
                 <select value={form.species} onChange={(e) => set('species', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
                   {SPECIES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Breed</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Breed</label>
                 <input type="text" value={form.breed} onChange={(e) => set('breed', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sex</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Sex</label>
                 <select value={form.sex} onChange={(e) => set('sex', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
                   {SEXES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date of Birth</label>
                 <input type="date" value={form.dob} onChange={(e) => set('dob', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Weight (lb)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Weight (lb)</label>
                 <input type="number" step="any" value={form.weightLb} onChange={(e) => set('weightLb', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Color</label>
                 <input type="text" value={form.color} onChange={(e) => set('color', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Microchip</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Microchip</label>
                 <input type="text" value={form.microchip} onChange={(e) => set('microchip', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Blood Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Blood Type</label>
                 <input type="text" value={form.bloodType} onChange={(e) => set('bloodType', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <input id="spayedNeutered" type="checkbox" checked={form.spayedNeutered} onChange={(e) => set('spayedNeutered', e.target.checked)} className="w-4 h-4" />
-              <label htmlFor="spayedNeutered" className="text-sm font-medium text-gray-700">Spayed / Neutered</label>
+              <label htmlFor="spayedNeutered" className="text-sm font-medium text-gray-700 dark:text-slate-200">Spayed / Neutered</label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Insurance Provider</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Insurance Provider</label>
                 <input type="text" value={form.insuranceProvider} onChange={(e) => set('insuranceProvider', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Insurance Policy #</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Insurance Policy #</label>
                 <input type="text" value={form.insurancePolicy} onChange={(e) => set('insurancePolicy', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rabies Tag</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Rabies Tag</label>
                 <input type="text" value={form.rabiesTag} onChange={(e) => set('rabiesTag', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Allergies</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Allergies</label>
                 <input type="text" value={form.allergies} onChange={(e) => set('allergies', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Medical Alerts <span className="text-xs text-gray-400">(shown as a red banner)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Medical Alerts <span className="text-xs text-gray-400">(shown as a red banner)</span></label>
               <input type="text" value={form.alerts} onChange={(e) => set('alerts', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Aggressive, drug reactions, etc." />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 

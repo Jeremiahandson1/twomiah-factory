@@ -53,8 +53,8 @@ export default function CallTrackingPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Call Tracking</h1>
-          <p className="text-gray-500">Track calls and marketing attribution</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Call Tracking</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track calls and marketing attribution</p>
         </div>
       </div>
 
@@ -180,15 +180,15 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
       </div>
 
       {/* Call List */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-slate-900">
             <tr>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Caller</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Source</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Date/Time</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Duration</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Caller</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Source</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Date/Time</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Duration</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -199,7 +199,7 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
           </tbody>
         </table>
         {calls.length === 0 && (
-          <div className="p-8 text-center text-gray-500">No calls found</div>
+          <div className="p-8 text-center text-gray-500 dark:text-slate-400">No calls found</div>
         )}
       </div>
     </div>
@@ -224,15 +224,15 @@ function CallRow({ call }) {
             <StatusIcon className="w-5 h-5" />
           </div>
           <div>
-            <p className="font-medium text-gray-900">
+            <p className="font-medium text-gray-900 dark:text-slate-100">
               {call.callerName || call.callerNumber}
             </p>
-            <p className="text-sm text-gray-500">{call.callerNumber}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{call.callerNumber}</p>
           </div>
         </div>
       </td>
       <td className="px-4 py-3">
-        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded">
+        <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded dark:bg-slate-800 dark:text-slate-200">
           {call.source || 'unknown'}
         </span>
         {call.firstTimeCaller && (
@@ -241,11 +241,11 @@ function CallRow({ call }) {
           </span>
         )}
       </td>
-      <td className="px-4 py-3 text-gray-500">
+      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
         <p>{formatDate(call.startTime)}</p>
         <p className="text-sm">{new Date(call.startTime).toLocaleTimeString()}</p>
       </td>
-      <td className="px-4 py-3 text-gray-500">
+      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
         {call.duration > 0 ? formatDuration(call.duration) : '-'}
       </td>
       <td className="px-4 py-3">
@@ -273,20 +273,20 @@ function AttributionTab({ report }) {
   return (
     <div className="grid grid-cols-2 gap-6">
       {/* By Source */}
-      <div className="bg-white rounded-xl border p-6">
-        <h3 className="font-medium text-gray-900 mb-4">Calls by Source</h3>
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+        <h3 className="font-medium text-gray-900 mb-4 dark:text-slate-100">Calls by Source</h3>
         <div className="space-y-4">
           {(report.bySource || []).map(source => (
             <div key={source.source} className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-orange-500" />
-                <span className="text-gray-700 capitalize">
+                <span className="text-gray-700 capitalize dark:text-slate-200">
                   {source.source.replace('_', ' ')}
                 </span>
               </div>
               <div className="text-right">
                 <p className="font-medium">{source.calls} calls</p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   avg {formatDuration(source.avgDuration)}
                 </p>
               </div>
@@ -296,19 +296,19 @@ function AttributionTab({ report }) {
       </div>
 
       {/* Summary */}
-      <div className="bg-white rounded-xl border p-6">
-        <h3 className="font-medium text-gray-900 mb-4">Summary</h3>
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+        <h3 className="font-medium text-gray-900 mb-4 dark:text-slate-100">Summary</h3>
         <div className="space-y-4">
-          <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
-            <span className="text-gray-600">Total Calls</span>
+          <div className="flex justify-between p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
+            <span className="text-gray-600 dark:text-slate-400">Total Calls</span>
             <span className="font-bold">{report.totals?.totalCalls || 0}</span>
           </div>
-          <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
-            <span className="text-gray-600">First-Time Callers</span>
+          <div className="flex justify-between p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
+            <span className="text-gray-600 dark:text-slate-400">First-Time Callers</span>
             <span className="font-bold">{report.totals?.firstTimeCallers || 0}</span>
           </div>
-          <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
-            <span className="text-gray-600">Total Talk Time</span>
+          <div className="flex justify-between p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
+            <span className="text-gray-600 dark:text-slate-400">Total Talk Time</span>
             <span className="font-bold">{formatDuration(report.totals?.totalDuration || 0)}</span>
           </div>
           <div className="flex justify-between p-3 bg-green-50 rounded-lg">
@@ -353,15 +353,15 @@ function TrackingNumbersTab() {
   }
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       <div className="p-4 border-b flex items-center justify-between">
-        <h3 className="font-medium text-gray-900">Tracking Numbers</h3>
-        <p className="text-sm text-gray-500">
+        <h3 className="font-medium text-gray-900 dark:text-slate-100">Tracking Numbers</h3>
+        <p className="text-sm text-gray-500 dark:text-slate-400">
           Configure in CallRail, CTM, or Twilio
         </p>
       </div>
       {numbers.length === 0 ? (
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-gray-500 dark:text-slate-400">
           <Phone className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No tracking numbers configured</p>
           <p className="text-sm mt-2">
@@ -370,13 +370,13 @@ function TrackingNumbersTab() {
         </div>
       ) : (
         <table className="w-full">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 dark:bg-slate-900">
             <tr>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Number</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Name</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Source</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Forwards To</th>
-              <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Calls</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Number</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Name</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Source</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Forwards To</th>
+              <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Calls</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -385,11 +385,11 @@ function TrackingNumbersTab() {
                 <td className="px-4 py-3 font-mono">{num.phoneNumber}</td>
                 <td className="px-4 py-3">{num.name || '-'}</td>
                 <td className="px-4 py-3">
-                  <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded">
+                  <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded dark:bg-slate-800 dark:text-slate-200">
                     {num.source}
                   </span>
                 </td>
-                <td className="px-4 py-3 font-mono text-gray-500">{num.forwardTo}</td>
+                <td className="px-4 py-3 font-mono text-gray-500 dark:text-slate-400">{num.forwardTo}</td>
                 <td className="px-4 py-3 text-right font-medium">{num._count?.calls || 0}</td>
               </tr>
             ))}

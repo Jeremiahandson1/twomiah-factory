@@ -119,13 +119,13 @@ export function FeatureGate({
 function LockedFeature({ featureName }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 dark:bg-slate-800">
         <Lock className="w-8 h-8 text-gray-400" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <h3 className="text-lg font-semibold text-gray-900 mb-2 dark:text-slate-100">
         Feature Not Available
       </h3>
-      <p className="text-gray-500 max-w-md">
+      <p className="text-gray-500 max-w-md dark:text-slate-400">
         The <strong>{featureName}</strong> feature is not enabled for your account.
         Contact your administrator to enable this feature.
       </p>

@@ -58,19 +58,19 @@ export default function PricingPage() {
   const enterpriseYearly = packages.enterprise?.yearlyPrice ?? 12468;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white border-b">
+      <div className="bg-white border-b dark:bg-slate-900">
         <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4 dark:text-slate-100">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto dark:text-slate-400">
             Everything you need to run your dispensary. No hidden fees, no per-terminal charges.
           </p>
 
           {/* Billing Toggle */}
-          <div className="mt-8 inline-flex items-center bg-gray-100 rounded-full p-1">
+          <div className="mt-8 inline-flex items-center bg-gray-100 rounded-full p-1 dark:bg-slate-800">
             <button
               onClick={() => setBillingCycle('monthly')}
               className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
@@ -227,7 +227,7 @@ export default function PricingPage() {
             <div className="text-right">
               <div className="text-4xl font-bold">${packages.lifetime?.oneTimePrice?.toLocaleString() ?? '24,999'}</div>
               <div className="text-green-100">one-time payment</div>
-              <button className="mt-4 px-6 py-2 bg-white text-green-700 rounded-lg font-medium hover:bg-green-50">
+              <button className="mt-4 px-6 py-2 bg-white text-green-700 rounded-lg font-medium hover:bg-green-50 dark:bg-slate-900">
                 Learn More
               </button>
             </div>
@@ -237,7 +237,7 @@ export default function PricingPage() {
         {/* Feature Comparison */}
         <div className="mt-16">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Compare All Features</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Compare All Features</h2>
             <button
               onClick={() => setExpandedFeatures(!expandedFeatures)}
               className="mt-2 text-green-600 hover:text-green-700 flex items-center gap-1 mx-auto"
@@ -254,7 +254,7 @@ export default function PricingPage() {
 
         {/* FAQ */}
         <div className="mt-16 max-w-3xl mx-auto">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8 dark:text-slate-100">
             Frequently Asked Questions
           </h2>
           <div className="space-y-4">
@@ -458,9 +458,9 @@ function FeatureComparison({ packages, features }) {
       <table className="w-full">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-4 px-4 font-medium text-gray-500">Features</th>
+            <th className="text-left py-4 px-4 font-medium text-gray-500 dark:text-slate-400">Features</th>
             {packageList.map(pkg => (
-              <th key={pkg} className="text-center py-4 px-4 font-bold text-gray-900">
+              <th key={pkg} className="text-center py-4 px-4 font-bold text-gray-900 dark:text-slate-100">
                 {packages[pkg]?.name || packageNames[pkg]}
               </th>
             ))}
@@ -469,12 +469,12 @@ function FeatureComparison({ packages, features }) {
         <tbody>
           {Object.entries(categories).map(([category, featureIds]) => (
             <>
-              <tr key={category} className="bg-gray-50">
-                <td colSpan={5} className="py-3 px-4 font-bold text-gray-700">{category}</td>
+              <tr key={category} className="bg-gray-50 dark:bg-slate-900">
+                <td colSpan={5} className="py-3 px-4 font-bold text-gray-700 dark:text-slate-200">{category}</td>
               </tr>
               {featureIds.map(featureId => (
                 <tr key={featureId} className="border-b">
-                  <td className="py-3 px-4 text-gray-600">
+                  <td className="py-3 px-4 text-gray-600 dark:text-slate-400">
                     {features[featureId]?.name || featureNames[featureId] || featureId}
                   </td>
                   {packageList.map(pkg => {
@@ -510,7 +510,7 @@ function FAQ({ question, answer }) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between p-4 text-left"
       >
-        <span className="font-medium text-gray-900">{question}</span>
+        <span className="font-medium text-gray-900 dark:text-slate-100">{question}</span>
         {open ? (
           <ChevronUp className="w-5 h-5 text-gray-400" />
         ) : (
@@ -518,7 +518,7 @@ function FAQ({ question, answer }) {
         )}
       </button>
       {open && (
-        <div className="px-4 pb-4 text-gray-600">
+        <div className="px-4 pb-4 text-gray-600 dark:text-slate-400">
           {answer}
         </div>
       )}

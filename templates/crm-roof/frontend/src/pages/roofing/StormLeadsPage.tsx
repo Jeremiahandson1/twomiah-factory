@@ -207,7 +207,7 @@ export default function StormLeadsPage() {
   return (
     <div className="flex h-full">
       {/* Events Sidebar */}
-      <div className="w-80 border-r bg-white flex-shrink-0 flex flex-col">
+      <div className="w-80 border-r bg-white flex-shrink-0 flex flex-col dark:bg-slate-900">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="text-sm font-bold flex items-center gap-1.5"><Zap size={16} className="text-yellow-500" /> Storm Events</h2>
           <button onClick={() => setShowNewEvent(true)} className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg font-medium flex items-center gap-1">
@@ -230,8 +230,8 @@ export default function StormLeadsPage() {
                   'bg-gray-100 text-gray-500'
                 }`}>{event.status.replace('_', ' ')}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">{formatDate(event.eventDate)}</p>
-              <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+              <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{formatDate(event.eventDate)}</p>
+              <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-slate-400">
                 {event.hailSizeInches && <span>{event.hailSizeInches}" hail</span>}
                 {event.windSpeedMph && <span>{event.windSpeedMph} mph</span>}
                 <span>{event.leadCount || 0} leads</span>
@@ -251,13 +251,13 @@ export default function StormLeadsPage() {
         ) : (
           <>
             {/* Header */}
-            <div className="p-4 bg-white border-b flex items-center justify-between flex-shrink-0">
+            <div className="p-4 bg-white border-b flex items-center justify-between flex-shrink-0 dark:bg-slate-900">
               <div>
                 <h2 className="text-lg font-bold capitalize flex items-center gap-2">
                   <Zap size={18} className="text-yellow-500" />
                   {selectedEvent.eventType} — {formatDate(selectedEvent.eventDate)}
                 </h2>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   {((selectedEvent.affectedZipCodes as string[]) || []).join(', ')} · {selectedEvent.leadCount || 0} leads
                 </p>
               </div>
@@ -268,13 +268,13 @@ export default function StormLeadsPage() {
                   </button>
                 )}
                 {selectedEvent.status !== 'dismissed' && (
-                  <button onClick={dismissEvent} className="text-xs text-gray-500 px-3 py-1.5 border rounded-lg">Dismiss</button>
+                  <button onClick={dismissEvent} className="text-xs text-gray-500 px-3 py-1.5 border rounded-lg dark:text-slate-400">Dismiss</button>
                 )}
               </div>
             </div>
 
             {/* Stats Bar */}
-            <div className="flex gap-2 px-4 py-2 bg-gray-50 border-b flex-shrink-0">
+            <div className="flex gap-2 px-4 py-2 bg-gray-50 border-b flex-shrink-0 dark:bg-slate-900">
               {Object.entries(stats).map(([k, v]) => (
                 <button key={k} onClick={() => { setFilterStatus(filterStatus === k ? '' : k); loadLeads(selectedEvent.id) }}
                   className={`text-xs px-3 py-1 rounded-full font-medium ${filterStatus === k ? 'bg-blue-600 text-white' : STATUS_COLORS[k] || 'bg-gray-100'}`}>
@@ -284,15 +284,15 @@ export default function StormLeadsPage() {
             </div>
 
             {/* Toolbar */}
-            <div className="flex items-center justify-between px-4 py-2 bg-white border-b flex-shrink-0">
+            <div className="flex items-center justify-between px-4 py-2 bg-white border-b flex-shrink-0 dark:bg-slate-900">
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={selectedLeads.size === leads.length && leads.length > 0}
                   onChange={toggleAll} className="rounded" />
-                <span className="text-xs text-gray-500">{selectedLeads.size} selected</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">{selectedLeads.size} selected</span>
                 {selectedLeads.size > 0 && (
                   <>
                     <button onClick={bulkConvert} className="text-xs bg-green-600 text-white px-2.5 py-1 rounded font-medium">Convert Selected</button>
-                    <button onClick={bulkDismiss} className="text-xs text-gray-500 px-2.5 py-1 border rounded">Dismiss Selected</button>
+                    <button onClick={bulkDismiss} className="text-xs text-gray-500 px-2.5 py-1 border rounded dark:text-slate-400">Dismiss Selected</button>
                   </>
                 )}
               </div>
@@ -309,7 +309,7 @@ export default function StormLeadsPage() {
               ) : (
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                    <tr className="border-b bg-gray-50 text-left text-xs text-gray-500 uppercase dark:bg-slate-900 dark:text-slate-400">
                       <th className="px-4 py-2 w-8"></th>
                       <th className="px-4 py-2">Address</th>
                       <th className="px-4 py-2">City/Zip</th>
@@ -330,7 +330,7 @@ export default function StormLeadsPage() {
                             <span className="font-medium">{lead.address || 'Unknown'}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-2 text-gray-500">{lead.city}, {lead.zip}</td>
+                        <td className="px-4 py-2 text-gray-500 dark:text-slate-400">{lead.city}, {lead.zip}</td>
                         <td className="px-4 py-2">
                           {lead.estimatedDamage && (
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${DAMAGE_COLORS[lead.estimatedDamage] || ''}`}>
@@ -374,7 +374,7 @@ export default function StormLeadsPage() {
       {/* New Event Modal */}
       {showNewEvent && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">New Storm Event</h2>
               <button onClick={() => setShowNewEvent(false)}><X size={20} /></button>
@@ -382,11 +382,11 @@ export default function StormLeadsPage() {
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500">Date</label>
+                  <label className="text-xs text-gray-500 dark:text-slate-400">Date</label>
                   <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500">Type</label>
+                  <label className="text-xs text-gray-500 dark:text-slate-400">Type</label>
                   <select value={newType} onChange={e => setNewType(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1">
                     <option value="hail">Hail</option>
                     <option value="wind">Wind</option>
@@ -398,22 +398,22 @@ export default function StormLeadsPage() {
               </div>
               {newType === 'hail' && (
                 <div>
-                  <label className="text-xs text-gray-500">Hail Size (inches)</label>
+                  <label className="text-xs text-gray-500 dark:text-slate-400">Hail Size (inches)</label>
                   <input type="number" step="0.25" value={newHailSize} onChange={e => setNewHailSize(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
                 </div>
               )}
               {newType === 'wind' && (
                 <div>
-                  <label className="text-xs text-gray-500">Wind Speed (mph)</label>
+                  <label className="text-xs text-gray-500 dark:text-slate-400">Wind Speed (mph)</label>
                   <input type="number" value={newWindSpeed} onChange={e => setNewWindSpeed(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
                 </div>
               )}
               <div>
-                <label className="text-xs text-gray-500">Affected Zip Codes (comma-separated)</label>
+                <label className="text-xs text-gray-500 dark:text-slate-400">Affected Zip Codes (comma-separated)</label>
                 <input value={newZips} onChange={e => setNewZips(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" placeholder="75201, 75202, 75203" />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Description (optional)</label>
+                <label className="text-xs text-gray-500 dark:text-slate-400">Description (optional)</label>
                 <textarea value={newDesc} onChange={e => setNewDesc(e.target.value)} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
               </div>
               <button onClick={createEvent} className="w-full py-2.5 bg-blue-600 text-white rounded-xl font-semibold text-sm">Create Storm Event</button>
@@ -425,22 +425,22 @@ export default function StormLeadsPage() {
       {/* Convert Modal */}
       {showConvertModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold">Convert to CRM Lead</h2>
               <button onClick={() => setShowConvertModal(null)}><X size={20} /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500">Homeowner Name</label>
+                <label className="text-xs text-gray-500 dark:text-slate-400">Homeowner Name</label>
                 <input value={convertName} onChange={e => setConvertName(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Phone</label>
+                <label className="text-xs text-gray-500 dark:text-slate-400">Phone</label>
                 <input value={convertPhone} onChange={e => setConvertPhone(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Email (optional)</label>
+                <label className="text-xs text-gray-500 dark:text-slate-400">Email (optional)</label>
                 <input value={convertEmail} onChange={e => setConvertEmail(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mt-1" />
               </div>
               <button onClick={() => convertLead(showConvertModal)} className="w-full py-2.5 bg-green-600 text-white rounded-xl font-semibold text-sm">

@@ -132,14 +132,14 @@ export default function ProjectDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <span className="text-sm font-mono text-gray-500">{project.number}</span>
+              <span className="text-sm font-mono text-gray-500 dark:text-slate-400">{project.number}</span>
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[project.status] || ''}`}>
                 {project.status?.replace('_', ' ')}
               </span>
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{project.name}</h1>
             {project.contact && (
-              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500">
+              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500 dark:text-slate-400">
                 {project.contact.name}
               </Link>
             )}
@@ -166,7 +166,7 @@ export default function ProjectDetailPage() {
       {/* Progress bar */}
       <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium text-gray-700">Progress</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Progress</span>
           <span className="text-sm font-medium text-orange-600">{project.progress || 0}%</span>
         </div>
         <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
@@ -183,7 +183,7 @@ export default function ProjectDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Project details */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Project Details</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Project Details</h2>
             <div className="grid md:grid-cols-2 gap-6">
               {(project.address || project.city) && (
                 <div className="flex items-start gap-3">
@@ -191,8 +191,8 @@ export default function ProjectDetailPage() {
                     <MapPin className="w-5 h-5 text-orange-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Location</p>
-                    <p className="text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Location</p>
+                    <p className="text-gray-900 dark:text-slate-100">
                       {project.address && <span>{project.address}<br /></span>}
                       {project.city && `${project.city}, `}{project.state} {project.zip}
                     </p>
@@ -205,8 +205,8 @@ export default function ProjectDetailPage() {
                     <Calendar className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Timeline</p>
-                    <p className="text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Timeline</p>
+                    <p className="text-gray-900 dark:text-slate-100">
                       {project.startDate && formatDate(project.startDate)}
                       {project.startDate && project.endDate && ' - '}
                       {project.endDate && formatDate(project.endDate)}
@@ -220,11 +220,11 @@ export default function ProjectDetailPage() {
                     <DollarSign className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Budget</p>
-                    <p className="text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Budget</p>
+                    <p className="text-gray-900 dark:text-slate-100">
                       {project.budget && <span className="font-medium">${Number(project.budget).toLocaleString()}</span>}
                       {project.estimatedValue && (
-                        <span className="text-gray-500"> (Est: ${Number(project.estimatedValue).toLocaleString()})</span>
+                        <span className="text-gray-500 dark:text-slate-400"> (Est: ${Number(project.estimatedValue).toLocaleString()})</span>
                       )}
                     </p>
                   </div>
@@ -232,15 +232,15 @@ export default function ProjectDetailPage() {
               )}
               {project.type && (
                 <div>
-                  <p className="text-sm text-gray-500">Type</p>
-                  <p className="text-gray-900 capitalize">{project.type.replace('_', ' ')}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Type</p>
+                  <p className="text-gray-900 capitalize dark:text-slate-100">{project.type.replace('_', ' ')}</p>
                 </div>
               )}
             </div>
             {project.description && (
               <div className="mt-6 pt-6 border-t">
-                <p className="text-sm text-gray-500 mb-2">Description</p>
-                <p className="text-gray-700 whitespace-pre-wrap">{project.description}</p>
+                <p className="text-sm text-gray-500 mb-2 dark:text-slate-400">Description</p>
+                <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{project.description}</p>
               </div>
             )}
           </div>
@@ -249,7 +249,7 @@ export default function ProjectDetailPage() {
           {(project.jobs?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Jobs</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Jobs</h2>
                 <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
@@ -264,8 +264,8 @@ export default function ProjectDetailPage() {
                     <div className="flex items-center gap-3">
                       <Briefcase className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">{job.title}</p>
-                        <p className="text-sm text-gray-500">{job.number}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{job.title}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{job.number}</p>
                       </div>
                     </div>
                     <StatusBadge status={job.status} />
@@ -279,7 +279,7 @@ export default function ProjectDetailPage() {
           {(project.rfis?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">RFIs</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">RFIs</h2>
                 <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
@@ -290,8 +290,8 @@ export default function ProjectDetailPage() {
                     <div className="flex items-center gap-3">
                       <FileQuestion className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">{rfi.subject}</p>
-                        <p className="text-sm text-gray-500">{rfi.number}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{rfi.subject}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{rfi.number}</p>
                       </div>
                     </div>
                     <StatusBadge status={rfi.status} />
@@ -305,7 +305,7 @@ export default function ProjectDetailPage() {
           {(project.changeOrders?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900">Change Orders</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Change Orders</h2>
                 <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
@@ -316,8 +316,8 @@ export default function ProjectDetailPage() {
                     <div className="flex items-center gap-3">
                       <FileDiff className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">{co.title}</p>
-                        <p className="text-sm text-gray-500">{co.number}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{co.title}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{co.number}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -335,22 +335,22 @@ export default function ProjectDetailPage() {
         <div className="space-y-6">
           {/* Summary */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Summary</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Summary</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Jobs</span>
+                <span className="text-gray-500 dark:text-slate-400">Jobs</span>
                 <span className="font-medium">{project.jobs?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">RFIs</span>
+                <span className="text-gray-500 dark:text-slate-400">RFIs</span>
                 <span className="font-medium">{project.rfis?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Change Orders</span>
+                <span className="text-gray-500 dark:text-slate-400">Change Orders</span>
                 <span className="font-medium">{project.changeOrders?.length || 0}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Punch List Items</span>
+                <span className="text-gray-500 dark:text-slate-400">Punch List Items</span>
                 <span className="font-medium">{project.punchListItems?.length || 0}</span>
               </div>
             </div>
@@ -358,17 +358,17 @@ export default function ProjectDetailPage() {
 
           {/* Financial summary */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Financials</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Financials</h2>
             <div className="space-y-4">
               {project.budget && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Budget</span>
+                  <span className="text-gray-500 dark:text-slate-400">Budget</span>
                   <span className="font-medium">${Number(project.budget).toLocaleString()}</span>
                 </div>
               )}
               {(project.changeOrders?.length ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Change Orders</span>
+                  <span className="text-gray-500 dark:text-slate-400">Change Orders</span>
                   <span className="font-medium text-orange-600">
                     +${project.changeOrders!.reduce((sum: number, co: RelatedItem) => sum + Number(co.amount), 0).toLocaleString()}
                   </span>
@@ -379,41 +379,41 @@ export default function ProjectDetailPage() {
 
           {/* Quick actions */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
               <Link
                 to={`/crm/jobs?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <Briefcase className="w-4 h-4 text-gray-500" />
+                <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Add Job
               </Link>
               <Link
                 to={`/crm/rfis?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <FileQuestion className="w-4 h-4 text-gray-500" />
+                <FileQuestion className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create RFI
               </Link>
               <Link
                 to={`/crm/change-orders?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <FileDiff className="w-4 h-4 text-gray-500" />
+                <FileDiff className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Change Order
               </Link>
               <Link
                 to={`/crm/punch-lists?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <ClipboardList className="w-4 h-4 text-gray-500" />
+                <ClipboardList className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Add Punch List Item
               </Link>
               <Link
                 to={`/crm/daily-logs?projectId=${id}&new=true`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <FileText className="w-4 h-4 text-gray-500" />
+                <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Add Daily Log
               </Link>
             </div>
@@ -421,25 +421,25 @@ export default function ProjectDetailPage() {
 
           {/* Timeline */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Timeline</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Timeline</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{formatDate(project.createdAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Created</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(project.createdAt)}</span>
               </div>
               {project.startDate && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  <span className="text-gray-500">Started</span>
-                  <span className="text-gray-900">{formatDate(project.startDate)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">Started</span>
+                  <span className="text-gray-900 dark:text-slate-100">{formatDate(project.startDate)}</span>
                 </div>
               )}
               {project.endDate && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-purple-500" />
-                  <span className="text-gray-500">End Date</span>
-                  <span className="text-gray-900">{formatDate(project.endDate)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">End Date</span>
+                  <span className="text-gray-900 dark:text-slate-100">{formatDate(project.endDate)}</span>
                 </div>
               )}
             </div>
@@ -447,9 +447,9 @@ export default function ProjectDetailPage() {
 
           {/* Activity feed */}
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Recent Activity</h2>
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Recent Activity</h2>
             {activity.length === 0 ? (
-              <p className="text-sm text-gray-500">No activity yet.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">No activity yet.</p>
             ) : (
               <ul className="space-y-3">
                 {activity.slice(0, 20).map((a) => {
@@ -457,12 +457,12 @@ export default function ProjectDetailPage() {
                   const role = (a.metadata?.actorRole as string) || '';
                   return (
                     <li key={a.id} className="text-sm border-l-2 border-orange-300 pl-3">
-                      <p className="text-gray-900">
+                      <p className="text-gray-900 dark:text-slate-100">
                         <span className="font-medium">{actor}</span>
-                        {role && <span className="text-gray-500"> ({role})</span>}{' '}
+                        {role && <span className="text-gray-500 dark:text-slate-400"> ({role})</span>}{' '}
                         {a.description || `${a.action} ${a.entityType}`}
                       </p>
-                      <p className="text-xs text-gray-500">{new Date(a.createdAt).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{new Date(a.createdAt).toLocaleString()}</p>
                     </li>
                   );
                 })}

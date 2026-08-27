@@ -29,9 +29,9 @@ export default function TimeTrackingPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-xl font-bold text-gray-900">Time Tracking & GPS</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Time Tracking & GPS</h1>
       {active.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 dark:bg-slate-900">
           <h2 className="font-semibold mb-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> Currently Clocked In ({active.length})
           </h2>
@@ -39,29 +39,29 @@ export default function TimeTrackingPage() {
             {active.map(e => (
               <div key={e.id} className="border border-green-100 bg-green-50 rounded-lg p-3 text-sm">
                 <p className="font-medium">{e.caregiver?.firstName} {e.caregiver?.lastName}</p>
-                <p className="text-gray-600">{e.client?.firstName} {e.client?.lastName}</p>
+                <p className="text-gray-600 dark:text-slate-400">{e.client?.firstName} {e.client?.lastName}</p>
                 <p className="text-xs text-gray-400 mt-1">Since {fmt(e.startTime)}</p>
               </div>
             ))}
           </div>
         </div>
       )}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden dark:bg-slate-900">
         <div className="px-5 py-4 border-b"><h2 className="font-semibold">Today's Entries</h2></div>
         <table className="w-full text-sm">
-          <thead className="bg-gray-50"><tr>
+          <thead className="bg-gray-50 dark:bg-slate-900"><tr>
             {['Caregiver','Client','In','Out','Duration','EVV'].map(h => (
-              <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">{h}</th>
+              <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase dark:text-slate-400">{h}</th>
             ))}
           </tr></thead>
           <tbody className="divide-y divide-gray-50">
             {entries.map(e => (
               <tr key={e.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium">{e.caregiver?.firstName} {e.caregiver?.lastName}</td>
-                <td className="px-4 py-3 text-gray-600">{e.client?.firstName} {e.client?.lastName}</td>
-                <td className="px-4 py-3 text-gray-600">{fmt(e.startTime)}</td>
-                <td className="px-4 py-3 text-gray-600">{fmt(e.endTime)}</td>
-                <td className="px-4 py-3 text-gray-600">{dur(e.startTime, e.endTime)}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.client?.firstName} {e.client?.lastName}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmt(e.startTime)}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmt(e.endTime)}</td>
+                <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{dur(e.startTime, e.endTime)}</td>
                 <td className="px-4 py-3">
                   {e.evvVisit ? (
                     <span className={`flex items-center gap-1 text-xs ${e.evvVisit.isVerified ? 'text-green-600' : 'text-yellow-600'}`}>

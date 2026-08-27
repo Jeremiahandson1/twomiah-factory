@@ -72,7 +72,7 @@ export default function OEMPartsPage() {
           <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center text-white"><Package size={22} /></div>
           <div>
             <h1 className="text-2xl font-bold">Parts Catalog</h1>
-            <p className="text-sm text-gray-500">Search parts by number, name, or unit — price, fitment, availability, supersessions.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Search parts by number, name, or unit — price, fitment, availability, supersessions.</p>
           </div>
         </div>
         <button onClick={() => setShowImport((s) => !s)}
@@ -94,12 +94,12 @@ export default function OEMPartsPage() {
       )}
 
       {showImport && (
-        <div className="mt-3 bg-white rounded-xl border shadow-sm p-4">
+        <div className="mt-3 bg-white rounded-xl border shadow-sm p-4 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-semibold text-sm">Import a parts file</h2>
             <button onClick={() => setShowImport(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
           </div>
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">
             Upload a CSV — an OEM price file you downloaded from your dealer portal, or a parts export from your old DMS.
             We auto-detect columns (Part Number / Description / Price / Cost / Brand / Qty / Fitment). Re-importing updates existing parts by part number.
           </p>
@@ -108,9 +108,9 @@ export default function OEMPartsPage() {
               <Upload size={14} /> Choose CSV
               <input type="file" accept=".csv,.txt" onChange={onFile} className="hidden" />
             </label>
-            {fileName && <span className="text-xs text-gray-500">{fileName}</span>}
+            {fileName && <span className="text-xs text-gray-500 dark:text-slate-400">{fileName}</span>}
             <div className="flex items-center gap-1.5">
-              <label className="text-xs text-gray-600">Brand for this file (if the file has no brand column):</label>
+              <label className="text-xs text-gray-600 dark:text-slate-400">Brand for this file (if the file has no brand column):</label>
               <input value={importOem} onChange={(e) => setImportOem(e.target.value)} placeholder="e.g. Polaris"
                 className="p-1.5 border rounded text-sm w-32" />
             </div>
@@ -130,9 +130,9 @@ export default function OEMPartsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border shadow-sm p-4 mt-4 flex flex-wrap gap-3 items-end">
+      <div className="bg-white rounded-xl border shadow-sm p-4 mt-4 flex flex-wrap gap-3 items-end dark:bg-slate-900">
         <div className="flex-1 min-w-[220px]">
-          <label className="text-xs font-medium text-gray-600">Search</label>
+          <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Search</label>
           <div className="flex gap-2 mt-1">
             <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }}
               placeholder="part #, name, or unit (e.g. 3211202, oil filter, RANGER)" className="flex-1 p-2 border rounded-lg text-sm" />
@@ -140,17 +140,17 @@ export default function OEMPartsPage() {
               {loading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />} Search</button>
           </div>
         </div>
-        <div><label className="text-xs font-medium text-gray-600">OEM</label>
+        <div><label className="text-xs font-medium text-gray-600 dark:text-slate-400">OEM</label>
           <select value={oem} onChange={(e) => setOem(e.target.value)} className="mt-1 block p-2 border rounded-lg text-sm"><option value="">All</option>{oems.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
-        <div><label className="text-xs font-medium text-gray-600">Category</label>
+        <div><label className="text-xs font-medium text-gray-600 dark:text-slate-400">Category</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="mt-1 block p-2 border rounded-lg text-sm"><option value="">All</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
       </div>
 
-      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-hidden">
-        <div className="px-4 py-2.5 border-b text-sm font-semibold text-gray-600">{parts.length} part{parts.length === 1 ? '' : 's'}</div>
+      <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-hidden dark:bg-slate-900">
+        <div className="px-4 py-2.5 border-b text-sm font-semibold text-gray-600 dark:text-slate-400">{parts.length} part{parts.length === 1 ? '' : 's'}</div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500"><tr>
+            <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr>
               <th className="px-4 py-2 text-left font-semibold">Part #</th>
               <th className="px-4 py-2 text-left font-semibold">Description</th>
               <th className="px-4 py-2 text-left font-semibold">OEM</th>
@@ -165,8 +165,8 @@ export default function OEMPartsPage() {
                 <tr key={i} className="border-t hover:bg-gray-50">
                   <td className="px-4 py-2 font-mono text-xs align-top">{p.partNumber}{p.supersededBy && <span className="block text-[10px] text-amber-600">→ {p.supersededBy}</span>}</td>
                   <td className="px-4 py-2 align-top">{p.name}<span className="block text-[11px] text-gray-400">{p.category}{p.diagram ? ` · ${p.diagram}` : ''}</span></td>
-                  <td className="px-4 py-2 text-gray-600 align-top">{p.oem}</td>
-                  <td className="px-4 py-2 text-gray-500 text-xs align-top">{p.fitment || '—'}</td>
+                  <td className="px-4 py-2 text-gray-600 align-top dark:text-slate-400">{p.oem}</td>
+                  <td className="px-4 py-2 text-gray-500 text-xs align-top dark:text-slate-400">{p.fitment || '—'}</td>
                   <td className="px-4 py-2 text-right font-semibold align-top">{money(p.price)}{p.msrp && p.msrp > p.price ? <span className="block text-[10px] text-gray-400 line-through font-normal">{money(p.msrp)}</span> : null}</td>
                   <td className="px-4 py-2 align-top"><span className={`text-xs px-2 py-0.5 rounded-full ${/in stock/i.test(p.availability) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{p.availability}</span></td>
                   <td className="px-4 py-2 align-top">{ordered[p.partNumber] ? <span className="text-xs text-green-700 font-medium whitespace-nowrap">✓ {ordered[p.partNumber]}</span> : <button onClick={() => order(p)} className="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50">Order</button>}</td>

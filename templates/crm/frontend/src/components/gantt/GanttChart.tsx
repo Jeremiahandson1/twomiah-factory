@@ -128,7 +128,7 @@ export default function GanttChart({ projectId }: GanttChartProps) {
 
   if (!ganttData) {
     return (
-      <div className="text-center py-12 text-gray-500">Failed to load schedule</div>
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">Failed to load schedule</div>
     );
   }
 
@@ -180,7 +180,7 @@ export default function GanttChart({ projectId }: GanttChartProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-bold text-gray-900">Project Schedule</h2>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Project Schedule</h2>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 text-xs text-red-600">
               <div className="w-3 h-2 bg-red-500 rounded" />
@@ -202,11 +202,11 @@ export default function GanttChart({ projectId }: GanttChartProps) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
         <div className="flex">
           <div className="w-80 flex-shrink-0 border-r">
-            <div className="h-12 border-b bg-gray-50 flex items-center px-4">
-              <span className="font-medium text-sm text-gray-700">Task Name</span>
+            <div className="h-12 border-b bg-gray-50 flex items-center px-4 dark:bg-slate-900">
+              <span className="font-medium text-sm text-gray-700 dark:text-slate-200">Task Name</span>
             </div>
             <div>
               {visibleTasks.map((task: GanttTask, index: number) => (
@@ -268,7 +268,7 @@ function TaskRow({ task, allTasks, isExpanded, onToggle, onClick, isSelected }: 
     <div className={`h-9 border-b flex items-center px-2 cursor-pointer hover:bg-gray-50 ${isSelected ? 'bg-orange-50' : ''}`} onClick={onClick} style={{ paddingLeft: indent + 8 }}>
       {hasChildren ? (
         <button onClick={(e: React.MouseEvent) => { e.stopPropagation(); onToggle(); }} className="p-1 hover:bg-gray-200 rounded">
-          {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+          {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500 dark:text-slate-400" /> : <ChevronRight className="w-4 h-4 text-gray-500 dark:text-slate-400" />}
         </button>
       ) : (
         <div className="w-6" />
@@ -313,10 +313,10 @@ function TimelineHeader({ minDate, totalDays }: TimelineHeaderProps) {
   });
 
   return (
-    <div className="h-12 border-b bg-gray-50 flex flex-col">
+    <div className="h-12 border-b bg-gray-50 flex flex-col dark:bg-slate-900">
       <div className="flex h-6 border-b">
         {months.map((m) => (
-          <div key={m.key} className="border-r text-xs font-medium text-gray-600 flex items-center justify-center" style={{ width: m.days * DAY_WIDTH }}>{m.label}</div>
+          <div key={m.key} className="border-r text-xs font-medium text-gray-600 flex items-center justify-center dark:text-slate-400" style={{ width: m.days * DAY_WIDTH }}>{m.label}</div>
         ))}
       </div>
       <div className="flex h-6">
@@ -422,30 +422,30 @@ function TaskDetailModal({ task, allTasks, projectId, onSave, onClose }: TaskDet
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Edit Task</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
               <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
                 <input type="date" value={form.startDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End Date</label>
                 <input type="date" value={form.endDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, endDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (days)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Duration (days)</label>
                 <input type="number" value={form.duration} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, duration: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" min="1" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Progress (%)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Progress (%)</label>
                 <input type="number" value={form.progress} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, progress: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" min="0" max="100" />
               </div>
             </div>
@@ -487,25 +487,25 @@ function AddTaskModal({ projectId, onSave, onClose }: AddTaskModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Task</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
               <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
                 <input type="date" value={form.startDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, startDate: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (days)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Duration (days)</label>
                 <input type="number" value={form.duration} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, duration: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" min="1" />
               </div>
             </div>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={form.isMilestone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, isMilestone: e.target.checked })} className="rounded border-gray-300" />
+              <input type="checkbox" checked={form.isMilestone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, isMilestone: e.target.checked })} className="rounded border-gray-300 dark:border-slate-700" />
               <span className="text-sm">Milestone (no duration)</span>
             </label>
             <div className="flex gap-3 pt-4">
@@ -542,25 +542,25 @@ function AddDependencyModal({ projectId, tasks, onSave, onClose }: AddDependency
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Dependency</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Predecessor (From)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Predecessor (From)</label>
               <select value={form.predecessorId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, predecessorId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select task...</option>
                 {tasks.map((t: GanttTask) => (<option key={t.id} value={t.id}>{t.name}</option>))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Successor (To)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Successor (To)</label>
               <select value={form.successorId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, successorId: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select task...</option>
                 {tasks.map((t: GanttTask) => (<option key={t.id} value={t.id}>{t.name}</option>))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
               <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
                 <option value="finish_to_start">Finish to Start (FS)</option>
                 <option value="start_to_start">Start to Start (SS)</option>
@@ -569,9 +569,9 @@ function AddDependencyModal({ projectId, tasks, onSave, onClose }: AddDependency
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lag (days)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Lag (days)</label>
               <input type="number" value={form.lagDays} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, lagDays: parseInt(e.target.value) })} className="w-full px-3 py-2 border rounded-lg" />
-              <p className="text-xs text-gray-500 mt-1">Positive = delay, Negative = lead time</p>
+              <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Positive = delay, Negative = lead time</p>
             </div>
             <div className="flex gap-3 pt-4">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>

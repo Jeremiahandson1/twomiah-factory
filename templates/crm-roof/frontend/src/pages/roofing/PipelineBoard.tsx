@@ -185,12 +185,12 @@ export default function PipelineBoard() {
   return (
     <div className="h-full flex flex-col">
       {/* Filter Bar */}
-      <div className="flex items-center gap-3 px-6 py-4 bg-white border-b flex-shrink-0 overflow-x-auto">
+      <div className="flex items-center gap-3 px-6 py-4 bg-white border-b flex-shrink-0 overflow-x-auto dark:bg-slate-900">
         <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <select
           value={filterRep}
           onChange={(e) => setFilterRep(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-1.5 bg-white"
+          className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900"
         >
           <option value="">All Sales Reps</option>
           {users.map((u: any) => (
@@ -200,7 +200,7 @@ export default function PipelineBoard() {
         <select
           value={filterCrew}
           onChange={(e) => setFilterCrew(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-1.5 bg-white"
+          className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900"
         >
           <option value="">All Crews</option>
           {crews.map((c: any) => (
@@ -210,7 +210,7 @@ export default function PipelineBoard() {
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-1.5 bg-white"
+          className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900"
         >
           <option value="">All Types</option>
           <option value="insurance">Insurance</option>
@@ -222,7 +222,7 @@ export default function PipelineBoard() {
         <select
           value={filterPriority}
           onChange={(e) => setFilterPriority(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-1.5 bg-white"
+          className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900"
         >
           <option value="">All Priorities</option>
           <option value="low">Low</option>
@@ -249,16 +249,16 @@ export default function PipelineBoard() {
             return (
               <div
                 key={stage}
-                className="flex flex-col bg-gray-100 rounded-xl min-w-[260px] w-[260px] flex-shrink-0"
+                className="flex flex-col bg-gray-100 rounded-xl min-w-[260px] w-[260px] flex-shrink-0 dark:bg-slate-800"
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, stage)}
               >
                 {/* Column Header */}
                 <div className="px-3 py-3 flex items-center justify-between flex-shrink-0">
-                  <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider truncate">
+                  <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider truncate dark:text-slate-400">
                     {STAGE_LABELS[stage]}
                   </h3>
-                  <span className="text-xs font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
+                  <span className="text-xs font-bold bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 ml-2 flex-shrink-0 dark:text-slate-400">
                     {stageJobs.length}
                   </span>
                 </div>
@@ -277,20 +277,20 @@ export default function PipelineBoard() {
                         draggable
                         onDragStart={(e) => handleDragStart(e, String(job.id))}
                         onClick={() => navigate(`/crm/jobs/${job.id}`)}
-                        className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow group"
+                        className="bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow group dark:bg-slate-900 dark:border-slate-700"
                       >
                         <div className="flex items-start justify-between mb-1.5">
-                          <span className="text-xs font-mono font-semibold text-gray-500">
+                          <span className="text-xs font-mono font-semibold text-gray-500 dark:text-slate-400">
                             {job.jobNumber || `ROOF-${String(job.id).padStart(4, '0')}`}
                           </span>
                           <GripVertical className="w-3.5 h-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
 
                         {job.contactName && (
-                          <p className="text-sm font-medium text-gray-900 truncate">{job.contactName}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{job.contactName}</p>
                         )}
                         {(job.address || job.propertyAddress) && (
-                          <p className="text-xs text-gray-500 truncate mt-0.5">
+                          <p className="text-xs text-gray-500 truncate mt-0.5 dark:text-slate-400">
                             {(job.address || job.propertyAddress || '').slice(0, 40)}
                           </p>
                         )}
@@ -317,21 +317,21 @@ export default function PipelineBoard() {
                           )}
 
                           {job.salesRepId && repMap[job.salesRepId] && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-slate-400">
                               <User className="w-3 h-3" />
                               {getInitials(repMap[job.salesRepId])}
                             </span>
                           )}
 
                           {job.crewId && crewMap[job.crewId] && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-slate-400">
                               <Users className="w-3 h-3" />
                               {crewMap[job.crewId]}
                             </span>
                           )}
 
                           {job.totalSquares && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-slate-400">
                               <Ruler className="w-3 h-3" />
                               {job.totalSquares} sq
                             </span>

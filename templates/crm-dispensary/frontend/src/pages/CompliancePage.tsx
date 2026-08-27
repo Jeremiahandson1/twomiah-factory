@@ -313,8 +313,8 @@ export default function CompliancePage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Compliance</h1>
-          <p className="text-gray-600">Licenses, reports, and waste tracking</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Compliance</h1>
+          <p className="text-gray-600 dark:text-slate-400">Licenses, reports, and waste tracking</p>
         </div>
       </div>
 
@@ -362,17 +362,17 @@ export default function CompliancePage() {
               Add License
             </Button>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">License #</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issued By</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issued</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expires</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">License #</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Issued By</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Issued</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Expires</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -384,17 +384,17 @@ export default function CompliancePage() {
                   </tr>
                 ) : licenses.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No licenses added yet</td>
+                    <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No licenses added yet</td>
                   </tr>
                 ) : licenses.map(license => (
                   <tr key={license.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{license.type}</td>
-                    <td className="px-4 py-3 text-sm font-mono text-gray-900">{license.licenseNumber}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{license.issuedBy || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{license.type}</td>
+                    <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-slate-100">{license.licenseNumber}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{license.issuedBy || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                       {license.issuedDate ? formatDate(license.issuedDate) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                       {license.expirationDate ? formatDate(license.expirationDate) : '—'}
                     </td>
                     <td className="px-4 py-3">
@@ -404,7 +404,7 @@ export default function CompliancePage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button onClick={() => openEditLicense(license)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                        <button onClick={() => openEditLicense(license)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
                           <Edit className="w-3 h-3" /> Edit
                         </button>
                         <button onClick={() => { setLicenseToDelete(license); setDeleteLicenseOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
@@ -423,15 +423,15 @@ export default function CompliancePage() {
       {/* Reports Tab */}
       {tab === 'reports' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl">
-            <h3 className="font-semibold text-gray-900 mb-4">Generate Report</h3>
+          <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Generate Report</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Report Type</label>
                 <select
                   value={reportType}
                   onChange={(e) => setReportType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
                   {REPORT_TYPES.map(r => (
                     <option key={r.value} value={r.value}>{r.label}</option>
@@ -439,21 +439,21 @@ export default function CompliancePage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
                 <input
                   type="date"
                   value={reportStartDate}
                   onChange={(e) => setReportStartDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End Date</label>
                 <input
                   type="date"
                   value={reportEndDate}
                   onChange={(e) => setReportEndDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             </div>
@@ -462,15 +462,15 @@ export default function CompliancePage() {
             </Button>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Generated</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date Generated</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Period</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -482,17 +482,17 @@ export default function CompliancePage() {
                   </tr>
                 ) : reports.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No reports generated yet</td>
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No reports generated yet</td>
                   </tr>
                 ) : reports.map(report => (
                   <tr key={report.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {report.createdAt ? formatDate(report.createdAt) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                       {REPORT_TYPES.find(r => r.value === report.type)?.label || report.type}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                       {report.startDate ? formatDate(report.startDate) : '—'} - {report.endDate ? formatDate(report.endDate) : '—'}
                     </td>
                     <td className="px-4 py-3">
@@ -506,7 +506,7 @@ export default function CompliancePage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button onClick={() => setViewingReport(report)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                        <button onClick={() => setViewingReport(report)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
                           <FileText className="w-3 h-3" /> View
                         </button>
                         {report.status !== 'submitted' && (
@@ -533,21 +533,21 @@ export default function CompliancePage() {
               Log Waste
             </Button>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Witness</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Metrc</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Batch</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Quantity</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Reason</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Method</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Witness</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Metrc</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -559,27 +559,27 @@ export default function CompliancePage() {
                     </tr>
                   ) : wasteEntries.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-4 py-8 text-center text-gray-500">No waste entries recorded</td>
+                      <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No waste entries recorded</td>
                     </tr>
                   ) : wasteEntries.map(entry => (
                     <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                         {entry.createdAt ? formatDate(entry.createdAt) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{entry.productName || '—'}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-600">{entry.batchNumber || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{entry.wasteType || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{entry.productName || '—'}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-slate-400">{entry.batchNumber || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{entry.wasteType || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">
                         {entry.quantity} {entry.unit}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{entry.reason || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{entry.method || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{entry.witness || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{entry.reason || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{entry.method || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{entry.witness || '—'}</td>
                       <td className="px-4 py-3">
                         {entry.metrcReported ? (
                           <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">Reported</span>
                         ) : (
-                          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">Pending</span>
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">Pending</span>
                         )}
                       </td>
                       <td className="px-4 py-3">

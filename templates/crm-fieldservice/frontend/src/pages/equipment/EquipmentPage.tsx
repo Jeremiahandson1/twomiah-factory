@@ -59,8 +59,8 @@ export default function EquipmentPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Equipment</h1>
-          <p className="text-gray-500">Track customer equipment and service history</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Equipment</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track customer equipment and service history</p>
         </div>
         <button
           onClick={() => { setSelectedEquipment(null); setShowForm(true); }}
@@ -135,20 +135,20 @@ export default function EquipmentPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : equipment.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <Wrench className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No equipment found</p>
+          <p className="text-gray-500 dark:text-slate-400">No equipment found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Equipment</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Customer</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Category</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Install Date</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Equipment</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Customer</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Category</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Install Date</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -210,30 +210,30 @@ function EquipmentRow({ equipment, onEdit, onHistory }) {
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-            <CategoryIcon className="w-5 h-5 text-gray-500" />
+          <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center dark:bg-slate-800">
+            <CategoryIcon className="w-5 h-5 text-gray-500 dark:text-slate-400" />
           </div>
           <div>
-            <p className="font-medium text-gray-900">{equipment.name}</p>
-            <p className="text-sm text-gray-500">{equipment.brand} {equipment.model}</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">{equipment.name}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{equipment.brand} {equipment.model}</p>
           </div>
         </div>
       </td>
       <td className="px-4 py-3">
-        <p className="text-gray-900">{equipment.contact?.name}</p>
+        <p className="text-gray-900 dark:text-slate-100">{equipment.contact?.name}</p>
         {equipment.location && (
-          <p className="text-sm text-gray-500">{equipment.location}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{equipment.location}</p>
         )}
       </td>
-      <td className="px-4 py-3 text-gray-500">{equipment.category}</td>
+      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{equipment.category}</td>
       <td className="px-4 py-3">
         {equipment.installDate ? (
           <div>
-            <p className="text-gray-900">
+            <p className="text-gray-900 dark:text-slate-100">
               {formatDate(equipment.installDate)}
             </p>
             {equipment.age !== null && (
-              <p className="text-sm text-gray-500">{equipment.age} years old</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">{equipment.age} years old</p>
             )}
           </div>
         ) : (
@@ -258,7 +258,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }) {
             </span>
           )}
           {!equipment.maintenanceDue && !equipment.warrantyActive && equipment.status === 'active' && (
-            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
+            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full dark:bg-slate-800 dark:text-slate-400">
               {equipment.condition}
             </span>
           )}
@@ -351,7 +351,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">
             {equipment ? 'Edit Equipment' : 'Add Equipment'}
           </h2>
@@ -359,7 +359,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer</label>
                 <select
                   value={form.contactId}
                   onChange={(e) => setForm({ ...form, contactId: e.target.value, siteId: '' })}
@@ -375,7 +375,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
 
               {sites.length > 0 && (
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
                   <select
                     value={form.siteId}
                     onChange={(e) => setForm({ ...form, siteId: e.target.value })}
@@ -390,7 +390,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Equipment Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Equipment Name</label>
                 <input
                   type="text"
                   value={form.name}
@@ -402,7 +402,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
                 <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -415,7 +415,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Brand</label>
                 <input
                   type="text"
                   value={form.brand}
@@ -426,7 +426,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Model</label>
                 <input
                   type="text"
                   value={form.model}
@@ -436,7 +436,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Serial Number</label>
                 <input
                   type="text"
                   value={form.serialNumber}
@@ -446,7 +446,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
                 <input
                   type="text"
                   value={form.location}
@@ -457,7 +457,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Install Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Install Date</label>
                 <input
                   type="date"
                   value={form.installDate}
@@ -467,7 +467,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Warranty (months)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Warranty (months)</label>
                 <input
                   type="number"
                   value={form.warrantyMonths}
@@ -477,7 +477,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance Interval (months)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Maintenance Interval (months)</label>
                 <input
                   type="number"
                   value={form.maintenanceIntervalMonths}
@@ -487,7 +487,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Condition</label>
                 <select
                   value={form.condition}
                   onChange={(e) => setForm({ ...form, condition: e.target.value })}
@@ -501,7 +501,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
                 <textarea
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -564,11 +564,11 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-bold">Service History</h2>
-              <p className="text-gray-500">{equipment.name}{equipment.manufacturer ? ` — ${equipment.manufacturer}` : ''}{equipment.model ? ` ${equipment.model}` : ''}</p>
+              <p className="text-gray-500 dark:text-slate-400">{equipment.name}{equipment.manufacturer ? ` — ${equipment.manufacturer}` : ''}{equipment.model ? ` ${equipment.model}` : ''}</p>
             </div>
             <button
               onClick={() => setShowAddForm(true)}
@@ -579,7 +579,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
+          <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 dark:bg-slate-800">
             <button
               onClick={() => setTab('jobs')}
               className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'jobs' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
@@ -600,7 +600,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
             </div>
           ) : tab === 'jobs' ? (
             linkedJobs.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                 No service calls linked to this equipment yet
               </div>
             ) : (
@@ -615,8 +615,8 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
                             {j.status?.replace('_', ' ')}
                           </span>
                         </div>
-                        <p className="font-medium text-gray-900 mt-1">{j.title}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-medium text-gray-900 mt-1 dark:text-slate-100">{j.title}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">
                           {j.jobType && <span className="capitalize">{j.jobType}</span>}
                           {j.scheduledDate && <span> — {formatDate(j.scheduledDate)}</span>}
                           {j.assignedTo && <span> — {j.assignedTo.firstName} {j.assignedTo.lastName}</span>}
@@ -634,7 +634,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
             )
           ) : (
             history.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                 No maintenance records yet
               </div>
             ) : (
@@ -643,18 +643,18 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
                   <div key={record.id} className="p-4 border rounded-lg">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-medium text-gray-900">{record.serviceType || record.type}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{record.serviceType || record.type}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">
                           {formatDate(record.serviceDate || record.performedAt)}
                           {record.technician && ` — ${record.technician.firstName} ${record.technician.lastName}`}
                         </p>
                       </div>
                       {record.cost > 0 && (
-                        <span className="text-gray-900 font-medium">${record.cost}</span>
+                        <span className="text-gray-900 font-medium dark:text-slate-100">${record.cost}</span>
                       )}
                     </div>
                     {record.description && (
-                      <p className="mt-2 text-gray-600">{record.description}</p>
+                      <p className="mt-2 text-gray-600 dark:text-slate-400">{record.description}</p>
                     )}
                     {record.recommendations && (
                       <p className="mt-2 text-sm text-orange-600">

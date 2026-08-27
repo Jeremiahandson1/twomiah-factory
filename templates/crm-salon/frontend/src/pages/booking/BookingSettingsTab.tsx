@@ -116,16 +116,16 @@ export default function BookingSettingsTab() {
     }
   };
 
-  if (loading) return <div className="bg-white rounded-xl border p-12 text-center text-gray-400">Loading settings...</div>;
-  if (!settings) return <div className="bg-white rounded-xl border p-12 text-center text-red-500">{status?.text || 'Could not load booking settings.'}</div>;
+  if (loading) return <div className="bg-white rounded-xl border p-12 text-center text-gray-400 dark:bg-slate-900">Loading settings...</div>;
+  if (!settings) return <div className="bg-white rounded-xl border p-12 text-center text-red-500 dark:bg-slate-900">{status?.text || 'Could not load booking settings.'}</div>;
 
   return (
     <div className="space-y-4 max-w-3xl">
       {/* Master switch */}
-      <div className="bg-white rounded-xl border p-5 flex items-center justify-between">
+      <div className="bg-white rounded-xl border p-5 flex items-center justify-between dark:bg-slate-900">
         <div>
-          <div className="font-semibold text-gray-900">Online booking is {settings.enabled ? 'ON' : 'OFF'}</div>
-          <p className="text-sm text-gray-500">
+          <div className="font-semibold text-gray-900 dark:text-slate-100">Online booking is {settings.enabled ? 'ON' : 'OFF'}</div>
+          <p className="text-sm text-gray-500 dark:text-slate-400">
             {settings.enabled
               ? 'Customers can book from your website and the booking page.'
               : 'The public booking page tells customers booking is unavailable.'}
@@ -142,9 +142,9 @@ export default function BookingSettingsTab() {
       </div>
 
       {/* Hours */}
-      <div className="bg-white rounded-xl border p-5">
-        <h2 className="font-semibold text-gray-900 mb-1">Booking hours</h2>
-        <p className="text-sm text-gray-500 mb-4">Days switched off never appear on the public date picker.</p>
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-1 dark:text-slate-100">Booking hours</h2>
+        <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">Days switched off never appear on the public date picker.</p>
         <div className="space-y-2">
           {DAYS.map((d) => {
             const h = settings.workingHours[d];
@@ -155,9 +155,9 @@ export default function BookingSettingsTab() {
                     type="checkbox"
                     checked={h.enabled}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDay(d, { enabled: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                    className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700"
                   />
-                  <span className="text-sm font-medium text-gray-700 capitalize">{d}</span>
+                  <span className="text-sm font-medium text-gray-700 capitalize dark:text-slate-200">{d}</span>
                 </label>
                 {h.enabled ? (
                   <div className="flex items-center gap-2">
@@ -177,11 +177,11 @@ export default function BookingSettingsTab() {
       </div>
 
       {/* Scheduling rules */}
-      <div className="bg-white rounded-xl border p-5">
-        <h2 className="font-semibold text-gray-900 mb-4">Scheduling rules</h2>
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Scheduling rules</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Slot length</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Slot length</label>
             <select value={settings.slotDurationMinutes}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('slotDurationMinutes', Number(e.target.value))}
               className="w-full px-3 py-2 border rounded-lg text-sm">
@@ -190,7 +190,7 @@ export default function BookingSettingsTab() {
             <p className="mt-1 text-xs text-gray-400">A service's own duration overrides this.</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notice needed</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notice needed</label>
             <select value={settings.leadTimeDays}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('leadTimeDays', Number(e.target.value))}
               className="w-full px-3 py-2 border rounded-lg text-sm">
@@ -202,7 +202,7 @@ export default function BookingSettingsTab() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Book up to</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Book up to</label>
             <select value={settings.maxDaysOut}
               onChange={(e: React.ChangeEvent<HTMLSelectElement>) => set('maxDaysOut', Number(e.target.value))}
               className="w-full px-3 py-2 border rounded-lg text-sm">
@@ -216,17 +216,17 @@ export default function BookingSettingsTab() {
       </div>
 
       {/* Messages + notifications */}
-      <div className="bg-white rounded-xl border p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">Messages</h2>
+      <div className="bg-white rounded-xl border p-5 space-y-4 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 dark:text-slate-100">Messages</h2>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Booking page heading</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Booking page heading</label>
           <input value={settings.welcomeMessage}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => set('welcomeMessage', e.target.value)}
             placeholder="Book an appointment"
             className="w-full px-3 py-2 border rounded-lg text-sm" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Confirmation message</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Confirmation message</label>
           <input value={settings.confirmationMessage}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => set('confirmationMessage', e.target.value)}
             placeholder="You're booked — see you soon!"
@@ -236,14 +236,14 @@ export default function BookingSettingsTab() {
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={settings.notifyEmail}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => set('notifyEmail', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
-            <span className="text-sm text-gray-700">Email me on each booking</span>
+              className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700" />
+            <span className="text-sm text-gray-700 dark:text-slate-200">Email me on each booking</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" checked={settings.notifySms}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => set('notifySms', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
-            <span className="text-sm text-gray-700">Text me on each booking</span>
+              className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700" />
+            <span className="text-sm text-gray-700 dark:text-slate-200">Text me on each booking</span>
           </label>
         </div>
       </div>

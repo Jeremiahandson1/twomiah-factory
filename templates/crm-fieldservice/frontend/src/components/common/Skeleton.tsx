@@ -67,8 +67,8 @@ export function SkeletonTableRow({ columns = 5 }) {
 // Table skeleton
 export function SkeletonTable({ rows = 5, columns = 5 }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-      <div className="border-b bg-gray-50 px-4 py-3">
+    <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
+      <div className="border-b bg-gray-50 px-4 py-3 dark:bg-slate-900">
         <div className="flex gap-4">
           {Array.from({ length: columns }).map((_, i) => (
             <Skeleton key={i} className="h-4 w-20" />
@@ -89,7 +89,7 @@ export function SkeletonTable({ rows = 5, columns = 5 }) {
 // Stat card skeleton
 export function SkeletonStatCard() {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4">
+    <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
       <Skeleton className="w-10 h-10 rounded-lg mb-3" />
       <Skeleton className="h-8 w-16 mb-2" />
       <Skeleton className="h-4 w-24" />
@@ -160,7 +160,7 @@ export function SkeletonDetail() {
 // List skeleton
 export function SkeletonList({ items = 5 }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm divide-y">
+    <div className="bg-white rounded-lg shadow-sm divide-y dark:bg-slate-900">
       {Array.from({ length: items }).map((_, i) => (
         <div key={i} className="p-4 flex items-center gap-4">
           <SkeletonAvatar />

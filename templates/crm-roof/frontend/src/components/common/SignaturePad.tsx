@@ -95,7 +95,7 @@ export default function SignaturePad({
 
   return (
     <div className="w-full">
-      <div className="border-2 border-gray-600 rounded-lg overflow-hidden bg-white">
+      <div className="border-2 border-gray-600 rounded-lg overflow-hidden bg-white dark:bg-slate-900">
         <canvas
           ref={canvasRef}
           width={width}
@@ -110,9 +110,9 @@ export default function SignaturePad({
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
         />
-        <div className="border-t border-gray-300 px-3 py-1.5 bg-gray-100 flex items-center justify-between">
-          <span className="text-[11px] text-gray-500">&#10005; Sign above this line</span>
-          <span className="text-[11px] text-gray-500">{formatDate()}</span>
+        <div className="border-t border-gray-300 px-3 py-1.5 bg-gray-100 flex items-center justify-between dark:border-slate-700 dark:bg-slate-800">
+          <span className="text-[11px] text-gray-500 dark:text-slate-400">&#10005; Sign above this line</span>
+          <span className="text-[11px] text-gray-500 dark:text-slate-400">{formatDate()}</span>
         </div>
       </div>
 
@@ -235,7 +235,7 @@ export function SignatureDisplay({ signature, signedBy, signedAt, className = ''
   return (
     <div className={className}>
       <div className="border border-green-700/50 rounded-lg bg-green-900/20 p-3">
-        <img src={signature} alt="Your signature" className="max-h-20 bg-white rounded" />
+        <img src={signature} alt="Your signature" className="max-h-20 bg-white rounded dark:bg-slate-900" />
         <div className="mt-2 text-sm">
           <p className="font-medium text-gray-200">{signedBy || '-'}</p>
           <p className="text-xs text-gray-400">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>

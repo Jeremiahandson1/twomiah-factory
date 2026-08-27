@@ -50,8 +50,8 @@ export function FinancingOptions({ amount, onApply }) {
           <CreditCard className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h3 className="font-semibold text-gray-900">Flexible Financing Available</h3>
-          <p className="text-sm text-gray-600">Low monthly payments, quick approval</p>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Flexible Financing Available</h3>
+          <p className="text-sm text-gray-600 dark:text-slate-400">Low monthly payments, quick approval</p>
         </div>
       </div>
 
@@ -81,7 +81,7 @@ export function FinancingOptions({ amount, onApply }) {
 
       {/* Selected Option Details */}
       {selectedTerm && (
-        <div className="bg-white rounded-lg p-4 mb-4">
+        <div className="bg-white rounded-lg p-4 mb-4 dark:bg-slate-900">
           {(() => {
             const selected = options.find(o => o.termMonths === selectedTerm);
             if (!selected) return null;
@@ -89,20 +89,20 @@ export function FinancingOptions({ amount, onApply }) {
             return (
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-sm text-gray-500">Monthly Payment</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Monthly Payment</p>
                   <p className="text-xl font-bold text-green-600">
                     ${selected.monthlyPayment.toFixed(2)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">APR</p>
-                  <p className="text-xl font-bold text-gray-900">
+                  <p className="text-sm text-gray-500 dark:text-slate-400">APR</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-slate-100">
                     {selected.apr}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Total Cost</p>
-                  <p className="text-xl font-bold text-gray-900">
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Total Cost</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-slate-100">
                     ${selected.totalCost.toFixed(2)}
                   </p>
                 </div>
@@ -121,7 +121,7 @@ export function FinancingOptions({ amount, onApply }) {
         Apply for Financing - Takes 60 seconds
       </button>
 
-      <p className="text-xs text-center text-gray-500 mt-3">
+      <p className="text-xs text-center text-gray-500 mt-3 dark:text-slate-400">
         No impact to credit score for pre-qualification. Powered by Wisetack.
       </p>
     </div>
@@ -180,14 +180,14 @@ export function FinancingApplicationModal({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           {/* Header */}
           <div className="text-center mb-6">
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <CreditCard className="w-6 h-6 text-green-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Apply for Financing</h2>
-            <p className="text-gray-500">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Apply for Financing</h2>
+            <p className="text-gray-500 dark:text-slate-400">
               ${amount.toLocaleString()} • Quick pre-qualification
             </p>
           </div>
@@ -197,7 +197,7 @@ export function FinancingApplicationModal({
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">First Name</label>
                   <input
                     type="text"
                     value={form.firstName}
@@ -207,7 +207,7 @@ export function FinancingApplicationModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Last Name</label>
                   <input
                     type="text"
                     value={form.lastName}
@@ -219,7 +219,7 @@ export function FinancingApplicationModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email</label>
                 <input
                   type="email"
                   value={form.email}
@@ -230,7 +230,7 @@ export function FinancingApplicationModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Phone</label>
                 <input
                   type="tel"
                   value={form.phone}
@@ -241,7 +241,7 @@ export function FinancingApplicationModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Address</label>
                 <input
                   type="text"
                   value={form.address}
@@ -253,7 +253,7 @@ export function FinancingApplicationModal({
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">City</label>
                   <input
                     type="text"
                     value={form.city}
@@ -263,7 +263,7 @@ export function FinancingApplicationModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State</label>
                   <input
                     type="text"
                     value={form.state}
@@ -274,7 +274,7 @@ export function FinancingApplicationModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">ZIP</label>
                   <input
                     type="text"
                     value={form.zip}
@@ -290,7 +290,7 @@ export function FinancingApplicationModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
                   Cancel
                 </button>
@@ -302,7 +302,7 @@ export function FinancingApplicationModal({
                 </button>
               </div>
 
-              <p className="text-xs text-center text-gray-500">
+              <p className="text-xs text-center text-gray-500 dark:text-slate-400">
                 Checking your rate won't affect your credit score.
               </p>
             </form>
@@ -312,7 +312,7 @@ export function FinancingApplicationModal({
           {step === 'loading' && (
             <div className="text-center py-8">
               <Loader2 className="w-12 h-12 animate-spin text-green-500 mx-auto mb-4" />
-              <p className="text-gray-600">Processing your application...</p>
+              <p className="text-gray-600 dark:text-slate-400">Processing your application...</p>
             </div>
           )}
 
@@ -320,8 +320,8 @@ export function FinancingApplicationModal({
           {step === 'success' && application && (
             <div className="text-center py-4">
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Application Created!</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2 dark:text-slate-100">Application Created!</h3>
+              <p className="text-gray-600 mb-6 dark:text-slate-400">
                 Complete your application to see your financing options.
               </p>
               
@@ -337,7 +337,7 @@ export function FinancingApplicationModal({
 
               <button
                 onClick={onClose}
-                className="w-full mt-3 px-4 py-2 text-gray-600 hover:text-gray-900"
+                className="w-full mt-3 px-4 py-2 text-gray-600 hover:text-gray-900 dark:text-slate-400"
               >
                 I'll complete this later
               </button>
@@ -348,12 +348,12 @@ export function FinancingApplicationModal({
           {step === 'error' && (
             <div className="text-center py-4">
               <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Something went wrong</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2 dark:text-slate-100">Something went wrong</h3>
               <p className="text-red-600 mb-6">{error}</p>
               
               <button
                 onClick={() => setStep('form')}
-                className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200"
               >
                 Try Again
               </button>
@@ -388,7 +388,7 @@ export function FinancingStatusCard({ applicationId }) {
   };
 
   if (loading) {
-    return <div className="animate-pulse bg-gray-100 h-24 rounded-lg" />;
+    return <div className="animate-pulse bg-gray-100 h-24 rounded-lg dark:bg-slate-800" />;
   }
 
   if (!status) return null;
@@ -409,14 +409,14 @@ export function FinancingStatusCard({ applicationId }) {
       <div className="flex items-center gap-3">
         <Icon className={`w-6 h-6 text-${config.color}-600`} />
         <div className="flex-1">
-          <p className="font-medium text-gray-900">{config.label}</p>
+          <p className="font-medium text-gray-900 dark:text-slate-100">{config.label}</p>
           {status.approvedAmount && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-slate-400">
               Approved for ${status.approvedAmount.toLocaleString()}
             </p>
           )}
           {status.monthlyPayment && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-slate-400">
               ${status.monthlyPayment}/mo for {status.termMonths} months @ {status.apr}% APR
             </p>
           )}
@@ -426,7 +426,7 @@ export function FinancingStatusCard({ applicationId }) {
             href={status.applicationUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-3 py-1 bg-white border rounded-lg text-sm hover:bg-gray-50"
+            className="px-3 py-1 bg-white border rounded-lg text-sm hover:bg-gray-50 dark:bg-slate-900"
           >
             Complete
           </a>
@@ -486,18 +486,18 @@ export function WisetackSettings() {
   };
 
   if (loading) {
-    return <div className="animate-pulse bg-gray-100 h-32 rounded-xl" />;
+    return <div className="animate-pulse bg-gray-100 h-32 rounded-xl dark:bg-slate-800" />;
   }
 
   return (
-    <div className="bg-white rounded-xl border p-6">
+    <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
       <div className="flex items-center gap-4 mb-4">
         <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
           <CreditCard className="w-6 h-6 text-green-600" />
         </div>
         <div>
-          <h3 className="font-semibold text-gray-900">Wisetack Consumer Financing</h3>
-          <p className="text-sm text-gray-500">Let customers pay over time with 0% APR options</p>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Wisetack Consumer Financing</h3>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Let customers pay over time with 0% APR options</p>
         </div>
       </div>
 
@@ -511,7 +511,7 @@ export function WisetackSettings() {
             </span>
           </div>
 
-          <div className="space-y-3 text-sm text-gray-600">
+          <div className="space-y-3 text-sm text-gray-600 dark:text-slate-400">
             <p>✓ Financing options appear on quotes and invoices</p>
             <p>✓ Customers can apply in 60 seconds</p>
             <p>✓ Get paid within 1-2 business days</p>
@@ -526,7 +526,7 @@ export function WisetackSettings() {
         </>
       ) : (
         <>
-          <div className="space-y-3 text-sm text-gray-600 mb-4">
+          <div className="space-y-3 text-sm text-gray-600 mb-4 dark:text-slate-400">
             <p>• Offer 0% financing to close bigger jobs</p>
             <p>• Increase average ticket size by 30%+</p>
             <p>• You get paid in full, customer pays over time</p>

@@ -139,7 +139,7 @@ export default function EODReportPage() {
       {tab === 'generate' && (
         <div>
           {/* Date/Location Selector */}
-          <div className="flex flex-wrap items-end gap-4 mb-6 bg-white border rounded-lg p-4">
+          <div className="flex flex-wrap items-end gap-4 mb-6 bg-white border rounded-lg p-4 dark:bg-slate-900">
             <div>
               <label className="block text-sm font-medium mb-1"><Calendar className="w-3 h-3 inline mr-1" />Date</label>
               <input type="date" value={reportDate} onChange={e => setReportDate(e.target.value)}
@@ -175,20 +175,20 @@ export default function EODReportPage() {
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3"><DollarSign className="w-5 h-5 text-green-600" />Sales Summary</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-white border rounded-lg p-4">
-                    <div className="text-sm text-gray-500">Total Orders</div>
+                  <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
+                    <div className="text-sm text-gray-500 dark:text-slate-400">Total Orders</div>
                     <div className="text-2xl font-bold">{report.totalOrders || 0}</div>
                   </div>
-                  <div className="bg-white border rounded-lg p-4">
-                    <div className="text-sm text-gray-500">Total Revenue</div>
+                  <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
+                    <div className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</div>
                     <div className="text-2xl font-bold text-green-600">${(report.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                   </div>
-                  <div className="bg-white border rounded-lg p-4">
-                    <div className="text-sm text-gray-500">Cash</div>
+                  <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
+                    <div className="text-sm text-gray-500 dark:text-slate-400">Cash</div>
                     <div className="text-xl font-bold">${(report.cashTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                   </div>
-                  <div className="bg-white border rounded-lg p-4">
-                    <div className="text-sm text-gray-500">Debit / ACH</div>
+                  <div className="bg-white border rounded-lg p-4 dark:bg-slate-900">
+                    <div className="text-sm text-gray-500 dark:text-slate-400">Debit / ACH</div>
                     <div className="text-xl font-bold">${(report.debitTotal || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                   </div>
                 </div>
@@ -197,18 +197,18 @@ export default function EODReportPage() {
               {/* Cash Reconciliation */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3"><DollarSign className="w-5 h-5 text-yellow-600" />Cash Reconciliation</h4>
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <div className="text-sm text-gray-500">Expected</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Expected</div>
                       <div className="text-xl font-bold">${(report.cashExpected || 0).toFixed(2)}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500">Actual Count</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Actual Count</div>
                       <div className="text-xl font-bold">${(report.cashActual || 0).toFixed(2)}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500">Variance</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Variance</div>
                       <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600' : 'text-green-600'}`}>
                         {cashVariance >= 0 ? '+' : ''}${cashVariance.toFixed(2)}
                         {Math.abs(cashVariance) > 5 && <AlertTriangle className="w-4 h-4 inline ml-1 text-red-500" />}
@@ -221,14 +221,14 @@ export default function EODReportPage() {
               {/* Inventory */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3"><Package className="w-5 h-5 text-blue-600" />Inventory</h4>
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-sm text-gray-500">Adjustments</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Adjustments</div>
                       <div className="text-xl font-bold">{report.inventoryAdjustments || 0}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500">Shrinkage Value</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Shrinkage Value</div>
                       <div className={`text-xl font-bold ${(report.shrinkageValue || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
                         ${(report.shrinkageValue || 0).toFixed(2)}
                       </div>
@@ -240,7 +240,7 @@ export default function EODReportPage() {
               {/* Compliance Checklist */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3"><Shield className="w-5 h-5 text-purple-600" />Compliance Checklist</h4>
-                <div className="bg-white border rounded-lg p-5 space-y-3">
+                <div className="bg-white border rounded-lg p-5 space-y-3 dark:bg-slate-900">
                   {(report.complianceChecklist || [
                     { id: 'id_check', label: 'All IDs verified for every transaction' },
                     { id: 'camera_check', label: 'Security cameras operational all day' },
@@ -263,18 +263,18 @@ export default function EODReportPage() {
               {/* Staff */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3"><Users className="w-5 h-5 text-indigo-600" />Staff</h4>
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <div className="text-sm text-gray-500">Employees On Duty</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Employees On Duty</div>
                       <div className="text-xl font-bold">{report.employeesOnDuty || 0}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500">Total Hours</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Total Hours</div>
                       <div className="text-xl font-bold">{(report.totalHours || 0).toFixed(1)}h</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500">Tips Collected</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Tips Collected</div>
                       <div className="text-xl font-bold">${(report.tipsTotal || 0).toFixed(2)}</div>
                     </div>
                   </div>
@@ -284,18 +284,18 @@ export default function EODReportPage() {
               {/* Loyalty */}
               <div>
                 <h4 className="font-semibold flex items-center gap-2 mb-3"><Star className="w-5 h-5 text-yellow-500" />Loyalty</h4>
-                <div className="bg-white border rounded-lg p-5">
+                <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <div className="text-sm text-gray-500">Points Issued</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Points Issued</div>
                       <div className="text-xl font-bold">{(report.pointsIssued || 0).toLocaleString()}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500">Points Redeemed</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">Points Redeemed</div>
                       <div className="text-xl font-bold">{(report.pointsRedeemed || 0).toLocaleString()}</div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-500">New Members</div>
+                      <div className="text-sm text-gray-500 dark:text-slate-400">New Members</div>
                       <div className="text-xl font-bold">{report.newLoyaltyMembers || 0}</div>
                     </div>
                   </div>
@@ -320,7 +320,7 @@ export default function EODReportPage() {
           )}
 
           {!report && !generating && (
-            <div className="text-center py-16 text-gray-500">
+            <div className="text-center py-16 text-gray-500 dark:text-slate-400">
               <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               Select a date and generate your end-of-day report
             </div>
@@ -336,19 +336,19 @@ export default function EODReportPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : history.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No past reports</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No past reports</div>
           ) : (
             <div className="overflow-x-auto border rounded-lg">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Date</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Location</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Revenue</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Cash Variance</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Submitted By</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Actions</th>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Location</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Revenue</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Cash Variance</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Submitted By</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -370,7 +370,7 @@ export default function EODReportPage() {
                             {r.status || 'draft'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{r.submittedBy || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{r.submittedBy || '-'}</td>
                         <td className="px-4 py-3">
                           <button onClick={() => viewHistoricReport(r.id)}
                             className="text-green-600 hover:text-green-800 text-sm font-medium flex items-center gap-1">

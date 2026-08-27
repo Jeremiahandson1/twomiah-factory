@@ -145,7 +145,7 @@ export default function PatientDetailPage() {
   const p = detail.patient;
   if (!p) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">
         Patient not found. <Link to="/crm/patients" className="text-teal-600">Back to patients</Link>
       </div>
     );
@@ -174,22 +174,22 @@ export default function PatientDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/crm/patients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+      <Link to="/crm/patients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400">
         <ArrowLeft className="w-4 h-4" /> Patients
       </Link>
 
       {/* Header */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-teal-50 rounded-lg">
             <PawPrint className="w-6 h-6 text-teal-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
               {p.name || 'Unnamed'}
               {p.deceased && <span className="text-sm font-normal text-gray-400">(deceased)</span>}
             </h1>
-            <p className="text-gray-500 capitalize">{signalment || '—'}</p>
+            <p className="text-gray-500 capitalize dark:text-slate-400">{signalment || '—'}</p>
           </div>
         </div>
 
@@ -207,17 +207,17 @@ export default function PatientDetailPage() {
           {/* Owner card */}
           <div className="border rounded-lg p-3">
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Owner</p>
-            <p className="font-medium text-gray-900 flex items-center gap-2">
+            <p className="font-medium text-gray-900 flex items-center gap-2 dark:text-slate-100">
               <User className="w-4 h-4 text-gray-400" /> {ownerName(owner)}
             </p>
-            {owner?.phone && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><Phone className="w-3 h-3" /> {owner.phone}</p>}
-            {owner?.mobile && owner.mobile !== owner.phone && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><Phone className="w-3 h-3" /> {owner.mobile}</p>}
-            {owner?.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><Mail className="w-3 h-3" /> {owner.email}</p>}
+            {owner?.phone && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Phone className="w-3 h-3" /> {owner.phone}</p>}
+            {owner?.mobile && owner.mobile !== owner.phone && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Phone className="w-3 h-3" /> {owner.mobile}</p>}
+            {owner?.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {owner.email}</p>}
           </div>
           {/* Details card */}
           <div className="border rounded-lg p-3">
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Details</p>
-            <dl className="text-sm text-gray-600 space-y-1">
+            <dl className="text-sm text-gray-600 space-y-1 dark:text-slate-400">
               {p.microchip && <div className="flex justify-between"><dt className="text-gray-400">Microchip</dt><dd>{p.microchip}</dd></div>}
               {p.rabiesTag && <div className="flex justify-between"><dt className="text-gray-400">Rabies Tag</dt><dd>{p.rabiesTag}</dd></div>}
               {p.color && <div className="flex justify-between"><dt className="text-gray-400">Color</dt><dd>{p.color}</dd></div>}
@@ -226,7 +226,7 @@ export default function PatientDetailPage() {
             </dl>
           </div>
         </div>
-        {p.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap">{p.notes}</p>}
+        {p.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{p.notes}</p>}
       </div>
 
       {/* Tabs */}
@@ -240,7 +240,7 @@ export default function PatientDetailPage() {
             }`}
           >
             {t.icon} {t.label}
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full">{t.count}</span>
+            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{t.count}</span>
           </button>
         ))}
       </div>
@@ -254,14 +254,14 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {visits.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No visits recorded</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No visits recorded</div>
           ) : (
             <div className="space-y-3">
               {visits.map((v) => (
-                <div key={v.id} className="bg-white rounded-xl border p-4">
+                <div key={v.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">{fmtDate(v.visitDate)}{v.reason ? ` — ${v.reason}` : ''}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{fmtDate(v.visitDate)}{v.reason ? ` — ${v.reason}` : ''}</p>
                       {(v.diagnoses || []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {(v.diagnoses || []).map((d, i) => (
@@ -271,14 +271,14 @@ export default function PatientDetailPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-gray-700">{money(v.total)}</span>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(v.total)}</span>
                       <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-600 hover:text-teal-700">Edit</button>
                     </div>
                   </div>
                   {(v.assessment || v.plan) && (
-                    <div className="mt-2 text-sm text-gray-600 space-y-1">
-                      {v.assessment && <p><span className="font-medium text-gray-500">A:</span> {v.assessment}</p>}
-                      {v.plan && <p><span className="font-medium text-gray-500">P:</span> {v.plan}</p>}
+                    <div className="mt-2 text-sm text-gray-600 space-y-1 dark:text-slate-400">
+                      {v.assessment && <p><span className="font-medium text-gray-500 dark:text-slate-400">A:</span> {v.assessment}</p>}
+                      {v.plan && <p><span className="font-medium text-gray-500 dark:text-slate-400">P:</span> {v.plan}</p>}
                     </div>
                   )}
                   {(v.weightLb || v.temperatureF || v.heartRate || v.respRate) && (
@@ -305,11 +305,11 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {vaccinations.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No vaccinations recorded</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No vaccinations recorded</div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 text-left">
+                <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3 font-medium">Vaccine</th>
                     <th className="px-4 py-3 font-medium">Given</th>
@@ -321,15 +321,15 @@ export default function PatientDetailPage() {
                 <tbody className="divide-y">
                   {vaccinations.map((v) => (
                     <tr key={v.id} className={isOverdue(v.dueDate) ? 'bg-red-50' : ''}>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {v.vaccine || '—'}
                         {v.isRabies && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Rabies</span>}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{fmtDate(v.givenDate)}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(v.givenDate)}</td>
                       <td className={`px-4 py-3 ${isOverdue(v.dueDate) ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
                         {fmtDate(v.dueDate)}{isOverdue(v.dueDate) ? ' (overdue)' : ''}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{v.lotNumber || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{v.lotNumber || '—'}</td>
                       <td className="px-4 py-3">
                         {v.isRabies && (
                           <button
@@ -358,13 +358,13 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {prescriptions.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No prescriptions recorded</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No prescriptions recorded</div>
           ) : (
             <div className="space-y-2">
               {prescriptions.map((rx) => (
-                <div key={rx.id} className="bg-white rounded-xl border p-4">
+                <div key={rx.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {[rx.drug, rx.strength, rx.form].filter(Boolean).join(' ') || 'Medication'}
                       {rx.isControlled && <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">Controlled</span>}
                     </p>
@@ -372,7 +372,7 @@ export default function PatientDetailPage() {
                       Qty {rx.quantity ?? '—'} · {rx.refills ?? 0} refills
                     </span>
                   </div>
-                  {rx.sig && <p className="text-sm text-gray-600 mt-1">{rx.sig}</p>}
+                  {rx.sig && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{rx.sig}</p>}
                   {rx.notes && <p className="text-xs text-gray-400 mt-1">{rx.notes}</p>}
                 </div>
               ))}
@@ -390,22 +390,22 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {labResults.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No lab results recorded</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No lab results recorded</div>
           ) : (
             <div className="space-y-2">
               {labResults.map((l) => (
-                <div key={l.id} className="bg-white rounded-xl border p-4">
+                <div key={l.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <p className="font-medium text-gray-900">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {l.testName || 'Lab'}
-                      {l.category && <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{l.category}</span>}
+                      {l.category && <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{l.category}</span>}
                     </p>
                     <div className="flex items-center gap-3">
-                      {l.status && <span className="text-xs text-gray-500 capitalize">{l.status}</span>}
+                      {l.status && <span className="text-xs text-gray-500 capitalize dark:text-slate-400">{l.status}</span>}
                       <span className="text-xs text-gray-400">{fmtDate(l.resultDate)}</span>
                     </div>
                   </div>
-                  {l.summary && <p className="text-sm text-gray-600 mt-1">{l.summary}</p>}
+                  {l.summary && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{l.summary}</p>}
                   {l.fileUrl && (
                     <a href={l.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 mt-1">
                       <FileText className="w-3 h-3" /> View file
@@ -440,7 +440,7 @@ function ModalShell({ title, icon, onClose, children }: { title: string; icon: R
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">{icon} {title}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -455,7 +455,7 @@ function ModalShell({ title, icon, onClose, children }: { title: string; icon: R
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{label}</label>
       {children}
     </div>
   );
@@ -514,7 +514,7 @@ function VaccineModal({ patientId, onSave, onClose }: { patientId: string; onSav
         </div>
         <div className="flex items-center gap-2">
           <input id="isRabies" type="checkbox" checked={form.isRabies} onChange={(e) => set('isRabies', e.target.checked)} className="w-4 h-4" />
-          <label htmlFor="isRabies" className="text-sm font-medium text-gray-700">Rabies vaccine</label>
+          <label htmlFor="isRabies" className="text-sm font-medium text-gray-700 dark:text-slate-200">Rabies vaccine</label>
         </div>
         {form.isRabies && (
           <Field label="Rabies Tag"><input type="text" value={form.rabiesTag} onChange={(e) => set('rabiesTag', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></Field>
@@ -565,7 +565,7 @@ function RxModal({ patientId, onSave, onClose }: { patientId: string; onSave: ()
         <Field label="Sig (directions)"><input type="text" value={form.sig} onChange={(e) => set('sig', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="1 tablet PO q12h" /></Field>
         <div className="flex items-center gap-2">
           <input id="isControlled" type="checkbox" checked={form.isControlled} onChange={(e) => set('isControlled', e.target.checked)} className="w-4 h-4" />
-          <label htmlFor="isControlled" className="text-sm font-medium text-gray-700">Controlled substance</label>
+          <label htmlFor="isControlled" className="text-sm font-medium text-gray-700 dark:text-slate-200">Controlled substance</label>
         </div>
         <Field label="Notes"><textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" /></Field>
         <FormButtons saving={saving} onClose={onClose} />

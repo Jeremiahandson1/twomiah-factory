@@ -117,10 +117,10 @@ export default function RemindersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
           <BellRing className="w-6 h-6 text-teal-600" /> Reminders
         </h1>
-        <p className="text-gray-500">Bring patients back in for the care they're due</p>
+        <p className="text-gray-500 dark:text-slate-400">Bring patients back in for the care they're due</p>
       </div>
 
       {/* Tabs */}
@@ -148,26 +148,26 @@ export default function RemindersPage() {
         <div className="flex items-center gap-3">
           {tab === 'due' ? (
             <>
-              <label className="text-sm text-gray-500">Window</label>
+              <label className="text-sm text-gray-500 dark:text-slate-400">Window</label>
               <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))} className="px-3 py-2 border rounded-lg">
                 <option value={30}>30 days</option>
                 <option value={60}>60 days</option>
                 <option value={90}>90 days</option>
               </select>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-gray-500 dark:text-slate-400">
                 {dueCount} due · <span className="text-red-600 font-medium">{overdueCount} overdue</span>
               </span>
             </>
           ) : (
             <>
-              <label className="text-sm text-gray-500">No visit in</label>
+              <label className="text-sm text-gray-500 dark:text-slate-400">No visit in</label>
               <select value={months} onChange={(e) => setMonths(Number(e.target.value))} className="px-3 py-2 border rounded-lg">
                 <option value={6}>6 months</option>
                 <option value={12}>12 months</option>
                 <option value={18}>18 months</option>
                 <option value={24}>24 months</option>
               </select>
-              <span className="text-sm text-gray-500">{lapsedRows.length} lapsed</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">{lapsedRows.length} lapsed</span>
             </>
           )}
         </div>
@@ -185,13 +185,13 @@ export default function RemindersPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : rows.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">
           {tab === 'due' ? 'No vaccines due in this window' : 'No lapsed clients'}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-left">
+            <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3 w-10">
                   <input type="checkbox" checked={allSelected} onChange={toggleAll} className="w-4 h-4" />
@@ -216,14 +216,14 @@ export default function RemindersPage() {
                       <td className="px-4 py-3">
                         <input type="checkbox" checked={!!r.ownerId && selected.has(r.ownerId)} onChange={() => toggle(r.ownerId)} disabled={!r.ownerId} className="w-4 h-4" />
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {r.patientName || '—'} <span className="text-xs text-gray-400 capitalize">{r.species}</span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{r.ownerName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.ownerName || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {[r.ownerMobile || r.ownerPhone, r.ownerEmail].filter(Boolean).join(' · ') || '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{r.vaccine || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.vaccine || '—'}</td>
                       <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
                         {fmtDate(r.dueDate)}{r.overdue ? ' (overdue)' : ''}
                       </td>
@@ -234,14 +234,14 @@ export default function RemindersPage() {
                       <td className="px-4 py-3">
                         <input type="checkbox" checked={!!r.ownerId && selected.has(r.ownerId)} onChange={() => toggle(r.ownerId)} disabled={!r.ownerId} className="w-4 h-4" />
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {r.patientName || '—'} <span className="text-xs text-gray-400 capitalize">{r.species}</span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{r.ownerName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.ownerName || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {[r.ownerMobile || r.ownerPhone, r.ownerEmail].filter(Boolean).join(' · ') || '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{fmtDate(r.lastVisit)}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.lastVisit)}</td>
                     </tr>
                   ))}
             </tbody>
@@ -286,7 +286,7 @@ function SendReminderModal({ contactIds, onDone, onClose }: { contactIds: string
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2"><Send className="w-5 h-5 text-teal-600" /> Send Reminder</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -308,9 +308,9 @@ function SendReminderModal({ contactIds, onDone, onClose }: { contactIds: string
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-sm text-gray-500">Sending to {contactIds.length} owner{contactIds.length === 1 ? '' : 's'}.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Sending to {contactIds.length} owner{contactIds.length === 1 ? '' : 's'}.</p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Message</label>
                 <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div className="flex gap-3 pt-2">

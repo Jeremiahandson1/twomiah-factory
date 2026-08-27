@@ -81,7 +81,7 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
       <div className="flex items-center justify-center h-full">
         <div className="text-center p-8">
           <Calculator className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500 mb-4">Select a project to view takeoffs</p>
+          <p className="text-gray-500 mb-4 dark:text-slate-400">Select a project to view takeoffs</p>
           {projects.length > 0 ? (
             <select
               value={projectId}
@@ -103,8 +103,8 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
     <div className="flex h-full flex-col">
       {/* Project selector (standalone mode) */}
       {!propProjectId && projects.length > 1 && (
-        <div className="px-4 py-2 border-b bg-white flex items-center gap-2">
-          <span className="text-sm text-gray-500">Project:</span>
+        <div className="px-4 py-2 border-b bg-white flex items-center gap-2 dark:bg-slate-900">
+          <span className="text-sm text-gray-500 dark:text-slate-400">Project:</span>
           <select
             value={projectId}
             onChange={(e) => { setProjectId(e.target.value); setSelectedSheet(null); }}
@@ -117,9 +117,9 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
 
       <div className="flex flex-1 overflow-hidden">
       {/* Sidebar - Sheets List */}
-      <div className="w-64 border-r bg-gray-50 flex flex-col">
+      <div className="w-64 border-r bg-gray-50 flex flex-col dark:bg-slate-900">
         <div className="p-4 border-b">
-          <h3 className="font-medium text-gray-900">Takeoff Sheets</h3>
+          <h3 className="font-medium text-gray-900 dark:text-slate-100">Takeoff Sheets</h3>
           <button
             onClick={() => setShowNewSheet(true)}
             className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-orange-500 text-white rounded-lg"
@@ -137,12 +137,12 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
                 selectedSheet?.id === sheet.id ? 'bg-orange-50 border-l-4 border-l-orange-500' : ''
               }`}
             >
-              <p className="font-medium text-sm text-gray-900">{sheet.name}</p>
-              <p className="text-xs text-gray-500">{sheet._count?.items || 0} items</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{sheet.name}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">{sheet._count?.items || 0} items</p>
             </button>
           ))}
           {sheets.length === 0 && !loading && (
-            <div className="p-4 text-center text-gray-500 text-sm">
+            <div className="p-4 text-center text-gray-500 text-sm dark:text-slate-400">
               No takeoff sheets yet
             </div>
           )}
@@ -160,9 +160,9 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
             {/* Sheet Header */}
             <div className="p-4 border-b flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-gray-900">{selectedSheet.name}</h2>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{selectedSheet.name}</h2>
                 {selectedSheet.planReference && (
-                  <p className="text-sm text-gray-500">Plan: {selectedSheet.planReference}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Plan: {selectedSheet.planReference}</p>
                 )}
               </div>
               <div className="flex items-center gap-2">
@@ -191,7 +191,7 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
               ) : (
                 <div className="text-center py-12">
                   <Calculator className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-                  <p className="text-gray-500">No measurements yet</p>
+                  <p className="text-gray-500 dark:text-slate-400">No measurements yet</p>
                   <button
                     onClick={() => setShowAddItem(true)}
                     className="mt-4 text-orange-600 hover:text-orange-700"
@@ -208,7 +208,7 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
             )}
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500">
+          <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-slate-400">
             Select or create a takeoff sheet
           </div>
         )}
@@ -262,7 +262,7 @@ function TakeoffItemCard({ item, onUpdate }) {
   ) || 0;
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       {/* Header */}
       <div
         className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
@@ -273,8 +273,8 @@ function TakeoffItemCard({ item, onUpdate }) {
             <Layers className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <p className="font-medium text-gray-900">{item.name}</p>
-            <p className="text-sm text-gray-500">
+            <p className="font-medium text-gray-900 dark:text-slate-100">{item.name}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               {item.location && `${item.location} • `}
               {item.assembly?.name}
             </p>
@@ -282,10 +282,10 @@ function TakeoffItemCard({ item, onUpdate }) {
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">
-            <p className="text-lg font-bold text-gray-900">
+            <p className="text-lg font-bold text-gray-900 dark:text-slate-100">
               {Number(item.measurementValue).toLocaleString()} {MEASUREMENT_LABELS[item.measurementType]?.split(' ')[0]}
             </p>
-            <p className="text-sm text-gray-500">${totalCost.toFixed(2)} materials</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">${totalCost.toFixed(2)} materials</p>
           </div>
           <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
         </div>
@@ -295,42 +295,42 @@ function TakeoffItemCard({ item, onUpdate }) {
       {expanded && (
         <div className="border-t">
           {/* Measurements */}
-          <div className="p-4 bg-gray-50 grid grid-cols-4 gap-4 text-sm">
+          <div className="p-4 bg-gray-50 grid grid-cols-4 gap-4 text-sm dark:bg-slate-900">
             {item.measurementType === 'area' && (
               <>
                 <div>
-                  <span className="text-gray-500">Length:</span>
+                  <span className="text-gray-500 dark:text-slate-400">Length:</span>
                   <span className="ml-2 font-medium">{Number(item.length)} ft</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Width:</span>
+                  <span className="text-gray-500 dark:text-slate-400">Width:</span>
                   <span className="ml-2 font-medium">{Number(item.width)} ft</span>
                 </div>
               </>
             )}
             {item.measurementType === 'linear' && (
               <div>
-                <span className="text-gray-500">Length:</span>
+                <span className="text-gray-500 dark:text-slate-400">Length:</span>
                 <span className="ml-2 font-medium">{Number(item.length)} ft</span>
               </div>
             )}
             {item.measurementType === 'count' && (
               <div>
-                <span className="text-gray-500">Quantity:</span>
+                <span className="text-gray-500 dark:text-slate-400">Quantity:</span>
                 <span className="ml-2 font-medium">{item.quantity}</span>
               </div>
             )}
             <div>
-              <span className="text-gray-500">Waste Factor:</span>
+              <span className="text-gray-500 dark:text-slate-400">Waste Factor:</span>
               <span className="ml-2 font-medium">{Number(item.wasteFactor || item.assembly?.wasteFactor || 0)}%</span>
             </div>
           </div>
 
           {/* Materials List */}
           <div className="p-4">
-            <p className="text-sm font-medium text-gray-700 mb-2">Calculated Materials</p>
+            <p className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Calculated Materials</p>
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
                   <th className="text-left px-3 py-2">Material</th>
                   <th className="text-right px-3 py-2">Base Qty</th>
@@ -390,19 +390,19 @@ function TotalsFooter({ sheetId }) {
   if (!totals?.totals) return null;
 
   return (
-    <div className="border-t bg-gray-50 p-4">
+    <div className="border-t bg-gray-50 p-4 dark:bg-slate-900">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
           <div>
-            <p className="text-sm text-gray-500">Materials</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Materials</p>
             <p className="text-lg font-bold">{totals.totals.materialCount || 0}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Total Cost</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Cost</p>
             <p className="text-lg font-bold text-green-600">${(totals.totals.totalCost || 0).toFixed(2)}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">Total Price</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Price</p>
             <p className="text-lg font-bold">${(totals.totals.totalPrice || 0).toFixed(2)}</p>
           </div>
         </div>
@@ -440,12 +440,12 @@ function NewSheetModal({ projectId, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">New Takeoff Sheet</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
               <input
                 type="text"
                 value={form.name}
@@ -457,7 +457,7 @@ function NewSheetModal({ projectId, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Plan Reference</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan Reference</label>
               <input
                 type="text"
                 value={form.planReference}
@@ -468,7 +468,7 @@ function NewSheetModal({ projectId, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -526,12 +526,12 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Measurement</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Assembly Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Assembly Type</label>
               <select
                 value={form.assemblyId}
                 onChange={(e) => setForm({ ...form, assemblyId: e.target.value })}
@@ -557,7 +557,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name (Optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name (Optional)</label>
                 <input
                   type="text"
                   value={form.name}
@@ -567,7 +567,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
                 <input
                   type="text"
                   value={form.location}
@@ -590,7 +590,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
             {selectedAssembly?.measurementType === 'area' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Length (ft)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Length (ft)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -601,7 +601,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Width (ft)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Width (ft)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -616,7 +616,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
 
             {selectedAssembly?.measurementType === 'linear' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Length (ft)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Length (ft)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -630,7 +630,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
 
             {selectedAssembly?.measurementType === 'count' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
                 <input
                   type="number"
                   value={form.quantity}
@@ -645,7 +645,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
             {selectedAssembly?.measurementType === 'volume' && (
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Length (ft)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Length (ft)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -656,7 +656,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Width (ft)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Width (ft)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -667,7 +667,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Height (ft)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Height (ft)</label>
                   <input
                     type="number"
                     step="0.01"

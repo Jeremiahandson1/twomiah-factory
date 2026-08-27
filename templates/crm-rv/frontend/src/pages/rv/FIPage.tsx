@@ -56,11 +56,11 @@ export default function FIPage() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-1">
         <div className="w-10 h-10 rounded-lg bg-violet-700 flex items-center justify-center text-white"><CreditCard size={22} /></div>
-        <div><h1 className="text-2xl font-bold">F&I / Deal Jacket</h1><p className="text-sm text-gray-500">Structure the deal, present the product menu, submit the credit app to lenders.</p></div>
+        <div><h1 className="text-2xl font-bold">F&I / Deal Jacket</h1><p className="text-sm text-gray-500 dark:text-slate-400">Structure the deal, present the product menu, submit the credit app to lenders.</p></div>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm p-4 mt-4">
-        <label className="text-xs font-medium text-gray-600">Deal / customer</label>
+      <div className="bg-white rounded-xl border shadow-sm p-4 mt-4 dark:bg-slate-900">
+        <label className="text-xs font-medium text-gray-600 dark:text-slate-400">Deal / customer</label>
         <select value={leadId} onChange={(e) => pick(e.target.value)} className="mt-1 block w-full p-2 border rounded-lg text-sm">
           <option value="">Select a lead…</option>
           {leads.map((l) => <option key={l.id} value={l.id}>{l.customerName} — {[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} {l.unitPrice ? `($${Number(l.unitPrice).toLocaleString()})` : ''}</option>)}
@@ -69,17 +69,17 @@ export default function FIPage() {
 
       {lead && <>
         <div className="grid md:grid-cols-2 gap-4 mt-4">
-          <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3">
-            <div className="text-sm font-semibold text-gray-700">Deal structure</div>
+          <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3 dark:bg-slate-900">
+            <div className="text-sm font-semibold text-gray-700 dark:text-slate-200">Deal structure</div>
             {([['Cash price', price, setPrice], ['Trade allowance', trade, setTrade], ['Down payment', down, setDown]] as any[]).map(([label, val, set]) => (
-              <label key={label} className="flex items-center justify-between text-sm"><span className="text-gray-600">{label}</span>
+              <label key={label} className="flex items-center justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">{label}</span>
                 <span className="flex items-center"><span className="text-gray-400 mr-1">$</span><input type="number" value={val} onChange={(e) => set(Number(e.target.value) || 0)} className="w-28 p-1.5 border rounded text-right text-sm" /></span></label>
             ))}
-            <label className="flex items-center justify-between text-sm"><span className="text-gray-600">Term (months)</span>
+            <label className="flex items-center justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Term (months)</span>
               <select value={term} onChange={(e) => setTerm(Number(e.target.value))} className="p-1.5 border rounded text-sm">{[24, 36, 48, 60, 72, 84].map((t) => <option key={t} value={t}>{t}</option>)}</select></label>
           </div>
-          <div className="bg-white rounded-xl border shadow-sm p-4">
-            <div className="text-sm font-semibold text-gray-700 mb-2">F&I menu</div>
+          <div className="bg-white rounded-xl border shadow-sm p-4 dark:bg-slate-900">
+            <div className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">F&I menu</div>
             <div className="space-y-1.5">
               {products.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-gray-50 cursor-pointer">
@@ -92,9 +92,9 @@ export default function FIPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border shadow-sm p-4 mt-4 flex items-center justify-between flex-wrap gap-3">
+        <div className="bg-white rounded-xl border shadow-sm p-4 mt-4 flex items-center justify-between flex-wrap gap-3 dark:bg-slate-900">
           <div className="text-sm">
-            <div className="text-gray-500">Amount financed</div>
+            <div className="text-gray-500 dark:text-slate-400">Amount financed</div>
             <div className="text-2xl font-bold">{money(amountFinanced)}</div>
             <div className="text-xs text-gray-400">+ {money(productTotal)} F&I products · est. {money(estPay)}/mo @ {apr}% / {months}mo</div>
           </div>
@@ -104,19 +104,19 @@ export default function FIPage() {
 
         {decision && (decision.error
           ? <div className="mt-4 bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{decision.error}</div>
-          : <div className="mt-4 bg-white rounded-xl border shadow-sm p-5">
+          : <div className="mt-4 bg-white rounded-xl border shadow-sm p-5 dark:bg-slate-900">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
               {decision.result?.decision === 'approved' ? <CheckCircle2 className="text-green-600" /> : decision.result?.decision === 'declined' ? <XCircle className="text-red-600" /> : <AlertCircle className="text-amber-600" />}
               <span className="text-lg font-bold capitalize">{decision.result?.decision}</span>
-              <span className="text-sm text-gray-500">· {decision.result?.lender}</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">· {decision.result?.lender}</span>
               {!live && <span className="sm:ml-auto text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">demo decision — live via RouteOne / DealerTrack on integration</span>}
             </div>
-            {decision.result?.decision !== 'declined' ? <div className="text-sm text-gray-700 grid grid-cols-3 gap-3 mt-2">
+            {decision.result?.decision !== 'declined' ? <div className="text-sm text-gray-700 grid grid-cols-3 gap-3 mt-2 dark:text-slate-200">
               <div><div className="text-gray-400 text-xs">APR</div>{decision.result?.apr}%</div>
               <div><div className="text-gray-400 text-xs">Term</div>{decision.result?.termMonths} mo</div>
               <div><div className="text-gray-400 text-xs">Approved</div>{money(decision.result?.approvedAmount)}</div>
-            </div> : <div className="text-sm text-gray-600">{decision.result?.reason}</div>}
-            {decision.result?.stipulations?.length > 0 && <div className="mt-3 text-xs text-gray-500"><span className="font-semibold">Stipulations:</span> {decision.result.stipulations.join(', ')}</div>}
+            </div> : <div className="text-sm text-gray-600 dark:text-slate-400">{decision.result?.reason}</div>}
+            {decision.result?.stipulations?.length > 0 && <div className="mt-3 text-xs text-gray-500 dark:text-slate-400"><span className="font-semibold">Stipulations:</span> {decision.result.stipulations.join(', ')}</div>}
           </div>)}
         {decision?.result?.decision && decision.result.decision !== 'declined' && (
           <a href={`/crm/title-reg?lead=${leadId}`} className="mt-3 inline-block text-xs text-violet-700 hover:underline">Approved — send to Title &amp; Registration →</a>

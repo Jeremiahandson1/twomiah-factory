@@ -81,7 +81,7 @@ export default function PortalJobDetail() {
 
       {/* Header */}
       <div>
-        <p className="text-xs font-mono text-gray-500">
+        <p className="text-xs font-mono text-gray-500 dark:text-slate-400">
           {job.jobNumber || `ROOF-${String(job.id).padStart(4, '0')}`}
         </p>
         <h1 className="text-xl font-bold text-white mt-1">
@@ -91,7 +91,7 @@ export default function PortalJobDetail() {
 
       {/* Progress Bar */}
       <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Progress</h3>
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 dark:text-slate-400">Progress</h3>
         <div className="flex items-center gap-0.5 overflow-x-auto pb-1">
           {STAGE_ORDER.map((stage, idx) => {
             const isComplete = idx <= currentStageIdx;
@@ -121,31 +121,31 @@ export default function PortalJobDetail() {
 
       {/* Property */}
       <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5 dark:text-slate-400">
           <Home className="w-3.5 h-3.5" /> Property
         </h3>
         <div className="grid grid-cols-2 gap-3 text-sm">
           {job.address && (
             <div className="col-span-2">
-              <p className="text-gray-500 text-xs">Address</p>
+              <p className="text-gray-500 text-xs dark:text-slate-400">Address</p>
               <p className="text-white">{job.address}</p>
             </div>
           )}
           {job.roofType && (
             <div>
-              <p className="text-gray-500 text-xs">Roof Type</p>
+              <p className="text-gray-500 text-xs dark:text-slate-400">Roof Type</p>
               <p className="text-white">{job.roofType}</p>
             </div>
           )}
           {job.stories && (
             <div>
-              <p className="text-gray-500 text-xs">Stories</p>
+              <p className="text-gray-500 text-xs dark:text-slate-400">Stories</p>
               <p className="text-white">{job.stories}</p>
             </div>
           )}
           {job.totalSquares && (
             <div>
-              <p className="text-gray-500 text-xs">Total Squares</p>
+              <p className="text-gray-500 text-xs dark:text-slate-400">Total Squares</p>
               <p className="text-white">{job.totalSquares}</p>
             </div>
           )}
@@ -155,7 +155,7 @@ export default function PortalJobDetail() {
       {/* Before Photos */}
       {beforePhotos.length > 0 && (
         <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5 dark:text-slate-400">
             <Camera className="w-3.5 h-3.5" /> Before Photos
           </h3>
           <div className="grid grid-cols-3 gap-2">
@@ -171,7 +171,7 @@ export default function PortalJobDetail() {
       {/* After Photos */}
       {afterPhotos.length > 0 && (
         <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5 dark:text-slate-400">
             <Camera className="w-3.5 h-3.5" /> After Photos
           </h3>
           <div className="grid grid-cols-3 gap-2">

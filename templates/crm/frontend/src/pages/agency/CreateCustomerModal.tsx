@@ -217,12 +217,12 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col dark:bg-slate-900">
           {/* Header */}
-          <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50">
+          <div className="px-6 py-4 border-b flex items-center justify-between bg-gray-50 dark:bg-slate-900">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Create New Customer</h2>
-              <p className="text-sm text-gray-500">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Create New Customer</h2>
+              <p className="text-sm text-gray-500 dark:text-slate-400">
                 {step === 1 && 'Company Information'}
                 {step === 2 && 'Select Features'}
                 {step === 3 && 'Admin Account'}
@@ -237,7 +237,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
 
           {/* Progress */}
           {step < 5 && (
-            <div className="px-6 py-3 border-b bg-gray-50">
+            <div className="px-6 py-3 border-b bg-gray-50 dark:bg-slate-900">
               <div className="flex gap-2">
                 {[1, 2, 3, 4].map((s: number) => (
                   <div
@@ -259,7 +259,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                 {/* Basic Info */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                       Company Name *
                     </label>
                     <input
@@ -271,7 +271,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                       URL Slug
                     </label>
                     <div className="flex items-center">
@@ -286,7 +286,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                       Email *
                     </label>
                     <input
@@ -298,7 +298,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                       Phone
                     </label>
                     <input
@@ -313,7 +313,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
 
                 {/* Address */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                     Address
                   </label>
                   <input
@@ -350,10 +350,10 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
 
                 {/* Branding */}
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-3">Branding</h3>
+                  <h3 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Branding</h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="col-span-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                         Logo URL
                       </label>
                       <input
@@ -365,7 +365,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                         Primary Color
                       </label>
                       <div className="flex items-center gap-2">
@@ -384,7 +384,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                         Secondary Color
                       </label>
                       <div className="flex items-center gap-2">
@@ -413,7 +413,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                 {/* Package Presets */}
                 {packages && (
                   <div>
-                    <h3 className="font-medium text-gray-900 mb-3">Quick Start Packages</h3>
+                    <h3 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Quick Start Packages</h3>
                     <div className="grid grid-cols-2 gap-3">
                       {Object.values(packages).map((pkg: PackageInfo) => (
                         <button
@@ -426,12 +426,12 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1">
-                            <span className="font-medium text-gray-900">{pkg.name}</span>
+                            <span className="font-medium text-gray-900 dark:text-slate-100">{pkg.name}</span>
                             {form.selectedPackage === pkg.id && (
                               <CheckCircle className="w-5 h-5 text-orange-500" />
                             )}
                           </div>
-                          <p className="text-sm text-gray-500">{pkg.description}</p>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">{pkg.description}</p>
                           <p className="text-sm font-medium text-orange-600 mt-2">{pkg.price}</p>
                         </button>
                       ))}
@@ -442,8 +442,8 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                 {/* Individual Features */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-gray-900">Or Select Individual Features</h3>
-                    <span className="text-sm text-gray-500">
+                    <h3 className="font-medium text-gray-900 dark:text-slate-100">Or Select Individual Features</h3>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">
                       {form.enabledFeatures.length} selected
                     </span>
                   </div>
@@ -465,13 +465,13 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
             {/* Step 3: Admin Account */}
             {step === 3 && (
               <div className="space-y-4">
-                <p className="text-gray-600 mb-4">
+                <p className="text-gray-600 mb-4 dark:text-slate-400">
                   Create an admin account for this customer. They'll use this to log in.
                 </p>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                       First Name *
                     </label>
                     <input
@@ -482,7 +482,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                       Last Name *
                     </label>
                     <input
@@ -495,7 +495,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                     Email *
                   </label>
                   <input
@@ -508,7 +508,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                     Password (optional - will auto-generate if blank)
                   </label>
                   <input
@@ -525,18 +525,18 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
             {/* Step 4: Review */}
             {step === 4 && (
               <div className="space-y-6">
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Company</h4>
+                <div className="bg-gray-50 rounded-xl p-4 dark:bg-slate-900">
+                  <h4 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Company</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div><span className="text-gray-500">Name:</span> {form.name}</div>
-                    <div><span className="text-gray-500">Slug:</span> /{form.slug}</div>
-                    <div><span className="text-gray-500">Email:</span> {form.email}</div>
-                    <div><span className="text-gray-500">Phone:</span> {form.phone || '-'}</div>
+                    <div><span className="text-gray-500 dark:text-slate-400">Name:</span> {form.name}</div>
+                    <div><span className="text-gray-500 dark:text-slate-400">Slug:</span> /{form.slug}</div>
+                    <div><span className="text-gray-500 dark:text-slate-400">Email:</span> {form.email}</div>
+                    <div><span className="text-gray-500 dark:text-slate-400">Phone:</span> {form.phone || '-'}</div>
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">
+                <div className="bg-gray-50 rounded-xl p-4 dark:bg-slate-900">
+                  <h4 className="font-medium text-gray-900 mb-3 dark:text-slate-100">
                     Features ({form.enabledFeatures.length} enabled)
                   </h4>
                   <div className="flex flex-wrap gap-2">
@@ -546,19 +546,19 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                       </span>
                     ))}
                     {form.enabledFeatures.length > 10 && (
-                      <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-full">
+                      <span className="px-2 py-1 bg-gray-200 text-gray-600 text-xs rounded-full dark:text-slate-400">
                         +{form.enabledFeatures.length - 10} more
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <h4 className="font-medium text-gray-900 mb-3">Admin Account</h4>
+                <div className="bg-gray-50 rounded-xl p-4 dark:bg-slate-900">
+                  <h4 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Admin Account</h4>
                   <div className="text-sm">
-                    <div><span className="text-gray-500">Name:</span> {form.adminFirstName} {form.adminLastName}</div>
-                    <div><span className="text-gray-500">Email:</span> {form.adminEmail}</div>
-                    <div><span className="text-gray-500">Password:</span> {form.adminPassword || '(auto-generated)'}</div>
+                    <div><span className="text-gray-500 dark:text-slate-400">Name:</span> {form.adminFirstName} {form.adminLastName}</div>
+                    <div><span className="text-gray-500 dark:text-slate-400">Email:</span> {form.adminEmail}</div>
+                    <div><span className="text-gray-500 dark:text-slate-400">Password:</span> {form.adminPassword || '(auto-generated)'}</div>
                   </div>
                 </div>
               </div>
@@ -570,17 +570,17 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Customer Created!</h3>
-                <p className="text-gray-600 mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Customer Created!</h3>
+                <p className="text-gray-600 mb-6 dark:text-slate-400">
                   {created.company.name} is ready to use.
                 </p>
 
-                <div className="bg-gray-50 rounded-xl p-4 text-left mb-6">
+                <div className="bg-gray-50 rounded-xl p-4 text-left mb-6 dark:bg-slate-900">
                   <div className="space-y-3">
                     <div>
-                      <label className="text-sm text-gray-500">Login URL</label>
+                      <label className="text-sm text-gray-500 dark:text-slate-400">Login URL</label>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 px-3 py-2 bg-white border rounded text-sm">
+                        <code className="flex-1 px-3 py-2 bg-white border rounded text-sm dark:bg-slate-900">
                           {created.loginUrl}
                         </code>
                         <button
@@ -593,9 +593,9 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
                     </div>
 
                     <div>
-                      <label className="text-sm text-gray-500">Admin Email</label>
+                      <label className="text-sm text-gray-500 dark:text-slate-400">Admin Email</label>
                       <div className="flex items-center gap-2">
-                        <code className="flex-1 px-3 py-2 bg-white border rounded text-sm">
+                        <code className="flex-1 px-3 py-2 bg-white border rounded text-sm dark:bg-slate-900">
                           {created.adminUser.email}
                         </code>
                         <button
@@ -609,7 +609,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
 
                     {created.generatedPassword && (
                       <div>
-                        <label className="text-sm text-gray-500">Generated Password (save this!)</label>
+                        <label className="text-sm text-gray-500 dark:text-slate-400">Generated Password (save this!)</label>
                         <div className="flex items-center gap-2">
                           <code className="flex-1 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded text-sm font-mono">
                             {created.generatedPassword}
@@ -638,7 +638,7 @@ export default function CreateCustomerModal({ onClose, onCreated }: CreateCustom
 
           {/* Footer */}
           {step < 5 && (
-            <div className="px-6 py-4 border-t bg-gray-50 flex justify-between">
+            <div className="px-6 py-4 border-t bg-gray-50 flex justify-between dark:bg-slate-900">
               <button
                 onClick={() => step > 1 ? setStep(step - 1) : onClose()}
                 className="px-4 py-2 border rounded-lg hover:bg-gray-100"
@@ -682,7 +682,7 @@ function FeatureCategory({ category, enabledFeatures, onToggle }: FeatureCategor
     <div className="border rounded-xl overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100"
+        className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 dark:bg-slate-900"
       >
         <div className="flex items-center gap-3">
           {expanded ? (
@@ -690,14 +690,14 @@ function FeatureCategory({ category, enabledFeatures, onToggle }: FeatureCategor
           ) : (
             <ChevronRight className="w-4 h-4 text-gray-400" />
           )}
-          <span className="font-medium text-gray-900">{category.name}</span>
+          <span className="font-medium text-gray-900 dark:text-slate-100">{category.name}</span>
           {category.alwaysEnabled && (
             <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">
               Always included
             </span>
           )}
         </div>
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 dark:text-slate-400">
           {enabledCount}/{features.length}
         </span>
       </button>
@@ -718,11 +718,11 @@ function FeatureCategory({ category, enabledFeatures, onToggle }: FeatureCategor
                 checked={enabledFeatures.includes(feature.id) || !!category.alwaysEnabled}
                 onChange={() => !category.alwaysEnabled && onToggle(feature.id)}
                 disabled={!!category.alwaysEnabled}
-                className="mt-1 w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500"
+                className="mt-1 w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500 dark:border-slate-700"
               />
               <div>
-                <p className="font-medium text-gray-900 text-sm">{feature.name}</p>
-                <p className="text-xs text-gray-500">{feature.description}</p>
+                <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{feature.name}</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">{feature.description}</p>
               </div>
             </label>
           ))}

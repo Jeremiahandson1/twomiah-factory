@@ -65,7 +65,7 @@ export default function ProjectsPage() {
 
   const columns = [
     { key: 'number', label: 'Number', render: (v) => <span className="font-mono text-sm">{v}</span> },
-    { key: 'name', label: 'Name', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500">{r.contact.name}</p>}</div> },
+    { key: 'name', label: 'Name', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500 dark:text-slate-400">{r.contact.name}</p>}</div> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'type', label: 'Type', render: (v) => v || '-' },
     { key: 'estimatedValue', label: 'Value', render: (v) => v ? `$${Number(v).toLocaleString()}` : '-' },

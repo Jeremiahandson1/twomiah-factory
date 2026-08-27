@@ -52,8 +52,8 @@ export default function PortalServiceRequest() {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle className="w-8 h-8 text-green-600" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Request Received</h1>
-        <p className="text-gray-600 mb-1">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Request Received</h1>
+        <p className="text-gray-600 mb-1 dark:text-slate-400">
           We'll be in touch within <strong>{submitted.responseHours} hours</strong>.
         </p>
         <p className="text-sm text-gray-400 mb-8">Reference: {submitted.jobNumber}</p>
@@ -69,17 +69,17 @@ export default function PortalServiceRequest() {
 
   return (
     <div className="px-4 py-6 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">Request Service</h1>
-      <p className="text-sm text-gray-500 mb-6">Tell us what you need help with</p>
+      <h1 className="text-xl font-bold text-gray-900 mb-1 dark:text-slate-100">Request Service</h1>
+      <p className="text-sm text-gray-500 mb-6 dark:text-slate-400">Tell us what you need help with</p>
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {/* Equipment Select */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Equipment</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5 dark:text-slate-200">Equipment</label>
           <select
             value={form.equipmentId}
             onChange={(e) => setForm(f => ({ ...f, equipmentId: e.target.value }))}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:border-slate-700 dark:bg-slate-900"
           >
             <option value="">Other / Not sure</option>
             {equipment.map(eq => (
@@ -92,20 +92,20 @@ export default function PortalServiceRequest() {
 
         {/* Issue Description */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">What's the issue?</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5 dark:text-slate-200">What's the issue?</label>
           <textarea
             value={form.description}
             onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
             placeholder="Describe what's happening..."
             rows={4}
             required
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none dark:border-slate-700"
           />
         </div>
 
         {/* Urgency */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">How urgent is this?</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">How urgent is this?</label>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
@@ -138,7 +138,7 @@ export default function PortalServiceRequest() {
 
         {/* Preferred Contact */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">How should we reach you?</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">How should we reach you?</label>
           <div className="flex gap-2">
             {(['call', 'text', 'email'] as const).map(method => (
               <button

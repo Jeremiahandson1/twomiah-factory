@@ -68,8 +68,8 @@ export default function PortalMessages() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Messages</h1>
+          <p className="text-gray-600 dark:text-slate-400">
             Communicate with your contractor.
             {unreadCount > 0 && (
               <span className="ml-2 text-orange-600 font-medium">{unreadCount} unread</span>
@@ -86,9 +86,9 @@ export default function PortalMessages() {
       </div>
 
       {messages.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No messages yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No messages yet.</p>
           <button
             onClick={() => setShowCompose(true)}
             className="mt-4 text-orange-600 hover:text-orange-700 text-sm font-medium"
@@ -97,7 +97,7 @@ export default function PortalMessages() {
           </button>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y dark:bg-slate-900 dark:border-slate-700">
           {messages.map((message) => {
             const isInbound = message.direction === 'inbound';
             const isUnread = isInbound && message.status !== 'read';
@@ -125,7 +125,7 @@ export default function PortalMessages() {
                         {formatDate(message.createdAt || message.created_at)}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-500 truncate mt-0.5">{message.body}</p>
+                    <p className="text-sm text-gray-500 truncate mt-0.5 dark:text-slate-400">{message.body}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`text-xs ${isInbound ? 'text-blue-600' : 'text-gray-400'}`}>
                         {isInbound ? 'From contractor' : 'Sent by you'}
@@ -190,17 +190,17 @@ function MessageDetail({
         Back to Messages
       </button>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
         <div className="p-6 border-b">
-          <h1 className="text-xl font-bold text-gray-900">{detail.subject || '(No subject)'}</h1>
-          <div className="flex items-center gap-3 mt-2 text-sm text-gray-500">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">{detail.subject || '(No subject)'}</h1>
+          <div className="flex items-center gap-3 mt-2 text-sm text-gray-500 dark:text-slate-400">
             <span>{detail.direction === 'inbound' ? 'From contractor' : 'Sent by you'}</span>
             <span>-</span>
             <span>{new Date(detail.createdAt || detail.created_at || detail.sent_at).toLocaleString()}</span>
           </div>
         </div>
         <div className="p-6">
-          <p className="text-gray-700 whitespace-pre-wrap">{detail.body}</p>
+          <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{detail.body}</p>
         </div>
       </div>
     </div>
@@ -247,36 +247,36 @@ function ComposeMessage({
         Back to Messages
       </button>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
         <div className="p-6 border-b">
-          <h1 className="text-xl font-bold text-gray-900">New Message</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">New Message</h1>
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Subject</label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="What is this about?"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 dark:border-slate-700"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Message</label>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={6}
               placeholder="Type your message..."
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none dark:border-slate-700"
             />
           </div>
         </div>
-        <div className="p-6 bg-gray-50 border-t flex justify-end gap-3">
+        <div className="p-6 bg-gray-50 border-t flex justify-end gap-3 dark:bg-slate-900">
           <button
             onClick={onBack}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
           >
             Cancel
           </button>

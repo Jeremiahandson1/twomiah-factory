@@ -122,7 +122,7 @@ export function AccessibleModal({
         {(title || showCloseButton) && (
           <div className="flex items-center justify-between p-4 border-b">
             {title && (
-              <h2 id="modal-title" className="text-lg font-semibold text-gray-900">
+              <h2 id="modal-title" className="text-lg font-semibold text-gray-900 dark:text-slate-100">
                 {title}
               </h2>
             )}
@@ -184,14 +184,14 @@ export function ConfirmDialog({
       size="sm"
       initialFocusRef={cancelRef}
     >
-      <p className="text-gray-600 mb-6">{message}</p>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">{message}</p>
       <div className="flex justify-end gap-3">
         <button
           ref={cancelRef}
           type="button"
           onClick={onClose}
           disabled={loading}
-          className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400"
+          className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 dark:text-slate-200"
         >
           {cancelText}
         </button>

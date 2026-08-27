@@ -142,7 +142,7 @@ export default function LocationMap({
   if (error) {
     return (
       <div className={`bg-gray-100 rounded-lg flex items-center justify-center ${className}`} style={{ height }}>
-        <div className="text-center text-gray-500">
+        <div className="text-center text-gray-500 dark:text-slate-400">
           <MapPin className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p className="text-sm">{error}</p>
           {address && (
@@ -163,17 +163,17 @@ export default function LocationMap({
         <div className="absolute top-2 right-2 flex gap-1">
           <button
             onClick={openDirections}
-            className="p-2 bg-white rounded-lg shadow hover:bg-gray-50"
+            className="p-2 bg-white rounded-lg shadow hover:bg-gray-50 dark:bg-slate-900"
             title="Get directions"
           >
-            <Navigation className="w-4 h-4 text-gray-700" />
+            <Navigation className="w-4 h-4 text-gray-700 dark:text-slate-200" />
           </button>
           <button
             onClick={openInMaps}
-            className="p-2 bg-white rounded-lg shadow hover:bg-gray-50"
+            className="p-2 bg-white rounded-lg shadow hover:bg-gray-50 dark:bg-slate-900"
             title="Open in Google Maps"
           >
-            <ExternalLink className="w-4 h-4 text-gray-700" />
+            <ExternalLink className="w-4 h-4 text-gray-700 dark:text-slate-200" />
           </button>
         </div>
       )}
@@ -250,8 +250,8 @@ export function MultiLocationMap({
     <div className={className}>
       {/* View toggle */}
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-500">{validLocations.length} locations</span>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <span className="text-sm text-gray-500 dark:text-slate-400">{validLocations.length} locations</span>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 dark:bg-slate-800">
           <button
             onClick={() => setView('map')}
             className={`p-1.5 rounded ${view === 'map' ? 'bg-white shadow' : ''}`}
@@ -274,18 +274,18 @@ export function MultiLocationMap({
           {locations.map((loc, i) => (
             <div
               key={loc.id || i}
-              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
+              className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer dark:bg-slate-900"
               onClick={() => onMarkerClick?.(loc)}
             >
               <div className="p-2 bg-orange-100 rounded-lg">
                 <MapPin className="w-4 h-4 text-orange-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">{loc.title}</p>
-                <p className="text-sm text-gray-500 truncate">{loc.address}</p>
+                <p className="font-medium text-gray-900 truncate dark:text-slate-100">{loc.title}</p>
+                <p className="text-sm text-gray-500 truncate dark:text-slate-400">{loc.address}</p>
               </div>
               {loc.status && (
-                <span className="text-xs text-gray-500">{loc.status}</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">{loc.status}</span>
               )}
             </div>
           ))}
@@ -390,7 +390,7 @@ export function AddressInput({
         onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
         onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
       />
       
       {loading && (
@@ -400,7 +400,7 @@ export function AddressInput({
       )}
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto dark:bg-slate-900 dark:border-slate-700">
           {suggestions.map((s, i) => (
             <button
               key={i}

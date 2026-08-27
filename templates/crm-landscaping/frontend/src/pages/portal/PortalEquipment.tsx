@@ -25,12 +25,12 @@ export default function PortalEquipment() {
 
   return (
     <div className="px-4 py-6 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Your Equipment</h1>
+      <h1 className="text-xl font-bold text-gray-900 mb-4 dark:text-slate-100">Your Equipment</h1>
 
       {equipment.length === 0 ? (
         <div className="text-center py-16">
           <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">No equipment registered yet</p>
+          <p className="text-gray-500 dark:text-slate-400">No equipment registered yet</p>
           <p className="text-sm text-gray-400 mt-1">Contact your service provider to add your systems</p>
         </div>
       ) : (
@@ -41,15 +41,15 @@ export default function PortalEquipment() {
               <Link
                 key={eq.id}
                 to={`/portal/equipment/${eq.id}`}
-                className="block bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
+                className="block bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow dark:bg-slate-900"
               >
                 <div className="flex items-start gap-3">
                   <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                     <Wrench className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900">{eq.name}</h3>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <h3 className="font-semibold text-gray-900 dark:text-slate-100">{eq.name}</h3>
+                    <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">
                       {[eq.manufacturer, eq.model].filter(Boolean).join(' ') || 'No model info'}
                     </p>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">

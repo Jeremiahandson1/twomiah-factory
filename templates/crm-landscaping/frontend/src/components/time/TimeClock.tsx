@@ -119,7 +119,7 @@ export default function TimeClock({ onUpdate }) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
         <div className="flex items-center justify-center py-4">
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
@@ -128,7 +128,7 @@ export default function TimeClock({ onUpdate }) {
   }
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       {/* Header */}
       <div className={`p-4 ${activeEntry ? 'bg-green-500' : 'bg-gray-100'}`}>
         <div className="flex items-center justify-between">
@@ -163,9 +163,9 @@ export default function TimeClock({ onUpdate }) {
 
       {/* Job selection */}
       {showJobSelect && !activeEntry && (
-        <div className="p-4 space-y-3 bg-gray-50">
+        <div className="p-4 space-y-3 bg-gray-50 dark:bg-slate-900">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Service Call (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Service Call (optional)</label>
             <select
               value={selectedJob}
               onChange={(e) => setSelectedJob(e.target.value)}
@@ -181,7 +181,7 @@ export default function TimeClock({ onUpdate }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Project (optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project (optional)</label>
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
@@ -197,7 +197,7 @@ export default function TimeClock({ onUpdate }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
             <input
               type="text"
               value={notes}
@@ -241,7 +241,7 @@ export default function TimeClock({ onUpdate }) {
             {showJobSelect && (
               <button
                 onClick={() => setShowJobSelect(false)}
-                className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                className="w-full px-4 py-2 text-sm text-gray-600 hover:text-gray-800 dark:text-slate-400"
               >
                 Cancel
               </button>
@@ -343,7 +343,7 @@ export function TimeClockCompact({ onUpdate }) {
   return (
     <button
       onClick={handleQuickClockIn}
-      className="flex items-center gap-2 px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+      className="flex items-center gap-2 px-3 py-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors dark:text-slate-400"
       title="Click to clock in"
     >
       <Clock className="w-4 h-4" />

@@ -142,14 +142,14 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
     <div className="photo-gallery">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{title}</h3>
 
         <div className="flex items-center gap-2">
           {/* Category filter */}
           <select
             value={filter}
             onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter(e.target.value)}
-            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           >
             <option value="">All Categories</option>
             {CATEGORIES.map((cat: PhotoCategory) => (
@@ -194,9 +194,9 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
 
       {/* Empty state */}
       {!loading && photos.length === 0 && (
-        <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 text-gray-900">
+        <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300 text-gray-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100">
           <Camera className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 mb-2">No photos yet</p>
+          <p className="text-gray-500 mb-2 dark:text-slate-400">No photos yet</p>
           {showUpload && (
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -214,7 +214,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
           {photos.map((photo: Photo) => (
             <div
               key={photo.id}
-              className="relative group aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer"
+              className="relative group aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer dark:bg-slate-800"
               onClick={() => setSelectedPhoto(photo)}
             >
               <img
@@ -233,12 +233,12 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
 
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <button className="p-2 bg-white rounded-full hover:bg-gray-100">
-                  <ZoomIn className="w-5 h-5 text-gray-700" />
+                <button className="p-2 bg-white rounded-full hover:bg-gray-100 dark:bg-slate-900">
+                  <ZoomIn className="w-5 h-5 text-gray-700 dark:text-slate-200" />
                 </button>
                 <button
                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleDelete(photo.id); }}
-                  className="p-2 bg-white rounded-full hover:bg-red-50"
+                  className="p-2 bg-white rounded-full hover:bg-red-50 dark:bg-slate-900"
                 >
                   <Trash2 className="w-5 h-5 text-red-600" />
                 </button>
@@ -444,7 +444,7 @@ export function PhotoDropzone({ projectId, jobId, onUpload, category }: PhotoDro
         <Camera className="w-10 h-10 text-gray-400 mx-auto" />
       )}
 
-      <p className="mt-2 text-gray-600">
+      <p className="mt-2 text-gray-600 dark:text-slate-400">
         {uploading ? 'Uploading...' : 'Drop photos here or click to upload'}
       </p>
       <p className="text-sm text-gray-400 mt-1">

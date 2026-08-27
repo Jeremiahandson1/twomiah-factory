@@ -245,20 +245,20 @@ export default function BulkActionBar({
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowConfirm(null)} />
           <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                   <AlertTriangle className="w-6 h-6 text-red-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900">Delete {selectedIds.length} items?</h3>
-                  <p className="text-gray-500">This action cannot be undone.</p>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">Delete {selectedIds.length} items?</h3>
+                  <p className="text-gray-500 dark:text-slate-400">This action cannot be undone.</p>
                 </div>
               </div>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowConfirm(null)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
                   Cancel
                 </button>
@@ -314,7 +314,7 @@ export function SelectAllCheckbox({ selectedIds, allIds, onSelectAll, onClearAll
           onClearAll();
         }
       }}
-      className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 text-gray-900"
+      className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
     />
   );
 }

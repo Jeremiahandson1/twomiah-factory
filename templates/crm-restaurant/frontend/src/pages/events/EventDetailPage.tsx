@@ -139,7 +139,7 @@ export default function EventDetailPage() {
   const ev = detail.event;
   if (!ev) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">
         Event not found. <Link to="/crm/events" className="text-teal-600">Back to events</Link>
       </div>
     );
@@ -172,16 +172,16 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/crm/events" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+      <Link to="/crm/events" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400">
         <ArrowLeft className="w-4 h-4" /> Events
       </Link>
 
       {/* Header */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{ev.name || 'Untitled event'}</h1>
-            <p className="text-gray-500 capitalize">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{ev.name || 'Untitled event'}</h1>
+            <p className="text-gray-500 capitalize dark:text-slate-400">
               {prettyType(ev.eventType)}
               {client?.name ? ` · ${client.name}` : ''}
             </p>
@@ -242,22 +242,22 @@ export default function EventDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-400 uppercase">Date</p>
-            <p className="text-sm font-medium text-gray-900 mt-1">{fmtEventDate(ev.eventDate)}</p>
+            <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtEventDate(ev.eventDate)}</p>
             {ev.startTime && <p className="text-xs text-gray-400">{ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}</p>}
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-400 uppercase">Guests</p>
-            <p className="text-xl font-bold text-gray-900">{heads || '—'}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{heads || '—'}</p>
             <p className="text-xs text-gray-400">{ev.guestCountFinal ? 'guaranteed' : 'estimated'}</p>
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-400 uppercase">F&amp;B Total</p>
-            <p className="text-xl font-bold text-gray-900">{money2(totals.menuTotal)}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.menuTotal)}</p>
             {heads > 0 && <p className="text-xs text-gray-400">{money2(Number(totals.menuTotal || 0) / heads)} / head</p>}
           </div>
           <div className={`border rounded-lg p-3 ${Number(totals.outstanding || 0) > 0 ? 'bg-amber-50 border-amber-200' : ''}`}>
             <p className="text-xs text-gray-400 uppercase">Outstanding</p>
-            <p className="text-xl font-bold text-gray-900">{money2(totals.outstanding)}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.outstanding)}</p>
             <p className="text-xs text-gray-400">{money2(totals.paid)} paid</p>
           </div>
         </div>
@@ -267,11 +267,11 @@ export default function EventDetailPage() {
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Client</p>
             {client ? (
               <>
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-gray-900 dark:text-slate-100">
                   {ev.contactId ? <Link to={`/crm/contacts`} className="hover:text-teal-600">{client.name}</Link> : client.name}
                 </p>
-                {(client.mobile || client.phone) && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><Phone className="w-3 h-3" /> {client.mobile || client.phone}</p>}
-                {client.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><Mail className="w-3 h-3" /> {client.email}</p>}
+                {(client.mobile || client.phone) && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Phone className="w-3 h-3" /> {client.mobile || client.phone}</p>}
+                {client.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {client.email}</p>}
               </>
             ) : <p className="text-sm text-gray-400">No client attached</p>}
           </div>
@@ -279,8 +279,8 @@ export default function EventDetailPage() {
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Space</p>
             {space ? (
               <>
-                <p className="font-medium text-gray-900 flex items-center gap-2"><DoorOpen className="w-4 h-4 text-gray-400" /> {space.name}</p>
-                <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
+                <p className="font-medium text-gray-900 flex items-center gap-2 dark:text-slate-100"><DoorOpen className="w-4 h-4 text-gray-400" /> {space.name}</p>
+                <p className="text-sm text-gray-500 mt-1 flex items-center gap-2 dark:text-slate-400">
                   <Users className="w-3 h-3" />
                   {space.seatedCapacity ? `${space.seatedCapacity} seated` : ''}
                   {space.standingCapacity ? ` · ${space.standingCapacity} standing` : ''}
@@ -294,10 +294,10 @@ export default function EventDetailPage() {
         {ev.setupNotes && (
           <div className="mt-4">
             <p className="text-xs font-medium text-gray-400 uppercase mb-1">Setup</p>
-            <p className="text-sm text-gray-600 whitespace-pre-wrap">{ev.setupNotes}</p>
+            <p className="text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{ev.setupNotes}</p>
           </div>
         )}
-        {ev.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap">{ev.notes}</p>}
+        {ev.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{ev.notes}</p>}
         {ev.status === 'lost' && ev.lostReason && (
           <p className="text-sm text-red-700 mt-3"><span className="font-medium">Lost:</span> {ev.lostReason}</p>
         )}
@@ -314,7 +314,7 @@ export default function EventDetailPage() {
             }`}
           >
             {t.icon} {t.label}
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full">{t.count}</span>
+            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{t.count}</span>
           </button>
         ))}
       </div>
@@ -328,11 +328,11 @@ export default function EventDetailPage() {
             </button>
           </div>
           {menu.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">Nothing on the menu yet</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">Nothing on the menu yet</div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-x-auto">
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 text-left">
+                <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3 font-medium">Item</th>
                     <th className="px-4 py-3 font-medium">Basis</th>
@@ -345,22 +345,22 @@ export default function EventDetailPage() {
                 <tbody className="divide-y">
                   {menu.map((l) => (
                     <tr key={l.id}>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {l.name}
                         {l.notes && <span className="block text-xs text-gray-400 font-normal">{l.notes}</span>}
                       </td>
-                      <td className="px-4 py-3 text-gray-500">{l.perPerson ? 'per person' : 'flat'}</td>
-                      <td className="px-4 py-3 text-gray-600 text-right">{l.quantity}</td>
-                      <td className="px-4 py-3 text-gray-600 text-right">{money2(l.unitPrice)}</td>
-                      <td className="px-4 py-3 text-gray-900 font-medium text-right">{money2(lineTotal(l))}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{l.perPerson ? 'per person' : 'flat'}</td>
+                      <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{l.quantity}</td>
+                      <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{money2(l.unitPrice)}</td>
+                      <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(lineTotal(l))}</td>
                       <td className="px-4 py-3 text-right">
                         <button onClick={() => removeLine('menu', l.id)} className="text-gray-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50">
-                    <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-700">Total</td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900">{money2(totals.menuTotal)}</td>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-200">Total</td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">{money2(totals.menuTotal)}</td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -379,17 +379,17 @@ export default function EventDetailPage() {
             </button>
           </div>
           {timeline.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No run of show yet</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No run of show yet</div>
           ) : (
             <div className="space-y-2">
               {timeline.map((t) => (
-                <div key={t.id} className="bg-white rounded-xl border p-4 flex items-start gap-4">
-                  <div className="w-16 font-medium text-gray-900">{t.time}</div>
+                <div key={t.id} className="bg-white rounded-xl border p-4 flex items-start gap-4 dark:bg-slate-900">
+                  <div className="w-16 font-medium text-gray-900 dark:text-slate-100">{t.time}</div>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{t.title}</p>
-                    {t.details && <p className="text-sm text-gray-500 mt-0.5">{t.details}</p>}
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{t.title}</p>
+                    {t.details && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{t.details}</p>}
                   </div>
-                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">{t.department}</span>
+                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{t.department}</span>
                   <button onClick={() => removeLine('timeline', t.id)} className="text-gray-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
@@ -407,11 +407,11 @@ export default function EventDetailPage() {
             </button>
           </div>
           {payments.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No payment schedule yet</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No payment schedule yet</div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-x-auto">
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 text-left">
+                <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3 font-medium">Stage</th>
                     <th className="px-4 py-3 font-medium">Due</th>
@@ -423,21 +423,21 @@ export default function EventDetailPage() {
                 <tbody className="divide-y">
                   {payments.map((p) => (
                     <tr key={p.id} className={isOverdue(p.dueDate, p.paidAt) ? 'bg-red-50' : ''}>
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {p.label}
                         {p.method && <span className="block text-xs text-gray-400 font-normal">{p.method}{p.reference ? ` · ${p.reference}` : ''}</span>}
                       </td>
                       <td className={`px-4 py-3 ${isOverdue(p.dueDate, p.paidAt) ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
                         {p.dueDate || '—'}{isOverdue(p.dueDate, p.paidAt) ? ' (overdue)' : ''}
                       </td>
-                      <td className="px-4 py-3 text-gray-900 font-medium text-right">{money2(p.amount)}</td>
+                      <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(p.amount)}</td>
                       <td className="px-4 py-3">
                         {p.paidAt ? (
                           <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
                             Paid {new Date(p.paidAt).toISOString().slice(0, 10)}
                           </span>
                         ) : (
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">Scheduled</span>
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Scheduled</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -450,9 +450,9 @@ export default function EventDetailPage() {
                       </td>
                     </tr>
                   ))}
-                  <tr className="bg-gray-50">
-                    <td colSpan={2} className="px-4 py-3 text-right font-semibold text-gray-700">Paid / Outstanding</td>
-                    <td className="px-4 py-3 text-right font-bold text-gray-900">{money2(totals.paid)} / {money2(totals.outstanding)}</td>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <td colSpan={2} className="px-4 py-3 text-right font-semibold text-gray-700 dark:text-slate-200">Paid / Outstanding</td>
+                    <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">{money2(totals.paid)} / {money2(totals.outstanding)}</td>
                     <td colSpan={2}></td>
                   </tr>
                 </tbody>
@@ -477,7 +477,7 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{title}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -572,49 +572,49 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
     <ModalShell title="Edit Event" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Event name <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event name <span className="text-red-500">*</span></label>
           <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
             <input type="date" value={form.eventDate} onChange={(e) => set('eventDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">From</label>
             <input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
             <input type="time" value={form.endTime} onChange={(e) => set('endTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
         </div>
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
             <select value={form.eventType} onChange={(e) => set('eventType', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
               {EVENT_TYPES.map((t) => <option key={t} value={t}>{prettyType(t)}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Guests (est.)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Guests (est.)</label>
             <input type="number" value={form.guestCount} onChange={(e) => set('guestCount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Guaranteed</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Guaranteed</label>
             <input type="number" value={form.guestCountFinal} onChange={(e) => set('guestCountFinal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Space</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Space</label>
             <select value={form.spaceId} onChange={(e) => set('spaceId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
               <option value="">Not decided yet</option>
               {spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Coordinator</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Coordinator</label>
             <select value={form.coordinatorId} onChange={(e) => set('coordinatorId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
               <option value="">Unassigned</option>
               {staff.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
@@ -623,28 +623,28 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quoted total ($)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quoted total ($)</label>
             <input type="number" step="any" value={form.quotedTotal} onChange={(e) => set('quotedTotal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Deposit required ($)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Deposit required ($)</label>
             <input type="number" step="any" value={form.depositRequired} onChange={(e) => set('depositRequired', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Dietary requirements <span className="text-xs text-gray-400">(shown as a red banner)</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Dietary requirements <span className="text-xs text-gray-400">(shown as a red banner)</span></label>
           <input type="text" value={form.dietaryRequirements} onChange={(e) => set('dietaryRequirements', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="2 x vegan, 1 x severe nut allergy" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Setup notes</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Setup notes</label>
           <textarea value={form.setupNotes} onChange={(e) => set('setupNotes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Lost reason <span className="text-xs text-gray-400">(only used when status is Lost)</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Lost reason <span className="text-xs text-gray-400">(only used when status is Lost)</span></label>
           <input type="text" value={form.lostReason} onChange={(e) => set('lostReason', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Price, date unavailable, went elsewhere..." />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
           <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
         <FormButtons saving={saving} onClose={onClose} />
@@ -715,7 +715,7 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
     <ModalShell title="Add Menu Line" onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Package</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Package</label>
           <select value={form.packageId} onChange={(e) => onPackage(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
             <option value="">Free line (room hire, cake fee, bar tab...)</option>
             {packages.map((p) => (
@@ -731,26 +731,26 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Line name</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Line name</label>
           <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder={form.packageId ? 'Leave blank to use the package name' : 'Room hire, cake cutting, bar tab...'} />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
             <input type="number" value={form.quantity} onChange={(e) => set('quantity', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
             <p className="text-xs text-gray-400 mt-1">{form.perPerson ? 'Number of guests' : 'Number of units'}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Unit price ($)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit price ($)</label>
             <input type="number" step="any" value={form.unitPrice} onChange={(e) => set('unitPrice', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
           </div>
         </div>
         <div className="flex items-center gap-2">
           <input id="perPerson" type="checkbox" checked={form.perPerson} onChange={(e) => set('perPerson', e.target.checked)} className="w-4 h-4" />
-          <label htmlFor="perPerson" className="text-sm font-medium text-gray-700">Priced per person</label>
+          <label htmlFor="perPerson" className="text-sm font-medium text-gray-700 dark:text-slate-200">Priced per person</label>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
           <input type="text" value={form.notes} onChange={(e) => set('notes', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
         </div>
         <FormButtons saving={saving} onClose={onClose} label="Add" />
@@ -792,22 +792,22 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Time <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Time <span className="text-red-500">*</span></label>
             <input type="time" value={form.time} onChange={(e) => set('time', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Department</label>
             <select value={form.department} onChange={(e) => set('department', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
               {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">What happens <span className="text-red-500">*</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">What happens <span className="text-red-500">*</span></label>
           <input type="text" value={form.title} onChange={(e) => set('title', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Guests arrive — canapes passed" required />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Details</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Details</label>
           <textarea value={form.details} onChange={(e) => set('details', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
         <FormButtons saving={saving} onClose={onClose} label="Add" />
@@ -856,30 +856,30 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
       <form onSubmit={submit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Stage</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stage</label>
             <input type="text" value={form.label} onChange={(e) => set('label', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Deposit, Final balance..." />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($) <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount ($) <span className="text-red-500">*</span></label>
             <input type="number" step="any" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Due date</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Due date</label>
           <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
         </div>
         <div className="flex items-center gap-2">
           <input id="paidNow" type="checkbox" checked={form.paidNow} onChange={(e) => set('paidNow', e.target.checked)} className="w-4 h-4" />
-          <label htmlFor="paidNow" className="text-sm font-medium text-gray-700">Already paid</label>
+          <label htmlFor="paidNow" className="text-sm font-medium text-gray-700 dark:text-slate-200">Already paid</label>
         </div>
         {form.paidNow && (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Method</label>
               <input type="text" value={form.method} onChange={(e) => set('method', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Card, transfer, cash" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reference</label>
               <input type="text" value={form.reference} onChange={(e) => set('reference', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
             </div>
           </div>

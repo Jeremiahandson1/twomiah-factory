@@ -21,12 +21,12 @@ export default function PortalAgreements() {
 
   return (
     <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
-      <h1 className="text-xl font-bold text-gray-900">Maintenance Plans</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Maintenance Plans</h1>
 
       {agreements.length === 0 ? (
         <div className="text-center py-12">
           <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500 font-medium">No maintenance plans yet</p>
+          <p className="text-gray-500 font-medium dark:text-slate-400">No maintenance plans yet</p>
           <p className="text-sm text-gray-400 mt-1 mb-6">Regular maintenance keeps your systems running efficiently</p>
           <Link
             to="/portal/service-request"
@@ -39,12 +39,12 @@ export default function PortalAgreements() {
       ) : (
         <>
           {active.map(a => (
-            <div key={a.id} className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div key={a.id} className="bg-white rounded-xl shadow-sm overflow-hidden dark:bg-slate-900">
               <div className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-semibold text-gray-900 text-lg">{a.name}</h3>
-                    <p className="text-sm text-gray-500 mt-0.5">
+                    <h3 className="font-semibold text-gray-900 text-lg dark:text-slate-100">{a.name}</h3>
+                    <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">
                       {a.billingFrequency === 'monthly' ? 'Monthly' : a.billingFrequency === 'annual' ? 'Annual' : a.billingFrequency}
                       {a.amount && ` — $${Number(a.amount).toLocaleString()}`}
                     </p>
@@ -71,20 +71,20 @@ export default function PortalAgreements() {
                 <div className="mt-4 space-y-2 text-sm">
                   {a.startDate && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Start Date</span>
-                      <span className="text-gray-900">{formatDate(a.startDate)}</span>
+                      <span className="text-gray-500 dark:text-slate-400">Start Date</span>
+                      <span className="text-gray-900 dark:text-slate-100">{formatDate(a.startDate)}</span>
                     </div>
                   )}
                   {a.endDate && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Renewal Date</span>
-                      <span className="text-gray-900">{formatDate(a.endDate)}</span>
+                      <span className="text-gray-500 dark:text-slate-400">Renewal Date</span>
+                      <span className="text-gray-900 dark:text-slate-100">{formatDate(a.endDate)}</span>
                     </div>
                   )}
                   {a.renewalType && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Renewal</span>
-                      <span className="text-gray-900 capitalize">{a.renewalType}</span>
+                      <span className="text-gray-500 dark:text-slate-400">Renewal</span>
+                      <span className="text-gray-900 capitalize dark:text-slate-100">{a.renewalType}</span>
                     </div>
                   )}
                 </div>
@@ -92,7 +92,7 @@ export default function PortalAgreements() {
                 {a.terms && (
                   <div className="mt-4 pt-4 border-t">
                     <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Included Services</p>
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">{a.terms}</p>
+                    <p className="text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{a.terms}</p>
                   </div>
                 )}
               </div>
@@ -103,10 +103,10 @@ export default function PortalAgreements() {
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Past Plans</h2>
               {inactive.map(a => (
-                <div key={a.id} className="bg-white rounded-xl p-4 shadow-sm opacity-60">
+                <div key={a.id} className="bg-white rounded-xl p-4 shadow-sm opacity-60 dark:bg-slate-900">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-700">{a.name}</h3>
-                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 capitalize">{a.status}</span>
+                    <h3 className="font-medium text-gray-700 dark:text-slate-200">{a.name}</h3>
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 capitalize dark:bg-slate-800 dark:text-slate-400">{a.status}</span>
                   </div>
                 </div>
               ))}

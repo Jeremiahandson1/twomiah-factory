@@ -119,8 +119,8 @@ export function ReviewSettingsPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Google Reviews</h1>
-        <p className="text-gray-500">Automate review requests after job completion</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Google Reviews</h1>
+        <p className="text-gray-500 dark:text-slate-400">Automate review requests after job completion</p>
       </div>
 
       {/* Stats */}
@@ -153,15 +153,15 @@ export function ReviewSettingsPage() {
       )}
 
       {/* Google Business Connection */}
-      <div className="bg-white rounded-xl border p-6">
-        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
           <Star className="w-5 h-5 text-yellow-500" />
           Google Business Profile
         </h2>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
               Google Place ID
             </label>
             <input
@@ -171,7 +171,7 @@ export function ReviewSettingsPage() {
               placeholder="ChIJ..."
               className="w-full px-3 py-2 border rounded-lg"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">
               Find your Place ID at{' '}
               <a 
                 href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" 
@@ -185,7 +185,7 @@ export function ReviewSettingsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
               Business Name (for messages)
             </label>
             <input
@@ -205,13 +205,13 @@ export function ReviewSettingsPage() {
                   type="text"
                   value={settings.reviewLink}
                   readOnly
-                  className="flex-1 px-3 py-2 bg-white border rounded-lg text-sm"
+                  className="flex-1 px-3 py-2 bg-white border rounded-lg text-sm dark:bg-slate-900"
                 />
                 <a
                   href={settings.reviewLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 bg-white border rounded-lg hover:bg-gray-50"
+                  className="p-2 bg-white border rounded-lg hover:bg-gray-50 dark:bg-slate-900"
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
@@ -222,9 +222,9 @@ export function ReviewSettingsPage() {
       </div>
 
       {/* Automation Settings */}
-      <div className="bg-white rounded-xl border p-6">
-        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <Settings className="w-5 h-5 text-gray-500" />
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
+          <Settings className="w-5 h-5 text-gray-500 dark:text-slate-400" />
           Automation Settings
         </h2>
 
@@ -232,8 +232,8 @@ export function ReviewSettingsPage() {
           {/* Enable Toggle */}
           <label className="flex items-center justify-between">
             <div>
-              <p className="font-medium text-gray-900">Auto-Request Reviews</p>
-              <p className="text-sm text-gray-500">Automatically request reviews after job completion</p>
+              <p className="font-medium text-gray-900 dark:text-slate-100">Auto-Request Reviews</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Automatically request reviews after job completion</p>
             </div>
             <input
               type="checkbox"
@@ -253,7 +253,7 @@ export function ReviewSettingsPage() {
                 className="w-4 h-4 rounded text-orange-500"
               />
               <Phone className="w-5 h-5 text-gray-400" />
-              <span className="text-gray-900">SMS</span>
+              <span className="text-gray-900 dark:text-slate-100">SMS</span>
             </label>
             <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input
@@ -263,14 +263,14 @@ export function ReviewSettingsPage() {
                 className="w-4 h-4 rounded text-orange-500"
               />
               <Mail className="w-5 h-5 text-gray-400" />
-              <span className="text-gray-900">Email</span>
+              <span className="text-gray-900 dark:text-slate-100">Email</span>
             </label>
           </div>
 
           {/* Timing */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                 Send Request After
               </label>
               <select
@@ -286,7 +286,7 @@ export function ReviewSettingsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                 Follow-up After
               </label>
               <select
@@ -304,11 +304,11 @@ export function ReviewSettingsPage() {
 
           {/* Minimum Service Call Value */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
               Minimum Service Call Value (optional)
             </label>
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">$</span>
+              <span className="text-gray-500 dark:text-slate-400">$</span>
               <input
                 type="number"
                 value={settings?.reviewMinimumJobValue || ''}
@@ -316,7 +316,7 @@ export function ReviewSettingsPage() {
                 placeholder="0"
                 className="w-32 px-3 py-2 border rounded-lg"
               />
-              <span className="text-sm text-gray-500">Only request reviews for jobs above this value</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">Only request reviews for jobs above this value</span>
             </div>
           </div>
         </div>
@@ -389,17 +389,17 @@ export function ReviewRequestsList() {
   };
 
   if (loading) {
-    return <div className="animate-pulse bg-gray-100 h-48 rounded-xl" />;
+    return <div className="animate-pulse bg-gray-100 h-48 rounded-xl dark:bg-slate-800" />;
   }
 
   return (
-    <div className="bg-white rounded-xl border">
+    <div className="bg-white rounded-xl border dark:bg-slate-900">
       <div className="p-4 border-b">
-        <h3 className="font-semibold text-gray-900">Recent Review Requests</h3>
+        <h3 className="font-semibold text-gray-900 dark:text-slate-100">Recent Review Requests</h3>
       </div>
       
       {requests.length === 0 ? (
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-gray-500 dark:text-slate-400">
           <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No review requests yet</p>
         </div>
@@ -423,16 +423,16 @@ export function ReviewRequestsList() {
               </div>
               
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 truncate">
+                <p className="font-medium text-gray-900 truncate dark:text-slate-100">
                   {request.contact?.name}
                 </p>
-                <p className="text-sm text-gray-500 truncate">
+                <p className="text-sm text-gray-500 truncate dark:text-slate-400">
                   {request.job?.title}
                 </p>
               </div>
 
               <div className="text-right">
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   {formatDate(request.sentAt || request.createdAt)}
                 </p>
                 <p className={`text-xs capitalize ${

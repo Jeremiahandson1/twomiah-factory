@@ -85,10 +85,10 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-600">{company?.name} performance insights</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Analytics</h1>
+          <p className="text-gray-600 dark:text-slate-400">{company?.name} performance insights</p>
         </div>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 dark:bg-slate-800">
           {periods.map(p => (
             <button
               key={p.value}
@@ -105,14 +105,14 @@ export default function AnalyticsPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-5">
+        <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
               <DollarSign className="w-5 h-5" />
             </div>
-            <span className="text-sm text-gray-500">Total Revenue</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
             ${Number(metrics?.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </p>
           {metrics?.revenueChange != null && (
@@ -122,14 +122,14 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-5">
+        <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
               <Package className="w-5 h-5" />
             </div>
-            <span className="text-sm text-gray-500">Total Orders</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">Total Orders</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{metrics?.totalOrders || 0}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics?.totalOrders || 0}</p>
           {metrics?.ordersChange != null && (
             <p className={`text-sm mt-1 ${metrics.ordersChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {metrics.ordersChange >= 0 ? '+' : ''}{metrics.ordersChange.toFixed(1)}% vs prior
@@ -137,39 +137,39 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-5">
+        <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <span className="text-sm text-gray-500">Avg Order Value</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">Avg Order Value</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">${(metrics?.avgOrderValue || 0).toFixed(2)}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${(metrics?.avgOrderValue || 0).toFixed(2)}</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-5">
+        <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
-            <span className="text-sm text-gray-500">Unique Customers</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">Unique Customers</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{metrics?.uniqueCustomers || 0}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics?.uniqueCustomers || 0}</p>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Revenue Chart */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
             <BarChart3 className="w-5 h-5 text-green-600" />
             Revenue Over Time
           </h2>
           <div className="space-y-2">
             {revenueData.length > 0 ? revenueData.map((day: any, idx: number) => (
               <div key={idx} className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 w-16 shrink-0">{day.label || day.date}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+                <span className="text-xs text-gray-500 w-16 shrink-0 dark:text-slate-400">{day.label || day.date}</span>
+                <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden dark:bg-slate-800">
                   <div
                     className="bg-green-500 h-full rounded-full flex items-center justify-end pr-2"
                     style={{ width: `${(day.revenue / maxRevenue) * 100}%`, minWidth: day.revenue > 0 ? '40px' : '0' }}
@@ -181,14 +181,14 @@ export default function AnalyticsPage() {
                 </div>
               </div>
             )) : (
-              <p className="text-gray-500 text-sm text-center py-8">No revenue data for this period</p>
+              <p className="text-gray-500 text-sm text-center py-8 dark:text-slate-400">No revenue data for this period</p>
             )}
           </div>
         </div>
 
         {/* Product Mix */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
             <Package className="w-5 h-5 text-purple-600" />
             Product Mix
           </h2>
@@ -198,12 +198,12 @@ export default function AnalyticsPage() {
               return (
                 <div key={idx}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-gray-700 capitalize">{item.category || item.name}</span>
-                    <span className="text-sm font-medium text-gray-900">
+                    <span className="text-sm text-gray-700 capitalize dark:text-slate-200">{item.category || item.name}</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-slate-100">
                       ${Number(item.revenue || 0).toLocaleString()} ({item.count || 0} sold)
                     </span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-3">
+                  <div className="w-full bg-gray-100 rounded-full h-3 dark:bg-slate-800">
                     <div
                       className={`h-3 rounded-full ${colors[idx % colors.length]}`}
                       style={{ width: `${((item.revenue || item.count || 0) / maxMix) * 100}%` }}
@@ -212,14 +212,14 @@ export default function AnalyticsPage() {
                 </div>
               );
             }) : (
-              <p className="text-gray-500 text-sm text-center py-8">No product data available</p>
+              <p className="text-gray-500 text-sm text-center py-8 dark:text-slate-400">No product data available</p>
             )}
           </div>
         </div>
 
         {/* Peak Hours */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
             <Clock className="w-5 h-5 text-blue-600" />
             Peak Hours
           </h2>
@@ -234,37 +234,37 @@ export default function AnalyticsPage() {
                 <span className="text-xs text-gray-400">{hour.hour || idx}</span>
               </div>
             )) : (
-              <p className="text-gray-500 text-sm text-center w-full py-8">No peak hour data</p>
+              <p className="text-gray-500 text-sm text-center w-full py-8 dark:text-slate-400">No peak hour data</p>
             )}
           </div>
         </div>
 
         {/* Customer Metrics */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
             <Users className="w-5 h-5 text-amber-600" />
             Customer Insights
           </h2>
           <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">New Customers</p>
-              <p className="text-xl font-bold text-gray-900">{customerMetrics?.newCustomers || 0}</p>
+            <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-sm text-gray-500 dark:text-slate-400">New Customers</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{customerMetrics?.newCustomers || 0}</p>
             </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Returning</p>
-              <p className="text-xl font-bold text-gray-900">{customerMetrics?.returningCustomers || 0}</p>
+            <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-sm text-gray-500 dark:text-slate-400">Returning</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{customerMetrics?.returningCustomers || 0}</p>
             </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Retention Rate</p>
-              <p className="text-xl font-bold text-gray-900">{(customerMetrics?.retentionRate || 0).toFixed(1)}%</p>
+            <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-sm text-gray-500 dark:text-slate-400">Retention Rate</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{(customerMetrics?.retentionRate || 0).toFixed(1)}%</p>
             </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Avg Visits/Customer</p>
-              <p className="text-xl font-bold text-gray-900">{(customerMetrics?.avgVisits || 0).toFixed(1)}</p>
+            <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-sm text-gray-500 dark:text-slate-400">Avg Visits/Customer</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{(customerMetrics?.avgVisits || 0).toFixed(1)}</p>
             </div>
-            <div className="col-span-2 p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Customer Lifetime Value</p>
-              <p className="text-xl font-bold text-gray-900">
+            <div className="col-span-2 p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+              <p className="text-sm text-gray-500 dark:text-slate-400">Customer Lifetime Value</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">
                 ${Number(customerMetrics?.lifetimeValue || 0).toFixed(2)}
               </p>
             </div>

@@ -155,11 +155,11 @@ export default function ProductDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button onClick={() => navigate('/crm/products')} className="p-2 hover:bg-gray-100 rounded-lg">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{product?.name || 'Product'}</h1>
-            <p className="text-gray-500">SKU: {product?.sku || '—'}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{product?.name || 'Product'}</h1>
+            <p className="text-gray-500 dark:text-slate-400">SKU: {product?.sku || '—'}</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -180,9 +180,9 @@ export default function ProductDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Image */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="font-semibold text-gray-900 mb-4">Product Image</h2>
-          <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden mb-4">
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Product Image</h2>
+          <div className="aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden mb-4 dark:bg-slate-800">
             {product?.imageUrl ? (
               <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
             ) : (
@@ -191,7 +191,7 @@ export default function ProductDetailPage() {
           </div>
           <label className="block">
             <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-            <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer text-sm font-medium text-gray-700 transition-colors">
+            <span className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg cursor-pointer text-sm font-medium text-gray-700 transition-colors dark:bg-slate-800 dark:text-slate-200">
               <Upload className="w-4 h-4" /> Upload Image
             </span>
           </label>
@@ -200,24 +200,24 @@ export default function ProductDetailPage() {
         {/* Details */}
         <div className="lg:col-span-2 space-y-6">
           {/* Basic Info */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Basic Information</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Basic Information</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Product Name</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
                 <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
                   {categoryOptions.map(c => (
                     <option key={c.value} value={c.value}>{c.label}</option>
@@ -225,11 +225,11 @@ export default function ProductDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit</label>
                 <select
                   value={form.unit}
                   onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
                   <option value="gram">Gram</option>
                   <option value="eighth">Eighth (3.5g)</option>
@@ -241,45 +241,45 @@ export default function ProductDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">SKU</label>
                 <input
                   type="text"
                   value={form.sku}
                   onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Barcode</label>
                 <input
                   type="text"
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             </div>
           </div>
 
           {/* Strain / Lab Data */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Strain & Lab Data</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Strain & Lab Data</h2>
             <div className="grid md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Strain Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Strain Type</label>
                 <select
                   value={form.strainType}
                   onChange={(e) => setForm({ ...form, strainType: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
                   {strainTypes.map(s => (
                     <option key={s.value} value={s.value}>{s.label}</option>
@@ -287,59 +287,59 @@ export default function ProductDetailPage() {
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Strain Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Strain Name</label>
                 <input
                   type="text"
                   value={form.strainName}
                   onChange={(e) => setForm({ ...form, strainName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">THC %</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">THC %</label>
                 <input
                   type="number"
                   step="0.1"
                   value={form.thcPercent}
                   onChange={(e) => setForm({ ...form, thcPercent: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">CBD %</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">CBD %</label>
                 <input
                   type="number"
                   step="0.1"
                   value={form.cbdPercent}
                   onChange={(e) => setForm({ ...form, cbdPercent: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             </div>
           </div>
 
           {/* Pricing */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Pricing</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Pricing</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Retail Price ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Retail Price ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Cost Price ($)</label>
                 <input
                   type="number"
                   step="0.01"
                   value={form.costPrice}
                   onChange={(e) => setForm({ ...form, costPrice: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               {form.price && form.costPrice && (
@@ -353,25 +353,25 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Inventory */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Inventory</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Inventory</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Current Stock</label>
                 <input
                   type="number"
                   value={form.stock}
                   onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Threshold</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Low Stock Threshold</label>
                 <input
                   type="number"
                   value={form.lowStockThreshold}
                   onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             </div>

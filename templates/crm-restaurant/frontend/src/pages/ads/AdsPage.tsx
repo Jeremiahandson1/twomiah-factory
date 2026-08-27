@@ -135,7 +135,7 @@ function AdsSettingsTab() {
     } catch {}
   };
 
-  if (loading) return <div className="text-center py-12 text-gray-500">Loading...</div>;
+  if (loading) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</div>;
 
   return (
     <div className="space-y-8">
@@ -847,7 +847,7 @@ function CreateCampaignWizard({ onClose }: { onClose: () => void }) {
                       type="checkbox"
                       checked={targetHomeowners}
                       onChange={e => setTargetHomeowners(e.target.checked)}
-                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 dark:border-slate-700"
                     />
                     <span className="text-sm text-gray-700 dark:text-slate-300">Homeowners only</span>
                   </label>

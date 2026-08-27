@@ -72,8 +72,8 @@ export default function GeofencesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Service Site Geofences</h1>
-          <p className="text-gray-500">Manage auto clock-in zones for job sites</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Service Site Geofences</h1>
+          <p className="text-gray-500 dark:text-slate-400">Manage auto clock-in zones for job sites</p>
         </div>
         <button
           onClick={() => { setEditing(null); setShowForm(true); }}
@@ -116,9 +116,9 @@ export default function GeofencesPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : geofences.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <Target className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No geofences found</p>
+          <p className="text-gray-500 dark:text-slate-400">No geofences found</p>
           <p className="text-sm text-gray-400 mt-1">
             Add geofences to enable auto clock-in at job sites
           </p>
@@ -160,8 +160,8 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
             <Target className={`w-5 h-5 ${geofence.active ? 'text-green-600' : 'text-gray-400'}`} />
           </div>
           <div>
-            <h3 className="font-medium text-gray-900">{geofence.name}</h3>
-            <p className="text-sm text-gray-500">{geofence.radius}m radius</p>
+            <h3 className="font-medium text-gray-900 dark:text-slate-100">{geofence.name}</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{geofence.radius}m radius</p>
           </div>
         </div>
         <button
@@ -174,7 +174,7 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
       </div>
 
       {/* Location */}
-      <div className="text-sm text-gray-500 mb-3">
+      <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">
         <div className="flex items-center gap-1">
           <MapPin className="w-4 h-4" />
           {geofence.address || `${geofence.lat.toFixed(4)}, ${geofence.lng.toFixed(4)}`}
@@ -201,7 +201,7 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
       <div className="flex gap-2 pt-3 border-t">
         <button
           onClick={onEdit}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400"
         >
           <Edit2 className="w-4 h-4" />
           Edit
@@ -306,15 +306,15 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 dark:text-slate-100">
             {geofence ? 'Edit Geofence' : 'Add Geofence'}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
               <input
                 type="text"
                 value={form.name}
@@ -327,7 +327,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
 
             {/* Link to Job */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Link to Job (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Link to Job (optional)</label>
               <select
                 value={form.jobId}
                 onChange={(e) => handleJobSelect(e.target.value)}
@@ -342,7 +342,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
 
             {/* Link to Project */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Link to Project (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Link to Project (optional)</label>
               <select
                 value={form.projectId}
                 onChange={(e) => setForm({ ...form, projectId: e.target.value })}
@@ -357,7 +357,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
 
             {/* Address */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Address</label>
               <input
                 type="text"
                 value={form.address}
@@ -370,7 +370,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
             {/* Coordinates */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Latitude</label>
                 <input
                   type="number"
                   step="any"
@@ -382,7 +382,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Longitude</label>
                 <input
                   type="number"
                   step="any"
@@ -412,7 +412,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
 
             {/* Radius */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                 Radius: {form.radius}m
               </label>
               <input
@@ -424,7 +424,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
                 onChange={(e) => setForm({ ...form, radius: e.target.value })}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400">
                 <span>25m (small site)</span>
                 <span>500m (large site)</span>
               </div>
@@ -435,7 +435,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 Cancel
               </button>

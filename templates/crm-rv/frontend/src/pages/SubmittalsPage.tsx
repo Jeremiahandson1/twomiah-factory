@@ -95,16 +95,16 @@ export default function SubmittalsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileText className="w-6 h-6 text-orange-500" />Submittals</h1>
-          <p className="text-sm text-gray-500 mt-1">Shop drawings, product data, samples, mockups</p>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100"><FileText className="w-6 h-6 text-orange-500" />Submittals</h1>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Shop drawings, product data, samples, mockups</p>
         </div>
         <button onClick={() => setShowCreate(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"><Plus className="w-4 h-4" />New Submittal</button>
       </div>
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
-            <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <thead className="bg-gray-50 border-b dark:bg-slate-900">
+            <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider dark:text-slate-400">
               <th className="px-4 py-3">Number</th>
               <th className="px-4 py-3">Subject</th>
               <th className="px-4 py-3">Project</th>
@@ -122,11 +122,11 @@ export default function SubmittalsPage() {
               <tr key={s.id} className="border-b hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono text-sm">{s.number}</td>
                 <td className="px-4 py-3 font-medium">{s.subject}</td>
-                <td className="px-4 py-3 text-sm text-gray-600">{s.project?.name || '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{s.project?.name || '—'}</td>
                 <td className="px-4 py-3 text-sm">{TYPE_LABELS[s.submittalType] || s.submittalType}</td>
-                <td className="px-4 py-3 text-sm text-gray-500">{s.specSection || '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.specSection || '—'}</td>
                 <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100'}`}>{s.status.replace('_', ' ')}</span></td>
-                <td className="px-4 py-3 text-sm text-gray-500">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     {s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}
@@ -145,7 +145,7 @@ export default function SubmittalsPage() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New Submittal</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>

@@ -46,21 +46,21 @@ export default function PortalProjects() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
-        <p className="text-gray-600">Track the progress of your projects.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Projects</h1>
+        <p className="text-gray-600 dark:text-slate-400">Track the progress of your projects.</p>
       </div>
 
       {projects.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <FolderKanban className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No projects yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No projects yet.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Active projects */}
           {activeProjects.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">
                 Active Projects ({activeProjects.length})
               </h2>
               <div className="grid gap-4">
@@ -74,7 +74,7 @@ export default function PortalProjects() {
           {/* Other projects */}
           {otherProjects.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Other Projects</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">Other Projects</h2>
               <div className="grid gap-4">
                 {otherProjects.map((project) => (
                   <ProjectCard key={project.id} project={project} token={token} />
@@ -94,7 +94,7 @@ function ProjectCard({ project, token }) {
   return (
     <Link
       to={`/portal/${token}/projects/${project.id}`}
-      className="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all"
+      className="block bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all dark:bg-slate-900 dark:border-slate-700"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
@@ -102,10 +102,10 @@ function ProjectCard({ project, token }) {
             <FolderKanban className="w-6 h-6 text-purple-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">{project.name}</h3>
-            <p className="text-sm text-gray-500">{project.number}</p>
+            <h3 className="font-semibold text-gray-900 dark:text-slate-100">{project.name}</h3>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{project.number}</p>
             {address && (
-              <p className="flex items-center gap-1 text-sm text-gray-500 mt-1">
+              <p className="flex items-center gap-1 text-sm text-gray-500 mt-1 dark:text-slate-400">
                 <MapPin className="w-3 h-3" />
                 {address}
               </p>
@@ -123,7 +123,7 @@ function ProjectCard({ project, token }) {
       {project.progress !== null && project.progress !== undefined && (
         <div className="mt-4">
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-gray-600">Progress</span>
+            <span className="text-gray-600 dark:text-slate-400">Progress</span>
             <span className="font-medium">{project.progress}%</span>
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -137,7 +137,7 @@ function ProjectCard({ project, token }) {
 
       {/* Dates */}
       {(project.startDate || project.endDate) && (
-        <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">
+        <div className="flex items-center gap-4 mt-4 text-sm text-gray-500 dark:text-slate-400">
           <Calendar className="w-4 h-4" />
           {project.startDate && (
             <span>Started: {formatDate(project.startDate)}</span>
@@ -185,7 +185,7 @@ export function PortalProjectDetail() {
   }
 
   if (!project) {
-    return <div className="text-center py-12 text-gray-500">Project not found.</div>;
+    return <div className="text-center py-12 text-gray-500 dark:text-slate-400">Project not found.</div>;
   }
 
   const address = [project.address, project.city, project.state, project.zip].filter(Boolean).join(', ');
@@ -196,13 +196,13 @@ export function PortalProjectDetail() {
         ← Back to Projects
       </Link>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
         {/* Header */}
         <div className="p-6 border-b">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
-              <p className="text-gray-500">{project.number}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{project.name}</h1>
+              <p className="text-gray-500 dark:text-slate-400">{project.number}</p>
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[project.status] || STATUS_STYLES.planning}`}>
               {project.status?.replace('_', ' ')}
@@ -214,7 +214,7 @@ export function PortalProjectDetail() {
         {project.progress !== null && (
           <div className="p-6 border-b">
             <div className="flex justify-between text-sm mb-2">
-              <span className="font-medium text-gray-700">Project Progress</span>
+              <span className="font-medium text-gray-700 dark:text-slate-200">Project Progress</span>
               <span className="font-bold text-lg">{project.progress}%</span>
             </div>
             <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
@@ -228,30 +228,30 @@ export function PortalProjectDetail() {
 
         {/* Details */}
         <div className="p-6 border-b">
-          <h3 className="font-semibold text-gray-900 mb-4">Project Details</h3>
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Project Details</h3>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {address && (
               <div>
-                <dt className="text-sm text-gray-500">Location</dt>
-                <dd className="mt-1 text-gray-900">{address}</dd>
+                <dt className="text-sm text-gray-500 dark:text-slate-400">Location</dt>
+                <dd className="mt-1 text-gray-900 dark:text-slate-100">{address}</dd>
               </div>
             )}
             {project.startDate && (
               <div>
-                <dt className="text-sm text-gray-500">Start Date</dt>
-                <dd className="mt-1 text-gray-900">{formatDate(project.startDate)}</dd>
+                <dt className="text-sm text-gray-500 dark:text-slate-400">Start Date</dt>
+                <dd className="mt-1 text-gray-900 dark:text-slate-100">{formatDate(project.startDate)}</dd>
               </div>
             )}
             {project.endDate && (
               <div>
-                <dt className="text-sm text-gray-500">Estimated Completion</dt>
-                <dd className="mt-1 text-gray-900">{formatDate(project.endDate)}</dd>
+                <dt className="text-sm text-gray-500 dark:text-slate-400">Estimated Completion</dt>
+                <dd className="mt-1 text-gray-900 dark:text-slate-100">{formatDate(project.endDate)}</dd>
               </div>
             )}
             {project.description && (
               <div className="sm:col-span-2">
-                <dt className="text-sm text-gray-500">Description</dt>
-                <dd className="mt-1 text-gray-900">{project.description}</dd>
+                <dt className="text-sm text-gray-500 dark:text-slate-400">Description</dt>
+                <dd className="mt-1 text-gray-900 dark:text-slate-100">{project.description}</dd>
               </div>
             )}
           </dl>
@@ -260,13 +260,13 @@ export function PortalProjectDetail() {
         {/* Recent Jobs */}
         {project.jobs?.length > 0 && (
           <div className="p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Recent Work</h3>
+            <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Recent Work</h3>
             <div className="space-y-3">
               {project.jobs.map((job) => (
                 <div key={job.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div>
-                    <p className="font-medium text-gray-900">{job.title}</p>
-                    <p className="text-sm text-gray-500">{job.number}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{job.title}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">{job.number}</p>
                   </div>
                   <div className="text-right">
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
@@ -277,7 +277,7 @@ export function PortalProjectDetail() {
                       {job.status?.replace('_', ' ')}
                     </span>
                     {job.scheduledDate && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">
                         {formatDate(job.scheduledDate)}
                       </p>
                     )}

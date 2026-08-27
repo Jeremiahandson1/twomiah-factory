@@ -43,9 +43,9 @@ export default function PortalLayout() {
   const firstName = contact?.name?.split(' ')[0] || '';
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-slate-900">
       {/* Top bar */}
-      <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+      <header className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30 dark:bg-slate-900">
         <div className="flex items-center gap-3">
           {company?.logo ? (
             <img src={company.logo} alt="" className="w-8 h-8 rounded-lg object-cover" />
@@ -54,10 +54,10 @@ export default function PortalLayout() {
               {company?.name?.[0] || 'P'}
             </div>
           )}
-          <span className="font-semibold text-gray-900 text-sm truncate">{company?.name || 'Customer Portal'}</span>
+          <span className="font-semibold text-gray-900 text-sm truncate dark:text-slate-100">{company?.name || 'Customer Portal'}</span>
         </div>
         <div className="flex items-center gap-3">
-          {firstName && <span className="text-sm text-gray-500 hidden sm:block">Hi, {firstName}</span>}
+          {firstName && <span className="text-sm text-gray-500 hidden sm:block dark:text-slate-400">Hi, {firstName}</span>}
           <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
             <LogOut className="w-5 h-5" />
           </button>
@@ -70,7 +70,7 @@ export default function PortalLayout() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t flex z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t flex z-50 dark:bg-slate-900">
         <BottomTab to="/portal" icon={Home} label="Home" end />
         <BottomTab to="/portal/equipment" icon={Wrench} label="Equipment" />
         <BottomTab to="/portal/agreements" icon={FileText} label="Plans" />

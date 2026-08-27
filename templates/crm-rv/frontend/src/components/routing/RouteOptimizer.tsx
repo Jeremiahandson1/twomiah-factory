@@ -69,7 +69,7 @@ export default function RouteOptimizer({ date = new Date(), userId = null }: Rou
 
   if (!routeData?.optimizedRoute) {
     return (
-      <div className="p-8 text-center text-gray-500">
+      <div className="p-8 text-center text-gray-500 dark:text-slate-400">
         <Navigation className="w-12 h-12 mx-auto mb-3 opacity-50" />
         <p>{routeData?.message || 'No jobs with coordinates to optimize'}</p>
       </div>
@@ -123,9 +123,9 @@ export default function RouteOptimizer({ date = new Date(), userId = null }: Rou
       )}
 
       {/* Optimized Order */}
-      <div className="bg-white rounded-xl border overflow-hidden">
+      <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
         <div className="p-4 border-b flex items-center justify-between">
-          <h3 className="font-medium text-gray-900">Optimized Route</h3>
+          <h3 className="font-medium text-gray-900 dark:text-slate-100">Optimized Route</h3>
           <div className="flex items-center gap-2">
             <button
               onClick={loadRoute}
@@ -163,26 +163,26 @@ export default function RouteOptimizer({ date = new Date(), userId = null }: Rou
 
       {/* Leg Details */}
       {(optimizedRoute.legs?.length ?? 0) > 0 && (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
           <div className="p-4 border-b">
-            <h3 className="font-medium text-gray-900">Route Legs</h3>
+            <h3 className="font-medium text-gray-900 dark:text-slate-100">Route Legs</h3>
           </div>
           <div className="divide-y">
             {optimizedRoute.legs!.map((leg, index) => (
               <div key={index} className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium">
+                  <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium dark:bg-slate-800">
                     {index + 1}
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">
                       {leg.from.name || 'Stop ' + (index + 1)} → {leg.to.name || 'Stop ' + (index + 2)}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="font-medium">{leg.distanceMiles.toFixed(1)} mi</p>
-                  <p className="text-sm text-gray-500">{leg.durationMinutes} min</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{leg.durationMinutes} min</p>
                 </div>
               </div>
             ))}
@@ -229,9 +229,9 @@ function StopItem({ stop, index, isFirst, isLast, leg }: StopItemProps) {
 
       {/* Stop Info */}
       <div className="flex-1">
-        <p className="font-medium text-gray-900">{stop.name || `Stop ${index + 1}`}</p>
+        <p className="font-medium text-gray-900 dark:text-slate-100">{stop.name || `Stop ${index + 1}`}</p>
         {stop.address && (
-          <p className="text-sm text-gray-500 mt-0.5">{stop.address}</p>
+          <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{stop.address}</p>
         )}
         {stop.scheduledTime && (
           <p className="text-sm text-gray-400 mt-0.5">
@@ -242,7 +242,7 @@ function StopItem({ stop, index, isFirst, isLast, leg }: StopItemProps) {
 
       {/* Distance to next */}
       {leg && !isLast && (
-        <div className="text-right text-sm text-gray-500">
+        <div className="text-right text-sm text-gray-500 dark:text-slate-400">
           <p>{leg.distanceMiles.toFixed(1)} mi</p>
           <p>{leg.durationMinutes} min</p>
         </div>
@@ -280,8 +280,8 @@ export function TeamRoutesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Team Routes</h1>
-          <p className="text-gray-500">Optimized routes for all field techs</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Team Routes</h1>
+          <p className="text-gray-500 dark:text-slate-400">Optimized routes for all field techs</p>
         </div>
         <div className="flex items-center gap-4">
           <input
@@ -315,18 +315,18 @@ export function TeamRoutesPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : teamRoutes?.routes.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-slate-400">
           No scheduled jobs for this date
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {teamRoutes?.routes.map(route => (
-            <div key={route.user.id} className="bg-white rounded-xl border overflow-hidden">
-              <div className="p-4 border-b bg-gray-50">
-                <h3 className="font-medium text-gray-900">
+            <div key={route.user.id} className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+              <div className="p-4 border-b bg-gray-50 dark:bg-slate-900">
+                <h3 className="font-medium text-gray-900 dark:text-slate-100">
                   {route.user.firstName} {route.user.lastName}
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   {route.jobs?.length || 0} jobs • 
                   {route.optimizedRoute ? ` ${route.optimizedRoute.totalDistanceMiles.toFixed(1)} mi` : ' No route'}
                 </p>
@@ -361,7 +361,7 @@ export function TeamRoutesPage() {
                   )}
                 </div>
               ) : (
-                <div className="p-4 text-center text-gray-500">
+                <div className="p-4 text-center text-gray-500 dark:text-slate-400">
                   {route.message || 'No route data'}
                 </div>
               )}

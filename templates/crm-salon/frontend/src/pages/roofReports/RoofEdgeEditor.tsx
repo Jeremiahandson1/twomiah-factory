@@ -365,7 +365,7 @@ export default function RoofEdgeEditor({
       {/* SVG Canvas */}
       <div className="flex-1">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 mb-3 bg-white rounded-lg border p-2 shadow-sm">
+        <div className="flex items-center gap-2 mb-3 bg-white rounded-lg border p-2 shadow-sm dark:bg-slate-900">
           <button
             onClick={() => { setMode('select'); setAddStart(null) }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${mode === 'select' ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}`}
@@ -510,7 +510,7 @@ export default function RoofEdgeEditor({
         </div>
 
         {/* Legend */}
-        <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+        <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-slate-400">
           {EDGE_TYPES.map(t => (
             <span key={t} className="flex items-center gap-1.5">
               <span className="w-4 h-0.5 inline-block rounded" style={{ backgroundColor: EDGE_COLORS[t] }} />
@@ -524,12 +524,12 @@ export default function RoofEdgeEditor({
       <div className="w-64 space-y-4">
         {/* Selected edge controls */}
         {selectedEdge && mode === 'select' && (
-          <div className="bg-white rounded-lg border shadow-sm p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+          <div className="bg-white rounded-lg border shadow-sm p-4 space-y-3 dark:bg-slate-900">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
               <Tag className="w-4 h-4" /> Edge Properties
             </h3>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Type</label>
+              <label className="block text-xs text-gray-500 mb-1 dark:text-slate-400">Type</label>
               <select
                 value={selectedEdge.type}
                 onChange={e => relabelEdge(e.target.value as EdgeType)}
@@ -539,7 +539,7 @@ export default function RoofEdgeEditor({
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Length</label>
+              <label className="block text-xs text-gray-500 mb-1 dark:text-slate-400">Length</label>
               <p className="text-lg font-bold" style={{ color: EDGE_COLORS[selectedEdge.type] }}>
                 {selectedEdge.lengthFt} ft
               </p>
@@ -554,9 +554,9 @@ export default function RoofEdgeEditor({
         )}
 
         {/* Live measurements */}
-        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
-          <div className="px-4 py-2 bg-gray-50 border-b">
-            <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Measurements</h3>
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden dark:bg-slate-900">
+          <div className="px-4 py-2 bg-gray-50 border-b dark:bg-slate-900">
+            <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider dark:text-slate-100">Measurements</h3>
           </div>
           <div className="divide-y divide-gray-100">
             {([
@@ -570,8 +570,8 @@ export default function RoofEdgeEditor({
               ['Ice & Water', measurements.iceWaterShieldSqft, 'sqft'],
             ] as [string, number, string][]).map(([label, val, unit]) => (
               <div key={label} className="flex justify-between px-4 py-2 text-sm">
-                <span className="text-gray-600">{label}</span>
-                <span className="font-medium text-gray-900">{val} {unit}</span>
+                <span className="text-gray-600 dark:text-slate-400">{label}</span>
+                <span className="font-medium text-gray-900 dark:text-slate-100">{val} {unit}</span>
               </div>
             ))}
           </div>

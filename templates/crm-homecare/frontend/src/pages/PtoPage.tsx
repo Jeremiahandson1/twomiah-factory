@@ -61,13 +61,13 @@ export default function PtoPage() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><CalendarDays className="w-6 h-6 text-teal-600" />PTO & Time Off</h1><p className="text-sm text-gray-500 mt-1">Caregiver time-off requests — PTO, vacation, sick leave</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><CalendarDays className="w-6 h-6 text-teal-600" />PTO & Time Off</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Caregiver time-off requests — PTO, vacation, sick leave</p></div>
         <button onClick={() => setShowCreate(true)} className="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Request Time Off</button>
       </div>
 
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b"><tr className="text-left text-xs font-semibold text-gray-500 uppercase"><th className="px-4 py-3">Caregiver</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Start</th><th className="px-4 py-3">End</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
+          <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Caregiver</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Start</th><th className="px-4 py-3">End</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
           <tbody>
             {requests.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No time off requests yet.</td></tr> :
               requests.map((r: any) => (
@@ -76,7 +76,7 @@ export default function PtoPage() {
                   <td className="px-4 py-3 text-sm">{TYPE_LABELS[r.type] || r.type}</td>
                   <td className="px-4 py-3 text-sm">{r.startDate ? formatDate(r.startDate) : '—'}</td>
                   <td className="px-4 py-3 text-sm">{r.endDate ? formatDate(r.endDate) : '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{r.reason || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate dark:text-slate-400">{r.reason || '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[r.status] || 'bg-gray-100'}`}>{r.status || 'pending'}</span></td>
                   <td className="px-4 py-3">
                     {r.status === 'pending' && (
@@ -94,7 +94,7 @@ export default function PtoPage() {
 
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">Request Time Off</h2>
             <form onSubmit={create} className="space-y-3">
               <input required placeholder="Caregiver ID" value={form.caregiverId} onChange={(e) => setForm({ ...form, caregiverId: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
@@ -102,8 +102,8 @@ export default function PtoPage() {
                 <option value="pto">PTO</option><option value="vacation">Vacation</option><option value="sick">Sick Leave</option>
               </select>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-500">Start date</label><input required type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
-                <div><label className="text-xs text-gray-500">End date</label><input required type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Start date</label><input required type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">End date</label><input required type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
               </div>
               <textarea placeholder="Reason (optional)" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} rows={3} className="w-full border rounded-lg px-3 py-2" />
               <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-teal-500 text-white rounded-lg">Submit</button></div>

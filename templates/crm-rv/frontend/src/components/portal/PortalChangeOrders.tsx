@@ -74,20 +74,20 @@ export default function PortalChangeOrders() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Change Orders</h1>
-        <p className="text-gray-600">Review and approve change orders for your projects.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Change Orders</h1>
+        <p className="text-gray-600 dark:text-slate-400">Review and approve change orders for your projects.</p>
       </div>
 
       {changeOrders.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No change orders.</p>
+          <p className="text-gray-500 dark:text-slate-400">No change orders.</p>
         </div>
       ) : (
         <div className="space-y-6">
           {pendingOrders.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
                 <Clock className="w-5 h-5 text-orange-500" />
                 Awaiting Your Approval ({pendingOrders.length})
               </h2>
@@ -100,7 +100,7 @@ export default function PortalChangeOrders() {
           )}
           {otherOrders.length > 0 && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">All Change Orders</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">All Change Orders</h2>
               <div className="space-y-3">
                 {otherOrders.map((co: ChangeOrderData) => (
                   <ChangeOrderCard key={co.id} changeOrder={co} token={token} />
@@ -128,8 +128,8 @@ function ChangeOrderCard({ changeOrder, token, highlight }: ChangeOrderCardProps
             <ClipboardList className={`w-5 h-5 ${isAddition ? 'text-red-600' : 'text-green-600'}`} />
           </div>
           <div>
-            <p className="font-medium text-gray-900">{changeOrder.title || changeOrder.number}</p>
-            <p className="text-sm text-gray-500">{changeOrder.number} {changeOrder.project ? `- ${changeOrder.project.name}` : ''}</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">{changeOrder.title || changeOrder.number}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{changeOrder.number} {changeOrder.project ? `- ${changeOrder.project.name}` : ''}</p>
           </div>
         </div>
         <div className="text-right">
@@ -197,7 +197,7 @@ export function PortalChangeOrderDetail() {
   };
 
   if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>;
-  if (!changeOrder) return <div className="text-center py-12 text-gray-500">Change order not found.</div>;
+  if (!changeOrder) return <div className="text-center py-12 text-gray-500 dark:text-slate-400">Change order not found.</div>;
 
   const canRespond = changeOrder.status === 'pending';
   const isAddition = Number(changeOrder.amount) > 0;
@@ -206,13 +206,13 @@ export function PortalChangeOrderDetail() {
     <div>
       <Link to={`/portal/${token}/change-orders`} className="text-orange-600 hover:underline text-sm mb-4 inline-block">{'<-'} Back to Change Orders</Link>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
         <div className="p-6 border-b">
           <div className="flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{changeOrder.title || changeOrder.number}</h1>
-              <p className="text-gray-500">{changeOrder.number}</p>
-              {changeOrder.project && <p className="text-sm text-gray-500 mt-1">Project: {changeOrder.project.name}</p>}
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{changeOrder.title || changeOrder.number}</h1>
+              <p className="text-gray-500 dark:text-slate-400">{changeOrder.number}</p>
+              {changeOrder.project && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Project: {changeOrder.project.name}</p>}
             </div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[changeOrder.status] || ''}`}>{changeOrder.status}</span>
           </div>
@@ -222,26 +222,26 @@ export function PortalChangeOrderDetail() {
           <div className="flex items-center gap-3">
             <AlertTriangle className={`w-6 h-6 ${isAddition ? 'text-red-600' : 'text-green-600'}`} />
             <div>
-              <p className="text-sm text-gray-600">{isAddition ? 'This change order will ADD to your project cost' : 'This change order will REDUCE your project cost'}</p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">{isAddition ? 'This change order will ADD to your project cost' : 'This change order will REDUCE your project cost'}</p>
               <p className={`text-2xl font-bold ${isAddition ? 'text-red-600' : 'text-green-600'}`}>{isAddition ? '+' : '-'}${Math.abs(Number(changeOrder.amount)).toLocaleString()}</p>
             </div>
           </div>
         </div>
 
         <div className="p-6 border-b">
-          <h3 className="font-medium text-gray-900 mb-2">Description</h3>
-          <p className="text-gray-700 whitespace-pre-wrap">{changeOrder.description || 'No description provided.'}</p>
+          <h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Description</h3>
+          <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{changeOrder.description || 'No description provided.'}</p>
         </div>
 
-        {changeOrder.reason && <div className="p-6 border-b"><h3 className="font-medium text-gray-900 mb-2">Reason for Change</h3><p className="text-gray-700">{changeOrder.reason}</p></div>}
-        {changeOrder.scheduleImpact && <div className="p-6 border-b"><h3 className="font-medium text-gray-900 mb-2">Schedule Impact</h3><p className="text-gray-700">{changeOrder.scheduleImpact}</p></div>}
+        {changeOrder.reason && <div className="p-6 border-b"><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Reason for Change</h3><p className="text-gray-700 dark:text-slate-200">{changeOrder.reason}</p></div>}
+        {changeOrder.scheduleImpact && <div className="p-6 border-b"><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Schedule Impact</h3><p className="text-gray-700 dark:text-slate-200">{changeOrder.scheduleImpact}</p></div>}
 
         {canRespond && (
           <div className="p-6 bg-orange-50 border-t">
-            <p className="text-sm text-gray-600 mb-4">Please review this change order carefully. Your signature is required to approve.</p>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Please review this change order carefully. Your signature is required to approve.</p>
             <div className="flex gap-3">
               <button onClick={() => setShowSignatureModal(true)} disabled={actionLoading} className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"><PenTool className="w-4 h-4" /> Sign & Approve</button>
-              <button onClick={handleReject} disabled={actionLoading} className="flex items-center gap-2 px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"><XCircle className="w-4 h-4" /> Decline</button>
+              <button onClick={handleReject} disabled={actionLoading} className="flex items-center gap-2 px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"><XCircle className="w-4 h-4" /> Decline</button>
             </div>
           </div>
         )}

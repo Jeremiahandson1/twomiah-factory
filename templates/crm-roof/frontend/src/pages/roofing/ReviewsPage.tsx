@@ -46,7 +46,7 @@ export default function ReviewsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Star className="w-6 h-6 text-orange-500" />Reviews</h1>
-          {summary && <p className="text-sm text-gray-500 mt-1">{Number(summary.averageRating || 0).toFixed(1)} ★ average · {summary.totalReviews} reviews</p>}
+          {summary && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{Number(summary.averageRating || 0).toFixed(1)} ★ average · {summary.totalReviews} reviews</p>}
         </div>
         {tab === 'requests' && <button onClick={() => setShowRequest(true)} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />Request Review</button>}
       </div>
@@ -58,24 +58,24 @@ export default function ReviewsPage() {
 
       {tab === 'received' ? (
         <div className="space-y-3">
-          {reviews.length === 0 ? <div className="bg-white rounded-lg border p-12 text-center text-gray-400">No reviews yet. Send review requests to start collecting.</div> :
+          {reviews.length === 0 ? <div className="bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">No reviews yet. Send review requests to start collecting.</div> :
             reviews.map((r) => (
-              <div key={r.id} className="bg-white rounded-lg border p-4">
+              <div key={r.id} className="bg-white rounded-lg border p-4 dark:bg-slate-900">
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-1">{[1,2,3,4,5].map((s) => <Star key={s} className={`w-4 h-4 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />)}</div>
-                    <div className="text-xs text-gray-500 mt-1">{r.reviewerName || 'Anonymous'} · {r.platform} · {formatDate(r.receivedAt)}</div>
+                    <div className="text-xs text-gray-500 mt-1 dark:text-slate-400">{r.reviewerName || 'Anonymous'} · {r.platform} · {formatDate(r.receivedAt)}</div>
                   </div>
                   {r.verified && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Verified</span>}
                 </div>
-                {r.comment && <p className="mt-3 text-sm text-gray-700">{r.comment}</p>}
+                {r.comment && <p className="mt-3 text-sm text-gray-700 dark:text-slate-200">{r.comment}</p>}
               </div>
             ))}
         </div>
       ) : (
-        <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b"><tr className="text-left text-xs font-semibold text-gray-500 uppercase"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Channel</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Sent</th><th className="px-4 py-3"></th></tr></thead>
+            <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Channel</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Sent</th><th className="px-4 py-3"></th></tr></thead>
             <tbody>
               {requests.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No review requests yet.</td></tr> :
                 requests.map((r) => (
@@ -83,7 +83,7 @@ export default function ReviewsPage() {
                     <td className="px-4 py-3 font-mono text-xs">{r.contactId.substring(0, 8)}…</td>
                     <td className="px-4 py-3 text-sm">{r.channel}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[r.status]}`}>{r.status}</span></td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{r.sentAt ? formatDate(r.sentAt) : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{r.sentAt ? formatDate(r.sentAt) : '—'}</td>
                     <td className="px-4 py-3">{r.status === 'pending' && <button onClick={() => markSent(r.id)} className="text-blue-600 text-xs hover:underline flex items-center gap-1"><Send className="w-3 h-3" />Mark Sent</button>}</td>
                   </tr>
                 ))}
@@ -94,7 +94,7 @@ export default function ReviewsPage() {
 
       {showRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl w-full max-w-md p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">Request Review</h2>
             <form onSubmit={createRequest} className="space-y-3">
               <input required placeholder="Contact ID" value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} className="w-full border rounded-lg px-3 py-2" />

@@ -154,7 +154,7 @@ export default function BillsPage() {
       <PageHeader title="Bills" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>Record Bill</Button>} />
       {summary && (
         <div className="mb-4 flex gap-4 flex-wrap text-sm">
-          <div className="bg-white border rounded-lg px-4 py-2">Outstanding: <span className="font-semibold">${Number(summary.outstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div className="bg-white border rounded-lg px-4 py-2 dark:bg-slate-900">Outstanding: <span className="font-semibold">${Number(summary.outstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
           <div className={`border rounded-lg px-4 py-2 ${Number(summary.overdueCount) > 0 ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white'}`}>Overdue: <span className="font-semibold">{Number(summary.overdueCount || 0)}</span></div>
         </div>
       )}
@@ -198,7 +198,7 @@ export default function BillsPage() {
 
       <Modal isOpen={payOpen} onClose={() => setPayOpen(false)} title="Record Payment" size="sm">
         <div className="space-y-3">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-slate-400">
             {payBill ? `${(payBill.number as string) || 'Bill'} — $${Number(payBill.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} total, $${Number(payBill.amountPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })} already paid.` : ''}
           </p>
           <div><label className="block text-sm font-medium mb-1">Payment amount</label>

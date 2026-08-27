@@ -65,13 +65,13 @@ export default function MerchStorePage() {
           {row.imageUrl ? (
             <img src={row.imageUrl} alt={val} className="w-10 h-10 rounded-lg object-cover" />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center dark:bg-slate-800">
               <ShoppingBag className="w-5 h-5 text-gray-400" />
             </div>
           )}
           <div>
-            <p className="font-medium text-gray-900">{val}</p>
-            {row.sku && <p className="text-xs text-gray-500">SKU: {row.sku}</p>}
+            <p className="font-medium text-gray-900 dark:text-slate-100">{val}</p>
+            {row.sku && <p className="text-xs text-gray-500 dark:text-slate-400">SKU: {row.sku}</p>}
           </div>
         </div>
       ),
@@ -79,7 +79,7 @@ export default function MerchStorePage() {
     {
       key: 'price',
       label: 'Price',
-      render: (val: number) => <span className="font-medium text-gray-900">${Number(val || 0).toFixed(2)}</span>,
+      render: (val: number) => <span className="font-medium text-gray-900 dark:text-slate-100">${Number(val || 0).toFixed(2)}</span>,
     },
     {
       key: 'stockQuantity',
@@ -93,7 +93,7 @@ export default function MerchStorePage() {
     {
       key: 'soldCount',
       label: 'Sold',
-      render: (val: number) => <span className="text-gray-700">{val || 0}</span>,
+      render: (val: number) => <span className="text-gray-700 dark:text-slate-200">{val || 0}</span>,
     },
   ];
 
@@ -101,22 +101,22 @@ export default function MerchStorePage() {
     {
       key: 'orderNumber',
       label: 'Order #',
-      render: (val: string, row: any) => <span className="font-medium text-gray-900">#{val || row.id?.slice(0, 8)}</span>,
+      render: (val: string, row: any) => <span className="font-medium text-gray-900 dark:text-slate-100">#{val || row.id?.slice(0, 8)}</span>,
     },
     {
       key: 'customerName',
       label: 'Customer',
-      render: (val: string) => <span className="text-gray-700">{val || 'Guest'}</span>,
+      render: (val: string) => <span className="text-gray-700 dark:text-slate-200">{val || 'Guest'}</span>,
     },
     {
       key: 'itemCount',
       label: 'Items',
-      render: (val: number) => <span className="text-gray-700">{val || 0}</span>,
+      render: (val: number) => <span className="text-gray-700 dark:text-slate-200">{val || 0}</span>,
     },
     {
       key: 'total',
       label: 'Total',
-      render: (val: number) => <span className="font-medium text-gray-900">${Number(val || 0).toFixed(2)}</span>,
+      render: (val: number) => <span className="font-medium text-gray-900 dark:text-slate-100">${Number(val || 0).toFixed(2)}</span>,
     },
     {
       key: 'status',
@@ -135,7 +135,7 @@ export default function MerchStorePage() {
     {
       key: 'createdAt',
       label: 'Date',
-      render: (val: string) => <span className="text-gray-500 text-sm">{val ? formatDate(val) : '—'}</span>,
+      render: (val: string) => <span className="text-gray-500 text-sm dark:text-slate-400">{val ? formatDate(val) : '—'}</span>,
     },
   ];
 
@@ -181,7 +181,7 @@ export default function MerchStorePage() {
             placeholder={tab === 'products' ? 'Search merch...' : 'Search orders...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           />
         </div>
       </div>

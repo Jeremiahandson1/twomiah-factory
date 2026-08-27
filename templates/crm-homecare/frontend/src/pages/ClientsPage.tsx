@@ -34,8 +34,8 @@ export default function ClientsPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Clients</h1>
-          <p className="text-sm text-gray-500">{total} active clients</p>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Clients</h1>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{total} active clients</p>
         </div>
         <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ backgroundColor: 'var(--color-primary)' }}>
           <Plus size={16} /> Add Client
@@ -45,31 +45,31 @@ export default function ClientsPage() {
       <div className="relative mb-4">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input type="text" placeholder="Search clients…" value={search} onChange={e => setSearch(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-300" />
+          className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-blue-300 dark:border-slate-700" />
       </div>
 
       {loading ? <div className="text-gray-400 py-8 text-center">Loading…</div> : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden dark:bg-slate-900">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
+            <thead className="bg-gray-50 border-b border-gray-100 dark:bg-slate-900">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Name</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Service</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Caregiver</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Onboarding</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Phone</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Name</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Service</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Caregiver</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Onboarding</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Phone</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {clients.map(c => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <Link to={`/clients/${c.id}`} className="font-medium text-gray-900 hover:underline">
+                    <Link to={`/clients/${c.id}`} className="font-medium text-gray-900 hover:underline dark:text-slate-100">
                       {c.lastName}, {c.firstName}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{serviceLabel(c.serviceType)}</td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{serviceLabel(c.serviceType)}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     {c.assignments?.[0]?.caregiver ? `${c.assignments[0].caregiver.firstName} ${c.assignments[0].caregiver.lastName}` : <span className="text-yellow-600">Unassigned</span>}
                   </td>
                   <td className="px-4 py-3">
@@ -77,7 +77,7 @@ export default function ClientsPage() {
                       {c.onboarding?.allCompleted ? 'Complete' : 'Pending'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{c.phone || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{c.phone || '—'}</td>
                 </tr>
               ))}
             </tbody>

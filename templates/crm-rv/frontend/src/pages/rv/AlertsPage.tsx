@@ -70,10 +70,10 @@ export default function AlertsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Alerts</h1>
-          <p className="text-gray-500">Service-to-sales opportunities</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Alerts</h1>
+          <p className="text-gray-500 dark:text-slate-400">Service-to-sales opportunities</p>
         </div>
-        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600">
+        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600 dark:text-slate-400">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="w-4 h-4 rounded text-orange-500" />
           Show dismissed
         </label>
@@ -84,7 +84,7 @@ export default function AlertsPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : rows.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No alerts right now</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No alerts right now</div>
       ) : (
         <div className="space-y-3">
           {rows.map((row) => {
@@ -95,8 +95,8 @@ export default function AlertsPage() {
                   <BellRing className={`w-6 h-6 ${dismissed ? 'text-gray-300' : 'text-amber-500'}`} />
                 </div>
                 <div className="flex-1 space-y-1">
-                  <p className="font-medium text-gray-900">{row.customerName || 'A customer'} checked into service</p>
-                  <p className="text-sm text-gray-600">
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{row.customerName || 'A customer'} checked into service</p>
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
                     {row.alert.alertMessage || `Last interested in ${unitDesc(row)}.`}
                   </p>
                   <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap pt-1">

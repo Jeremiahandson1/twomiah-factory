@@ -151,9 +151,9 @@ export default function PurchaseOrdersPage() {
       <PageHeader title="Purchase Orders" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New PO</Button>} />
       {summary && (
         <div className="mb-4 flex gap-4 flex-wrap text-sm">
-          <div className="bg-white border rounded-lg px-4 py-2">Open committed: <span className="font-semibold">${Number(summary.openCommitted || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div className="bg-white border rounded-lg px-4 py-2 dark:bg-slate-900">Open committed: <span className="font-semibold">${Number(summary.openCommitted || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
           {(summary.byStatus as Record<string, { count: number }> | undefined) && Object.entries(summary.byStatus as Record<string, { count: number }>).map(([s, v]) => (
-            <div key={s} className="bg-white border rounded-lg px-4 py-2 capitalize">{s}: <span className="font-semibold">{v.count}</span></div>
+            <div key={s} className="bg-white border rounded-lg px-4 py-2 capitalize dark:bg-slate-900">{s}: <span className="font-semibold">{v.count}</span></div>
           ))}
         </div>
       )}
@@ -197,7 +197,7 @@ export default function PurchaseOrdersPage() {
 
           <div><label className="block text-sm font-medium mb-1">Notes</label>
             <textarea value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
-          <div className="text-right text-sm text-gray-600">Total with tax: <span className="font-semibold text-gray-900">${formTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div className="text-right text-sm text-gray-600 dark:text-slate-400">Total with tax: <span className="font-semibold text-gray-900 dark:text-slate-100">${formTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>

@@ -221,7 +221,7 @@ export default function BatchesPage() {
       <div>
         <button
           onClick={() => { setViewingBatch(null); setBatchDetail(null); }}
-          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-4"
+          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-4 dark:text-slate-400"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Batches
         </button>
@@ -234,8 +234,8 @@ export default function BatchesPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Batch {detail.batchNumber}</h1>
-                <p className="text-gray-600">{detail.productName || 'Unknown Product'}</p>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Batch {detail.batchNumber}</h1>
+                <p className="text-gray-600 dark:text-slate-400">{detail.productName || 'Unknown Product'}</p>
               </div>
               <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusBadge[detail.status] || 'bg-gray-100 text-gray-600'}`}>
                 {detail.status || 'unknown'}
@@ -244,60 +244,60 @@ export default function BatchesPage() {
 
             <div className="grid md:grid-cols-2 gap-6">
               {/* Product Info */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Batch Information</h3>
+              <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+                <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Batch Information</h3>
                 <dl className="space-y-3">
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Batch Number</dt>
-                    <dd className="text-sm font-mono text-gray-900">{detail.batchNumber}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Batch Number</dt>
+                    <dd className="text-sm font-mono text-gray-900 dark:text-slate-100">{detail.batchNumber}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Product</dt>
-                    <dd className="text-sm text-gray-900">{detail.productName || '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Product</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.productName || '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Strain</dt>
-                    <dd className="text-sm text-gray-900">{detail.strain || '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Strain</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.strain || '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Quantity</dt>
-                    <dd className="text-sm text-gray-900">{detail.quantity} {detail.unit}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Quantity</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.quantity} {detail.unit}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">THC</dt>
-                    <dd className="text-sm text-gray-900">{detail.thcPercent != null ? `${detail.thcPercent}%` : '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">THC</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.thcPercent != null ? `${detail.thcPercent}%` : '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">CBD</dt>
-                    <dd className="text-sm text-gray-900">{detail.cbdPercent != null ? `${detail.cbdPercent}%` : '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">CBD</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.cbdPercent != null ? `${detail.cbdPercent}%` : '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Grower</dt>
-                    <dd className="text-sm text-gray-900">{detail.grower || '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Grower</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.grower || '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Metrc Tag</dt>
-                    <dd className="text-sm font-mono text-gray-900">{detail.metrcTag || '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Metrc Tag</dt>
+                    <dd className="text-sm font-mono text-gray-900 dark:text-slate-100">{detail.metrcTag || '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Harvest Date</dt>
-                    <dd className="text-sm text-gray-900">{detail.harvestDate ? formatDate(detail.harvestDate) : '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Harvest Date</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.harvestDate ? formatDate(detail.harvestDate) : '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Package Date</dt>
-                    <dd className="text-sm text-gray-900">{detail.packageDate ? formatDate(detail.packageDate) : '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Package Date</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.packageDate ? formatDate(detail.packageDate) : '—'}</dd>
                   </div>
                   <div className="flex justify-between">
-                    <dt className="text-sm text-gray-500">Expiration</dt>
-                    <dd className="text-sm text-gray-900">{detail.expirationDate ? formatDate(detail.expirationDate) : '—'}</dd>
+                    <dt className="text-sm text-gray-500 dark:text-slate-400">Expiration</dt>
+                    <dd className="text-sm text-gray-900 dark:text-slate-100">{detail.expirationDate ? formatDate(detail.expirationDate) : '—'}</dd>
                   </div>
                 </dl>
               </div>
 
               {/* Quick Actions + Lab Test */}
               <div className="space-y-6">
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+                  <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h3>
                   <div className="flex flex-wrap gap-2">
                     {detail.status === 'active' && (
                       <>
@@ -323,19 +323,19 @@ export default function BatchesPage() {
                       </>
                     )}
                     {(detail.status === 'depleted' || detail.status === 'expired' || detail.status === 'recalled') && (
-                      <p className="text-sm text-gray-500">No actions available for {detail.status} batches.</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">No actions available for {detail.status} batches.</p>
                     )}
                   </div>
                 </div>
 
                 {/* Lab Test Link */}
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
                     <FlaskConical className="w-5 h-5 text-purple-600" /> Lab Test
                   </h3>
                   {detail.labTestId ? (
                     <div className="space-y-2">
-                      <p className="text-sm text-gray-600">Test ID: <span className="font-mono">{detail.labTestId}</span></p>
+                      <p className="text-sm text-gray-600 dark:text-slate-400">Test ID: <span className="font-mono">{detail.labTestId}</span></p>
                       {detail.labTestStatus && (
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
                           detail.labTestStatus === 'passed' ? 'bg-green-100 text-green-700' :
@@ -347,7 +347,7 @@ export default function BatchesPage() {
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500">No lab test linked</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">No lab test linked</p>
                   )}
                 </div>
               </div>
@@ -355,18 +355,18 @@ export default function BatchesPage() {
 
             {/* Status History */}
             {detail.statusHistory && detail.statusHistory.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
                   <Clock className="w-5 h-5 text-blue-600" /> Status History
                 </h3>
                 <div className="space-y-3">
                   {detail.statusHistory.map((entry: any, idx: number) => (
                     <div key={idx} className="flex items-center gap-4 text-sm">
-                      <span className="text-gray-500 w-40">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '—'}</span>
+                      <span className="text-gray-500 w-40 dark:text-slate-400">{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '—'}</span>
                       <span className={`px-2 py-0.5 text-xs rounded-full ${statusBadge[entry.status] || 'bg-gray-100 text-gray-600'}`}>
                         {entry.status}
                       </span>
-                      <span className="text-gray-600">{entry.note || entry.user || ''}</span>
+                      <span className="text-gray-600 dark:text-slate-400">{entry.note || entry.user || ''}</span>
                     </div>
                   ))}
                 </div>
@@ -375,28 +375,28 @@ export default function BatchesPage() {
 
             {/* Inventory Adjustments */}
             {detail.adjustments && detail.adjustments.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-4">Inventory Adjustments</h3>
+              <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+                <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Inventory Adjustments</h3>
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-slate-900">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">By</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Quantity</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Reason</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">By</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {detail.adjustments.map((adj: any, idx: number) => (
                       <tr key={idx}>
-                        <td className="px-4 py-2 text-sm text-gray-500">{adj.date ? formatDate(adj.date) : '—'}</td>
-                        <td className="px-4 py-2 text-sm text-gray-600">{adj.type}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{adj.date ? formatDate(adj.date) : '—'}</td>
+                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">{adj.type}</td>
                         <td className={`px-4 py-2 text-sm text-right font-medium ${adj.quantity < 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {adj.quantity > 0 ? '+' : ''}{adj.quantity}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-600">{adj.reason || '—'}</td>
-                        <td className="px-4 py-2 text-sm text-gray-500">{adj.user || '—'}</td>
+                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400">{adj.reason || '—'}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{adj.user || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -405,9 +405,9 @@ export default function BatchesPage() {
             )}
 
             {detail.notes && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-2">Notes</h3>
-                <p className="text-sm text-gray-600">{detail.notes}</p>
+              <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+                <h3 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Notes</h3>
+                <p className="text-sm text-gray-600 dark:text-slate-400">{detail.notes}</p>
               </div>
             )}
           </div>
@@ -430,8 +430,8 @@ export default function BatchesPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Batches</h1>
-          <p className="text-gray-600">Batch and lot lifecycle management</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Batches</h1>
+          <p className="text-gray-600 dark:text-slate-400">Batch and lot lifecycle management</p>
         </div>
         <Button onClick={openCreateBatch}>
           <Plus className="w-4 h-4 mr-2 inline" />
@@ -468,13 +468,13 @@ export default function BatchesPage() {
             placeholder="Search batches..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
         >
           <option value="">All Statuses</option>
           {BATCH_STATUSES.map(s => (
@@ -484,19 +484,19 @@ export default function BatchesPage() {
       </div>
 
       {/* Batches Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Batch #</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Strain</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">THC %</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiration</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Batch #</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Strain</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Quantity</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">THC %</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Expiration</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -508,23 +508,23 @@ export default function BatchesPage() {
                 </tr>
               ) : batches.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                     {search || statusFilter ? 'No batches match your filters' : 'No batches created yet'}
                   </td>
                 </tr>
               ) : batches.map(batch => (
                 <tr key={batch.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => viewBatchDetail(batch)}>
-                  <td className="px-4 py-3 text-sm font-mono font-medium text-gray-900">{batch.batchNumber}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{batch.productName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{batch.strain || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">{batch.quantity} {batch.unit || ''}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-600">{batch.thcPercent != null ? `${batch.thcPercent}%` : '—'}</td>
+                  <td className="px-4 py-3 text-sm font-mono font-medium text-gray-900 dark:text-slate-100">{batch.batchNumber}</td>
+                  <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{batch.productName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{batch.strain || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">{batch.quantity} {batch.unit || ''}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{batch.thcPercent != null ? `${batch.thcPercent}%` : '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusBadge[batch.status] || 'bg-gray-100 text-gray-600'}`}>
                       {batch.status || 'unknown'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500">
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                     {batch.expirationDate ? formatDate(batch.expirationDate) : '—'}
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -532,7 +532,7 @@ export default function BatchesPage() {
                       {batch.status === 'active' && (
                         <>
                           <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-600 hover:text-yellow-700">Quarantine</button>
-                          <button onClick={() => confirmAction(batch.id, 'deplete', 'Deplete')} className="text-xs text-gray-600 hover:text-gray-900">Deplete</button>
+                          <button onClick={() => confirmAction(batch.id, 'deplete', 'Deplete')} className="text-xs text-gray-600 hover:text-gray-900 dark:text-slate-400">Deplete</button>
                           <button onClick={() => confirmAction(batch.id, 'recall', 'Recall')} className="text-xs text-red-600 hover:text-red-700">Recall</button>
                         </>
                       )}
@@ -548,7 +548,7 @@ export default function BatchesPage() {
         </div>
         {total > 25 && (
           <div className="px-4 py-3 border-t flex items-center justify-between">
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 dark:text-slate-400">
               Page {page} of {Math.ceil(total / 25)} ({total} total)
             </span>
             <div className="flex gap-2">

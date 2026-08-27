@@ -155,12 +155,12 @@ export default function InvoicesPage() {
   const totalPages = Math.ceil(total / limit) || 1;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} {total === 1 ? 'invoice' : 'invoices'}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoices</h1>
+            <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'invoice' : 'invoices'}</p>
           </div>
           <button
             onClick={() => {
@@ -188,20 +188,20 @@ export default function InvoicesPage() {
           ))}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Invoice #</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Contact</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Job</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Total</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Paid</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Balance</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Due Date</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Actions</th>
+                <tr className="bg-gray-50 border-b dark:bg-slate-900">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Invoice #</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Contact</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Job</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Total</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Paid</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Balance</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Due Date</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -220,8 +220,8 @@ export default function InvoicesPage() {
                         >
                           {inv.invoiceNumber || `INV-${String(inv.id).padStart(4, '0')}`}
                         </td>
-                        <td className="px-4 py-3 text-gray-900">{inv.contact ? `${inv.contact.firstName || ''} ${inv.contact.lastName || ''}`.trim() : inv.contactName || '—'}</td>
-                        <td className="px-4 py-3 text-gray-600 text-xs font-mono">
+                        <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{inv.contact ? `${inv.contact.firstName || ''} ${inv.contact.lastName || ''}`.trim() : inv.contactName || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600 text-xs font-mono dark:text-slate-400">
                           {inv.job?.jobNumber || inv.jobNumber || (inv.jobId ? inv.jobId.slice(0, 12) + '...' : '—')}
                         </td>
                         <td className="px-4 py-3">
@@ -229,10 +229,10 @@ export default function InvoicesPage() {
                             {formatStatus(inv.status)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-medium text-gray-900">
+                        <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                           ${Number(inv.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-600">
+                        <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">
                           ${Number(inv.amountPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-3 text-right font-medium">
@@ -240,7 +240,7 @@ export default function InvoicesPage() {
                             ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-500 text-xs">
+                        <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                           {inv.dueDate ? formatDate(inv.dueDate) : '—'}
                         </td>
                         <td className="px-4 py-3">
@@ -275,8 +275,8 @@ export default function InvoicesPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
+              <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />
@@ -293,9 +293,9 @@ export default function InvoicesPage() {
       {/* Create Invoice Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <Receipt className="w-5 h-5 text-blue-600" /> New Invoice
               </h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -303,14 +303,14 @@ export default function InvoicesPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Contact *</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Contact *</label>
                   <select value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                     <option value="">Select contact...</option>
                     {contacts.map((c: any) => <option key={c.id} value={c.id}>{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Job (optional)</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Job (optional)</label>
                   <select value={form.jobId} onChange={(e) => setForm({ ...form, jobId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                     <option value="">No job linked</option>
                     {jobs.map((j: any) => <option key={j.id} value={j.id}>{j.jobNumber || `ROOF-${String(j.id).padStart(4, '0')}`}</option>)}
@@ -318,7 +318,7 @@ export default function InvoicesPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-2">Line Items</label>
+                <label className="text-xs text-gray-500 block mb-2 dark:text-slate-400">Line Items</label>
                 {form.lineItems.map((li, idx) => (
                   <div key={idx} className="flex gap-2 mb-2 items-end">
                     <input
@@ -344,7 +344,7 @@ export default function InvoicesPage() {
                       className="w-24 text-sm border rounded px-2 py-1.5"
                       placeholder="Price"
                     />
-                    <span className="text-sm text-gray-700 w-20 text-right">${(li.quantity * li.unitPrice).toFixed(2)}</span>
+                    <span className="text-sm text-gray-700 w-20 text-right dark:text-slate-200">${(li.quantity * li.unitPrice).toFixed(2)}</span>
                     {form.lineItems.length > 1 && (
                       <button onClick={() => setForm((prev) => ({ ...prev, lineItems: prev.lineItems.filter((_, i) => i !== idx) }))} className="p-1 text-gray-400 hover:text-red-500">
                         <X className="w-3.5 h-3.5" />
@@ -356,9 +356,9 @@ export default function InvoicesPage() {
               </div>
               <div className="flex justify-end">
                 <div className="w-56 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Tax (%)</span>
+                    <span className="text-gray-500 dark:text-slate-400">Tax (%)</span>
                     <input type="number" min={0} step={0.1} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: Number(e.target.value) })} className="w-16 text-sm border rounded px-2 py-1 text-right" />
                   </div>
                   <div className="flex justify-between font-bold border-t pt-1"><span>Total</span><span>${grandTotal.toFixed(2)}</span></div>
@@ -366,17 +366,17 @@ export default function InvoicesPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Due Date</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Due Date</label>
                   <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Notes</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Creating...' : 'Create Invoice'}
               </button>
@@ -388,18 +388,18 @@ export default function InvoicesPage() {
       {/* Record Payment Modal */}
       {paymentOpen && paymentInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPaymentOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Record Payment</h2>
-            <p className="text-sm text-gray-500 mb-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-900 mb-4 dark:text-slate-100">Record Payment</h2>
+            <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
               Invoice {paymentInvoice.invoiceNumber || `INV-${String(paymentInvoice.id).padStart(4, '0')}`}
             </p>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Amount *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Amount *</label>
                 <input type="number" step={0.01} value={payment.amount} onChange={(e) => setPayment({ ...payment, amount: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Method</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Method</label>
                 <select value={payment.method} onChange={(e) => setPayment({ ...payment, method: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                   <option value="card">Card</option>
                   <option value="check">Check</option>
@@ -410,16 +410,16 @@ export default function InvoicesPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Reference #</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Reference #</label>
                 <input value={payment.reference} onChange={(e) => setPayment({ ...payment, reference: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Notes</label>
                 <input value={payment.notes} onChange={(e) => setPayment({ ...payment, notes: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setPaymentOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setPaymentOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={recordPayment} className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">Record</button>
             </div>
           </div>

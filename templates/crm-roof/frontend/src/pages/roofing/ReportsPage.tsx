@@ -29,13 +29,13 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="flex items-center gap-3 text-sm">
-      <span className="w-36 text-gray-600 truncate text-right">{label}</span>
-      <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden">
+      <span className="w-36 text-gray-600 truncate text-right dark:text-slate-400">{label}</span>
+      <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden dark:bg-slate-800">
         <div className="h-full rounded-full flex items-center px-2" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: color }}>
           {pct > 15 && <span className="text-white text-xs font-medium">${value.toLocaleString()}</span>}
         </div>
       </div>
-      {pct <= 15 && <span className="text-xs text-gray-500 w-20">${value.toLocaleString()}</span>}
+      {pct <= 15 && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">${value.toLocaleString()}</span>}
     </div>
   );
 }
@@ -138,53 +138,53 @@ export default function ReportsPage() {
   const maxCrewRev = Math.max(...Object.values(revByCrew), 1);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Reports</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6 dark:text-slate-100">Reports</h1>
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                 <Briefcase className="w-5 h-5 text-blue-600" />
               </div>
-              <span className="text-sm text-gray-500">Total Jobs</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">Total Jobs</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{jobs.length}</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{jobs.length}</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
                 <TrendingUp className="w-5 h-5 text-green-600" />
               </div>
-              <span className="text-sm text-gray-500">Close Rate</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">Close Rate</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{closeRate}%</p>
+            <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{closeRate}%</p>
             <p className="text-xs text-gray-400 mt-1">{signed} signed / {proposalsSent} proposed</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
                 <DollarSign className="w-5 h-5 text-purple-600" />
               </div>
-              <span className="text-sm text-gray-500">Avg Job Value</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">Avg Job Value</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">
               ${avgJobValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
                 <BarChart3 className="w-5 h-5 text-orange-600" />
               </div>
-              <span className="text-sm text-gray-500">Total Revenue</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">
+            <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">
               ${jobs.reduce((s, j) => s + jobValue(j), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </div>
@@ -192,8 +192,8 @@ export default function ReportsPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Pipeline Value by Stage */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Pipeline Value by Stage</h2>
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Pipeline Value by Stage</h2>
             <div className="space-y-2">
               {Object.keys(STAGE_LABELS).map((stage) => {
                 const value = pipelineByStage[stage] || 0;
@@ -213,8 +213,8 @@ export default function ReportsPage() {
           </div>
 
           {/* Jobs by Type */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Jobs by Type</h2>
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Jobs by Type</h2>
             <div className="space-y-3">
               {Object.entries(jobsByType)
                 .sort(([, a], [, b]) => b - a)
@@ -224,10 +224,10 @@ export default function ReportsPage() {
                   return (
                     <div key={type} className="flex items-center gap-3">
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
-                      <span className="text-sm text-gray-700 capitalize flex-1">{type.replace('_', ' ')}</span>
-                      <span className="text-sm font-medium text-gray-900">{count}</span>
+                      <span className="text-sm text-gray-700 capitalize flex-1 dark:text-slate-200">{type.replace('_', ' ')}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{count}</span>
                       <span className="text-xs text-gray-400 w-12 text-right">{pct}%</span>
-                      <div className="w-24 bg-gray-100 rounded-full h-2 overflow-hidden">
+                      <div className="w-24 bg-gray-100 rounded-full h-2 overflow-hidden dark:bg-slate-800">
                         <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
                       </div>
                     </div>
@@ -240,8 +240,8 @@ export default function ReportsPage() {
           </div>
 
           {/* Revenue by Sales Rep */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
               <Users className="w-4 h-4 text-gray-400" /> Revenue by Sales Rep
             </h2>
             <div className="space-y-2">
@@ -257,8 +257,8 @@ export default function ReportsPage() {
           </div>
 
           {/* Revenue by Crew */}
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+          <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
               <Users className="w-4 h-4 text-gray-400" /> Revenue by Crew
             </h2>
             <div className="space-y-2">

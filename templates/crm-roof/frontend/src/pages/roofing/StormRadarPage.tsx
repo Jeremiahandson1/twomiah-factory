@@ -81,7 +81,7 @@ export default function StormRadarPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Radio className="w-6 h-6 text-orange-500" />Storm Radar</h1>
-          <p className="text-sm text-gray-500 mt-1">Weather events overlaid on your customer base — drive storm-season lead generation</p>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Weather events overlaid on your customer base — drive storm-season lead generation</p>
         </div>
         <button onClick={sync} disabled={syncing || !status?.configured} className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg flex items-center gap-2">
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
@@ -107,10 +107,10 @@ export default function StormRadarPage() {
       )}
 
       {/* Recent events */}
-      <div className="bg-white rounded-lg border overflow-hidden mb-6">
+      <div className="bg-white rounded-lg border overflow-hidden mb-6 dark:bg-slate-900">
         <div className="p-4 border-b font-semibold">Recent Storm Events ({events.length})</div>
         <table className="w-full">
-          <thead className="bg-gray-50 border-b"><tr className="text-left text-xs font-semibold text-gray-500 uppercase"><th className="px-4 py-3">Type</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Hail</th><th className="px-4 py-3">Wind</th><th className="px-4 py-3">Started</th><th className="px-4 py-3"></th></tr></thead>
+          <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Type</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Hail</th><th className="px-4 py-3">Wind</th><th className="px-4 py-3">Started</th><th className="px-4 py-3"></th></tr></thead>
           <tbody>
             {events.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No storm events yet. {status?.configured ? 'Click "Sync Now" to pull events.' : 'Configure a weather provider to start pulling events.'}</td></tr> :
               events.map((e) => (
@@ -120,7 +120,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3 text-sm">{e.city ? `${e.city}, ` : ''}{e.state || ''} {e.zip || ''}</td>
                   <td className="px-4 py-3 text-sm">{e.hailSizeInches ? `${e.hailSizeInches}"` : '—'}</td>
                   <td className="px-4 py-3 text-sm">{e.windSpeedMph ? `${e.windSpeedMph} mph` : '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{e.startedAt ? formatDate(e.startedAt) : '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{e.startedAt ? formatDate(e.startedAt) : '—'}</td>
                   <td className="px-4 py-3"><button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline">Match Contacts</button></td>
                 </tr>
               ))}
@@ -129,10 +129,10 @@ export default function StormRadarPage() {
       </div>
 
       {/* Storm leads (matches) */}
-      <div className="bg-white rounded-lg border overflow-hidden">
+      <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
         <div className="p-4 border-b font-semibold">Storm Leads from Matches ({matches.length})</div>
         <table className="w-full">
-          <thead className="bg-gray-50 border-b"><tr className="text-left text-xs font-semibold text-gray-500 uppercase"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Distance</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Matched</th><th className="px-4 py-3">Actions</th></tr></thead>
+          <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Distance</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Matched</th><th className="px-4 py-3">Actions</th></tr></thead>
           <tbody>
             {matches.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No storm leads yet. Match a storm event to contacts to generate leads.</td></tr> :
               matches.map((m) => (
@@ -140,7 +140,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3 font-mono text-xs">{(m.contactId || '').substring(0, 8)}…</td>
                   <td className="px-4 py-3 text-sm">{m.distanceMiles ? `${m.distanceMiles} mi` : '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${MATCH_STATUS_COLORS[m.status] || 'bg-gray-100'}`}>{(m.status || '').replace(/_/g, ' ')}</span></td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(m.createdAt)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(m.createdAt)}</td>
                   <td className="px-4 py-3">
                     <select value={m.status} onChange={(e) => updateMatchStatus(m.id, e.target.value)} className="text-xs border rounded px-2 py-1">
                       <option value="new">New</option><option value="contacted">Contacted</option><option value="quoted">Quoted</option><option value="booked">Booked</option><option value="not_interested">Not Interested</option>

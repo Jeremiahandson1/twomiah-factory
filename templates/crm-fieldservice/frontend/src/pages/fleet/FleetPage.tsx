@@ -46,8 +46,8 @@ export default function FleetPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Fleet</h1>
-          <p className="text-gray-500">Track vehicles, trips, and maintenance</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Fleet</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track vehicles, trips, and maintenance</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -175,9 +175,9 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
 function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }) {
   if (vehicles.length === 0) {
     return (
-      <div className="text-center py-12 bg-gray-50 rounded-xl">
+      <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
         <Truck className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-        <p className="text-gray-500">No vehicles yet</p>
+        <p className="text-gray-500 dark:text-slate-400">No vehicles yet</p>
       </div>
     );
   }
@@ -202,7 +202,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
     (vehicle.nextOilChangeMiles && vehicle.currentMileage >= vehicle.nextOilChangeMiles - 500);
 
   return (
-    <div className="bg-white rounded-xl border p-4 hover:shadow-lg transition-shadow">
+    <div className="bg-white rounded-xl border p-4 hover:shadow-lg transition-shadow dark:bg-slate-900">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
@@ -211,8 +211,8 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
             <Truck className={`w-6 h-6 ${hasAlert ? 'text-red-600' : 'text-gray-600'}`} />
           </div>
           <div>
-            <p className="font-medium text-gray-900">{vehicle.name}</p>
-            <p className="text-sm text-gray-500">
+            <p className="font-medium text-gray-900 dark:text-slate-100">{vehicle.name}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
               {vehicle.year} {vehicle.make} {vehicle.model}
             </p>
           </div>
@@ -228,7 +228,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
 
       {/* Location */}
       {vehicle.currentLocation && (
-        <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+        <div className="mt-3 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
           <MapPin className="w-4 h-4" />
           <span>Last seen {new Date(vehicle.currentLocation.timestamp).toLocaleTimeString()}</span>
         </div>
@@ -237,11 +237,11 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
       {/* Stats */}
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
         <div>
-          <p className="text-gray-500">Mileage</p>
+          <p className="text-gray-500 dark:text-slate-400">Mileage</p>
           <p className="font-medium">{vehicle.currentMileage?.toLocaleString()} mi</p>
         </div>
         <div>
-          <p className="text-gray-500">Assigned To</p>
+          <p className="text-gray-500 dark:text-slate-400">Assigned To</p>
           <p className="font-medium">
             {vehicle.assignedUser ? `${vehicle.assignedUser.firstName} ${vehicle.assignedUser.lastName}` : '-'}
           </p>
@@ -260,14 +260,14 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
       <div className="mt-4 pt-4 border-t flex items-center gap-2">
         <button
           onClick={onFuel}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400"
         >
           <Fuel className="w-4 h-4" />
           Fuel
         </button>
         <button
           onClick={onMaintenance}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400"
         >
           <Wrench className="w-4 h-4" />
           Service
@@ -286,12 +286,12 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
 function FleetMap({ vehicles }) {
   // Simple placeholder - in production would use Google Maps or Mapbox
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       <div className="p-4 border-b">
         <h3 className="font-medium">Live Vehicle Locations</h3>
       </div>
-      <div className="h-96 bg-gray-100 flex items-center justify-center">
-        <div className="text-center text-gray-500">
+      <div className="h-96 bg-gray-100 flex items-center justify-center dark:bg-slate-800">
+        <div className="text-center text-gray-500 dark:text-slate-400">
           <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>Map integration requires Google Maps API key</p>
           <p className="text-sm mt-2">{vehicles.filter(v => v.currentLocation).length} vehicles with locations</p>
@@ -305,7 +305,7 @@ function FleetMap({ vehicles }) {
               <Truck className="w-5 h-5 text-gray-400" />
               <div>
                 <p className="font-medium">{v.name}</p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   {v.currentLocation.lat.toFixed(4)}, {v.currentLocation.lng.toFixed(4)}
                 </p>
               </div>
@@ -348,29 +348,29 @@ function TripsTab() {
   }
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       <table className="w-full">
-        <thead className="bg-gray-50">
+        <thead className="bg-gray-50 dark:bg-slate-900">
           <tr>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Vehicle</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Driver</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Start</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">End</th>
-            <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Distance</th>
-            <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Duration</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Vehicle</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Driver</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Start</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">End</th>
+            <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Distance</th>
+            <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Duration</th>
           </tr>
         </thead>
         <tbody className="divide-y">
           {trips.map(trip => (
             <tr key={trip.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium">{trip.vehicle?.name}</td>
-              <td className="px-4 py-3 text-gray-500">
+              <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                 {trip.driver ? `${trip.driver.firstName} ${trip.driver.lastName}` : '-'}
               </td>
-              <td className="px-4 py-3 text-sm text-gray-500">
+              <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                 {new Date(trip.startTime).toLocaleString()}
               </td>
-              <td className="px-4 py-3 text-sm text-gray-500">
+              <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                 {trip.endTime ? new Date(trip.endTime).toLocaleString() : 'In Progress'}
               </td>
               <td className="px-4 py-3 text-right">{trip.distance?.toFixed(1) || '-'} mi</td>
@@ -380,7 +380,7 @@ function TripsTab() {
         </tbody>
       </table>
       {trips.length === 0 && (
-        <div className="p-8 text-center text-gray-500">No trips recorded</div>
+        <div className="p-8 text-center text-gray-500 dark:text-slate-400">No trips recorded</div>
       )}
     </div>
   );
@@ -420,17 +420,17 @@ function VehicleFormModal({ vehicle, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{vehicle ? 'Edit Vehicle' : 'Add Vehicle'}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
                 <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., Truck 1" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
                 <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="truck">Truck</option>
@@ -440,27 +440,27 @@ function VehicleFormModal({ vehicle, onSave, onClose }) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Year</label>
                 <input type="number" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Make</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Make</label>
                 <input type="text" value={form.make} onChange={(e) => setForm({ ...form, make: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., Ford" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Model</label>
                 <input type="text" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., F-150" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">License Plate</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">License Plate</label>
                 <input type="text" value={form.licensePlate} onChange={(e) => setForm({ ...form, licensePlate: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Current Mileage</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Current Mileage</label>
                 <input type="number" value={form.currentMileage} onChange={(e) => setForm({ ...form, currentMileage: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
@@ -509,32 +509,32 @@ function FuelEntryModal({ vehicle, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Fuel Entry - {vehicle.name}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
               <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gallons</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Gallons</label>
                 <input type="number" step="0.01" value={form.gallons} onChange={(e) => setForm({ ...form, gallons: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price/Gallon</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price/Gallon</label>
                 <input type="number" step="0.01" value={form.pricePerGallon} onChange={(e) => setForm({ ...form, pricePerGallon: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
             </div>
-            <div className="p-3 bg-gray-50 rounded-lg text-center">
-              <p className="text-sm text-gray-500">Total Cost</p>
+            <div className="p-3 bg-gray-50 rounded-lg text-center dark:bg-slate-900">
+              <p className="text-sm text-gray-500 dark:text-slate-400">Total Cost</p>
               <p className="text-2xl font-bold">${totalCost}</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Current Mileage</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Current Mileage</label>
               <input type="number" value={form.mileage} onChange={(e) => setForm({ ...form, mileage: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" />
             </div>
@@ -579,17 +579,17 @@ function MaintenanceModal({ vehicle, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Service - {vehicle.name}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
                 <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
                 <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="oil_change">Oil Change</option>
@@ -602,18 +602,18 @@ function MaintenanceModal({ vehicle, onSave, onClose }) {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" rows={2} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mileage</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Mileage</label>
                 <input type="number" value={form.mileage} onChange={(e) => setForm({ ...form, mileage: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cost</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Cost</label>
                 <input type="number" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>

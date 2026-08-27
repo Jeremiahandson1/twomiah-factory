@@ -11,8 +11,8 @@ export default function PaywallPage() {
   const { company, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 dark:bg-slate-900">
+      <div className="max-w-lg w-full bg-white rounded-2xl shadow-xl overflow-hidden dark:bg-slate-900">
         <div className="bg-gradient-to-br from-red-600 to-orange-600 px-8 py-10 text-white text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full mb-4">
             <Lock className="w-8 h-8" />
@@ -37,7 +37,7 @@ export default function PaywallPage() {
           </div>
 
           <div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
               Pick a plan that fits your team and you&apos;re back in business in
               under a minute.
             </p>
@@ -51,7 +51,7 @@ export default function PaywallPage() {
           </div>
 
           <div className="pt-4 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-slate-400">
               Questions?{' '}
               <a href="mailto:support@twomiah.com" className="text-orange-600 hover:underline">
                 Contact support

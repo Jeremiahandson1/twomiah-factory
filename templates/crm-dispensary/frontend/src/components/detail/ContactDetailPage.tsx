@@ -105,13 +105,13 @@ export default function ContactDetailPage() {
           </button>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{contact.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{contact.name}</h1>
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${typeColors[contact.type] || 'bg-gray-100 text-gray-600'}`}>
                 {contact.type}
               </span>
             </div>
             {contact.company && (
-              <p className="text-gray-500 flex items-center gap-1 mt-1">
+              <p className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400">
                 <Building2 className="w-4 h-4" />
                 {contact.company}
               </p>
@@ -121,7 +121,7 @@ export default function ContactDetailPage() {
         <div className="flex items-center gap-2">
           <Link
             to={`/crm/customers?edit=${id}`}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200"
           >
             <Edit className="w-4 h-4" />
             Edit
@@ -141,8 +141,8 @@ export default function ContactDetailPage() {
         {/* Main info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Contact info card */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Contact Information</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Contact Information</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {contact.email && (
                 <div className="flex items-center gap-3">
@@ -150,7 +150,7 @@ export default function ContactDetailPage() {
                     <Mail className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Email</p>
                     <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline">
                       {contact.email}
                     </a>
@@ -163,8 +163,8 @@ export default function ContactDetailPage() {
                     <Phone className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Phone</p>
-                    <a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Phone</p>
+                    <a href={`tel:${contact.phone}`} className="text-gray-900 hover:underline dark:text-slate-100">
                       {contact.phone}
                     </a>
                   </div>
@@ -176,8 +176,8 @@ export default function ContactDetailPage() {
                     <Phone className="w-5 h-5 text-purple-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Mobile</p>
-                    <a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Mobile</p>
+                    <a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline dark:text-slate-100">
                       {contact.mobile}
                     </a>
                   </div>
@@ -189,8 +189,8 @@ export default function ContactDetailPage() {
                     <MapPin className="w-5 h-5 text-orange-500" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Address</p>
-                    <p className="text-gray-900">
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Address</p>
+                    <p className="text-gray-900 dark:text-slate-100">
                       {contact.address && <span>{contact.address}<br /></span>}
                       {contact.city && `${contact.city}, `}{contact.state} {contact.zip}
                     </p>
@@ -202,17 +202,17 @@ export default function ContactDetailPage() {
 
           {/* Notes */}
           {contact.notes && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="font-semibold text-gray-900 mb-4">Notes</h2>
-              <p className="text-gray-600 whitespace-pre-wrap">{contact.notes}</p>
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+              <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Notes</h2>
+              <p className="text-gray-600 whitespace-pre-wrap dark:text-slate-400">{contact.notes}</p>
             </div>
           )}
 
           {/* Order History */}
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
             <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900">Order History</h2>
-              <span className="text-sm text-gray-500">{orders.length} orders</span>
+              <h2 className="font-semibold text-gray-900 dark:text-slate-100">Order History</h2>
+              <span className="text-sm text-gray-500 dark:text-slate-400">{orders.length} orders</span>
             </div>
             {ordersLoading ? (
               <div className="p-8 flex justify-center">
@@ -229,51 +229,51 @@ export default function ContactDetailPage() {
                     <div className="flex items-center gap-3">
                       <ShoppingCart className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900">#{order.orderNumber || order.id?.slice(0, 8)}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id?.slice(0, 8)}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">
                           {order.createdAt ? formatDate(order.createdAt) : '—'}
                           {' · '}{order.itemCount || order.items?.length || 0} items
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-gray-900">${Number(order.total || 0).toFixed(2)}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">${Number(order.total || 0).toFixed(2)}</p>
                       <StatusBadge status={order.status} />
                     </div>
                   </Link>
                 ))}
               </div>
             ) : (
-              <p className="p-6 text-gray-500 text-sm text-center">No orders yet</p>
+              <p className="p-6 text-gray-500 text-sm text-center dark:text-slate-400">No orders yet</p>
             )}
           </div>
 
           {/* Loyalty Status */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <Award className="w-5 h-5 text-amber-500" />
               Loyalty Status
             </h2>
             {loyalty ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Tier</span>
+                  <span className="text-gray-500 dark:text-slate-400">Tier</span>
                   <span className="font-medium flex items-center gap-1">
                     <Star className="w-4 h-4 text-amber-500" />
                     {loyalty.tier || 'Standard'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Points Balance</span>
+                  <span className="text-gray-500 dark:text-slate-400">Points Balance</span>
                   <span className="font-medium">{loyalty.points ?? 0} pts</span>
                 </div>
                 {loyalty.recentTransactions?.length > 0 && (
                   <div className="mt-4">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Recent Transactions</p>
+                    <p className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Recent Transactions</p>
                     <div className="space-y-2">
                       {loyalty.recentTransactions.slice(0, 5).map((txn: any, idx: number) => (
                         <div key={idx} className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">{txn.description || txn.type}</span>
+                          <span className="text-gray-600 dark:text-slate-400">{txn.description || txn.type}</span>
                           <span className={txn.points >= 0 ? 'text-green-600' : 'text-red-600'}>
                             {txn.points >= 0 ? '+' : ''}{txn.points} pts
                           </span>
@@ -284,7 +284,7 @@ export default function ContactDetailPage() {
                 )}
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No loyalty data available</p>
+              <p className="text-gray-500 text-sm dark:text-slate-400">No loyalty data available</p>
             )}
           </div>
         </div>
@@ -292,28 +292,28 @@ export default function ContactDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Quick stats */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Summary</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Summary</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Orders</span>
+                <span className="text-gray-500 dark:text-slate-400">Orders</span>
                 <span className="font-medium">{orders.length}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Total Spent</span>
+                <span className="text-gray-500 dark:text-slate-400">Total Spent</span>
                 <span className="font-medium">${totalSpent.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Loyalty Tier</span>
+                <span className="text-gray-500 dark:text-slate-400">Loyalty Tier</span>
                 <span className="font-medium">{loyalty?.tier || 'Standard'}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Points Balance</span>
+                <span className="text-gray-500 dark:text-slate-400">Points Balance</span>
                 <span className="font-medium">{loyalty?.points ?? 0}</span>
               </div>
               {contact.source && (
                 <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Source</span>
+                  <span className="text-gray-500 dark:text-slate-400">Source</span>
                   <span className="font-medium">{contact.source}</span>
                 </div>
               )}
@@ -321,31 +321,31 @@ export default function ContactDetailPage() {
           </div>
 
           {/* Timeline */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Activity</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Activity</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{formatDate(contact.createdAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Created</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(contact.createdAt)}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
-                <span className="text-gray-500">Updated</span>
-                <span className="text-gray-900">{formatDate(contact.updatedAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Updated</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(contact.updatedAt)}</span>
               </div>
             </div>
           </div>
 
           {/* Quick actions */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
               <Link
                 to={`/crm/orders/new?customerId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <ShoppingCart className="w-4 h-4 text-gray-500" />
+                <ShoppingCart className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Order
               </Link>
               <button
@@ -353,17 +353,17 @@ export default function ContactDetailPage() {
                   // Could open a modal for loyalty point adjustment
                   toast.info('Loyalty point adjustment coming soon');
                 }}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
-                <Gift className="w-4 h-4 text-gray-500" />
+                <Gift className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Adjust Loyalty Points
               </button>
               {contact.phone && (
                 <a
                   href={`sms:${contact.phone}`}
-                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
-                  <MessageSquare className="w-4 h-4 text-gray-500" />
+                  <MessageSquare className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Send SMS
                 </a>
               )}

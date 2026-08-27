@@ -35,7 +35,7 @@ export default function GanttChartsPage() {
   if (loading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-orange-500" /></div>;
 
   if (projects.length === 0) {
-    return <div className="p-12 text-center"><BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" /><div className="text-gray-500">No projects to display. Create a project to see it on the Gantt chart.</div></div>;
+    return <div className="p-12 text-center"><BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" /><div className="text-gray-500 dark:text-slate-400">No projects to display. Create a project to see it on the Gantt chart.</div></div>;
   }
 
   // Compute the overall timeline range
@@ -61,16 +61,16 @@ export default function GanttChartsPage() {
     <div className="p-6 max-w-full mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2"><BarChart3 className="w-6 h-6 text-orange-500" />Gantt Chart</h1>
-        <p className="text-sm text-gray-500 mt-1">Timeline view of all projects — {projects.length} projects over {totalDays} days</p>
+        <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Timeline view of all projects — {projects.length} projects over {totalDays} days</p>
       </div>
 
-      <div className="bg-white rounded-lg border overflow-x-auto">
+      <div className="bg-white rounded-lg border overflow-x-auto dark:bg-slate-900">
         {/* Timeline header */}
-        <div className="flex border-b bg-gray-50">
-          <div className="w-64 flex-shrink-0 px-4 py-3 border-r font-semibold text-xs uppercase text-gray-500">Project</div>
+        <div className="flex border-b bg-gray-50 dark:bg-slate-900">
+          <div className="w-64 flex-shrink-0 px-4 py-3 border-r font-semibold text-xs uppercase text-gray-500 dark:text-slate-400">Project</div>
           <div className="flex-1 relative h-10" style={{ minWidth: '800px' }}>
             {months.map((m, i) => (
-              <div key={i} className="absolute top-0 h-full flex items-center text-xs text-gray-500 border-l border-gray-200 pl-2" style={{ left: `${m.offsetPct}%` }}>{m.label}</div>
+              <div key={i} className="absolute top-0 h-full flex items-center text-xs text-gray-500 border-l border-gray-200 pl-2 dark:text-slate-400 dark:border-slate-700" style={{ left: `${m.offsetPct}%` }}>{m.label}</div>
             ))}
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function GanttChartsPage() {
             <div key={p.id} className="flex border-b hover:bg-gray-50" style={{ height: rowHeight }}>
               <div className="w-64 flex-shrink-0 px-4 py-3 border-r">
                 <div className="font-medium text-sm truncate">{p.name}</div>
-                <div className="text-xs text-gray-500">{p.status.replace('_', ' ')} · {Math.round(p.percentComplete || 0)}%</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400">{p.status.replace('_', ' ')} · {Math.round(p.percentComplete || 0)}%</div>
               </div>
               <div className="flex-1 relative" style={{ minWidth: '800px' }}>
                 {/* Month grid lines */}
@@ -104,7 +104,7 @@ export default function GanttChartsPage() {
         })}
       </div>
 
-      <div className="mt-4 flex items-center gap-4 text-xs text-gray-500">
+      <div className="mt-4 flex items-center gap-4 text-xs text-gray-500 dark:text-slate-400">
         <span>Legend:</span>
         {Object.entries(STATUS_COLORS).map(([status, color]) => (
           <div key={status} className="flex items-center gap-1"><div className="w-3 h-3 rounded" style={{ background: color }} /><span>{status.replace('_', ' ')}</span></div>

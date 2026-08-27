@@ -148,7 +148,7 @@ export default function AppLayout() {
   )
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 dark:bg-slate-900">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -180,14 +180,14 @@ export default function AppLayout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile header */}
-        <header className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+        <header className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 dark:bg-slate-900 dark:border-slate-700">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-600 hover:text-gray-900"
+            className="text-gray-600 hover:text-gray-900 dark:text-slate-400"
           >
             <Menu size={22} />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900 truncate">
+          <h1 className="text-lg font-semibold text-gray-900 truncate dark:text-slate-100">
             {company?.name || 'Roofing CRM'}
           </h1>
         </header>

@@ -197,9 +197,9 @@ export default function LocationTracker() {
   return (
     <div className="space-y-4">
       {/* Status Card */}
-      <div className="bg-white rounded-xl border p-4">
+      <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
             <Navigation className="w-5 h-5 text-orange-500" />
             Location Tracking
           </h3>
@@ -214,7 +214,7 @@ export default function LocationTracker() {
         {/* Tracking Status */}
         <div className="flex items-center gap-4 mb-4">
           <div className={`w-3 h-3 rounded-full ${tracking ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-slate-400">
             {tracking ? 'Tracking active' : 'Tracking inactive'}
           </span>
           {!settings?.locationTrackingEnabled && (
@@ -238,12 +238,12 @@ export default function LocationTracker() {
 
         {/* Current Location */}
         {currentLocation && (
-          <div className="bg-gray-50 rounded-lg p-3 mb-4">
-            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+          <div className="bg-gray-50 rounded-lg p-3 mb-4 dark:bg-slate-900">
+            <div className="flex items-center gap-2 text-sm text-gray-600 mb-2 dark:text-slate-400">
               <MapPin className="w-4 h-4" />
               Current Location
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 dark:text-slate-400">
               <div>Lat: {currentLocation.lat.toFixed(6)}</div>
               <div>Lng: {currentLocation.lng.toFixed(6)}</div>
               <div>Accuracy: ±{Math.round(currentLocation.accuracy)}m</div>
@@ -301,7 +301,7 @@ export default function LocationTracker() {
               </span>
             </div>
             {lastAction.duration && (
-              <div className="text-xs text-gray-600 mt-1">
+              <div className="text-xs text-gray-600 mt-1 dark:text-slate-400">
                 Duration: {Math.floor(lastAction.duration / 60)}h {lastAction.duration % 60}m
               </div>
             )}
@@ -359,15 +359,15 @@ function LocationSettingsModal({ settings, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Location Settings</h2>
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+          <h2 className="text-lg font-bold text-gray-900 mb-4 dark:text-slate-100">Location Settings</h2>
 
           <div className="space-y-4">
             {/* Enable Tracking */}
             <label className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">Enable Location Tracking</p>
-                <p className="text-sm text-gray-500">Track your location in background</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">Enable Location Tracking</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Track your location in background</p>
               </div>
               <input
                 type="checkbox"
@@ -380,8 +380,8 @@ function LocationSettingsModal({ settings, onSave, onClose }) {
             {/* Auto Clock */}
             <label className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">Auto Clock In/Out</p>
-                <p className="text-sm text-gray-500">Automatically clock when entering/leaving job sites</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">Auto Clock In/Out</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Automatically clock when entering/leaving job sites</p>
               </div>
               <input
                 type="checkbox"
@@ -394,7 +394,7 @@ function LocationSettingsModal({ settings, onSave, onClose }) {
 
             {/* Accuracy */}
             <div>
-              <label className="block font-medium text-gray-900 mb-1">Location Accuracy</label>
+              <label className="block font-medium text-gray-900 mb-1 dark:text-slate-100">Location Accuracy</label>
               <select
                 value={form.locationAccuracy}
                 onChange={(e) => setForm({ ...form, locationAccuracy: e.target.value })}
@@ -409,7 +409,7 @@ function LocationSettingsModal({ settings, onSave, onClose }) {
 
             {/* Update Interval */}
             <div>
-              <label className="block font-medium text-gray-900 mb-1">
+              <label className="block font-medium text-gray-900 mb-1 dark:text-slate-100">
                 Update Interval: {form.trackingInterval}s
               </label>
               <input
@@ -422,7 +422,7 @@ function LocationSettingsModal({ settings, onSave, onClose }) {
                 className="w-full"
                 disabled={!form.locationTrackingEnabled}
               />
-              <div className="flex justify-between text-xs text-gray-500">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-slate-400">
                 <span>10s (more accurate)</span>
                 <span>120s (saves battery)</span>
               </div>
@@ -438,7 +438,7 @@ function LocationSettingsModal({ settings, onSave, onClose }) {
           <div className="flex gap-3 mt-6">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               Cancel
             </button>

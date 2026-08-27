@@ -165,8 +165,8 @@ export default function AIBudtenderPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">AI Budtender</h1>
-          <p className="text-gray-600">AI-powered product recommendations and customer assistance</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">AI Budtender</h1>
+          <p className="text-gray-600 dark:text-slate-400">AI-powered product recommendations and customer assistance</p>
         </div>
       </div>
 
@@ -190,15 +190,15 @@ export default function AIBudtenderPage() {
 
       {/* Config Tab */}
       {tab === 'config' && (
-        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6">
+        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">AI Budtender Settings</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">AI Budtender Settings</h3>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.enabled}
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
               />
               <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
@@ -207,7 +207,7 @@ export default function AIBudtenderPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Personality</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Personality</label>
             <div className="grid grid-cols-2 gap-3">
               {personalities.map(p => (
                 <button
@@ -219,49 +219,49 @@ export default function AIBudtenderPage() {
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <p className="font-medium text-gray-900">{p.label}</p>
-                  <p className="text-sm text-gray-500">{p.desc}</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{p.label}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{p.desc}</p>
                 </button>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Greeting Message</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Greeting Message</label>
             <textarea
               value={config.greeting}
               onChange={(e) => setConfig({ ...config, greeting: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               rows={3}
               placeholder="Enter the AI's greeting message..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">System Prompt</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">System Prompt</label>
             <textarea
               value={config.systemPrompt}
               onChange={(e) => setConfig({ ...config, systemPrompt: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 font-mono text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 font-mono text-sm dark:border-slate-700 dark:text-slate-100"
               rows={5}
               placeholder="Custom system prompt to guide the AI's behavior and knowledge..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Max Recommendations per Response</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Max Recommendations per Response</label>
             <input
               type="number"
               min={1}
               max={10}
               value={config.maxRecommendations}
               onChange={(e) => setConfig({ ...config, maxRecommendations: parseInt(e.target.value) || 3 })}
-              className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Channels</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Channels</label>
             <div className="flex flex-wrap gap-3">
               {channels.map(ch => (
                 <label key={ch} className="flex items-center gap-2 cursor-pointer">
@@ -269,9 +269,9 @@ export default function AIBudtenderPage() {
                     type="checkbox"
                     checked={config.channels.includes(ch)}
                     onChange={() => toggleChannel(ch)}
-                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
                   />
-                  <span className="text-sm text-gray-700">{ch.replace(/_/g, ' ')}</span>
+                  <span className="text-sm text-gray-700 dark:text-slate-200">{ch.replace(/_/g, ' ')}</span>
                 </label>
               ))}
             </div>
@@ -286,18 +286,18 @@ export default function AIBudtenderPage() {
       {/* Sessions Tab */}
       {tab === 'sessions' && (
         <div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Channel</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Messages</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Converted</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Satisfaction</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Customer</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Channel</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Messages</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Converted</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Satisfaction</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -309,14 +309,14 @@ export default function AIBudtenderPage() {
                     </tr>
                   ) : sessions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No AI sessions found</td>
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No AI sessions found</td>
                     </tr>
                   ) : sessions.map(session => (
                     <tr key={session.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {session.createdAt ? new Date(session.createdAt).toLocaleString() : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{session.customerName || 'Anonymous'}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{session.customerName || 'Anonymous'}</td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
                           {(session.channel || 'unknown').replace(/_/g, ' ')}
@@ -331,7 +331,7 @@ export default function AIBudtenderPage() {
                           {session.status || 'unknown'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">{session.messageCount || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{session.messageCount || 0}</td>
                       <td className="px-4 py-3 text-sm">
                         {session.convertedToOrder ? (
                           <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">Yes</span>
@@ -343,7 +343,7 @@ export default function AIBudtenderPage() {
                         {session.satisfaction ? (
                           <div className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                            <span className="text-gray-900">{session.satisfaction}/5</span>
+                            <span className="text-gray-900 dark:text-slate-100">{session.satisfaction}/5</span>
                           </div>
                         ) : (
                           <span className="text-gray-400">—</span>
@@ -356,7 +356,7 @@ export default function AIBudtenderPage() {
             </div>
             {sessionsTotal > 25 && (
               <div className="px-4 py-3 border-t flex items-center justify-between">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-slate-400">
                   Page {sessionsPage} of {Math.ceil(sessionsTotal / 25)}
                 </span>
                 <div className="flex gap-2">
@@ -384,7 +384,7 @@ export default function AIBudtenderPage() {
       {/* Live Demo Tab */}
       {tab === 'demo' && (
         <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
             {/* Chat Header */}
             <div className="bg-green-600 px-4 py-3 flex items-center gap-3">
               <Bot className="w-6 h-6 text-white" />
@@ -397,15 +397,15 @@ export default function AIBudtenderPage() {
             </div>
 
             {/* Chat Messages */}
-            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-900">
               {/* Greeting */}
               {demoMessages.length === 0 && config.greeting && (
                 <div className="flex gap-3">
                   <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <Bot className="w-4 h-4 text-green-600" />
                   </div>
-                  <div className="bg-white rounded-lg p-3 shadow-sm max-w-[80%]">
-                    <p className="text-sm text-gray-900">{config.greeting}</p>
+                  <div className="bg-white rounded-lg p-3 shadow-sm max-w-[80%] dark:bg-slate-900">
+                    <p className="text-sm text-gray-900 dark:text-slate-100">{config.greeting}</p>
                   </div>
                 </div>
               )}
@@ -424,18 +424,18 @@ export default function AIBudtenderPage() {
                         <Bot className="w-4 h-4 text-green-600" />
                       </div>
                       <div className="space-y-2 max-w-[80%]">
-                        <div className="bg-white rounded-lg p-3 shadow-sm">
-                          <p className="text-sm text-gray-900">{msg.content}</p>
+                        <div className="bg-white rounded-lg p-3 shadow-sm dark:bg-slate-900">
+                          <p className="text-sm text-gray-900 dark:text-slate-100">{msg.content}</p>
                         </div>
                         {/* Product Recommendations */}
                         {msg.recommendations?.length > 0 && (
                           <div className="space-y-2">
                             {msg.recommendations.map((rec: any, j: number) => (
-                              <div key={j} className="bg-white rounded-lg p-3 shadow-sm border border-green-100">
+                              <div key={j} className="bg-white rounded-lg p-3 shadow-sm border border-green-100 dark:bg-slate-900">
                                 <div className="flex items-start justify-between">
                                   <div>
-                                    <p className="font-medium text-gray-900 text-sm">{rec.name || rec.productName}</p>
-                                    <p className="text-xs text-gray-500">{rec.category || ''} {rec.thc ? `| THC: ${rec.thc}` : ''}</p>
+                                    <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{rec.name || rec.productName}</p>
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">{rec.category || ''} {rec.thc ? `| THC: ${rec.thc}` : ''}</p>
                                     {rec.price && <p className="text-sm font-semibold text-green-600 mt-1">${Number(rec.price).toFixed(2)}</p>}
                                   </div>
                                   <button
@@ -461,7 +461,7 @@ export default function AIBudtenderPage() {
                   <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <Bot className="w-4 h-4 text-green-600" />
                   </div>
-                  <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="bg-white rounded-lg p-3 shadow-sm dark:bg-slate-900">
                     <div className="flex gap-1">
                       <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
                       <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
@@ -480,7 +480,7 @@ export default function AIBudtenderPage() {
                 value={demoInput}
                 onChange={(e) => setDemoInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !demoLoading && sendDemoMessage()}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
                 placeholder="Ask the AI budtender..."
                 disabled={demoLoading}
               />
@@ -497,7 +497,7 @@ export default function AIBudtenderPage() {
           <div className="mt-4 text-center">
             <button
               onClick={() => setDemoMessages([])}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400"
             >
               Clear conversation
             </button>
@@ -516,69 +516,69 @@ export default function AIBudtenderPage() {
             <>
               {/* KPI Cards */}
               <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg shadow-sm p-5">
+                <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                       <MessageSquare className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold text-gray-900">{analytics.totalSessions || 0}</p>
-                      <p className="text-sm text-gray-500">Total Sessions</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{analytics.totalSessions || 0}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">Total Sessions</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm p-5">
+                <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                       <TrendingUp className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold text-gray-900">{analytics.conversionRate || 0}%</p>
-                      <p className="text-sm text-gray-500">Conversion Rate</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{analytics.conversionRate || 0}%</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">Conversion Rate</p>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm p-5">
+                <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
                       <Star className="w-5 h-5 text-yellow-600" />
                     </div>
                     <div>
-                      <p className="text-2xl font-bold text-gray-900">{Number(analytics.avgSatisfaction || 0).toFixed(1)}/5</p>
-                      <p className="text-sm text-gray-500">Avg Satisfaction</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{Number(analytics.avgSatisfaction || 0).toFixed(1)}/5</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">Avg Satisfaction</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Top Recommended Products */}
-              <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
                 <div className="px-5 py-4 border-b">
-                  <h3 className="font-semibold text-gray-900">Top Recommended Products</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100">Top Recommended Products</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 dark:bg-slate-900">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Times Recommended</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Conversion Rate</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Rank</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Category</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Times Recommended</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Conversion Rate</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {(analytics.topProducts || []).length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No recommendation data yet</td>
+                          <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No recommendation data yet</td>
                         </tr>
                       ) : analytics.topProducts.map((product: any, index: number) => (
                         <tr key={product.id || index} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm font-bold text-gray-400">#{index + 1}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{product.name}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{product.category || '—'}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900">{product.recommendCount || 0}</td>
-                          <td className="px-4 py-3 text-sm text-right text-gray-900">{product.conversionRate || 0}%</td>
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{product.name}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{product.category || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">{product.recommendCount || 0}</td>
+                          <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">{product.conversionRate || 0}%</td>
                         </tr>
                       ))}
                     </tbody>

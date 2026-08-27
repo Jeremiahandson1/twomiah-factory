@@ -115,8 +115,8 @@ export default function PredictiveInventoryPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Predictive Inventory</h1>
-          <p className="text-gray-600">AI-powered stock forecasting and reorder recommendations</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Predictive Inventory</h1>
+          <p className="text-gray-600 dark:text-slate-400">AI-powered stock forecasting and reorder recommendations</p>
         </div>
       </div>
 
@@ -153,34 +153,34 @@ export default function PredictiveInventoryPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Current Stock</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Daily Avg Sales</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Days Until Stockout</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Suggested Reorder</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Confidence</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Current Stock</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Daily Avg Sales</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Days Until Stockout</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Suggested Reorder</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Confidence</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {forecasts.map(f => (
                     <tr key={f.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{f.productName || f.product || '—'}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{f.currentStock ?? 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{Number(f.dailyAvgSales || 0).toFixed(1)}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{f.productName || f.product || '—'}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{f.currentStock ?? 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{Number(f.dailyAvgSales || 0).toFixed(1)}</td>
                       <td className={`px-4 py-3 text-right ${daysUntilStockoutColor(f.daysUntilStockout ?? 999)}`}>
                         {f.daysUntilStockout != null ? f.daysUntilStockout : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-700">{f.suggestedReorderQty ?? '—'}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{f.confidence ? `${Math.round(f.confidence * 100)}%` : '—'}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{f.suggestedReorderQty ?? '—'}</td>
+                      <td className="px-4 py-3 text-right text-gray-500 dark:text-slate-400">{f.confidence ? `${Math.round(f.confidence * 100)}%` : '—'}</td>
                     </tr>
                   ))}
                   {forecasts.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                         <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p>No forecasts available</p>
                         <p className="text-sm mt-1">Click "Run Forecast" to generate predictions</p>
@@ -198,7 +198,7 @@ export default function PredictiveInventoryPage() {
       {tab === 'reorder' && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-slate-400">
               <CheckCircle className="w-4 h-4 inline mr-1 text-green-500" />
               {approvedCount} approved
             </p>
@@ -209,29 +209,29 @@ export default function PredictiveInventoryPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Urgency</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Current Stock</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Reorder Qty</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Urgency</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Current Stock</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Reorder Qty</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {suggestions.map(s => (
                     <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{s.productName || s.product || '—'}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{s.productName || s.product || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${urgencyColors[s.urgency] || 'bg-gray-100 text-gray-600'}`}>
                           {s.urgency || 'normal'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-700">{s.currentStock ?? 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{s.reorderQty ?? '—'}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{s.currentStock ?? 0}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{s.reorderQty ?? '—'}</td>
                       <td className="px-4 py-3">
                         {s.approved ? (
                           <span className="text-xs text-green-600 flex items-center gap-1">
@@ -256,7 +256,7 @@ export default function PredictiveInventoryPage() {
                             </button>
                             <button
                               onClick={() => handleDismissSuggestion(s.id)}
-                              className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                              className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:text-slate-200"
                             >
                               Dismiss
                             </button>
@@ -267,7 +267,7 @@ export default function PredictiveInventoryPage() {
                   ))}
                   {suggestions.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                         <ShoppingCart className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p>No reorder suggestions at this time</p>
                       </td>
@@ -290,8 +290,8 @@ export default function PredictiveInventoryPage() {
           ) : (
             <div className="grid md:grid-cols-2 gap-6">
               {/* Top Movers */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
                   <TrendingUp className="w-5 h-5 text-green-600" />
                   Top Movers
                 </h3>
@@ -300,7 +300,7 @@ export default function PredictiveInventoryPage() {
                     <div key={t.id || i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-gray-400 w-6">#{i + 1}</span>
-                        <span className="text-sm font-medium text-gray-900">{t.productName || t.product}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{t.productName || t.product}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <TrendingUp className="w-3 h-3 text-green-500" />
@@ -311,14 +311,14 @@ export default function PredictiveInventoryPage() {
                     </div>
                   ))}
                   {trends.filter(t => t.trend === 'up' || t.velocity === 'high').length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-4">No trending products</p>
+                    <p className="text-sm text-gray-500 text-center py-4 dark:text-slate-400">No trending products</p>
                   )}
                 </div>
               </div>
 
               {/* Declining Products */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
                   <TrendingDown className="w-5 h-5 text-red-500" />
                   Declining Products
                 </h3>
@@ -327,7 +327,7 @@ export default function PredictiveInventoryPage() {
                     <div key={t.id || i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-gray-400 w-6">#{i + 1}</span>
-                        <span className="text-sm font-medium text-gray-900">{t.productName || t.product}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{t.productName || t.product}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <TrendingDown className="w-3 h-3 text-red-500" />
@@ -338,7 +338,7 @@ export default function PredictiveInventoryPage() {
                     </div>
                   ))}
                   {trends.filter(t => t.trend === 'down' || t.velocity === 'low').length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-4">No declining products</p>
+                    <p className="text-sm text-gray-500 text-center py-4 dark:text-slate-400">No declining products</p>
                   )}
                 </div>
               </div>

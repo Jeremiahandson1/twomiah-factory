@@ -69,12 +69,12 @@ export default function MaterialsPage() {
   const totalPages = Math.ceil(total / limit) || 1;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Material Orders</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} {total === 1 ? 'order' : 'orders'}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Material Orders</h1>
+            <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'order' : 'orders'}</p>
           </div>
         </div>
 
@@ -89,27 +89,27 @@ export default function MaterialsPage() {
             <option value="">All Statuses</option>
             {Object.keys(STATUS_COLORS).map((s) => <option key={s} value={s}>{formatStatus(s)}</option>)}
           </select>
-          <div className="flex items-center gap-1 text-sm text-gray-500">
+          <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
             <span>From</span>
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm" />
           </div>
-          <div className="flex items-center gap-1 text-sm text-gray-500">
+          <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
             <span>To</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="border rounded-lg px-2 py-1.5 text-sm" />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Job #</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Supplier</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Order Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Delivery Date</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Total Cost</th>
+                <tr className="bg-gray-50 border-b dark:bg-slate-900">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Job #</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Supplier</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Order Date</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Delivery Date</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Total Cost</th>
                 </tr>
               </thead>
               <tbody>
@@ -124,24 +124,24 @@ export default function MaterialsPage() {
                       onClick={() => order.jobId && navigate(`/crm/jobs/${order.jobId}`)}
                       className="border-b last:border-0 hover:bg-gray-50 cursor-pointer"
                     >
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700 dark:text-slate-200">
                         {/* jobNumber is the real "ROOF-0005"; never glue the raw
                             record id onto a "ROOF-" prefix as a fallback. */}
                         {order.jobNumber || '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{order.supplier || '—'}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{order.supplier || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-600'}`}>
                           {formatStatus(order.status) || 'Ordered'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
+                      <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">
                         {order.orderDate ? formatDate(order.orderDate) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
+                      <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">
                         {order.deliveryDate ? formatDate(order.deliveryDate) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                         {order.totalCost != null ? `$${Number(order.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                       </td>
                     </tr>
@@ -152,8 +152,8 @@ export default function MaterialsPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
+              <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />

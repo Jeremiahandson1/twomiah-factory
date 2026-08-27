@@ -85,18 +85,18 @@ export default function PricingPage() {
   const isAnnual = billingCycle === 'annual';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-white border-b dark:bg-slate-900">
         <div className="max-w-7xl mx-auto px-4 py-6 flex items-center justify-between">
           <a href="/" className="flex items-center gap-2">
             <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
               <Building className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</span>
+            <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{'{{COMPANY_NAME}}'}</span>
           </a>
           <div className="flex items-center gap-4">
-            <a href="/login" className="text-gray-600 hover:text-gray-900">Log In</a>
+            <a href="/login" className="text-gray-600 hover:text-gray-900 dark:text-slate-400">Log In</a>
             <a href="/signup" className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 inline-flex items-center gap-2">
               Start Free Trial <ArrowRight className="w-4 h-4" />
             </a>
@@ -105,23 +105,23 @@ export default function PricingPage() {
       </header>
 
       {/* Hero */}
-      <div className="bg-white">
+      <div className="bg-white dark:bg-slate-900">
         <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">Simple, Honest Pricing</h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <h1 className="text-5xl font-bold text-gray-900 mb-4 dark:text-slate-100">Simple, Honest Pricing</h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto dark:text-slate-400">
             Every feature is included in every plan — nothing is locked behind a tier.
             You only pick a plan by how many people need a login.
           </p>
 
           {/* Trust signals */}
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600">
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-6 text-sm text-gray-600 dark:text-slate-400">
             <div className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-green-600" /> 30-day free trial</div>
             <div className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-green-600" /> Cancel anytime</div>
             <div className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-green-600" /> No setup or build fees</div>
           </div>
 
           {/* Billing toggle */}
-          <div className="mt-8 inline-flex items-center bg-gray-100 rounded-full p-1">
+          <div className="mt-8 inline-flex items-center bg-gray-100 rounded-full p-1 dark:bg-slate-800">
             <button
               onClick={() => setBillingCycle('monthly')}
               className={`px-6 py-2 rounded-full text-sm font-medium transition ${!isAnnual ? 'bg-white text-gray-900 shadow' : 'text-gray-600'}`}
@@ -141,22 +141,22 @@ export default function PricingPage() {
       {/* Website plan */}
       <section className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 inline-flex items-center gap-2">
+          <h2 className="text-3xl font-bold text-gray-900 inline-flex items-center gap-2 dark:text-slate-100">
             <Globe className="w-7 h-7 text-orange-500" />
             Just need a website?
           </h2>
-          <p className="text-gray-600 mt-2 text-lg">Start with a site today. Add the CRM whenever you're ready.</p>
+          <p className="text-gray-600 mt-2 text-lg dark:text-slate-400">Start with a site today. Add the CRM whenever you're ready.</p>
         </div>
         <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl p-8 border-2 border-orange-500 shadow-xl text-center">
-            <h3 className="text-2xl font-bold text-gray-900">{WEBSITE_PLAN.name}</h3>
+          <div className="bg-white rounded-2xl p-8 border-2 border-orange-500 shadow-xl text-center dark:bg-slate-900">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{WEBSITE_PLAN.name}</h3>
             <div className="mt-4 mb-4">
               <span className="text-4xl font-bold">${isAnnual ? Math.round(WEBSITE_PLAN.annual / 12) : WEBSITE_PLAN.monthly}</span>
-              <span className="text-gray-500">/mo</span>
-              {isAnnual && <div className="text-xs text-gray-500">${WEBSITE_PLAN.annual} billed annually</div>}
+              <span className="text-gray-500 dark:text-slate-400">/mo</span>
+              {isAnnual && <div className="text-xs text-gray-500 dark:text-slate-400">${WEBSITE_PLAN.annual} billed annually</div>}
             </div>
-            <p className="text-gray-600 mb-6">{WEBSITE_PLAN.blurb}</p>
-            <a href="/signup" className="block w-full text-center py-3 rounded-lg font-medium bg-gray-100 text-gray-900 hover:bg-gray-200">
+            <p className="text-gray-600 mb-6 dark:text-slate-400">{WEBSITE_PLAN.blurb}</p>
+            <a href="/signup" className="block w-full text-center py-3 rounded-lg font-medium bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-100">
               Start Free Trial
             </a>
           </div>
@@ -166,8 +166,8 @@ export default function PricingPage() {
       {/* CRM Tiers */}
       <section className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900">CRM Plans</h2>
-          <p className="text-gray-600 mt-2 text-lg">Every plan includes a website and every feature — you only pick by how many seats you need.</p>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-slate-100">CRM Plans</h2>
+          <p className="text-gray-600 mt-2 text-lg dark:text-slate-400">Every plan includes a website and every feature — you only pick by how many seats you need.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {CRM_TIERS.map((tier) => {
@@ -216,14 +216,14 @@ export default function PricingPage() {
             );
           })}
         </div>
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-gray-500 mt-6 dark:text-slate-400">
           SMS &amp; AI are available for $10/mo to enable, plus carrier/usage passed through at cost.
         </p>
       </section>
 
       {/* FAQ */}
       <section className="max-w-3xl mx-auto px-4 py-16">
-        <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Frequently Asked Questions</h2>
+        <h2 className="text-2xl font-bold text-gray-900 text-center mb-8 dark:text-slate-100">Frequently Asked Questions</h2>
         <div className="space-y-4">
           <FAQ
             q="Which features do I get on each plan?"
@@ -257,7 +257,7 @@ export default function PricingPage() {
         <div className="max-w-4xl mx-auto px-4 py-16 text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to get started?</h2>
           <p className="text-xl text-orange-100 mb-8">30-day free trial. No credit card required.</p>
-          <a href="/signup" className="inline-flex items-center gap-2 bg-white text-orange-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-orange-50">
+          <a href="/signup" className="inline-flex items-center gap-2 bg-white text-orange-600 px-8 py-4 rounded-lg font-bold text-lg hover:bg-orange-50 dark:bg-slate-900">
             Start Your Free Trial <ArrowRight className="w-5 h-5" />
           </a>
         </div>
@@ -269,12 +269,12 @@ export default function PricingPage() {
 function FAQ({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border rounded-lg bg-white">
+    <div className="border rounded-lg bg-white dark:bg-slate-900">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between p-4 text-left">
-        <span className="font-medium text-gray-900">{q}</span>
+        <span className="font-medium text-gray-900 dark:text-slate-100">{q}</span>
         <span className="text-gray-400">{open ? '−' : '+'}</span>
       </button>
-      {open && <div className="px-4 pb-4 text-gray-600">{a}</div>}
+      {open && <div className="px-4 pb-4 text-gray-600 dark:text-slate-400">{a}</div>}
     </div>
   );
 }

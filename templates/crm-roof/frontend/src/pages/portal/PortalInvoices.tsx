@@ -75,7 +75,7 @@ export default function PortalInvoices() {
 
       {invoices.length === 0 ? (
         <div className="bg-gray-800 rounded-xl p-8 border border-gray-700 text-center">
-          <Receipt className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <Receipt className="w-10 h-10 text-gray-600 mx-auto mb-3 dark:text-slate-400" />
           <p className="text-gray-400">No invoices yet</p>
         </div>
       ) : (
@@ -99,7 +99,7 @@ export default function PortalInvoices() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-3 dark:text-slate-400">
                   <span>Due: {inv.dueDate ? formatDate(inv.dueDate) : '—'}</span>
                   {inv.amountPaid > 0 && (
                     <span>Paid: ${Number(inv.amountPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>

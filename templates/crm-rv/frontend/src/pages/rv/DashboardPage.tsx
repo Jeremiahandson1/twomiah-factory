@@ -152,8 +152,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Inventory, sales & service at a glance</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
+        <p className="text-gray-500 dark:text-slate-400">Inventory, sales & service at a glance</p>
       </div>
 
       {/* KPI stat cards */}
@@ -161,17 +161,17 @@ export default function DashboardPage() {
         {/* Inventory */}
         <Link
           to="/crm/units"
-          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-gray-500">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
               <Truck className="w-5 h-5 text-orange-500" />
               <span className="text-sm font-medium">Inventory</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
           </div>
-          <div className="mt-3 text-3xl font-bold text-gray-900">{num(inventory.total)}</div>
-          <p className="text-sm text-gray-500 mt-1">
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(inventory.total)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
             <span className="font-medium text-green-600">{num(inventory.available)}</span> available
           </p>
         </Link>
@@ -179,28 +179,28 @@ export default function DashboardPage() {
         {/* Sales Pipeline */}
         <Link
           to="/crm/sales-pipeline"
-          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-gray-500">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
               <TrendingUp className="w-5 h-5 text-orange-500" />
               <span className="text-sm font-medium">Sales Pipeline</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
           </div>
-          <div className="mt-3 text-3xl font-bold text-gray-900">{num(sales.openLeads)}</div>
-          <p className="text-sm text-gray-500 mt-1">open leads</p>
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(sales.openLeads)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">open leads</p>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
             <div>
-              <div className="font-semibold text-gray-900">{num(sales.leadsThisMonth)}</div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{num(sales.leadsThisMonth)}</div>
               <div className="text-gray-400">new (mo)</div>
             </div>
             <div>
-              <div className="font-semibold text-gray-900">{num(sales.closedWonThisMonth)}</div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{num(sales.closedWonThisMonth)}</div>
               <div className="text-gray-400">won (mo)</div>
             </div>
             <div>
-              <div className="font-semibold text-gray-900">{pct(sales.closeRate)}</div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{pct(sales.closeRate)}</div>
               <div className="text-gray-400">close</div>
             </div>
           </div>
@@ -209,24 +209,24 @@ export default function DashboardPage() {
         {/* Service */}
         <Link
           to="/crm/service"
-          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-gray-500">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
               <Wrench className="w-5 h-5 text-orange-500" />
               <span className="text-sm font-medium">Service</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
           </div>
-          <div className="mt-3 text-3xl font-bold text-gray-900">{num(service.openRepairOrders)}</div>
-          <p className="text-sm text-gray-500 mt-1">open repair orders</p>
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(service.openRepairOrders)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">open repair orders</p>
           <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
             <div>
-              <div className="font-semibold text-gray-900">{num(service.repairOrdersThisMonth)}</div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{num(service.repairOrdersThisMonth)}</div>
               <div className="text-gray-400">ROs (mo)</div>
             </div>
             <div>
-              <div className="font-semibold text-gray-900">{money(service.revenueThisMonth)}</div>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{money(service.revenueThisMonth)}</div>
               <div className="text-gray-400">rev (mo)</div>
             </div>
           </div>
@@ -235,26 +235,26 @@ export default function DashboardPage() {
         {/* Contacts */}
         <Link
           to="/crm/contacts"
-          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition"
+          className="group bg-white rounded-xl border p-5 hover:border-orange-300 hover:shadow-sm transition dark:bg-slate-900"
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-gray-500">
+            <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
               <Users className="w-5 h-5 text-orange-500" />
               <span className="text-sm font-medium">Contacts</span>
             </div>
             <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
           </div>
-          <div className="mt-3 text-3xl font-bold text-gray-900">{num(stats?.contacts)}</div>
-          <p className="text-sm text-gray-500 mt-1">total contacts</p>
+          <div className="mt-3 text-3xl font-bold text-gray-900 dark:text-slate-100">{num(stats?.contacts)}</div>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">total contacts</p>
         </Link>
       </div>
 
       {/* Inventory by category + Recent activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Inventory by category */}
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Inventory by category</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Inventory by category</h2>
             <Link to="/crm/units" className="text-xs text-orange-600 hover:underline">View all</Link>
           </div>
           {categoryRows.length === 0 ? (
@@ -263,8 +263,8 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {categoryRows.map((row) => (
                 <div key={row.key} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">{row.label}</span>
-                  <span className="font-semibold text-gray-900">{row.count}</span>
+                  <span className="text-gray-600 dark:text-slate-400">{row.label}</span>
+                  <span className="font-semibold text-gray-900 dark:text-slate-100">{row.count}</span>
                 </div>
               ))}
             </div>
@@ -272,8 +272,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Recent activity */}
-        <div className="bg-white rounded-xl border p-5 lg:col-span-2">
-          <h2 className="font-semibold text-gray-900 mb-4">Recent activity</h2>
+        <div className="bg-white rounded-xl border p-5 lg:col-span-2 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Recent activity</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Recent units */}
             <div>
@@ -284,7 +284,7 @@ export default function DashboardPage() {
                 <ul className="space-y-2">
                   {recentUnits.map((u) => (
                     <li key={u.id} className="text-sm">
-                      <div className="font-medium text-gray-800 truncate">{unitLabel(u)}</div>
+                      <div className="font-medium text-gray-800 truncate dark:text-slate-200">{unitLabel(u)}</div>
                       <div className="text-xs text-gray-400">{prettyStatus(u.status)}</div>
                     </li>
                   ))}
@@ -301,7 +301,7 @@ export default function DashboardPage() {
                 <ul className="space-y-2">
                   {recentLeads.map((l) => (
                     <li key={l.id} className="text-sm">
-                      <div className="font-medium text-gray-800">{prettyStatus(l.stage)}</div>
+                      <div className="font-medium text-gray-800 dark:text-slate-200">{prettyStatus(l.stage)}</div>
                       <div className="text-xs text-gray-400">{l.source ? prettyStatus(l.source) : '—'}</div>
                     </li>
                   ))}
@@ -318,7 +318,7 @@ export default function DashboardPage() {
                 <ul className="space-y-2">
                   {recentRepairOrders.map((r) => (
                     <li key={r.id} className="text-sm">
-                      <div className="font-medium text-gray-800">{r.roNumber || `RO ${r.id.slice(0, 6)}`}</div>
+                      <div className="font-medium text-gray-800 dark:text-slate-200">{r.roNumber || `RO ${r.id.slice(0, 6)}`}</div>
                       <div className="text-xs text-gray-400">{prettyStatus(r.status)}</div>
                     </li>
                   ))}

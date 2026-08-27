@@ -124,8 +124,8 @@ export default function TaxFilingPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tax Filing</h1>
-          <p className="text-gray-600">Automated cannabis tax filing and reporting</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Tax Filing</h1>
+          <p className="text-gray-600 dark:text-slate-400">Automated cannabis tax filing and reporting</p>
         </div>
       </div>
 
@@ -162,29 +162,29 @@ export default function TaxFilingPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date Range</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Period</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date Range</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {filings.map(filing => (
                     <tr key={filing.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {(filing.type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 capitalize">{filing.period || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 capitalize dark:text-slate-400">{filing.period || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {filing.startDate ? formatDate(filing.startDate) : '—'} - {filing.endDate ? formatDate(filing.endDate) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                         {filing.totalAmount != null ? `$${Number(filing.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -201,7 +201,7 @@ export default function TaxFilingPage() {
                   ))}
                   {filings.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                         <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p>No tax filings yet</p>
                         <p className="text-sm mt-1">Generate your first filing to get started</p>
@@ -231,7 +231,7 @@ export default function TaxFilingPage() {
                 const isUrgent = daysUntil >= 0 && daysUntil <= 7;
 
                 return (
-                  <div key={deadline.id || i} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center justify-between">
+                  <div key={deadline.id || i} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 flex items-center justify-between dark:bg-slate-900">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                         isOverdue ? 'bg-red-100' : isUrgent ? 'bg-orange-100' : 'bg-green-100'
@@ -239,14 +239,14 @@ export default function TaxFilingPage() {
                         <Calendar className={`w-5 h-5 ${isOverdue ? 'text-red-600' : isUrgent ? 'text-orange-600' : 'text-green-600'}`} />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-gray-900 dark:text-slate-100">
                           {(deadline.type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
                         </p>
-                        <p className="text-sm text-gray-500">{deadline.description || deadline.period || '—'}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400">{deadline.description || deadline.period || '—'}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-medium text-gray-900">{dueDate.toLocaleDateString()}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{dueDate.toLocaleDateString()}</p>
                       <p className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : isUrgent ? 'text-orange-600' : 'text-gray-500'}`}>
                         {isOverdue ? `${Math.abs(daysUntil)} days overdue` : daysUntil === 0 ? 'Due today' : `${daysUntil} days left`}
                       </p>
@@ -255,7 +255,7 @@ export default function TaxFilingPage() {
                 );
               })}
               {deadlines.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                   <Calendar className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No upcoming deadlines</p>
                 </div>
@@ -276,45 +276,45 @@ export default function TaxFilingPage() {
             <div className="space-y-6">
               {/* YTD Stats */}
               <div className="grid md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
                       <DollarSign className="w-5 h-5 text-green-600" />
                     </div>
-                    <p className="text-sm text-gray-500">Total Collected (YTD)</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Total Collected (YTD)</p>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                     ${Number(summary?.totalCollected || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                       <CheckCircle className="w-5 h-5 text-blue-600" />
                     </div>
-                    <p className="text-sm text-gray-500">Total Filed (YTD)</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Total Filed (YTD)</p>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                     ${Number(summary?.totalFiled || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+                <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
                       <AlertTriangle className="w-5 h-5 text-orange-600" />
                     </div>
-                    <p className="text-sm text-gray-500">Outstanding</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Outstanding</p>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900">
+                  <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                     ${Number(summary?.outstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>
 
               {/* Chart placeholder */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-                <h3 className="font-semibold text-gray-900 mb-4">Tax Collection Trends</h3>
-                <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+                <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Tax Collection Trends</h3>
+                <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg dark:bg-slate-900">
                   <div className="text-center text-gray-400">
                     <DollarSign className="w-12 h-12 mx-auto mb-2" />
                     <p className="text-sm">Chart visualization will be displayed here</p>
@@ -324,25 +324,25 @@ export default function TaxFilingPage() {
 
               {/* Breakdown */}
               {summary?.breakdown && Array.isArray(summary.breakdown) && summary.breakdown.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100">
+                <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:bg-slate-900">
                   <div className="px-6 py-4 border-b">
-                    <h3 className="font-semibold text-gray-900">Tax Breakdown by Type</h3>
+                    <h3 className="font-semibold text-gray-900 dark:text-slate-100">Tax Breakdown by Type</h3>
                   </div>
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 dark:bg-slate-900">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax Type</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Collected</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Filed</th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Outstanding</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Tax Type</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Collected</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Filed</th>
+                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Outstanding</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {summary.breakdown.map((row: any, i: number) => (
                         <tr key={i} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 font-medium text-gray-900">{row.type || '—'}</td>
-                          <td className="px-4 py-3 text-right text-gray-700">${Number(row.collected || 0).toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-gray-700">${Number(row.filed || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{row.type || '—'}</td>
+                          <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.collected || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">${Number(row.filed || 0).toFixed(2)}</td>
                           <td className="px-4 py-3 text-right font-medium text-orange-600">${Number(row.outstanding || 0).toFixed(2)}</td>
                         </tr>
                       ))}
@@ -363,11 +363,11 @@ export default function TaxFilingPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Filing Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Filing Type</label>
             <select
               value={generateForm.type}
               onChange={(e) => setGenerateForm({ ...generateForm, type: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="state_excise">State Excise Tax</option>
               <option value="local_excise">Local Excise Tax</option>
@@ -376,11 +376,11 @@ export default function TaxFilingPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Period</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Period</label>
             <select
               value={generateForm.period}
               onChange={(e) => setGenerateForm({ ...generateForm, period: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="monthly">Monthly</option>
               <option value="quarterly">Quarterly</option>
@@ -389,27 +389,27 @@ export default function TaxFilingPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date *</label>
               <input
                 type="date"
                 value={generateForm.startDate}
                 onChange={(e) => setGenerateForm({ ...generateForm, startDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End Date *</label>
               <input
                 type="date"
                 value={generateForm.endDate}
                 onChange={(e) => setGenerateForm({ ...generateForm, endDate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setGenerateModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+          <button onClick={() => setGenerateModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleGenerate} disabled={generating}>
             {generating ? 'Generating...' : 'Generate'}
           </Button>
@@ -430,22 +430,22 @@ export default function TaxFilingPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-gray-500">Type</p>
-                <p className="font-medium text-gray-900">{(detailFiling.type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</p>
+                <p className="text-gray-500 dark:text-slate-400">Type</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">{(detailFiling.type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}</p>
               </div>
               <div>
-                <p className="text-gray-500">Status</p>
+                <p className="text-gray-500 dark:text-slate-400">Status</p>
                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${filingStatusColors[detailFiling.status] || 'bg-gray-100 text-gray-600'}`}>
                   {detailFiling.status || 'draft'}
                 </span>
               </div>
               <div>
-                <p className="text-gray-500">Period</p>
-                <p className="font-medium text-gray-900 capitalize">{detailFiling.period}</p>
+                <p className="text-gray-500 dark:text-slate-400">Period</p>
+                <p className="font-medium text-gray-900 capitalize dark:text-slate-100">{detailFiling.period}</p>
               </div>
               <div>
-                <p className="text-gray-500">Total Amount</p>
-                <p className="font-medium text-gray-900">
+                <p className="text-gray-500 dark:text-slate-400">Total Amount</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">
                   ${Number(detailFiling.totalAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
               </div>
@@ -454,20 +454,20 @@ export default function TaxFilingPage() {
             {/* Line items */}
             {detailFiling.lineItems && Array.isArray(detailFiling.lineItems) && detailFiling.lineItems.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Line Items</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Line Items</h4>
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gray-50 dark:bg-slate-900">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Description</th>
-                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-slate-400">Description</th>
+                        <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {detailFiling.lineItems.map((item: any, i: number) => (
                         <tr key={i}>
-                          <td className="px-3 py-2 text-gray-700">{item.description || item.name || `Item ${i + 1}`}</td>
-                          <td className="px-3 py-2 text-right text-gray-900">${Number(item.amount || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-slate-200">{item.description || item.name || `Item ${i + 1}`}</td>
+                          <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">${Number(item.amount || 0).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -478,7 +478,7 @@ export default function TaxFilingPage() {
           </div>
         ) : null}
         <div className="flex justify-end mt-6">
-          <button onClick={() => setDetailModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Close</button>
+          <button onClick={() => setDetailModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Close</button>
         </div>
       </Modal>
     </div>

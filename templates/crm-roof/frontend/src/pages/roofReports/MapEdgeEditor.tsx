@@ -615,7 +615,7 @@ export default function MapEdgeEditor({
         {/* Toolbar */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {/* Mode buttons */}
-          <div className="flex items-center bg-white rounded-lg border shadow-sm overflow-hidden">
+          <div className="flex items-center bg-white rounded-lg border shadow-sm overflow-hidden dark:bg-slate-900">
             <button
               onClick={() => { setMode('select'); setAddStart(null) }}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${mode === 'select' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
@@ -649,7 +649,7 @@ export default function MapEdgeEditor({
             <select
               value={addType}
               onChange={(e) => setAddType(e.target.value as EdgeType)}
-              className="px-2 py-2 text-xs border rounded-lg bg-white shadow-sm"
+              className="px-2 py-2 text-xs border rounded-lg bg-white shadow-sm dark:bg-slate-900"
             >
               {EDGE_TYPES.map(t => (
                 <option key={t} value={t}>{EDGE_LABELS[t]}</option>
@@ -660,11 +660,11 @@ export default function MapEdgeEditor({
           {/* Undo/Redo */}
           <div className="flex items-center gap-1 ml-auto">
             <button onClick={undo} disabled={history.length === 0} title="Undo (Ctrl+Z)"
-              className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-30 transition-colors">
+              className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-30 transition-colors dark:text-slate-400">
               <Undo2 className="w-4 h-4" />
             </button>
             <button onClick={redo} disabled={future.length === 0} title="Redo (Ctrl+Shift+Z)"
-              className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-30 transition-colors">
+              className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-30 transition-colors dark:text-slate-400">
               <Redo2 className="w-4 h-4" />
             </button>
           </div>
@@ -708,7 +708,7 @@ export default function MapEdgeEditor({
         />
 
         {/* Edge legend */}
-        <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+        <div className="flex items-center gap-4 mt-3 text-xs text-gray-500 dark:text-slate-400">
           {EDGE_TYPES.map(t => (
             <div key={t} className="flex items-center gap-1.5">
               <div className="w-4 h-0.5 rounded" style={{ backgroundColor: EDGE_COLORS[t] }} />
@@ -722,10 +722,10 @@ export default function MapEdgeEditor({
       <div className="w-64 space-y-4 shrink-0">
         {/* Selected edge */}
         {selectedEdge && mode === 'select' && (
-          <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3">
-            <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider">Selected Edge</h3>
+          <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3 dark:bg-slate-900">
+            <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider dark:text-slate-100">Selected Edge</h3>
             <div>
-              <label className="text-xs text-gray-500">Type</label>
+              <label className="text-xs text-gray-500 dark:text-slate-400">Type</label>
               <select
                 value={selectedEdge.type}
                 onChange={(e) => {
@@ -740,7 +740,7 @@ export default function MapEdgeEditor({
               </select>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Length</span>
+              <span className="text-gray-500 dark:text-slate-400">Length</span>
               <span className="font-medium">{selectedEdge.lengthFt.toFixed(1)} ft</span>
             </div>
             <button
@@ -757,8 +757,8 @@ export default function MapEdgeEditor({
         )}
 
         {/* Measurements */}
-        <div className="bg-white rounded-xl border shadow-sm p-4">
-          <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3">Measurements</h3>
+        <div className="bg-white rounded-xl border shadow-sm p-4 dark:bg-slate-900">
+          <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3 dark:text-slate-100">Measurements</h3>
           <div className="space-y-2 text-sm">
             {[
               { label: 'Ridge', value: measurements.ridgeLF, color: EDGE_COLORS.ridge },
@@ -768,34 +768,34 @@ export default function MapEdgeEditor({
               { label: 'Eave', value: measurements.eaveLF, color: EDGE_COLORS.eave },
             ].map(m => (
               <div key={m.label} className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-gray-600">
+                <span className="flex items-center gap-1.5 text-gray-600 dark:text-slate-400">
                   <div className="w-3 h-0.5 rounded" style={{ backgroundColor: m.color }} />
                   {m.label}
                 </span>
-                <span className="font-medium text-gray-900">{m.value} LF</span>
+                <span className="font-medium text-gray-900 dark:text-slate-100">{m.value} LF</span>
               </div>
             ))}
             <div className="border-t pt-2 mt-2 space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-600">Perimeter</span>
+                <span className="text-gray-600 dark:text-slate-400">Perimeter</span>
                 <span className="font-medium">{measurements.totalPerimeterLF} LF</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Waste Factor</span>
+                <span className="text-gray-600 dark:text-slate-400">Waste Factor</span>
                 <span className="font-medium">{measurements.wasteFactor}%</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Ice & Water Shield</span>
+                <span className="text-gray-600 dark:text-slate-400">Ice & Water Shield</span>
                 <span className="font-medium">{measurements.iceWaterShieldSqft} sqft</span>
               </div>
             </div>
             <div className="border-t pt-2 mt-2 space-y-2">
               <div className="flex justify-between">
-                <span className="text-gray-600">Total Squares</span>
-                <span className="font-bold text-gray-900">{measurements.totalSquares}</span>
+                <span className="text-gray-600 dark:text-slate-400">Total Squares</span>
+                <span className="font-bold text-gray-900 dark:text-slate-100">{measurements.totalSquares}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">w/ Waste</span>
+                <span className="text-gray-600 dark:text-slate-400">w/ Waste</span>
                 <span className="font-bold text-blue-600">{measurements.squaresWithWaste}</span>
               </div>
             </div>

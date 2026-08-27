@@ -109,7 +109,7 @@ export default function SignaturePad({
 
   return (
     <div className="inline-block w-full">
-      <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white text-gray-900">
+      <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
         <canvas
           ref={canvasRef}
           width={width}
@@ -124,7 +124,7 @@ export default function SignaturePad({
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
         />
-        <div className="border-t border-gray-300 px-4 py-2 bg-gray-50 flex items-center justify-between text-gray-900">
+        <div className="border-t border-gray-300 px-4 py-2 bg-gray-50 flex items-center justify-between text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
           <span className="text-xs text-gray-400">✕ Sign above this line</span>
           <span className="text-xs text-gray-400">{formatDate()}</span>
         </div>
@@ -134,7 +134,7 @@ export default function SignaturePad({
         <button
           type="button"
           onClick={clear}
-          className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+          className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400"
         >
           <Eraser className="w-4 h-4" />
           Clear
@@ -144,7 +144,7 @@ export default function SignaturePad({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 dark:text-slate-400 dark:border-slate-700"
           >
             Cancel
           </button>
@@ -180,9 +180,9 @@ export function SignatureDisplay({ signature, signedBy, signedAt, className = ''
     <div className={`${className}`}>
       <div className="border border-green-200 rounded-lg overflow-hidden bg-green-50 p-3">
         <img src={signature} alt="Signature" className="max-h-20" />
-        <div className="mt-2 text-sm text-gray-600">
+        <div className="mt-2 text-sm text-gray-600 dark:text-slate-400">
           <p className="font-medium">{signedBy}</p>
-          <p className="text-xs text-gray-500">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>
         </div>
       </div>
     </div>
@@ -242,11 +242,11 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">{title}</h2>
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <h2 className="text-xl font-bold text-gray-900 mb-4 dark:text-slate-100">{title}</h2>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
               Full Name <span className="text-red-500">*</span>
             </label>
             <input
@@ -254,7 +254,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder="Enter your full name"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
 
@@ -263,9 +263,9 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
               type="checkbox"
               checked={consent}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConsent(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700"
             />
-            <span className="text-xs text-gray-600">
+            <span className="text-xs text-gray-600 dark:text-slate-400">
               I agree that my electronic signature is the legal equivalent of my handwritten signature. <span className="text-red-500">*</span>
             </span>
           </label>

@@ -49,8 +49,8 @@ export default function MarketingPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Marketing</h1>
-          <p className="text-gray-500">Email campaigns and automation</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Marketing</h1>
+          <p className="text-gray-500 dark:text-slate-400">Email campaigns and automation</p>
         </div>
       </div>
 
@@ -168,20 +168,20 @@ function CampaignsTab() {
       </div>
 
       {campaigns.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <Mail className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No campaigns yet</p>
+          <p className="text-gray-500 dark:text-slate-400">No campaigns yet</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Campaign</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Recipients</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Opens</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Clicks</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Campaign</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Recipients</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Opens</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Clicks</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -189,8 +189,8 @@ function CampaignsTab() {
               {campaigns.map((campaign: Record<string, unknown>) => (
                 <tr key={campaign.id as string} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{campaign.name as string}</p>
-                    <p className="text-sm text-gray-500">{campaign.subject as string}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{campaign.name as string}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">{campaign.subject as string}</p>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 text-xs rounded-full ${
@@ -280,18 +280,18 @@ function TemplatesTab() {
       </div>
 
       {templates.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <FileText className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No templates yet</p>
+          <p className="text-gray-500 dark:text-slate-400">No templates yet</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {templates.map((template: Record<string, unknown>) => (
-            <div key={template.id as string} className="bg-white rounded-xl border p-4">
+            <div key={template.id as string} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium text-gray-900">{template.name as string}</p>
-                  <p className="text-sm text-gray-500">{template.category as string}</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{template.name as string}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{template.category as string}</p>
                 </div>
                 <div className="flex gap-1">
                   <button
@@ -302,7 +302,7 @@ function TemplatesTab() {
                   </button>
                 </div>
               </div>
-              <p className="mt-2 text-sm text-gray-600 line-clamp-2">{template.subject as string}</p>
+              <p className="mt-2 text-sm text-gray-600 line-clamp-2 dark:text-slate-400">{template.subject as string}</p>
             </div>
           ))}
         </div>
@@ -356,15 +356,15 @@ function SequencesTab() {
       </div>
 
       {sequences.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <Zap className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No drip sequences yet</p>
+          <p className="text-gray-500 dark:text-slate-400">No drip sequences yet</p>
           <p className="text-sm text-gray-400 mt-1">Automate follow-up emails</p>
         </div>
       ) : (
         <div className="space-y-4">
           {sequences.map((sequence: Record<string, unknown>) => (
-            <div key={sequence.id as string} className="bg-white rounded-xl border p-4">
+            <div key={sequence.id as string} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -373,8 +373,8 @@ function SequencesTab() {
                     <Zap className={`w-5 h-5 ${sequence.active ? 'text-green-600' : 'text-gray-400'}`} />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{sequence.name as string}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{sequence.name as string}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">
                       {(sequence.steps as Record<string, unknown>[])?.length || 0} steps •
                       {(sequence._count as Record<string, unknown>)?.enrollments as number || 0} enrolled
                     </p>
@@ -397,9 +397,9 @@ function SequencesTab() {
                 <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-2">
                   {(sequence.steps as Record<string, unknown>[]).map((step: Record<string, unknown>, i: number) => (
                     <div key={step.id as string} className="flex items-center">
-                      <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm whitespace-nowrap">
+                      <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm whitespace-nowrap dark:bg-slate-900">
                         <p className="font-medium">Step {step.stepNumber as number}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 dark:text-slate-400">
                           {(step.delayDays as number) > 0 && `${step.delayDays}d `}
                           {(step.delayHours as number) > 0 && `${step.delayHours}h`}
                           {!(step.delayDays as number) && !(step.delayHours as number) && 'Immediately'}
@@ -487,30 +487,30 @@ function CampaignFormModal({ campaign, onSave, onClose }: CampaignFormModalProps
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{campaign ? 'Edit Campaign' : 'New Campaign'}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Campaign Name</label>
               <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subject Line</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Subject Line</label>
               <input type="text" value={form.subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, subject: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Audience</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Audience</label>
               <select value={form.audienceType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, audienceType: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg">
                 <option value="all">All Contacts</option>
                 <option value="segment">Segment</option>
               </select>
               {form.audienceType === 'segment' && (
-                <div className="mt-3 grid sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                <div className="mt-3 grid sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Contact type</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Contact type</label>
                     <select value={form.segmentType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, segmentType: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg text-sm">
                       <option value="">Any type</option>
@@ -521,14 +521,14 @@ function CampaignFormModal({ campaign, onSave, onClose }: CampaignFormModalProps
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Added on or after</label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Added on or after</label>
                     <input type="date" value={form.segmentCreatedAfter}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, segmentCreatedAfter: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg text-sm" />
                   </div>
                 </div>
               )}
-              <p className="mt-2 text-xs text-gray-500">
+              <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
                 {audienceCount === null
                   ? 'Counting recipients...'
                   : `This campaign will go to ${audienceCount} contact${audienceCount === 1 ? '' : 's'}.`}
@@ -536,7 +536,7 @@ function CampaignFormModal({ campaign, onSave, onClose }: CampaignFormModalProps
               </p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email Body (HTML)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email Body (HTML)</label>
               <textarea value={form.body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, body: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg font-mono text-sm" rows={10} />
             </div>
@@ -589,17 +589,17 @@ function TemplateFormModal({ template, onSave, onClose }: TemplateFormModalProps
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{template ? 'Edit Template' : 'New Template'}</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
                 <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
                 <select value={form.category} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, category: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="general">General</option>
@@ -611,15 +611,15 @@ function TemplateFormModal({ template, onSave, onClose }: TemplateFormModalProps
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Subject</label>
               <input type="text" value={form.subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, subject: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Body (HTML)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Body (HTML)</label>
               <textarea value={form.body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, body: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg font-mono text-sm" rows={10} />
-              <p className="text-xs text-gray-500 mt-1">Variables: {'{{name}}'}, {'{{firstName}}'}, {'{{company}}'}</p>
+              <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Variables: {'{{name}}'}, {'{{firstName}}'}, {'{{company}}'}</p>
             </div>
             <div className="flex gap-3 pt-4">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">Cancel</button>
@@ -684,17 +684,17 @@ function SequenceFormModal({ onSave, onClose }: SequenceFormModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">New Drip Sequence</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sequence Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Sequence Name</label>
                 <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Trigger</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Trigger</label>
                 <select value={form.trigger} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, trigger: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="manual">Manual Enrollment</option>
@@ -718,7 +718,7 @@ function SequenceFormModal({ onSave, onClose }: SequenceFormModalProps) {
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Step {index + 1}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">Delay:</span>
+                      <span className="text-sm text-gray-500 dark:text-slate-400">Delay:</span>
                       <input type="number" value={step.delayDays} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateStep(index, 'delayDays', parseInt(e.target.value))}
                         className="w-16 px-2 py-1 border rounded text-sm" min="0" /> days
                       <input type="number" value={step.delayHours} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateStep(index, 'delayHours', parseInt(e.target.value))}

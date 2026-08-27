@@ -61,8 +61,8 @@ export function DocumentHistoryModal({ doc, onClose, onChanged }: {
   return (
     <Modal isOpen onClose={onClose} title={`Versions — ${doc.name as string}`} size="md">
       <div className="space-y-4">
-        <div className="bg-gray-50 border rounded-lg p-3">
-          <div className="text-sm font-medium text-gray-900 mb-2">Current: {doc.originalName as string}</div>
+        <div className="bg-gray-50 border rounded-lg p-3 dark:bg-slate-900">
+          <div className="text-sm font-medium text-gray-900 mb-2 dark:text-slate-100">Current: {doc.originalName as string}</div>
           <div className="flex gap-2 items-center">
             <input value={note} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNote(e.target.value)} placeholder="What changed? (optional)" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
             <input ref={fileRef} type="file" className="hidden" onChange={(e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) uploadVersion(f); e.target.value = ''; }} />
@@ -80,14 +80,14 @@ export function DocumentHistoryModal({ doc, onClose, onChanged }: {
                 {versions.map(v => (
                   <div key={v.id as string} className="border rounded-lg px-3 py-2 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">v{v.versionNumber as number} — {v.originalName as string}</div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-sm font-medium text-gray-900 dark:text-slate-100">v{v.versionNumber as number} — {v.originalName as string}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">
                         {new Date(v.createdAt as string).toLocaleString()}{v.note ? ` — ${v.note as string}` : ''}
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <a href={`${api.baseUrl}/api/documents/${doc.id as string}/versions/${v.id as string}/download`} target="_blank" rel="noreferrer" className="p-2 text-gray-500 hover:text-gray-900" title="Download"><Download className="w-4 h-4" /></a>
-                      <button onClick={() => restore(v.id as string, v.versionNumber as number)} className="p-2 text-gray-500 hover:text-gray-900" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>
+                      <a href={`${api.baseUrl}/api/documents/${doc.id as string}/versions/${v.id as string}/download`} target="_blank" rel="noreferrer" className="p-2 text-gray-500 hover:text-gray-900 dark:text-slate-400" title="Download"><Download className="w-4 h-4" /></a>
+                      <button onClick={() => restore(v.id as string, v.versionNumber as number)} className="p-2 text-gray-500 hover:text-gray-900 dark:text-slate-400" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -202,9 +202,9 @@ export function PlanMarkupModal({ doc, onClose }: { doc: Record<string, unknown>
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[92vh] flex flex-col dark:bg-slate-900" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b flex-wrap gap-2">
-          <div className="font-semibold text-gray-900">Markup — {doc.name as string}</div>
+          <div className="font-semibold text-gray-900 dark:text-slate-100">Markup — {doc.name as string}</div>
           <div className="flex items-center gap-2">
             <select value={activeId || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { const m = markups.find(x => (x.id as string) === e.target.value); if (m) selectMarkup(m); else newLayer(); }} className="px-2 py-1.5 border rounded-lg text-sm">
               <option value="">New layer…</option>
@@ -213,15 +213,15 @@ export function PlanMarkupModal({ doc, onClose }: { doc: Record<string, unknown>
             {([['rect', Square], ['pen', PenLine], ['pin', MapPin]] as const).map(([t, Icon]) => (
               <button key={t} onClick={() => setTool(t)} className={`p-2 rounded-lg border ${tool === t ? 'bg-blue-50 border-blue-400 text-blue-700' : 'text-gray-500'}`} title={t}><Icon className="w-4 h-4" /></button>
             ))}
-            <button onClick={() => { setShapes(s => s.slice(0, -1)); setDirty(true); }} className="px-2 py-1.5 border rounded-lg text-sm text-gray-600" disabled={!shapes.length}>Undo</button>
+            <button onClick={() => { setShapes(s => s.slice(0, -1)); setDirty(true); }} className="px-2 py-1.5 border rounded-lg text-sm text-gray-600 dark:text-slate-400" disabled={!shapes.length}>Undo</button>
             <Button onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Button>
             {activeId && <button onClick={deleteLayer} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Delete layer"><Trash2 className="w-4 h-4" /></button>}
-            <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
+            <button onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg dark:text-slate-400"><X className="w-4 h-4" /></button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-4 bg-gray-100">
+        <div className="flex-1 overflow-auto p-4 bg-gray-100 dark:bg-slate-800">
           {!isImage ? (
-            <div className="text-center text-gray-500 py-16">
+            <div className="text-center text-gray-500 py-16 dark:text-slate-400">
               Markup drawing works on image files (plan sheets exported as PNG/JPG).<br />
               This file is {(doc.mimeType as string) || 'not an image'} — use pins in a future revision or export the sheet as an image.
             </div>

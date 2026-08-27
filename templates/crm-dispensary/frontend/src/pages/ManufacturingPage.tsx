@@ -161,12 +161,12 @@ export default function ManufacturingPage() {
   };
 
   const columns = [
-    { key: 'jobNumber', label: 'Job #', render: (val: string) => <span className="font-mono font-medium text-gray-900">{val || '--'}</span> },
+    { key: 'jobNumber', label: 'Job #', render: (val: string) => <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{val || '--'}</span> },
     { key: 'type', label: 'Type', render: (val: string) => <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'}`}>{val}</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={statusColors} /> },
     { key: 'inputBatches', label: 'Input Batches', render: (val: any) => {
       const batches = Array.isArray(val) ? val : [];
-      return batches.length > 0 ? <span className="text-sm text-gray-700">{batches.join(', ')}</span> : <span className="text-gray-400">--</span>;
+      return batches.length > 0 ? <span className="text-sm text-gray-700 dark:text-slate-200">{batches.join(', ')}</span> : <span className="text-gray-400">--</span>;
     }},
     { key: 'method', label: 'Method', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'operator', label: 'Operator', render: (val: string) => val || <span className="text-gray-400">--</span> },
@@ -174,7 +174,7 @@ export default function ManufacturingPage() {
     { key: 'yield', label: 'Yield', render: (val: number, row: any) => {
       if (row.outputWeight && row.inputWeight) {
         const yieldPct = ((row.outputWeight / row.inputWeight) * 100).toFixed(1);
-        return <span className="font-medium text-gray-900">{yieldPct}%</span>;
+        return <span className="font-medium text-gray-900 dark:text-slate-100">{yieldPct}%</span>;
       }
       return <span className="text-gray-400">--</span>;
     }},
@@ -202,17 +202,17 @@ export default function ManufacturingPage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">In Progress</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">In Progress</p>
             <p className="text-2xl font-bold text-blue-600">{stats.inProgress || 0}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Avg Yield</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Avg Yield</p>
             <p className="text-2xl font-bold text-green-600">{stats.avgYield ? `${stats.avgYield}%` : '--'}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Completed This Week</p>
-            <p className="text-2xl font-bold text-gray-900">{stats.completedThisWeek || 0}</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Completed This Week</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.completedThisWeek || 0}</p>
           </div>
         </div>
       )}
@@ -221,12 +221,12 @@ export default function ManufacturingPage() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Search jobs..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" />
+          <input type="text" placeholder="Search jobs..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500">
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
           {jobTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
           {jobStatuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
       </div>

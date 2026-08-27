@@ -96,7 +96,7 @@ export default function SchedulePage() {
         </div>
       </div>
       {bookings.length > 0 && (
-        <div className="flex items-center gap-4 mb-4 text-xs text-gray-600">
+        <div className="flex items-center gap-4 mb-4 text-xs text-gray-600 dark:text-slate-400">
           <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-300" />Job</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-300" />Booking</span>
         </div>
@@ -113,7 +113,7 @@ export default function SchedulePage() {
                 {getJobsForDay(day).map((job: any) => (
                   <div key={job.id} className={`p-2 rounded text-xs ${job.status === 'completed' ? 'bg-green-50 border-l-2 border-green-500' : job.status === 'in_progress' ? 'bg-blue-50 border-l-2 border-blue-500' : 'bg-gray-50 border-l-2 border-gray-300'}`}>
                     <p className="font-medium truncate">{job.title}</p>
-                    {job.scheduledTime && <p className="text-gray-500">{job.scheduledTime}</p>}
+                    {job.scheduledTime && <p className="text-gray-500 dark:text-slate-400">{job.scheduledTime}</p>}
                   </div>
                 ))}
                 {getBookingsForDay(day).map(b => {
@@ -121,7 +121,7 @@ export default function SchedulePage() {
                   return (
                     <div key={b.id} className="p-2 rounded text-xs bg-orange-50 border-l-2 border-orange-500" title={(b.serviceName || 'Booking') + ' — ' + b.customerName + (b.customerAddress ? ' @ ' + b.customerAddress : '')}>
                       <p className="font-medium truncate flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" />{b.customerName}</p>
-                      <p className="text-gray-500 truncate">{time}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
+                      <p className="text-gray-500 truncate dark:text-slate-400">{time}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
                     </div>
                   );
                 })}
@@ -130,7 +130,7 @@ export default function SchedulePage() {
                   return (
                     <div key={e.id} className="p-2 rounded text-xs bg-indigo-50 border-l-2 border-indigo-500" title={(e.notes || e.title)}>
                       <p className="font-medium truncate">{e.title}</p>
-                      <p className="text-gray-500 truncate">{time}{e.type ? ' · ' + e.type : ''}</p>
+                      <p className="text-gray-500 truncate dark:text-slate-400">{time}{e.type ? ' · ' + e.type : ''}</p>
                     </div>
                   );
                 })}
@@ -173,19 +173,19 @@ function NewAppointmentModal({ date, onClose, onSaved, toast }: { date: Date; on
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl w-full max-w-md dark:bg-slate-900" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <h3 className="font-bold text-lg">New Appointment</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={submit} className="p-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-            <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Test drive — John Smith" className="w-full px-3 py-2 border border-gray-300 rounded-lg" required />
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Title *</label>
+            <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Test drive — John Smith" className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:border-slate-700" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-            <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
+            <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:border-slate-700">
               <option value="appointment">Appointment</option>
               <option value="test_drive">Test Drive</option>
               <option value="service">Service Drop-off</option>
@@ -194,16 +194,16 @@ function NewAppointmentModal({ date, onClose, onSaved, toast }: { date: Date; on
             </select>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Date</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">Start</label><input type="time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
-            <div><label className="block text-sm font-medium text-gray-700 mb-1">End</label><input type="time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:border-slate-700" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start</label><input type="time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:border-slate-700" /></div>
+            <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End</label><input type="time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:border-slate-700" /></div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
+            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:border-slate-700" />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg">Cancel</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg dark:border-slate-700">Cancel</button>
             <button type="submit" disabled={saving} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg">{saving ? 'Saving…' : 'Create'}</button>
           </div>
         </form>

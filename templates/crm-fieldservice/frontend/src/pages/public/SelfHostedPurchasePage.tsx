@@ -92,7 +92,7 @@ export default function SelfHostedPurchasePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center dark:bg-slate-900">
         <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
       </div>
     );
@@ -101,18 +101,18 @@ export default function SelfHostedPurchasePage() {
   const selectedLicenseData = licenses.find(l => l.id === selectedLicense);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <header className="bg-white border-b">
+      <header className="bg-white border-b dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2">
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{{COMPANY_NAME}}</span>
             </Link>
-            <Link to="/pricing" className="text-gray-600 hover:text-gray-900">
+            <Link to="/pricing" className="text-gray-600 hover:text-gray-900 dark:text-slate-400">
               ← Back to Pricing
             </Link>
           </div>
@@ -121,8 +121,8 @@ export default function SelfHostedPurchasePage() {
 
       <main className="max-w-6xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Self-Hosted License</h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4 dark:text-slate-100">Self-Hosted License</h1>
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto dark:text-slate-400">
             Own {{COMPANY_NAME}} forever. Deploy on your own servers with full control over your data.
           </p>
         </div>
@@ -136,8 +136,8 @@ export default function SelfHostedPurchasePage() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* License Selection */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Select License</h2>
+            <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Select License</h2>
               <div className="space-y-3">
                 {licenses.map((license) => (
                   <button
@@ -151,11 +151,11 @@ export default function SelfHostedPurchasePage() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-semibold text-gray-900">{license.name}</span>
-                        <p className="text-sm text-gray-500 mt-1">Perpetual license · Unlimited installs</p>
+                        <span className="font-semibold text-gray-900 dark:text-slate-100">{license.name}</span>
+                        <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Perpetual license · Unlimited installs</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl font-bold text-gray-900">
+                        <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                           ${license.price.toLocaleString()}
                         </span>
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
@@ -171,8 +171,8 @@ export default function SelfHostedPurchasePage() {
             </div>
 
             {/* Add-ons */}
-            <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Optional Services</h2>
+            <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Optional Services</h2>
               <div className="space-y-3">
                 {addons.map((addon) => (
                   <button
@@ -186,7 +186,7 @@ export default function SelfHostedPurchasePage() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-semibold text-gray-900">{addon.name}</span>
+                        <span className="font-semibold text-gray-900 dark:text-slate-100">{addon.name}</span>
                         {addon.recurring && (
                           <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                             {addon.id === 'updates' ? 'Annual' : 'Monthly'}
@@ -194,9 +194,9 @@ export default function SelfHostedPurchasePage() {
                         )}
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="font-bold text-gray-900">
+                        <span className="font-bold text-gray-900 dark:text-slate-100">
                           ${addon.price.toLocaleString()}
-                          {addon.recurring && <span className="text-gray-500 font-normal">/{addon.id === 'updates' ? 'yr' : 'mo'}</span>}
+                          {addon.recurring && <span className="text-gray-500 font-normal dark:text-slate-400">/{addon.id === 'updates' ? 'yr' : 'mo'}</span>}
                         </span>
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
                           selectedAddons.includes(addon.id) ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
@@ -211,26 +211,26 @@ export default function SelfHostedPurchasePage() {
             </div>
 
             {/* Your Info */}
-            <div className="bg-white rounded-xl border p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Information</h2>
+            <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Your Information</h2>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email *</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="you@company.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Company Name *</label>
                   <input
                     type="text"
                     value={formData.companyName}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="Your Company"
                   />
                 </div>
@@ -240,12 +240,12 @@ export default function SelfHostedPurchasePage() {
 
           {/* Order Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl border p-6 sticky top-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
+            <div className="bg-white rounded-xl border p-6 sticky top-6 dark:bg-slate-900">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Order Summary</h2>
               
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">{selectedLicenseData?.name}</span>
+                  <span className="text-gray-600 dark:text-slate-400">{selectedLicenseData?.name}</span>
                   <span className="font-medium">${selectedLicenseData?.price.toLocaleString()}</span>
                 </div>
                 
@@ -253,7 +253,7 @@ export default function SelfHostedPurchasePage() {
                   const addon = addons.find(a => a.id === addonId);
                   return (
                     <div key={addonId} className="flex justify-between text-sm">
-                      <span className="text-gray-600">{addon?.name}</span>
+                      <span className="text-gray-600 dark:text-slate-400">{addon?.name}</span>
                       <span>${addon?.price.toLocaleString()}</span>
                     </div>
                   );
@@ -287,19 +287,19 @@ export default function SelfHostedPurchasePage() {
 
               {/* Benefits */}
               <div className="mt-6 space-y-3">
-                <div className="flex items-center gap-3 text-sm text-gray-600">
+                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-slate-400">
                   <Server className="w-5 h-5 text-green-500" />
                   <span>Deploy on your own servers</span>
                 </div>
-                <div className="flex items-center gap-3 text-sm text-gray-600">
+                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-slate-400">
                   <Shield className="w-5 h-5 text-green-500" />
                   <span>Full data ownership & control</span>
                 </div>
-                <div className="flex items-center gap-3 text-sm text-gray-600">
+                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-slate-400">
                   <Download className="w-5 h-5 text-green-500" />
                   <span>Instant download after purchase</span>
                 </div>
-                <div className="flex items-center gap-3 text-sm text-gray-600">
+                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-slate-400">
                   <Check className="w-5 h-5 text-green-500" />
                   <span>Perpetual license · No recurring fees</span>
                 </div>

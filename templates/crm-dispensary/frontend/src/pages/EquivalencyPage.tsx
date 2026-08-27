@@ -178,8 +178,8 @@ export default function EquivalencyPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Product Equivalency</h1>
-          <p className="text-gray-600">Flower equivalency rules and purchase limit calculator</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Product Equivalency</h1>
+          <p className="text-gray-600 dark:text-slate-400">Flower equivalency rules and purchase limit calculator</p>
         </div>
       </div>
 
@@ -208,7 +208,7 @@ export default function EquivalencyPage() {
             <button
               onClick={handleSeedDefaults}
               disabled={seeding}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
             >
               {seeding ? 'Seeding...' : 'Seed Defaults'}
             </button>
@@ -223,29 +223,29 @@ export default function EquivalencyPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">State</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Equivalency (g)</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Purchase Limit (g)</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">State</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Category</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Equivalency (g)</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Purchase Limit (g)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Description</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {rules.map(rule => (
                     <tr key={rule.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-700">{rule.state || 'All'}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{rule.category}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{rule.equivalencyGrams}g</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{rule.purchaseLimitGrams}g</td>
-                      <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">{rule.description || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{rule.state || 'All'}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{rule.category}</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{rule.equivalencyGrams}g</td>
+                      <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{rule.purchaseLimitGrams}g</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{rule.description || '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-2 justify-end">
-                          <button onClick={() => openEditRule(rule)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                          <button onClick={() => openEditRule(rule)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
                             <Edit className="w-3 h-3" /> Edit
                           </button>
                           <button onClick={() => { setRuleToDelete(rule); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
@@ -257,7 +257,7 @@ export default function EquivalencyPage() {
                   ))}
                   {rules.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                      <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                         <Scale className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                         <p>No equivalency rules configured</p>
                         <p className="text-sm mt-1">Click "Seed Defaults" to load standard rules or add your own</p>
@@ -275,8 +275,8 @@ export default function EquivalencyPage() {
       {tab === 'calculator' && (
         <div className="max-w-2xl space-y-6">
           {/* Add product */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <Calculator className="w-5 h-5 text-green-600" />
               Add Products
             </h3>
@@ -284,7 +284,7 @@ export default function EquivalencyPage() {
               <select
                 value={selectedProduct}
                 onChange={(e) => setSelectedProduct(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 <option value="">Select product...</option>
                 {products.map(p => (
@@ -296,7 +296,7 @@ export default function EquivalencyPage() {
                 min="1"
                 value={selectedQty}
                 onChange={(e) => setSelectedQty(e.target.value)}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-center"
+                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-center dark:border-slate-700 dark:text-slate-100"
                 placeholder="Qty"
               />
               <Button onClick={addToCart}>Add</Button>
@@ -304,9 +304,9 @@ export default function EquivalencyPage() {
           </div>
 
           {/* Purchase Limit Bar */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900">Purchase Limit</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-slate-100">Purchase Limit</h3>
               <span className={`text-sm font-medium ${overLimit ? 'text-red-600' : 'text-gray-600'}`}>
                 {totalEquivalentGrams.toFixed(1)}g / {purchaseLimit}g
               </span>
@@ -330,26 +330,26 @@ export default function EquivalencyPage() {
           </div>
 
           {/* Cart Items */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-100 dark:bg-slate-900">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Equiv/Unit (g)</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total (g)</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase"></th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Category</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Qty</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Equiv/Unit (g)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Total (g)</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {cartItems.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{item.productName}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{item.category}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{item.quantity}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">{item.ruleEquivalency}g</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">{item.equivalentGrams.toFixed(1)}g</td>
+                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{item.productName}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{item.category}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.quantity}</td>
+                    <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.ruleEquivalency}g</td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{item.equivalentGrams.toFixed(1)}g</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700">
                         <Trash2 className="w-4 h-4" />
@@ -359,16 +359,16 @@ export default function EquivalencyPage() {
                 ))}
                 {cartItems.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">
                       Add products above to calculate equivalency
                     </td>
                   </tr>
                 )}
               </tbody>
               {cartItems.length > 0 && (
-                <tfoot className="bg-gray-50">
+                <tfoot className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-900">Total Flower Equivalent:</td>
+                    <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100">Total Flower Equivalent:</td>
                     <td className={`px-4 py-3 text-right font-bold ${overLimit ? 'text-red-600' : 'text-green-600'}`}>
                       {totalEquivalentGrams.toFixed(1)}g
                     </td>
@@ -389,62 +389,62 @@ export default function EquivalencyPage() {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">State (leave blank for all)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State (leave blank for all)</label>
             <input
               type="text"
               value={ruleForm.state}
               onChange={(e) => setRuleForm({ ...ruleForm, state: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="CO, CA, etc."
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category *</label>
             <input
               type="text"
               value={ruleForm.category}
               onChange={(e) => setRuleForm({ ...ruleForm, category: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Concentrates, Edibles, Flower, etc."
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Equivalency (grams)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Equivalency (grams)</label>
               <input
                 type="number"
                 step="0.1"
                 value={ruleForm.equivalencyGrams}
                 onChange={(e) => setRuleForm({ ...ruleForm, equivalencyGrams: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 placeholder="3.5"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Limit (grams)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Purchase Limit (grams)</label>
               <input
                 type="number"
                 step="0.1"
                 value={ruleForm.purchaseLimitGrams}
                 onChange={(e) => setRuleForm({ ...ruleForm, purchaseLimitGrams: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 placeholder="28"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
             <textarea
               value={ruleForm.description}
               onChange={(e) => setRuleForm({ ...ruleForm, description: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="e.g., 1g concentrate = 3.5g flower equivalent"
             />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">
-          <button onClick={() => setRuleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+          <button onClick={() => setRuleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
           <Button onClick={handleSaveRule} disabled={savingRule}>
             {savingRule ? 'Saving...' : editingRule ? 'Update' : 'Create'}
           </Button>

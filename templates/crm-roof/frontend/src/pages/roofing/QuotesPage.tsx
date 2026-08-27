@@ -131,12 +131,12 @@ export default function QuotesPage() {
   const totalPages = Math.ceil(total / limit) || 1;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Quotes</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} {total === 1 ? 'quote' : 'quotes'}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Quotes</h1>
+            <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'quote' : 'quotes'}</p>
           </div>
           <button
             onClick={openCreate}
@@ -146,20 +146,20 @@ export default function QuotesPage() {
           </button>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Quote #</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Contact</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Job</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Signed</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Total</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Created</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Expires</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Actions</th>
+                <tr className="bg-gray-50 border-b dark:bg-slate-900">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Quote #</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Contact</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Job</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Signed</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Total</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Created</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Expires</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,11 +175,11 @@ export default function QuotesPage() {
                           eject the user out of the CRM to "/". Row actions
                           (send / approve / convert / certificate) live to the
                           right. */}
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700 dark:text-slate-200">
                         {q.quoteNumber || `Q-${String(q.id).padStart(4, '0')}`}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{q.contact ? `${q.contact.firstName || ''} ${q.contact.lastName || ''}`.trim() : q.contactName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs font-mono">
+                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{q.contact ? `${q.contact.firstName || ''} ${q.contact.lastName || ''}`.trim() : q.contactName || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs font-mono dark:text-slate-400">
                         {q.job?.jobNumber || q.jobNumber || (q.jobId ? q.jobId.slice(0, 12) + '...' : '—')}
                       </td>
                       <td className="px-4 py-3">
@@ -195,7 +195,7 @@ export default function QuotesPage() {
                             title="View signature certificate"
                           >
                             {q.signedBy}
-                            <span className="block text-gray-500">
+                            <span className="block text-gray-500 dark:text-slate-400">
                               {q.signedAt ? formatDate(q.signedAt) : ''}
                             </span>
                           </button>
@@ -203,13 +203,13 @@ export default function QuotesPage() {
                           <span className="text-gray-400">&mdash;</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">
+                      <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
                         ${Number(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {q.createdAt ? formatDate(q.createdAt) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {q.expiresAt ? formatDate(q.expiresAt) : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -244,8 +244,8 @@ export default function QuotesPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
+              <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />
@@ -262,11 +262,11 @@ export default function QuotesPage() {
       {/* Signature certificate */}
       {certQuote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setCertQuote(null)}>
-          <div className="bg-white rounded-xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Signed Acceptance</h3>
-                <p className="text-sm text-gray-500">{certQuote.quoteNumber || 'Proposal'}</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Signed Acceptance</h3>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{certQuote.quoteNumber || 'Proposal'}</p>
               </div>
               <button onClick={() => setCertQuote(null)} className="text-gray-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
@@ -275,16 +275,16 @@ export default function QuotesPage() {
 
             <div className="border border-green-200 rounded-lg bg-green-50 p-4">
               {certQuote.signature && (
-                <img src={certQuote.signature} alt="Customer signature" className="max-h-24 bg-white rounded" />
+                <img src={certQuote.signature} alt="Customer signature" className="max-h-24 bg-white rounded dark:bg-slate-900" />
               )}
-              <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700">
-                <div><span className="text-gray-500">Signed by</span><p className="font-medium">{certQuote.signedBy || '-'}</p></div>
-                <div><span className="text-gray-500">Signed at</span><p className="font-medium">{certQuote.signedAt ? new Date(certQuote.signedAt).toLocaleString() : '-'}</p></div>
-                <div><span className="text-gray-500">IP address</span><p className="font-mono text-xs">{certQuote.signedIp || '-'}</p></div>
-                <div><span className="text-gray-500">Consent</span><p className="font-medium">{certQuote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
+              <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 dark:text-slate-200">
+                <div><span className="text-gray-500 dark:text-slate-400">Signed by</span><p className="font-medium">{certQuote.signedBy || '-'}</p></div>
+                <div><span className="text-gray-500 dark:text-slate-400">Signed at</span><p className="font-medium">{certQuote.signedAt ? new Date(certQuote.signedAt).toLocaleString() : '-'}</p></div>
+                <div><span className="text-gray-500 dark:text-slate-400">IP address</span><p className="font-mono text-xs">{certQuote.signedIp || '-'}</p></div>
+                <div><span className="text-gray-500 dark:text-slate-400">Consent</span><p className="font-medium">{certQuote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
               </div>
               {certQuote.signatureHash && (
-                <p className="mt-3 text-xs text-gray-500 break-all">
+                <p className="mt-3 text-xs text-gray-500 break-all dark:text-slate-400">
                   <span className="text-gray-400">Document fingerprint (SHA-256): </span>
                   <span className="font-mono">{certQuote.signatureHash}</span>
                 </p>
@@ -300,9 +300,9 @@ export default function QuotesPage() {
       {/* Create Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <FileText className="w-5 h-5 text-blue-600" /> New Quote
               </h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -313,14 +313,14 @@ export default function QuotesPage() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Contact *</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Contact *</label>
                   <select value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                     <option value="">Select contact...</option>
                     {contacts.map((c: any) => <option key={c.id} value={c.id}>{c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Job (optional)</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Job (optional)</label>
                   <select value={form.jobId} onChange={(e) => setForm({ ...form, jobId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                     <option value="">No job linked</option>
                     {jobs.map((j: any) => <option key={j.id} value={j.id}>{j.jobNumber || `ROOF-${String(j.id).padStart(4, '0')}`} — {j.contactName || j.address || ''}</option>)}
@@ -330,10 +330,10 @@ export default function QuotesPage() {
 
               {/* Line Items */}
               <div>
-                <label className="text-xs text-gray-500 block mb-2">Line Items</label>
+                <label className="text-xs text-gray-500 block mb-2 dark:text-slate-400">Line Items</label>
                 <table className="w-full text-sm mb-2">
                   <thead>
-                    <tr className="text-left text-gray-500 text-xs">
+                    <tr className="text-left text-gray-500 text-xs dark:text-slate-400">
                       <th className="pb-1 font-medium">Description</th>
                       <th className="pb-1 font-medium w-20">Qty</th>
                       <th className="pb-1 font-medium w-28">Unit Price</th>
@@ -371,7 +371,7 @@ export default function QuotesPage() {
                             className="w-full text-sm border rounded px-2 py-1.5"
                           />
                         </td>
-                        <td className="py-1 text-right text-gray-700 font-medium">
+                        <td className="py-1 text-right text-gray-700 font-medium dark:text-slate-200">
                           ${money(li.quantity * li.unitPrice)}
                         </td>
                         <td className="py-1 pl-1">
@@ -391,9 +391,9 @@ export default function QuotesPage() {
               {/* Totals */}
               <div className="flex justify-end">
                 <div className="w-64 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${money(subtotal)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Subtotal</span><span>${money(subtotal)}</span></div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-500">Tax (%)</span>
+                    <span className="text-gray-500 dark:text-slate-400">Tax (%)</span>
                     <input
                       type="number"
                       min={0}
@@ -403,25 +403,25 @@ export default function QuotesPage() {
                       className="w-16 text-sm border rounded px-2 py-1 text-right"
                     />
                   </div>
-                  {tax > 0 && <div className="flex justify-between"><span className="text-gray-500">Tax amount</span><span>${money(tax)}</span></div>}
+                  {tax > 0 && <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Tax amount</span><span>${money(tax)}</span></div>}
                   <div className="flex justify-between font-bold border-t pt-1"><span>Total</span><span>${money(grandTotal)}</span></div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Expires On</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Expires On</label>
                   <input type="date" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Notes</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Notes</label>
                 <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
             </div>
 
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Creating...' : 'Create Quote'}
               </button>

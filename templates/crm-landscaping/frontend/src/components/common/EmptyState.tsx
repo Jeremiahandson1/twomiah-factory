@@ -33,11 +33,11 @@ export function EmptyState({
 
   return (
     <div className={`flex flex-col items-center justify-center py-12 px-4 ${className}`}>
-      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4 dark:bg-slate-800">
         <IconComponent className="w-8 h-8 text-gray-400" />
       </div>
-      <h3 className="text-lg font-medium text-gray-900 mb-1">{title}</h3>
-      <p className="text-gray-500 text-center max-w-sm mb-6">{description}</p>
+      <h3 className="text-lg font-medium text-gray-900 mb-1 dark:text-slate-100">{title}</h3>
+      <p className="text-gray-500 text-center max-w-sm mb-6 dark:text-slate-400">{description}</p>
       {(action || onAction) && (
         action || (
           <button
@@ -191,7 +191,7 @@ export function TableEmptyState({ message = 'No data available', colSpan = 5 }) 
       <td colSpan={colSpan} className="px-4 py-12">
         <div className="text-center">
           <Inbox className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">{message}</p>
+          <p className="text-gray-500 dark:text-slate-400">{message}</p>
         </div>
       </td>
     </tr>

@@ -90,8 +90,8 @@ export default function WarrantiesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Warranties</h1>
-          <p className="text-gray-500">Track warranties and service claims</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Warranties</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track warranties and service claims</p>
         </div>
         <button
           onClick={() => setShowNewClaim(true)}
@@ -150,7 +150,7 @@ export default function WarrantiesPage() {
               type="checkbox"
               checked={showExpiring}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowExpiring(e.target.checked)}
-              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 dark:border-slate-700"
             />
             Show expiring soon only
           </label>
@@ -216,23 +216,23 @@ interface WarrantiesListProps {
 function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
   if (warranties.length === 0) {
     return (
-      <div className="text-center py-12 bg-gray-50 rounded-xl">
+      <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
         <Shield className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-        <p className="text-gray-500">No warranties found</p>
+        <p className="text-gray-500 dark:text-slate-400">No warranties found</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-xl border overflow-hidden">
+    <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
       <table className="w-full">
-        <thead className="bg-gray-50">
+        <thead className="bg-gray-50 dark:bg-slate-900">
           <tr>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Warranty</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Project</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Customer</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Expires</th>
-            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Claims</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Warranty</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Project</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Customer</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Expires</th>
+            <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Claims</th>
             <th className="px-4 py-3"></th>
           </tr>
         </thead>
@@ -251,15 +251,15 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
                     }`} />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{warranty.name}</p>
-                    <p className="text-sm text-gray-500 capitalize">{warranty.category}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{warranty.name}</p>
+                    <p className="text-sm text-gray-500 capitalize dark:text-slate-400">{warranty.category}</p>
                   </div>
                 </div>
               </td>
-              <td className="px-4 py-3 text-gray-500">
+              <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                 {warranty.project?.name}
               </td>
-              <td className="px-4 py-3 text-gray-500">
+              <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                 {warranty.contact?.name}
               </td>
               <td className="px-4 py-3">
@@ -270,12 +270,12 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
                     <p className={warranty.isExpiringSoon ? 'text-orange-600 font-medium' : 'text-gray-900'}>
                       {formatDate(warranty.expiresAt)}
                     </p>
-                    <p className="text-sm text-gray-500">{warranty.daysRemaining} days left</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">{warranty.daysRemaining} days left</p>
                   </div>
                 )}
               </td>
               <td className="px-4 py-3">
-                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded">
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-sm rounded dark:bg-slate-800 dark:text-slate-200">
                   {warranty._count?.claims || 0}
                 </span>
               </td>
@@ -378,19 +378,19 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
       </div>
 
       {allClaims.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <FileText className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No claims found</p>
+          <p className="text-gray-500 dark:text-slate-400">No claims found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Claim</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Project</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Reported</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Claim</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Project</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Reported</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -402,14 +402,14 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                 return (
                   <tr key={claim.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{claim.title}</p>
-                      <p className="text-sm text-gray-500">{claim.warranty?.name}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{claim.title}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{claim.warranty?.name}</p>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-gray-900">{claim.project?.name}</p>
-                      <p className="text-sm text-gray-500">{claim.contact?.name}</p>
+                      <p className="text-gray-900 dark:text-slate-100">{claim.project?.name}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{claim.contact?.name}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                       {formatDate(claim.reportedDate)}
                     </td>
                     <td className="px-4 py-3">
@@ -495,12 +495,12 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">New Warranty Claim</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Warranty</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Warranty</label>
               <select
                 value={form.warrantyId}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, warrantyId: e.target.value })}
@@ -517,7 +517,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Issue Title</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Issue Title</label>
               <input
                 type="text"
                 value={form.title}
@@ -529,7 +529,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea
                 value={form.description}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
@@ -541,7 +541,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
               <input
                 type="text"
                 value={form.location}
@@ -553,7 +553,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Priority</label>
                 <select
                   value={form.priority}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, priority: e.target.value })}
@@ -566,7 +566,7 @@ function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reported Via</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reported Via</label>
                 <select
                   value={form.reportedMethod}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, reportedMethod: e.target.value })}

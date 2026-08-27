@@ -136,8 +136,8 @@ export default function TasksPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
-          <p className="text-gray-500">Manage your to-do list</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">My Tasks</h1>
+          <p className="text-gray-500 dark:text-slate-400">Manage your to-do list</p>
         </div>
         <button
           onClick={() => { setEditingTask(null); setShowForm(true); }}
@@ -181,12 +181,12 @@ export default function TasksPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : tasks.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-slate-400">
           <CheckCircle2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No tasks found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border divide-y">
+        <div className="bg-white rounded-xl border divide-y dark:bg-slate-900">
           {tasks.map((task: TaskData) => (
             <TaskItem
               key={task.id}
@@ -268,10 +268,10 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
           </div>
 
           {task.description && (
-            <p className="text-sm text-gray-500 mt-1 line-clamp-1">{task.description}</p>
+            <p className="text-sm text-gray-500 mt-1 line-clamp-1 dark:text-slate-400">{task.description}</p>
           )}
 
-          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+          <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-slate-400">
             {task.dueDate && (
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
                 <Calendar className="w-3 h-3" />
@@ -295,7 +295,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
 
           {/* Checklist preview */}
           {task.checklist && task.checklist.length > 0 && (
-            <div className="mt-2 text-xs text-gray-500">
+            <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
               {task.checklist.filter((i: ChecklistItem) => i.completed).length}/{task.checklist.length} items completed
             </div>
           )}
@@ -312,10 +312,10 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
           {showMenu && (
             <>
               <div className="fixed inset-0" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg py-1 z-10 w-32">
+              <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg py-1 z-10 w-32 dark:bg-slate-900">
                 <button
                   onClick={() => { setShowMenu(false); onEdit(); }}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 w-full dark:text-slate-200"
                 >
                   <Edit2 className="w-4 h-4" />
                   Edit
@@ -403,14 +403,14 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
+          <h2 className="text-xl font-bold text-gray-900 mb-6 dark:text-slate-100">
             {task ? 'Edit Task' : 'New Task'}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Title *</label>
               <input
                 type="text"
                 value={form.title}
@@ -422,7 +422,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea
                 value={form.description}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
@@ -433,7 +433,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Due Date</label>
                 <input
                   type="date"
                   value={form.dueDate}
@@ -442,7 +442,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Priority</label>
                 <select
                   value={form.priority}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, priority: e.target.value })}
@@ -458,7 +458,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Assign To</label>
                 <select
                   value={form.assignedToId}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, assignedToId: e.target.value })}
@@ -471,7 +471,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
                 <select
                   value={form.projectId}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, projectId: e.target.value })}
@@ -487,7 +487,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
 
             {/* Checklist */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Checklist</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Checklist</label>
               <div className="space-y-2 mb-2">
                 {form.checklist.map((item: ChecklistItem) => (
                   <div key={item.id} className="flex items-center gap-2 text-sm">
@@ -526,7 +526,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 Cancel
               </button>
@@ -584,7 +584,7 @@ export function TaskWidget() {
   return (
     <div className="space-y-2">
       {tasks.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-4">No upcoming tasks</p>
+        <p className="text-sm text-gray-500 text-center py-4 dark:text-slate-400">No upcoming tasks</p>
       ) : (
         tasks.slice(0, 5).map((task: TaskData) => (
           <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg">
@@ -592,9 +592,9 @@ export function TaskWidget() {
               <Circle className="w-4 h-4 text-gray-300 hover:text-gray-400" />
             </button>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
+              <p className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">{task.title}</p>
               {task.dueDate && (
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 dark:text-slate-400">
                   Due {formatDate(task.dueDate)}
                 </p>
               )}

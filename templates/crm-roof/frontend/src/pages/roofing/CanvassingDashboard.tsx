@@ -227,7 +227,7 @@ export default function CanvassingDashboard() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">{s.name}</h1>
-            <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+            <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-slate-400">
               <span>{formatDate(s.startedAt || s.createdAt)}</span>
               {s.weatherEvent && (
                 <span className="text-blue-600 flex items-center gap-1">
@@ -244,42 +244,42 @@ export default function CanvassingDashboard() {
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-4 border">
+          <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
             <p className="text-2xl font-bold">{s.totalDoors || 0}</p>
-            <p className="text-sm text-gray-500">Total Doors</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Doors</p>
           </div>
-          <div className="bg-white rounded-xl p-4 border">
+          <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
             <p className="text-2xl font-bold">{s.answeredDoors || 0}</p>
-            <p className="text-sm text-gray-500">Answered</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Answered</p>
           </div>
-          <div className="bg-white rounded-xl p-4 border">
+          <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
             <p className="text-2xl font-bold text-green-600">{s.leadsCreated || 0}</p>
-            <p className="text-sm text-gray-500">Leads Created</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Leads Created</p>
           </div>
-          <div className="bg-white rounded-xl p-4 border">
+          <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
             <p className="text-2xl font-bold">{appointments.length}</p>
-            <p className="text-sm text-gray-500">Appointments</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Appointments</p>
           </div>
         </div>
 
         {/* Map + Stops */}
         <div className="grid grid-cols-2 gap-6">
           <div>
-            <h3 className="text-sm font-semibold text-gray-600 mb-2">Map</h3>
+            <h3 className="text-sm font-semibold text-gray-600 mb-2 dark:text-slate-400">Map</h3>
             <div ref={detailMapRef} className="h-80 rounded-xl border" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-gray-600 mb-2">Stops ({sessionStops.length})</h3>
+            <h3 className="text-sm font-semibold text-gray-600 mb-2 dark:text-slate-400">Stops ({sessionStops.length})</h3>
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {sessionStops.map((stop: Stop) => (
-                <div key={stop.id} className="bg-white rounded-lg p-3 border text-sm">
+                <div key={stop.id} className="bg-white rounded-lg p-3 border text-sm dark:bg-slate-900">
                   <div className="flex items-center justify-between">
                     <span className="font-medium truncate">{stop.address || 'Unknown'}</span>
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${OUTCOME_LABELS[stop.outcome]?.color || 'bg-gray-100'}`}>
                       {OUTCOME_LABELS[stop.outcome]?.label || stop.outcome}
                     </span>
                   </div>
-                  {stop.notes && <p className="text-xs text-gray-500 mt-1 truncate">{stop.notes}</p>}
+                  {stop.notes && <p className="text-xs text-gray-500 mt-1 truncate dark:text-slate-400">{stop.notes}</p>}
                   {stop.jobId && (
                     <button onClick={() => navigate(`/crm/jobs/${stop.jobId}`)}
                       className="text-xs text-blue-600 mt-1 hover:underline">
@@ -301,7 +301,7 @@ export default function CanvassingDashboard() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Canvassing Dashboard</h1>
-          <p className="text-sm text-gray-500">Review canvassing activity and manage scripts</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Review canvassing activity and manage scripts</p>
         </div>
         <button onClick={() => openScriptEditor()}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
@@ -312,28 +312,28 @@ export default function CanvassingDashboard() {
       {/* Filters */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <select value={filterRep} onChange={(e) => setFilterRep(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-1.5 bg-white">
+          className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900">
           <option value="">All Reps</option>
           {users.map((u: any) => (
             <option key={u.id} value={u.id}>{u.name || u.firstName + ' ' + u.lastName || u.email}</option>
           ))}
         </select>
         <input type="text" value={filterWeather} onChange={(e) => setFilterWeather(e.target.value)}
-          placeholder="Filter by weather event..." className="text-sm border rounded-lg px-3 py-1.5 bg-white" />
+          placeholder="Filter by weather event..." className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
         <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-1.5 bg-white" />
+          className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
         <span className="text-sm text-gray-400">to</span>
         <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
-          className="text-sm border rounded-lg px-3 py-1.5 bg-white" />
+          className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
       </div>
 
       <div className="grid grid-cols-3 gap-6">
         {/* Sessions Table */}
         <div className="col-span-2">
-          <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b bg-gray-50 text-left text-xs text-gray-500 uppercase">
+                <tr className="border-b bg-gray-50 text-left text-xs text-gray-500 uppercase dark:bg-slate-900 dark:text-slate-400">
                   <th className="px-4 py-3">Rep</th>
                   <th className="px-4 py-3">Session</th>
                   <th className="px-4 py-3">Date</th>
@@ -355,7 +355,7 @@ export default function CanvassingDashboard() {
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{formatDate(s.startedAt || s.createdAt)}</td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{formatDate(s.startedAt || s.createdAt)}</td>
                     <td className="px-4 py-3">{s.totalDoors || 0}</td>
                     <td className="px-4 py-3 font-semibold text-green-600">{s.leadsCreated || 0}</td>
                     <td className="px-4 py-3">
@@ -379,7 +379,7 @@ export default function CanvassingDashboard() {
         {/* Leaderboard + Scripts */}
         <div className="space-y-6">
           {/* Leaderboard */}
-          <div className="bg-white rounded-xl border p-4">
+          <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center gap-2 mb-3">
               <Trophy size={16} className="text-yellow-500" />
               <h3 className="text-sm font-semibold">This Month's Leaderboard</h3>
@@ -410,7 +410,7 @@ export default function CanvassingDashboard() {
           </div>
 
           {/* Scripts */}
-          <div className="bg-white rounded-xl border p-4">
+          <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Canvassing Scripts</h3>
               <button onClick={() => openScriptEditor()} className="text-xs text-blue-600 font-medium">+ New</button>
@@ -449,29 +449,29 @@ export default function CanvassingDashboard() {
       {/* Script Editor Modal */}
       {showScriptEditor && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto dark:bg-slate-900">
             <div className="p-6 border-b flex items-center justify-between">
               <h2 className="text-lg font-bold">{editingScript ? 'Edit Script' : 'New Script'}</h2>
               <button onClick={() => setShowScriptEditor(false)}><X size={20} /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="text-sm font-medium text-gray-700">Script Name</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Script Name</label>
                 <input value={scriptName} onChange={(e) => setScriptName(e.target.value)}
                   className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Hail Damage — Standard" />
               </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={scriptIsDefault} onChange={(e) => setScriptIsDefault(e.target.checked)} id="isDefault" />
-                <label htmlFor="isDefault" className="text-sm text-gray-700">Set as default script</label>
+                <label htmlFor="isDefault" className="text-sm text-gray-700 dark:text-slate-200">Set as default script</label>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700">Steps</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Steps</label>
                 <div className="space-y-3 mt-2">
                   {scriptSteps.map((step, i) => (
                     <div key={i} className="border rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-gray-500">Step {i + 1}</span>
+                        <span className="text-xs font-semibold text-gray-500 dark:text-slate-400">Step {i + 1}</span>
                         {scriptSteps.length > 1 && (
                           <button onClick={() => setScriptSteps(prev => prev.filter((_, j) => j !== i))}
                             className="text-xs text-red-500"><Trash2 size={12} /></button>

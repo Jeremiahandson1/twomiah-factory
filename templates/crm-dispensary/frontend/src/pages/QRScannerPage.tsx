@@ -115,22 +115,22 @@ function ScannerTab() {
   return (
     <div className="space-y-6">
       {/* Camera Viewport */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="bg-gray-900 aspect-video max-h-80 flex flex-col items-center justify-center relative">
           <div className="absolute inset-8 border-2 border-dashed border-gray-600 rounded-xl" />
-          <Camera className="w-16 h-16 text-gray-600 mb-4" />
+          <Camera className="w-16 h-16 text-gray-600 mb-4 dark:text-slate-400" />
           <p className="text-gray-400 text-lg font-medium">Camera Preview</p>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-gray-500 text-sm mt-1 dark:text-slate-400">
             Point camera at QR code or barcode to scan
           </p>
-          <p className="text-gray-600 text-xs mt-3">
+          <p className="text-gray-600 text-xs mt-3 dark:text-slate-400">
             Requires html5-qrcode or @zxing/browser integration
           </p>
         </div>
 
         {/* Manual Entry */}
-        <div className="p-4 border-t border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="p-4 border-t border-gray-200 dark:border-slate-700">
+          <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">
             <Keyboard className="w-4 h-4 inline mr-1" />Manual Entry
           </label>
           <div className="flex gap-3">
@@ -140,7 +140,7 @@ function ScannerTab() {
               value={manualInput}
               onChange={(e) => setManualInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleScan()}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
             <Button onClick={() => handleScan()} disabled={scanning}>
               <Scan className="w-4 h-4 mr-2 inline" />
@@ -150,8 +150,8 @@ function ScannerTab() {
         </div>
 
         {/* Context Selector */}
-        <div className="p-4 border-t border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Scan Context</label>
+        <div className="p-4 border-t border-gray-200 dark:border-slate-700">
+          <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Scan Context</label>
           <div className="flex flex-wrap gap-2">
             {scanContexts.map((ctx) => (
               <button
@@ -173,8 +173,8 @@ function ScannerTab() {
 
       {/* Scan Result */}
       {result && (
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Scan Result</h3>
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Scan Result</h3>
 
           {result.entityType === 'product' && (
             <ProductResultCard result={result} context={context} toast={toast} />
@@ -189,9 +189,9 @@ function ScannerTab() {
           )}
 
           {!['product', 'input', 'batch'].includes(result.entityType) && (
-            <div className="text-gray-500">
+            <div className="text-gray-500 dark:text-slate-400">
               <p className="font-medium">Entity: {result.entityType || 'Unknown'}</p>
-              <pre className="mt-2 p-3 bg-gray-50 rounded-lg text-xs overflow-auto">
+              <pre className="mt-2 p-3 bg-gray-50 rounded-lg text-xs overflow-auto dark:bg-slate-900">
                 {JSON.stringify(result, null, 2)}
               </pre>
             </div>
@@ -200,16 +200,16 @@ function ScannerTab() {
       )}
 
       {/* Recent Scans */}
-      <div className="bg-white rounded-lg shadow-sm">
+      <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
         <div className="px-4 py-3 border-b">
-          <h3 className="font-semibold text-gray-900">Recent Scans</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Recent Scans</h3>
         </div>
         {loadingHistory ? (
           <div className="flex justify-center py-8">
             <div className="w-6 h-6 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : recentScans.length === 0 ? (
-          <div className="px-4 py-8 text-center text-gray-500 text-sm">No recent scans</div>
+          <div className="px-4 py-8 text-center text-gray-500 text-sm dark:text-slate-400">No recent scans</div>
         ) : (
           <div className="divide-y divide-gray-100">
             {recentScans.map((scan: any, i: number) => (
@@ -228,11 +228,11 @@ function ScannerTab() {
                     {scan.entityType === 'product' ? <Package className="w-4 h-4 text-green-600" /> :
                      scan.entityType === 'input' ? <Leaf className="w-4 h-4 text-blue-600" /> :
                      scan.entityType === 'batch' ? <Layers className="w-4 h-4 text-purple-600" /> :
-                     <QrCode className="w-4 h-4 text-gray-600" />}
+                     <QrCode className="w-4 h-4 text-gray-600 dark:text-slate-400" />}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{scan.label || scan.data}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-sm font-medium text-gray-900 dark:text-slate-100">{scan.label || scan.data}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       {scan.context?.replace(/_/g, ' ')} — {scan.scannedAt ? new Date(scan.scannedAt).toLocaleString() : ''}
                     </p>
                   </div>
@@ -267,13 +267,13 @@ function ProductResultCard({ result, context, toast }: { result: any; context: s
       {product.imageUrl ? (
         <img src={product.imageUrl} alt={product.name} className="w-20 h-20 object-cover rounded-lg" />
       ) : (
-        <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+        <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-slate-800">
           <Package className="w-8 h-8 text-gray-400" />
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <h4 className="text-lg font-semibold text-gray-900">{product.name}</h4>
-        {product.strain && <p className="text-sm text-gray-500">{product.strain}</p>}
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{product.name}</h4>
+        {product.strain && <p className="text-sm text-gray-500 dark:text-slate-400">{product.strain}</p>}
         <div className="flex flex-wrap gap-3 mt-2 text-sm">
           {lab && (
             <>
@@ -282,7 +282,7 @@ function ProductResultCard({ result, context, toast }: { result: any; context: s
             </>
           )}
           {product.price != null && (
-            <span className="text-gray-900 font-semibold">${parseFloat(product.price).toFixed(2)}</span>
+            <span className="text-gray-900 font-semibold dark:text-slate-100">${parseFloat(product.price).toFixed(2)}</span>
           )}
         </div>
         {product.batchNumber && (
@@ -332,8 +332,8 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
           <Leaf className="w-6 h-6 text-blue-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className="text-lg font-semibold text-gray-900">{input.name}</h4>
-          {input.brand && <p className="text-sm text-gray-500">{input.brand}</p>}
+          <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{input.name}</h4>
+          {input.brand && <p className="text-sm text-gray-500 dark:text-slate-400">{input.brand}</p>}
           <div className="flex flex-wrap gap-2 mt-2">
             <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[input.type] || 'bg-gray-100 text-gray-700'}`}>
               {input.type?.replace(/_/g, ' ')}
@@ -394,14 +394,14 @@ function BatchResultCard({ result, toast }: { result: any; toast: any }) {
         <Layers className="w-6 h-6 text-purple-600" />
       </div>
       <div className="flex-1 min-w-0">
-        <h4 className="text-lg font-semibold text-gray-900">Batch #{batch.batchNumber}</h4>
-        {batch.productName && <p className="text-sm text-gray-500">{batch.productName}</p>}
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Batch #{batch.batchNumber}</h4>
+        {batch.productName && <p className="text-sm text-gray-500 dark:text-slate-400">{batch.productName}</p>}
         <div className="flex flex-wrap gap-2 mt-2">
           <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[batch.status] || 'bg-gray-100 text-gray-700'}`}>
             {batch.status}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-gray-600">
+        <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-gray-600 dark:text-slate-400">
           <p>Quantity: {batch.quantity} {batch.unit}</p>
           {batch.harvestDate && <p>Harvested: {formatDate(batch.harvestDate)}</p>}
           {batch.thcPercent && <p>THC: {batch.thcPercent}%</p>}
@@ -492,16 +492,16 @@ function GeneratorTab() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Generate QR Code</h3>
+      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Generate QR Code</h3>
 
         <div className="grid md:grid-cols-3 gap-4 mb-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Entity Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Entity Type</label>
             <select
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               {entityTypes.map((et) => (
                 <option key={et.value} value={et.value}>{et.label}</option>
@@ -510,12 +510,12 @@ function GeneratorTab() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Select {entityType}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Select {entityType}</label>
             <select
               value={entityId}
               onChange={(e) => setEntityId(e.target.value)}
               disabled={loadingEntities}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 disabled:opacity-50"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 disabled:opacity-50 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">{loadingEntities ? 'Loading...' : `Select ${entityType}...`}</option>
               {entities.map((entity: any) => (
@@ -537,7 +537,7 @@ function GeneratorTab() {
           <div className="border-t pt-6 space-y-4">
             <div className="flex gap-6">
               {/* QR Code Placeholder */}
-              <div className="w-48 h-48 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center flex-shrink-0">
+              <div className="w-48 h-48 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center flex-shrink-0 dark:bg-slate-900 dark:border-slate-700">
                 <QrCode className="w-16 h-16 text-gray-400 mb-2" />
                 <p className="text-xs text-gray-400 text-center px-4">
                   QR Code Image<br />
@@ -547,8 +547,8 @@ function GeneratorTab() {
 
               {/* QR Data Preview */}
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Encoded Data</h4>
-                <pre className="p-4 bg-gray-50 rounded-lg text-xs text-gray-700 overflow-auto max-h-40 border">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">Encoded Data</h4>
+                <pre className="p-4 bg-gray-50 rounded-lg text-xs text-gray-700 overflow-auto max-h-40 border dark:bg-slate-900 dark:text-slate-200">
                   {JSON.stringify(qrData.payload || qrData, null, 2)}
                 </pre>
                 <div className="flex gap-2 mt-3">
@@ -609,23 +609,23 @@ function AnalyticsTab() {
     <div className="space-y-6">
       {/* Scan Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <p className="text-sm text-gray-500">Today</p>
+        <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">Today</p>
           <p className="text-2xl font-bold text-orange-600">{stats?.today || 0}</p>
           <p className="text-xs text-gray-400">scans</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <p className="text-sm text-gray-500">This Week</p>
+        <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">This Week</p>
           <p className="text-2xl font-bold text-blue-600">{stats?.thisWeek || 0}</p>
           <p className="text-xs text-gray-400">scans</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <p className="text-sm text-gray-500">This Month</p>
+        <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">This Month</p>
           <p className="text-2xl font-bold text-green-600">{stats?.thisMonth || 0}</p>
           <p className="text-xs text-gray-400">scans</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <p className="text-sm text-gray-500">All Time</p>
+        <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">All Time</p>
           <p className="text-2xl font-bold text-purple-600">{stats?.allTime || 0}</p>
           <p className="text-xs text-gray-400">scans</p>
         </div>
@@ -634,8 +634,8 @@ function AnalyticsTab() {
       {/* Charts Row */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Scans by Entity Type */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Scans by Entity Type</h3>
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Scans by Entity Type</h3>
           <div className="space-y-3">
             {(stats?.byEntityType || [
               { type: 'product', count: stats?.productScans || 0 },
@@ -654,10 +654,10 @@ function AnalyticsTab() {
               return (
                 <div key={item.type}>
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="capitalize text-gray-700">{item.type}</span>
-                    <span className="text-gray-500">{item.count} ({percent}%)</span>
+                    <span className="capitalize text-gray-700 dark:text-slate-200">{item.type}</span>
+                    <span className="text-gray-500 dark:text-slate-400">{item.count} ({percent}%)</span>
                   </div>
-                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
                     <div className={`h-full rounded-full ${colors[item.type] || 'bg-gray-400'}`} style={{ width: `${percent}%` }} />
                   </div>
                 </div>
@@ -668,8 +668,8 @@ function AnalyticsTab() {
         </div>
 
         {/* Scans by Context */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Scans by Context</h3>
+        <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Scans by Context</h3>
           <div className="space-y-3">
             {(stats?.byContext || [
               { context: 'pos_checkout', count: stats?.posScans || 0 },
@@ -690,10 +690,10 @@ function AnalyticsTab() {
               return (
                 <div key={item.context}>
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="capitalize text-gray-700">{item.context?.replace(/_/g, ' ')}</span>
-                    <span className="text-gray-500">{item.count}</span>
+                    <span className="capitalize text-gray-700 dark:text-slate-200">{item.context?.replace(/_/g, ' ')}</span>
+                    <span className="text-gray-500 dark:text-slate-400">{item.count}</span>
                   </div>
-                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
                     <div className={`h-full rounded-full ${colors[item.context] || 'bg-gray-400'}`} style={{ width: `${percent}%` }} />
                   </div>
                 </div>
@@ -707,27 +707,27 @@ function AnalyticsTab() {
       {/* Most Scanned Tables */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Most Scanned Products */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="px-4 py-3 border-b">
-            <h3 className="font-semibold text-gray-900">Most Scanned Products</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Most Scanned Products</h3>
           </div>
           {topProducts.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-500 text-sm">No product scan data yet</div>
+            <div className="px-4 py-8 text-center text-gray-500 text-sm dark:text-slate-400">No product scan data yet</div>
           ) : (
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-gray-50 border-b dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">#</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Product</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Scans</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">#</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Product</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Scans</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {topProducts.slice(0, 10).map((item: any, i: number) => (
                   <tr key={item.id || i} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{item.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-700">{item.scanCount}</td>
+                    <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-slate-100">{item.name}</td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-slate-200">{item.scanCount}</td>
                   </tr>
                 ))}
               </tbody>
@@ -736,27 +736,27 @@ function AnalyticsTab() {
         </div>
 
         {/* Most Scanned Inputs */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="px-4 py-3 border-b">
-            <h3 className="font-semibold text-gray-900">Most Scanned Inputs</h3>
+            <h3 className="font-semibold text-gray-900 dark:text-slate-100">Most Scanned Inputs</h3>
           </div>
           {topInputs.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-500 text-sm">No input scan data yet</div>
+            <div className="px-4 py-8 text-center text-gray-500 text-sm dark:text-slate-400">No input scan data yet</div>
           ) : (
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-gray-50 border-b dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">#</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Input</th>
-                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Scans</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">#</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Input</th>
+                  <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Scans</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {topInputs.slice(0, 10).map((item: any, i: number) => (
                   <tr key={item.id || i} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm text-gray-400">{i + 1}</td>
-                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{item.name}</td>
-                    <td className="px-4 py-2 text-sm text-right text-gray-700">{item.scanCount}</td>
+                    <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-slate-100">{item.name}</td>
+                    <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-slate-200">{item.scanCount}</td>
                   </tr>
                 ))}
               </tbody>
@@ -766,9 +766,9 @@ function AnalyticsTab() {
       </div>
 
       {/* Scan Timeline Placeholder */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Scan Timeline</h3>
-        <div className="h-48 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center">
+      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Scan Timeline</h3>
+        <div className="h-48 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center dark:bg-slate-900 dark:border-slate-700">
           <BarChart3 className="w-12 h-12 text-gray-300 mb-2" />
           <p className="text-sm text-gray-400">Scans per hour — line/bar chart</p>
           <p className="text-xs text-gray-300 mt-1">Integrate with Recharts or Chart.js for visualization</p>

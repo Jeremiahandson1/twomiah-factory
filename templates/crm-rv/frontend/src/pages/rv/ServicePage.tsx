@@ -85,8 +85,8 @@ export default function ServicePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Service</h1>
-          <p className="text-gray-500">Repair orders & shop status</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Service</h1>
+          <p className="text-gray-500 dark:text-slate-400">Repair orders & shop status</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">
           <Plus className="w-4 h-4" /> New Repair Order
@@ -105,35 +105,35 @@ export default function ServicePage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : rows.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No repair orders</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No repair orders</div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">RO #</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Customer</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Unit</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Advisor</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Total</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">RO #</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Customer</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Unit</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Advisor</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Total</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {rows.map((row) => (
                 <tr key={row.ro.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{row.ro.roNumber || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{row.customerName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{unitDesc(row)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{row.ro.advisorName || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-right text-gray-900">
+                  <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{row.ro.roNumber || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{row.customerName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{unitDesc(row)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{row.ro.advisorName || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">
                     {/* Once billed, show the actual — the customer paid the actual,
                         not the estimate (M-14). Label estimates so the two aren't
                         confused. */}
                     {row.ro.actualTotal
                       ? `$${Number(row.ro.actualTotal).toLocaleString()}`
                       : row.ro.estimatedTotal
-                        ? <span className="text-gray-500">${Number(row.ro.estimatedTotal).toLocaleString()} <span className="text-xs">est</span></span>
+                        ? <span className="text-gray-500 dark:text-slate-400">${Number(row.ro.estimatedTotal).toLocaleString()} <span className="text-xs">est</span></span>
                         : '—'}
                   </td>
                   <td className="px-4 py-3">
@@ -218,21 +218,21 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2"><Wrench className="w-5 h-5 text-orange-500" /> New Repair Order</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Customer <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer <span className="text-red-500">*</span></label>
               <select value={form.customerId} onChange={(e) => set('customerId', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select customer...</option>
                 {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit</label>
               <select value={form.unitId} onChange={(e) => set('unitId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                 <option value="">Not in inventory — enter manually below</option>
                 {units.map((u) => (
@@ -242,32 +242,32 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
             </div>
             {!form.unitId && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Customer Unit Info</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer Unit Info</label>
                 <input type="text" value={form.customerUnitInfo} onChange={(e) => set('customerUnitInfo', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="2019 Forest River Cherokee 274RK" />
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Advisor</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Advisor</label>
                 <input type="text" value={form.advisorName} onChange={(e) => set('advisorName', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Total</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Estimated Total</label>
                 <input type="number" step="0.01" value={form.estimatedTotal} onChange={(e) => set('estimatedTotal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Status</label>
               <select value={form.status} onChange={(e) => set('status', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                 {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Services (comma-separated)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Services (comma-separated)</label>
               <input type="text" value={form.services} onChange={(e) => set('services', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Roof reseal, Wheel bearing repack" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-2">

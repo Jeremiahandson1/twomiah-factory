@@ -89,11 +89,11 @@ export default function Comments({ entityType, entityId }) {
       {/* Comment form */}
       <form onSubmit={handleSubmit} className="flex gap-3">
         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-          <User className="w-5 h-5 text-gray-500" />
+          <User className="w-5 h-5 text-gray-500 dark:text-slate-400" />
         </div>
         <div className="flex-1">
           {replyingTo && (
-            <div className="text-sm text-gray-500 mb-1 flex items-center gap-2">
+            <div className="text-sm text-gray-500 mb-1 flex items-center gap-2 dark:text-slate-400">
               <Reply className="w-3 h-3" />
               Replying to comment
               <button
@@ -130,7 +130,7 @@ export default function Comments({ entityType, entityId }) {
 
       {/* Comments list */}
       {comments.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-gray-500 dark:text-slate-400">
           <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>No comments yet. Be the first!</p>
         </div>
@@ -171,17 +171,17 @@ function CommentItem({ comment, onDelete, onReply, isReply = false }) {
         </span>
       </div>
       <div className="flex-1">
-        <div className="bg-gray-100 rounded-2xl px-4 py-2">
+        <div className="bg-gray-100 rounded-2xl px-4 py-2 dark:bg-slate-800">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium text-gray-900">
+            <span className="font-medium text-gray-900 dark:text-slate-100">
               {comment.user?.firstName} {comment.user?.lastName}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-slate-400">
               {formatDate(comment.createdAt)}
               {comment.editedAt && ' (edited)'}
             </span>
           </div>
-          <p className="text-gray-700 whitespace-pre-wrap">{comment.content}</p>
+          <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{comment.content}</p>
         </div>
 
         {/* Actions */}
@@ -196,7 +196,7 @@ function CommentItem({ comment, onDelete, onReply, isReply = false }) {
           {!isReply && (
             <button
               onClick={() => onReply(comment.id)}
-              className="flex items-center gap-1 text-gray-500 hover:text-gray-700"
+              className="flex items-center gap-1 text-gray-500 hover:text-gray-700 dark:text-slate-400"
             >
               <Reply className="w-4 h-4" />
               Reply
@@ -212,7 +212,7 @@ function CommentItem({ comment, onDelete, onReply, isReply = false }) {
             {showMenu && (
               <>
                 <div className="fixed inset-0" onClick={() => setShowMenu(false)} />
-                <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg py-1 z-10">
+                <div className="absolute right-0 mt-1 bg-white border rounded-lg shadow-lg py-1 z-10 dark:bg-slate-900">
                   <button
                     onClick={() => {
                       setShowMenu(false);
@@ -275,7 +275,7 @@ export function ActivityFeed({ entityType, entityId, limit = 20 }) {
   }
 
   if (activities.length === 0) {
-    return <div className="text-center py-4 text-gray-500 text-sm">No activity yet</div>;
+    return <div className="text-center py-4 text-gray-500 text-sm dark:text-slate-400">No activity yet</div>;
   }
 
   return (
@@ -332,7 +332,7 @@ function ActivityItem({ activity }) {
     <div className="flex items-start gap-3">
       <span className="text-lg">{getActivityIcon(activity.action)}</span>
       <div className="flex-1">
-        <p className="text-sm text-gray-700">{formatAction(activity)}</p>
+        <p className="text-sm text-gray-700 dark:text-slate-200">{formatAction(activity)}</p>
         <p className="text-xs text-gray-400">
           {new Date(activity.createdAt).toLocaleString()}
         </p>
@@ -371,14 +371,14 @@ export function GlobalActivityFeed({ limit = 20 }) {
     <div className="space-y-3">
       {data.activities.map((activity) => (
         <div key={activity.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg">
-          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm">
+          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm dark:bg-slate-800">
             {activity.user?.firstName?.[0]}{activity.user?.lastName?.[0]}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-900">
+            <p className="text-sm text-gray-900 dark:text-slate-100">
               <span className="font-medium">{activity.user?.firstName} {activity.user?.lastName}</span>
               {' '}{activity.action.replace(/_/g, ' ')}{' '}
-              <span className="text-gray-500">{activity.entityType}</span>
+              <span className="text-gray-500 dark:text-slate-400">{activity.entityType}</span>
             </p>
             <p className="text-xs text-gray-400">
               {new Date(activity.createdAt).toLocaleString()}

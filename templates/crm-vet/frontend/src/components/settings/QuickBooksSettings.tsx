@@ -138,7 +138,7 @@ export default function QuickBooksSettings() {
       )}
 
       {/* Connection Status */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
@@ -150,8 +150,8 @@ export default function QuickBooksSettings() {
               />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">QuickBooks Online</h2>
-              <p className="text-gray-500">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">QuickBooks Online</h2>
+              <p className="text-gray-500 dark:text-slate-400">
                 {status?.connected ? 'Connected' : 'Not connected'}
               </p>
             </div>
@@ -182,8 +182,8 @@ export default function QuickBooksSettings() {
             <div className="flex items-center gap-3">
               <Building2 className="w-5 h-5 text-gray-400" />
               <div>
-                <p className="font-medium text-gray-900">{companyInfo.CompanyName}</p>
-                <p className="text-sm text-gray-500">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{companyInfo.CompanyName}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   Realm ID: {status.realmId}
                   {status.lastSyncAt && ` • Last synced: ${new Date(status.lastSyncAt).toLocaleString()}`}
                 </p>
@@ -197,12 +197,12 @@ export default function QuickBooksSettings() {
       {status?.connected && (
         <>
           {/* Sync to QuickBooks */}
-          <div className="bg-white rounded-xl border p-6">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <Upload className="w-5 h-5" />
               Sync to QuickBooks
             </h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
               Push your {"{{COMPANY_NAME}}"} data to QuickBooks
             </p>
 
@@ -225,12 +225,12 @@ export default function QuickBooksSettings() {
           </div>
 
           {/* Import from QuickBooks */}
-          <div className="bg-white rounded-xl border p-6">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <Download className="w-5 h-5" />
               Import from QuickBooks
             </h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
               Pull data from QuickBooks into {"{{COMPANY_NAME}}"}
             </p>
 
@@ -247,26 +247,26 @@ export default function QuickBooksSettings() {
 
           {/* Sync Results */}
           {syncResults && (
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Sync Results</h3>
+            <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+              <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Sync Results</h3>
               <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-center p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
                   <p className="text-2xl font-bold">{syncResults.total}</p>
-                  <p className="text-sm text-gray-500">Total</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Total</p>
                 </div>
                 <div className="text-center p-3 bg-green-50 rounded-lg">
                   <p className="text-2xl font-bold text-green-600">{syncResults.successful || syncResults.created || 0}</p>
-                  <p className="text-sm text-gray-500">Successful</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Successful</p>
                 </div>
                 <div className="text-center p-3 bg-red-50 rounded-lg">
                   <p className="text-2xl font-bold text-red-600">{syncResults.failed || 0}</p>
-                  <p className="text-sm text-gray-500">Failed</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Failed</p>
                 </div>
               </div>
 
               {syncResults.results?.some(r => !r.success) && (
                 <div className="mt-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Errors:</p>
+                  <p className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Errors:</p>
                   <div className="max-h-40 overflow-y-auto space-y-1">
                     {syncResults.results
                       .filter(r => !r.success)
@@ -282,12 +282,12 @@ export default function QuickBooksSettings() {
           )}
 
           {/* Auto-sync settings */}
-          <div className="bg-white rounded-xl border p-6">
-            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <RefreshCw className="w-5 h-5" />
               Automatic Sync
             </h3>
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
               Configure automatic syncing (coming soon)
             </p>
 
@@ -344,8 +344,8 @@ function SyncCard({ icon: Icon, title, description, onClick, loading }: SyncCard
         )}
       </div>
       <div>
-        <p className="font-medium text-gray-900">{title}</p>
-        <p className="text-sm text-gray-500">{description}</p>
+        <p className="font-medium text-gray-900 dark:text-slate-100">{title}</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">{description}</p>
       </div>
     </button>
   );

@@ -39,7 +39,7 @@ export default function OnboardingWizard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col dark:bg-slate-900">
       {/* Step indicators */}
       <div className="flex justify-center pt-10 pb-4 px-4">
         <div className="flex items-center gap-3">
@@ -63,15 +63,15 @@ export default function OnboardingWizard() {
       <div className="flex-1 flex items-start justify-center px-4 py-8">
         <div className="w-full max-w-2xl">
           {currentStep === 0 && (
-            <div className="bg-white rounded-xl shadow-sm p-8">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome{company?.name ? ', ' + company.name : ''} 👋</h1>
-              <p className="text-gray-600 mb-6">
+            <div className="bg-white rounded-xl shadow-sm p-8 dark:bg-slate-900">
+              <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Welcome{company?.name ? ', ' + company.name : ''} 👋</h1>
+              <p className="text-gray-600 mb-6 dark:text-slate-400">
                 Your roofing CRM is ready — pipeline, jobs, insurance claims, crews, and storm tools are all set up.
                 Two quick things and you're in.
               </p>
               <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6">
                 <Mail className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-gray-700 dark:text-slate-200">
                   Next, we'll set up branded email addresses on your domain — <span className="font-mono">sales@</span>,{' '}
                   <span className="font-mono">estimates@</span>, <span className="font-mono">support@</span> — forwarding
                   wherever you already read email. You can change everything later in Settings.
@@ -90,12 +90,12 @@ export default function OnboardingWizard() {
           )}
 
           {currentStep === 2 && (
-            <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+            <div className="bg-white rounded-xl shadow-sm p-8 text-center dark:bg-slate-900">
               <div className="w-14 h-14 rounded-full bg-orange-500 text-white flex items-center justify-center mx-auto mb-4">
                 <Rocket className="w-7 h-7" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">You're all set</h1>
-              <p className="text-gray-600 mb-6">Head to the pipeline and start working leads. Email addresses, features, and integrations live in Settings whenever you need them.</p>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">You're all set</h1>
+              <p className="text-gray-600 mb-6 dark:text-slate-400">Head to the pipeline and start working leads. Email addresses, features, and integrations live in Settings whenever you need them.</p>
               {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
               <button onClick={handleComplete} disabled={saving} className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 rounded-lg">
                 {saving ? 'Saving…' : 'Go to your CRM'} <Rocket className="w-4 h-4" />

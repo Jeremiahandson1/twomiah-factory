@@ -101,7 +101,7 @@ export default function JobDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <p className="text-sm font-mono text-gray-500">{job.number}</p>
+            <p className="text-sm font-mono text-gray-500 dark:text-slate-400">{job.number}</p>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{job.title}</h1>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
@@ -138,7 +138,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Scheduled</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Scheduled</p>
                     <p>{formatDate((job.scheduledDate as string).split('T')[0] + 'T00:00:00')} {job.scheduledTime}</p>
                   </div>
                 </div>
@@ -147,7 +147,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center gap-3">
                   <Clock className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Estimated</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Estimated</p>
                     <p>{job.estimatedHours} hours</p>
                   </div>
                 </div>
@@ -156,7 +156,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center gap-3">
                   <MapPin className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Location</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Location</p>
                     <p>{job.address}{job.city && `, ${job.city}`}</p>
                   </div>
                 </div>
@@ -165,7 +165,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="text-sm text-gray-500">Assigned To</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Assigned To</p>
                     <p>{job.assignedTo.firstName} {job.assignedTo.lastName}</p>
                   </div>
                 </div>
@@ -173,8 +173,8 @@ export default function JobDetailPage() {
             </div>
             {job.description && (
               <div className="mt-4 pt-4 border-t">
-                <p className="text-sm text-gray-500 mb-2">Description</p>
-                <p className="text-gray-700 whitespace-pre-wrap">{job.description}</p>
+                <p className="text-sm text-gray-500 mb-2 dark:text-slate-400">Description</p>
+                <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{job.description}</p>
               </div>
             )}
           </div>
@@ -186,13 +186,13 @@ export default function JobDetailPage() {
             <div className="space-y-3">
               {job.project && (
                 <Link to={`/crm/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700">
-                  <p className="text-sm text-gray-500">Project</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Project</p>
                   <p className="font-medium">{job.project.name}</p>
                 </Link>
               )}
               {job.contact && (
                 <Link to={`/crm/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700">
-                  <p className="text-sm text-gray-500">Contact</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Contact</p>
                   <p className="font-medium">{job.contact.name}</p>
                 </Link>
               )}

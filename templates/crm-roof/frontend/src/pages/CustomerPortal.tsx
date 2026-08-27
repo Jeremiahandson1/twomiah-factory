@@ -52,7 +52,7 @@ export default function CustomerPortal() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200">
+      <header className="bg-white border-b border-slate-200 dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
@@ -92,7 +92,7 @@ export default function CustomerPortal() {
           {/* CRM - always available */}
           <div
             onClick={() => navigate('/crm')}
-            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden"
+            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div
               className="absolute top-0 left-0 right-0 h-1"
@@ -119,7 +119,7 @@ export default function CustomerPortal() {
               href={siteUrl || '#'}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
+              className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
               <div className="flex items-start justify-between mb-4">
@@ -139,7 +139,7 @@ export default function CustomerPortal() {
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
+              className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-purple-500" />
               <div className="flex items-start justify-between mb-4">
@@ -157,7 +157,7 @@ export default function CustomerPortal() {
           {!hasFeature('pricebook') && (
             <div
               onClick={() => navigate('/crm/pricebook-trial')}
-              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden"
+              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
               <div className="flex items-start justify-between mb-4">
@@ -180,7 +180,7 @@ export default function CustomerPortal() {
           {!hasFeature('visualizer') && (
             <div
               onClick={() => navigate('/crm/visualizer-trial')}
-              className="bg-white rounded-xl border border-violet-200 border-dashed p-6 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all group relative overflow-hidden"
+              className="bg-white rounded-xl border border-violet-200 border-dashed p-6 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
               <div className="flex items-start justify-between mb-4">
@@ -203,7 +203,7 @@ export default function CustomerPortal() {
           {!hasFeature('instant_estimator') && (
             <div
               onClick={() => navigate('/crm/estimator-trial')}
-              className="bg-white rounded-xl border border-sky-200 border-dashed p-6 cursor-pointer hover:border-sky-300 hover:shadow-md transition-all group relative overflow-hidden"
+              className="bg-white rounded-xl border border-sky-200 border-dashed p-6 cursor-pointer hover:border-sky-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
             >
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 to-blue-500" />
               <div className="flex items-start justify-between mb-4">
@@ -225,7 +225,7 @@ export default function CustomerPortal() {
           {/* Settings */}
           <div
             onClick={() => navigate('/crm/settings')}
-            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden"
+            className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
           >
             <div className="absolute top-0 left-0 right-0 h-1 bg-slate-400" />
             <div className="flex items-start justify-between mb-4">

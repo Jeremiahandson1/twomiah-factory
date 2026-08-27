@@ -69,13 +69,13 @@ export default function RecurringRoutesPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><MapPin className="w-6 h-6" /> Recurring Route Board</h1>
-          <p className="text-gray-500 text-sm">Weekly mow routes grouped by day. Build a route, add property stops in visit order.</p>
+          <p className="text-gray-500 text-sm dark:text-slate-400">Weekly mow routes grouped by day. Build a route, add property stops in visit order.</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-green-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Route</button>
       </div>
 
       {showForm && (
-        <div className="bg-white border rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3 items-end">
+        <div className="bg-white border rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3 items-end dark:bg-slate-900">
           <input className="border rounded px-2 py-1.5 text-sm" placeholder="Route name (e.g. Monday A)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           <select className="border rounded px-2 py-1.5 text-sm" value={form.dayOfWeek} onChange={e => setForm({ ...form, dayOfWeek: parseInt(e.target.value, 10) })}>
             {DAYS.map((d, i) => <option key={i} value={i}>{d}</option>)}
@@ -88,14 +88,14 @@ export default function RecurringRoutesPage() {
       <div className="grid md:grid-cols-7 gap-3 mb-6">
         {board.map(day => (
           <div key={day.dayOfWeek} className="min-w-0">
-            <div className="text-xs font-semibold text-gray-500 mb-2">{day.dayName}</div>
+            <div className="text-xs font-semibold text-gray-500 mb-2 dark:text-slate-400">{day.dayName}</div>
             <div className="space-y-2">
               {day.routes.map((r: any) => (
                 <div key={r.id} onClick={() => openRoute(r.id)}
                   className={`border rounded-lg p-2 bg-white cursor-pointer hover:shadow text-xs ${selected === r.id ? 'ring-2 ring-green-500' : ''}`}>
                   <div className="font-medium truncate">{r.name}</div>
-                  <div className="text-gray-500 flex items-center gap-1 mt-1"><MapPin className="w-3 h-3" />{r.stopCount} stops</div>
-                  <div className="text-gray-500 flex items-center gap-1"><Clock className="w-3 h-3" />{Math.round(r.estimatedMinutes / 60 * 10) / 10}h</div>
+                  <div className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400"><MapPin className="w-3 h-3" />{r.stopCount} stops</div>
+                  <div className="text-gray-500 flex items-center gap-1 dark:text-slate-400"><Clock className="w-3 h-3" />{Math.round(r.estimatedMinutes / 60 * 10) / 10}h</div>
                   <div className="text-green-700 flex items-center gap-1"><DollarSign className="w-3 h-3" />{r.weeklyRevenue}</div>
                 </div>
               ))}
@@ -106,11 +106,11 @@ export default function RecurringRoutesPage() {
       </div>
 
       {detail && (
-        <div className="bg-white border rounded-lg p-5">
+        <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
           <div className="flex justify-between items-start mb-3">
             <div>
               <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-400">· {detail.dayName}</span></h2>
-              <p className="text-xs text-gray-500">{detail.stops?.length || 0} stops</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">{detail.stops?.length || 0} stops</p>
             </div>
             <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm"><Trash2 className="w-4 h-4" /> Delete route</button>
           </div>

@@ -54,8 +54,8 @@ export default function PricebookPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pricebook</h1>
-          <p className="text-gray-500">Flat-rate service catalog</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Pricebook</h1>
+          <p className="text-gray-500 dark:text-slate-400">Flat-rate service catalog</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -122,9 +122,9 @@ export default function PricebookPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500">No services found</p>
+          <p className="text-gray-500 dark:text-slate-400">No services found</p>
           <button
             onClick={() => setShowItemForm(true)}
             className="mt-4 text-orange-600 hover:text-orange-700"
@@ -197,15 +197,15 @@ function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
         {item.imageUrl ? (
           <img src={item.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
         ) : (
-          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center dark:bg-slate-800">
             <Package className="w-6 h-6 text-gray-400" />
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 truncate">{item.name}</p>
-          <p className="text-sm text-gray-500">{item.code}</p>
+          <p className="font-medium text-gray-900 truncate dark:text-slate-100">{item.name}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{item.code}</p>
           {item.category && (
-            <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
+            <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded dark:bg-slate-800 dark:text-slate-400">
               {item.category.name}
             </span>
           )}
@@ -213,20 +213,20 @@ function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
       </div>
 
       {item.description && (
-        <p className="mt-3 text-sm text-gray-600 line-clamp-2">{item.description}</p>
+        <p className="mt-3 text-sm text-gray-600 line-clamp-2 dark:text-slate-400">{item.description}</p>
       )}
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
         <div>
-          <p className="text-gray-500">Price</p>
-          <p className="font-bold text-gray-900">${Number(item.price).toFixed(2)}</p>
+          <p className="text-gray-500 dark:text-slate-400">Price</p>
+          <p className="font-bold text-gray-900 dark:text-slate-100">${Number(item.price).toFixed(2)}</p>
         </div>
         <div>
-          <p className="text-gray-500">Cost</p>
-          <p className="font-medium text-gray-700">${Number(item.totalCost || item.cost).toFixed(2)}</p>
+          <p className="text-gray-500 dark:text-slate-400">Cost</p>
+          <p className="font-medium text-gray-700 dark:text-slate-200">${Number(item.totalCost || item.cost).toFixed(2)}</p>
         </div>
         <div>
-          <p className="text-gray-500">Margin</p>
+          <p className="text-gray-500 dark:text-slate-400">Margin</p>
           <p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600' : 'text-orange-600'}`}>
             {item.margin}%
           </p>
@@ -234,7 +234,7 @@ function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
       </div>
 
       {item.laborHours > 0 && (
-        <div className="mt-2 flex items-center gap-1 text-sm text-gray-500">
+        <div className="mt-2 flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
           <Clock className="w-4 h-4" />
           {item.laborHours} hours
         </div>
@@ -250,7 +250,7 @@ function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
       <div className="mt-4 pt-4 border-t flex items-center gap-2">
         <button
           onClick={onEdit}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg dark:text-slate-400"
         >
           <Edit2 className="w-4 h-4" />
           Edit
@@ -381,12 +381,12 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
 
             {/* Pricing */}
             <div className="p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-              <h3 className="font-medium text-gray-900 mb-3">Pricing</h3>
+              <h3 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Pricing</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Price</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400">$</span>
                     <input
                       type="number"
                       step="0.01"
@@ -399,7 +399,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Cost</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400">$</span>
                     <input
                       type="number"
                       step="0.01"
@@ -439,7 +439,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                   onChange={(e) => setForm({ ...form, taxable: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
-                <span className="text-sm text-gray-700">Taxable</span>
+                <span className="text-sm text-gray-700 dark:text-slate-200">Taxable</span>
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -448,12 +448,12 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                   onChange={(e) => setForm({ ...form, showToCustomer: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
-                <span className="text-sm text-gray-700">Show to customers</span>
+                <span className="text-sm text-gray-700 dark:text-slate-200">Show to customers</span>
               </label>
             </div>
 
             <div className="flex gap-3 pt-4">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-gray-700">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-gray-700 dark:text-slate-200">
                 Cancel
               </button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg">
@@ -494,9 +494,9 @@ function CategoriesModal({ categories, onSave, onClose }) {
           
           <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
             {categories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={cat.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
                 <span>{cat.name}</span>
-                <span className="text-sm text-gray-500">{cat._count?.items || 0} items</span>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{cat._count?.items || 0} items</span>
               </div>
             ))}
           </div>
@@ -580,7 +580,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-4xl w-full p-6 text-gray-900 dark:text-slate-100">
           <h2 className="text-lg font-bold mb-2">Good-Better-Best Options</h2>
-          <p className="text-gray-500 mb-4">for {item.name}</p>
+          <p className="text-gray-500 mb-4 dark:text-slate-400">for {item.name}</p>
 
           <div className="grid grid-cols-3 gap-4">
             {options.map((opt) => (
@@ -616,17 +616,17 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                   type="text"
                   value={opt.name}
                   onChange={(e) => updateOption(opt.tier, 'name', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg mb-2 font-medium text-gray-900 bg-white"
+                  className="w-full px-3 py-2 border rounded-lg mb-2 font-medium text-gray-900 bg-white dark:text-slate-100 dark:bg-slate-900"
                   placeholder="Option name"
                 />
 
                 <div className="relative mb-2">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400">$</span>
                   <input
                     type="number"
                     value={opt.price}
                     onChange={(e) => updateOption(opt.tier, 'price', e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 border rounded-lg text-xl font-bold text-gray-900 bg-white"
+                    className="w-full pl-7 pr-3 py-2 border rounded-lg text-xl font-bold text-gray-900 bg-white dark:text-slate-100 dark:bg-slate-900"
                     placeholder="0.00"
                   />
                 </div>
@@ -634,7 +634,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                 <textarea
                   value={opt.description}
                   onChange={(e) => updateOption(opt.tier, 'description', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-sm text-gray-900 bg-white"
+                  className="w-full px-3 py-2 border rounded-lg text-sm text-gray-900 bg-white dark:text-slate-100 dark:bg-slate-900"
                   rows={3}
                   placeholder="Description..."
                 />

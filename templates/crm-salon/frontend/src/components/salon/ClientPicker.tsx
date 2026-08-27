@@ -61,8 +61,8 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
   return (
     <div className="relative">
       {value && !open ? (
-        <div className="flex items-center justify-between px-3 py-2 border rounded-lg bg-gray-50">
-          <span className="flex items-center gap-2 text-sm text-gray-800">
+        <div className="flex items-center justify-between px-3 py-2 border rounded-lg bg-gray-50 dark:bg-slate-900">
+          <span className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200">
             <User className="w-4 h-4 text-gray-400" />
             {selectedLabel || 'Selected client'}
           </span>
@@ -88,7 +88,7 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
             />
           </div>
           {open && (
-            <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto dark:bg-slate-900">
               {loading ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
@@ -104,8 +104,8 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
                     className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-center justify-between"
                   >
                     <span>
-                      <span className="block text-sm font-medium text-gray-900">{contactName(c)}</span>
-                      <span className="block text-xs text-gray-500">
+                      <span className="block text-sm font-medium text-gray-900 dark:text-slate-100">{contactName(c)}</span>
+                      <span className="block text-xs text-gray-500 dark:text-slate-400">
                         {[c.phone, c.email].filter(Boolean).join(' · ')}
                       </span>
                     </span>

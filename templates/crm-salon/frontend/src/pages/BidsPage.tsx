@@ -83,7 +83,7 @@ export default function BidsPage() {
 
   const columns = [
     { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
-    { key: 'projectName', label: 'Project', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.client && <p className="text-sm text-gray-500">{r.client as string}</p>}</div> },
+    { key: 'projectName', label: 'Project', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.client && <p className="text-sm text-gray-500 dark:text-slate-400">{r.client as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ draft: 'bg-gray-100 text-gray-700', submitted: 'bg-blue-100 text-blue-700', under_review: 'bg-yellow-100 text-yellow-700', won: 'bg-green-100 text-green-700', lost: 'bg-red-100 text-red-700' }} /> },
     { key: 'bidAmount', label: 'Bid Amount', render: (v: unknown) => v ? `$${Number(v).toLocaleString()}` : '-' },
     { key: 'dueDate', label: 'Due Date', render: (v: unknown) => v ? formatDate(v as string) : '-' },
@@ -96,11 +96,11 @@ export default function BidsPage() {
 
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow-sm"><p className="text-2xl font-bold">{stats.total}</p><p className="text-sm text-gray-500">Total Bids</p></div>
-          <div className="bg-white p-4 rounded-lg shadow-sm"><p className="text-2xl font-bold text-blue-600">{stats.submitted || 0}</p><p className="text-sm text-gray-500">Submitted</p></div>
-          <div className="bg-white p-4 rounded-lg shadow-sm"><p className="text-2xl font-bold text-green-600">{stats.won || 0}</p><p className="text-sm text-gray-500">Won</p></div>
-          <div className="bg-white p-4 rounded-lg shadow-sm"><p className="text-2xl font-bold text-orange-600">${(stats.pipelineValue || 0).toLocaleString()}</p><p className="text-sm text-gray-500">Pipeline</p></div>
-          <div className="bg-white p-4 rounded-lg shadow-sm"><p className="text-2xl font-bold">{stats.winRate || 0}%</p><p className="text-sm text-gray-500">Win Rate</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.total}</p><p className="text-sm text-gray-500 dark:text-slate-400">Total Bids</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-blue-600">{stats.submitted || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Submitted</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-green-600">{stats.won || 0}</p><p className="text-sm text-gray-500 dark:text-slate-400">Won</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold text-orange-600">${(stats.pipelineValue || 0).toLocaleString()}</p><p className="text-sm text-gray-500 dark:text-slate-400">Pipeline</p></div>
+          <div className="bg-white p-4 rounded-lg shadow-sm dark:bg-slate-900"><p className="text-2xl font-bold">{stats.winRate || 0}%</p><p className="text-sm text-gray-500 dark:text-slate-400">Win Rate</p></div>
         </div>
       )}
 

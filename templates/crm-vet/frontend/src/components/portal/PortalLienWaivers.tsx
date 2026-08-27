@@ -95,14 +95,14 @@ export default function PortalLienWaivers() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Lien Waivers</h1>
-        <p className="text-gray-600">Review and sign lien waivers for your work.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Lien Waivers</h1>
+        <p className="text-gray-600 dark:text-slate-400">Review and sign lien waivers for your work.</p>
       </div>
 
       {waivers.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <FileSignature className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No lien waivers yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No lien waivers yet.</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -125,36 +125,36 @@ export default function PortalLienWaivers() {
 
       {signing && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-1">Sign Lien Waiver</h2>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className="bg-white rounded-xl max-w-lg w-full p-6 dark:bg-slate-900">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1 dark:text-slate-100">Sign Lien Waiver</h2>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
               {signing.projectName} · {WAIVER_LABELS[signing.waiverType] || signing.waiverType}
               {signing.amountTotal ? ` · $${Number(signing.amountTotal).toLocaleString()}` : ''}
             </p>
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Signed Document URL (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Signed Document URL (optional)</label>
                 <input
                   type="url"
                   value={documentUrl}
                   onChange={(e) => setDocumentUrl(e.target.value)}
                   placeholder="https://..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:border-slate-700"
                 />
-                <p className="text-xs text-gray-500 mt-1">Paste a link to the signed PDF, or leave blank.</p>
+                <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Paste a link to the signed PDF, or leave blank.</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes (optional)</label>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm dark:border-slate-700"
                 />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setSigning(null)} disabled={busy} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setSigning(null)} disabled={busy} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg dark:text-slate-200">
                 Cancel
               </button>
               <button onClick={submitSign} disabled={busy} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
@@ -171,7 +171,7 @@ export default function PortalLienWaivers() {
 function Section({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">{title}</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">{title}</h2>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -179,21 +179,21 @@ function Section({ title, children }: { title: React.ReactNode; children: React.
 
 function WaiverCard({ waiver, onSign }: { waiver: Waiver; onSign: (() => void) | null }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 dark:bg-slate-900 dark:border-slate-700">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
           <div className="p-2 bg-blue-100 rounded-lg shrink-0">
             <FileSignature className="w-5 h-5 text-blue-600" />
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-gray-900">{WAIVER_LABELS[waiver.waiverType] || waiver.waiverType}</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">{WAIVER_LABELS[waiver.waiverType] || waiver.waiverType}</p>
             {waiver.projectName && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-500 dark:text-slate-400">
                 Project: {waiver.projectNumber ? `${waiver.projectNumber} · ` : ''}
                 {waiver.projectName}
               </p>
             )}
-            <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
+            <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500 dark:text-slate-400">
               {waiver.throughDate && <span>Through {formatDate(waiver.throughDate)}</span>}
               {waiver.dueDate && <span>Due {formatDate(waiver.dueDate)}</span>}
               {waiver.signedDate && <span>Signed {formatDate(waiver.signedDate)}</span>}
@@ -202,7 +202,7 @@ function WaiverCard({ waiver, onSign }: { waiver: Waiver; onSign: (() => void) |
         </div>
         <div className="text-right shrink-0">
           {waiver.amountTotal !== undefined && (
-            <p className="font-bold text-gray-900">${Number(waiver.amountTotal).toLocaleString()}</p>
+            <p className="font-bold text-gray-900 dark:text-slate-100">${Number(waiver.amountTotal).toLocaleString()}</p>
           )}
           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mt-1 ${STATUS_STYLES[waiver.status] || 'bg-gray-100 text-gray-700'}`}>
             {waiver.status}

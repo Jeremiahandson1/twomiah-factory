@@ -234,7 +234,7 @@ export default function JobDetailPage() {
 
   if (!job) {
     return (
-      <div className="p-6 text-center text-gray-500">Job not found</div>
+      <div className="p-6 text-center text-gray-500 dark:text-slate-400">Job not found</div>
     );
   }
 
@@ -244,15 +244,15 @@ export default function JobDetailPage() {
   const filteredPhotos = photos.filter((p) => p.category === photoTab);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Top Bar */}
-      <div className="bg-white border-b px-6 py-4">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <div className="bg-white border-b px-6 py-4 dark:bg-slate-900">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3 dark:text-slate-400">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-gray-900">
+            <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">
               {job.jobNumber || `ROOF-${String(job.id).padStart(4, '0')}`}
             </h1>
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor}`}>
@@ -282,26 +282,26 @@ export default function JobDetailPage() {
           {/* Left Column */}
           <div className="lg:col-span-2 space-y-6">
             {/* Property */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Home className="w-4 h-4 text-gray-400" /> Property
               </h2>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-gray-500">Address</p>
-                  <p className="font-medium text-gray-900">{job.address || job.propertyAddress || '—'}</p>
+                  <p className="text-gray-500 dark:text-slate-400">Address</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{job.address || job.propertyAddress || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Roof Age</p>
-                  <p className="font-medium text-gray-900">{job.roofAge ? `${job.roofAge} years` : '—'}</p>
+                  <p className="text-gray-500 dark:text-slate-400">Roof Age</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{job.roofAge ? `${job.roofAge} years` : '—'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Roof Type</p>
-                  <p className="font-medium text-gray-900">{job.roofType || '—'}</p>
+                  <p className="text-gray-500 dark:text-slate-400">Roof Type</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{job.roofType || '—'}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500">Stories</p>
-                  <p className="font-medium text-gray-900">{job.stories || '—'}</p>
+                  <p className="text-gray-500 dark:text-slate-400">Stories</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{job.stories || '—'}</p>
                 </div>
               </div>
             </div>
@@ -318,8 +318,8 @@ export default function JobDetailPage() {
                       <Shield className="w-5 h-5 text-orange-600" />
                     </div>
                     <div>
-                      <h2 className="text-sm font-semibold text-gray-900">Insurance Claim</h2>
-                      <p className="text-xs text-gray-500">View claim details, supplements, Xactimate export</p>
+                      <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Insurance Claim</h2>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">View claim details, supplements, Xactimate export</p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-orange-400" />
@@ -329,60 +329,60 @@ export default function JobDetailPage() {
 
             {/* Insurance Details - ONLY for insurance jobs */}
             {job.jobType === 'insurance' && (
-              <div className="bg-white rounded-xl shadow-sm border border-yellow-300 p-6">
-                <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+              <div className="bg-white rounded-xl shadow-sm border border-yellow-300 p-6 dark:bg-slate-900">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                   <Shield className="w-4 h-4 text-yellow-500" /> Insurance
                 </h2>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-gray-500">Claim Number</p>
-                    <p className="font-medium text-gray-900">{job.claimNumber || '—'}</p>
+                    <p className="text-gray-500 dark:text-slate-400">Claim Number</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{job.claimNumber || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Insurance Company</p>
-                    <p className="font-medium text-gray-900">{job.insuranceCompany || '—'}</p>
+                    <p className="text-gray-500 dark:text-slate-400">Insurance Company</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{job.insuranceCompany || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Adjuster Name</p>
-                    <p className="font-medium text-gray-900">{job.adjusterName || '—'}</p>
+                    <p className="text-gray-500 dark:text-slate-400">Adjuster Name</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{job.adjusterName || '—'}</p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Adjuster Phone</p>
-                    <p className="font-medium text-gray-900">
+                    <p className="text-gray-500 dark:text-slate-400">Adjuster Phone</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {job.adjusterPhone ? (
                         <a href={`tel:${job.adjusterPhone}`} className="text-blue-600 hover:underline">{job.adjusterPhone}</a>
                       ) : '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Date of Loss</p>
-                    <p className="font-medium text-gray-900">
+                    <p className="text-gray-500 dark:text-slate-400">Date of Loss</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {job.dateOfLoss ? formatDate(job.dateOfLoss) : '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500">Deductible</p>
-                    <p className="font-medium text-gray-900">
+                    <p className="text-gray-500 dark:text-slate-400">Deductible</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {job.deductible != null ? `$${Number(job.deductible).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500">RCV</p>
-                    <p className="font-medium text-gray-900">
+                    <p className="text-gray-500 dark:text-slate-400">RCV</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {job.rcv != null ? `$${Number(job.rcv).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-500">ACV</p>
-                    <p className="font-medium text-gray-900">
+                    <p className="text-gray-500 dark:text-slate-400">ACV</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
                       {job.acv != null ? `$${Number(job.acv).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                     </p>
                   </div>
                 </div>
                 {job.approvedScope !== undefined && (
                   <div className="mt-4">
-                    <p className="text-gray-500 text-sm mb-1">Approved Scope</p>
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap bg-yellow-50 rounded-lg p-3 border border-yellow-200">
+                    <p className="text-gray-500 text-sm mb-1 dark:text-slate-400">Approved Scope</p>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap bg-yellow-50 rounded-lg p-3 border border-yellow-200 dark:text-slate-100">
                       {job.approvedScope || 'Not yet defined'}
                     </p>
                   </div>
@@ -391,8 +391,8 @@ export default function JobDetailPage() {
             )}
 
             {/* Measurement */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Ruler className="w-4 h-4 text-gray-400" /> Measurement
               </h2>
               {measurement ? (
@@ -422,15 +422,15 @@ export default function JobDetailPage() {
                           <p className="text-lg font-bold text-blue-700">{measurement.totalArea ? Number(measurement.totalArea).toLocaleString() : '—'}</p>
                           <p className="text-[10px] text-blue-600">Sqft</p>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-2.5 text-center">
-                          <p className="text-lg font-bold text-gray-700">{Array.isArray(measurement.segments) ? measurement.segments.length : '—'}</p>
-                          <p className="text-[10px] text-gray-600">Segments</p>
+                        <div className="bg-gray-50 rounded-lg p-2.5 text-center dark:bg-slate-900">
+                          <p className="text-lg font-bold text-gray-700 dark:text-slate-200">{Array.isArray(measurement.segments) ? measurement.segments.length : '—'}</p>
+                          <p className="text-[10px] text-gray-600 dark:text-slate-400">Segments</p>
                         </div>
                       </div>
                       {Array.isArray(measurement.segments) && measurement.segments.length > 0 && (
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="border-b text-gray-500">
+                            <tr className="border-b text-gray-500 dark:text-slate-400">
                               <th className="text-left pb-1 font-medium">Segment</th>
                               <th className="text-right pb-1 font-medium">Sqft</th>
                               <th className="text-right pb-1 font-medium">Pitch</th>
@@ -439,9 +439,9 @@ export default function JobDetailPage() {
                           <tbody>
                             {measurement.segments.map((s: any, i: number) => (
                               <tr key={i} className="border-b last:border-0">
-                                <td className="py-1 text-gray-900">{s.name}</td>
-                                <td className="py-1 text-right text-gray-600">{Number(s.area).toLocaleString()}</td>
-                                <td className="py-1 text-right text-gray-600">{s.pitch}</td>
+                                <td className="py-1 text-gray-900 dark:text-slate-100">{s.name}</td>
+                                <td className="py-1 text-right text-gray-600 dark:text-slate-400">{Number(s.area).toLocaleString()}</td>
+                                <td className="py-1 text-right text-gray-600 dark:text-slate-400">{s.pitch}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -454,7 +454,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     {job.totalSquares && (
-                      <span className="text-sm text-gray-700">
+                      <span className="text-sm text-gray-700 dark:text-slate-200">
                         <span className="font-semibold">{job.totalSquares}</span> total squares
                       </span>
                     )}
@@ -472,22 +472,22 @@ export default function JobDetailPage() {
 
             {/* Material Order */}
             {(job.materialOrder || job.materialOrders?.length > 0) && (
-              <div className="bg-white rounded-xl shadow-sm border p-6">
-                <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+              <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+                <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                   <Truck className="w-4 h-4 text-gray-400" /> Material Order
                 </h2>
                 {(() => {
                   const order = job.materialOrder || job.materialOrders?.[0];
-                  if (!order) return <p className="text-sm text-gray-500">No material orders yet</p>;
+                  if (!order) return <p className="text-sm text-gray-500 dark:text-slate-400">No material orders yet</p>;
                   return (
                     <div>
                       <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                         <div>
-                          <p className="text-gray-500">Supplier</p>
+                          <p className="text-gray-500 dark:text-slate-400">Supplier</p>
                           <p className="font-medium">{order.supplier || '—'}</p>
                         </div>
                         <div>
-                          <p className="text-gray-500">Status</p>
+                          <p className="text-gray-500 dark:text-slate-400">Status</p>
                           <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                             order.status === 'delivered' ? 'bg-green-100 text-green-700' :
                             order.status === 'ordered' ? 'bg-blue-100 text-blue-700' :
@@ -497,11 +497,11 @@ export default function JobDetailPage() {
                           </span>
                         </div>
                         <div>
-                          <p className="text-gray-500">Delivery Date</p>
+                          <p className="text-gray-500 dark:text-slate-400">Delivery Date</p>
                           <p className="font-medium">{order.deliveryDate ? formatDate(order.deliveryDate) : '—'}</p>
                         </div>
                         <div>
-                          <p className="text-gray-500">Total Cost</p>
+                          <p className="text-gray-500 dark:text-slate-400">Total Cost</p>
                           <p className="font-medium">
                             {order.totalCost != null ? `$${Number(order.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                           </p>
@@ -510,7 +510,7 @@ export default function JobDetailPage() {
                       {order.lineItems?.length > 0 && (
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b text-left text-gray-500">
+                            <tr className="border-b text-left text-gray-500 dark:text-slate-400">
                               <th className="pb-2 font-medium">Item</th>
                               <th className="pb-2 font-medium">Qty</th>
                               <th className="pb-2 font-medium text-right">Cost</th>
@@ -534,8 +534,8 @@ export default function JobDetailPage() {
             )}
 
             {/* Photos */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Camera className="w-4 h-4 text-gray-400" /> Photos
               </h2>
               <div className="flex items-center gap-1 mb-4 border-b">
@@ -555,7 +555,7 @@ export default function JobDetailPage() {
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-4">
                 {filteredPhotos.map((photo, i) => (
-                  <div key={photo.id || i} className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                  <div key={photo.id || i} className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800">
                     <img
                       src={photo.url || photo.thumbnailUrl}
                       alt={photo.caption || `Photo ${i + 1}`}
@@ -578,7 +578,7 @@ export default function JobDetailPage() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200"
               >
                 <Upload className="w-4 h-4" />
                 {uploading ? 'Uploading...' : 'Upload Photos'}
@@ -586,15 +586,15 @@ export default function JobDetailPage() {
             </div>
 
             {/* Notes */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <MessageSquare className="w-4 h-4 text-gray-400" /> Notes
               </h2>
               <div className="space-y-3 mb-4">
                 {notes.length === 0 && <p className="text-sm text-gray-400">No notes yet</p>}
                 {notes.map((note, i) => (
-                  <div key={note.id || i} className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-sm text-gray-900">{note.body || note.text || note.content}</p>
+                  <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
+                    <p className="text-sm text-gray-900 dark:text-slate-100">{note.body || note.text || note.content}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
                       {note.authorName && <span>{note.authorName}</span>}
                       {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
@@ -622,8 +622,8 @@ export default function JobDetailPage() {
             </div>
 
             {/* Timeline */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Activity className="w-4 h-4 text-gray-400" /> Timeline
               </h2>
               {timeline.length === 0 ? (
@@ -634,7 +634,7 @@ export default function JobDetailPage() {
                     <div key={event.id || i} className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
                       <div>
-                        <p className="text-sm text-gray-900">{event.body || event.description || event.message}</p>
+                        <p className="text-sm text-gray-900 dark:text-slate-100">{event.body || event.description || event.message}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
                           {event.userName && ` — ${event.userName}`}
@@ -650,11 +650,11 @@ export default function JobDetailPage() {
           {/* Right Column */}
           <div className="space-y-6">
             {/* Contact */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <User className="w-4 h-4 text-gray-400" /> Contact
               </h2>
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-gray-900 dark:text-slate-100">
                 {[job.contactFirstName || job.contact?.firstName, job.contactLastName || job.contact?.lastName].filter(Boolean).join(' ') || job.contactName || '—'}
               </p>
               {(job.contactPhone || job.contact?.phone) && (
@@ -668,20 +668,20 @@ export default function JobDetailPage() {
                 </a>
               )}
               {(job.leadSource || job.contact?.leadSource) && (
-                <span className="inline-block mt-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                <span className="inline-block mt-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">
                   {job.leadSource || job.contact?.leadSource}
                 </span>
               )}
             </div>
 
             {/* Assignment */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Users className="w-4 h-4 text-gray-400" /> Assignment
               </h2>
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Sales Rep</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Sales Rep</label>
                   <select
                     value={job.salesRepId || ''}
                     onChange={(e) => updateAssignment('salesRepId', e.target.value)}
@@ -694,7 +694,7 @@ export default function JobDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Crew</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Crew</label>
                   <select
                     value={job.crewId || ''}
                     onChange={(e) => updateAssignment('crewId', e.target.value)}
@@ -710,8 +710,8 @@ export default function JobDetailPage() {
             </div>
 
             {/* Quotes */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <FileText className="w-4 h-4 text-gray-400" /> Quotes
               </h2>
               {quotes.length === 0 ? (
@@ -745,8 +745,8 @@ export default function JobDetailPage() {
             </div>
 
             {/* Invoice */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Receipt className="w-4 h-4 text-gray-400" /> Invoice
               </h2>
               {invoices.length === 0 ? (

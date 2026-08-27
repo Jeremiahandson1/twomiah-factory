@@ -143,7 +143,7 @@ function StoreGroupsTab() {
         {/* Groups List */}
         <div className="md:col-span-1 space-y-3">
           {groups.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500">No store groups yet</div>
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">No store groups yet</div>
           ) : groups.map((group) => (
             <div
               key={group.id}
@@ -152,8 +152,8 @@ function StoreGroupsTab() {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-gray-900">{group.name}</h3>
-                  {group.description && <p className="text-sm text-gray-500">{group.description}</p>}
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100">{group.name}</h3>
+                  {group.description && <p className="text-sm text-gray-500 dark:text-slate-400">{group.description}</p>}
                   <div className="flex items-center gap-1 mt-1 text-sm text-gray-400">
                     <MapPin className="w-3 h-3" />
                     {group.locationCount || 0} locations
@@ -168,13 +168,13 @@ function StoreGroupsTab() {
         {/* Group Dashboard */}
         <div className="md:col-span-2">
           {!selectedGroup ? (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500">Select a store group to view its dashboard</div>
+            <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">Select a store group to view its dashboard</div>
           ) : dashLoading ? (
             <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">{selectedGroup.name} Dashboard</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{selectedGroup.name} Dashboard</h2>
                 <Button variant="secondary" size="sm" onClick={() => { setLocationId(''); setAddLocModalOpen(true); }}>
                   <Plus className="w-3 h-3 mr-1 inline" />Add Location
                 </Button>
@@ -183,45 +183,45 @@ function StoreGroupsTab() {
               {groupDashboard && (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="bg-white rounded-lg shadow-sm p-4">
-                      <p className="text-xs text-gray-500">Total Revenue</p>
-                      <p className="text-xl font-bold text-gray-900">${Number(groupDashboard.totalRevenue || 0).toLocaleString()}</p>
+                    <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Total Revenue</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-slate-100">${Number(groupDashboard.totalRevenue || 0).toLocaleString()}</p>
                     </div>
-                    <div className="bg-white rounded-lg shadow-sm p-4">
-                      <p className="text-xs text-gray-500">Total Orders</p>
-                      <p className="text-xl font-bold text-gray-900">{groupDashboard.totalOrders || 0}</p>
+                    <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Total Orders</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{groupDashboard.totalOrders || 0}</p>
                     </div>
-                    <div className="bg-white rounded-lg shadow-sm p-4">
-                      <p className="text-xs text-gray-500">Total Products</p>
-                      <p className="text-xl font-bold text-gray-900">{groupDashboard.totalProducts || 0}</p>
+                    <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Total Products</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{groupDashboard.totalProducts || 0}</p>
                     </div>
-                    <div className="bg-white rounded-lg shadow-sm p-4">
-                      <p className="text-xs text-gray-500">Avg Order Value</p>
-                      <p className="text-xl font-bold text-gray-900">${Number(groupDashboard.avgOrderValue || 0).toFixed(2)}</p>
+                    <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Avg Order Value</p>
+                      <p className="text-xl font-bold text-gray-900 dark:text-slate-100">${Number(groupDashboard.avgOrderValue || 0).toFixed(2)}</p>
                     </div>
                   </div>
 
                   {/* Location breakdown */}
                   {groupDashboard.locations && groupDashboard.locations.length > 0 && (
-                    <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
                       <div className="px-4 py-3 border-b">
-                        <h3 className="font-semibold text-gray-900">Location Breakdown</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-slate-100">Location Breakdown</h3>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full">
-                          <thead className="bg-gray-50 border-b">
+                          <thead className="bg-gray-50 border-b dark:bg-slate-900">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Location</th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Revenue</th>
-                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Orders</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Location</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Revenue</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Orders</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100">
                             {groupDashboard.locations.map((loc: any, i: number) => (
                               <tr key={i} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 text-gray-900 font-medium">{loc.name}</td>
-                                <td className="px-4 py-3 text-gray-700">${Number(loc.revenue || 0).toLocaleString()}</td>
-                                <td className="px-4 py-3 text-gray-700">{loc.orders || 0}</td>
+                                <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.revenue || 0).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.orders || 0}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -297,34 +297,34 @@ function MultiStoreReportsTab() {
   return (
     <div className="space-y-6">
       {/* Sales Comparison */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="px-4 py-3 border-b flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-gray-400" />
-          <h3 className="font-semibold text-gray-900">Location Sales Comparison</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Location Sales Comparison</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Location</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Today</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">This Week</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">This Month</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Orders</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Avg Ticket</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Location</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Today</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">This Week</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">This Month</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Orders</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Avg Ticket</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {salesData.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No sales data</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No sales data</td></tr>
               ) : salesData.map((loc, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900 font-medium">{loc.name}</td>
-                  <td className="px-4 py-3 text-gray-700">${Number(loc.today || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">${Number(loc.thisWeek || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">${Number(loc.thisMonth || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{loc.orderCount || 0}</td>
-                  <td className="px-4 py-3 text-gray-700">${Number(loc.avgTicket || 0).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.today || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.thisWeek || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.thisMonth || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.orderCount || 0}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.avgTicket || 0).toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -333,34 +333,34 @@ function MultiStoreReportsTab() {
       </div>
 
       {/* Inventory Across Locations */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="px-4 py-3 border-b flex items-center gap-2">
           <Package className="w-4 h-4 text-gray-400" />
-          <h3 className="font-semibold text-gray-900">Inventory Across Locations</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Inventory Across Locations</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Location</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Total SKUs</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Total Units</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Low Stock</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Out of Stock</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Value</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Location</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Total SKUs</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Total Units</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Low Stock</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Out of Stock</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Value</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {inventoryData.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">No inventory data</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No inventory data</td></tr>
               ) : inventoryData.map((loc, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900 font-medium">{loc.name}</td>
-                  <td className="px-4 py-3 text-gray-700">{loc.totalSkus || 0}</td>
-                  <td className="px-4 py-3 text-gray-700">{(loc.totalUnits || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.totalSkus || 0}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(loc.totalUnits || 0).toLocaleString()}</td>
                   <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{loc.lowStock || 0}</span></td>
                   <td className="px-4 py-3"><span className={`font-medium ${(loc.outOfStock || 0) > 0 ? 'text-red-600' : 'text-gray-400'}`}>{loc.outOfStock || 0}</span></td>
-                  <td className="px-4 py-3 text-gray-700">${Number(loc.value || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.value || 0).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -369,28 +369,28 @@ function MultiStoreReportsTab() {
       </div>
 
       {/* Compliance Status */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
         <div className="px-4 py-3 border-b flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-gray-400" />
-          <h3 className="font-semibold text-gray-900">Compliance Status</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Compliance Status</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Location</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">License Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Metrc Sync</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Last Audit</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Issues</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Location</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">License Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Metrc Sync</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Last Audit</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase dark:text-slate-400">Issues</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {complianceData.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">No compliance data</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No compliance data</td></tr>
               ) : complianceData.map((loc, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900 font-medium">{loc.name}</td>
+                  <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${loc.licenseStatus === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                       {loc.licenseStatus || 'unknown'}
@@ -401,7 +401,7 @@ function MultiStoreReportsTab() {
                       {loc.metrcSync || 'unknown'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{loc.lastAudit ? formatDate(loc.lastAudit) : '--'}</td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.lastAudit ? formatDate(loc.lastAudit) : '--'}</td>
                   <td className="px-4 py-3"><span className={`font-medium ${(loc.issues || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>{loc.issues || 0}</span></td>
                 </tr>
               ))}
@@ -477,9 +477,9 @@ function ACHTab() {
   };
 
   const columns = [
-    { key: 'id', label: 'Transaction ID', render: (val: string) => <span className="font-mono text-sm text-gray-900">{val?.slice(0, 12)}...</span> },
-    { key: 'type', label: 'Type', render: (val: string) => <span className="capitalize text-gray-700">{val}</span> },
-    { key: 'amount', label: 'Amount', render: (val: number) => <span className="font-medium text-gray-900">${Number(val || 0).toFixed(2)}</span> },
+    { key: 'id', label: 'Transaction ID', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val?.slice(0, 12)}...</span> },
+    { key: 'type', label: 'Type', render: (val: string) => <span className="capitalize text-gray-700 dark:text-slate-200">{val}</span> },
+    { key: 'amount', label: 'Amount', render: (val: number) => <span className="font-medium text-gray-900 dark:text-slate-100">${Number(val || 0).toFixed(2)}</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={txStatusColors} /> },
     { key: 'customerName', label: 'Customer', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'description', label: 'Description', render: (val: string) => val || <span className="text-gray-400">--</span> },
@@ -572,7 +572,7 @@ function APIDocsTab() {
   }
 
   if (!spec) {
-    return <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500">No API documentation available</div>;
+    return <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">No API documentation available</div>;
   }
 
   const methodColors: Record<string, string> = {
@@ -596,10 +596,10 @@ function APIDocsTab() {
   return (
     <div className="space-y-4">
       {/* API Info */}
-      <div className="bg-white rounded-lg shadow-sm p-5">
-        <h2 className="text-lg font-semibold text-gray-900">{spec.info?.title || 'API Documentation'}</h2>
-        {spec.info?.description && <p className="text-gray-600 mt-1">{spec.info.description}</p>}
-        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+      <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{spec.info?.title || 'API Documentation'}</h2>
+        {spec.info?.description && <p className="text-gray-600 mt-1 dark:text-slate-400">{spec.info.description}</p>}
+        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-slate-400">
           {spec.info?.version && <span>Version {spec.info.version}</span>}
           {spec.servers?.[0]?.url && <span className="font-mono">{spec.servers[0].url}</span>}
         </div>
@@ -607,13 +607,13 @@ function APIDocsTab() {
 
       {/* Endpoints */}
       {endpoints.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500">No endpoints documented</div>
+        <div className="bg-white rounded-lg shadow-sm p-8 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">No endpoints documented</div>
       ) : (
         <div className="space-y-2">
           {endpoints.map((ep) => {
             const isExpanded = expandedEndpoint === ep.id;
             return (
-              <div key={ep.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div key={ep.id} className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
                 <button
                   onClick={() => setExpandedEndpoint(isExpanded ? null : ep.id)}
                   className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 text-left"
@@ -621,26 +621,26 @@ function APIDocsTab() {
                   <span className={`px-2 py-0.5 text-xs font-bold rounded uppercase ${methodColors[ep.method] || 'bg-gray-100 text-gray-700'}`}>
                     {ep.method}
                   </span>
-                  <span className="font-mono text-sm text-gray-900">{ep.path}</span>
-                  <span className="text-sm text-gray-500 ml-2">{ep.summary || ''}</span>
+                  <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{ep.path}</span>
+                  <span className="text-sm text-gray-500 ml-2 dark:text-slate-400">{ep.summary || ''}</span>
                   <ChevronRight className={`w-4 h-4 text-gray-400 ml-auto transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                 </button>
 
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t border-gray-100 pt-3">
-                    {ep.description && <p className="text-sm text-gray-600 mb-3">{ep.description}</p>}
+                    {ep.description && <p className="text-sm text-gray-600 mb-3 dark:text-slate-400">{ep.description}</p>}
 
                     {/* Parameters */}
                     {ep.parameters && ep.parameters.length > 0 && (
                       <div className="mb-3">
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Parameters</h4>
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2 dark:text-slate-400">Parameters</h4>
                         <div className="space-y-1">
                           {ep.parameters.map((param: any, i: number) => (
                             <div key={i} className="flex items-center gap-2 text-sm">
-                              <span className="font-mono text-gray-900">{param.name}</span>
+                              <span className="font-mono text-gray-900 dark:text-slate-100">{param.name}</span>
                               <span className="text-xs text-gray-400">({param.in})</span>
                               {param.required && <span className="text-xs text-red-500">required</span>}
-                              {param.description && <span className="text-gray-500">- {param.description}</span>}
+                              {param.description && <span className="text-gray-500 dark:text-slate-400">- {param.description}</span>}
                             </div>
                           ))}
                         </div>
@@ -650,7 +650,7 @@ function APIDocsTab() {
                     {/* Request Body */}
                     {ep.requestBody && (
                       <div className="mb-3">
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Request Body</h4>
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2 dark:text-slate-400">Request Body</h4>
                         <pre className="bg-gray-900 text-green-400 p-3 rounded-lg text-xs overflow-x-auto">
                           {JSON.stringify(
                             ep.requestBody.content?.['application/json']?.schema || ep.requestBody,
@@ -664,7 +664,7 @@ function APIDocsTab() {
                     {/* Responses */}
                     {ep.responses && (
                       <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Responses</h4>
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2 dark:text-slate-400">Responses</h4>
                         <div className="space-y-2">
                           {Object.entries(ep.responses).map(([code, resp]: [string, any]) => (
                             <div key={code} className="text-sm">
@@ -672,7 +672,7 @@ function APIDocsTab() {
                                 <span className={`font-mono font-bold ${code.startsWith('2') ? 'text-green-600' : code.startsWith('4') ? 'text-red-600' : 'text-gray-600'}`}>
                                   {code}
                                 </span>
-                                <span className="text-gray-600">{resp.description || ''}</span>
+                                <span className="text-gray-600 dark:text-slate-400">{resp.description || ''}</span>
                               </div>
                               {resp.content?.['application/json']?.schema && (
                                 <pre className="bg-gray-900 text-green-400 p-3 rounded-lg text-xs overflow-x-auto mt-1">

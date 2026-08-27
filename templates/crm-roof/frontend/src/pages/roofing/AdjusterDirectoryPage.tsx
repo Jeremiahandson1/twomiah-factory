@@ -53,30 +53,30 @@ export default function AdjusterDirectoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-6xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Adjuster Directory</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{adjusters.length} adjusters</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Adjuster Directory</h1>
+            <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{adjusters.length} adjusters</p>
           </div>
           <button onClick={() => setAddOpen(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
             <Plus className="w-4 h-4" /> Add Adjuster
           </button>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Company</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Carrier</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Territory</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Phone</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Email</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Jobs Together</th>
+                <tr className="bg-gray-50 border-b dark:bg-slate-900">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Name</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Company</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Carrier</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Territory</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Phone</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Email</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Jobs Together</th>
                 </tr>
               </thead>
               <tbody>
@@ -87,10 +87,10 @@ export default function AdjusterDirectoryPage() {
                 ) : (
                   adjusters.map((adj) => (
                     <tr key={adj.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{adj.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{adj.adjusterCompany || adj.company_name || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{adj.insuranceCarrier}</td>
-                      <td className="px-4 py-3 text-gray-600">{adj.territory || '—'}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{adj.name}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{adj.adjusterCompany || adj.company_name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{adj.insuranceCarrier}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{adj.territory || '—'}</td>
                       <td className="px-4 py-3">
                         {adj.phone ? (
                           <a href={`tel:${adj.phone}`} className="flex items-center gap-1 text-blue-600 hover:underline">
@@ -122,43 +122,43 @@ export default function AdjusterDirectoryPage() {
       {/* Add Modal */}
       {addOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Add Adjuster</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add Adjuster</h2>
               <button onClick={() => setAddOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Name *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Name *</label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Insurance Carrier *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Insurance Carrier *</label>
                 <input value={form.insuranceCarrier} onChange={(e) => setForm({ ...form, insuranceCarrier: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="e.g. State Farm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Phone</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Phone</label>
                   <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Email</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email</label>
                   <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Company</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Company</label>
                   <input value={form.adjusterCompany} onChange={(e) => setForm({ ...form, adjusterCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Territory</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Territory</label>
                   <input value={form.territory} onChange={(e) => setForm({ ...form, territory: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="e.g. Midwest" />
                 </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={addAdjuster} disabled={submitting} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submitting ? 'Adding...' : 'Add Adjuster'}
               </button>

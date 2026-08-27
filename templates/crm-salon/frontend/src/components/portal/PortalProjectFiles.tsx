@@ -105,18 +105,18 @@ export default function PortalProjectFiles() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Project Files</h1>
-        <p className="text-gray-600">Shared files for this project — organized by category.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Project Files</h1>
+        <p className="text-gray-600 dark:text-slate-400">Shared files for this project — organized by category.</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 dark:bg-slate-900 dark:border-slate-700">
         <div className="flex flex-wrap items-center gap-3">
-          <FileUp className="w-5 h-5 text-gray-500" />
-          <p className="font-medium text-gray-900">Upload a file</p>
+          <FileUp className="w-5 h-5 text-gray-500 dark:text-slate-400" />
+          <p className="font-medium text-gray-900 dark:text-slate-100">Upload a file</p>
           <select
             value={uploadType}
             onChange={(e) => setUploadType(e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm dark:border-slate-700"
           >
             {CATEGORIES.map((c) => (
               <option key={c.key} value={c.key}>
@@ -136,9 +136,9 @@ export default function PortalProjectFiles() {
       </div>
 
       {files.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center dark:bg-slate-900 dark:border-slate-700">
           <FolderOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No files in this project yet.</p>
+          <p className="text-gray-500 dark:text-slate-400">No files in this project yet.</p>
         </div>
       ) : (
         <>
@@ -179,31 +179,31 @@ function FilterBtn({ active, onClick, children }: { active: boolean; onClick: ()
 function FileCard({ file }: { file: ProjectFile }) {
   const sizeKb = file.size ? Math.round(file.size / 1024) : 0;
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 dark:bg-slate-900 dark:border-slate-700">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 bg-gray-100 rounded-lg shrink-0">
+          <div className="p-2 bg-gray-100 rounded-lg shrink-0 dark:bg-slate-800">
             {file.thumbnailUrl ? (
               <img src={file.thumbnailUrl} alt="" className="w-8 h-8 object-cover rounded" />
             ) : (
-              <FolderOpen className="w-5 h-5 text-gray-600" />
+              <FolderOpen className="w-5 h-5 text-gray-600 dark:text-slate-400" />
             )}
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-gray-900 truncate">{file.name || file.originalName}</p>
-            <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-500">
-              <span className="px-1.5 py-0.5 bg-gray-100 rounded">{CATEGORY_LABEL[file.type] || file.type}</span>
+            <p className="font-medium text-gray-900 truncate dark:text-slate-100">{file.name || file.originalName}</p>
+            <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+              <span className="px-1.5 py-0.5 bg-gray-100 rounded dark:bg-slate-800">{CATEGORY_LABEL[file.type] || file.type}</span>
               {sizeKb > 0 && <span>{sizeKb} KB</span>}
               <span>Added {formatDate(file.createdAt)}</span>
             </div>
-            {file.description && <p className="text-xs text-gray-500 mt-1">{file.description}</p>}
+            {file.description && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{file.description}</p>}
           </div>
         </div>
         <a
           href={file.url}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0"
+          className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shrink-0 dark:text-slate-200 dark:bg-slate-900 dark:border-slate-700"
         >
           <Download className="w-3.5 h-3.5" /> Download
         </a>

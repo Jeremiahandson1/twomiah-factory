@@ -134,8 +134,8 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Inventory</h1>
-          <p className="text-gray-500">Track parts and materials</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Inventory</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track parts and materials</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -235,7 +235,7 @@ export default function InventoryPage() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowLowStock(e.target.checked)}
                 className="w-4 h-4 rounded text-orange-500"
               />
-              <span className="text-sm text-gray-600">Low Stock Only</span>
+              <span className="text-sm text-gray-600 dark:text-slate-400">Low Stock Only</span>
             </label>
           </div>
 
@@ -245,16 +245,16 @@ export default function InventoryPage() {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Item</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">SKU</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Category</th>
-                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">In Stock</th>
-                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Cost</th>
-                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Price</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Item</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">SKU</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Category</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">In Stock</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Cost</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Price</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -267,24 +267,24 @@ export default function InventoryPage() {
                             <AlertTriangle className="w-4 h-4 text-red-500" />
                           )}
                           <div>
-                            <p className="font-medium text-gray-900">{item.name}</p>
+                            <p className="font-medium text-gray-900 dark:text-slate-100">{item.name}</p>
                             {item.description && (
-                              <p className="text-sm text-gray-500 truncate max-w-xs">{item.description}</p>
+                              <p className="text-sm text-gray-500 truncate max-w-xs dark:text-slate-400">{item.description}</p>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{item.sku}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{item.category || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.sku}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.category || '-'}</td>
                       <td className="px-4 py-3 text-right">
                         <span className={`font-medium ${item.isLowStock ? 'text-red-600' : 'text-gray-900'}`}>
                           {item.totalStock} {item.unit}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-500">
+                      <td className="px-4 py-3 text-right text-sm text-gray-500 dark:text-slate-400">
                         ${Number(item.unitCost).toFixed(2)}
                       </td>
-                      <td className="px-4 py-3 text-right text-sm text-gray-900">
+                      <td className="px-4 py-3 text-right text-sm text-gray-900 dark:text-slate-100">
                         ${Number(item.unitPrice).toFixed(2)}
                       </td>
                       <td className="px-4 py-3">
@@ -309,7 +309,7 @@ export default function InventoryPage() {
                 </tbody>
               </table>
               {items.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                   No items found
                 </div>
               )}
@@ -408,7 +408,7 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
       {/* Locations List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-medium text-gray-900">Locations</h3>
+          <h3 className="font-medium text-gray-900 dark:text-slate-100">Locations</h3>
           <button
             onClick={onAddLocation}
             className="text-sm text-orange-600 hover:text-orange-700"
@@ -431,11 +431,11 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
               {loc.type === 'truck' ? (
                 <Truck className="w-5 h-5 text-blue-500" />
               ) : (
-                <Warehouse className="w-5 h-5 text-gray-500" />
+                <Warehouse className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               )}
               <div>
-                <p className="font-medium text-gray-900">{loc.name}</p>
-                <p className="text-sm text-gray-500">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{loc.name}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   {loc._count?.stockLevels || 0} items
                 </p>
               </div>
@@ -452,16 +452,16 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
             <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
           </div>
         ) : inventory ? (
-          <div className="bg-white rounded-xl border">
+          <div className="bg-white rounded-xl border dark:bg-slate-900">
             <div className="p-4 border-b">
-              <h3 className="font-medium text-gray-900">{inventory.name} Inventory</h3>
+              <h3 className="font-medium text-gray-900 dark:text-slate-100">{inventory.name} Inventory</h3>
             </div>
             <div className="divide-y max-h-96 overflow-y-auto">
               {inventory.stockLevels?.map((sl: StockLevel) => (
                 <div key={sl.id} className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">{sl.item.name}</p>
-                    <p className="text-sm text-gray-500">{sl.item.sku}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{sl.item.name}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">{sl.item.sku}</p>
                   </div>
                   <p className="font-medium">
                     {sl.quantity} {sl.item.unit}
@@ -469,14 +469,14 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
                 </div>
               ))}
               {!inventory.stockLevels?.length && (
-                <div className="p-8 text-center text-gray-500">
+                <div className="p-8 text-center text-gray-500 dark:text-slate-400">
                   No items at this location
                 </div>
               )}
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center py-12 text-gray-500">
+          <div className="flex items-center justify-center py-12 text-gray-500 dark:text-slate-400">
             Select a location to view inventory
           </div>
         )}
@@ -513,15 +513,15 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
   }
 
   return (
-    <div className="bg-white rounded-xl border">
+    <div className="bg-white rounded-xl border dark:bg-slate-900">
       <div className="p-4 border-b flex items-center justify-between">
-        <h3 className="font-medium text-gray-900">Purchase Orders</h3>
+        <h3 className="font-medium text-gray-900 dark:text-slate-100">Purchase Orders</h3>
         <button className="text-sm text-orange-600 hover:text-orange-700">
           + New Order
         </button>
       </div>
       {orders.length === 0 ? (
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-gray-500 dark:text-slate-400">
           No purchase orders yet
         </div>
       ) : (
@@ -529,8 +529,8 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
           {orders.map((order: PurchaseOrder) => (
             <div key={order.id} className="p-4 flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">{order.number}</p>
-                <p className="text-sm text-gray-500">{order.vendor}</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">{order.number}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{order.vendor}</p>
               </div>
               <span className={`px-2 py-1 rounded-full text-xs ${
                 order.status === 'received' ? 'bg-green-100 text-green-700' :
@@ -592,13 +592,13 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{item ? 'Edit Item' : 'Add Item'}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
                 <input
                   type="text"
                   value={form.name}
@@ -608,7 +608,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">SKU</label>
                 <input
                   type="text"
                   value={form.sku}
@@ -618,7 +618,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Category</label>
                 <input
                   type="text"
                   value={form.category}
@@ -627,7 +627,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cost</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Cost</label>
                 <input
                   type="number"
                   step="0.01"
@@ -637,7 +637,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price</label>
                 <input
                   type="number"
                   step="0.01"
@@ -647,7 +647,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit</label>
                 <select
                   value={form.unit}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, unit: e.target.value })}
@@ -661,7 +661,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Point</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reorder Point</label>
                 <input
                   type="number"
                   value={form.reorderPoint}
@@ -715,12 +715,12 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Add Location</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
               <input
                 type="text"
                 value={form.name}
@@ -731,7 +731,7 @@ function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
               <select
                 value={form.type}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
@@ -789,12 +789,12 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Transfer Stock</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Item</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Item</label>
               <select
                 value={form.itemId}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, itemId: e.target.value })}
@@ -808,7 +808,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">From</label>
               <select
                 value={form.fromLocationId}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, fromLocationId: e.target.value })}
@@ -822,7 +822,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
               <select
                 value={form.toLocationId}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, toLocationId: e.target.value })}
@@ -836,7 +836,7 @@ function TransferModal({ items, locations, onSave, onClose }: TransferModalProps
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
               <input
                 type="number"
                 value={form.quantity}
@@ -898,7 +898,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">Adjust Stock - {item.name}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -923,7 +923,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
               </button>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
               <select
                 value={form.locationId}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, locationId: e.target.value })}
@@ -937,7 +937,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
               <input
                 type="number"
                 value={form.quantity}
@@ -948,7 +948,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModal
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reason</label>
               <input
                 type="text"
                 value={form.reason}

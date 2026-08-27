@@ -95,11 +95,11 @@ export default function RoofReportDetail() {
   if (!report) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <button onClick={() => navigate('/crm/roof-reports')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
+        <button onClick={() => navigate('/crm/roof-reports')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6 dark:text-slate-400">
           <ArrowLeft className="w-4 h-4" /> Back to Roof Reports
         </button>
-        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-          <p className="text-gray-500">Report not found.</p>
+        <div className="bg-white rounded-xl shadow-sm border p-12 text-center dark:bg-slate-900">
+          <p className="text-gray-500 dark:text-slate-400">Report not found.</p>
         </div>
       </div>
     )
@@ -129,7 +129,7 @@ export default function RoofReportDetail() {
       {/* Back Button */}
       <button
         onClick={() => navigate('/crm/roof-reports')}
-        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors dark:text-slate-400"
       >
         <ArrowLeft className="w-4 h-4" />
         Back to Roof Reports
@@ -138,11 +138,11 @@ export default function RoofReportDetail() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
             <MapPin className="w-5 h-5 text-gray-400" />
             {report.address}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
             {report.city}, {report.state} {report.zip} &middot; {formatDate(report.createdAt)}
           </p>
         </div>
@@ -165,7 +165,7 @@ export default function RoofReportDetail() {
       </div>
 
       {/* Satellite Visual — the main product */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
         <iframe
           src={`${window.location.origin}/api/roof-reports/${id}/html`}
           className="w-full border-0"
@@ -177,30 +177,30 @@ export default function RoofReportDetail() {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {summaryCards.map((card) => (
-          <div key={card.label} className="bg-white rounded-xl shadow-sm border p-4">
-            <p className="text-sm text-gray-500">{card.label}</p>
-            <p className="text-xl font-bold text-gray-900 mt-1">{card.value}</p>
+          <div key={card.label} className="bg-white rounded-xl shadow-sm border p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">{card.label}</p>
+            <p className="text-xl font-bold text-gray-900 mt-1 dark:text-slate-100">{card.value}</p>
           </div>
         ))}
       </div>
 
       {/* Measurements Table */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50">
-          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Measurements</h2>
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
+        <div className="px-4 py-3 border-b bg-gray-50 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider dark:text-slate-100">Measurements</h2>
         </div>
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead className="bg-gray-50 border-b dark:bg-slate-900">
             <tr>
-              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Measurement</th>
-              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Measurement</th>
+              <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Value</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {measurements.map((m) => (
               <tr key={m.label} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-sm font-medium text-gray-900">{m.label}</td>
-                <td className="px-4 py-3 text-sm text-gray-700 text-right">
+                <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{m.label}</td>
+                <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">
                   {m.value != null ? `${Number(m.value).toLocaleString()} ${m.unit}` : '-'}
                 </td>
               </tr>
@@ -211,28 +211,28 @@ export default function RoofReportDetail() {
 
       {/* Segments Table */}
       {report.segments && report.segments.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <div className="px-4 py-3 border-b bg-gray-50">
-            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
+          <div className="px-4 py-3 border-b bg-gray-50 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold text-gray-900 uppercase tracking-wider dark:text-slate-100">
               Roof Segments ({report.segments.length})
             </h2>
           </div>
           <table className="w-full">
-            <thead className="bg-gray-50 border-b">
+            <thead className="bg-gray-50 border-b dark:bg-slate-900">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Area (sqft)</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Pitch</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Azimuth</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Name</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Area (sqft)</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Pitch</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-slate-400">Azimuth</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {report.segments.map((seg, i) => (
                 <tr key={i} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{seg.name || `Segment ${i + 1}`}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 text-right">{Number(seg.area || seg.areaSqft || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 text-right">{seg.pitch}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700 text-right">{seg.azimuthDegrees != null ? `${seg.azimuthDegrees}°` : '-'}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{seg.name || `Segment ${i + 1}`}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{Number(seg.area || seg.areaSqft || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{seg.pitch}</td>
+                  <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{seg.azimuthDegrees != null ? `${seg.azimuthDegrees}°` : '-'}</td>
                 </tr>
               ))}
             </tbody>

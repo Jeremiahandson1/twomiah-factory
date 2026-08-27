@@ -131,7 +131,7 @@ export default function ClientDetailPage() {
   const ct = detail.contact;
   if (!ct) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">
         Client not found. <Link to="/crm/clients" className="text-teal-600">Back to clients</Link>
       </div>
     );
@@ -151,20 +151,20 @@ export default function ClientDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/crm/clients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+      <Link to="/crm/clients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400">
         <ArrowLeft className="w-4 h-4" /> Clients
       </Link>
 
       {/* Header */}
-      <div className="bg-white rounded-xl border p-5">
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="p-3 bg-teal-50 rounded-lg">
               <User className="w-6 h-6 text-teal-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{ct.name || 'Unnamed'}</h1>
-              <p className="text-gray-500">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{ct.name || 'Unnamed'}</h1>
+              <p className="text-gray-500 dark:text-slate-400">
                 {[profile.pronouns, profile.hairType].filter(Boolean).join(' · ') || 'No profile details yet'}
               </p>
             </div>
@@ -191,15 +191,15 @@ export default function ClientDetailPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-400 uppercase">Visits</p>
-            <p className="text-xl font-bold text-gray-900">{stats.visits ?? 0}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{stats.visits ?? 0}</p>
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-400 uppercase">Lifetime Value</p>
-            <p className="text-xl font-bold text-gray-900">{money(stats.lifetimeValue)}</p>
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money(stats.lifetimeValue)}</p>
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-400 uppercase">Last Visit</p>
-            <p className="text-sm font-medium text-gray-900 mt-1">{fmtDate(stats.lastVisit)}</p>
+            <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtDate(stats.lastVisit)}</p>
           </div>
           <div className={`border rounded-lg p-3 ${isPast(stats.dueBackAt) ? 'bg-red-50 border-red-200' : ''}`}>
             <p className="text-xs text-gray-400 uppercase">Due Back</p>
@@ -212,13 +212,13 @@ export default function ClientDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="border rounded-lg p-3">
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Contact</p>
-            {(ct.mobile || ct.phone) && <p className="text-sm text-gray-600 flex items-center gap-2"><Phone className="w-3 h-3" /> {ct.mobile || ct.phone}</p>}
-            {ct.email && <p className="text-sm text-gray-600 flex items-center gap-2 mt-1"><Mail className="w-3 h-3" /> {ct.email}</p>}
+            {(ct.mobile || ct.phone) && <p className="text-sm text-gray-600 flex items-center gap-2 dark:text-slate-400"><Phone className="w-3 h-3" /> {ct.mobile || ct.phone}</p>}
+            {ct.email && <p className="text-sm text-gray-600 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {ct.email}</p>}
             {!ct.mobile && !ct.phone && !ct.email && <p className="text-sm text-gray-400">No contact details</p>}
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Preferences</p>
-            <dl className="text-sm text-gray-600 space-y-1">
+            <dl className="text-sm text-gray-600 space-y-1 dark:text-slate-400">
               {profile.hairType && <div className="flex justify-between"><dt className="text-gray-400">Hair</dt><dd>{profile.hairType}</dd></div>}
               {profile.scalpNotes && <div className="flex justify-between gap-4"><dt className="text-gray-400">Scalp</dt><dd className="text-right">{profile.scalpNotes}</dd></div>}
               {profile.birthday && <div className="flex justify-between"><dt className="text-gray-400">Birthday</dt><dd>{fmtDate(profile.birthday)}</dd></div>}
@@ -229,7 +229,7 @@ export default function ClientDetailPage() {
             </dl>
           </div>
         </div>
-        {profile.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap">{profile.notes}</p>}
+        {profile.notes && <p className="text-sm text-gray-500 mt-3 whitespace-pre-wrap dark:text-slate-400">{profile.notes}</p>}
       </div>
 
       {/* Tabs */}
@@ -243,7 +243,7 @@ export default function ClientDetailPage() {
             }`}
           >
             {t.icon} {t.label}
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full">{t.count}</span>
+            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{t.count}</span>
           </button>
         ))}
       </div>
@@ -257,20 +257,20 @@ export default function ClientDetailPage() {
             </button>
           </div>
           {records.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No services recorded yet</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No services recorded yet</div>
           ) : (
             <div className="space-y-3">
               {records.map((r) => (
-                <div key={r.id} className="bg-white rounded-xl border p-4">
+                <div key={r.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium text-gray-900 dark:text-slate-100">
                         {fmtDate(r.performedAt)}{r.serviceName ? ` — ${r.serviceName}` : ''}
                       </p>
                       {stylistName(r) && <p className="text-xs text-gray-400">with {stylistName(r)}</p>}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-gray-700">{money(r.priceCharged)}</span>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
                       <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-600 hover:text-teal-700">Edit</button>
                     </div>
                   </div>
@@ -291,8 +291,8 @@ export default function ClientDetailPage() {
                       {r.processingMin ? <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {r.processingMin} min</span> : null}
                     </div>
                   )}
-                  {r.productsUsed && <p className="mt-2 text-sm text-gray-600">{r.productsUsed}</p>}
-                  {r.result && <p className="mt-1 text-sm text-gray-600"><span className="font-medium text-gray-500">Result:</span> {r.result}</p>}
+                  {r.productsUsed && <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">{r.productsUsed}</p>}
+                  {r.result && <p className="mt-1 text-sm text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-500 dark:text-slate-400">Result:</span> {r.result}</p>}
                   {r.notes && <p className="mt-1 text-xs text-gray-400">{r.notes}</p>}
                 </div>
               ))}
@@ -305,11 +305,11 @@ export default function ClientDetailPage() {
       {tab === 'appointments' && (
         <div>
           {appointments.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">No appointments yet</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No appointments yet</div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-x-auto">
+            <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-500 text-left">
+                <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
                   <tr>
                     <th className="px-4 py-3 font-medium">When</th>
                     <th className="px-4 py-3 font-medium">Service</th>
@@ -321,12 +321,12 @@ export default function ClientDetailPage() {
                 <tbody className="divide-y">
                   {appointments.map((a) => (
                     <tr key={a.id}>
-                      <td className="px-4 py-3 text-gray-900">{fmtDateTime(a.startTime)}</td>
-                      <td className="px-4 py-3 text-gray-600">{a.serviceName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{stylistName(a) || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500">{a.station || '—'}</td>
+                      <td className="px-4 py-3 text-gray-900 dark:text-slate-100">{fmtDateTime(a.startTime)}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{a.serviceName || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{stylistName(a) || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{a.station || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">
                           {(a.status || 'scheduled').replace('_', ' ')}
                         </span>
                       </td>
@@ -343,23 +343,23 @@ export default function ClientDetailPage() {
       {tab === 'memberships' && (
         <div>
           {memberships.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border">
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
               Not enrolled in a membership.{' '}
               <Link to="/crm/memberships" className="text-teal-600">Browse plans</Link>
             </div>
           ) : (
             <div className="space-y-2">
               {memberships.map((m) => (
-                <div key={m.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-3 flex-wrap">
+                <div key={m.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-3 flex-wrap dark:bg-slate-900">
                   <div>
-                    <p className="font-medium text-gray-900">{m.planName || 'Membership'}</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{m.planName || 'Membership'}</p>
                     <p className="text-xs text-gray-400">
                       Started {fmtDate(m.startDate)}{m.renewsAt ? ` · renews ${fmtDate(m.renewsAt)}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     {m.creditsRemaining !== null && m.creditsRemaining !== undefined && (
-                      <span className="text-sm text-gray-600">{m.creditsRemaining} credit{m.creditsRemaining === 1 ? '' : 's'} left</span>
+                      <span className="text-sm text-gray-600 dark:text-slate-400">{m.creditsRemaining} credit{m.creditsRemaining === 1 ? '' : 's'} left</span>
                     )}
                     <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${m.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {m.status || 'active'}
@@ -437,7 +437,7 @@ function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: stri
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Client Profile</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -445,45 +445,45 @@ function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: stri
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hair Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Hair Type</label>
                 <select value={form.hairType} onChange={(e) => set('hairType', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   {HAIR_TYPES.map((h) => <option key={h} value={h}>{h || '—'}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pronouns</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Pronouns</label>
                 <input type="text" value={form.pronouns} onChange={(e) => set('pronouns', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Birthday</label>
                 <input type="date" value={form.birthday} onChange={(e) => set('birthday', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Patch Test</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patch Test</label>
                 <input type="date" value={form.patchTestAt} onChange={(e) => set('patchTestAt', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Regular Stylist</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Regular Stylist</label>
               <select value={form.preferredStylistId} onChange={(e) => set('preferredStylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                 <option value="">No preference</option>
                 {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Allergies / sensitivities</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Allergies / sensitivities</label>
               <input type="text" value={form.allergies} onChange={(e) => set('allergies', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="PPD sensitivity, latex, fragrance..." />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Scalp notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Scalp notes</label>
               <input type="text" value={form.scalpNotes} onChange={(e) => set('scalpNotes', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Preferences</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Preferences</label>
               <input type="text" value={form.preferences} onChange={(e) => set('preferences', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Drink order, quiet appointment, parking..." />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-2">

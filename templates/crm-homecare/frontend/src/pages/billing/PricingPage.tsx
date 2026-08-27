@@ -131,20 +131,20 @@ export default function PricingPage() {
   const orderedWebsiteIds = websiteOrder.filter((id) => websiteTiers[id]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white border-b">
+      <div className="bg-white border-b dark:bg-slate-900">
         <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4 dark:text-slate-100">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto dark:text-slate-400">
             Built for your trade — not retrofitted from a generic CRM.
             Choose the plan that fits where you are today.
           </p>
 
           {/* Trust signals */}
-          <div className="mt-6 flex items-center justify-center gap-6 text-sm text-gray-600">
+          <div className="mt-6 flex items-center justify-center gap-6 text-sm text-gray-600 dark:text-slate-400">
             <div className="flex items-center gap-1.5">
               <Shield className="w-4 h-4 text-green-600" />
               <span>{trialDays}-day free trial</span>
@@ -160,7 +160,7 @@ export default function PricingPage() {
           </div>
 
           {/* Billing Toggle */}
-          <div className="mt-8 inline-flex items-center bg-gray-100 rounded-full p-1">
+          <div className="mt-8 inline-flex items-center bg-gray-100 rounded-full p-1 dark:bg-slate-800">
             <button
               onClick={() => setBillingCycle('monthly')}
               className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
@@ -190,11 +190,11 @@ export default function PricingPage() {
       {orderedWebsiteIds.length > 0 && (
         <div className="max-w-7xl mx-auto px-4 pt-12">
           <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 inline-flex items-center gap-2">
+            <h2 className="text-2xl font-bold text-gray-900 inline-flex items-center gap-2 dark:text-slate-100">
               <Globe className="w-6 h-6 text-orange-500" />
               Just need a website?
             </h2>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 mt-2 dark:text-slate-400">
               Start with a site today. Add the CRM whenever you're ready.
             </p>
           </div>
@@ -210,24 +210,24 @@ export default function PricingPage() {
                       MOST POPULAR
                     </div>
                   )}
-                  <h3 className="text-xl font-bold text-gray-900">{tier.name}</h3>
-                  <p className="text-sm text-gray-500 italic">{tier.tagline}</p>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{tier.name}</h3>
+                  <p className="text-sm text-gray-500 italic dark:text-slate-400">{tier.tagline}</p>
                   <div className="mt-4 mb-4">
                     <span className="text-3xl font-bold">${monthlyDisplay}</span>
-                    <span className="text-gray-500">/mo</span>
+                    <span className="text-gray-500 dark:text-slate-400">/mo</span>
                     {isYearly && (
-                      <div className="text-xs text-gray-500">${tier.annual / 100} billed annually</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">${tier.annual / 100} billed annually</div>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600 mb-4">{tier.description}</p>
-                  <button className="w-full py-2 rounded-lg font-medium bg-gray-100 text-gray-900 hover:bg-gray-200">
+                  <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{tier.description}</p>
+                  <button className="w-full py-2 rounded-lg font-medium bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-100">
                     Start Free Trial
                   </button>
                 </div>
               );
             })}
           </div>
-          <div className="text-center mt-6 text-sm text-gray-500">
+          <div className="text-center mt-6 text-sm text-gray-500 dark:text-slate-400">
             Need a CRM too? Pro and higher plans below include a website at no extra cost.
           </div>
         </div>
@@ -236,8 +236,8 @@ export default function PricingPage() {
       {/* CRM Pricing Cards — fully data-driven from /api/billing/pricing */}
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">CRM Plans</h2>
-          <p className="text-gray-600 mt-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">CRM Plans</h2>
+          <p className="text-gray-600 mt-2 dark:text-slate-400">
             Pro and higher include a website at no extra cost.
           </p>
         </div>
@@ -286,7 +286,7 @@ export default function PricingPage() {
             <div className="text-right">
               <div className="text-4xl font-bold">${packages.lifetime?.oneTimePrice?.toLocaleString()}</div>
               <div className="text-orange-100">one-time payment</div>
-              <button className="mt-4 px-6 py-2 bg-white text-orange-600 rounded-lg font-medium hover:bg-orange-50">
+              <button className="mt-4 px-6 py-2 bg-white text-orange-600 rounded-lg font-medium hover:bg-orange-50 dark:bg-slate-900">
                 Learn More
               </button>
             </div>
@@ -296,7 +296,7 @@ export default function PricingPage() {
         {/* Feature Comparison */}
         <div className="mt-16">
           <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900">Compare All Features</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Compare All Features</h2>
             <button
               onClick={() => setExpandedFeatures(!expandedFeatures)}
               className="mt-2 text-orange-600 hover:text-orange-700 flex items-center gap-1 mx-auto"
@@ -313,7 +313,7 @@ export default function PricingPage() {
 
         {/* Add-ons */}
         <div className="mt-16">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Add-Ons</h2>
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8 dark:text-slate-100">Add-Ons</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <AddonCard
               name="White Label"
@@ -338,7 +338,7 @@ export default function PricingPage() {
 
         {/* FAQ */}
         <div className="mt-16 max-w-3xl mx-auto">
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 text-center mb-8 dark:text-slate-100">
             Frequently Asked Questions
           </h2>
           <div className="space-y-4">
@@ -445,13 +445,13 @@ function PricingCard({
 
 function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly }: AddonCardProps) {
   return (
-    <div className="bg-white rounded-xl border p-6">
-      <h4 className="font-bold text-gray-900">{name}</h4>
-      <p className="text-sm text-gray-500 mt-1">{description}</p>
+    <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+      <h4 className="font-bold text-gray-900 dark:text-slate-100">{name}</h4>
+      <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{description}</p>
       <div className="mt-4">
         {monthlyPrice && (
-          <div className="text-lg font-bold text-gray-900">
-            ${monthlyPrice}<span className="text-sm font-normal text-gray-500">/mo</span>
+          <div className="text-lg font-bold text-gray-900 dark:text-slate-100">
+            ${monthlyPrice}<span className="text-sm font-normal text-gray-500 dark:text-slate-400">/mo</span>
           </div>
         )}
         {oneTimePrice && (
@@ -482,9 +482,9 @@ function FeatureComparison({ plans, orderedPlanIds }: FeatureComparisonProps) {
       <table className="w-full">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-4 px-4 font-medium text-gray-500">Feature</th>
+            <th className="text-left py-4 px-4 font-medium text-gray-500 dark:text-slate-400">Feature</th>
             {orderedPlanIds.map((id: string) => (
-              <th key={id} className="text-center py-4 px-4 font-bold text-gray-900">
+              <th key={id} className="text-center py-4 px-4 font-bold text-gray-900 dark:text-slate-100">
                 {plans[id]?.displayName}
               </th>
             ))}
@@ -493,7 +493,7 @@ function FeatureComparison({ plans, orderedPlanIds }: FeatureComparisonProps) {
         <tbody>
           {featureList.map((feature: string) => (
             <tr key={feature} className="border-b">
-              <td className="py-3 px-4 text-gray-600">{feature}</td>
+              <td className="py-3 px-4 text-gray-600 dark:text-slate-400">{feature}</td>
               {orderedPlanIds.map((id: string) => (
                 <td key={id} className="text-center py-3 px-4">
                   {plans[id]?.heroFeatures?.includes(feature) ? (
@@ -520,7 +520,7 @@ function FAQ({ question, answer }: FAQProps) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between p-4 text-left"
       >
-        <span className="font-medium text-gray-900">{question}</span>
+        <span className="font-medium text-gray-900 dark:text-slate-100">{question}</span>
         {open ? (
           <ChevronUp className="w-5 h-5 text-gray-400" />
         ) : (
@@ -528,7 +528,7 @@ function FAQ({ question, answer }: FAQProps) {
         )}
       </button>
       {open && (
-        <div className="px-4 pb-4 text-gray-600">
+        <div className="px-4 pb-4 text-gray-600 dark:text-slate-400">
           {answer}
         </div>
       )}

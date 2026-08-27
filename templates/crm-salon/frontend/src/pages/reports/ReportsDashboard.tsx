@@ -102,7 +102,7 @@ export default function ReportsDashboard() {
 
   if (!data) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-gray-500 dark:text-slate-400">
         Failed to load reports
       </div>
     );
@@ -119,13 +119,13 @@ export default function ReportsDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
-          <p className="text-gray-500">Last {dateRange} days overview</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Reports & Analytics</h1>
+          <p className="text-gray-500 dark:text-slate-400">Last {dateRange} days overview</p>
         </div>
         <select
           value={dateRange}
           onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDateRange(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
+          className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
         >
           <option value="7">Last 7 days</option>
           <option value="30">Last 30 days</option>
@@ -174,14 +174,14 @@ export default function ReportsDashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Chart */}
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Revenue Trend</h3>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Revenue Trend</h3>
           <RevenueChart data={monthlyRevenue} />
         </div>
 
         {/* Job Status */}
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Job Status</h3>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Job Status</h3>
           <JobStatusChart jobs={jobs} />
         </div>
       </div>
@@ -189,24 +189,24 @@ export default function ReportsDashboard() {
       {/* Bottom Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Top Customers */}
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Top Customers</h3>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Top Customers</h3>
           <div className="space-y-3">
             {topCustomers.length === 0 ? (
-              <p className="text-gray-500 text-sm">No data yet</p>
+              <p className="text-gray-500 text-sm dark:text-slate-400">No data yet</p>
             ) : (
               topCustomers.map((customer: CustomerItem, i: number) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium">
+                    <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium dark:bg-slate-800">
                       {i + 1}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900 text-sm">{customer.contact?.name || 'Unknown'}</p>
-                      <p className="text-xs text-gray-500">{customer.invoiceCount} invoices</p>
+                      <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{customer.contact?.name || 'Unknown'}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{customer.invoiceCount} invoices</p>
                     </div>
                   </div>
-                  <span className="font-medium text-gray-900">${customer.total.toLocaleString()}</span>
+                  <span className="font-medium text-gray-900 dark:text-slate-100">${customer.total.toLocaleString()}</span>
                 </div>
               ))
             )}
@@ -214,11 +214,11 @@ export default function ReportsDashboard() {
         </div>
 
         {/* Team Productivity */}
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Team Productivity</h3>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Team Productivity</h3>
           <div className="space-y-3">
             {teamData.length === 0 ? (
-              <p className="text-gray-500 text-sm">No time entries yet</p>
+              <p className="text-gray-500 text-sm dark:text-slate-400">No time entries yet</p>
             ) : (
               teamData.slice(0, 5).map((member: TeamMember, i: number) => (
                 <div key={i} className="flex items-center justify-between">
@@ -227,14 +227,14 @@ export default function ReportsDashboard() {
                       <Users className="w-4 h-4 text-orange-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900 text-sm">
+                      <p className="font-medium text-gray-900 text-sm dark:text-slate-100">
                         {member.user?.firstName} {member.user?.lastName}
                       </p>
-                      <p className="text-xs text-gray-500">{member.jobsCompleted} jobs completed</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{member.jobsCompleted} jobs completed</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-gray-900">{member.hoursWorked}h</p>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{member.hoursWorked}h</p>
                   </div>
                 </div>
               ))
@@ -243,8 +243,8 @@ export default function ReportsDashboard() {
         </div>
 
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Recent Activity</h3>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Recent Activity</h3>
           <div className="space-y-3">
             {recentActivity.map((item: Record<string, unknown>, i: number) => (
               <div key={i} className="flex items-center gap-3">
@@ -257,12 +257,12 @@ export default function ReportsDashboard() {
                    <FileText className="w-4 h-4 text-purple-600" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-sm font-medium text-gray-900 truncate dark:text-slate-100">
                     {item.type === 'invoice' ? `Invoice ${item.number as string}` :
                      item.type === 'job' ? item.title as string :
                      `Quote ${item.number as string}`}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
                     {formatDate(item.createdAt as string)}
                   </p>
                 </div>
@@ -280,24 +280,24 @@ export default function ReportsDashboard() {
       </div>
 
       {/* Project Summary */}
-      <div className="bg-white rounded-xl border p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Project Summary</h3>
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+        <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Project Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-gray-50 rounded-lg">
-            <p className="text-3xl font-bold text-gray-900">{projects.total}</p>
-            <p className="text-sm text-gray-500">Total Projects</p>
+          <div className="text-center p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+            <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{projects.total}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Projects</p>
           </div>
           <div className="text-center p-4 bg-green-50 rounded-lg">
             <p className="text-3xl font-bold text-green-600">{projects.active}</p>
-            <p className="text-sm text-gray-500">Active</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Active</p>
           </div>
           <div className="text-center p-4 bg-blue-50 rounded-lg">
             <p className="text-3xl font-bold text-blue-600">{projects.completed}</p>
-            <p className="text-sm text-gray-500">Completed</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Completed</p>
           </div>
           <div className="text-center p-4 bg-orange-50 rounded-lg">
             <p className="text-3xl font-bold text-orange-600">${(projects.totalValue / 1000).toFixed(0)}k</p>
-            <p className="text-sm text-gray-500">Total Value</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Value</p>
           </div>
         </div>
       </div>
@@ -338,8 +338,8 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendLab
         )}
       </div>
       <div className="mt-3">
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
-        <p className="text-sm text-gray-500">{subtitle}</p>
+        <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{value}</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">{subtitle}</p>
         {trendLabel && <p className="text-xs text-gray-400 mt-1">{trendLabel}</p>}
       </div>
     </div>
@@ -374,7 +374,7 @@ function RevenueChart({ data }: RevenueChartProps) {
                 title={`Collected: $${month.collected.toLocaleString()}`}
               />
             </div>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-slate-400">
               {new Date(month.month + '-01').toLocaleDateString('en-US', { month: 'short' })}
             </span>
           </div>
@@ -383,11 +383,11 @@ function RevenueChart({ data }: RevenueChartProps) {
       <div className="flex items-center justify-center gap-6 mt-4">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-blue-200 rounded" />
-          <span className="text-xs text-gray-500">Invoiced</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400">Invoiced</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 bg-green-500 rounded" />
-          <span className="text-xs text-gray-500">Collected</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400">Collected</span>
         </div>
       </div>
     </div>
@@ -411,7 +411,7 @@ function JobStatusChart({ jobs }: JobStatusChartProps) {
   return (
     <div className="space-y-4">
       {/* Progress bar */}
-      <div className="h-4 bg-gray-100 rounded-full overflow-hidden flex">
+      <div className="h-4 bg-gray-100 rounded-full overflow-hidden flex dark:bg-slate-800">
         {statuses.map((status: { key: string; label: string; color: string }) => {
           const count = (jobs[status.key] as number) || jobs.byStatus?.[status.key.replace(/([A-Z])/g, '_$1').toLowerCase()] || 0;
           const percent = (Number(count) / total) * 100;
@@ -434,9 +434,9 @@ function JobStatusChart({ jobs }: JobStatusChartProps) {
             <div key={status.key} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded ${status.color}`} />
-                <span className="text-sm text-gray-600">{status.label}</span>
+                <span className="text-sm text-gray-600 dark:text-slate-400">{status.label}</span>
               </div>
-              <span className="font-medium text-gray-900">{count}</span>
+              <span className="font-medium text-gray-900 dark:text-slate-100">{count}</span>
             </div>
           );
         })}

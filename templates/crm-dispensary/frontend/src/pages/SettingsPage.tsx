@@ -27,7 +27,7 @@ function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: 
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="block text-sm font-medium text-gray-700 mb-1">{children}</label>;
+  return <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">{children}</label>;
 }
 
 function Input({ value, onChange, type = 'text', placeholder = '', className = '' }: { value: string; onChange: (v: string) => void; type?: string; placeholder?: string; className?: string }) {
@@ -242,19 +242,19 @@ export default function SettingsPage() {
             </button>
           ))}
           <div className="border-t my-3 pt-3">
-            <button onClick={() => navigate('/crm/settings/features')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100">
+            <button onClick={() => navigate('/crm/settings/features')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
               <ToggleLeft className="w-5 h-5" />
               Features
             </button>
-            <button onClick={() => navigate('/crm/settings/email')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100">
+            <button onClick={() => navigate('/crm/settings/email')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
               <AtSign className="w-5 h-5" />
               Branded Email
             </button>
-            <button onClick={() => navigate('/crm/settings/email-domain')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100">
+            <button onClick={() => navigate('/crm/settings/email-domain')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
               <Globe className="w-5 h-5" />
               Email Domain
             </button>
-            <button onClick={() => navigate('/crm/settings/email-inbox')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100">
+            <button onClick={() => navigate('/crm/settings/email-inbox')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
               <Inbox className="w-5 h-5" />
               Email Inbox
             </button>
@@ -262,7 +262,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 bg-white rounded-lg shadow-sm p-6">
+        <div className="flex-1 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           {/* GENERAL */}
           {tab === 'general' && (
             <div className="space-y-6 max-w-2xl">
@@ -312,7 +312,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   {DAYS.map(day => (
                     <div key={day} className="flex items-center gap-4 py-2 border-b border-gray-100 last:border-0">
-                      <span className="w-24 text-sm font-medium text-gray-700">{DAY_LABELS[day]}</span>
+                      <span className="w-24 text-sm font-medium text-gray-700 dark:text-slate-200">{DAY_LABELS[day]}</span>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
@@ -320,7 +320,7 @@ export default function SettingsPage() {
                           onChange={e => updateHours(day, 'closed', !e.target.checked)}
                           className="w-4 h-4 rounded text-green-600 focus:ring-green-500"
                         />
-                        <span className="text-sm text-gray-500">{storeHours[day]?.closed ? 'Closed' : 'Open'}</span>
+                        <span className="text-sm text-gray-500 dark:text-slate-400">{storeHours[day]?.closed ? 'Closed' : 'Open'}</span>
                       </label>
                       {!storeHours[day]?.closed && (
                         <div className="flex items-center gap-2 ml-auto">
@@ -328,14 +328,14 @@ export default function SettingsPage() {
                             type="time"
                             value={storeHours[day]?.open || '09:00'}
                             onChange={e => updateHours(day, 'open', e.target.value)}
-                            className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                           />
                           <span className="text-gray-400 text-sm">to</span>
                           <input
                             type="time"
                             value={storeHours[day]?.close || '21:00'}
                             onChange={e => updateHours(day, 'close', e.target.value)}
-                            className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                           />
                         </div>
                       )}
@@ -374,7 +374,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Tier Thresholds (points required)</h3>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3 dark:text-slate-200">Tier Thresholds (points required)</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <FieldLabel>Bronze</FieldLabel>
@@ -384,7 +384,7 @@ export default function SettingsPage() {
                             type="number"
                             value={loyaltyForm.bronzeThreshold}
                             onChange={e => setLoyaltyForm({ ...loyaltyForm, bronzeThreshold: e.target.value })}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                           />
                         </div>
                       </div>
@@ -396,7 +396,7 @@ export default function SettingsPage() {
                             type="number"
                             value={loyaltyForm.silverThreshold}
                             onChange={e => setLoyaltyForm({ ...loyaltyForm, silverThreshold: e.target.value })}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                           />
                         </div>
                       </div>
@@ -408,7 +408,7 @@ export default function SettingsPage() {
                             type="number"
                             value={loyaltyForm.goldThreshold}
                             onChange={e => setLoyaltyForm({ ...loyaltyForm, goldThreshold: e.target.value })}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                           />
                         </div>
                       </div>
@@ -420,7 +420,7 @@ export default function SettingsPage() {
                             type="number"
                             value={loyaltyForm.platinumThreshold}
                             onChange={e => setLoyaltyForm({ ...loyaltyForm, platinumThreshold: e.target.value })}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                           />
                         </div>
                       </div>
@@ -457,7 +457,7 @@ export default function SettingsPage() {
                         step="0.01"
                         value={deliveryForm.defaultFee}
                         onChange={e => setDeliveryForm({ ...deliveryForm, defaultFee: e.target.value })}
-                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                       />
                     </div>
                   </div>
@@ -471,7 +471,7 @@ export default function SettingsPage() {
                         step="0.01"
                         value={deliveryForm.minimumOrder}
                         onChange={e => setDeliveryForm({ ...deliveryForm, minimumOrder: e.target.value })}
-                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                       />
                     </div>
                   </div>
@@ -497,7 +497,7 @@ export default function SettingsPage() {
 
               {merchForm.enabled && (
                 <div className="space-y-4 pt-2">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
                     Connect your Stripe account to accept payments for merchandise.
                   </p>
                   <div>
@@ -540,7 +540,7 @@ export default function SettingsPage() {
                     onChange={e => setReceiptForm({ ...receiptForm, headerText: e.target.value })}
                     rows={3}
                     placeholder="Text printed at the top of receipts (e.g. store name, license info)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition dark:border-slate-700"
                   />
                 </div>
 
@@ -551,7 +551,7 @@ export default function SettingsPage() {
                     onChange={e => setReceiptForm({ ...receiptForm, footerText: e.target.value })}
                     rows={3}
                     placeholder="Text printed at the bottom (e.g. return policy, thank you message)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition dark:border-slate-700"
                   />
                 </div>
 
@@ -587,30 +587,30 @@ export default function SettingsPage() {
 
               {addUserOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddUserOpen(false)}>
-                  <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
                     <h3 className="text-lg font-semibold mb-4">Add User</h3>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">First name *</label>
+                          <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">First name *</label>
                           <input value={newUser.firstName} onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">Last name *</label>
+                          <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Last name *</label>
                           <input value={newUser.lastName} onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 block mb-1">Email *</label>
+                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email *</label>
                         <input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 block mb-1">Temporary password *</label>
+                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Temporary password *</label>
                         <input type="text" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className="w-full text-sm border rounded-lg px-3 py-2" />
                         <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 block mb-1">Role</label>
+                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                           <option value="field">Staff — day-to-day work: view jobs, log time, expenses and notes</option>
                           <option value="manager">Manager — full access to work and invoicing, but not company settings</option>
@@ -619,7 +619,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-6">
-                      <button onClick={() => setAddUserOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                      <button onClick={() => setAddUserOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
                       <Button onClick={handleAddUser} disabled={addingUser}>{addingUser ? 'Adding...' : 'Add User'}</Button>
                     </div>
                   </div>
@@ -627,13 +627,13 @@ export default function SettingsPage() {
               )}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-slate-900">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Access</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Email</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Role</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Access</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -645,12 +645,12 @@ export default function SettingsPage() {
                     {users.map((u: any) => (
                       <tr key={u.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm">{u.firstName} {u.lastName}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{u.email}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{u.email}</td>
                         <td className="px-4 py-3 text-sm capitalize">{u.role}</td>
                         <td className="px-4 py-3 text-sm">
                           {u.isActive
                             ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
-                            : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>}
+                            : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400">Inactive</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
                           {u.id === (user as any)?.id

@@ -78,20 +78,20 @@ export default function CultivationPage() {
       {/* Quick Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Clones</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Clones</p>
             <p className="text-2xl font-bold text-teal-600">{stats.clones || 0}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Vegetative</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Vegetative</p>
             <p className="text-2xl font-bold text-green-600">{stats.vegetative || 0}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Flowering</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Flowering</p>
             <p className="text-2xl font-bold text-purple-600">{stats.flowering || 0}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Rooms at Capacity</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Rooms at Capacity</p>
             <p className="text-2xl font-bold text-amber-600">{stats.roomsAtCapacity || 0}</p>
           </div>
         </div>
@@ -188,9 +188,9 @@ function PlantsTab() {
   };
 
   const columns = [
-    { key: 'metrcTag', label: 'Metrc Tag', render: (val: string) => <span className="font-mono text-sm text-gray-900">{val}</span> },
-    { key: 'strainName', label: 'Strain', render: (val: string) => <span className="font-medium text-gray-900">{val}</span> },
-    { key: 'plantType', label: 'Type', render: (val: string) => <span className="capitalize text-gray-600">{val}</span> },
+    { key: 'metrcTag', label: 'Metrc Tag', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
+    { key: 'strainName', label: 'Strain', render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span> },
+    { key: 'plantType', label: 'Type', render: (val: string) => <span className="capitalize text-gray-600 dark:text-slate-400">{val}</span> },
     {
       key: 'phase', label: 'Phase', render: (val: string, row: any) => (
         <select
@@ -207,7 +207,7 @@ function PlantsTab() {
     { key: 'plantDate', label: 'Plant Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
     {
       key: 'daysInPhase', label: 'Days in Phase', render: (val: number) => (
-        <span className="text-gray-700">{val != null ? `${val}d` : '--'}</span>
+        <span className="text-gray-700 dark:text-slate-200">{val != null ? `${val}d` : '--'}</span>
       ),
     },
   ];
@@ -217,13 +217,13 @@ function PlantsTab() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Search plants..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" />
+          <input type="text" placeholder="Search plants..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
-        <select value={phaseFilter} onChange={(e) => setPhaseFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500">
+        <select value={phaseFilter} onChange={(e) => setPhaseFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
           {phases.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
-        <input type="text" placeholder="Filter by strain..." value={strainFilter} onChange={(e) => setStrainFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500" />
-        <input type="text" placeholder="Filter by room..." value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500" />
+        <input type="text" placeholder="Filter by strain..." value={strainFilter} onChange={(e) => setStrainFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
+        <input type="text" placeholder="Filter by room..." value={roomFilter} onChange={(e) => setRoomFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
         <Button onClick={() => { setFormData({ metrcTag: '', strainName: '', plantType: 'clone', phase: 'clone', room: '', plantDate: '', notes: '' }); setModalOpen(true); }} className="ml-auto">
           <Plus className="w-4 h-4 mr-2 inline" />Add Plant
         </Button>
@@ -366,7 +366,7 @@ function RoomsTab() {
       </div>
 
       {rooms.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500">No grow rooms yet. Create your first room.</div>
+        <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">No grow rooms yet. Create your first room.</div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {rooms.map((room) => {
@@ -375,11 +375,11 @@ function RoomsTab() {
             return (
               <div
                 key={room.id}
-                className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow cursor-pointer"
+                className="bg-white rounded-lg shadow-sm p-5 hover:shadow-md transition-shadow cursor-pointer dark:bg-slate-900"
                 onClick={() => openEdit(room)}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold text-gray-900">{room.name}</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-slate-100">{room.name}</h3>
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${roomTypeColors[room.type] || 'bg-gray-100 text-gray-700'}`}>
                     {room.type}
                   </span>
@@ -389,17 +389,17 @@ function RoomsTab() {
                 {room.capacity > 0 && (
                   <div className="mb-3">
                     <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="text-gray-500">Capacity</span>
-                      <span className="text-gray-700 font-medium">{room.currentCount || 0} / {room.capacity}</span>
+                      <span className="text-gray-500 dark:text-slate-400">Capacity</span>
+                      <span className="text-gray-700 font-medium dark:text-slate-200">{room.currentCount || 0} / {room.capacity}</span>
                     </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
                       <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 )}
 
                 {/* Environment info */}
-                <div className="flex items-center gap-4 text-sm text-gray-500">
+                <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
                   {room.targetTemp && (
                     <span className="flex items-center gap-1">
                       <Thermometer className="w-3.5 h-3.5" />{room.targetTemp}F
@@ -518,11 +518,11 @@ function HarvestsTab() {
   };
 
   const columns = [
-    { key: 'name', label: 'Name', render: (val: string) => <span className="font-medium text-gray-900">{val}</span> },
+    { key: 'name', label: 'Name', render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span> },
     { key: 'strainName', label: 'Strain', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'plantCount', label: 'Plant Count', render: (val: number) => val != null ? val : <span className="text-gray-400">--</span> },
-    { key: 'wetWeight', label: 'Wet Weight', render: (val: number) => val != null ? <span className="text-gray-700">{val}g</span> : <span className="text-gray-400">--</span> },
-    { key: 'dryWeight', label: 'Dry Weight', render: (val: number) => val != null ? <span className="text-gray-700">{val}g</span> : <span className="text-gray-400">--</span> },
+    { key: 'wetWeight', label: 'Wet Weight', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}g</span> : <span className="text-gray-400">--</span> },
+    { key: 'dryWeight', label: 'Dry Weight', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}g</span> : <span className="text-gray-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={harvestStatuses} /> },
     { key: 'createdAt', label: 'Date', render: (val: string) => val ? formatDate(val) : '--' },
   ];

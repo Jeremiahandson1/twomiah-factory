@@ -163,7 +163,7 @@ export default function PortalQuotes() {
               <div key={i} className="flex items-start justify-between gap-3 text-sm">
                 <div className="text-gray-300">
                   {li.description || 'Item'}
-                  {li.quantity ? <span className="text-gray-500"> &times; {Number(li.quantity)}</span> : null}
+                  {li.quantity ? <span className="text-gray-500 dark:text-slate-400"> &times; {Number(li.quantity)}</span> : null}
                 </div>
                 <div className="text-gray-200 whitespace-nowrap">
                   {money(li.total ?? Number(li.quantity || 1) * Number(li.unitPrice || 0))}
@@ -181,7 +181,7 @@ export default function PortalQuotes() {
 
           {openQuote.notes && (
             <div className="px-4 py-3 border-t border-gray-700">
-              <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Notes</p>
+              <p className="text-xs uppercase tracking-wide text-gray-500 mb-1 dark:text-slate-400">Notes</p>
               <p className="text-sm text-gray-300 whitespace-pre-wrap">{openQuote.notes}</p>
             </div>
           )}
@@ -279,7 +279,7 @@ export default function PortalQuotes() {
           );
         })()}
       </div>
-      <div className="flex items-center justify-between text-xs text-gray-500">
+      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
         <span>{q.expiresAt ? `${isExpired(q) ? 'Expired' : 'Expires'} ${formatDate(q.expiresAt)}` : ''}</span>
         {q.signedBy && <span className="text-green-400">Signed by {q.signedBy}</span>}
       </div>
@@ -297,7 +297,7 @@ export default function PortalQuotes() {
 
       {quotes.length === 0 ? (
         <div className="bg-gray-800 rounded-xl p-8 border border-gray-700 text-center">
-          <FileText className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+          <FileText className="w-10 h-10 text-gray-600 mx-auto mb-3 dark:text-slate-400" />
           <p className="text-gray-400">No proposals yet</p>
         </div>
       ) : (

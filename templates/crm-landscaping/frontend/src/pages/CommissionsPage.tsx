@@ -46,7 +46,7 @@ export default function CommissionsPage() {
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500" />Commissions</h1><p className="text-sm text-gray-500 mt-1">Tech + sales rep commission tracking</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><DollarSign className="w-6 h-6 text-sky-500" />Commissions</h1><p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Tech + sales rep commission tracking</p></div>
         {tab === 'plans' && <button onClick={() => setShowPlan(true)} className="bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><Plus className="w-4 h-4" />New Plan</button>}
       </div>
 
@@ -56,9 +56,9 @@ export default function CommissionsPage() {
       </div>
 
       {tab === 'records' ? (
-        <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="bg-white rounded-lg border overflow-hidden dark:bg-slate-900">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b"><tr className="text-left text-xs font-semibold text-gray-500 uppercase"><th className="px-4 py-3">User</th><th className="px-4 py-3">Base</th><th className="px-4 py-3">Rate</th><th className="px-4 py-3">Commission</th><th className="px-4 py-3">Earned</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr></thead>
+            <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">User</th><th className="px-4 py-3">Base</th><th className="px-4 py-3">Rate</th><th className="px-4 py-3">Commission</th><th className="px-4 py-3">Earned</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr></thead>
             <tbody>
               {commissions.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No commission records yet.</td></tr> :
                 commissions.map((c) => (
@@ -67,7 +67,7 @@ export default function CommissionsPage() {
                     <td className="px-4 py-3 font-mono text-sm">${Number(c.baseAmount).toLocaleString()}</td>
                     <td className="px-4 py-3 text-sm">{c.rateApplied ? `${c.rateApplied}%` : '—'}</td>
                     <td className="px-4 py-3 font-mono text-sm font-semibold">${Number(c.commissionAmount).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{formatDate(c.earnedAt)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{formatDate(c.earnedAt)}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[c.status]}`}>{c.status}</span></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
@@ -82,11 +82,11 @@ export default function CommissionsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {plans.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-400">No commission plans yet. Create one to start tracking commissions.</div> :
+          {plans.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">No commission plans yet. Create one to start tracking commissions.</div> :
             plans.map((p) => (
-              <div key={p.id} className="bg-white rounded-lg border p-5">
+              <div key={p.id} className="bg-white rounded-lg border p-5 dark:bg-slate-900">
                 <h3 className="font-bold text-lg">{p.name}</h3>
-                <div className="text-sm text-gray-500 mb-3">{p.planType.replace(/_/g, ' ')} · {p.appliesToRole}</div>
+                <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">{p.planType.replace(/_/g, ' ')} · {p.appliesToRole}</div>
                 <div className="font-mono text-sm">
                   {p.planType === 'flat_rate' && <>${Number(p.flatRateAmount || 0).toFixed(2)} per job</>}
                   {(p.planType === 'percent_of_invoice' || p.planType === 'percent_of_margin') && <>{Number(p.percentRate || 0)}% of {p.planType === 'percent_of_invoice' ? 'invoice' : 'margin'}</>}
@@ -99,7 +99,7 @@ export default function CommissionsPage() {
 
       {showPlan && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-xl w-full max-w-lg p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New Commission Plan</h2>
             <form onSubmit={createPlan} className="space-y-3">
               <input required placeholder="Plan name (e.g., Tech Standard)" value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
@@ -116,8 +116,8 @@ export default function CommissionsPage() {
                   <option value="all">All roles</option>
                 </select>
               </div>
-              {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>}
-              {planForm.planType !== 'flat_rate' && <div><label className="text-xs text-gray-500">Percent rate</label><input type="number" step="0.1" value={planForm.percentRate} onChange={(e) => setPlanForm({ ...planForm, percentRate: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>}
+              {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>}
+              {planForm.planType !== 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Percent rate</label><input type="number" step="0.1" value={planForm.percentRate} onChange={(e) => setPlanForm({ ...planForm, percentRate: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>}
               <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowPlan(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-sky-500 text-white rounded-lg">Create</button></div>
             </form>
           </div>

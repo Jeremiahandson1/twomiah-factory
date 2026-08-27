@@ -169,23 +169,23 @@ export default function MeasurementsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Measurements</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} {total === 1 ? 'report' : 'reports'}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Measurements</h1>
+            <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{total} {total === 1 ? 'report' : 'reports'}</p>
           </div>
           <div className="flex items-center gap-3">
             {/* Credits badge */}
             {credits !== null && (
               <button
                 onClick={() => setBuyOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border rounded-lg text-sm hover:bg-gray-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border rounded-lg text-sm hover:bg-gray-50 dark:bg-slate-900"
               >
                 <CreditCard className="w-4 h-4 text-gray-400" />
                 <span className="font-medium">{credits}</span>
-                <span className="text-gray-500">credits</span>
+                <span className="text-gray-500 dark:text-slate-400">credits</span>
               </button>
             )}
             <button
@@ -198,18 +198,18 @@ export default function MeasurementsPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden dark:bg-slate-900">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Address</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Quality</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Squares</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Area (sqft)</th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500">Cost</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500">Date</th>
+                <tr className="bg-gray-50 border-b dark:bg-slate-900">
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Address</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Quality</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Squares</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Area (sqft)</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Cost</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Date</th>
                   <th className="w-10" />
                 </tr>
               </thead>
@@ -225,7 +225,7 @@ export default function MeasurementsPage() {
                       onClick={() => setSelectedReport(m)}
                       className="border-b last:border-0 hover:bg-gray-50 cursor-pointer"
                     >
-                      <td className="px-4 py-3 text-gray-900 max-w-[200px] truncate">
+                      <td className="px-4 py-3 text-gray-900 max-w-[200px] truncate dark:text-slate-100">
                         {m.address}, {m.city}
                       </td>
                       <td className="px-4 py-3">
@@ -241,14 +241,14 @@ export default function MeasurementsPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-600 font-medium">{m.totalSquares ?? '—'}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">
+                      <td className="px-4 py-3 text-right text-gray-600 font-medium dark:text-slate-400">{m.totalSquares ?? '—'}</td>
+                      <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">
                         {m.totalArea != null ? Number(m.totalArea).toLocaleString() : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-900">
+                      <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">
                         {m.cost != null ? `$${Number(m.cost).toFixed(2)}` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-500 text-xs">
+                      <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                         {m.createdAt ? formatDate(m.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -270,8 +270,8 @@ export default function MeasurementsPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Page {page} of {totalPages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50 dark:bg-slate-900">
+              <p className="text-xs text-gray-500 dark:text-slate-400">Page {page} of {totalPages}</p>
               <div className="flex gap-1">
                 <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="p-1.5 rounded hover:bg-gray-200 disabled:opacity-30">
                   <ChevronLeft className="w-4 h-4" />
@@ -288,9 +288,9 @@ export default function MeasurementsPage() {
       {/* ── Order Modal ── */}
       {orderOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setOrderOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Order Measurement Report</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Order Measurement Report</h2>
               <button onClick={() => setOrderOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             {credits !== null && credits <= 0 && (
@@ -301,31 +301,31 @@ export default function MeasurementsPage() {
             )}
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Street Address *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Street Address *</label>
                 <input value={orderForm.address} onChange={(e) => setOrderForm({ ...orderForm, address: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="1234 Main St" />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">City *</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">City *</label>
                   <input value={orderForm.city} onChange={(e) => setOrderForm({ ...orderForm, city: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">State *</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">State *</label>
                   <input value={orderForm.state} onChange={(e) => setOrderForm({ ...orderForm, state: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Zip *</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Zip *</label>
                   <input value={orderForm.zip} onChange={(e) => setOrderForm({ ...orderForm, zip: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Link to Job (optional)</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Link to Job (optional)</label>
                 <input value={orderForm.jobId} onChange={(e) => setOrderForm({ ...orderForm, jobId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Job ID" />
               </div>
             </div>
             <p className="text-xs text-gray-400 mt-3">Uses 1 credit (${pricePerReport}/report). Powered by Google Solar API.</p>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setOrderOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setOrderOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={orderReport} disabled={ordering || (credits !== null && credits <= 0)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
                 <Ruler className="w-4 h-4" /> {ordering ? 'Ordering...' : 'Order Report'}
               </button>
@@ -337,9 +337,9 @@ export default function MeasurementsPage() {
       {/* ── Report Detail Modal ── */}
       {selectedReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSelectedReport(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[80vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Measurement Report</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Measurement Report</h2>
               <button onClick={() => setSelectedReport(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
 
@@ -374,13 +374,13 @@ export default function MeasurementsPage() {
               {/* Address */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <p className="text-gray-500 text-xs">Address</p>
-                  <p className="font-medium text-gray-900">{selectedReport.address}</p>
-                  <p className="text-gray-600">{selectedReport.city}, {selectedReport.state} {selectedReport.zip}</p>
+                  <p className="text-gray-500 text-xs dark:text-slate-400">Address</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{selectedReport.address}</p>
+                  <p className="text-gray-600 dark:text-slate-400">{selectedReport.city}, {selectedReport.state} {selectedReport.zip}</p>
                 </div>
                 <div>
-                  <p className="text-gray-500 text-xs">Imagery Date</p>
-                  <p className="font-medium text-gray-900">{selectedReport.imageryDate || '—'}</p>
+                  <p className="text-gray-500 text-xs dark:text-slate-400">Imagery Date</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{selectedReport.imageryDate || '—'}</p>
                 </div>
               </div>
 
@@ -395,9 +395,9 @@ export default function MeasurementsPage() {
                     <p className="text-2xl font-bold text-blue-700">{selectedReport.totalArea ? Number(selectedReport.totalArea).toLocaleString() : '—'}</p>
                     <p className="text-xs text-blue-600">Total Sqft</p>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3 text-center">
-                    <p className="text-2xl font-bold text-gray-700">{Array.isArray(selectedReport.segments) ? selectedReport.segments.length : '—'}</p>
-                    <p className="text-xs text-gray-600">Segments</p>
+                  <div className="bg-gray-50 rounded-lg p-3 text-center dark:bg-slate-900">
+                    <p className="text-2xl font-bold text-gray-700 dark:text-slate-200">{Array.isArray(selectedReport.segments) ? selectedReport.segments.length : '—'}</p>
+                    <p className="text-xs text-gray-600 dark:text-slate-400">Segments</p>
                   </div>
                 </div>
               )}
@@ -405,10 +405,10 @@ export default function MeasurementsPage() {
               {/* Segments table */}
               {Array.isArray(selectedReport.segments) && selectedReport.segments.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-2">Roof Segments</p>
+                  <p className="text-xs font-medium text-gray-500 mb-2 dark:text-slate-400">Roof Segments</p>
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b text-left text-gray-500">
+                      <tr className="border-b text-left text-gray-500 dark:text-slate-400">
                         <th className="pb-2 font-medium text-xs">Segment</th>
                         <th className="pb-2 font-medium text-xs text-right">Area (sqft)</th>
                         <th className="pb-2 font-medium text-xs text-right">Pitch</th>
@@ -418,10 +418,10 @@ export default function MeasurementsPage() {
                     <tbody>
                       {selectedReport.segments.map((seg: any, i: number) => (
                         <tr key={i} className="border-b last:border-0">
-                          <td className="py-1.5 text-gray-900">{seg.name}</td>
-                          <td className="py-1.5 text-right text-gray-600">{Number(seg.area).toLocaleString()}</td>
-                          <td className="py-1.5 text-right text-gray-600">{seg.pitch}</td>
-                          <td className="py-1.5 text-right text-gray-600">{seg.azimuthDegrees != null ? `${seg.azimuthDegrees}°` : '—'}</td>
+                          <td className="py-1.5 text-gray-900 dark:text-slate-100">{seg.name}</td>
+                          <td className="py-1.5 text-right text-gray-600 dark:text-slate-400">{Number(seg.area).toLocaleString()}</td>
+                          <td className="py-1.5 text-right text-gray-600 dark:text-slate-400">{seg.pitch}</td>
+                          <td className="py-1.5 text-right text-gray-600 dark:text-slate-400">{seg.azimuthDegrees != null ? `${seg.azimuthDegrees}°` : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -437,7 +437,7 @@ export default function MeasurementsPage() {
                   </button>
                 )}
                 {selectedReport.jobId && (
-                  <button onClick={() => { setSelectedReport(null); navigate(`/crm/jobs/${selectedReport.jobId}`); }} className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                  <button onClick={() => { setSelectedReport(null); navigate(`/crm/jobs/${selectedReport.jobId}`); }} className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-200">
                     View Job
                   </button>
                 )}
@@ -450,14 +450,14 @@ export default function MeasurementsPage() {
       {/* ── Manual Entry Modal ── */}
       {manualOpen && selectedReport && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setManualOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Manual Measurement Entry</h2>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-900 mb-4 dark:text-slate-100">Manual Measurement Entry</h2>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Total Squares</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Total Squares</label>
               <input type="number" step="0.01" value={manualSquares} onChange={(e) => setManualSquares(e.target.value)} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="e.g. 24.5" />
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setManualOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setManualOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={() => saveManualEntry(selectedReport.id)} className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700">Save</button>
             </div>
           </div>
@@ -467,14 +467,14 @@ export default function MeasurementsPage() {
       {/* ── Buy Credits Modal ── */}
       {buyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setBuyOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Purchase Credits</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Purchase Credits</h2>
               <button onClick={() => setBuyOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Each credit = 1 measurement report. ${pricePerReport} per report.</p>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Each credit = 1 measurement report. ${pricePerReport} per report.</p>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Quantity</label>
+              <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Quantity</label>
               <div className="flex gap-2">
                 {[5, 10, 25, 50].map((q) => (
                   <button
@@ -486,12 +486,12 @@ export default function MeasurementsPage() {
                   </button>
                 ))}
               </div>
-              <p className="text-sm font-medium text-gray-900 mt-3">
+              <p className="text-sm font-medium text-gray-900 mt-3 dark:text-slate-100">
                 Total: ${(buyQty * Number(pricePerReport)).toFixed(2)}
               </p>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setBuyOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setBuyOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={purchaseCredits} disabled={buying} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
                 <CreditCard className="w-4 h-4" /> {buying ? 'Processing...' : 'Purchase'}
               </button>

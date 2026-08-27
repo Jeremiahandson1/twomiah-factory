@@ -475,7 +475,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Price</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400">$</span>
                   <input
                     type="number"
                     step="0.01"

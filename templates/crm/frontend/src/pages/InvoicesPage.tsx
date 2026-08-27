@@ -148,7 +148,7 @@ export default function InvoicesPage() {
           </div>
           <div><label className="block text-sm font-medium mb-2">Line Items</label>
             <div className="border rounded-lg overflow-hidden">
-              <table className="w-full"><thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 w-24">Qty</th><th className="px-4 py-2 w-32">Unit Price</th><th className="px-4 py-2 text-right w-32">Total</th><th className="w-10"></th></tr></thead>
+              <table className="w-full"><thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 w-24">Qty</th><th className="px-4 py-2 w-32">Unit Price</th><th className="px-4 py-2 text-right w-32">Total</th><th className="w-10"></th></tr></thead>
                 <tbody className="divide-y">{form.lineItems.map((li: LineItem, idx: number) => (
                   <tr key={idx}><td className="px-4 py-2"><input value={li.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'description', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
                     <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', Number(e.target.value))} className="w-full px-2 py-1 border rounded" /></td>
@@ -164,7 +164,7 @@ export default function InvoicesPage() {
             <div><label className="block text-sm font-medium mb-1">Tax Rate (%)</label><input type="number" value={form.taxRate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, taxRate: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Discount ($)</label><input type="number" value={form.discount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, discount: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg text-right"><p className="text-lg font-bold">Total: ${total.toLocaleString()}</p></div>
+          <div className="bg-gray-50 p-4 rounded-lg text-right dark:bg-slate-900"><p className="text-lg font-bold">Total: ${total.toLocaleString()}</p></div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>

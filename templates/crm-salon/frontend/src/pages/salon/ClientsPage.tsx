@@ -55,8 +55,8 @@ export default function ClientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
-          <p className="text-gray-500">Everyone who sits in your chairs</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Clients</h1>
+          <p className="text-gray-500 dark:text-slate-400">Everyone who sits in your chairs</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
@@ -82,11 +82,11 @@ export default function ClientsPage() {
           <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
         </div>
       ) : clients.length === 0 ? (
-        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No clients found</div>
+        <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No clients found</div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-x-auto">
+        <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-left">
+            <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
@@ -99,17 +99,17 @@ export default function ClientsPage() {
               {clients.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <Link to={`/crm/clients/${c.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600">
+                    <Link to={`/crm/clients/${c.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">
                       <User className="w-4 h-4 text-teal-500" />
                       {c.name || 'Unnamed'}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     <div>{c.mobile || c.phone || '—'}</div>
                     {c.email && <div className="text-xs text-gray-400">{c.email}</div>}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{c.hairType || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{c.hairType || '—'}</td>
+                  <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     {[c.stylistFirstName, c.stylistLastName].filter(Boolean).join(' ') || '—'}
                   </td>
                   <td className="px-4 py-3">
@@ -181,7 +181,7 @@ function NewClientModal({ onSave, onClose }: { onSave: () => void; onClose: () =
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">New Client</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
@@ -190,52 +190,52 @@ function NewClientModal({ onSave, onClose }: { onSave: () => void; onClose: () =
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
                 <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Mobile</label>
                 <input type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email</label>
                 <input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hair Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Hair Type</label>
                 <select value={form.hairType} onChange={(e) => set('hairType', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   {HAIR_TYPES.map((h) => <option key={h} value={h}>{h || '—'}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pronouns</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Pronouns</label>
                 <input type="text" value={form.pronouns} onChange={(e) => set('pronouns', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Birthday</label>
                 <input type="date" value={form.birthday} onChange={(e) => set('birthday', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Patch Test</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patch Test</label>
                 <input type="date" value={form.patchTestAt} onChange={(e) => set('patchTestAt', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
                 Allergies / sensitivities <span className="text-xs text-gray-400">(shown as a red banner on the chart)</span>
               </label>
               <input type="text" value={form.allergies} onChange={(e) => set('allergies', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="PPD sensitivity, latex, fragrance..." />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Preferences</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Preferences</label>
               <input type="text" value={form.preferences} onChange={(e) => set('preferences', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Drink order, quiet appointment, parking..." />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 

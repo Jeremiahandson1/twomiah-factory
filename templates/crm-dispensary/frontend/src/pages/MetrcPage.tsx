@@ -240,13 +240,13 @@ export default function MetrcPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Metrc Compliance</h1>
-          <p className="text-gray-600">Track-and-trace integration with Metrc</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Metrc Compliance</h1>
+          <p className="text-gray-600 dark:text-slate-400">Track-and-trace integration with Metrc</p>
         </div>
       </div>
 
       {/* Sync Status Bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center justify-between">
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6 flex items-center justify-between dark:bg-slate-900">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             {syncStatus?.status === 'success' ? (
@@ -261,11 +261,11 @@ export default function MetrcPage() {
             </span>
           </div>
           {syncStatus?.lastSyncAt && (
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-gray-500 dark:text-slate-400">
               Last sync: {new Date(syncStatus.lastSyncAt).toLocaleString()}
             </span>
           )}
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-gray-500 dark:text-slate-400">
             Auto-sync: {config.autoSync ? 'On' : 'Off'}
           </span>
         </div>
@@ -295,46 +295,46 @@ export default function MetrcPage() {
 
       {/* Config Tab */}
       {tab === 'config' && (
-        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6">
+        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">API Key</label>
             <input
               type="password"
               value={config.apiKey}
               onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Enter Metrc API key"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">User Key</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">User Key</label>
             <input
               type="password"
               value={config.userKey}
               onChange={(e) => setConfig({ ...config, userKey: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Enter Metrc user key"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">License Number</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">License Number</label>
             <input
               type="text"
               value={config.licenseNumber}
               onChange={(e) => setConfig({ ...config, licenseNumber: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="e.g., C10-0000001-LIC"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">State</label>
             <select
               value={config.state}
               onChange={(e) => setConfig({ ...config, state: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">Select state</option>
               {US_STATES.map(s => (
@@ -349,19 +349,19 @@ export default function MetrcPage() {
                 type="checkbox"
                 checked={config.autoSync}
                 onChange={(e) => setConfig({ ...config, autoSync: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
               />
-              <span className="text-sm font-medium text-gray-700">Enable Auto-Sync</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Enable Auto-Sync</span>
             </label>
             {config.autoSync && (
               <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Interval (min):</label>
+                <label className="text-sm text-gray-600 dark:text-slate-400">Interval (min):</label>
                 <input
                   type="number"
                   min={5}
                   value={config.syncInterval}
                   onChange={(e) => setConfig({ ...config, syncInterval: parseInt(e.target.value) || 60 })}
-                  className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             )}
@@ -389,23 +389,23 @@ export default function MetrcPage() {
                 placeholder="Search by tag..."
                 value={packageSearch}
                 onChange={(e) => { setPackageSearch(e.target.value); setPackagePage(1); }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tag</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item Name</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Lab Testing</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Modified</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Tag</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Item Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Category</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Quantity</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Lab Testing</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Last Modified</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -417,14 +417,14 @@ export default function MetrcPage() {
                     </tr>
                   ) : packages.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No packages found</td>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No packages found</td>
                     </tr>
                   ) : packages.map(pkg => (
                     <tr key={pkg.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-mono text-gray-900">{pkg.tag || pkg.metrcTag || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-900">{pkg.itemName || pkg.name || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{pkg.category || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-900">{pkg.quantity ?? '—'}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-900 dark:text-slate-100">{pkg.tag || pkg.metrcTag || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">{pkg.itemName || pkg.name || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{pkg.category || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">{pkg.quantity ?? '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
                           pkg.labTestingState === 'TestPassed' ? 'bg-green-100 text-green-700' :
@@ -434,10 +434,10 @@ export default function MetrcPage() {
                           {pkg.labTestingState || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {pkg.productName || pkg.linkedProduct || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {pkg.lastModified ? formatDate(pkg.lastModified) : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -455,7 +455,7 @@ export default function MetrcPage() {
             </div>
             {packageTotal > 25 && (
               <div className="px-4 py-3 border-t flex items-center justify-between">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-slate-400">
                   Page {packagePage} of {Math.ceil(packageTotal / 25)}
                 </span>
                 <div className="flex gap-2">
@@ -483,17 +483,17 @@ export default function MetrcPage() {
       {/* Sales Tab */}
       {tab === 'sales' && (
         <div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Receipt #</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer Type</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Packages</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Linked Order</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Receipt #</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Customer Type</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Total</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Packages</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Linked Order</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -505,20 +505,20 @@ export default function MetrcPage() {
                     </tr>
                   ) : sales.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No Metrc sales found</td>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No Metrc sales found</td>
                     </tr>
                   ) : sales.map(sale => (
                     <tr key={sale.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{sale.receiptNumber || sale.id}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{sale.receiptNumber || sale.id}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {sale.salesDateTime ? formatDate(sale.salesDateTime) : sale.date || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{sale.customerType || 'Patient'}</td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{sale.customerType || 'Patient'}</td>
+                      <td className="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-slate-100">
                         ${Number(sale.totalPrice || sale.total || 0).toFixed(2)}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">{sale.packageCount || sale.packages?.length || 0}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{sale.linkedOrderId || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{sale.packageCount || sale.packages?.length || 0}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{sale.linkedOrderId || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -526,7 +526,7 @@ export default function MetrcPage() {
             </div>
             {salesTotal > 25 && (
               <div className="px-4 py-3 border-t flex items-center justify-between">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-slate-400">
                   Page {salesPage} of {Math.ceil(salesTotal / 25)}
                 </span>
                 <div className="flex gap-2">
@@ -554,18 +554,18 @@ export default function MetrcPage() {
       {/* Transfers Tab */}
       {tab === 'transfers' && (
         <div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Manifest #</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">To</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Packages</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Manifest #</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">From</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">To</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Packages</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -577,18 +577,18 @@ export default function MetrcPage() {
                     </tr>
                   ) : transfers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No transfers found</td>
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No transfers found</td>
                     </tr>
                   ) : transfers.map(transfer => (
                     <tr key={transfer.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{transfer.manifestNumber || transfer.id}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{transfer.transferType || transfer.type || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{transfer.shipperFacilityName || transfer.from || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{transfer.recipientFacilityName || transfer.to || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{transfer.manifestNumber || transfer.id}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{transfer.transferType || transfer.type || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{transfer.shipperFacilityName || transfer.from || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{transfer.recipientFacilityName || transfer.to || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {transfer.createdDateTime ? formatDate(transfer.createdDateTime) : transfer.date || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">{transfer.packageCount || 0}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{transfer.packageCount || 0}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
                           transfer.status === 'Received' ? 'bg-green-100 text-green-700' :
@@ -606,7 +606,7 @@ export default function MetrcPage() {
             </div>
             {transfersTotal > 25 && (
               <div className="px-4 py-3 border-t flex items-center justify-between">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-slate-400">
                   Page {transfersPage} of {Math.ceil(transfersTotal / 25)}
                 </span>
                 <div className="flex gap-2">
@@ -640,16 +640,16 @@ export default function MetrcPage() {
               {syncing ? 'Syncing...' : 'Manual Sync'}
             </Button>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Records</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Timestamp</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Records</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Duration</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -661,14 +661,14 @@ export default function MetrcPage() {
                   </tr>
                 ) : syncLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No sync history</td>
+                    <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No sync history</td>
                   </tr>
                 ) : syncLogs.map(log => (
                   <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {log.createdAt ? new Date(log.createdAt).toLocaleString() : '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">{log.syncType || log.type || 'Full'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{log.syncType || log.type || 'Full'}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 text-xs rounded-full ${
                         log.status === 'success' ? 'bg-green-100 text-green-700' :
@@ -679,9 +679,9 @@ export default function MetrcPage() {
                         {log.status || 'unknown'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-600">{log.recordCount ?? '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{log.duration ? `${log.duration}s` : '—'}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs">{log.details || log.error || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{log.recordCount ?? '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{log.duration ? `${log.duration}s` : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500 truncate max-w-xs dark:text-slate-400">{log.details || log.error || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -717,7 +717,7 @@ export default function MetrcPage() {
                   <p className="font-medium text-white">{product.name}</p>
                   <p className="text-sm text-gray-400">{product.sku || product.category || ''}</p>
                 </div>
-                <Link className="w-4 h-4 text-gray-500" />
+                <Link className="w-4 h-4 text-gray-500 dark:text-slate-400" />
               </button>
             ))}
           </div>

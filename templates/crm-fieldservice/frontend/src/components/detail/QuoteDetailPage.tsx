@@ -104,8 +104,8 @@ export default function QuoteDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <p className="text-sm font-mono text-gray-500">{quote.number}</p>
-            <h1 className="text-2xl font-bold text-gray-900">{quote.name}</h1>
+            <p className="text-sm font-mono text-gray-500 dark:text-slate-400">{quote.number}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{quote.name}</h1>
             <StatusBadge status={quote.status} />
           </div>
         </div>
@@ -120,7 +120,7 @@ export default function QuoteDetailPage() {
               <button onClick={handleApprove} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
                 <Check className="w-4 h-4" /> Mark Approved
               </button>
-              <button onClick={handleDecline} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+              <button onClick={handleDecline} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800 dark:text-slate-200">
                 <X className="w-4 h-4" /> Mark Declined
               </button>
             </>
@@ -135,11 +135,11 @@ export default function QuoteDetailPage() {
               <Copy className="w-4 h-4" /> Create Invoice
             </button>
           )}
-          <a href={api.quotes.downloadPdf(id)} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <a href={api.quotes.downloadPdf(id)} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800">
             <Download className="w-4 h-4" /> PDF
           </a>
           {['draft', 'sent'].includes(quote.status) && (
-            <Link to={`/crm/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+            <Link to={`/crm/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800">
               <Edit className="w-4 h-4" /> Edit
             </Link>
           )}
@@ -163,15 +163,15 @@ export default function QuoteDetailPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Line Items */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="p-4 border-b"><h2 className="font-semibold">Line Items</h2></div>
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Description</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Qty</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Price</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400">Description</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Qty</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -184,7 +184,7 @@ export default function QuoteDetailPage() {
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-50">
+              <tfoot className="bg-gray-50 dark:bg-slate-900">
                 <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(quote.subtotal).toFixed(2)}</td></tr>
                 {Number(quote.taxAmount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Tax ({quote.taxRate}%)</td><td className="px-4 py-2 text-right">${Number(quote.taxAmount).toFixed(2)}</td></tr>}
                 {Number(quote.discount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-red-600">-${Number(quote.discount).toFixed(2)}</td></tr>}
@@ -194,16 +194,16 @@ export default function QuoteDetailPage() {
           </div>
 
           {quote.customerMessage && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
               <h2 className="font-semibold mb-2">Customer Message</h2>
-              <p className="text-gray-700 whitespace-pre-wrap">{quote.customerMessage}</p>
+              <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{quote.customerMessage}</p>
             </div>
           )}
 
           {quote.notes && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
               <h2 className="font-semibold mb-2">Internal Notes</h2>
-              <p className="text-gray-700 whitespace-pre-wrap">{quote.notes}</p>
+              <p className="text-gray-700 whitespace-pre-wrap dark:text-slate-200">{quote.notes}</p>
             </div>
           )}
 
@@ -211,15 +211,15 @@ export default function QuoteDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
               <h2 className="font-semibold mb-3">Signed Acceptance</h2>
               <div className="border border-green-200 rounded-lg bg-green-50 p-4">
-                <img src={quote.signature} alt="Customer signature" className="max-h-24 bg-white rounded" />
-                <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700">
-                  <div><span className="text-gray-500">Signed by</span><p className="font-medium">{quote.signedBy || '-'}</p></div>
-                  <div><span className="text-gray-500">Signed at</span><p className="font-medium">{quote.signedAt ? new Date(quote.signedAt).toLocaleString() : '-'}</p></div>
-                  <div><span className="text-gray-500">IP address</span><p className="font-mono text-xs">{quote.signedIp || '-'}</p></div>
-                  <div><span className="text-gray-500">Consent</span><p className="font-medium">{quote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
+                <img src={quote.signature} alt="Customer signature" className="max-h-24 bg-white rounded dark:bg-slate-900" />
+                <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700 dark:text-slate-200">
+                  <div><span className="text-gray-500 dark:text-slate-400">Signed by</span><p className="font-medium">{quote.signedBy || '-'}</p></div>
+                  <div><span className="text-gray-500 dark:text-slate-400">Signed at</span><p className="font-medium">{quote.signedAt ? new Date(quote.signedAt).toLocaleString() : '-'}</p></div>
+                  <div><span className="text-gray-500 dark:text-slate-400">IP address</span><p className="font-mono text-xs">{quote.signedIp || '-'}</p></div>
+                  <div><span className="text-gray-500 dark:text-slate-400">Consent</span><p className="font-medium">{quote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
                 </div>
                 {quote.signatureHash ? (
-                  <p className="mt-3 text-xs text-gray-500 break-all">
+                  <p className="mt-3 text-xs text-gray-500 break-all dark:text-slate-400">
                     <span className="text-gray-400">Document fingerprint (SHA-256): </span>
                     <span className="font-mono">{quote.signatureHash}</span>
                   </p>
@@ -232,47 +232,47 @@ export default function QuoteDetailPage() {
           ) : null}
 
           {quote.terms && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
               <h2 className="font-semibold mb-2">Terms & Conditions</h2>
-              <p className="text-gray-700 whitespace-pre-wrap text-sm">{quote.terms}</p>
+              <p className="text-gray-700 whitespace-pre-wrap text-sm dark:text-slate-200">{quote.terms}</p>
             </div>
           )}
 
           {/* Status Timeline */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold mb-4">Timeline</h2>
             <div className="space-y-3">
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-gray-400" />
-                <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{formatDate(quote.createdAt)}</span>
+                <span className="text-gray-500 dark:text-slate-400">Created</span>
+                <span className="text-gray-900 dark:text-slate-100">{formatDate(quote.createdAt)}</span>
               </div>
               {quote.sentAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  <span className="text-gray-500">Sent</span>
-                  <span className="text-gray-900">{formatDate(quote.sentAt)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">Sent</span>
+                  <span className="text-gray-900 dark:text-slate-100">{formatDate(quote.sentAt)}</span>
                 </div>
               )}
               {quote.viewedAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-purple-500" />
-                  <span className="text-gray-500">Viewed</span>
-                  <span className="text-gray-900">{formatDate(quote.viewedAt)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">Viewed</span>
+                  <span className="text-gray-900 dark:text-slate-100">{formatDate(quote.viewedAt)}</span>
                 </div>
               )}
               {quote.approvedAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span className="text-gray-500">Approved</span>
-                  <span className="text-gray-900">{formatDate(quote.approvedAt)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">Approved</span>
+                  <span className="text-gray-900 dark:text-slate-100">{formatDate(quote.approvedAt)}</span>
                 </div>
               )}
               {quote.declinedAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <span className="text-gray-500">Declined</span>
-                  <span className="text-gray-900">{formatDate(quote.declinedAt)}</span>
+                  <span className="text-gray-500 dark:text-slate-400">Declined</span>
+                  <span className="text-gray-900 dark:text-slate-100">{formatDate(quote.declinedAt)}</span>
                 </div>
               )}
             </div>
@@ -280,41 +280,41 @@ export default function QuoteDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3 text-sm">
               {quote.contact && (
                 <div>
-                  <p className="text-gray-500">Client</p>
+                  <p className="text-gray-500 dark:text-slate-400">Client</p>
                   <Link to={`/crm/contacts/${quote.contact.id}`} className="text-orange-500 hover:underline">{quote.contact.name}</Link>
                 </div>
               )}
               {quote.project && (
                 <div>
-                  <p className="text-gray-500">Project</p>
+                  <p className="text-gray-500 dark:text-slate-400">Project</p>
                   <Link to={`/crm/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
                 </div>
               )}
               {quote.equipment && (
                 <div>
-                  <p className="text-gray-500 flex items-center gap-1"><Wrench className="w-3 h-3" /> Equipment</p>
-                  <p className="text-gray-900">{quote.equipment.name}{quote.equipment.manufacturer ? ` — ${quote.equipment.manufacturer}` : ''}{quote.equipment.model ? ` ${quote.equipment.model}` : ''}</p>
+                  <p className="text-gray-500 flex items-center gap-1 dark:text-slate-400"><Wrench className="w-3 h-3" /> Equipment</p>
+                  <p className="text-gray-900 dark:text-slate-100">{quote.equipment.name}{quote.equipment.manufacturer ? ` — ${quote.equipment.manufacturer}` : ''}{quote.equipment.model ? ` ${quote.equipment.model}` : ''}</p>
                 </div>
               )}
               {quote.site && (
                 <div>
-                  <p className="text-gray-500 flex items-center gap-1"><MapPinned className="w-3 h-3" /> Location</p>
-                  <p className="text-gray-900">{quote.site.name}{quote.site.address ? ` — ${quote.site.address}` : ''}</p>
+                  <p className="text-gray-500 flex items-center gap-1 dark:text-slate-400"><MapPinned className="w-3 h-3" /> Location</p>
+                  <p className="text-gray-900 dark:text-slate-100">{quote.site.name}{quote.site.address ? ` — ${quote.site.address}` : ''}</p>
                 </div>
               )}
               {quote.expiryDate && (
                 <div>
-                  <p className="text-gray-500">Valid Until</p>
+                  <p className="text-gray-500 dark:text-slate-400">Valid Until</p>
                   <p className={new Date(quote.expiryDate) < new Date() ? 'text-red-600' : ''}>{formatDate(quote.expiryDate)}</p>
                 </div>
               )}
               <div>
-                <p className="text-gray-500">Created</p>
+                <p className="text-gray-500 dark:text-slate-400">Created</p>
                 <p>{formatDate(quote.createdAt)}</p>
               </div>
             </div>
@@ -322,7 +322,7 @@ export default function QuoteDetailPage() {
 
           <div className="bg-orange-50 rounded-lg p-6 text-center">
             <p className="text-3xl font-bold text-orange-600">${Number(quote.total).toLocaleString()}</p>
-            <p className="text-gray-600">Quote Total</p>
+            <p className="text-gray-600 dark:text-slate-400">Quote Total</p>
           </div>
         </div>
       </div>

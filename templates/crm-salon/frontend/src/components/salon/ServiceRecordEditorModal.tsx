@@ -135,7 +135,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Scissors className="w-5 h-5 text-teal-600" /> {record?.id ? 'Edit Service Record' : 'New Service Record'}
@@ -146,21 +146,21 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Service</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Service</label>
                 <select value={form.serviceId} onChange={(e) => onService(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Select service...</option>
                   {services.map((s) => <option key={s.id} value={s.id}>{s.name || 'Untitled'}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stylist</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stylist</label>
                 <select value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
                   {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label>
                 <input type="date" value={form.performedAt} onChange={(e) => set('performedAt', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
@@ -168,7 +168,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
             {/* Formula */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-gray-700">Formula</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-200">Formula</label>
                 <button
                   type="button"
                   onClick={() => setFormula((rows) => [...rows, { product: '', shade: '', parts: '' }])}
@@ -207,29 +207,29 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Developer</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Developer</label>
                 <input type="text" value={form.developerVolume} onChange={(e) => set('developerVolume', e.target.value)} placeholder="20 vol" className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Processing (min)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Processing (min)</label>
                 <input type="number" value={form.processingMin} onChange={(e) => set('processingMin', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price charged ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price charged ($)</label>
                 <input type="number" step="any" value={form.priceCharged} onChange={(e) => set('priceCharged', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Other products used</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Other products used</label>
               <input type="text" value={form.productsUsed} onChange={(e) => set('productsUsed', e.target.value)} placeholder="Toner, bond builder, treatment..." className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Result <span className="text-xs text-gray-400">(what to repeat or change next time)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Result <span className="text-xs text-gray-400">(what to repeat or change next time)</span></label>
               <textarea value={form.result} onChange={(e) => set('result', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
 

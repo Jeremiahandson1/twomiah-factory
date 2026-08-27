@@ -102,8 +102,8 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.firstName}!</h1>
-          <p className="text-gray-600">{company?.name} Dashboard</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Welcome back, {user?.firstName}!</h1>
+          <p className="text-gray-600 dark:text-slate-400">{company?.name} Dashboard</p>
         </div>
         {/* Cash Session Status */}
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
@@ -125,13 +125,13 @@ export default function DashboardPage() {
           <Link
             key={stat.label}
             to={stat.link}
-            className="bg-white rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow dark:bg-slate-900"
           >
             <div className={`w-10 h-10 rounded-lg ${colorClasses[stat.color]} flex items-center justify-center mb-3`}>
               <stat.icon className="w-5 h-5" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-            <p className="text-sm text-gray-500">{stat.label}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.value}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{stat.label}</p>
           </Link>
         ))}
       </div>
@@ -139,9 +139,9 @@ export default function DashboardPage() {
       {/* Main Content */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Recent Orders */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm">
+        <div className="lg:col-span-2 bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Orders</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Orders</h2>
             <Link to="/crm/orders" className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
@@ -150,11 +150,11 @@ export default function DashboardPage() {
             {recentOrders.length > 0 ? recentOrders.slice(0, 8).map((order: any) => (
               <div key={order.id} className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-gray-900">#{order.orderNumber || order.id}</p>
-                  <p className="text-sm text-gray-500">{order.customerName || 'Walk-in'}</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{order.customerName || 'Walk-in'}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-medium text-gray-900">${Number(order.total || 0).toFixed(2)}</p>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">${Number(order.total || 0).toFixed(2)}</p>
                   <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
                     order.status === 'completed' ? 'bg-green-100 text-green-700' :
                     order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
@@ -166,7 +166,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             )) : (
-              <p className="p-4 text-gray-500 text-sm">No orders today</p>
+              <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No orders today</p>
             )}
           </div>
         </div>
@@ -174,9 +174,9 @@ export default function DashboardPage() {
         {/* Right Column */}
         <div className="space-y-6">
           {/* Top 5 Products Today */}
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
             <div className="p-4 border-b">
-              <h2 className="font-semibold text-gray-900">Top Products Today</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-slate-100">Top Products Today</h2>
             </div>
             <div className="divide-y">
               {topProducts.length > 0 ? topProducts.slice(0, 5).map((product: any, idx: number) => (
@@ -186,22 +186,22 @@ export default function DashboardPage() {
                       {idx + 1}
                     </span>
                     <div>
-                      <p className="font-medium text-gray-900 text-sm">{product.name}</p>
-                      <p className="text-xs text-gray-500">{product.category}</p>
+                      <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{product.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{product.category}</p>
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-gray-700">{product.unitsSold || 0} sold</p>
+                  <p className="text-sm font-medium text-gray-700 dark:text-slate-200">{product.unitsSold || 0} sold</p>
                 </div>
               )) : (
-                <p className="p-4 text-gray-500 text-sm">No sales data yet</p>
+                <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No sales data yet</p>
               )}
             </div>
           </div>
 
           {/* Low Stock Alerts */}
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
             <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                 Low Stock Alerts
               </h2>
@@ -211,8 +211,8 @@ export default function DashboardPage() {
               {lowStock.length > 0 ? lowStock.slice(0, 5).map((item: any) => (
                 <div key={item.id} className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{item.name}</p>
-                    <p className="text-xs text-gray-500">{item.category}</p>
+                    <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{item.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">{item.category}</p>
                   </div>
                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                     item.stock <= 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
@@ -221,7 +221,7 @@ export default function DashboardPage() {
                   </span>
                 </div>
               )) : (
-                <p className="p-4 text-gray-500 text-sm flex items-center gap-2">
+                <p className="p-4 text-gray-500 text-sm flex items-center gap-2 dark:text-slate-400">
                   <Package className="w-4 h-4" /> All stock levels healthy
                 </p>
               )}

@@ -132,7 +132,7 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
-        <div className="flex-1 bg-white rounded-lg shadow-sm p-6">
+        <div className="flex-1 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
           {tab === 'company' && (
             <div className="space-y-4 max-w-xl">
               <h2 className="text-lg font-semibold">Company Information</h2>
@@ -157,7 +157,7 @@ export default function SettingsPage() {
           {tab === 'profile' && (
             <div className="space-y-4 max-w-xl">
               <h2 className="text-lg font-semibold">Profile</h2>
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
                 <p><span className="font-medium">Name:</span> {user?.firstName} {user?.lastName}</p>
                 <p><span className="font-medium">Email:</span> {user?.email}</p>
                 <p><span className="font-medium">Role:</span> {user?.role}</p>
@@ -182,30 +182,30 @@ export default function SettingsPage() {
 
               {addUserOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddUserOpen(false)}>
-                  <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
                     <h3 className="text-lg font-semibold mb-4">Add User</h3>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">First name *</label>
+                          <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">First name *</label>
                           <input value={newUser.firstName} onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                         </div>
                         <div>
-                          <label className="text-xs text-gray-500 block mb-1">Last name *</label>
+                          <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Last name *</label>
                           <input value={newUser.lastName} onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                         </div>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 block mb-1">Email *</label>
+                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email *</label>
                         <input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 block mb-1">Temporary password *</label>
+                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Temporary password *</label>
                         <input type="text" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className="w-full text-sm border rounded-lg px-3 py-2" />
                         <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 block mb-1">Role</label>
+                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                           <option value="field">Staff — day-to-day work: view jobs, log time, expenses and notes</option>
                           <option value="manager">Manager — full access to work and invoicing, but not company settings</option>
@@ -214,7 +214,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-6">
-                      <button onClick={() => setAddUserOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                      <button onClick={() => setAddUserOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
                       <Button onClick={handleAddUser} disabled={addingUser}>{addingUser ? 'Adding...' : 'Add User'}</Button>
                     </div>
                   </div>
@@ -222,7 +222,7 @@ export default function SettingsPage() {
               )}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th><th className="px-4 py-2 text-right text-xs font-medium">Access</th></tr></thead>
+                  <thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th><th className="px-4 py-2 text-right text-xs font-medium">Access</th></tr></thead>
                   <tbody className="divide-y">{users.map(u => (
                     <tr key={u.id}><td className="px-4 py-3">{u.firstName} {u.lastName}</td><td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 capitalize">{u.role}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) === (user as Record<string, unknown> | null)?.id
                       ? <span className="text-xs text-gray-400">You</span>

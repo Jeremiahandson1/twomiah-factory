@@ -288,22 +288,22 @@ export default function InsuranceClaimPage() {
   }
 
   if (!claim) {
-    return <div className="p-6 text-center text-gray-500">No insurance claim found for this job.</div>;
+    return <div className="p-6 text-center text-gray-500 dark:text-slate-400">No insurance claim found for this job.</div>;
   }
 
   const netToCont = Number(claim.finalApprovedAmount || claim.rcv || 0) - Number(claim.deductible || 0);
   const daysSinceLoss = claim.dateOfLoss ? Math.floor((Date.now() - new Date(claim.dateOfLoss).getTime()) / (1000 * 60 * 60 * 24)) : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white border-b px-6 py-4">
-        <button onClick={() => navigate(`/crm/jobs/${jobId}`)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3">
+      <div className="bg-white border-b px-6 py-4 dark:bg-slate-900">
+        <button onClick={() => navigate(`/crm/jobs/${jobId}`)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3 dark:text-slate-400">
           <ArrowLeft className="w-4 h-4" /> Back to Job
         </button>
         <div className="flex items-center gap-3">
           <Shield className="w-5 h-5 text-orange-500" />
-          <h1 className="text-xl font-bold text-gray-900">Insurance Claim — {claim.claimNumber}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">Insurance Claim — {claim.claimNumber}</h1>
           {claim.claimStatus === 'denied' && (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700">DENIED</span>
           )}
@@ -320,13 +320,13 @@ export default function InsuranceClaimPage() {
           {/* LEFT — Timeline (2 cols) */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">Claim Timeline</h2>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Claim Timeline</h2>
               <button onClick={() => setActivityOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <Plus className="w-3.5 h-3.5" /> Log Activity
               </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border p-4 max-h-[600px] overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-sm border p-4 max-h-[600px] overflow-y-auto dark:bg-slate-900">
               {activities.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No activity yet</p>
               ) : (
@@ -335,18 +335,18 @@ export default function InsuranceClaimPage() {
                     const iconType = ACTIVITY_ICONS[a.activityType] || 'clock';
                     return (
                       <div key={a.id || i} className="flex gap-3">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center dark:bg-slate-800">
                           {iconType === 'phone' && <Phone className="w-3.5 h-3.5 text-blue-500" />}
                           {iconType === 'mail' && <Mail className="w-3.5 h-3.5 text-purple-500" />}
                           {iconType === 'check' && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
                           {iconType === 'x' && <XCircle className="w-3.5 h-3.5 text-red-500" />}
                           {iconType === 'doc' && <FileText className="w-3.5 h-3.5 text-orange-500" />}
-                          {iconType === 'upload' && <Upload className="w-3.5 h-3.5 text-gray-500" />}
+                          {iconType === 'upload' && <Upload className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" />}
                           {iconType === 'clock' && <Clock className="w-3.5 h-3.5 text-gray-400" />}
                           {iconType === 'msg' && <MessageSquare className="w-3.5 h-3.5 text-blue-400" />}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm text-gray-900">{a.body}</p>
+                          <p className="text-sm text-gray-900 dark:text-slate-100">{a.body}</p>
                           <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
                             <span>{a.createdAt ? new Date(a.createdAt).toLocaleString() : ''}</span>
                             {a.metadata?.callDuration && <span>({a.metadata.callDuration} min)</span>}
@@ -364,8 +364,8 @@ export default function InsuranceClaimPage() {
           {/* RIGHT — Claim Details (3 cols) */}
           <div className="lg:col-span-3 space-y-6">
             {/* Claim Status Stepper */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Claim Status</h3>
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Claim Status</h3>
               <div className="flex items-center gap-1 overflow-x-auto pb-2">
                 {CLAIM_STAGES.map((stage, i) => {
                   const currentIdx = CLAIM_STAGES.indexOf(claim.claimStatus as any);
@@ -408,27 +408,27 @@ export default function InsuranceClaimPage() {
             </div>
 
             {/* Claim Info */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">Claim Info</h3>
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 dark:text-slate-100">Claim Info</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Claim Number</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Claim Number</label>
                   <input defaultValue={claim.claimNumber || ''} onBlur={(e) => saveClaim({ claimNumber: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Insurance Company</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Insurance Company</label>
                   <input defaultValue={claim.insuranceCompany || ''} onBlur={(e) => saveClaim({ insuranceCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Policy Number</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Policy Number</label>
                   <input defaultValue={claim.policyNumber || ''} onBlur={(e) => saveClaim({ policyNumber: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Date of Loss</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Date of Loss</label>
                   <input type="date" defaultValue={claim.dateOfLoss ? new Date(claim.dateOfLoss).toISOString().split('T')[0] : ''} onBlur={(e) => saveClaim({ dateOfLoss: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Cause of Loss</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Cause of Loss</label>
                   <select defaultValue={claim.causeOfLoss || ''} onChange={(e) => saveClaim({ causeOfLoss: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                     <option value="">Select...</option>
                     <option value="hail">Hail</option>
@@ -439,28 +439,28 @@ export default function InsuranceClaimPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Adjuster Inspection Date</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Adjuster Inspection Date</label>
                   <input type="date" defaultValue={claim.adjusterInspectionDate ? new Date(claim.adjusterInspectionDate).toISOString().split('T')[0] : ''} onBlur={(e) => saveClaim({ adjusterInspectionDate: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
 
               {/* Adjuster */}
-              <h4 className="text-xs font-semibold text-gray-700 mt-5 mb-2">Adjuster</h4>
+              <h4 className="text-xs font-semibold text-gray-700 mt-5 mb-2 dark:text-slate-200">Adjuster</h4>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Name</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Name</label>
                   <input defaultValue={claim.adjusterName || ''} onBlur={(e) => saveClaim({ adjusterName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Phone</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Phone</label>
                   <input defaultValue={claim.adjusterPhone || ''} onBlur={(e) => saveClaim({ adjusterPhone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Email</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Email</label>
                   <input defaultValue={claim.adjusterEmail || ''} onBlur={(e) => saveClaim({ adjusterEmail: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Company</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Company</label>
                   <input defaultValue={claim.adjusterCompany || ''} onBlur={(e) => saveClaim({ adjusterCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
@@ -470,33 +470,33 @@ export default function InsuranceClaimPage() {
             </div>
 
             {/* Financials */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <DollarSign className="w-4 h-4 text-green-500" /> Financials
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Deductible</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Deductible</label>
                   <input defaultValue={claim.deductible || ''} onBlur={(e) => saveClaim({ deductible: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">RCV</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">RCV</label>
                   <input defaultValue={claim.rcv || ''} onBlur={(e) => saveClaim({ rcv: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">ACV</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">ACV</label>
                   <input defaultValue={claim.acv || ''} onBlur={(e) => saveClaim({ acv: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Depreciation Held</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Depreciation Held</label>
                   <input defaultValue={claim.depreciationHeld || ''} onBlur={(e) => saveClaim({ depreciationHeld: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Supplement Total</label>
-                  <p className="text-sm font-medium text-gray-900 px-3 py-2">{fmt$(claim.supplementAmount)}</p>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Supplement Total</label>
+                  <p className="text-sm font-medium text-gray-900 px-3 py-2 dark:text-slate-100">{fmt$(claim.supplementAmount)}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Final Approved</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Final Approved</label>
                   <input defaultValue={claim.finalApprovedAmount || ''} onBlur={(e) => saveClaim({ finalApprovedAmount: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
               </div>
@@ -507,8 +507,8 @@ export default function InsuranceClaimPage() {
             </div>
 
             {/* Documents / Xactimate */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <FileText className="w-4 h-4 text-gray-400" /> Documents & Xactimate Export
               </h3>
               <div className="flex flex-wrap gap-2 mb-4">
@@ -529,11 +529,11 @@ export default function InsuranceClaimPage() {
               </button>
 
               {exportResult && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-xs font-semibold text-gray-700 mb-2">Generated Line Items ({exportResult.lineItems?.length || 0})</p>
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+                  <p className="text-xs font-semibold text-gray-700 mb-2 dark:text-slate-200">Generated Line Items ({exportResult.lineItems?.length || 0})</p>
                   <table className="w-full text-xs">
                     <thead>
-                      <tr className="border-b text-gray-500">
+                      <tr className="border-b text-gray-500 dark:text-slate-400">
                         <th className="text-left pb-1">Code</th>
                         <th className="text-left pb-1">Description</th>
                         <th className="text-right pb-1">Qty</th>
@@ -563,9 +563,9 @@ export default function InsuranceClaimPage() {
             </div>
 
             {/* Supplements */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-gray-900">Supplements</h3>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Supplements</h3>
                 <button onClick={() => setSupOpen(true)} className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                   <Plus className="w-3.5 h-3.5" /> Add Supplement
                 </button>
@@ -585,13 +585,13 @@ export default function InsuranceClaimPage() {
                         </div>
                         <span className="text-sm font-bold">{fmt$(sup.totalAmount)}</span>
                       </div>
-                      <p className="text-sm text-gray-600 mb-2">{sup.reason}</p>
+                      <p className="text-sm text-gray-600 mb-2 dark:text-slate-400">{sup.reason}</p>
                       {Array.isArray(sup.lineItems) && sup.lineItems.length > 0 && (
                         <table className="w-full text-xs mb-2">
                           <tbody>
                             {sup.lineItems.map((li: any, i: number) => (
                               <tr key={i} className="border-b last:border-0">
-                                <td className="py-0.5 font-mono text-gray-500">{li.code || '—'}</td>
+                                <td className="py-0.5 font-mono text-gray-500 dark:text-slate-400">{li.code || '—'}</td>
                                 <td className="py-0.5">{li.description}</td>
                                 <td className="py-0.5 text-right">{fmt$(li.total)}</td>
                               </tr>
@@ -622,14 +622,14 @@ export default function InsuranceClaimPage() {
       {/* ── Activity Modal ── */}
       {activityOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setActivityOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Log Activity</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Log Activity</h2>
               <button onClick={() => setActivityOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Type</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Type</label>
                 <select value={activityType} onChange={(e) => setActivityType(e.target.value)} className="w-full text-sm border rounded-lg px-3 py-2">
                   <option value="note">Note</option>
                   <option value="call">Phone Call</option>
@@ -639,24 +639,24 @@ export default function InsuranceClaimPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Details</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Details</label>
                 <textarea value={activityBody} onChange={(e) => setActivityBody(e.target.value)} rows={3} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="What happened?" />
               </div>
               {activityType === 'call' && (
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Duration (minutes)</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Duration (minutes)</label>
                   <input type="number" value={activityMeta.callDuration || ''} onChange={(e) => setActivityMeta({ ...activityMeta, callDuration: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               )}
               {activityType === 'email' && (
                 <div>
-                  <label className="text-xs text-gray-500 block mb-1">Subject</label>
+                  <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Subject</label>
                   <input value={activityMeta.subject || ''} onChange={(e) => setActivityMeta({ ...activityMeta, subject: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               )}
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setActivityOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setActivityOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={submitActivity} disabled={submittingActivity} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submittingActivity ? 'Saving...' : 'Log'}
               </button>
@@ -668,23 +668,23 @@ export default function InsuranceClaimPage() {
       {/* ── Supplement Modal ── */}
       {supOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSupOpen(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[85vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Add Supplement</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add Supplement</h2>
               <button onClick={() => setSupOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Reason for Supplement *</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Reason for Supplement *</label>
                 <textarea value={supReason} onChange={(e) => setSupReason(e.target.value)} rows={2} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Why is this supplement needed?" />
               </div>
 
               {/* Line items */}
               <div>
-                <label className="text-xs font-medium text-gray-700 block mb-2">Line Items</label>
+                <label className="text-xs font-medium text-gray-700 block mb-2 dark:text-slate-200">Line Items</label>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-gray-500 border-b">
+                    <tr className="text-left text-xs text-gray-500 border-b dark:text-slate-400">
                       <th className="pb-1 w-32">Code</th>
                       <th className="pb-1">Description</th>
                       <th className="pb-1 w-16 text-right">Qty</th>
@@ -736,12 +736,12 @@ export default function InsuranceClaimPage() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Notes (optional)</label>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Notes (optional)</label>
                 <textarea value={supNotes} onChange={(e) => setSupNotes(e.target.value)} rows={2} className="w-full text-sm border rounded-lg px-3 py-2" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
-              <button onClick={() => setSupOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={() => setSupOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={createSupplement} disabled={submittingSup} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submittingSup ? 'Creating...' : 'Save as Draft'}
               </button>

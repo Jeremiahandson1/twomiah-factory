@@ -146,8 +146,8 @@ export default function ImportPage() {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Import Data</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Import Data</h1>
+        <p className="text-gray-500 mt-1 dark:text-slate-400">
           Upload CSV files from Jobber or other platforms. Contacts and jobs will be automatically cross-referenced
           by name, email, and address.
         </p>
@@ -179,7 +179,7 @@ export default function ImportPage() {
         <div
           onDrop={handleDrop}
           onDragOver={e => e.preventDefault()}
-          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition cursor-pointer mb-6"
+          className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition cursor-pointer mb-6 dark:border-slate-700"
           onClick={() => {
             const input = document.createElement('input')
             input.type = 'file'
@@ -193,7 +193,7 @@ export default function ImportPage() {
           }}
         >
           <Upload className="mx-auto text-gray-400 mb-3" size={40} />
-          <p className="text-gray-600 font-medium">Drop CSV files here or click to browse</p>
+          <p className="text-gray-600 font-medium dark:text-slate-400">Drop CSV files here or click to browse</p>
           <p className="text-gray-400 text-sm mt-1">Upload clients and jobs CSVs — we'll detect the type automatically</p>
         </div>
       )}
@@ -222,8 +222,8 @@ export default function ImportPage() {
                   <AlertCircle size={18} className="text-yellow-600" />
                 )}
                 <div>
-                  <p className="font-medium text-gray-900">{entry.name}</p>
-                  <p className="text-sm text-gray-500">
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{entry.name}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
                     {entry.loading ? 'Analyzing...' :
                      entry.detectedType === 'clients' ? `Clients — ${entry.preview?.rowCount || 0} rows` :
                      entry.detectedType === 'jobs' ? `Jobs — ${entry.preview?.rowCount || 0} rows` :
@@ -248,15 +248,15 @@ export default function ImportPage() {
           )}
 
           {/* Options */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+          <div className="bg-gray-50 rounded-lg p-4 space-y-3 dark:bg-slate-900">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 checked={createMissing}
                 onChange={e => setCreateMissing(e.target.checked)}
-                className="rounded border-gray-300 text-blue-600"
+                className="rounded border-gray-300 text-blue-600 dark:border-slate-700"
               />
-              <span className="text-gray-700">
+              <span className="text-gray-700 dark:text-slate-200">
                 Auto-create contacts for jobs that don't match any existing client
               </span>
             </label>
@@ -264,7 +264,7 @@ export default function ImportPage() {
 
           {/* Import order explanation */}
           {clientFiles.length > 0 && jobFiles.length > 0 && (
-            <div className="flex items-center gap-2 text-sm text-gray-500 px-1">
+            <div className="flex items-center gap-2 text-sm text-gray-500 px-1 dark:text-slate-400">
               <CheckCircle2 size={14} className="text-green-500" />
               Import order: {clientFiles.length} client file(s) first, then {jobFiles.length} job file(s) with cross-referencing
             </div>
@@ -275,7 +275,7 @@ export default function ImportPage() {
             <button
               onClick={() => runImport(true)}
               disabled={importing || files.every(f => f.loading)}
-              className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition disabled:opacity-50"
+              className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
             >
               {importing ? <><Loader2 size={16} className="inline animate-spin mr-2" />Previewing...</> : 'Preview (Dry Run)'}
             </button>
@@ -332,7 +332,7 @@ export default function ImportPage() {
 
           {/* Contacts updated / skipped */}
           {(results.summary.contacts.updated > 0 || results.summary.contacts.skipped > 0) && (
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 dark:text-slate-400">
               Contacts: {results.summary.contacts.updated} updated, {results.summary.contacts.skipped} skipped (duplicates/archived)
             </div>
           )}
@@ -353,9 +353,9 @@ export default function ImportPage() {
           )}
 
           {/* Detailed records */}
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-900">Import Details</h3>
+          <div className="border border-gray-200 rounded-xl overflow-hidden dark:border-slate-700">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 dark:bg-slate-900 dark:border-slate-700">
+              <h3 className="font-semibold text-gray-900 dark:text-slate-100">Import Details</h3>
             </div>
             <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
               {[...results.summary.contacts.records, ...results.summary.jobs.records].map((record, i) => (
@@ -375,7 +375,7 @@ export default function ImportPage() {
                   }`}>
                     {record.type}
                   </span>
-                  <span className="text-gray-900 font-medium truncate">{record.name}</span>
+                  <span className="text-gray-900 font-medium truncate dark:text-slate-100">{record.name}</span>
                   <span className="text-gray-400 text-xs">{record.action}</span>
                   {record.linkedTo && (
                     <span className="text-gray-400 text-xs flex items-center gap-1 ml-auto flex-shrink-0">
@@ -400,7 +400,7 @@ export default function ImportPage() {
                 </button>
                 <button
                   onClick={() => { setResults(null); setFiles([]) }}
-                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                  className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition dark:bg-slate-800 dark:text-slate-200"
                 >
                   Start Over
                 </button>
@@ -408,7 +408,7 @@ export default function ImportPage() {
             ) : (
               <button
                 onClick={() => { setResults(null); setFiles([]) }}
-                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition dark:bg-slate-800 dark:text-slate-200"
               >
                 Import More
               </button>

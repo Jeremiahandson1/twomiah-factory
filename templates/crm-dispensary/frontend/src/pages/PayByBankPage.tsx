@@ -152,38 +152,38 @@ export default function PayByBankPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pay by Bank</h1>
-          <p className="text-gray-600">Plaid-powered ACH payments for cannabis purchases</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Pay by Bank</h1>
+          <p className="text-gray-600 dark:text-slate-400">Plaid-powered ACH payments for cannabis purchases</p>
         </div>
       </div>
 
       {/* Stats Bar */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3">
+        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
             <ArrowRightLeft className="w-5 h-5 text-blue-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">{stats.totalTransactions || 0}</p>
-            <p className="text-sm text-gray-500">Total Transactions</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.totalTransactions || 0}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Transactions</p>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3">
+        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
             <DollarSign className="w-5 h-5 text-green-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">${Number(stats.totalVolume || 0).toLocaleString()}</p>
-            <p className="text-sm text-gray-500">Total Volume</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${Number(stats.totalVolume || 0).toLocaleString()}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Volume</p>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3">
+        <div className="bg-white rounded-lg shadow-sm p-4 flex items-center gap-3 dark:bg-slate-900">
           <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-purple-600" />
           </div>
           <div>
-            <p className="text-2xl font-bold text-gray-900">${Number(stats.avgSize || 0).toFixed(2)}</p>
-            <p className="text-sm text-gray-500">Avg Transaction</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${Number(stats.avgSize || 0).toFixed(2)}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Avg Transaction</p>
           </div>
         </div>
       </div>
@@ -208,15 +208,15 @@ export default function PayByBankPage() {
 
       {/* Setup Tab */}
       {tab === 'setup' && (
-        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6">
+        <div className="bg-white rounded-lg shadow-sm p-6 max-w-2xl space-y-6 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-gray-900">Plaid Configuration</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Plaid Configuration</h3>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={config.enabled}
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
-                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
               />
               <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
@@ -225,33 +225,33 @@ export default function PayByBankPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client ID</label>
             <input
               type="text"
               value={config.clientId}
               onChange={(e) => setConfig({ ...config, clientId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Enter Plaid client ID"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Secret</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Secret</label>
             <input
               type="password"
               value={config.secret}
               onChange={(e) => setConfig({ ...config, secret: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Enter Plaid secret"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Environment</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Environment</label>
             <select
               value={config.environment}
               onChange={(e) => setConfig({ ...config, environment: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="sandbox">Sandbox</option>
               <option value="development">Development</option>
@@ -280,7 +280,7 @@ export default function PayByBankPage() {
                 value={customerSearch}
                 onChange={(e) => setCustomerSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && searchCustomers()}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
             <Button onClick={searchCustomers} variant="secondary">
@@ -294,7 +294,7 @@ export default function PayByBankPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : customers.length > 0 && !selectedCustomer && (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <div className="divide-y">
                 {customers.map(c => (
                   <button
@@ -303,8 +303,8 @@ export default function PayByBankPage() {
                     className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between"
                   >
                     <div>
-                      <p className="font-medium text-gray-900">{c.name || `${c.firstName} ${c.lastName}`}</p>
-                      <p className="text-sm text-gray-500">{c.phone || c.email || ''}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{c.name || `${c.firstName} ${c.lastName}`}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{c.phone || c.email || ''}</p>
                     </div>
                     <span className="text-sm text-green-600">Select</span>
                   </button>
@@ -316,15 +316,15 @@ export default function PayByBankPage() {
           {/* Selected Customer */}
           {selectedCustomer && (
             <div>
-              <div className="bg-white rounded-lg shadow-sm p-5 mb-4">
+              <div className="bg-white rounded-lg shadow-sm p-5 mb-4 dark:bg-slate-900">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                       <Users className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{selectedCustomer.name || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</p>
-                      <p className="text-sm text-gray-500">{selectedCustomer.phone || selectedCustomer.email || ''}</p>
+                      <p className="font-semibold text-gray-900 dark:text-slate-100">{selectedCustomer.name || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{selectedCustomer.phone || selectedCustomer.email || ''}</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -334,7 +334,7 @@ export default function PayByBankPage() {
                     </Button>
                     <button
                       onClick={() => { setSelectedCustomer(null); setAccounts([]); }}
-                      className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                      className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400"
                     >
                       Change
                     </button>
@@ -343,13 +343,13 @@ export default function PayByBankPage() {
               </div>
 
               {/* Linked Accounts */}
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Linked Bank Accounts</h3>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 dark:text-slate-400">Linked Bank Accounts</h3>
               {loadingAccounts ? (
                 <div className="flex items-center justify-center h-16">
                   <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : accounts.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-lg shadow-sm text-gray-500">
+                <div className="text-center py-12 bg-white rounded-lg shadow-sm text-gray-500 dark:bg-slate-900 dark:text-slate-400">
                   <Landmark className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No linked bank accounts</p>
                   <p className="text-sm text-gray-400 mt-1">Use "Link New Account" to connect via Plaid</p>
@@ -357,15 +357,15 @@ export default function PayByBankPage() {
               ) : (
                 <div className="grid md:grid-cols-2 gap-4">
                   {accounts.map(account => (
-                    <div key={account.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                    <div key={account.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                       <div className="flex items-center gap-3 mb-3">
                         <Landmark className="w-5 h-5 text-blue-600" />
                         <div>
-                          <p className="font-semibold text-gray-900">{account.bankName || 'Bank Account'}</p>
-                          <p className="text-sm text-gray-500">****{account.mask || account.last4 || '----'}</p>
+                          <p className="font-semibold text-gray-900 dark:text-slate-100">{account.bankName || 'Bank Account'}</p>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">****{account.mask || account.last4 || '----'}</p>
                         </div>
                       </div>
-                      <div className="space-y-1 text-sm text-gray-600">
+                      <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
                         <p>Type: {account.subtype || account.type || 'Checking'}</p>
                         <p>Status: <span className={`px-2 py-0.5 text-xs rounded-full ${account.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                           {account.active ? 'Active' : 'Inactive'}
@@ -381,7 +381,7 @@ export default function PayByBankPage() {
 
           {/* Empty state if no search */}
           {!selectedCustomer && customers.length === 0 && !loadingCustomers && (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Search className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>Search for a customer to view linked bank accounts</p>
             </div>
@@ -415,17 +415,17 @@ export default function PayByBankPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Customer</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Bank</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Reference</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -437,18 +437,18 @@ export default function PayByBankPage() {
                     </tr>
                   ) : transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No transactions found</td>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No transactions found</td>
                     </tr>
                   ) : transactions.map(txn => (
                     <tr key={txn.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {txn.createdAt ? formatDate(txn.createdAt) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{txn.customerName || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{txn.customerName || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                         {txn.bankName ? `${txn.bankName} ****${txn.mask || ''}` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
+                      <td className="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-slate-100">
                         ${Number(txn.amount || 0).toFixed(2)}
                       </td>
                       <td className="px-4 py-3">
@@ -456,7 +456,7 @@ export default function PayByBankPage() {
                           {txn.status || 'unknown'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-500">{txn.reference || txn.id?.slice(0, 8) || '—'}</td>
+                      <td className="px-4 py-3 text-sm font-mono text-gray-500 dark:text-slate-400">{txn.reference || txn.id?.slice(0, 8) || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -464,7 +464,7 @@ export default function PayByBankPage() {
             </div>
             {txnTotal > 25 && (
               <div className="px-4 py-3 border-t flex items-center justify-between">
-                <span className="text-sm text-gray-500">
+                <span className="text-sm text-gray-500 dark:text-slate-400">
                   Page {txnPage} of {Math.ceil(txnTotal / 25)}
                 </span>
                 <div className="flex gap-2">

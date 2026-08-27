@@ -120,7 +120,7 @@ export default function InvoicesPage() {
           </div>
           <div><label className="block text-sm font-medium mb-2">Line Items</label>
             <div className="border rounded-lg overflow-hidden">
-              <table className="w-full"><thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 w-24">Qty</th><th className="px-4 py-2 w-32">Unit Price</th><th className="px-4 py-2 text-right w-32">Total</th><th className="w-10"></th></tr></thead>
+              <table className="w-full"><thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Description</th><th className="px-4 py-2 w-24">Qty</th><th className="px-4 py-2 w-32">Unit Price</th><th className="px-4 py-2 text-right w-32">Total</th><th className="w-10"></th></tr></thead>
                 <tbody className="divide-y">{form.lineItems.map((li, idx) => (
                   <tr key={idx}><td className="px-4 py-2"><input value={li.description} onChange={(e) => updateLineItem(idx, 'description', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
                     <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e) => updateLineItem(idx, 'quantity', Number(e.target.value))} className="w-full px-2 py-1 border rounded" /></td>
@@ -136,12 +136,12 @@ export default function InvoicesPage() {
             <div><label className="block text-sm font-medium mb-1">Tax Rate (%)</label><input type="number" value={form.taxRate} onChange={(e) => setForm({...form, taxRate: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Discount ($)</label><input type="number" value={form.discount} onChange={(e) => setForm({...form, discount: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg space-y-1 text-sm">
+          <div className="bg-gray-50 p-4 rounded-lg space-y-1 text-sm dark:bg-slate-900">
             {(() => { const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (
               <>
-                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${money(subtotal)}</span></div>
-                {form.discount > 0 && <div className="flex justify-between"><span className="text-gray-500">Discount</span><span className="text-green-600">-${money(form.discount)}</span></div>}
-                {taxAmount > 0 && <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>${money(taxAmount)}</span></div>}
+                <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Subtotal</span><span>${money(subtotal)}</span></div>
+                {form.discount > 0 && <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Discount</span><span className="text-green-600">-${money(form.discount)}</span></div>}
+                {taxAmount > 0 && <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Tax</span><span>${money(taxAmount)}</span></div>}
                 <div className="flex justify-between font-bold text-base border-t pt-1"><span>Total</span><span>${money(total)}</span></div>
               </>
             ); })()}

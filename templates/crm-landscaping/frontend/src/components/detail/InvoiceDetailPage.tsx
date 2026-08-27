@@ -103,8 +103,8 @@ export default function InvoiceDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <p className="text-sm font-mono text-gray-500">{invoice.number}</p>
-            <h1 className="text-2xl font-bold text-gray-900">Invoice</h1>
+            <p className="text-sm font-mono text-gray-500 dark:text-slate-400">{invoice.number}</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoice</h1>
             <StatusBadge status={invoice.status} />
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function InvoiceDetailPage() {
               <DollarSign className="w-4 h-4" /> Record Payment
             </button>
           )}
-          <Link to={`/crm/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
@@ -130,15 +130,15 @@ export default function InvoiceDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="p-4 border-b"><h2 className="font-semibold">Line Items</h2></div>
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Description</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Qty</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Price</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400">Description</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Qty</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Price</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-slate-400">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -151,7 +151,7 @@ export default function InvoiceDetailPage() {
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-50">
+              <tfoot className="bg-gray-50 dark:bg-slate-900">
                 <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(invoice.subtotal).toFixed(2)}</td></tr>
                 {Number(invoice.taxAmount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
                 <tr className="font-bold"><td colSpan="3" className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
@@ -162,10 +162,10 @@ export default function InvoiceDetailPage() {
           </div>
 
           {invoice.payments?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <div className="p-4 border-b"><h2 className="font-semibold">Payments</h2></div>
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs">Date</th>
                     <th className="px-4 py-2 text-left text-xs">Method</th>
@@ -189,27 +189,27 @@ export default function InvoiceDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3 text-sm">
               {invoice.contact && (
                 <div>
-                  <p className="text-gray-500">Client</p>
+                  <p className="text-gray-500 dark:text-slate-400">Client</p>
                   <Link to={`/crm/contacts/${invoice.contact.id}`} className="text-orange-500 hover:underline">{invoice.contact.name}</Link>
                 </div>
               )}
               {invoice.dueDate && (
                 <div>
-                  <p className="text-gray-500">Due Date</p>
+                  <p className="text-gray-500 dark:text-slate-400">Due Date</p>
                   <p className={new Date(invoice.dueDate) < new Date() && computedBalance > 0 ? 'text-red-600 font-medium' : ''}>{formatDate(invoice.dueDate)}</p>
                 </div>
               )}
               <div>
-                <p className="text-gray-500">Created</p>
+                <p className="text-gray-500 dark:text-slate-400">Created</p>
                 <p>{formatDate(invoice.createdAt)}</p>
               </div>
               <div className="pt-3 mt-3 border-t">
-                <p className="text-gray-500 mb-1">QuickBooks</p>
+                <p className="text-gray-500 mb-1 dark:text-slate-400">QuickBooks</p>
                 {invoice.syncedAt ? (
                   <div className="flex items-center gap-1.5">
                     <BookOpen className="w-3.5 h-3.5 text-green-500" />
@@ -230,7 +230,7 @@ export default function InvoiceDetailPage() {
 
           <div className={`rounded-lg p-6 text-center ${computedBalance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
             <p className={`text-3xl font-bold ${balanceColor}`}>${computedBalance.toLocaleString()}</p>
-            <p className="text-gray-600">{computedBalance > 0 ? 'Balance Due' : 'Paid in Full'}</p>
+            <p className="text-gray-600 dark:text-slate-400">{computedBalance > 0 ? 'Balance Due' : 'Paid in Full'}</p>
           </div>
         </div>
       </div>

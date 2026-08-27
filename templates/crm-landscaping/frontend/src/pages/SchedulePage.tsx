@@ -71,7 +71,7 @@ export default function SchedulePage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">Schedule</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Drag a job to another day to reschedule it.</p>
+          <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">Drag a job to another day to reschedule it.</p>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => { const d = new Date(currentDate); d.setDate(d.getDate() - 7); setCurrentDate(d); }} className="p-2 hover:bg-gray-100 rounded-lg"><ChevronLeft className="w-5 h-5" /></button>
@@ -107,7 +107,7 @@ export default function SchedulePage() {
                       className={`p-2 rounded text-xs cursor-move hover:shadow-sm ${job.status === 'completed' ? 'bg-green-50 border-l-2 border-green-500' : job.status === 'in_progress' ? 'bg-blue-50 border-l-2 border-blue-500' : 'bg-gray-50 border-l-2 border-gray-300'}`}
                     >
                       <p className="font-medium truncate">{job.title}</p>
-                      {job.scheduledTime && <p className="text-gray-500">{job.scheduledTime}</p>}
+                      {job.scheduledTime && <p className="text-gray-500 dark:text-slate-400">{job.scheduledTime}</p>}
                     </div>
                   ))}
                   {getJobsForDay(day).length === 0 && (

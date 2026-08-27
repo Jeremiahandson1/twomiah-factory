@@ -99,12 +99,12 @@ export default function KioskPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Kiosk Management</h1>
-          <p className="text-gray-600">Setup and monitor in-store ordering kiosks</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Kiosk Management</h1>
+          <p className="text-gray-600 dark:text-slate-400">Setup and monitor in-store ordering kiosks</p>
         </div>
         <button
           onClick={() => { if (tab === 'sessions') loadSessions(); if (tab === 'stats') loadStats(); }}
-          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+          className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400"
         >
           <RefreshCw className="w-5 h-5" />
         </button>
@@ -131,8 +131,8 @@ export default function KioskPage() {
       {/* Setup */}
       {tab === 'setup' && (
         <div className="max-w-2xl">
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 mb-6 dark:bg-slate-900">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
               <Monitor className="w-5 h-5 text-green-600" />
               Kiosk Setup
             </h2>
@@ -150,11 +150,11 @@ export default function KioskPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Kiosk Location</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Kiosk Location</label>
                 <select
                   value={selectedLocation}
                   onChange={e => setSelectedLocation(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900"
                 >
                   <option value="">Select a location...</option>
                   {locations.map(loc => (
@@ -171,9 +171,9 @@ export default function KioskPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
-            <h3 className="font-medium text-gray-900 mb-3">Recommended Hardware</h3>
-            <ul className="space-y-2 text-sm text-gray-600">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 dark:bg-slate-900">
+            <h3 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Recommended Hardware</h3>
+            <ul className="space-y-2 text-sm text-gray-600 dark:text-slate-400">
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                 Touch-screen display (15" or larger recommended)
@@ -220,37 +220,37 @@ export default function KioskPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden dark:bg-slate-900">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left px-4 py-3 font-medium text-gray-700">Session ID</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-700">Location</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-700">Status</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-700">Started</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-700">Customer</th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-700">Order #</th>
+                    <tr className="border-b bg-gray-50 dark:bg-slate-900">
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-slate-200">Session ID</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-slate-200">Location</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-slate-200">Status</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-slate-200">Started</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-slate-200">Customer</th>
+                      <th className="text-left px-4 py-3 font-medium text-gray-700 dark:text-slate-200">Order #</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {sessions.map(session => (
                       <tr key={session.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-mono text-gray-900">{session.id?.slice(0, 8)}</td>
-                        <td className="px-4 py-3 text-gray-600">{session.locationName || '--'}</td>
+                        <td className="px-4 py-3 font-mono text-gray-900 dark:text-slate-100">{session.id?.slice(0, 8)}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{session.locationName || '--'}</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${sessionStatusColors[session.status] || 'bg-gray-100 text-gray-600'}`}>
                             {session.status || 'unknown'}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{session.startedAt ? new Date(session.startedAt).toLocaleString() : '--'}</td>
-                        <td className="px-4 py-3 text-gray-600">{session.customerName || '--'}</td>
-                        <td className="px-4 py-3 text-gray-600">{session.orderNumber || '--'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{session.startedAt ? new Date(session.startedAt).toLocaleString() : '--'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{session.customerName || '--'}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{session.orderNumber || '--'}</td>
                       </tr>
                     ))}
                     {sessions.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
+                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
                           <Monitor className="w-10 h-10 mx-auto mb-2 text-gray-300" />
                           No kiosk sessions found
                         </td>
@@ -263,7 +263,7 @@ export default function KioskPage() {
               {/* Pagination */}
               {pagination && pagination.pages > 1 && (
                 <div className="px-4 py-3 border-t flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
                     Page {pagination.page} of {pagination.pages}
                   </p>
                   <div className="flex gap-2">
@@ -298,56 +298,56 @@ export default function KioskPage() {
             </div>
           ) : stats ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
                     <Users className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Sessions Today</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalSessionsToday ?? 0}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Sessions Today</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.totalSessionsToday ?? 0}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
                     <CheckCircle className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Completion Rate</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.completionRate ?? 0}%</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Completion Rate</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.completionRate ?? 0}%</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
                     <Clock className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Avg Session Time</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.avgSessionTime ?? '--'}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Avg Session Time</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.avgSessionTime ?? '--'}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+              <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
                     <XCircle className="w-5 h-5 text-red-600" />
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Abandoned Rate</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.abandonedRate ?? 0}%</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Abandoned Rate</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.abandonedRate ?? 0}%</p>
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No stats available yet</p>
             </div>

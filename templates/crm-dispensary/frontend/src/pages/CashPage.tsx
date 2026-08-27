@@ -105,12 +105,12 @@ export default function CashPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Cash Management</h1>
-        <p className="text-gray-600">Manage cash drawer sessions</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Cash Management</h1>
+        <p className="text-gray-600 dark:text-slate-400">Manage cash drawer sessions</p>
       </div>
 
       {/* Current Session */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
+      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
         {currentSession && currentSession.status === 'open' ? (
           <div>
             <div className="flex items-center gap-3 mb-6">
@@ -118,8 +118,8 @@ export default function CashPage() {
                 <Unlock className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900">Drawer Open</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Drawer Open</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   Opened by {currentSession.openedByName || user?.firstName} at{' '}
                   {currentSession.openedAt ? new Date(currentSession.openedAt).toLocaleTimeString() : '—'}
                 </p>
@@ -127,16 +127,16 @@ export default function CashPage() {
             </div>
 
             <div className="grid md:grid-cols-4 gap-4 mb-6">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500">Opening Amount</p>
-                <p className="text-xl font-bold text-gray-900">${Number(currentSession.openingAmount || 0).toFixed(2)}</p>
+              <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Opening Amount</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-slate-100">${Number(currentSession.openingAmount || 0).toFixed(2)}</p>
               </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500">Cash Sales</p>
+              <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Cash Sales</p>
                 <p className="text-xl font-bold text-green-600">${Number(currentSession.cashSales || 0).toFixed(2)}</p>
               </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500">Cash Refunds</p>
+              <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
+                <p className="text-sm text-gray-500 dark:text-slate-400">Cash Refunds</p>
                 <p className="text-xl font-bold text-red-600">${Number(currentSession.cashRefunds || 0).toFixed(2)}</p>
               </div>
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
@@ -147,26 +147,26 @@ export default function CashPage() {
 
             {/* Close Drawer */}
             <div className="border-t pt-6">
-              <h3 className="font-medium text-gray-900 mb-3">Close Drawer</h3>
+              <h3 className="font-medium text-gray-900 mb-3 dark:text-slate-100">Close Drawer</h3>
               <div className="grid md:grid-cols-2 gap-4 max-w-xl">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Counted Amount ($)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Counted Amount ($)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={closingAmount}
                     onChange={(e) => setClosingAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="0.00"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes (optional)</label>
                   <input
                     type="text"
                     value={closingNotes}
                     onChange={(e) => setClosingNotes(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="End of shift notes"
                   />
                 </div>
@@ -209,22 +209,22 @@ export default function CashPage() {
         ) : (
           <div>
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                <Lock className="w-5 h-5 text-gray-500" />
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center dark:bg-slate-800">
+                <Lock className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900">Drawer Closed</h2>
-                <p className="text-sm text-gray-500">Open the cash drawer to start a new session</p>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Drawer Closed</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Open the cash drawer to start a new session</p>
               </div>
             </div>
             <div className="max-w-xs">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Opening Amount ($)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Opening Amount ($)</label>
               <input
                 type="number"
                 step="0.01"
                 value={openingAmount}
                 onChange={(e) => setOpeningAmount(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 mb-3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 mb-3 dark:border-slate-700 dark:text-slate-100"
                 placeholder="200.00"
               />
               <Button onClick={openSession} disabled={opening || !openingAmount}>
@@ -237,22 +237,22 @@ export default function CashPage() {
       </div>
 
       {/* Session History */}
-      <div className="bg-white rounded-lg shadow-sm">
+      <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
         <div className="p-4 border-b">
-          <h2 className="font-semibold text-gray-900">Session History</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-slate-100">Session History</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 dark:bg-slate-900">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Opened By</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Opening</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cash Sales</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Expected</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Counted</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Variance</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Opened By</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Opening</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Cash Sales</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Expected</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Counted</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Variance</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -261,14 +261,14 @@ export default function CashPage() {
                 const variance = session.closingAmount != null ? Number(session.closingAmount) - expected : null;
                 return (
                   <tr key={session.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                       {session.openedAt ? formatDate(session.openedAt) : '—'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">{session.openedByName || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-700">${Number(session.openingAmount || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{session.openedByName || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(session.openingAmount || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-green-600">${Number(session.cashSales || 0).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-700">${expected.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium">
+                    <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${expected.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium dark:text-slate-100">
                       {session.closingAmount != null ? `$${Number(session.closingAmount).toFixed(2)}` : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-right">
@@ -293,7 +293,7 @@ export default function CashPage() {
               })}
               {sessions.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">No session history</td>
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No session history</td>
                 </tr>
               )}
             </tbody>

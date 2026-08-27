@@ -227,9 +227,9 @@ export default function POSPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] -m-6 gap-0">
       {/* LEFT: Product Grid */}
-      <div className="flex-1 flex flex-col bg-gray-50 border-r overflow-hidden">
+      <div className="flex-1 flex flex-col bg-gray-50 border-r overflow-hidden dark:bg-slate-900">
         {/* Category Tabs */}
-        <div className="flex gap-1 p-3 overflow-x-auto bg-white border-b">
+        <div className="flex gap-1 p-3 overflow-x-auto bg-white border-b dark:bg-slate-900">
           {categories.map(cat => (
             <button
               key={cat.value}
@@ -246,7 +246,7 @@ export default function POSPage() {
         </div>
 
         {/* Search */}
-        <div className="p-3 bg-white border-b">
+        <div className="p-3 bg-white border-b dark:bg-slate-900">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -255,7 +255,7 @@ export default function POSPage() {
               placeholder="Search products..."
               value={productSearch}
               onChange={(e) => setProductSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 text-sm dark:border-slate-700 dark:text-slate-100"
             />
           </div>
         </div>
@@ -279,7 +279,7 @@ export default function POSPage() {
                       : 'bg-white hover:shadow-md hover:border-green-300 border border-gray-200'
                   }`}
                 >
-                  <p className="font-medium text-gray-900 text-sm truncate">{product.name}</p>
+                  <p className="font-medium text-gray-900 text-sm truncate dark:text-slate-100">{product.name}</p>
                   <div className="flex items-center gap-1 mt-1">
                     {product.strainType && product.strainType !== 'n/a' && (
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
@@ -292,7 +292,7 @@ export default function POSPage() {
                       </span>
                     )}
                     {product.thcPercent != null && (
-                      <span className="text-xs text-gray-500">{product.thcPercent}%</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">{product.thcPercent}%</span>
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-2">
@@ -304,7 +304,7 @@ export default function POSPage() {
                 </button>
               ))}
               {products.length === 0 && (
-                <p className="col-span-full text-center text-gray-500 py-8">No products found</p>
+                <p className="col-span-full text-center text-gray-500 py-8 dark:text-slate-400">No products found</p>
               )}
             </div>
           )}
@@ -312,7 +312,7 @@ export default function POSPage() {
       </div>
 
       {/* RIGHT: Cart */}
-      <div className="w-96 flex flex-col bg-white">
+      <div className="w-96 flex flex-col bg-white dark:bg-slate-900">
         {/* Customer */}
         <div className="p-4 border-b">
           {customer ? (
@@ -320,7 +320,7 @@ export default function POSPage() {
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-green-600" />
                 <div>
-                  <p className="font-medium text-gray-900 text-sm">{customer.name}</p>
+                  <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{customer.name}</p>
                   {customer.loyaltyTier && (
                     <span className="text-xs text-green-600">{customer.loyaltyTier} member</span>
                   )}
@@ -334,19 +334,19 @@ export default function POSPage() {
             <div className="relative">
               <button
                 onClick={() => setShowCustomerSearch(!showCustomerSearch)}
-                className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-green-400 hover:text-green-600 flex items-center gap-2"
+                className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-green-400 hover:text-green-600 flex items-center gap-2 dark:border-slate-700 dark:text-slate-400"
               >
                 <User className="w-4 h-4" /> Add Customer (optional)
               </button>
               {showCustomerSearch && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 p-2">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-lg shadow-lg z-10 p-2 dark:bg-slate-900">
                   <input
                     autoFocus
                     type="text"
                     placeholder="Search by name or phone..."
                     value={customerSearch}
                     onChange={(e) => searchCustomers(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   />
                   {customerResults.length > 0 && (
                     <div className="mt-1 divide-y max-h-40 overflow-y-auto">
@@ -356,8 +356,8 @@ export default function POSPage() {
                           onClick={() => selectCustomer(c)}
                           className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
                         >
-                          <p className="font-medium text-gray-900">{c.name}</p>
-                          <p className="text-xs text-gray-500">{c.phone || c.email || ''}</p>
+                          <p className="font-medium text-gray-900 dark:text-slate-100">{c.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">{c.phone || c.email || ''}</p>
                         </button>
                       ))}
                     </div>
@@ -371,7 +371,7 @@ export default function POSPage() {
         {/* Weight Limit Bar */}
         <div className="px-4 py-2 border-b">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-gray-500">Weight Limit</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400">Weight Limit</span>
             <span className={`text-xs font-medium ${overWeight ? 'text-red-600' : 'text-gray-700'}`}>
               {totalWeightOz.toFixed(1)} / {WEIGHT_LIMIT_OZ} oz
             </span>
@@ -392,27 +392,27 @@ export default function POSPage() {
             <p className="text-center text-gray-400 py-8 text-sm">Cart is empty</p>
           ) : (
             cart.map(item => (
-              <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
+              <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50 dark:bg-slate-900">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 text-sm truncate">{item.name}</p>
-                  <p className="text-xs text-gray-500">${item.price.toFixed(2)} ea</p>
+                  <p className="font-medium text-gray-900 text-sm truncate dark:text-slate-100">{item.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">${item.price.toFixed(2)} ea</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => updateQuantity(item.id, -1)}
-                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100"
+                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:bg-slate-900"
                   >
                     <Minus className="w-3 h-3" />
                   </button>
                   <span className="w-8 text-center font-medium text-sm">{item.quantity}</span>
                   <button
                     onClick={() => updateQuantity(item.id, 1)}
-                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100"
+                    className="w-7 h-7 rounded-full bg-white border flex items-center justify-center hover:bg-gray-100 dark:bg-slate-900"
                   >
                     <Plus className="w-3 h-3" />
                   </button>
                 </div>
-                <span className="font-medium text-gray-900 text-sm w-16 text-right">
+                <span className="font-medium text-gray-900 text-sm w-16 text-right dark:text-slate-100">
                   ${(item.price * item.quantity).toFixed(2)}
                 </span>
                 <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500">
@@ -426,11 +426,11 @@ export default function POSPage() {
         {/* Totals */}
         <div className="border-t p-4 space-y-3">
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between text-gray-600">
+            <div className="flex justify-between text-gray-600 dark:text-slate-400">
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-600">
+            <div className="flex justify-between text-gray-600 dark:text-slate-400">
               <span>Tax ({(TAX_RATE * 100).toFixed(0)}%)</span>
               <span>${taxAmount.toFixed(2)}</span>
             </div>
@@ -440,7 +440,7 @@ export default function POSPage() {
                 <span>-${discountAmount.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between font-bold text-lg text-gray-900 pt-1 border-t">
+            <div className="flex justify-between font-bold text-lg text-gray-900 pt-1 border-t dark:text-slate-100">
               <span>Total</span>
               <span>${total.toFixed(2)}</span>
             </div>
@@ -483,13 +483,13 @@ export default function POSPage() {
           {/* Cash Tendered */}
           {paymentMethod === 'cash' && (
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Cash Tendered</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Cash Tendered</label>
               <input
                 type="number"
                 step="0.01"
                 value={cashTendered}
                 onChange={(e) => setCashTendered(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 placeholder="0.00"
               />
               {parseFloat(cashTendered || '0') >= total && total > 0 && (
@@ -506,10 +506,10 @@ export default function POSPage() {
               type="checkbox"
               checked={idVerified}
               onChange={(e) => setIdVerified(e.target.checked)}
-              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+              className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
             />
-            <ShieldCheck className="w-4 h-4 text-gray-500" />
-            <span className="text-sm text-gray-700">ID Verified (21+)</span>
+            <ShieldCheck className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+            <span className="text-sm text-gray-700 dark:text-slate-200">ID Verified (21+)</span>
           </label>
 
           {/* Complete */}

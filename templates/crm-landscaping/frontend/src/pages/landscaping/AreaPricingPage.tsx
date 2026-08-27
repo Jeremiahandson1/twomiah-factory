@@ -72,15 +72,15 @@ export default function AreaPricingPage() {
     <div className="p-6 max-w-5xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Ruler className="w-6 h-6" /> Area-Based Pricing</h1>
-        <p className="text-gray-500 text-sm">Price services by measured square footage. Price = max(min charge, area ÷ 1,000 × rate).</p>
+        <p className="text-gray-500 text-sm dark:text-slate-400">Price services by measured square footage. Price = max(min charge, area ÷ 1,000 × rate).</p>
       </div>
 
       {/* Rate card */}
-      <section className="bg-white border rounded-lg p-5">
+      <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">
         <h2 className="font-semibold mb-3">Rate Card</h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="text-left text-gray-500 border-b">
+            <thead><tr className="text-left text-gray-500 border-b dark:text-slate-400">
               <th className="py-2">Service</th><th>Drives off</th><th>Rate / 1,000 sq ft</th><th>Min charge</th><th>Unit</th><th></th>
             </tr></thead>
             <tbody>
@@ -111,7 +111,7 @@ export default function AreaPricingPage() {
       </section>
 
       {/* Site measurements */}
-      <section className="bg-white border rounded-lg p-5">
+      <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">
         <h2 className="font-semibold mb-3">Set Property Measurements</h2>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
           <input className="border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={measure.siteId} onChange={e => setMeasure({ ...measure, siteId: e.target.value })} />
@@ -123,7 +123,7 @@ export default function AreaPricingPage() {
       </section>
 
       {/* Quote calculator */}
-      <section className="bg-white border rounded-lg p-5">
+      <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">
         <h2 className="font-semibold mb-3 flex items-center gap-2"><Calculator className="w-5 h-5" /> Price a Service for a Property</h2>
         <div className="flex flex-wrap gap-2 items-end">
           <input className="border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={calc.siteId} onChange={e => setCalc({ ...calc, siteId: e.target.value })} />

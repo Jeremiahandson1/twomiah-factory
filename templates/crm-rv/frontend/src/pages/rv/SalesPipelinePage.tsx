@@ -108,8 +108,8 @@ export default function SalesPipelinePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sales Pipeline</h1>
-          <p className="text-gray-500">Track deals from first contact to delivery</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Sales Pipeline</h1>
+          <p className="text-gray-500 dark:text-slate-400">Track deals from first contact to delivery</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowAdf(true)} className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-gray-50">
@@ -135,8 +135,8 @@ export default function SalesPipelinePage() {
               className={`flex-shrink-0 w-72 bg-gray-50 rounded-xl border-t-4 ${STAGE_ACCENT[stage.value] || 'border-t-gray-300'}`}
             >
               <div className="p-3 flex items-center justify-between">
-                <span className="font-semibold text-gray-900">{stage.label}</span>
-                <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border">{grouped[stage.value].length}</span>
+                <span className="font-semibold text-gray-900 dark:text-slate-100">{stage.label}</span>
+                <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border dark:text-slate-400 dark:bg-slate-900">{grouped[stage.value].length}</span>
               </div>
               <div className="px-2 pb-3 space-y-2 min-h-[80px]">
                 {grouped[stage.value].map((row) => (
@@ -144,12 +144,12 @@ export default function SalesPipelinePage() {
                     key={row.lead.id}
                     draggable
                     onDragStart={() => setDragId(row.lead.id)}
-                    className="bg-white rounded-lg border p-3 cursor-grab active:cursor-grabbing space-y-2 hover:shadow-sm"
+                    className="bg-white rounded-lg border p-3 cursor-grab active:cursor-grabbing space-y-2 hover:shadow-sm dark:bg-slate-900"
                   >
-                    <p className="font-medium text-gray-900 flex items-center gap-1">
+                    <p className="font-medium text-gray-900 flex items-center gap-1 dark:text-slate-100">
                       <User className="w-4 h-4 text-gray-400" /> {row.contactName || 'Unknown'}
                     </p>
-                    <p className="text-sm text-gray-600">{unitDesc(row)}</p>
+                    <p className="text-sm text-gray-600 dark:text-slate-400">{unitDesc(row)}</p>
                     {row.contactPhone && (
                       <p className="text-xs text-gray-400 flex items-center gap-1"><Phone className="w-3 h-3" /> {row.contactPhone}</p>
                     )}
@@ -176,7 +176,7 @@ export default function SalesPipelinePage() {
                     <select
                       value={row.lead.stage}
                       onChange={(e) => moveTo(row.lead.id, e.target.value)}
-                      className="w-full text-xs border rounded px-2 py-1 text-gray-600"
+                      className="w-full text-xs border rounded px-2 py-1 text-gray-600 dark:text-slate-400"
                     >
                       {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
@@ -268,21 +268,21 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">New Sales Lead</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contact <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Contact <span className="text-red-500">*</span></label>
               <select value={form.contactId} onChange={(e) => set('contactId', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 <option value="">Select contact...</option>
                 {contacts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unit of Interest</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit of Interest</label>
               <select value={form.unitId} onChange={(e) => set('unitId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                 <option value="">None</option>
                 {units.map((u) => (
@@ -292,14 +292,14 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Salesperson</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Salesperson</label>
                 <select value={form.assignedTo} onChange={(e) => set('assignedTo', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.id}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stage</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stage</label>
                 <select value={form.stage} onChange={(e) => set('stage', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   {STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
@@ -307,20 +307,20 @@ function LeadFormModal({ onSave, onClose }: LeadFormModalProps) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Source</label>
                 <input type="text" value={form.source} onChange={(e) => set('source', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="web, walk-in, phone..." />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Follow-Up Date</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Follow-Up Date</label>
                 <input type="date" value={form.followUpDate} onChange={(e) => set('followUpDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Trade-In Info</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Trade-In Info</label>
               <input type="text" value={form.tradeInInfo} onChange={(e) => set('tradeInInfo', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-2">
@@ -362,13 +362,13 @@ function AdfImportModal({ onSave, onClose }: AdfImportModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Import ADF Lead</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-gray-500">Paste ADF/XML from your lead provider to auto-create a contact and lead.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Paste ADF/XML from your lead provider to auto-create a contact and lead.</p>
             <textarea
               value={xml}
               onChange={(e) => setXml(e.target.value)}

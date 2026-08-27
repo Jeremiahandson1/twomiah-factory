@@ -127,7 +127,7 @@ function DashboardTab() {
                   <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-slate-800/50">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 dark:text-white">{r.contact?.name || '—'}</p>
-                      <p className="text-xs text-gray-500">{r.contact?.phone || r.contact?.email || ''}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">{r.contact?.phone || r.contact?.email || ''}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-slate-300">{r.job?.title || '—'}</td>
                     <td className="px-4 py-3">
@@ -140,7 +140,7 @@ function DashboardTab() {
                     <td className="px-4 py-3">
                       <StatusBadge status={r.status} />
                     </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs">
+                    <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
                       {r.sentAt ? formatDate(r.sentAt) : r.createdAt ? formatDate(r.createdAt) : '—'}
                     </td>
                     <td className="px-4 py-3">
@@ -228,7 +228,7 @@ function SettingsTab() {
             placeholder="https://g.page/r/your-business/review"
             className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">
             Paste your Google review link, or enter a Place ID below
           </p>
         </div>
@@ -244,7 +244,7 @@ function SettingsTab() {
             placeholder="ChIJ..."
             className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">
             Find your Place ID at{' '}
             <a href="https://developers.google.com/maps/documentation/javascript/examples/places-placeid-finder" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">
               Google's Place ID Finder
@@ -273,7 +273,7 @@ function SettingsTab() {
       {/* Channel & Timing */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <Settings className="w-5 h-5 text-gray-500" />
+          <Settings className="w-5 h-5 text-gray-500 dark:text-slate-400" />
           Channel & Timing
         </h2>
 
@@ -325,7 +325,7 @@ function SettingsTab() {
       {/* SMS Template */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-gray-500" />
+          <MessageSquare className="w-5 h-5 text-gray-500 dark:text-slate-400" />
           SMS Template
         </h2>
         <textarea
@@ -335,7 +335,7 @@ function SettingsTab() {
           placeholder="Hi {firstName}, thanks for choosing {companyName}! We'd love your feedback — could you leave us a quick Google review? {trackingUrl}"
           className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white text-sm"
         />
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-slate-400">
           Variables: <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{firstName}'}</code>{' '}
           <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{companyName}'}</code>{' '}
           <code className="bg-gray-100 dark:bg-slate-800 px-1 rounded">{'{trackingUrl}'}</code>

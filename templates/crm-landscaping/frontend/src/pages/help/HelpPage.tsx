@@ -131,7 +131,7 @@ export default function HelpPage() {
         <div className="bg-gray-900 border border-gray-800 rounded-xl min-h-[400px] flex flex-col">
           <div className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[500px]">
             {chatMessages.length === 0 && (
-              <p className="text-gray-500 text-sm text-center py-8">Ask a question and our AI will help using the knowledge base.</p>
+              <p className="text-gray-500 text-sm text-center py-8 dark:text-slate-400">Ask a question and our AI will help using the knowledge base.</p>
             )}
             {chatMessages.map((msg, i) => (
               <div key={i} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -152,7 +152,7 @@ export default function HelpPage() {
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-600 mt-2">
+        <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">
           Can't find an answer? <a href="/crm/support" className="text-blue-400 hover:underline">Submit a support ticket</a>
         </p>
       </div>
@@ -179,9 +179,9 @@ export default function HelpPage() {
               <div>
                 <span className="text-white text-sm font-medium">{a.title}</span>
                 <div className="flex items-center gap-2 mt-0.5">
-                  {a.category && <span className="text-xs text-gray-500">{a.category}</span>}
+                  {a.category && <span className="text-xs text-gray-500 dark:text-slate-400">{a.category}</span>}
                   {a.isFaq && <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1 py-0.5 rounded">FAQ</span>}
-                  <span className="text-xs text-gray-600"><Eye size={10} className="inline" /> {a.viewCount}</span>
+                  <span className="text-xs text-gray-600 dark:text-slate-400"><Eye size={10} className="inline" /> {a.viewCount}</span>
                 </div>
               </div>
               <div className="flex gap-1">
@@ -190,7 +190,7 @@ export default function HelpPage() {
               </div>
             </div>
           ))}
-          {articles.length === 0 && <p className="text-gray-500 text-sm text-center py-8">No articles yet. Add your first help article.</p>}
+          {articles.length === 0 && <p className="text-gray-500 text-sm text-center py-8 dark:text-slate-400">No articles yet. Add your first help article.</p>}
         </div>
 
         {/* Edit Modal */}
@@ -199,7 +199,7 @@ export default function HelpPage() {
             <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-bold text-white">{editArticle.id ? 'Edit' : 'New'} Article</h2>
-                <button onClick={() => setEditArticle(null)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+                <button onClick={() => setEditArticle(null)} className="text-gray-500 hover:text-white dark:text-slate-400"><X size={18} /></button>
               </div>
               <div className="space-y-3">
                 <input value={editArticle.title || ''} onChange={e => setEditArticle({ ...editArticle, title: e.target.value })}
@@ -249,7 +249,7 @@ export default function HelpPage() {
       {/* Search */}
       <div className="flex items-center gap-3 mb-6">
         <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search help articles..."
             className="w-full pl-10 pr-3 py-2.5 bg-gray-900 border border-gray-800 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-gray-600" />
@@ -273,7 +273,7 @@ export default function HelpPage() {
                 <button onClick={() => toggleFaq(faq.id)}
                   className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-800/50 transition-colors">
                   <span className="text-sm text-white font-medium">{faq.title}</span>
-                  {expandedFaqs.has(faq.id) ? <ChevronDown size={16} className="text-gray-500" /> : <ChevronRight size={16} className="text-gray-500" />}
+                  {expandedFaqs.has(faq.id) ? <ChevronDown size={16} className="text-gray-500 dark:text-slate-400" /> : <ChevronRight size={16} className="text-gray-500 dark:text-slate-400" />}
                 </button>
                 {expandedFaqs.has(faq.id) && (
                   <div className="px-4 pb-3">
@@ -291,10 +291,10 @@ export default function HelpPage() {
         {search ? 'Search Results' : 'Knowledge Base'}
       </h2>
       {loading ? (
-        <p className="text-gray-500 text-sm">Loading...</p>
+        <p className="text-gray-500 text-sm dark:text-slate-400">Loading...</p>
       ) : kbArticles.length === 0 ? (
         <div className="border border-dashed border-gray-700 rounded-xl p-12 text-center">
-          <BookOpen size={32} className="text-gray-600 mx-auto mb-3" />
+          <BookOpen size={32} className="text-gray-600 mx-auto mb-3 dark:text-slate-400" />
           <p className="text-gray-400 text-sm">{search ? 'No matching articles found' : 'No help articles yet'}</p>
           <button onClick={() => setView('ai-chat')} className="mt-3 text-purple-400 hover:underline text-sm">Try asking our AI assistant</button>
         </div>
@@ -306,11 +306,11 @@ export default function HelpPage() {
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h3 className="text-sm font-medium text-white">{a.title}</h3>
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{a.content.slice(0, 120)}...</p>
+                  <p className="text-xs text-gray-500 mt-1 line-clamp-2 dark:text-slate-400">{a.content.slice(0, 120)}...</p>
                 </div>
-                <ChevronRight size={16} className="text-gray-600 mt-0.5 flex-shrink-0" />
+                <ChevronRight size={16} className="text-gray-600 mt-0.5 flex-shrink-0 dark:text-slate-400" />
               </div>
-              {a.category && <span className="text-xs text-gray-600 mt-2 inline-block">{a.category}</span>}
+              {a.category && <span className="text-xs text-gray-600 mt-2 inline-block dark:text-slate-400">{a.category}</span>}
             </div>
           ))}
         </div>

@@ -87,26 +87,26 @@ export default function CurbsidePage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Curbside Pickup</h1>
-          <p className="text-gray-600">Manage curbside check-ins and fulfillment</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Curbside Pickup</h1>
+          <p className="text-gray-600 dark:text-slate-400">Manage curbside check-ins and fulfillment</p>
         </div>
-        <button onClick={() => { loadPickups(); loadStats(); }} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600">
+        <button onClick={() => { loadPickups(); loadStats(); }} className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 dark:text-slate-400">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-          <p className="text-sm text-gray-500">Active Pickups</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">Active Pickups</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.active}</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-          <p className="text-sm text-gray-500">Avg Completion Time</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.avgCompletionTime}</p>
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">Avg Completion Time</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats.avgCompletionTime}</p>
         </div>
-        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-          <p className="text-sm text-gray-500">Completed Today</p>
+        <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 dark:bg-slate-900">
+          <p className="text-sm text-gray-500 dark:text-slate-400">Completed Today</p>
           <p className="text-2xl font-bold text-green-600">{stats.completedToday}</p>
         </div>
       </div>
@@ -139,10 +139,10 @@ export default function CurbsidePage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {pickups.map(pickup => (
-                <div key={pickup.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <div key={pickup.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                         <User className="w-4 h-4 text-green-600" />
                         {pickup.customerName || 'Unknown'}
                       </h3>
@@ -151,14 +151,14 @@ export default function CurbsidePage() {
                       </span>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-500 flex items-center gap-1 justify-end">
+                      <p className="text-sm text-gray-500 flex items-center gap-1 justify-end dark:text-slate-400">
                         <Clock className="w-3 h-3" />
                         {formatWaitTime(pickup.checkinTime || pickup.createdAt)}
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-2 text-sm text-gray-600 mb-4">
+                  <div className="space-y-2 text-sm text-gray-600 mb-4 dark:text-slate-400">
                     <p className="flex items-center gap-2">
                       <Car className="w-4 h-4 text-gray-400" />
                       {pickup.vehicleDescription || pickup.vehicle || 'No vehicle info'}
@@ -208,7 +208,7 @@ export default function CurbsidePage() {
                 </div>
               ))}
               {pickups.length === 0 && (
-                <div className="col-span-full text-center py-12 text-gray-500">
+                <div className="col-span-full text-center py-12 text-gray-500 dark:text-slate-400">
                   <Car className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No active curbside pickups</p>
                   <p className="text-sm mt-1">Check-ins will appear here when customers arrive</p>
@@ -222,22 +222,22 @@ export default function CurbsidePage() {
       {/* Customer View */}
       {tab === 'customer' && (
         <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100 text-center">
+          <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100 text-center dark:bg-slate-900">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Car className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">Curbside Pickup</h2>
-            <p className="text-gray-600 mb-6">This is what your customer sees after checking in.</p>
+            <h2 className="text-xl font-bold text-gray-900 mb-2 dark:text-slate-100">Curbside Pickup</h2>
+            <p className="text-gray-600 mb-6 dark:text-slate-400">This is what your customer sees after checking in.</p>
 
             <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg p-4">
+              <div className="bg-gray-50 rounded-lg p-4 dark:bg-slate-900">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
                     <CheckCircle className="w-4 h-4 text-white" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-medium text-gray-900">Checked In</p>
-                    <p className="text-xs text-gray-500">We know you are here</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Checked In</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">We know you are here</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mb-3">
@@ -245,8 +245,8 @@ export default function CurbsidePage() {
                     <User className="w-4 h-4 text-white" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-medium text-gray-900">Staff Assigned</p>
-                    <p className="text-xs text-gray-500">Someone is preparing your order</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Staff Assigned</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Someone is preparing your order</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 mb-3">
@@ -254,8 +254,8 @@ export default function CurbsidePage() {
                     <ArrowRight className="w-4 h-4 text-white" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-medium text-gray-900">On The Way</p>
-                    <p className="text-xs text-gray-500">Staff is bringing your order out</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-slate-100">On The Way</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Staff is bringing your order out</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -263,8 +263,8 @@ export default function CurbsidePage() {
                     <Package className="w-4 h-4 text-white" />
                   </div>
                   <div className="text-left">
-                    <p className="text-sm font-medium text-gray-900">Complete</p>
-                    <p className="text-xs text-gray-500">Enjoy your purchase!</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Complete</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Enjoy your purchase!</p>
                   </div>
                 </div>
               </div>

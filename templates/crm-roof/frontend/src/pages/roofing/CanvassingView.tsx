@@ -373,7 +373,7 @@ export default function CanvassingView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-slate-900">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
       </div>
     )
@@ -392,35 +392,35 @@ export default function CanvassingView() {
     const conversionRate = s.totalDoors > 0 ? ((s.leadsCreated || 0) / s.totalDoors * 100).toFixed(1) : '0'
 
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
-        <div className="bg-white border-b px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setShowSummary(null)} className="text-gray-500"><ChevronLeft size={20} /></button>
+      <div className="min-h-screen bg-gray-50 pb-20 dark:bg-slate-900">
+        <div className="bg-white border-b px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
+          <button onClick={() => setShowSummary(null)} className="text-gray-500 dark:text-slate-400"><ChevronLeft size={20} /></button>
           <h1 className="text-lg font-bold truncate">{s.name}</h1>
         </div>
 
         <div className="p-4 space-y-4">
           {/* Stats */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-xl p-4 border">
+            <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
               <p className="text-2xl font-bold">{s.totalDoors || 0}</p>
-              <p className="text-xs text-gray-500">Total Doors</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Total Doors</p>
             </div>
-            <div className="bg-white rounded-xl p-4 border">
+            <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
               <p className="text-2xl font-bold">{s.answeredDoors || 0}</p>
-              <p className="text-xs text-gray-500">Answered</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Answered</p>
             </div>
-            <div className="bg-white rounded-xl p-4 border">
+            <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
               <p className="text-2xl font-bold text-green-600">{s.leadsCreated || 0}</p>
-              <p className="text-xs text-gray-500">Leads Created</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Leads Created</p>
             </div>
-            <div className="bg-white rounded-xl p-4 border">
+            <div className="bg-white rounded-xl p-4 border dark:bg-slate-900">
               <p className="text-2xl font-bold">{conversionRate}%</p>
-              <p className="text-xs text-gray-500">Conversion</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">Conversion</p>
             </div>
           </div>
 
           {duration !== null && (
-            <p className="text-sm text-gray-500 text-center">Duration: {Math.floor(duration / 60)}h {duration % 60}m</p>
+            <p className="text-sm text-gray-500 text-center dark:text-slate-400">Duration: {Math.floor(duration / 60)}h {duration % 60}m</p>
           )}
 
           {/* Grouped stops */}
@@ -430,7 +430,7 @@ export default function CanvassingView() {
               {appointments.map((st: Stop) => (
                 <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2">
                   <p className="text-sm font-medium">{st.address}</p>
-                  {st.notes && <p className="text-xs text-gray-600 mt-1">{st.notes}</p>}
+                  {st.notes && <p className="text-xs text-gray-600 mt-1 dark:text-slate-400">{st.notes}</p>}
                   {st.jobId && (
                     <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                       View in CRM <ArrowRight size={12} />
@@ -463,7 +463,7 @@ export default function CanvassingView() {
               {followUps.map((st: Stop) => (
                 <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
                   <p className="text-sm font-medium">{st.address}</p>
-                  <p className="text-xs text-gray-600">Follow up: {formatDate(st.followUpDate)}</p>
+                  <p className="text-xs text-gray-600 dark:text-slate-400">Follow up: {formatDate(st.followUpDate)}</p>
                 </div>
               ))}
             </div>
@@ -471,7 +471,7 @@ export default function CanvassingView() {
 
           <button
             onClick={() => exportSessionCsv(s, summaryStops)}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-gray-100 rounded-xl text-sm font-medium text-gray-700"
+            className="w-full flex items-center justify-center gap-2 py-3 bg-gray-100 rounded-xl text-sm font-medium text-gray-700 dark:bg-slate-800 dark:text-slate-200"
           >
             <Download size={16} /> Export Session CSV
           </button>
@@ -483,10 +483,10 @@ export default function CanvassingView() {
   // ── NO ACTIVE SESSION ──
   if (!activeSession) {
     return (
-      <div className="min-h-screen bg-gray-50 pb-20">
-        <div className="bg-white border-b px-4 py-4">
+      <div className="min-h-screen bg-gray-50 pb-20 dark:bg-slate-900">
+        <div className="bg-white border-b px-4 py-4 dark:bg-slate-900">
           <h1 className="text-xl font-bold">Canvassing</h1>
-          <p className="text-sm text-gray-500 mt-1">Mobile field tool for door-to-door sales</p>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Mobile field tool for door-to-door sales</p>
         </div>
 
         <div className="p-4 space-y-4">
@@ -502,15 +502,15 @@ export default function CanvassingView() {
 
           {sessions.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-600 mb-2">Recent Sessions</h2>
+              <h2 className="text-sm font-semibold text-gray-600 mb-2 dark:text-slate-400">Recent Sessions</h2>
               {sessions.slice(0, 5).map((s: Session) => (
                 <button
                   key={s.id}
                   onClick={() => loadSessionSummary(s)}
-                  className="w-full text-left bg-white rounded-xl p-4 border mb-2 active:bg-gray-50"
+                  className="w-full text-left bg-white rounded-xl p-4 border mb-2 active:bg-gray-50 dark:bg-slate-900"
                 >
                   <p className="font-medium text-sm">{s.name}</p>
-                  <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
+                  <div className="flex items-center gap-4 mt-1 text-xs text-gray-500 dark:text-slate-400">
                     <span>{formatDate(s.startedAt || s.createdAt)}</span>
                     <span>{s.totalDoors || 0} doors</span>
                     <span className="text-green-600 font-medium">{s.leadsCreated || 0} leads</span>
@@ -534,24 +534,24 @@ export default function CanvassingView() {
         {/* Start Session Modal */}
         {showStartModal && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-6">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-6 dark:bg-slate-900">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold">New Canvassing Session</h2>
                 <button onClick={() => setShowStartModal(false)}><X size={20} /></button>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Session Name</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Session Name</label>
                   <input value={newName} onChange={(e) => setNewName(e.target.value)}
                     className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="e.g. Oak Park — March 12" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Weather Event</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Weather Event</label>
                   <input value={newWeather} onChange={(e) => setNewWeather(e.target.value)}
                     className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="e.g. Hail storm March 10" />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Target Radius (miles, optional)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Target Radius (miles, optional)</label>
                   <input type="number" value={newRadius} onChange={(e) => setNewRadius(e.target.value)}
                     className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="e.g. 0.5" />
                 </div>
@@ -571,9 +571,9 @@ export default function CanvassingView() {
   const defaultScript = scripts.find((s: Script) => s.isDefault) || scripts[0]
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 dark:bg-slate-900">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
+      <div className="bg-white border-b px-4 py-3 flex items-center justify-between flex-shrink-0 dark:bg-slate-900">
         <div className="min-w-0">
           <h1 className="text-sm font-bold truncate">{activeSession.name}</h1>
           {activeSession.weatherEvent && (
@@ -589,18 +589,18 @@ export default function CanvassingView() {
       </div>
 
       {/* Live Stats */}
-      <div className="flex gap-1 px-4 py-2 bg-gray-100 flex-shrink-0">
+      <div className="flex gap-1 px-4 py-2 bg-gray-100 flex-shrink-0 dark:bg-slate-800">
         <div className="flex-1 text-center">
           <p className="text-lg font-bold">{activeSession.totalDoors || 0}</p>
-          <p className="text-[10px] text-gray-500">Doors</p>
+          <p className="text-[10px] text-gray-500 dark:text-slate-400">Doors</p>
         </div>
         <div className="flex-1 text-center">
           <p className="text-lg font-bold">{activeSession.answeredDoors || 0}</p>
-          <p className="text-[10px] text-gray-500">Answered</p>
+          <p className="text-[10px] text-gray-500 dark:text-slate-400">Answered</p>
         </div>
         <div className="flex-1 text-center">
           <p className="text-lg font-bold text-green-600">{activeSession.leadsCreated || 0}</p>
-          <p className="text-[10px] text-gray-500">Leads</p>
+          <p className="text-[10px] text-gray-500 dark:text-slate-400">Leads</p>
         </div>
       </div>
 
@@ -635,14 +635,14 @@ export default function CanvassingView() {
             <h2 className="text-sm font-bold mb-3">{defaultScript.name}</h2>
             {(() => {
               const steps = Array.isArray(defaultScript.steps) ? defaultScript.steps : []
-              if (steps.length === 0) return <p className="text-sm text-gray-500">No script steps configured.</p>
+              if (steps.length === 0) return <p className="text-sm text-gray-500 dark:text-slate-400">No script steps configured.</p>
               const step = steps[scriptStep] || steps[0]
               return (
                 <div className="flex-1 flex flex-col">
-                  <div className="flex-1 bg-white rounded-xl p-5 border">
+                  <div className="flex-1 bg-white rounded-xl p-5 border dark:bg-slate-900">
                     <p className="text-xs text-blue-600 font-semibold mb-1">Step {scriptStep + 1} of {steps.length}</p>
                     <h3 className="text-lg font-bold mb-3">{step.title}</h3>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{step.body}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap dark:text-slate-200">{step.body}</p>
                     {step.tips && (
                       <div className="mt-4 bg-yellow-50 rounded-lg p-3">
                         <p className="text-xs font-semibold text-yellow-800 mb-1">Tips</p>
@@ -668,7 +668,7 @@ export default function CanvassingView() {
           </div>
         )}
         {tab === 'script' && !defaultScript && (
-          <div className="flex items-center justify-center h-full text-gray-500 text-sm">No scripts configured</div>
+          <div className="flex items-center justify-center h-full text-gray-500 text-sm dark:text-slate-400">No scripts configured</div>
         )}
 
         {/* SESSIONS TAB */}
@@ -676,7 +676,7 @@ export default function CanvassingView() {
           <div className="h-full overflow-y-auto p-4 space-y-2">
             {sessions.map((s: Session) => (
               <button key={s.id} onClick={() => loadSessionSummary(s)}
-                className="w-full text-left bg-white rounded-xl p-4 border active:bg-gray-50">
+                className="w-full text-left bg-white rounded-xl p-4 border active:bg-gray-50 dark:bg-slate-900">
                 <div className="flex items-center justify-between">
                   <p className="font-medium text-sm truncate">{s.name}</p>
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
@@ -685,7 +685,7 @@ export default function CanvassingView() {
                     'bg-gray-100 text-gray-600'
                   }`}>{s.status}</span>
                 </div>
-                <div className="flex gap-4 mt-1 text-xs text-gray-500">
+                <div className="flex gap-4 mt-1 text-xs text-gray-500 dark:text-slate-400">
                   <span>{formatDate(s.startedAt || s.createdAt)}</span>
                   <span>{s.totalDoors || 0} doors</span>
                   <span>{s.leadsCreated || 0} leads</span>
@@ -697,7 +697,7 @@ export default function CanvassingView() {
       </div>
 
       {/* Bottom Navigation */}
-      <div className="flex border-t bg-white flex-shrink-0 safe-area-bottom">
+      <div className="flex border-t bg-white flex-shrink-0 safe-area-bottom dark:bg-slate-900">
         {[
           { key: 'map' as const, icon: MapIcon, label: 'Map' },
           { key: 'log' as const, icon: DoorOpen, label: 'Log Stop', action: openLogModal },
@@ -717,10 +717,10 @@ export default function CanvassingView() {
 
       {/* LOG DOOR KNOCK MODAL */}
       {showLogModal && (
-        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+        <div className="fixed inset-0 bg-white z-50 flex flex-col dark:bg-slate-900">
           {/* Modal Header */}
-          <div className="bg-white border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
-            <button onClick={() => setShowLogModal(false)} className="text-gray-500"><X size={20} /></button>
+          <div className="bg-white border-b px-4 py-3 flex items-center justify-between flex-shrink-0 dark:bg-slate-900">
+            <button onClick={() => setShowLogModal(false)} className="text-gray-500 dark:text-slate-400"><X size={20} /></button>
             <h2 className="font-bold">Log Door Knock</h2>
             <div className="flex gap-1">
               {[0, 1, 2, 3].map((i) => (
@@ -748,7 +748,7 @@ export default function CanvassingView() {
                       <Navigation size={16} className="text-green-600" />
                       <p className="text-sm font-medium text-green-800">GPS Location Found</p>
                     </div>
-                    <p className="text-sm text-gray-700">{logAddress}{logCity ? `, ${logCity}` : ''}{logState ? `, ${logState}` : ''} {logZip}</p>
+                    <p className="text-sm text-gray-700 dark:text-slate-200">{logAddress}{logCity ? `, ${logCity}` : ''}{logState ? `, ${logState}` : ''} {logZip}</p>
                   </div>
                 )}
 
@@ -759,23 +759,23 @@ export default function CanvassingView() {
                 )}
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Street Address</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Street Address</label>
                   <input value={logAddress} onChange={(e) => setLogAddress(e.target.value)}
                     className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="1234 Oak St" />
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
-                    <label className="text-xs text-gray-500">City</label>
+                    <label className="text-xs text-gray-500 dark:text-slate-400">City</label>
                     <input value={logCity} onChange={(e) => setLogCity(e.target.value)}
                       className="w-full border rounded-lg px-2 py-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">State</label>
+                    <label className="text-xs text-gray-500 dark:text-slate-400">State</label>
                     <input value={logState} onChange={(e) => setLogState(e.target.value)}
                       className="w-full border rounded-lg px-2 py-2 text-sm" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Zip</label>
+                    <label className="text-xs text-gray-500 dark:text-slate-400">Zip</label>
                     <input value={logZip} onChange={(e) => setLogZip(e.target.value)}
                       className="w-full border rounded-lg px-2 py-2 text-sm" />
                   </div>
@@ -796,7 +796,7 @@ export default function CanvassingView() {
                 <h3 className="text-lg font-bold">Damage Assessment</h3>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2 dark:text-slate-200">
                     <Camera size={16} /> Take Damage Photos
                   </label>
                   <input type="file" accept="image/*" capture="environment" multiple
@@ -819,7 +819,7 @@ export default function CanvassingView() {
                 )}
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Quick Tags</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Quick Tags</label>
                   <div className="flex flex-wrap gap-2 mt-2">
                     {DAMAGE_TAGS.map((tag) => (
                       <button key={tag}
@@ -836,7 +836,7 @@ export default function CanvassingView() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Damage Notes</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Damage Notes</label>
                   <textarea value={logDamageNotes} onChange={(e) => setLogDamageNotes(e.target.value)}
                     rows={3} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm"
                     placeholder="What damage did you observe?" />
@@ -866,25 +866,25 @@ export default function CanvassingView() {
 
                 {/* Expanded fields for interested / appointment_set */}
                 {(logOutcome === 'interested' || logOutcome === 'appointment_set') && (
-                  <div className="bg-gray-50 rounded-xl p-4 space-y-3 border">
+                  <div className="bg-gray-50 rounded-xl p-4 space-y-3 border dark:bg-slate-900">
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Homeowner Name *</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Homeowner Name *</label>
                       <input value={logName} onChange={(e) => setLogName(e.target.value)}
                         className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="Full name" />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Phone *</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Phone *</label>
                       <input type="tel" value={logPhone} onChange={(e) => setLogPhone(e.target.value)}
                         className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="(555) 123-4567" />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Email (optional)</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Email (optional)</label>
                       <input type="email" value={logEmail} onChange={(e) => setLogEmail(e.target.value)}
                         className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" placeholder="email@example.com" />
                     </div>
                     {logOutcome === 'appointment_set' && (
                       <div>
-                        <label className="text-sm font-medium text-gray-700">Appointment Date & Time</label>
+                        <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Appointment Date & Time</label>
                         <input type="datetime-local" value={logAppointmentDate}
                           onChange={(e) => setLogAppointmentDate(e.target.value)}
                           className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" />
@@ -893,7 +893,7 @@ export default function CanvassingView() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between bg-white border rounded-xl p-4">
+                <div className="flex items-center justify-between bg-white border rounded-xl p-4 dark:bg-slate-900">
                   <span className="text-sm font-medium">Left door hanger</span>
                   <button onClick={() => setLogDoorHanger(!logDoorHanger)}
                     className={`w-12 h-6 rounded-full transition ${logDoorHanger ? 'bg-blue-600' : 'bg-gray-300'}`}>
@@ -902,13 +902,13 @@ export default function CanvassingView() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Follow-up Date (optional)</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Follow-up Date (optional)</label>
                   <input type="date" value={logFollowUp} onChange={(e) => setLogFollowUp(e.target.value)}
                     className="w-full mt-1 border rounded-lg px-3 py-2.5 text-sm" />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Additional Notes</label>
+                  <label className="text-sm font-medium text-gray-700 dark:text-slate-200">Additional Notes</label>
                   <textarea value={logNotes} onChange={(e) => setLogNotes(e.target.value)}
                     rows={2} className="w-full mt-1 border rounded-lg px-3 py-2 text-sm" />
                 </div>
@@ -920,36 +920,36 @@ export default function CanvassingView() {
               <div className="space-y-4">
                 <h3 className="text-lg font-bold">Confirm</h3>
 
-                <div className="bg-white border rounded-xl p-4 space-y-2">
+                <div className="bg-white border rounded-xl p-4 space-y-2 dark:bg-slate-900">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Address</span>
+                    <span className="text-gray-500 dark:text-slate-400">Address</span>
                     <span className="font-medium">{logAddress || 'Not set'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Outcome</span>
+                    <span className="text-gray-500 dark:text-slate-400">Outcome</span>
                     <span className="font-medium">{OUTCOME_CONFIG[logOutcome]?.label || 'Not set'}</span>
                   </div>
                   {logPhotos.length > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Photos</span>
+                      <span className="text-gray-500 dark:text-slate-400">Photos</span>
                       <span className="font-medium">{logPhotos.length} photo{logPhotos.length !== 1 ? 's' : ''}</span>
                     </div>
                   )}
                   {logDamageTags.length > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Damage</span>
+                      <span className="text-gray-500 dark:text-slate-400">Damage</span>
                       <span className="font-medium">{logDamageTags.join(', ')}</span>
                     </div>
                   )}
                   {logDoorHanger && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Door Hanger</span>
+                      <span className="text-gray-500 dark:text-slate-400">Door Hanger</span>
                       <span className="font-medium text-blue-600">Yes</span>
                     </div>
                   )}
                   {logName && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Homeowner</span>
+                      <span className="text-gray-500 dark:text-slate-400">Homeowner</span>
                       <span className="font-medium">{logName}</span>
                     </div>
                   )}
@@ -977,7 +977,7 @@ export default function CanvassingView() {
 
           {/* Step Navigation */}
           {logStep < 3 && (
-            <div className="p-4 border-t bg-white flex-shrink-0">
+            <div className="p-4 border-t bg-white flex-shrink-0 dark:bg-slate-900">
               <div className="flex gap-3">
                 {logStep > 0 && (
                   <button onClick={() => setLogStep(logStep - 1)}
@@ -999,9 +999,9 @@ export default function CanvassingView() {
       {/* End Session Confirmation */}
       {showEndConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full dark:bg-slate-900">
             <h3 className="text-lg font-bold mb-2">End Session?</h3>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">
               This will finalize your canvassing session with {activeSession.totalDoors || 0} doors knocked and {activeSession.leadsCreated || 0} leads created.
             </p>
             <div className="flex gap-3">

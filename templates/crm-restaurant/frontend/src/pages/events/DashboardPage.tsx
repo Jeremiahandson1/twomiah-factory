@@ -85,8 +85,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Events overview</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
+        <p className="text-gray-500 dark:text-slate-400">Events overview</p>
       </div>
 
       {/* Headline: money owed. This is the number a venue loses track of. */}
@@ -100,12 +100,12 @@ export default function DashboardPage() {
               <Wallet className={`w-6 h-6 ${overdue > 0 ? 'text-red-600' : 'text-gray-500'}`} />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Payments Overdue</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Payments Overdue</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                 {money(overdue)}
-                <span className="text-base font-medium text-gray-500"> · {money(payments.outstanding)} outstanding</span>
+                <span className="text-base font-medium text-gray-500 dark:text-slate-400"> · {money(payments.outstanding)} outstanding</span>
               </p>
-              <p className="text-sm text-gray-500">Deposits and balances past their due date</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Deposits and balances past their due date</p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-gray-400" />
@@ -114,51 +114,51 @@ export default function DashboardPage() {
 
       {/* KPI grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block">
+        <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Open Enquiries</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Open Enquiries</p>
             <Inbox className="w-5 h-5 text-amber-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{pipeline.enquiry || 0}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.enquiry || 0}</p>
           <p className="text-xs text-gray-400">Waiting on you</p>
         </Link>
 
-        <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block">
+        <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Next 30 Days</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Next 30 Days</p>
             <CalendarDays className="w-5 h-5 text-indigo-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{events.upcoming30 || 0}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{events.upcoming30 || 0}</p>
           <p className="text-xs text-gray-400">{events.thisMonth || 0} this month</p>
         </Link>
 
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Booked Value Ahead</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Booked Value Ahead</p>
             <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{money(events.bookedValue)}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{money(events.bookedValue)}</p>
           <p className="text-xs text-gray-400">Food &amp; beverage on held events</p>
         </div>
 
-        <Link to="/crm/spaces" className="bg-white rounded-xl border p-5 hover:shadow-md transition block">
+        <Link to="/crm/spaces" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-500">Confirmed</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Confirmed</p>
             <DoorOpen className="w-5 h-5 text-teal-500" />
           </div>
-          <p className="text-3xl font-bold text-gray-900 mt-1">{pipeline.confirmed || 0}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.confirmed || 0}</p>
           <p className="text-xs text-gray-400">{pipeline.tentative || 0} tentative</p>
         </Link>
       </div>
 
       {/* Pipeline strip */}
-      <div className="bg-white rounded-xl border p-5">
-        <h2 className="font-semibold text-gray-900 mb-3">Pipeline</h2>
+      <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+        <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Pipeline</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {stages.map((s) => (
             <Link key={s.key} to="/crm/events" className="border rounded-lg p-3 hover:bg-gray-50">
               <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_COLORS[s.key] || 'bg-gray-100 text-gray-700'}`}>{s.label}</span>
-              <p className="text-2xl font-bold text-gray-900 mt-2">{pipeline[s.key] || 0}</p>
+              <p className="text-2xl font-bold text-gray-900 mt-2 dark:text-slate-100">{pipeline[s.key] || 0}</p>
             </Link>
           ))}
         </div>
@@ -171,8 +171,8 @@ export default function DashboardPage() {
 
       {/* Space utilisation */}
       {bySpace.length > 0 && (
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <DoorOpen className="w-4 h-4 text-teal-500" /> Space Utilisation
             <span className="text-xs text-gray-400 font-normal">upcoming held events</span>
           </h2>
@@ -180,10 +180,10 @@ export default function DashboardPage() {
             {bySpace.map((s) => (
               <li key={s.spaceId || s.name}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-gray-900">{s.name}</span>
-                  <span className="text-gray-600">{s.events} event{s.events === 1 ? '' : 's'}</span>
+                  <span className="font-medium text-gray-900 dark:text-slate-100">{s.name}</span>
+                  <span className="text-gray-600 dark:text-slate-400">{s.events} event{s.events === 1 ? '' : 's'}</span>
                 </div>
-                <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
                   <div className="h-full bg-teal-500" style={{ width: `${Math.round((Number(s.events || 0) / topSpace) * 100)}%` }} />
                 </div>
               </li>
@@ -194,8 +194,8 @@ export default function DashboardPage() {
 
       {/* Three lists */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <Inbox className="w-4 h-4 text-amber-500" /> New Enquiries
           </h2>
           {(activity.newEnquiries || []).length === 0 ? (
@@ -205,8 +205,8 @@ export default function DashboardPage() {
               {(activity.newEnquiries || []).map((e) => (
                 <li key={e.id} className="py-2">
                   <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
-                    <p className="font-medium text-gray-900">{e.name || 'Untitled'}</p>
-                    <p className="text-xs text-gray-500 capitalize">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{e.name || 'Untitled'}</p>
+                    <p className="text-xs text-gray-500 capitalize dark:text-slate-400">
                       {fmtEventDate(e.eventDate)}{e.guestCount ? ` · ${e.guestCount} guests` : ''}{e.eventType ? ` · ${prettyType(e.eventType)}` : ''}
                     </p>
                     {e.clientName && <p className="text-xs text-gray-400">{e.clientName}</p>}
@@ -217,8 +217,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <CalendarDays className="w-4 h-4 text-indigo-500" /> Coming Up
           </h2>
           {(activity.upcomingEvents || []).length === 0 ? (
@@ -229,14 +229,14 @@ export default function DashboardPage() {
                 <li key={e.id} className="py-2">
                   <Link to={`/crm/events/${e.id}`} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-gray-900">{e.name || 'Untitled'}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{e.name || 'Untitled'}</p>
                       {(e.guestCountFinal || e.guestCount) && (
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                        <span className="text-xs text-gray-500 flex items-center gap-1 dark:text-slate-400">
                           <Users className="w-3 h-3" /> {e.guestCountFinal ?? e.guestCount}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       {fmtEventDate(e.eventDate)}{e.startTime ? ` · ${e.startTime}` : ''}{e.spaceName ? ` · ${e.spaceName}` : ''}
                     </p>
                   </Link>
@@ -246,8 +246,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl border p-5">
-          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+        <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <Wallet className="w-4 h-4 text-green-600" /> Payments Due
           </h2>
           {(activity.duePayments || []).length === 0 ? (
@@ -258,8 +258,8 @@ export default function DashboardPage() {
                 <li key={p.id} className="py-2">
                   <Link to={p.eventId ? `/crm/events/${p.eventId}` : '/crm/events'} className="block hover:bg-gray-50 -mx-2 px-2 rounded">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-gray-900">{p.eventName || 'Event'}</p>
-                      <span className="text-sm font-semibold text-gray-700">{money(p.amount)}</span>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{p.eventName || 'Event'}</p>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(p.amount)}</span>
                     </div>
                     <p className={`text-xs flex items-center gap-1 ${isOverdue(p.dueDate) ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
                       {isOverdue(p.dueDate) && <AlertTriangle className="w-3 h-3" />}

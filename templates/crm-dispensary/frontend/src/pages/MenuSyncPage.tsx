@@ -183,7 +183,7 @@ export default function MenuSyncPage() {
                 const conn = connections[platform.id];
                 const isConnected = !!conn;
                 return (
-                  <div key={platform.id} className="border rounded-lg p-5 bg-white">
+                  <div key={platform.id} className="border rounded-lg p-5 bg-white dark:bg-slate-900">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 ${platform.color} rounded-lg flex items-center justify-center`}>
@@ -191,7 +191,7 @@ export default function MenuSyncPage() {
                         </div>
                         <div>
                           <h3 className="font-semibold">{platform.name}</h3>
-                          <p className="text-sm text-gray-500">{platform.description}</p>
+                          <p className="text-sm text-gray-500 dark:text-slate-400">{platform.description}</p>
                         </div>
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${isConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
@@ -200,7 +200,7 @@ export default function MenuSyncPage() {
                     </div>
 
                     {isConnected && (
-                      <div className="text-sm text-gray-500 mb-3">
+                      <div className="text-sm text-gray-500 mb-3 dark:text-slate-400">
                         <div className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           Last sync: {conn.lastSync ? new Date(conn.lastSync).toLocaleString() : 'Never'}
@@ -263,18 +263,18 @@ export default function MenuSyncPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : syncLogs.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No sync history yet. Connect a platform and sync.</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No sync history yet. Connect a platform and sync.</div>
           ) : (
             <div className="overflow-x-auto border rounded-lg">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Platform</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Products Synced</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Errors</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Duration</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Time</th>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Platform</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Products Synced</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Errors</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Duration</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Time</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -294,8 +294,8 @@ export default function MenuSyncPage() {
                           <span className="text-green-600">0</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{log.duration || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{log.createdAt ? new Date(log.createdAt).toLocaleString() : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{log.duration || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{log.createdAt ? new Date(log.createdAt).toLocaleString() : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -320,7 +320,7 @@ export default function MenuSyncPage() {
           </div>
 
           {!previewPlatform ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Eye className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               Select a connected platform to preview your menu
             </div>
@@ -329,17 +329,17 @@ export default function MenuSyncPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : previewProducts.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No products to preview. Run a sync first.</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No products to preview. Run a sync first.</div>
           ) : (
             <div>
-              <div className="text-sm text-gray-500 mb-4">Showing how your menu appears on {PLATFORMS.find(p => p.id === previewPlatform)?.name}</div>
+              <div className="text-sm text-gray-500 mb-4 dark:text-slate-400">Showing how your menu appears on {PLATFORMS.find(p => p.id === previewPlatform)?.name}</div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {previewProducts.map(product => (
-                  <div key={product.id} className="border rounded-lg overflow-hidden bg-white">
+                  <div key={product.id} className="border rounded-lg overflow-hidden bg-white dark:bg-slate-900">
                     {product.imageUrl ? (
                       <img src={product.imageUrl} alt={product.name} className="w-full h-40 object-cover" />
                     ) : (
-                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
+                      <div className="w-full h-40 bg-gray-100 flex items-center justify-center dark:bg-slate-800">
                         <Package className="w-8 h-8 text-gray-300" />
                       </div>
                     )}
@@ -356,8 +356,8 @@ export default function MenuSyncPage() {
                           <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">{product.strain}</span>
                         )}
                       </div>
-                      {product.thc && <div className="text-xs text-gray-500">THC: {product.thc}%{product.cbd ? ` | CBD: ${product.cbd}%` : ''}</div>}
-                      <div className="text-sm text-gray-500 mt-2 line-clamp-2">{product.description}</div>
+                      {product.thc && <div className="text-xs text-gray-500 dark:text-slate-400">THC: {product.thc}%{product.cbd ? ` | CBD: ${product.cbd}%` : ''}</div>}
+                      <div className="text-sm text-gray-500 mt-2 line-clamp-2 dark:text-slate-400">{product.description}</div>
                       {product.inStock === false && (
                         <div className="text-xs text-red-600 font-medium mt-2 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" />Out of Stock
@@ -400,7 +400,7 @@ export default function MenuSyncPage() {
                 <label key={opt.key} className="flex items-center justify-between cursor-pointer">
                   <div>
                     <div className="text-sm font-medium">{opt.label}</div>
-                    <div className="text-xs text-gray-500">{opt.desc}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">{opt.desc}</div>
                   </div>
                   <input type="checkbox" checked={(configForm as any)[opt.key]}
                     onChange={e => setConfigForm({ ...configForm, [opt.key]: e.target.checked })}

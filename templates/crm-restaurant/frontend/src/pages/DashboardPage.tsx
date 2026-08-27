@@ -86,8 +86,8 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back, {user?.firstName}!</h1>
-        <p className="text-gray-600">{company?.name} Dashboard</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Welcome back, {user?.firstName}!</h1>
+        <p className="text-gray-600 dark:text-slate-400">{company?.name} Dashboard</p>
       </div>
 
       {/* Stats Grid */}
@@ -96,13 +96,13 @@ export default function DashboardPage() {
           <Link
             key={stat.label}
             to={stat.link}
-            className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+            className="bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow dark:bg-slate-900"
           >
             <div className={`w-10 h-10 rounded-lg ${colorClasses[stat.color]} flex items-center justify-center mb-3`}>
               <stat.icon className="w-5 h-5" />
             </div>
-            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-            <p className="text-sm text-gray-500">{stat.label}</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.value}</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">{stat.label}</p>
           </Link>
         ))}
       </div>
@@ -110,16 +110,16 @@ export default function DashboardPage() {
       {/* Recent Activity */}
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Recent Jobs */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Jobs</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Jobs</h2>
             <Link to="/crm/jobs" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {(activity?.recentJobs?.length ?? 0) > 0 ? activity!.recentJobs!.map((job: Record<string, unknown>) => (
               <div key={job.id as string} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{(job.title as string) || 'Untitled'}</p>
-                <p className="text-sm text-gray-500">{(job.number as string) || '—'}</p>
+                <p className="font-medium text-gray-900 truncate dark:text-slate-100">{(job.title as string) || 'Untitled'}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{(job.number as string) || '—'}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   job.status === 'completed' ? 'bg-green-100 text-green-700' :
                   job.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
@@ -129,22 +129,22 @@ export default function DashboardPage() {
                 </span>
               </div>
             )) : (
-              <p className="p-4 text-gray-500 text-sm">No recent jobs</p>
+              <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No recent jobs</p>
             )}
           </div>
         </div>
 
         {/* Recent Quotes */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Quotes</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Quotes</h2>
             <Link to="/crm/quotes" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {(activity?.recentQuotes?.length ?? 0) > 0 ? activity!.recentQuotes!.map((quote: Record<string, unknown>) => (
               <div key={quote.id as string} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{(quote.name as string) || 'Untitled'}</p>
-                <p className="text-sm text-gray-500">{(quote.number as string) || '—'} • ${Number(quote.total || 0).toLocaleString()}</p>
+                <p className="font-medium text-gray-900 truncate dark:text-slate-100">{(quote.name as string) || 'Untitled'}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{(quote.number as string) || '—'} • ${Number(quote.total || 0).toLocaleString()}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   quote.status === 'approved' ? 'bg-green-100 text-green-700' :
                   quote.status === 'sent' ? 'bg-blue-100 text-blue-700' :
@@ -155,22 +155,22 @@ export default function DashboardPage() {
                 </span>
               </div>
             )) : (
-              <p className="p-4 text-gray-500 text-sm">No recent quotes</p>
+              <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No recent quotes</p>
             )}
           </div>
         </div>
 
         {/* Recent Invoices */}
-        <div className="bg-white rounded-lg shadow-sm">
+        <div className="bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">Recent Invoices</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Invoices</h2>
             <Link to="/crm/invoices" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {(activity?.recentInvoices?.length ?? 0) > 0 ? activity!.recentInvoices!.map((invoice: Record<string, unknown>) => (
               <div key={invoice.id as string} className="p-4">
-                <p className="font-medium text-gray-900">{(invoice.number as string) || '—'}</p>
-                <p className="text-sm text-gray-500">
+                <p className="font-medium text-gray-900 dark:text-slate-100">{(invoice.number as string) || '—'}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   ${Number(invoice.total || 0).toLocaleString()}
                   {Number(invoice.balance || 0) > 0 && (
                     <span className="text-orange-500"> (${Number(invoice.balance).toLocaleString()} due)</span>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                 </span>
               </div>
             )) : (
-              <p className="p-4 text-gray-500 text-sm">No recent invoices</p>
+              <p className="p-4 text-gray-500 text-sm dark:text-slate-400">No recent invoices</p>
             )}
           </div>
         </div>

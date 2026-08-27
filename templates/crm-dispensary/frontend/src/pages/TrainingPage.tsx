@@ -229,11 +229,11 @@ export default function TrainingPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : courses.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No courses yet. Create one to get started.</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No courses yet. Create one to get started.</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {courses.map(course => (
-                <div key={course.id} className="border rounded-lg p-5 bg-white hover:shadow-md transition-shadow">
+                <div key={course.id} className="border rounded-lg p-5 bg-white hover:shadow-md transition-shadow dark:bg-slate-900">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex gap-2">
                       <span className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[course.category] || CATEGORY_COLORS.general}`}>
@@ -245,7 +245,7 @@ export default function TrainingPage() {
                     </div>
                   </div>
                   <h3 className="font-semibold text-lg mb-1">{course.title}</h3>
-                  <p className="text-sm text-gray-500 mb-4 line-clamp-2">{course.description}</p>
+                  <p className="text-sm text-gray-500 mb-4 line-clamp-2 dark:text-slate-400">{course.description}</p>
                   <div className="flex items-center justify-between text-sm text-gray-400">
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{course.estimatedMinutes || 30} min</span>
                     <span className="flex items-center gap-1"><Users className="w-3 h-3" />{course.enrolledCount || 0} enrolled</span>
@@ -264,9 +264,9 @@ export default function TrainingPage() {
             <div className="max-w-2xl mx-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Quiz: {activeQuiz.course?.title}</h3>
-                <button onClick={() => setActiveQuiz(null)} className="text-gray-500 hover:text-gray-700"><X className="w-5 h-5" /></button>
+                <button onClick={() => setActiveQuiz(null)} className="text-gray-500 hover:text-gray-700 dark:text-slate-400"><X className="w-5 h-5" /></button>
               </div>
-              <div className="border rounded-lg p-6 bg-white space-y-6">
+              <div className="border rounded-lg p-6 bg-white space-y-6 dark:bg-slate-900">
                 <p className="font-medium text-lg">{activeQuiz.step.question}</p>
                 <div className="space-y-3">
                   {(activeQuiz.step.options || []).map((opt: string, i: number) => (
@@ -296,19 +296,19 @@ export default function TrainingPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : myTraining.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">No training assigned to you yet.</div>
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">No training assigned to you yet.</div>
           ) : (
             <div className="space-y-4">
               {myTraining.map(enrollment => {
                 const progress = enrollment.totalSteps ? Math.round((enrollment.completedSteps / enrollment.totalSteps) * 100) : 0;
                 return (
-                  <div key={enrollment.id} className="border rounded-lg p-5 bg-white flex items-center justify-between">
+                  <div key={enrollment.id} className="border rounded-lg p-5 bg-white flex items-center justify-between dark:bg-slate-900">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-semibold">{enrollment.courseTitle}</h3>
                         {enrollment.completed && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Completed</span>}
                       </div>
-                      <div className="text-sm text-gray-500 mb-2">{enrollment.courseCategory} &middot; {enrollment.estimatedMinutes || 30} min</div>
+                      <div className="text-sm text-gray-500 mb-2 dark:text-slate-400">{enrollment.courseCategory} &middot; {enrollment.estimatedMinutes || 30} min</div>
                       <div className="w-64 bg-gray-200 rounded-full h-2">
                         <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
                       </div>
@@ -338,12 +338,12 @@ export default function TrainingPage() {
             <div className="overflow-x-auto border rounded-lg">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Employee</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Role</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Required Courses</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Certifications</th>
+                  <tr className="bg-gray-50 dark:bg-slate-900">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Employee</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Role</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Required Courses</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Certifications</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -387,7 +387,7 @@ export default function TrainingPage() {
                     </tr>
                   ))}
                   {complianceData.length === 0 && (
-                    <tr><td colSpan={5} className="text-center py-8 text-gray-500">No compliance data available</td></tr>
+                    <tr><td colSpan={5} className="text-center py-8 text-gray-500 dark:text-slate-400">No compliance data available</td></tr>
                   )}
                 </tbody>
               </table>
@@ -400,7 +400,7 @@ export default function TrainingPage() {
       {tab === 'assign' && (
         <div className="max-w-2xl">
           <h3 className="text-lg font-semibold mb-4">Assign Training</h3>
-          <div className="bg-white border rounded-lg p-6 space-y-5">
+          <div className="bg-white border rounded-lg p-6 space-y-5 dark:bg-slate-900">
             <div>
               <label className="block text-sm font-medium mb-1">Course *</label>
               <select value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)}
@@ -434,10 +434,10 @@ export default function TrainingPage() {
                     <span className="text-xs text-gray-400">{emp.role}</span>
                   </label>
                 ))}
-                {employees.length === 0 && <div className="px-3 py-4 text-sm text-gray-500 text-center">No employees found</div>}
+                {employees.length === 0 && <div className="px-3 py-4 text-sm text-gray-500 text-center dark:text-slate-400">No employees found</div>}
               </div>
               {selectedEmployees.length > 0 && (
-                <div className="text-xs text-gray-500 mt-1">{selectedEmployees.length} selected</div>
+                <div className="text-xs text-gray-500 mt-1 dark:text-slate-400">{selectedEmployees.length} selected</div>
               )}
             </div>
 
@@ -487,7 +487,7 @@ export default function TrainingPage() {
             <label className="block text-sm font-medium mb-2">Content Steps</label>
             <div className="space-y-3">
               {courseSteps.map((step, i) => (
-                <div key={i} className="border rounded-lg p-3 bg-gray-50">
+                <div key={i} className="border rounded-lg p-3 bg-gray-50 dark:bg-slate-900">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-medium flex items-center gap-1">
                       {step.type === 'text' && <><FileText className="w-3 h-3" />Text Block</>}

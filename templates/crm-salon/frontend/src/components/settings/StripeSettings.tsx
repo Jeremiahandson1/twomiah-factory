@@ -83,15 +83,15 @@ export default function StripeSettings() {
       )}
 
       {/* Connection Status */}
-      <div className="bg-white rounded-xl border p-6">
+      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
               <CreditCard className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Stripe Payments</h2>
-              <p className="text-gray-500">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Stripe Payments</h2>
+              <p className="text-gray-500 dark:text-slate-400">
                 {isFullySetup ? 'Ready to accept payments' : 
                  status?.connected ? 'Setup incomplete' : 'Not connected'}
               </p>
@@ -160,8 +160,8 @@ export default function StripeSettings() {
 
       {/* Features */}
       {isFullySetup && (
-        <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Payment Features</h3>
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
+          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Payment Features</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FeatureItem 
               icon={CreditCard}
@@ -217,10 +217,10 @@ export default function StripeSettings() {
 
       {/* Stripe Dashboard Link */}
       {isFullySetup && (
-        <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between">
+        <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between dark:bg-slate-900">
           <div>
-            <p className="font-medium text-gray-900">Stripe Dashboard</p>
-            <p className="text-sm text-gray-500">View transactions, payouts, and settings</p>
+            <p className="font-medium text-gray-900 dark:text-slate-100">Stripe Dashboard</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">View transactions, payouts, and settings</p>
           </div>
           <a
             href="https://dashboard.stripe.com"
@@ -241,7 +241,7 @@ function StatusItem({ label, enabled }: StatusItemProps) {
   return (
     <div className="flex items-center gap-2">
       <div className={`w-2 h-2 rounded-full ${enabled ? 'bg-green-500' : 'bg-yellow-500'}`} />
-      <span className="text-sm text-gray-600">{label}</span>
+      <span className="text-sm text-gray-600 dark:text-slate-400">{label}</span>
       {enabled ? (
         <Check className="w-4 h-4 text-green-500" />
       ) : (
@@ -253,13 +253,13 @@ function StatusItem({ label, enabled }: StatusItemProps) {
 
 function FeatureItem({ icon: Icon, title, description }: FeatureItemProps) {
   return (
-    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+    <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
       <div className="p-2 bg-purple-100 rounded-lg">
         <Icon className="w-4 h-4 text-purple-600" />
       </div>
       <div>
-        <p className="font-medium text-gray-900">{title}</p>
-        <p className="text-sm text-gray-500">{description}</p>
+        <p className="font-medium text-gray-900 dark:text-slate-100">{title}</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">{description}</p>
       </div>
     </div>
   );

@@ -68,28 +68,28 @@ export default function PortalPaymentMethods() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Payment Method</h1>
-        <p className="text-gray-600">Keep a card on file for invoices and any recurring service plan.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Payment Method</h1>
+        <p className="text-gray-600 dark:text-slate-400">Keep a card on file for invoices and any recurring service plan.</p>
       </div>
 
       {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
       {loading ? (
-        <div className="bg-white rounded-xl border p-10 text-center"><Loader2 className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div>
+        <div className="bg-white rounded-xl border p-10 text-center dark:bg-slate-900"><Loader2 className="w-6 h-6 animate-spin text-gray-400 mx-auto" /></div>
       ) : (
         <div className="space-y-3 mb-6">
           {cards.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+            <div className="bg-white rounded-xl border border-gray-200 p-8 text-center dark:bg-slate-900 dark:border-slate-700">
               <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No card saved yet.</p>
+              <p className="text-gray-500 dark:text-slate-400">No card saved yet.</p>
             </div>
           ) : cards.map((card) => (
-            <div key={card.id} className="bg-white rounded-xl border p-4 flex items-center justify-between">
+            <div key={card.id} className="bg-white rounded-xl border p-4 flex items-center justify-between dark:bg-slate-900">
               <div className="flex items-center gap-3">
                 <CreditCard className="w-5 h-5 text-gray-400" />
                 <div>
-                  <p className="font-medium text-gray-900 capitalize">{card.brand || 'Card'} ending {card.last4}</p>
-                  <p className="text-xs text-gray-500">Expires {card.expMonth}/{card.expYear}</p>
+                  <p className="font-medium text-gray-900 capitalize dark:text-slate-100">{card.brand || 'Card'} ending {card.last4}</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Expires {card.expMonth}/{card.expYear}</p>
                 </div>
               </div>
               <span className="text-xs text-green-600 flex items-center gap-1"><Check className="w-3 h-3" /> On file</span>
@@ -105,7 +105,7 @@ export default function PortalPaymentMethods() {
       )}
 
       {adding && clientSecret && stripe && (
-        <div className="bg-white rounded-xl border p-6 max-w-md">
+        <div className="bg-white rounded-xl border p-6 max-w-md dark:bg-slate-900">
           <Elements stripe={stripe} options={{ clientSecret }}>
             <SaveCardForm
               onSaved={() => { setAdding(false); setClientSecret(null); loadCards(); }}
@@ -142,7 +142,7 @@ function SaveCardForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: ()
     <form onSubmit={submit}>
       <PaymentElement />
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-      <p className="mt-3 text-xs text-gray-500 flex items-center gap-1">
+      <p className="mt-3 text-xs text-gray-500 flex items-center gap-1 dark:text-slate-400">
         <Lock className="w-3 h-3" /> Your card is stored by our payment processor, never by us.
       </p>
       <div className="flex gap-3 mt-4">

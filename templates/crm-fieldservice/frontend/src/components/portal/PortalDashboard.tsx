@@ -40,8 +40,8 @@ export default function PortalDashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back!</h1>
-        <p className="text-gray-600">Here's an overview of your account with {company?.name}.</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Welcome back!</h1>
+        <p className="text-gray-600 dark:text-slate-400">Here's an overview of your account with {company?.name}.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -49,15 +49,15 @@ export default function PortalDashboard() {
           <Link
             key={stat.label}
             to={stat.link}
-            className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all text-gray-900"
+            className="bg-white rounded-xl p-6 border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all text-gray-900 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-100"
           >
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-lg ${stat.color}`}>
                 <stat.icon className="w-6 h-6" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-sm text-gray-500">{stat.label}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stat.value}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{stat.label}</p>
               </div>
             </div>
           </Link>
@@ -65,8 +65,8 @@ export default function PortalDashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6">
-        <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
+      <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6 dark:bg-slate-900 dark:border-slate-700">
+        <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
         <div className="flex flex-wrap gap-3">
           <Link
             to={`/portal/${token}/quotes`}
@@ -77,7 +77,7 @@ export default function PortalDashboard() {
           </Link>
           <Link
             to={`/portal/${token}/invoices`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors dark:bg-slate-900 dark:text-slate-200 dark:border-slate-700"
           >
             <Receipt className="w-4 h-4" />
             View Invoices
@@ -86,9 +86,9 @@ export default function PortalDashboard() {
       </div>
 
       {/* Contact info */}
-      <div className="mt-8 bg-gray-100 rounded-xl p-6">
-        <h2 className="font-semibold text-gray-900 mb-2">Need Help?</h2>
-        <p className="text-gray-600">
+      <div className="mt-8 bg-gray-100 rounded-xl p-6 dark:bg-slate-800">
+        <h2 className="font-semibold text-gray-900 mb-2 dark:text-slate-100">Need Help?</h2>
+        <p className="text-gray-600 dark:text-slate-400">
           Contact us at{' '}
           {company?.email && (
             <a href={`mailto:${company.email}`} className="text-orange-600 hover:underline">

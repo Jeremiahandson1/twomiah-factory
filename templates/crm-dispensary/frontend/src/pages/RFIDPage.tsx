@@ -140,8 +140,8 @@ function TagsTab() {
   };
 
   const columns = [
-    { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900">{val}</span> },
-    { key: 'tid', label: 'TID', render: (val: string) => val ? <span className="font-mono text-xs text-gray-500">{val}</span> : <span className="text-gray-400">--</span> },
+    { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
+    { key: 'tid', label: 'TID', render: (val: string) => val ? <span className="font-mono text-xs text-gray-500 dark:text-slate-400">{val}</span> : <span className="text-gray-400">--</span> },
     { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-400">Unassigned</span> },
     { key: 'batchId', label: 'Batch', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'location', label: 'Location', render: (val: string) => val ? <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" />{val}</span> : <span className="text-gray-400">--</span> },
@@ -155,12 +155,12 @@ function TagsTab() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder="Search EPC..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" />
+          <input type="text" placeholder="Search EPC..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
           {tagStatuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
-        <input type="text" placeholder="Filter by location..." value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500" />
+        <input type="text" placeholder="Filter by location..." value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
         <div className="flex gap-2 ml-auto">
           <Button variant="secondary" onClick={() => setBulkModalOpen(true)}>Bulk Register</Button>
           <Button onClick={() => { setFormData({ epc: '', tid: '', productId: '', batchId: '', location: '' }); setModalOpen(true); }}>
@@ -252,32 +252,32 @@ function ScanTab() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white rounded-xl shadow-sm p-6 dark:bg-slate-900">
         <div className="flex items-center gap-3 mb-6">
           <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center">
             <Radio className="w-6 h-6 text-orange-600" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">RFID Scanner</h2>
-            <p className="text-sm text-gray-500">Enter EPC manually or connect a reader</p>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">RFID Scanner</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Enter EPC manually or connect a reader</p>
           </div>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">EPC *</label>
-            <input type="text" value={epc} onChange={(e) => setEpc(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleScan()} className="w-full px-3 py-3 border border-gray-300 rounded-lg font-mono text-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" placeholder="Scan or enter EPC..." autoFocus />
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">EPC *</label>
+            <input type="text" value={epc} onChange={(e) => setEpc(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleScan()} className="w-full px-3 py-3 border border-gray-300 rounded-lg font-mono text-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" placeholder="Scan or enter EPC..." autoFocus />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Scan Type</label>
-              <select value={scanType} onChange={(e) => setScanType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500">
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Scan Type</label>
+              <select value={scanType} onChange={(e) => setScanType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
                 {scanTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-              <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500" placeholder="Sales Floor" />
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
+              <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" placeholder="Sales Floor" />
             </div>
           </div>
           <Button onClick={handleScan} disabled={scanning} className="w-full" size="lg">
@@ -297,10 +297,10 @@ function ScanTab() {
             </div>
             {result.matched && result.product && (
               <div className="space-y-1 text-sm">
-                <p><span className="text-gray-500">Product:</span> <span className="text-gray-900 font-medium">{result.product.name}</span></p>
-                {result.product.batch && <p><span className="text-gray-500">Batch:</span> <span className="text-gray-900">{result.product.batch}</span></p>}
-                {result.product.location && <p><span className="text-gray-500">Location:</span> <span className="text-gray-900">{result.product.location}</span></p>}
-                {result.product.strain && <p><span className="text-gray-500">Strain:</span> <span className="text-gray-900">{result.product.strain}</span></p>}
+                <p><span className="text-gray-500 dark:text-slate-400">Product:</span> <span className="text-gray-900 font-medium dark:text-slate-100">{result.product.name}</span></p>
+                {result.product.batch && <p><span className="text-gray-500 dark:text-slate-400">Batch:</span> <span className="text-gray-900 dark:text-slate-100">{result.product.batch}</span></p>}
+                {result.product.location && <p><span className="text-gray-500 dark:text-slate-400">Location:</span> <span className="text-gray-900 dark:text-slate-100">{result.product.location}</span></p>}
+                {result.product.strain && <p><span className="text-gray-500 dark:text-slate-400">Strain:</span> <span className="text-gray-900 dark:text-slate-100">{result.product.strain}</span></p>}
               </div>
             )}
             {!result.matched && (
@@ -363,17 +363,17 @@ function InventoryCountTab() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div className="bg-white rounded-xl shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Bulk Inventory Count</h2>
+      <div className="bg-white rounded-xl shadow-sm p-6 dark:bg-slate-900">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Bulk Inventory Count</h2>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
-            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" placeholder="Vault, Sales Floor, etc." />
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location *</label>
+            <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" placeholder="Vault, Sales Floor, etc." />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Scan EPCs</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Scan EPCs</label>
             <div className="flex gap-2">
-              <input type="text" value={epcInput} onChange={(e) => setEpcInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEpc()} className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900" placeholder="Scan or enter EPC..." />
+              <input type="text" value={epcInput} onChange={(e) => setEpcInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEpc()} className="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100" placeholder="Scan or enter EPC..." />
               <Button onClick={addEpc} variant="secondary">Add</Button>
             </div>
           </div>
@@ -383,13 +383,13 @@ function InventoryCountTab() {
         {scannedEpcs.length > 0 && (
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">Scanned Tags ({scannedEpcs.length})</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Scanned Tags ({scannedEpcs.length})</span>
               <button onClick={() => setScannedEpcs([])} className="text-xs text-red-600 hover:text-red-800">Clear All</button>
             </div>
-            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y">
+            <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y dark:border-slate-700">
               {scannedEpcs.map((epc, i) => (
                 <div key={epc} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
-                  <span className="font-mono text-sm text-gray-700">{epc}</span>
+                  <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{epc}</span>
                   <button onClick={() => removeEpc(epc)} className="text-gray-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
                 </div>
               ))}
@@ -406,8 +406,8 @@ function InventoryCountTab() {
 
       {/* Results */}
       {results && (
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Count Results</h3>
+        <div className="bg-white rounded-xl shadow-sm p-6 dark:bg-slate-900">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Count Results</h3>
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="p-4 bg-green-50 rounded-lg text-center">
               <p className="text-2xl font-bold text-green-700">{results.matched || 0}</p>
@@ -425,7 +425,7 @@ function InventoryCountTab() {
 
           {results.missingTags && results.missingTags.length > 0 && (
             <div className="mb-4">
-              <p className="text-sm font-medium text-gray-700 mb-2">Missing Tags (Expected but not scanned)</p>
+              <p className="text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Missing Tags (Expected but not scanned)</p>
               <div className="max-h-32 overflow-y-auto border border-red-200 rounded-lg bg-red-50 p-3">
                 {results.missingTags.map((tag: any) => (
                   <div key={tag.epc} className="flex items-center gap-2 text-sm text-red-700 py-1">
@@ -480,7 +480,7 @@ function ScanHistoryTab() {
   useEffect(() => { setPage(1); }, [tagFilter, locationFilter, typeFilter]);
 
   const columns = [
-    { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900">{val}</span> },
+    { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
     { key: 'scanType', label: 'Type', render: (val: string) => <StatusBadge status={val} statusColors={{ inventory_count: 'bg-blue-100 text-blue-700', receiving: 'bg-green-100 text-green-700', transfer: 'bg-purple-100 text-purple-700', sale: 'bg-orange-100 text-orange-700', audit: 'bg-gray-100 text-gray-700' }} /> },
     { key: 'location', label: 'Location', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-400">--</span> },
@@ -491,9 +491,9 @@ function ScanHistoryTab() {
   return (
     <>
       <div className="flex flex-wrap gap-3 mb-4">
-        <input type="text" placeholder="Filter by EPC..." value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 font-mono" />
-        <input type="text" placeholder="Filter by location..." value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500" />
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500">
+        <input type="text" placeholder="Filter by EPC..." value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 font-mono dark:border-slate-700 dark:text-slate-200" />
+        <input type="text" placeholder="Filter by location..." value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200" />
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200">
           <option value="">All Types</option>
           {scanTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>

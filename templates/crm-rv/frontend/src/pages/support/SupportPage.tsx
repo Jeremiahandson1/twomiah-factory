@@ -182,7 +182,7 @@ export default function SupportPage() {
         <div className="bg-gray-900 border border-gray-800 rounded-xl min-h-[400px] flex flex-col">
           <div className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[500px]">
             {chatMessages.length === 0 && (
-              <p className="text-gray-500 text-sm text-center py-8">Ask a question and our AI will try to help using the knowledge base.</p>
+              <p className="text-gray-500 text-sm text-center py-8 dark:text-slate-400">Ask a question and our AI will try to help using the knowledge base.</p>
             )}
             {chatMessages.map((msg, i) => (
               <div key={i} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -211,7 +211,7 @@ export default function SupportPage() {
             </button>
           </div>
         </div>
-        <p className="text-xs text-gray-600 mt-2">Can't find an answer? <button onClick={() => setShowCreate(true)} className="text-blue-400 hover:underline">Create a ticket</button></p>
+        <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">Can't find an answer? <button onClick={() => setShowCreate(true)} className="text-blue-400 hover:underline">Create a ticket</button></p>
       </div>
     );
   }
@@ -227,7 +227,7 @@ export default function SupportPage() {
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-gray-500 text-xs font-mono">{selected.number}</span>
+              <span className="text-gray-500 text-xs font-mono dark:text-slate-400">{selected.number}</span>
               <span className={'text-xs px-2 py-0.5 rounded-full font-medium capitalize ' + (statusColors[selected.status] || '')}>{selected.status.replace('_', ' ')}</span>
               <span className={'text-xs px-2 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[selected.priority] || '')}>{selected.priority}</span>
               {isSlaBreached(selected) && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">SLA BREACHED</span>}
@@ -257,7 +257,7 @@ export default function SupportPage() {
               <div className="flex items-center gap-2 mb-1">
                 {msg.isInternal && <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1 py-0.5 rounded">Internal</span>}
                 {msg.isAi && <span className="text-xs bg-purple-500/20 text-purple-400 px-1 py-0.5 rounded">AI</span>}
-                <span className="text-xs text-gray-600 ml-auto">{new Date(msg.createdAt).toLocaleString()}</span>
+                <span className="text-xs text-gray-600 ml-auto dark:text-slate-400">{new Date(msg.createdAt).toLocaleString()}</span>
               </div>
               <p className="text-gray-300 text-sm whitespace-pre-wrap">{msg.body}</p>
             </div>
@@ -267,7 +267,7 @@ export default function SupportPage() {
         {/* Rating (for resolved tickets) */}
         {['resolved', 'closed'].includes(selected.status) && !selected.rating && (
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 mb-4">
-            <p className="text-xs text-gray-500 mb-2">Rate this support experience</p>
+            <p className="text-xs text-gray-500 mb-2 dark:text-slate-400">Rate this support experience</p>
             <div className="flex items-center gap-1 mb-2">
               {[1, 2, 3, 4, 5].map(n => (
                 <button key={n} onClick={() => setRatingValue(n)} className="p-1">
@@ -332,7 +332,7 @@ export default function SupportPage() {
           { label: 'SLA Breach', value: stats.sla_breached || 0, color: (stats.sla_breached || 0) > 0 ? 'text-red-400' : 'text-gray-400' },
         ].map(s => (
           <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-lg p-3">
-            <p className="text-xs text-gray-500">{s.label}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{s.label}</p>
             <p className={'text-lg font-bold ' + s.color}>{s.value}</p>
           </div>
         ))}
@@ -341,7 +341,7 @@ export default function SupportPage() {
       {/* Filters */}
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1 max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400" />
           <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..."
             className="w-full pl-8 pr-3 py-1.5 bg-gray-900 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none" />
         </div>
@@ -359,7 +359,7 @@ export default function SupportPage() {
         <p className="text-gray-400 text-sm">Loading...</p>
       ) : tickets.length === 0 ? (
         <div className="border border-dashed border-gray-700 rounded-xl p-12 text-center">
-          <LifeBuoy size={32} className="text-gray-600 mx-auto mb-3" />
+          <LifeBuoy size={32} className="text-gray-600 mx-auto mb-3 dark:text-slate-400" />
           <p className="text-gray-400 text-sm">No tickets yet</p>
         </div>
       ) : (
@@ -374,11 +374,11 @@ export default function SupportPage() {
                   <span className={'text-xs px-1.5 py-0.5 rounded-full font-medium capitalize ' + (priorityColors[t.priority] || '')}>{t.priority}</span>
                   {isSlaBreached(t) && <AlertTriangle size={12} className="text-red-400" />}
                 </div>
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">
                   {t.number} &middot; {t.category || 'General'} &middot; {formatDate(t.createdAt)}
                 </div>
               </div>
-              <ChevronRight size={16} className="text-gray-600" />
+              <ChevronRight size={16} className="text-gray-600 dark:text-slate-400" />
             </div>
           ))}
         </div>
@@ -390,7 +390,7 @@ export default function SupportPage() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md p-5">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg font-bold text-white">New Ticket</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+              <button onClick={() => setShowCreate(false)} className="text-gray-500 hover:text-white dark:text-slate-400"><X size={18} /></button>
             </div>
             <div className="space-y-3">
               <input value={newTicket.subject} onChange={e => setNewTicket({ ...newTicket, subject: e.target.value })}

@@ -151,20 +151,20 @@ export default function GrowInputsPage() {
       {/* Quick Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Total Inputs</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Total Inputs</p>
             <p className="text-2xl font-bold text-green-600">{stats.totalInputs || 0}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Low Stock</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Low Stock</p>
             <p className="text-2xl font-bold text-red-600">{stats.lowStock || 0}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Applications This Week</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Applications This Week</p>
             <p className="text-2xl font-bold text-blue-600">{stats.applicationsThisWeek || 0}</p>
           </div>
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <p className="text-sm text-gray-500">Active Policies</p>
+          <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
+            <p className="text-sm text-gray-500 dark:text-slate-400">Active Policies</p>
             <p className="text-2xl font-bold text-purple-600">{stats.activePolicies || 0}</p>
           </div>
         </div>
@@ -377,8 +377,8 @@ function InventoryTab() {
       label: 'Name',
       render: (val: string, row: any) => (
         <div>
-          <span className="font-medium text-gray-900">{val}</span>
-          {row.brand && <span className="block text-xs text-gray-500">{row.brand}</span>}
+          <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span>
+          {row.brand && <span className="block text-xs text-gray-500 dark:text-slate-400">{row.brand}</span>}
         </div>
       ),
     },
@@ -391,7 +391,7 @@ function InventoryTab() {
         </span>
       ),
     },
-    { key: 'category', label: 'Category', render: (val: string) => <span className="capitalize text-gray-600">{val?.replace(/_/g, ' ') || '--'}</span> },
+    { key: 'category', label: 'Category', render: (val: string) => <span className="capitalize text-gray-600 dark:text-slate-400">{val?.replace(/_/g, ' ') || '--'}</span> },
     {
       key: 'isOrganic',
       label: 'Organic',
@@ -477,13 +477,13 @@ function InventoryTab() {
             placeholder="Search by name or brand..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
           />
         </div>
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500"
+          className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200"
         >
           {inputTypes.map((t) => (
             <option key={t.value} value={t.value}>{t.label}</option>
@@ -832,7 +832,7 @@ function ApplicationsTab() {
     {
       key: 'inputName',
       label: 'Input Name',
-      render: (val: string) => <span className="font-medium text-gray-900">{val}</span>,
+      render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span>,
     },
     {
       key: 'inputType',
@@ -852,7 +852,7 @@ function ApplicationsTab() {
       key: 'targetLabel',
       label: 'Applied To',
       render: (val: string, row: any) => (
-        <span className="text-gray-700">
+        <span className="text-gray-700 dark:text-slate-200">
           {val || row.targetId}
           <span className="text-xs text-gray-400 ml-1">({row.targetType})</span>
         </span>
@@ -861,12 +861,12 @@ function ApplicationsTab() {
     {
       key: 'growPhase',
       label: 'Phase',
-      render: (val: string) => <span className="capitalize text-gray-600">{val?.replace(/_/g, ' ') || '--'}</span>,
+      render: (val: string) => <span className="capitalize text-gray-600 dark:text-slate-400">{val?.replace(/_/g, ' ') || '--'}</span>,
     },
     {
       key: 'method',
       label: 'Method',
-      render: (val: string) => <span className="capitalize text-gray-600">{val?.replace(/_/g, ' ') || '--'}</span>,
+      render: (val: string) => <span className="capitalize text-gray-600 dark:text-slate-400">{val?.replace(/_/g, ' ') || '--'}</span>,
     },
     {
       key: 'appliedBy',
@@ -888,29 +888,29 @@ function ApplicationsTab() {
   return (
     <div className="space-y-6">
       {/* Log Application Form */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Log Application</h3>
+      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Log Application</h3>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Input Search */}
           <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Input *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Input *</label>
             <input
               type="text"
               placeholder="Search inputs..."
               value={inputSearch}
               onChange={(e) => { setInputSearch(e.target.value); setShowInputDropdown(true); }}
               onFocus={() => inputSearch && setShowInputDropdown(true)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
             {showInputDropdown && inputOptions.length > 0 && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setShowInputDropdown(false)} />
-                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto dark:bg-slate-900 dark:border-slate-700">
                   {inputOptions.map((opt: any) => (
                     <button
                       key={opt.id}
                       onClick={() => selectInput(opt)}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-900 flex items-center justify-between"
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-900 flex items-center justify-between dark:text-slate-100"
                     >
                       <span>{opt.name} <span className="text-gray-400">({opt.brand})</span></span>
                       <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${typeColors[opt.type] || 'bg-gray-100 text-gray-700'}`}>{opt.type}</span>
@@ -925,7 +925,7 @@ function ApplicationsTab() {
           {selectedInput && (
             <div className="flex items-end">
               {checkingCompliance ? (
-                <span className="text-sm text-gray-500 pb-2">Checking compliance...</span>
+                <span className="text-sm text-gray-500 pb-2 dark:text-slate-400">Checking compliance...</span>
               ) : complianceResult ? (
                 complianceResult.compliant ? (
                   <span className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-lg bg-green-50 text-green-700 border border-green-200">
@@ -946,7 +946,7 @@ function ApplicationsTab() {
 
           {/* Target Tabs */}
           <div className="md:col-span-2 lg:col-span-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Target *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Target *</label>
             <div className="flex gap-1 mb-2">
               {(['plant', 'batch', 'room'] as const).map((t) => (
                 <button
@@ -963,7 +963,7 @@ function ApplicationsTab() {
             <select
               value={formData.targetId}
               onChange={(e) => setFormData({ ...formData, targetId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">Select {targetTab}...</option>
               {targetOptions.map((t: any) => (
@@ -977,20 +977,20 @@ function ApplicationsTab() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity *</label>
             <div className="flex gap-2">
               <input
                 type="number"
                 step="0.01"
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 placeholder="0.00"
               />
               <select
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-20 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+                className="w-20 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 <option value="ml">ml</option>
                 <option value="L">L</option>
@@ -1005,22 +1005,22 @@ function ApplicationsTab() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Dilution Ratio</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Dilution Ratio</label>
             <input
               type="text"
               value={formData.dilutionRatio}
               onChange={(e) => setFormData({ ...formData, dilutionRatio: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="e.g. 1:100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Application Method</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Application Method</label>
             <select
               value={formData.method}
               onChange={(e) => setFormData({ ...formData, method: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               {applicationMethods.map((m) => (
                 <option key={m.value} value={m.value}>{m.label}</option>
@@ -1029,22 +1029,22 @@ function ApplicationsTab() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Target Area</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Target Area</label>
             <input
               type="text"
               value={formData.targetArea}
               onChange={(e) => setFormData({ ...formData, targetArea: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="e.g. Row A, entire room"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Grow Phase</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Grow Phase</label>
             <select
               value={formData.growPhase}
               onChange={(e) => setFormData({ ...formData, growPhase: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               {growPhases.map((p) => (
                 <option key={p.value} value={p.value}>{p.label}</option>
@@ -1053,23 +1053,23 @@ function ApplicationsTab() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reason</label>
             <input
               type="text"
               value={formData.reason}
               onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="Routine feeding, pest outbreak..."
             />
           </div>
 
           <div className="lg:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
             <input
               type="text"
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
 
@@ -1083,33 +1083,33 @@ function ApplicationsTab() {
 
       {/* Application History */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Application History</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">Application History</h3>
         <div className="flex flex-wrap gap-3 mb-4">
           <input
             type="text"
             placeholder="Filter by input..."
             value={historyInputFilter}
             onChange={(e) => { setHistoryInputFilter(e.target.value); setHistoryPage(1); }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200"
           />
           <input
             type="text"
             placeholder="Filter by target..."
             value={historyTargetFilter}
             onChange={(e) => { setHistoryTargetFilter(e.target.value); setHistoryPage(1); }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200"
           />
           <input
             type="date"
             value={historyDateFrom}
             onChange={(e) => { setHistoryDateFrom(e.target.value); setHistoryPage(1); }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200"
           />
           <input
             type="date"
             value={historyDateTo}
             onChange={(e) => { setHistoryDateTo(e.target.value); setHistoryPage(1); }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500"
+            className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 dark:border-slate-700 dark:text-slate-200"
           />
         </div>
         <DataTable
@@ -1292,18 +1292,18 @@ function PoliciesTab() {
           <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : policies.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500">
+        <div className="bg-white rounded-lg shadow-sm p-12 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">
           No policies created yet. Create one to enforce input compliance rules.
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {policies.map((policy) => (
-            <div key={policy.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+            <div key={policy.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow dark:bg-slate-900 dark:border-slate-700">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-semibold text-gray-900 truncate">{policy.name}</h4>
+                  <h4 className="font-semibold text-gray-900 truncate dark:text-slate-100">{policy.name}</h4>
                   {policy.description && (
-                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">{policy.description}</p>
+                    <p className="text-sm text-gray-500 mt-1 line-clamp-2 dark:text-slate-400">{policy.description}</p>
                   )}
                 </div>
                 <button onClick={() => toggleActive(policy)} className="ml-2 flex-shrink-0">
@@ -1314,7 +1314,7 @@ function PoliciesTab() {
                   )}
                 </button>
               </div>
-              <div className="flex items-center gap-3 text-sm text-gray-500 mb-4">
+              <div className="flex items-center gap-3 text-sm text-gray-500 mb-4 dark:text-slate-400">
                 <span className="flex items-center gap-1">
                   <Shield className="w-4 h-4" /> {policy.rules?.length || 0} rules
                 </span>
@@ -1560,8 +1560,8 @@ function TraceabilityTab() {
   return (
     <div className="space-y-6">
       {/* Search */}
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Product / Batch Traceability</h3>
+      <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Product / Batch Traceability</h3>
         <div className="flex gap-3">
           <div className="relative flex-1 max-w-lg">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -1571,7 +1571,7 @@ function TraceabilityTab() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
           <Button onClick={handleSearch} disabled={searching}>
@@ -1595,30 +1595,30 @@ function TraceabilityTab() {
 
           {showCustomerView ? (
             /* Customer View */
-            <div className="bg-white rounded-lg shadow-sm p-6 max-w-lg mx-auto">
+            <div className="bg-white rounded-lg shadow-sm p-6 max-w-lg mx-auto dark:bg-slate-900">
               <div className="text-center mb-6">
                 {traceData.product?.imageUrl ? (
                   <img src={traceData.product.imageUrl} alt={traceData.product.name} className="w-24 h-24 object-cover rounded-lg mx-auto mb-3" />
                 ) : (
-                  <div className="w-24 h-24 bg-gray-100 rounded-lg mx-auto mb-3 flex items-center justify-center">
+                  <div className="w-24 h-24 bg-gray-100 rounded-lg mx-auto mb-3 flex items-center justify-center dark:bg-slate-800">
                     <Package className="w-10 h-10 text-gray-400" />
                   </div>
                 )}
-                <h3 className="text-xl font-bold text-gray-900">{traceData.product?.name || 'Product'}</h3>
-                {traceData.product?.strain && <p className="text-gray-500">{traceData.product.strain}</p>}
+                <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{traceData.product?.name || 'Product'}</h3>
+                {traceData.product?.strain && <p className="text-gray-500 dark:text-slate-400">{traceData.product.strain}</p>}
               </div>
 
               {traceData.labResults && (
                 <div className="border-t pt-4 mt-4">
-                  <h4 className="font-semibold text-gray-700 mb-2">Lab Results</h4>
+                  <h4 className="font-semibold text-gray-700 mb-2 dark:text-slate-200">Lab Results</h4>
                   <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-gray-500">THC</p>
-                      <p className="text-lg font-bold text-gray-900">{traceData.labResults.thcPercent}%</p>
+                    <div className="bg-gray-50 rounded-lg p-3 text-center dark:bg-slate-900">
+                      <p className="text-gray-500 dark:text-slate-400">THC</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{traceData.labResults.thcPercent}%</p>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                      <p className="text-gray-500">CBD</p>
-                      <p className="text-lg font-bold text-gray-900">{traceData.labResults.cbdPercent}%</p>
+                    <div className="bg-gray-50 rounded-lg p-3 text-center dark:bg-slate-900">
+                      <p className="text-gray-500 dark:text-slate-400">CBD</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{traceData.labResults.cbdPercent}%</p>
                     </div>
                   </div>
                   <div className="mt-3 flex items-center gap-2">
@@ -1635,7 +1635,7 @@ function TraceabilityTab() {
                 </div>
               )}
 
-              <div className="border-t pt-4 mt-4 text-sm text-gray-600">
+              <div className="border-t pt-4 mt-4 text-sm text-gray-600 dark:text-slate-400">
                 <p><span className="font-medium">Batch:</span> {traceData.batch?.batchNumber || '--'}</p>
                 <p><span className="font-medium">Harvested:</span> {traceData.batch?.harvestDate ? formatDate(traceData.batch.harvestDate) : '--'}</p>
                 <p><span className="font-medium">Organic Inputs:</span> {(traceData.inputs || []).filter((i: any) => i.isOrganic).length} of {(traceData.inputs || []).length}</p>
@@ -1643,25 +1643,25 @@ function TraceabilityTab() {
             </div>
           ) : (
             /* Full Traceability View */
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
               {/* Product Info */}
               <div className="flex items-start gap-4 mb-6">
                 {traceData.product?.imageUrl ? (
                   <img src={traceData.product.imageUrl} alt="" className="w-16 h-16 object-cover rounded-lg" />
                 ) : (
-                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0 dark:bg-slate-800">
                     <Package className="w-8 h-8 text-gray-400" />
                   </div>
                 )}
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">{traceData.product?.name || 'Product'}</h3>
-                  {traceData.product?.strain && <p className="text-gray-500">{traceData.product.strain}</p>}
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{traceData.product?.name || 'Product'}</h3>
+                  {traceData.product?.strain && <p className="text-gray-500 dark:text-slate-400">{traceData.product.strain}</p>}
                   {traceData.product?.category && <p className="text-sm text-gray-400">{traceData.product.category}</p>}
                 </div>
               </div>
 
               {/* Timeline */}
-              <div className="relative pl-8 border-l-2 border-gray-200 space-y-6">
+              <div className="relative pl-8 border-l-2 border-gray-200 space-y-6 dark:border-slate-700">
                 {/* Batch Info */}
                 {traceData.batch && (
                   <div className="relative">
@@ -1685,10 +1685,10 @@ function TraceabilityTab() {
                     <div className="bg-purple-50 rounded-lg p-4">
                       <h4 className="font-semibold text-purple-900 mb-2">Lab Results</h4>
                       <div className="flex flex-wrap gap-3 text-sm mb-2">
-                        <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900">THC: {traceData.labResults.thcPercent}%</span>
-                        <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900">CBD: {traceData.labResults.cbdPercent}%</span>
+                        <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900 dark:bg-slate-900 dark:text-slate-100">THC: {traceData.labResults.thcPercent}%</span>
+                        <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900 dark:bg-slate-900 dark:text-slate-100">CBD: {traceData.labResults.cbdPercent}%</span>
                         {traceData.labResults.terpenes && (
-                          <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900">Terpenes: {traceData.labResults.totalTerpenes}%</span>
+                          <span className="px-3 py-1 bg-white rounded-lg font-medium text-gray-900 dark:bg-slate-900 dark:text-slate-100">Terpenes: {traceData.labResults.totalTerpenes}%</span>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -1716,9 +1716,9 @@ function TraceabilityTab() {
                       <h4 className="font-semibold text-green-900 mb-2">Inputs Applied ({traceData.inputs.length})</h4>
                       <div className="space-y-2">
                         {traceData.inputs.map((inp: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between text-sm bg-white rounded-lg p-2">
+                          <div key={i} className="flex items-center justify-between text-sm bg-white rounded-lg p-2 dark:bg-slate-900">
                             <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-900">{inp.name}</span>
+                              <span className="font-medium text-gray-900 dark:text-slate-100">{inp.name}</span>
                               {inp.brand && <span className="text-gray-400">({inp.brand})</span>}
                               {inp.isOrganic && (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">
@@ -1726,7 +1726,7 @@ function TraceabilityTab() {
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-3 text-gray-500">
+                            <div className="flex items-center gap-3 text-gray-500 dark:text-slate-400">
                               <span>{inp.quantity} {inp.unit}</span>
                               <span>{inp.method?.replace(/_/g, ' ')}</span>
                               <span>{inp.date ? formatDate(inp.date) : ''}</span>

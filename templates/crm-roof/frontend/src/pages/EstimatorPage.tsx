@@ -52,8 +52,8 @@ export default function EstimatorPage() {
   if (!hasFeature('instant_estimator')) {
     return (
       <div className="max-w-2xl mx-auto py-12 text-center">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Instant Estimator</h2>
-        <p className="text-gray-500 mb-4">The Instant Estimator uses Google satellite data to measure roofs and provide homeowners with an instant price range.</p>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-slate-100">Instant Estimator</h2>
+        <p className="text-gray-500 mb-4 dark:text-slate-400">The Instant Estimator uses Google satellite data to measure roofs and provide homeowners with an instant price range.</p>
         <p className="text-gray-400 text-sm">This feature is not enabled on your plan. Contact support to add it.</p>
       </div>
     );
@@ -69,8 +69,8 @@ export default function EstimatorPage() {
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Roof Estimator</h1>
-          <p className="text-sm text-gray-500 mt-1">Configure the instant estimator on your website. Homeowners enter their address and get a satellite-based price range.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Roof Estimator</h1>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Configure the instant estimator on your website. Homeowners enter their address and get a satellite-based price range.</p>
         </div>
         <div className="flex items-center gap-3">
           {siteUrl && (
@@ -85,10 +85,10 @@ export default function EstimatorPage() {
       </div>
 
       {/* Enable toggle */}
-      <div className="bg-white rounded-xl shadow-sm border p-5 flex items-center justify-between">
+      <div className="bg-white rounded-xl shadow-sm border p-5 flex items-center justify-between dark:bg-slate-900">
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">Enable Estimator</h2>
-          <p className="text-xs text-gray-500 mt-0.5">When disabled, visitors who go to the estimate page will be redirected to your contact page instead.</p>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Enable Estimator</h2>
+          <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">When disabled, visitors who go to the estimate page will be redirected to your contact page instead.</p>
         </div>
         <button onClick={() => setSettings(s => ({ ...s, estimatorEnabled: !s.estimatorEnabled }))} className="flex items-center">
           {settings.estimatorEnabled
@@ -98,16 +98,16 @@ export default function EstimatorPage() {
       </div>
 
       {/* Pricing */}
-      <div className="bg-white rounded-xl shadow-sm border p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Price Per Square</h2>
-        <p className="text-xs text-gray-500 mb-3">Set the cost range per roofing square (100 sqft). This determines the estimate shown to homeowners.</p>
+      <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3 dark:text-slate-100">Price Per Square</h2>
+        <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">Set the cost range per roofing square (100 sqft). This determines the estimate shown to homeowners.</p>
         <div className="grid grid-cols-2 gap-4 max-w-sm">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Low ($/square)</label>
+            <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Low ($/square)</label>
             <input type="number" step="0.01" value={settings.pricePerSquareLow} onChange={(e) => setSettings({ ...settings, pricePerSquareLow: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">High ($/square)</label>
+            <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">High ($/square)</label>
             <input type="number" step="0.01" value={settings.pricePerSquareHigh} onChange={(e) => setSettings({ ...settings, pricePerSquareHigh: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
           </div>
         </div>
@@ -117,15 +117,15 @@ export default function EstimatorPage() {
       </div>
 
       {/* Customization */}
-      <div className="bg-white rounded-xl shadow-sm border p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Customization</h2>
+      <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3 dark:text-slate-100">Customization</h2>
         <div className="space-y-3 max-w-lg">
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Headline</label>
+            <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Headline</label>
             <input value={settings.estimatorHeadline} onChange={(e) => setSettings({ ...settings, estimatorHeadline: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
           </div>
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Disclaimer</label>
+            <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Disclaimer</label>
             <textarea value={settings.estimatorDisclaimer} onChange={(e) => setSettings({ ...settings, estimatorDisclaimer: e.target.value })} rows={3} className="w-full text-sm border rounded-lg px-3 py-2" />
           </div>
         </div>

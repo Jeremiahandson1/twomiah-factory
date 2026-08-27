@@ -79,7 +79,7 @@ export default function SchedulePage() {
         </div>
       </div>
       {bookings.length > 0 && (
-        <div className="flex items-center gap-4 mb-4 text-xs text-gray-600">
+        <div className="flex items-center gap-4 mb-4 text-xs text-gray-600 dark:text-slate-400">
           <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-gray-300" />Job</span>
           <span className="inline-flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-300" />Booking</span>
         </div>
@@ -96,7 +96,7 @@ export default function SchedulePage() {
                 {getJobsForDay(day).map((job: any) => (
                   <div key={job.id} className={`p-2 rounded text-xs ${job.status === 'completed' ? 'bg-green-50 border-l-2 border-green-500' : job.status === 'in_progress' ? 'bg-blue-50 border-l-2 border-blue-500' : 'bg-gray-50 border-l-2 border-gray-300'}`}>
                     <p className="font-medium truncate">{job.title}</p>
-                    {job.scheduledTime && <p className="text-gray-500">{job.scheduledTime}</p>}
+                    {job.scheduledTime && <p className="text-gray-500 dark:text-slate-400">{job.scheduledTime}</p>}
                   </div>
                 ))}
                 {getBookingsForDay(day).map(b => {
@@ -104,7 +104,7 @@ export default function SchedulePage() {
                   return (
                     <div key={b.id} className="p-2 rounded text-xs bg-orange-50 border-l-2 border-orange-500" title={(b.serviceName || 'Booking') + ' — ' + b.customerName + (b.customerAddress ? ' @ ' + b.customerAddress : '')}>
                       <p className="font-medium truncate flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" />{b.customerName}</p>
-                      <p className="text-gray-500 truncate">{time}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
+                      <p className="text-gray-500 truncate dark:text-slate-400">{time}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
                     </div>
                   );
                 })}

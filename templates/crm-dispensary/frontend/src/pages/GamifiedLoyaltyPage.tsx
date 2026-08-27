@@ -230,8 +230,8 @@ export default function GamifiedLoyaltyPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gamified Loyalty</h1>
-          <p className="text-gray-600">Challenges, leaderboards, and bonus point events</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Gamified Loyalty</h1>
+          <p className="text-gray-600 dark:text-slate-400">Challenges, leaderboards, and bonus point events</p>
         </div>
       </div>
 
@@ -268,7 +268,7 @@ export default function GamifiedLoyaltyPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : challenges.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No challenges yet</p>
               <p className="text-sm text-gray-400 mt-1">Create your first loyalty challenge</p>
@@ -279,10 +279,10 @@ export default function GamifiedLoyaltyPage() {
                 const typeInfo = getChallengeTypeInfo(challenge.type);
                 const progress = challenge.avgProgress || 0;
                 return (
-                  <div key={challenge.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                  <div key={challenge.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h3 className="font-semibold text-gray-900">{challenge.name}</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-slate-100">{challenge.name}</h3>
                         <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full mt-1 ${typeInfo.color}`}>
                           {typeInfo.label}
                         </span>
@@ -296,12 +296,12 @@ export default function GamifiedLoyaltyPage() {
                     </div>
 
                     {challenge.description && (
-                      <p className="text-sm text-gray-600 mb-3">{challenge.description}</p>
+                      <p className="text-sm text-gray-600 mb-3 dark:text-slate-400">{challenge.description}</p>
                     )}
 
                     {/* Progress Bar */}
                     <div className="mb-3">
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <div className="flex justify-between text-xs text-gray-500 mb-1 dark:text-slate-400">
                         <span>Avg Progress</span>
                         <span>{Math.round(progress)}%</span>
                       </div>
@@ -313,7 +313,7 @@ export default function GamifiedLoyaltyPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-sm text-gray-500">
+                    <div className="flex items-center justify-between text-sm text-gray-500 dark:text-slate-400">
                       <span className="flex items-center gap-1">
                         <Users className="w-3 h-3" />
                         {challenge.participantCount || 0} participants
@@ -351,18 +351,18 @@ export default function GamifiedLoyaltyPage() {
           >
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Challenge Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Challenge Name *</label>
                 <input
                   type="text"
                   value={challengeForm.name}
                   onChange={(e) => setChallengeForm({ ...challengeForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="e.g., 7-Day Visit Streak"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2 dark:text-slate-200">Type</label>
                 <div className="grid grid-cols-3 gap-2">
                   {challengeTypes.map(ct => (
                     <button
@@ -381,11 +381,11 @@ export default function GamifiedLoyaltyPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
                 <textarea
                   value={challengeForm.description}
                   onChange={(e) => setChallengeForm({ ...challengeForm, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   rows={2}
                   placeholder="Describe the challenge rules..."
                 />
@@ -393,21 +393,21 @@ export default function GamifiedLoyaltyPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Value</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Target Value</label>
                   <input
                     type="number"
                     value={challengeForm.target}
                     onChange={(e) => setChallengeForm({ ...challengeForm, target: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                     placeholder="e.g., 7 (visits), 100 (dollars)"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reward Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reward Type</label>
                   <select
                     value={challengeForm.rewardType}
                     onChange={(e) => setChallengeForm({ ...challengeForm, rewardType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   >
                     {rewardTypes.map(rt => (
                       <option key={rt} value={rt}>{rt.replace(/_/g, ' ')}</option>
@@ -417,33 +417,33 @@ export default function GamifiedLoyaltyPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Reward Value</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reward Value</label>
                 <input
                   type="number"
                   value={challengeForm.rewardValue}
                   onChange={(e) => setChallengeForm({ ...challengeForm, rewardValue: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="e.g., 500 (points), 10 (percent)"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
                   <input
                     type="date"
                     value={challengeForm.startDate}
                     onChange={(e) => setChallengeForm({ ...challengeForm, startDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End Date</label>
                   <input
                     type="date"
                     value={challengeForm.endDate}
                     onChange={(e) => setChallengeForm({ ...challengeForm, endDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -453,13 +453,13 @@ export default function GamifiedLoyaltyPage() {
                   type="checkbox"
                   checked={challengeForm.active}
                   onChange={(e) => setChallengeForm({ ...challengeForm, active: e.target.checked })}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
                 />
-                <span className="text-sm text-gray-700">Active</span>
+                <span className="text-sm text-gray-700 dark:text-slate-200">Active</span>
               </label>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setChallengeModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+              <button onClick={() => setChallengeModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={saveChallenge} disabled={savingChallenge}>
                 {savingChallenge ? 'Saving...' : editingChallenge ? 'Update Challenge' : 'Create Challenge'}
               </Button>
@@ -476,7 +476,7 @@ export default function GamifiedLoyaltyPage() {
             <select
               value={selectedChallenge}
               onChange={(e) => setSelectedChallenge(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             >
               <option value="">Select a challenge</option>
               {challenges.map(c => (
@@ -486,7 +486,7 @@ export default function GamifiedLoyaltyPage() {
           </div>
 
           {!selectedChallenge ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Crown className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>Select a challenge to view rankings</p>
             </div>
@@ -495,21 +495,21 @@ export default function GamifiedLoyaltyPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rank</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Member</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Progress</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Activity</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Rank</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Member</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Progress</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Last Activity</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {leaderboard.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500">No participants yet</td>
+                      <td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No participants yet</td>
                     </tr>
                   ) : leaderboard.map((entry, index) => (
                     <tr key={entry.id || index} className="hover:bg-gray-50">
@@ -521,10 +521,10 @@ export default function GamifiedLoyaltyPage() {
                             {index + 1}
                           </span>
                         ) : (
-                          <span className="text-gray-500 font-medium pl-2">{index + 1}</span>
+                          <span className="text-gray-500 font-medium pl-2 dark:text-slate-400">{index + 1}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{entry.memberName || entry.name || 'Unknown'}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{entry.memberName || entry.name || 'Unknown'}</td>
                       <td className="px-4 py-3 text-sm text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="w-24 bg-gray-200 rounded-full h-2">
@@ -533,7 +533,7 @@ export default function GamifiedLoyaltyPage() {
                               style={{ width: `${Math.min(100, entry.progress || 0)}%` }}
                             />
                           </div>
-                          <span className="text-gray-600 w-12 text-right">{Math.round(entry.progress || 0)}%</span>
+                          <span className="text-gray-600 w-12 text-right dark:text-slate-400">{Math.round(entry.progress || 0)}%</span>
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -543,7 +543,7 @@ export default function GamifiedLoyaltyPage() {
                           {entry.completed ? 'Completed' : 'In Progress'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
+                      <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                         {entry.lastActivity ? formatDate(entry.lastActivity) : '—'}
                       </td>
                     </tr>
@@ -570,7 +570,7 @@ export default function GamifiedLoyaltyPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : events.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Zap className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No multiplier events</p>
               <p className="text-sm text-gray-400 mt-1">Create bonus point events to boost engagement</p>
@@ -586,7 +586,7 @@ export default function GamifiedLoyaltyPage() {
                 return (
                   <div key={event.id} className={`bg-white rounded-lg shadow-sm p-5 border-2 ${isActive ? 'border-yellow-300' : 'border-gray-100'}`}>
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                         <Zap className={`w-4 h-4 ${isActive ? 'text-yellow-500' : 'text-gray-400'}`} />
                         {event.name}
                       </h3>
@@ -598,9 +598,9 @@ export default function GamifiedLoyaltyPage() {
                     </div>
                     <div className="text-center my-4">
                       <span className="text-4xl font-bold text-yellow-600">{event.multiplier || 2}x</span>
-                      <p className="text-sm text-gray-500 mt-1">Point Multiplier</p>
+                      <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Point Multiplier</p>
                     </div>
-                    <div className="space-y-1 text-sm text-gray-600">
+                    <div className="space-y-1 text-sm text-gray-600 dark:text-slate-400">
                       <p className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         Start: {event.startDate ? formatDate(event.startDate) : '—'}
@@ -624,21 +624,21 @@ export default function GamifiedLoyaltyPage() {
           >
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Event Name *</label>
                 <input
                   type="text"
                   value={eventForm.name}
                   onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="e.g., 420 Double Points"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Multiplier</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Multiplier</label>
                 <select
                   value={eventForm.multiplier}
                   onChange={(e) => setEventForm({ ...eventForm, multiplier: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
                   <option value="1.5">1.5x</option>
                   <option value="2">2x</option>
@@ -649,27 +649,27 @@ export default function GamifiedLoyaltyPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
                   <input
                     type="date"
                     value={eventForm.startDate}
                     onChange={(e) => setEventForm({ ...eventForm, startDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End Date</label>
                   <input
                     type="date"
                     value={eventForm.endDate}
                     onChange={(e) => setEventForm({ ...eventForm, endDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setEventModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium">Cancel</button>
+              <button onClick={() => setEventModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
               <Button onClick={saveEvent} disabled={savingEvent}>
                 {savingEvent ? 'Saving...' : 'Create Event'}
               </Button>
@@ -691,7 +691,7 @@ export default function GamifiedLoyaltyPage() {
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && searchMembers()}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               />
             </div>
             <Button onClick={searchMembers} variant="secondary">
@@ -705,7 +705,7 @@ export default function GamifiedLoyaltyPage() {
               <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : memberResults.length > 0 && !selectedMember && (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <div className="divide-y">
                 {memberResults.map(m => (
                   <button
@@ -714,8 +714,8 @@ export default function GamifiedLoyaltyPage() {
                     className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center justify-between"
                   >
                     <div>
-                      <p className="font-medium text-gray-900">{m.name || `${m.firstName} ${m.lastName}`}</p>
-                      <p className="text-sm text-gray-500">{m.phone || m.email || ''}</p>
+                      <p className="font-medium text-gray-900 dark:text-slate-100">{m.name || `${m.firstName} ${m.lastName}`}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{m.phone || m.email || ''}</p>
                     </div>
                     <span className="text-sm text-green-600">View Progress</span>
                   </button>
@@ -727,33 +727,33 @@ export default function GamifiedLoyaltyPage() {
           {/* Selected Member Progress */}
           {selectedMember && (
             <div>
-              <div className="bg-white rounded-lg shadow-sm p-5 mb-4">
+              <div className="bg-white rounded-lg shadow-sm p-5 mb-4 dark:bg-slate-900">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                       <Users className="w-5 h-5 text-green-600" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900">{selectedMember.name || `${selectedMember.firstName} ${selectedMember.lastName}`}</p>
-                      <p className="text-sm text-gray-500">{selectedMember.phone || selectedMember.email || ''}</p>
+                      <p className="font-semibold text-gray-900 dark:text-slate-100">{selectedMember.name || `${selectedMember.firstName} ${selectedMember.lastName}`}</p>
+                      <p className="text-sm text-gray-500 dark:text-slate-400">{selectedMember.phone || selectedMember.email || ''}</p>
                     </div>
                   </div>
                   <button
                     onClick={() => { setSelectedMember(null); setMemberProgress([]); }}
-                    className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+                    className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400"
                   >
                     Change
                   </button>
                 </div>
               </div>
 
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Active Challenges</h3>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3 dark:text-slate-400">Active Challenges</h3>
               {loadingProgress ? (
                 <div className="flex items-center justify-center h-16">
                   <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : memberProgress.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-lg shadow-sm text-gray-500">
+                <div className="text-center py-12 bg-white rounded-lg shadow-sm text-gray-500 dark:bg-slate-900 dark:text-slate-400">
                   <Target className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No active challenges for this member</p>
                 </div>
@@ -763,10 +763,10 @@ export default function GamifiedLoyaltyPage() {
                     const typeInfo = getChallengeTypeInfo(cp.challengeType || cp.type);
                     const pct = cp.target > 0 ? Math.min(100, (cp.current / cp.target) * 100) : 0;
                     return (
-                      <div key={cp.id || cp.challengeId} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                      <div key={cp.id || cp.challengeId} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-gray-900">{cp.challengeName || cp.name}</h4>
+                            <h4 className="font-semibold text-gray-900 dark:text-slate-100">{cp.challengeName || cp.name}</h4>
                             <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${typeInfo.color}`}>
                               {typeInfo.label}
                             </span>
@@ -779,8 +779,8 @@ export default function GamifiedLoyaltyPage() {
                         </div>
                         <div className="mb-2">
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">{cp.current || 0} / {cp.target || 0}</span>
-                            <span className="font-medium text-gray-900">{Math.round(pct)}%</span>
+                            <span className="text-gray-600 dark:text-slate-400">{cp.current || 0} / {cp.target || 0}</span>
+                            <span className="font-medium text-gray-900 dark:text-slate-100">{Math.round(pct)}%</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-3">
                             <div
@@ -803,7 +803,7 @@ export default function GamifiedLoyaltyPage() {
 
           {/* Empty state */}
           {!selectedMember && memberResults.length === 0 && !loadingMember && (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Search className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>Search for a loyalty member to view their challenge progress</p>
             </div>

@@ -110,8 +110,8 @@ export default function BookingsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Online Booking</h1>
-          <p className="text-gray-500">What customers can book, and what they have booked</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Online Booking</h1>
+          <p className="text-gray-500 dark:text-slate-400">What customers can book, and what they have booked</p>
         </div>
         {tab === 'services' && (
           <button
@@ -148,35 +148,35 @@ export default function BookingsPage() {
           </div>
 
           {loading ? (
-            <div className="bg-white rounded-xl border p-12 text-center text-gray-400">Loading...</div>
+            <div className="bg-white rounded-xl border p-12 text-center text-gray-400 dark:bg-slate-900">Loading...</div>
           ) : bookings.length === 0 ? (
-            <div className="bg-white rounded-xl border p-12 text-center">
+            <div className="bg-white rounded-xl border p-12 text-center dark:bg-slate-900">
               <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">No online bookings yet.</p>
+              <p className="text-gray-500 dark:text-slate-400">No online bookings yet.</p>
               <p className="text-sm text-gray-400 mt-1">Add a bookable service, then put the embed code on your website.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b">
+                <thead className="bg-gray-50 border-b dark:bg-slate-900">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">Customer</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">Service</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">When</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">Deposit</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-500">Code</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Customer</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Service</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">When</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Deposit</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Code</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {bookings.map((b) => (
                     <tr key={b.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">{b.customer_name || '-'}</div>
-                        <div className="text-xs text-gray-500">{b.customer_email}</div>
+                        <div className="font-medium text-gray-900 dark:text-slate-100">{b.customer_name || '-'}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400">{b.customer_email}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{b.service_name || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{b.service_name || '-'}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-slate-200">
                         {b.scheduled_date ? new Date(b.scheduled_date).toLocaleString() : '-'}
                       </td>
                       <td className="px-4 py-3">
@@ -189,7 +189,7 @@ export default function BookingsPage() {
                           ? `${money(b.deposit_amount)} ${b.deposit_status}`
                           : '-'}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{b.confirmation_code || '-'}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-slate-400">{b.confirmation_code || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -202,18 +202,18 @@ export default function BookingsPage() {
       {tab === 'services' && (
         <div className="space-y-3">
           {services.length === 0 && !loading && (
-            <div className="bg-white rounded-xl border p-12 text-center text-gray-500">
+            <div className="bg-white rounded-xl border p-12 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">
               No bookable services yet. Add one so customers have something to book.
             </div>
           )}
           {services.map((s) => {
             const depositOn = !!(s.depositRequired ?? s.deposit_required);
             return (
-              <div key={s.id} className="bg-white rounded-xl border p-4 flex items-start justify-between">
+              <div key={s.id} className="bg-white rounded-xl border p-4 flex items-start justify-between dark:bg-slate-900">
                 <div>
-                  <div className="font-medium text-gray-900">{s.name}</div>
-                  {s.description && <div className="text-sm text-gray-500">{s.description}</div>}
-                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                  <div className="font-medium text-gray-900 dark:text-slate-100">{s.name}</div>
+                  {s.description && <div className="text-sm text-gray-500 dark:text-slate-400">{s.description}</div>}
+                  <div className="flex items-center gap-4 mt-2 text-xs text-gray-500 dark:text-slate-400">
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{Number(s.durationMinutes ?? s.duration_minutes ?? 60)} min</span>
                     <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />{money(s.price)}</span>
                     <span className={depositOn ? 'text-orange-600' : ''}>
@@ -230,9 +230,9 @@ export default function BookingsPage() {
       )}
 
       {tab === 'embed' && (
-        <div className="bg-white rounded-xl border p-6">
+        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <h2 className="font-semibold mb-2">Put booking on your website</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-gray-500 mb-4 dark:text-slate-400">
             Paste this where you want the booking form to appear. If a service requires a deposit, the customer pays it
             before the slot is confirmed.
           </p>
@@ -282,48 +282,48 @@ function ServiceModal({ service, onClose, onSave }: ServiceModalProps) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{form.id ? 'Edit Service' : 'New Bookable Service'}</h2>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name</label>
               <input value={form.name} required onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <input value={(form.description as string) || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Duration (minutes)</label>
                 <input type="number" min={5} step={5} value={Number(form.durationMinutes)}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, durationMinutes: Number(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price</label>
                 <input type="number" min={0} step="0.01" value={Number(form.price)}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, price: Number(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
 
-            <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="p-3 bg-gray-50 rounded-lg dark:bg-slate-900">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={!!form.depositRequired}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, depositRequired: e.target.checked })}
-                  className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
-                <span className="text-sm font-medium text-gray-700">Require a deposit to hold the slot</span>
+                  className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700" />
+                <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Require a deposit to hold the slot</span>
               </label>
               {form.depositRequired && (
                 <div className="mt-3">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Deposit amount</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Deposit amount</label>
                   <input type="number" min={0} step="0.01" value={Number(form.depositAmount)}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, depositAmount: Number(e.target.value) })}
                     className="w-full px-3 py-2 border rounded-lg" />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
                     The booking stays pending until this is paid. Requires card payments to be set up.
                   </p>
                 </div>
@@ -333,8 +333,8 @@ function ServiceModal({ service, onClose, onSave }: ServiceModalProps) {
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.active !== false}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, active: e.target.checked })}
-                className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
-              <span className="text-sm text-gray-700">Bookable now</span>
+                className="w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700" />
+              <span className="text-sm text-gray-700 dark:text-slate-200">Bookable now</span>
             </label>
 
             <div className="flex gap-3 pt-2">

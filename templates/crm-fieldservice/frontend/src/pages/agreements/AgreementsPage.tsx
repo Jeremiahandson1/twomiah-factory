@@ -67,8 +67,8 @@ export default function AgreementsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Service Agreements</h1>
-          <p className="text-gray-500">Manage maintenance memberships</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Service Agreements</h1>
+          <p className="text-gray-500 dark:text-slate-400">Manage maintenance memberships</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -78,7 +78,7 @@ export default function AgreementsPage() {
             <FileText className="w-4 h-4" />
             New Plan
           </button>
-          <button onClick={runBilling} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+          <button onClick={runBilling} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">
 
             Bill due agreements
 
@@ -178,17 +178,17 @@ export default function AgreementsPage() {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : (
-            <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Customer</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Plan</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Visits</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Expires</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Autopay</th>
-                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Price</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Customer</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Plan</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Status</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Visits</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Expires</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Autopay</th>
+                    <th className="text-right px-4 py-3 text-sm font-medium text-gray-500 dark:text-slate-400">Price</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
@@ -205,7 +205,7 @@ export default function AgreementsPage() {
                 </tbody>
               </table>
               {filteredAgreements.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
+                <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                   No agreements found
                 </div>
               )}
@@ -330,11 +330,11 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }) {
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3">
-        <p className="font-medium text-gray-900">{agreement.contact?.name}</p>
-        <p className="text-sm text-gray-500">{agreement.contact?.email}</p>
+        <p className="font-medium text-gray-900 dark:text-slate-100">{agreement.contact?.name}</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">{agreement.contact?.email}</p>
       </td>
       <td className="px-4 py-3">
-        <p className="font-medium text-gray-900">{agreement.plan?.name}</p>
+        <p className="font-medium text-gray-900 dark:text-slate-100">{agreement.plan?.name}</p>
       </td>
       <td className="px-4 py-3">
         <span className={`px-2 py-1 rounded-full text-xs ${statusColors[agreement.status]}`}>
@@ -359,7 +359,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }) {
       </td>
       <td className="px-4 py-3 text-right font-medium">
         ${(Number(agreement.price) || 0).toFixed(2)}
-        <span className="text-xs text-gray-500 ml-1">/{agreement.billingFrequency}</span>
+        <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{agreement.billingFrequency}</span>
       </td>
       <td className="px-4 py-3">
         <div className="flex items-center gap-1 justify-end">
@@ -388,11 +388,11 @@ function PlansTab({ plans, onEdit, onRefresh }) {
   return (
     <div className="grid grid-cols-3 gap-6">
       {plans.map(plan => (
-        <div key={plan.id} className="bg-white rounded-xl border p-6">
+        <div key={plan.id} className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
-              <p className="text-sm text-gray-500">{plan._count?.agreements || 0} active</p>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-slate-100">{plan.name}</h3>
+              <p className="text-sm text-gray-500 dark:text-slate-400">{plan._count?.agreements || 0} active</p>
             </div>
             <button
               onClick={() => onEdit(plan)}
@@ -402,13 +402,13 @@ function PlansTab({ plans, onEdit, onRefresh }) {
             </button>
           </div>
 
-          <div className="text-3xl font-bold text-gray-900 mb-4">
+          <div className="text-3xl font-bold text-gray-900 mb-4 dark:text-slate-100">
             ${(Number(plan.price) || 0).toFixed(0)}
-            <span className="text-base font-normal text-gray-500">/{plan.billingFrequency}</span>
+            <span className="text-base font-normal text-gray-500 dark:text-slate-400">/{plan.billingFrequency}</span>
           </div>
 
           {plan.description && (
-            <p className="text-sm text-gray-600 mb-4">{plan.description}</p>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">{plan.description}</p>
           )}
 
           <div className="space-y-2 text-sm">
@@ -437,7 +437,7 @@ function PlansTab({ plans, onEdit, onRefresh }) {
       ))}
 
       {plans.length === 0 && (
-        <div className="col-span-3 text-center py-12 text-gray-500">
+        <div className="col-span-3 text-center py-12 text-gray-500 dark:text-slate-400">
           No plans created yet
         </div>
       )}
@@ -473,12 +473,12 @@ function VisitsTab() {
   }
 
   return (
-    <div className="bg-white rounded-xl border">
+    <div className="bg-white rounded-xl border dark:bg-slate-900">
       <div className="p-4 border-b">
-        <h3 className="font-medium text-gray-900">Upcoming Service Visits</h3>
+        <h3 className="font-medium text-gray-900 dark:text-slate-100">Upcoming Service Visits</h3>
       </div>
       {visits.length === 0 ? (
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-gray-500 dark:text-slate-400">
           No upcoming visits
         </div>
       ) : (
@@ -486,18 +486,18 @@ function VisitsTab() {
           {visits.map(visit => (
             <div key={visit.id} className="p-4 flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-gray-900 dark:text-slate-100">
                   {visit.agreement?.contact?.name}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   {visit.agreement?.plan?.name} - {visit.serviceType || 'Maintenance'}
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-gray-900 dark:text-slate-100">
                   {formatDate(visit.scheduledDate)}
                 </p>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-gray-500 dark:text-slate-400">
                   {visit.agreement?.contact?.phone}
                 </p>
               </div>
@@ -544,12 +544,12 @@ function PlanFormModal({ plan, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{plan ? 'Edit Plan' : 'Create Plan'}</h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Plan Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan Name</label>
               <input
                 type="text"
                 value={form.name}
@@ -561,7 +561,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -572,7 +572,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price</label>
                 <input
                   type="number"
                   value={form.price}
@@ -582,7 +582,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Billing</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Billing</label>
                 <select
                   value={form.billingFrequency}
                   onChange={(e) => setForm({ ...form, billingFrequency: e.target.value })}
@@ -597,7 +597,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Visits/Year</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Visits/Year</label>
                 <input
                   type="number"
                   value={form.visitsIncluded}
@@ -606,7 +606,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount %</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Discount %</label>
                 <input
                   type="number"
                   value={form.discountPercent}
@@ -615,7 +615,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Term (months)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Term (months)</label>
                 <input
                   type="number"
                   value={form.durationMonths}
@@ -633,7 +633,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                   onChange={(e) => setForm({ ...form, priorityService: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
-                <span className="text-sm text-gray-700">Priority Service</span>
+                <span className="text-sm text-gray-700 dark:text-slate-200">Priority Service</span>
               </label>
               <label className="flex items-center gap-2">
                 <input
@@ -642,7 +642,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                   onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
-                <span className="text-sm text-gray-700">Auto-Renew</span>
+                <span className="text-sm text-gray-700 dark:text-slate-200">Auto-Renew</span>
               </label>
             </div>
 
@@ -748,12 +748,12 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900">
           <h2 className="text-lg font-bold mb-4">{agreement ? 'Edit Agreement' : 'New Agreement'}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Customer</label>
               <select
                 value={form.contactId}
                 onChange={(e) => setForm({ ...form, contactId: e.target.value })}
@@ -768,7 +768,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Plan</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan</label>
               <select
                 value={form.planId}
                 onChange={(e) => setForm({ ...form, planId: e.target.value })}
@@ -785,7 +785,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start Date</label>
               <input
                 type="date"
                 value={form.startDate}
@@ -802,7 +802,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
                 onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
                 className="w-4 h-4 rounded text-orange-500"
               />
-              <span className="text-sm text-gray-700">Auto-renew when term ends</span>
+              <span className="text-sm text-gray-700 dark:text-slate-200">Auto-renew when term ends</span>
             </label>
 
             {/* Scheduling Section */}
@@ -814,13 +814,13 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
                   onChange={(e) => setForm({ ...form, autoSchedule: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
-                <span className="text-sm font-medium text-gray-700">Auto-schedule recurring visits</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Auto-schedule recurring visits</span>
               </label>
 
               {form.autoSchedule && (
                 <div className="space-y-3 pl-6 border-l-2 border-orange-200">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Frequency</label>
                     <select
                       value={form.recurrenceFrequency}
                       onChange={(e) => setForm({ ...form, recurrenceFrequency: e.target.value })}
@@ -834,7 +834,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Next Service Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Next Service Date</label>
                     <input
                       type="date"
                       value={form.nextServiceDate}
@@ -844,7 +844,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Generate job this many days before visit</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Generate job this many days before visit</label>
                     <input
                       type="number"
                       value={form.reminderDaysBefore}

@@ -5,11 +5,11 @@ import { Users, UserCheck, Calendar, AlertTriangle, DollarSign, Clock, Activity,
 
 function StatCard({ label, value, icon: Icon, color = 'blue', sub }) {
   return (
-    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+    <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 dark:bg-slate-900">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-gray-500">{label}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{value ?? '—'}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{label}</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1 dark:text-slate-100">{value ?? '—'}</p>
           {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
         </div>
         <div className={`p-2 rounded-lg bg-${color}-50`}>
@@ -32,14 +32,14 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="p-6 text-gray-500">Loading dashboard…</div>;
+  if (loading) return <div className="p-6 text-gray-500 dark:text-slate-400">Loading dashboard…</div>;
 
   const fmt = (n) => n?.toLocaleString() ?? '0';
   const fmtMoney = (n) => n ? `$${Number(n).toLocaleString('en-US', { minimumFractionDigits: 0 })}` : '$0';
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-xl font-bold text-gray-900">{{COMPANY_NAME}} Dashboard</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">{{COMPANY_NAME}} Dashboard</h1>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Active Clients" value={fmt(stats?.activeClients)} icon={Users} />
@@ -54,15 +54,15 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Recent Activity */}
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h2 className="font-semibold text-gray-900 mb-4">Recent Time Entries</h2>
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Recent Time Entries</h2>
           <div className="space-y-3">
             {activity?.recentTimeEntries?.slice(0, 6).map(e => (
               <div key={e.id} className="flex items-center justify-between text-sm">
                 <div>
                   <span className="font-medium">{e.caregiver?.firstName} {e.caregiver?.lastName}</span>
                   <span className="text-gray-400 mx-1">→</span>
-                  <span className="text-gray-600">{e.client?.firstName} {e.client?.lastName}</span>
+                  <span className="text-gray-600 dark:text-slate-400">{e.client?.firstName} {e.client?.lastName}</span>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full text-xs ${e.isComplete ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                   {e.isComplete ? 'Done' : 'Active'}
@@ -74,15 +74,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Pending Absences */}
-        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-          <h2 className="font-semibold text-gray-900 mb-4">Coverage Needed</h2>
+        <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 dark:bg-slate-900">
+          <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Coverage Needed</h2>
           <div className="space-y-3">
             {activity?.pendingAbsences?.map(a => (
               <div key={a.id} className="flex items-center justify-between text-sm">
                 <div>
                   <span className="font-medium">{a.caregiver?.firstName} {a.caregiver?.lastName}</span>
                   <span className="text-gray-400 mx-1">—</span>
-                  <span className="text-gray-600 capitalize">{a.type}</span>
+                  <span className="text-gray-600 capitalize dark:text-slate-400">{a.type}</span>
                 </div>
                 <span className="text-xs text-gray-400">{formatDate(a.date)}</span>
               </div>

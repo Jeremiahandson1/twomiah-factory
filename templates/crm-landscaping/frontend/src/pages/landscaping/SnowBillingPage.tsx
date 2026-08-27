@@ -82,13 +82,13 @@ export default function SnowBillingPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Snowflake className="w-6 h-6" /> Snow &amp; Ice Billing</h1>
-          <p className="text-gray-500 text-sm">Per-push, per-event, per-inch, or seasonal — log storms and the charge is computed automatically.</p>
+          <p className="text-gray-500 text-sm dark:text-slate-400">Per-push, per-event, per-inch, or seasonal — log storms and the charge is computed automatically.</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm"><Plus className="w-4 h-4" /> New Contract</button>
       </div>
 
       {showForm && (
-        <div className="bg-white border rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white border rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3 dark:bg-slate-900">
           <input className="border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value })} />
           <select className="border rounded px-2 py-1.5 text-sm" value={form.billingMode} onChange={e => setForm({ ...form, billingMode: e.target.value })}>
             {MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -114,7 +114,7 @@ export default function SnowBillingPage() {
                 <div className="flex justify-between">
                   <div>
                     <div className="font-medium">{ct.siteName || ct.siteId}</div>
-                    <div className="text-xs text-gray-500">{ct.siteAddress}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">{ct.siteAddress}</div>
                     <span className="inline-block mt-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{MODES.find(m => m.value === ct.billingMode)?.label}</span>
                   </div>
                   <div className="text-right">
@@ -131,7 +131,7 @@ export default function SnowBillingPage() {
 
         <div>
           {selected ? (
-            <div className="bg-white border rounded-lg p-5">
+            <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
               <h2 className="font-semibold flex items-center gap-2 mb-3"><CloudSnow className="w-5 h-5" /> Log Storm Visit</h2>
               <div className="grid grid-cols-2 gap-2">
                 <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Pushes" value={evForm.pushes} onChange={e => setEvForm({ ...evForm, pushes: e.target.value })} />

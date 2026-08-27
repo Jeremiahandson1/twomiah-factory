@@ -239,8 +239,8 @@ export default function CustomizableDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500">Welcome back! Here's your overview.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Dashboard</h1>
+          <p className="text-gray-500 dark:text-slate-400">Welcome back! Here's your overview.</p>
         </div>
         <div className="flex items-center gap-2">
           {editing && (
@@ -254,7 +254,7 @@ export default function CustomizableDashboard() {
               </button>
               <button
                 onClick={resetLayout}
-                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 dark:text-slate-400"
               >
                 Reset
               </button>
@@ -324,9 +324,9 @@ export default function CustomizableDashboard() {
       </div>
 
       {layout.length === 0 && (
-        <div className="text-center py-12 bg-gray-50 rounded-xl">
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <LayoutDashboard className="w-12 h-12 mx-auto text-gray-400 mb-3" />
-          <p className="text-gray-500 mb-4">No widgets added yet</p>
+          <p className="text-gray-500 mb-4 dark:text-slate-400">No widgets added yet</p>
           <button
             onClick={() => setShowAddWidget(true)}
             className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
@@ -341,7 +341,7 @@ export default function CustomizableDashboard() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddWidget(false)} />
           <div className="relative min-h-screen flex items-center justify-center p-4">
-            <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+            <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold">Add Widget</h2>
                 <button onClick={() => setShowAddWidget(false)} className="p-1 hover:bg-gray-100 rounded">
@@ -350,7 +350,7 @@ export default function CustomizableDashboard() {
               </div>
 
               {availableWidgets.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">All widgets are already added</p>
+                <p className="text-gray-500 text-center py-8 dark:text-slate-400">All widgets are already added</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   {availableWidgets.map((widget: WidgetDefinition) => {
@@ -362,7 +362,7 @@ export default function CustomizableDashboard() {
                         className="p-4 border rounded-lg text-left hover:border-orange-300 hover:bg-orange-50 transition-colors"
                       >
                         <Icon className="w-6 h-6 text-orange-500 mb-2" />
-                        <p className="font-medium text-gray-900">{widget.title}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{widget.title}</p>
                       </button>
                     );
                   })}
@@ -389,7 +389,7 @@ function WidgetWrapper({ widget, size, editing, onRemove, onResize, children }: 
             <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
           )}
           <Icon className="w-5 h-5 text-orange-500" />
-          <h3 className="font-medium text-gray-900">{widget.title}</h3>
+          <h3 className="font-medium text-gray-900 dark:text-slate-100">{widget.title}</h3>
         </div>
         {editing && (
           <div className="flex items-center gap-2">
@@ -438,17 +438,17 @@ function RevenueWidget() {
 
   return (
     <div className="space-y-3">
-      <div className="text-3xl font-bold text-gray-900">
+      <div className="text-3xl font-bold text-gray-900 dark:text-slate-100">
         ${(data?.collected || 0).toLocaleString()}
       </div>
-      <p className="text-sm text-gray-500">Collected this month</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400">Collected this month</p>
       <div className="flex items-center gap-4 text-sm">
         <div>
-          <span className="text-gray-500">Invoiced:</span>{' '}
+          <span className="text-gray-500 dark:text-slate-400">Invoiced:</span>{' '}
           <span className="font-medium">${(data?.invoiced || 0).toLocaleString()}</span>
         </div>
         <div>
-          <span className="text-gray-500">Outstanding:</span>{' '}
+          <span className="text-gray-500 dark:text-slate-400">Outstanding:</span>{' '}
           <span className="font-medium text-orange-600">${(data?.outstanding || 0).toLocaleString()}</span>
         </div>
       </div>
@@ -478,13 +478,13 @@ function JobsTodayWidget() {
   return (
     <div className="space-y-2">
       {jobs.length === 0 ? (
-        <p className="text-gray-500 text-sm">No jobs scheduled today</p>
+        <p className="text-gray-500 text-sm dark:text-slate-400">No jobs scheduled today</p>
       ) : (
         jobs.slice(0, 5).map((job: Job) => (
-          <div key={job.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+          <div key={job.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg dark:bg-slate-900">
             <div className="truncate">
-              <p className="font-medium text-sm text-gray-900 truncate">{job.title}</p>
-              <p className="text-xs text-gray-500">{job.assignedTo?.firstName || 'Unassigned'}</p>
+              <p className="font-medium text-sm text-gray-900 truncate dark:text-slate-100">{job.title}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">{job.assignedTo?.firstName || 'Unassigned'}</p>
             </div>
             <span className={`text-xs px-2 py-1 rounded-full ${
               job.status === 'completed' ? 'bg-green-100 text-green-700' :
@@ -497,7 +497,7 @@ function JobsTodayWidget() {
         ))
       )}
       {jobs.length > 5 && (
-        <p className="text-xs text-gray-500 text-center">+{jobs.length - 5} more</p>
+        <p className="text-xs text-gray-500 text-center dark:text-slate-400">+{jobs.length - 5} more</p>
       )}
     </div>
   );
@@ -524,7 +524,7 @@ function OverdueInvoicesWidget() {
   return (
     <div className="text-center">
       <div className="text-3xl font-bold text-red-600">{data.count}</div>
-      <p className="text-sm text-gray-500">Overdue invoices</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400">Overdue invoices</p>
       {data.total > 0 && (
         <p className="text-lg font-semibold text-red-600 mt-2">
           ${data.total.toLocaleString()}
@@ -555,9 +555,9 @@ function PendingQuotesWidget() {
   return (
     <div className="text-center">
       <div className="text-3xl font-bold text-orange-600">{data.count}</div>
-      <p className="text-sm text-gray-500">Pending quotes</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400">Pending quotes</p>
       {data.total > 0 && (
-        <p className="text-lg font-semibold text-gray-900 mt-2">
+        <p className="text-lg font-semibold text-gray-900 mt-2 dark:text-slate-100">
           ${data.total.toLocaleString()}
         </p>
       )}
@@ -586,9 +586,9 @@ function TeamActivityWidget() {
             <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-xs font-medium text-orange-600">
               {member.user?.firstName?.[0]}{member.user?.lastName?.[0]}
             </div>
-            <span className="text-sm text-gray-900">{member.user?.firstName}</span>
+            <span className="text-sm text-gray-900 dark:text-slate-100">{member.user?.firstName}</span>
           </div>
-          <span className="text-sm text-gray-500">{member.hoursWorked}h</span>
+          <span className="text-sm text-gray-500 dark:text-slate-400">{member.hoursWorked}h</span>
         </div>
       ))}
     </div>
@@ -611,12 +611,12 @@ function MyTasksWidget() {
   return (
     <div className="space-y-2">
       {tasks.length === 0 ? (
-        <p className="text-gray-500 text-sm text-center py-4">No pending tasks!</p>
+        <p className="text-gray-500 text-sm text-center py-4 dark:text-slate-400">No pending tasks!</p>
       ) : (
         tasks.map((task: Task) => (
           <div key={task.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
             <CheckCircle2 className="w-4 h-4 text-gray-300" />
-            <span className="text-sm text-gray-900 truncate">{task.title}</span>
+            <span className="text-sm text-gray-900 truncate dark:text-slate-100">{task.title}</span>
           </div>
         ))
       )}
@@ -641,12 +641,12 @@ function RecentActivityWidget() {
     <div className="space-y-2 max-h-64 overflow-y-auto">
       {activity.map((item: ActivityItem, i: number) => (
         <div key={i} className="flex items-start gap-2 p-2 hover:bg-gray-50 rounded text-sm">
-          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs flex-shrink-0">
+          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs flex-shrink-0 dark:bg-slate-800">
             {item.user?.firstName?.[0]}
           </div>
           <div>
             <span className="font-medium">{item.user?.firstName}</span>{' '}
-            <span className="text-gray-500">{item.action?.replace(/_/g, ' ')}</span>
+            <span className="text-gray-500 dark:text-slate-400">{item.action?.replace(/_/g, ' ')}</span>
             <p className="text-xs text-gray-400">
               {new Date(item.createdAt).toLocaleString()}
             </p>
@@ -676,9 +676,9 @@ function ProjectProgressWidget() {
         <div key={project.id}>
           <div className="flex items-center justify-between text-sm mb-1">
             <span className="font-medium truncate">{project.name}</span>
-            <span className="text-gray-500">{project.progress || 0}%</span>
+            <span className="text-gray-500 dark:text-slate-400">{project.progress || 0}%</span>
           </div>
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
             <div
               className="h-full bg-orange-500 rounded-full"
               style={{ width: `${project.progress || 0}%` }}
@@ -714,8 +714,8 @@ function QuickStatsWidget() {
     <div className="grid grid-cols-2 gap-4">
       {items.map((item: QuickStatItem, i: number) => (
         <div key={i} className={`p-3 bg-${item.color}-50 rounded-lg`}>
-          <p className="text-2xl font-bold text-gray-900">{item.value}</p>
-          <p className="text-xs text-gray-500">{item.label}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{item.value}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{item.label}</p>
         </div>
       ))}
     </div>
@@ -750,7 +750,7 @@ function UpcomingScheduleWidget() {
       {jobs.slice(0, 5).map((job: Job) => (
         <div key={job.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
           <div className="text-center">
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-gray-500 dark:text-slate-400">
               {new Date(job.scheduledDate!).toLocaleDateString('en-US', { weekday: 'short' })}
             </div>
             <div className="text-lg font-bold">
@@ -759,7 +759,7 @@ function UpcomingScheduleWidget() {
           </div>
           <div className="flex-1 truncate">
             <p className="font-medium text-sm truncate">{job.title}</p>
-            <p className="text-xs text-gray-500">{job.contact?.name || 'No contact'}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{job.contact?.name || 'No contact'}</p>
           </div>
         </div>
       ))}

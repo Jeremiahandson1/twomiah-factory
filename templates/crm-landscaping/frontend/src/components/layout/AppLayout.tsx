@@ -296,7 +296,7 @@ export default function AppLayout() {
               >
                 {isDark
                   ? <Sun className="w-5 h-5 text-amber-400" />
-                  : <Moon className="w-5 h-5 text-gray-600" />
+                  : <Moon className="w-5 h-5 text-gray-600 dark:text-slate-400" />
                 }
               </button>
 

@@ -204,7 +204,7 @@ export function OfflineIndicator() {
     }`}>
       {!online ? (
         <>
-          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse dark:bg-slate-900" />
           <span className="text-sm font-medium">You're offline</span>
         </>
       ) : (
@@ -235,14 +235,14 @@ export function InstallPrompt() {
   if (!canInstall || isInstalled || dismissed) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 bg-white rounded-xl shadow-xl p-4 max-w-sm border">
+    <div className="fixed bottom-4 right-4 z-50 bg-white rounded-xl shadow-xl p-4 max-w-sm border dark:bg-slate-900">
       <div className="flex items-start gap-3">
         <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
           <span className="text-2xl">📲</span>
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-gray-900">Install {{COMPANY_NAME}}</h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <h3 className="font-semibold text-gray-900 dark:text-slate-100">Install {{COMPANY_NAME}}</h3>
+          <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
             Add to your home screen for quick access and offline use.
           </p>
           <div className="flex gap-2 mt-3">
@@ -254,7 +254,7 @@ export function InstallPrompt() {
             </button>
             <button
               onClick={() => setDismissed(true)}
-              className="px-3 py-1.5 text-gray-500 text-sm hover:text-gray-700"
+              className="px-3 py-1.5 text-gray-500 text-sm hover:text-gray-700 dark:text-slate-400"
             >
               Not now
             </button>
@@ -278,7 +278,7 @@ export function UpdatePrompt() {
       <span className="text-sm">A new version is available!</span>
       <button
         onClick={applyUpdate}
-        className="px-3 py-1 bg-white text-blue-600 text-sm rounded font-medium hover:bg-blue-50"
+        className="px-3 py-1 bg-white text-blue-600 text-sm rounded font-medium hover:bg-blue-50 dark:bg-slate-900"
       >
         Update now
       </button>

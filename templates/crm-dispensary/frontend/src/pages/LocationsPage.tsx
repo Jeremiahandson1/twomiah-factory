@@ -311,8 +311,8 @@ export default function LocationsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Locations</h1>
-          <p className="text-gray-600">Multi-location inventory management</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Locations</h1>
+          <p className="text-gray-600 dark:text-slate-400">Multi-location inventory management</p>
         </div>
       </div>
 
@@ -348,19 +348,19 @@ export default function LocationsPage() {
               <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
             </div>
           ) : locations.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <div className="bg-white rounded-lg shadow-sm p-12 text-center dark:bg-slate-900">
               <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 mb-2">No locations added yet</p>
+              <p className="text-gray-500 mb-2 dark:text-slate-400">No locations added yet</p>
               <p className="text-sm text-gray-400">Add your first location to manage inventory across sites</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {locations.map(loc => (
-                <div key={loc.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100">
+                <div key={loc.id} className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-5 h-5 text-green-600" />
-                      <h3 className="font-semibold text-gray-900">{loc.name}</h3>
+                      <h3 className="font-semibold text-gray-900 dark:text-slate-100">{loc.name}</h3>
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full capitalize ${
                       loc.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
@@ -368,9 +368,9 @@ export default function LocationsPage() {
                       {loc.isActive !== false ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500 capitalize mb-2">{loc.type}</p>
+                  <p className="text-xs text-gray-500 capitalize mb-2 dark:text-slate-400">{loc.type}</p>
                   {(loc.address || loc.city) && (
-                    <p className="text-sm text-gray-600 mb-2">
+                    <p className="text-sm text-gray-600 mb-2 dark:text-slate-400">
                       {[loc.address, loc.city, loc.state, loc.zip].filter(Boolean).join(', ')}
                     </p>
                   )}
@@ -379,18 +379,18 @@ export default function LocationsPage() {
                   )}
                   <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t">
                     <div className="text-center">
-                      <p className="text-lg font-bold text-gray-900">{loc.productCount ?? 0}</p>
-                      <p className="text-xs text-gray-500">Products</p>
+                      <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{loc.productCount ?? 0}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Products</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-lg font-bold text-gray-900">
+                      <p className="text-lg font-bold text-gray-900 dark:text-slate-100">
                         ${Number(loc.inventoryValue || 0).toLocaleString()}
                       </p>
-                      <p className="text-xs text-gray-500">Inventory Value</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Inventory Value</p>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-3 pt-3 border-t">
-                    <button onClick={() => openEditLocation(loc)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1">
+                    <button onClick={() => openEditLocation(loc)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
                       <Edit className="w-3 h-3" /> Edit
                     </button>
                     <button onClick={() => { setLocationToDelete(loc); setDeleteLocationOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
@@ -412,7 +412,7 @@ export default function LocationsPage() {
               <select
                 value={selectedLocationId}
                 onChange={(e) => setSelectedLocationId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 <option value="">Select location</option>
                 {locations.map(loc => (
@@ -429,29 +429,29 @@ export default function LocationsPage() {
                   value={inventorySearch}
                   onChange={(e) => setInventorySearch(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && loadInventory()}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>
             )}
           </div>
           {!selectedLocationId ? (
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <div className="bg-white rounded-lg shadow-sm p-12 text-center dark:bg-slate-900">
               <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">Select a location to view inventory</p>
+              <p className="text-gray-500 dark:text-slate-400">Select a location to view inventory</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-slate-900">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Min</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aisle/Shelf/Bin</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">RFID Tag</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Counted</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Product</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">SKU</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Quantity</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Min</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Aisle/Shelf/Bin</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">RFID Tag</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Last Counted</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -463,21 +463,21 @@ export default function LocationsPage() {
                       </tr>
                     ) : inventory.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500">No inventory at this location</td>
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No inventory at this location</td>
                       </tr>
                     ) : inventory.map(item => (
                       <tr key={item.id} className={`hover:bg-gray-50 ${item.quantity <= (item.minQuantity || 0) ? 'bg-red-50' : ''}`}>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{item.productName || item.name || '—'}</td>
-                        <td className="px-4 py-3 text-sm font-mono text-gray-600">{item.sku || '—'}</td>
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{item.productName || item.name || '—'}</td>
+                        <td className="px-4 py-3 text-sm font-mono text-gray-600 dark:text-slate-400">{item.sku || '—'}</td>
                         <td className={`px-4 py-3 text-sm text-right font-medium ${item.quantity <= (item.minQuantity || 0) ? 'text-red-600' : 'text-gray-900'}`}>
                           {item.quantity ?? 0}
                         </td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-500">{item.minQuantity ?? '—'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-right text-gray-500 dark:text-slate-400">{item.minQuantity ?? '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                           {[item.aisle, item.shelf, item.bin].filter(Boolean).join(' / ') || '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm font-mono text-gray-500">{item.rfidTag || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">
+                        <td className="px-4 py-3 text-sm font-mono text-gray-500 dark:text-slate-400">{item.rfidTag || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                           {item.lastCounted ? formatDate(item.lastCounted) : '—'}
                         </td>
                       </tr>
@@ -499,17 +499,17 @@ export default function LocationsPage() {
               New Transfer
             </Button>
           </div>
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-900">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">From</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">To</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Items</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">From</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">To</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Items</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -521,16 +521,16 @@ export default function LocationsPage() {
                     </tr>
                   ) : transfers.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">No transfers yet</td>
+                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No transfers yet</td>
                     </tr>
                   ) : transfers.map(transfer => (
                     <tr key={transfer.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-900">
+                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-slate-100">
                         {transfer.createdAt ? formatDate(transfer.createdAt) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{transfer.fromLocationName || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{transfer.toLocationName || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">{transfer.items?.length || transfer.itemCount || 0}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{transfer.fromLocationName || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{transfer.toLocationName || '—'}</td>
+                      <td className="px-4 py-3 text-sm text-right text-gray-600 dark:text-slate-400">{transfer.items?.length || transfer.itemCount || 0}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 text-xs rounded-full ${
                           transfer.status === 'received' ? 'bg-green-100 text-green-700' :
@@ -563,15 +563,15 @@ export default function LocationsPage() {
       {/* Count Tab */}
       {tab === 'count' && (
         <div className="max-w-3xl space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="font-semibold text-gray-900 mb-4">Inventory Count</h3>
+          <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+            <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Inventory Count</h3>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Location</label>
               <select
                 value={countLocationId}
                 onChange={(e) => setCountLocationId(e.target.value)}
-                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               >
                 <option value="">Select location</option>
                 {locations.map(loc => (
@@ -582,24 +582,24 @@ export default function LocationsPage() {
 
             <div className="flex items-end gap-3 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">SKU / Product</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">SKU / Product</label>
                 <input
                   type="text"
                   value={countInput.sku}
                   onChange={(e) => setCountInput({ ...countInput, sku: e.target.value })}
                   onKeyDown={(e) => e.key === 'Enter' && addCountItem()}
-                  className="w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="Scan or type SKU"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Count</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Count</label>
                 <input
                   type="number"
                   value={countInput.counted}
                   onChange={(e) => setCountInput({ ...countInput, counted: e.target.value })}
                   onKeyDown={(e) => e.key === 'Enter' && addCountItem()}
-                  className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
+                  className="w-28 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder="0"
                 />
               </div>
@@ -609,20 +609,20 @@ export default function LocationsPage() {
             </div>
 
             {countItems.length > 0 && (
-              <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
+              <div className="border border-gray-200 rounded-lg overflow-hidden mb-4 dark:border-slate-700">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-50 dark:bg-slate-900">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Counted</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase dark:text-slate-400">SKU</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase dark:text-slate-400">Counted</th>
                       <th className="px-4 py-2 w-12"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {countItems.map((item, idx) => (
                       <tr key={idx}>
-                        <td className="px-4 py-2 text-sm font-mono text-gray-900">{item.sku}</td>
-                        <td className="px-4 py-2 text-sm text-right text-gray-900">{item.counted}</td>
+                        <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-slate-100">{item.sku}</td>
+                        <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-slate-100">{item.counted}</td>
                         <td className="px-4 py-2 text-center">
                           <button onClick={() => removeCountItem(idx)} className="text-red-500 hover:text-red-700">
                             <Trash2 className="w-3 h-3" />
@@ -642,8 +642,8 @@ export default function LocationsPage() {
 
           {/* Discrepancies */}
           {countResults && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Count Results</h3>
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+              <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Count Results</h3>
               {countResults.discrepancies && countResults.discrepancies.length > 0 ? (
                 <div className="border border-red-200 rounded-lg overflow-hidden">
                   <table className="w-full">
@@ -658,9 +658,9 @@ export default function LocationsPage() {
                     <tbody className="divide-y">
                       {countResults.discrepancies.map((d: any, idx: number) => (
                         <tr key={idx}>
-                          <td className="px-4 py-2 text-sm font-mono text-gray-900">{d.sku}</td>
-                          <td className="px-4 py-2 text-sm text-right text-gray-600">{d.expected}</td>
-                          <td className="px-4 py-2 text-sm text-right text-gray-600">{d.counted}</td>
+                          <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-slate-100">{d.sku}</td>
+                          <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-slate-400">{d.expected}</td>
+                          <td className="px-4 py-2 text-sm text-right text-gray-600 dark:text-slate-400">{d.counted}</td>
                           <td className={`px-4 py-2 text-sm text-right font-medium ${(d.counted - d.expected) < 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {d.counted - d.expected > 0 ? '+' : ''}{d.counted - d.expected}
                           </td>

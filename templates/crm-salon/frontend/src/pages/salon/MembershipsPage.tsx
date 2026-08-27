@@ -105,10 +105,10 @@ export default function MembershipsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
             <CreditCard className="w-6 h-6 text-rose-500" /> Memberships
           </h1>
-          <p className="text-gray-500">Recurring plans and prepaid packages</p>
+          <p className="text-gray-500 dark:text-slate-400">Recurring plans and prepaid packages</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -132,23 +132,23 @@ export default function MembershipsPage() {
       ) : (
         <>
           {plans.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 bg-white rounded-xl border">No membership plans yet</div>
+            <div className="text-center py-12 text-gray-500 bg-white rounded-xl border dark:text-slate-400 dark:bg-slate-900">No membership plans yet</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {plans.map((p) => (
                 <div key={p.id} className={`bg-white rounded-xl border p-5 flex flex-col ${p.active ? '' : 'opacity-60'}`}>
                   <div className="flex items-start justify-between">
-                    <p className="font-semibold text-gray-900">{p.name || 'Untitled Plan'}</p>
+                    <p className="font-semibold text-gray-900 dark:text-slate-100">{p.name || 'Untitled Plan'}</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {p.active ? 'Active' : 'Retired'}
                     </span>
                   </div>
-                  {p.description && <p className="text-sm text-gray-500 mt-2">{p.description}</p>}
+                  {p.description && <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">{p.description}</p>}
                   <div className="flex items-baseline gap-1 mt-3">
-                    <span className="text-2xl font-bold text-gray-900">{money(p.price)}</span>
+                    <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{money(p.price)}</span>
                     <span className="text-sm text-gray-400">{cycleLabel(p.billingCycle)}</span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-2 flex items-center gap-2">
+                  <p className="text-sm text-gray-500 mt-2 flex items-center gap-2 dark:text-slate-400">
                     <Check className="w-4 h-4 text-teal-500 flex-shrink-0" />
                     {p.creditsTotal ? `${p.creditsTotal} visit${p.creditsTotal === 1 ? '' : 's'} included` : 'Unlimited / recurring'}
                   </p>
@@ -169,17 +169,17 @@ export default function MembershipsPage() {
           )}
 
           {/* Enrollments */}
-          <div className="bg-white rounded-xl border p-5">
-            <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
+            <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
               <Users className="w-4 h-4 text-teal-500" /> Members
-              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full">{enrollments.length}</span>
+              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
             </h2>
             {enrollments.length === 0 ? (
               <p className="text-sm text-gray-400 py-6 text-center">Nobody enrolled yet</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-500 text-left">
+                  <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
                     <tr>
                       <th className="px-4 py-3 font-medium">Client</th>
                       <th className="px-4 py-3 font-medium">Plan</th>
@@ -192,18 +192,18 @@ export default function MembershipsPage() {
                   <tbody className="divide-y">
                     {enrollments.map((e) => (
                       <tr key={e.id}>
-                        <td className="px-4 py-3 font-medium text-gray-900">
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                           {e.contactId ? (
                             <Link to={`/crm/clients/${e.contactId}`} className="hover:text-teal-600">{e.clientName || '—'}</Link>
                           ) : (e.clientName || '—')}
                         </td>
-                        <td className="px-4 py-3 text-gray-600">{e.planName || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500">{fmtDate(e.startDate)}</td>
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.planName || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{fmtDate(e.startDate)}</td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                           {e.creditsRemaining === null || e.creditsRemaining === undefined ? 'Unlimited' : e.creditsRemaining}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">{e.status || 'active'}</span>
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{e.status || 'active'}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           {e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (
@@ -296,33 +296,33 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">{plan ? 'Edit Plan' : 'New Plan'}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
               <input type="text" value={form.name} onChange={(e) => set('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Description</label>
               <textarea value={form.description} onChange={(e) => set('description', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price ($)</label>
                 <input type="number" step="any" value={form.price} onChange={(e) => set('price', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Billing</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Billing</label>
                 <select value={form.billingCycle} onChange={(e) => set('billingCycle', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   {CYCLES.map((c) => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Visit credits</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Visit credits</label>
                 <input type="number" value={form.creditsTotal} onChange={(e) => set('creditsTotal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="∞" />
               </div>
             </div>
@@ -330,7 +330,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
 
             {services.length > 0 && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Included services</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Included services</label>
                 <div className="border rounded-lg max-h-40 overflow-y-auto divide-y">
                   {services.map((s) => (
                     <label key={s.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50">
@@ -344,7 +344,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
 
             <div className="flex items-center gap-2">
               <input id="planActive" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />
-              <label htmlFor="planActive" className="text-sm font-medium text-gray-700">Active</label>
+              <label htmlFor="planActive" className="text-sm font-medium text-gray-700 dark:text-slate-200">Active</label>
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -388,24 +388,24 @@ function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => 
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2"><UserPlus className="w-5 h-5 text-teal-600" /> Enroll Client</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Client <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500">*</span></label>
               <ClientPicker value={contactId} onChange={(id) => setContactId(id)} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Plan <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500">*</span></label>
               <select value={planId} onChange={(e) => setPlanId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
                 {plans.map((p) => <option key={p.id} value={p.id}>{p.name || 'Untitled'}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start date</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start date</label>
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-2">
