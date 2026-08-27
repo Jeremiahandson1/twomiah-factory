@@ -52,10 +52,11 @@ async function main() {
   const [anyProduct] = await db.select().from(products).limit(1)
   if (!anyProduct) {
     const sampleNote = 'This is a sample product added automatically so your store is not empty. Edit its name, price, photos, and details in your admin — or delete it and add your own.'
+    const samplePlaceholderImg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPSc5MDAnIGhlaWdodD0nOTAwJyB2aWV3Qm94PScwIDAgOTAwIDkwMCc+PHJlY3Qgd2lkdGg9JzkwMCcgaGVpZ2h0PSc5MDAnIGZpbGw9JyNlZWYxZjQnLz48ZyBmaWxsPSdub25lJyBzdHJva2U9JyNhYWI2YzQnIHN0cm9rZS13aWR0aD0nMTInIHN0cm9rZS1saW5lam9pbj0ncm91bmQnPjxwYXRoIGQ9J00zMjAgMzcyIEw0NTAgMzAwIEw1ODAgMzcyIEw1ODAgNTQwIEw0NTAgNjEyIEwzMjAgNTQwIFonLz48cGF0aCBkPSdNMzIwIDM3MiBMNDUwIDQ0NCBMNTgwIDM3MicvPjxwYXRoIGQ9J000NTAgNDQ0IEw0NTAgNjEyJy8+PC9nPjx0ZXh0IHg9JzQ1MCcgeT0nNzAwJyBmb250LWZhbWlseT0nQXJpYWwsIEhlbHZldGljYSwgc2Fucy1zZXJpZicgZm9udC1zaXplPSc0NCcgZmlsbD0nIzdiODg5NCcgdGV4dC1hbmNob3I9J21pZGRsZSc+U2FtcGxlIHByb2R1Y3Q8L3RleHQ+PC9zdmc+'
     const demos = [
-      { slug: 'signature-eau-de-parfum', name: 'Signature Eau de Parfum', priceCents: 4800, sku: 'SAMPLE-PARFUM', img: 'https://images.pexels.com/photos/27274783/pexels-photo-27274783.jpeg?auto=compress&cs=tinysrgb&w=900&h=900&fit=crop' },
-      { slug: 'daily-hydrating-serum', name: 'Daily Hydrating Serum', priceCents: 3200, sku: 'SAMPLE-SERUM', img: 'https://images.pexels.com/photos/8015790/pexels-photo-8015790.jpeg?auto=compress&cs=tinysrgb&w=900&h=900&fit=crop' },
-      { slug: 'skincare-essentials-set', name: 'Skincare Essentials Set', priceCents: 6500, sku: 'SAMPLE-SET', img: 'https://images.pexels.com/photos/34159010/pexels-photo-34159010.jpeg?auto=compress&cs=tinysrgb&w=900&h=900&fit=crop' },
+      { slug: 'sample-product-one', name: 'Sample Product One', priceCents: 2500, sku: 'SAMPLE-1', img: samplePlaceholderImg },
+      { slug: 'sample-product-two', name: 'Sample Product Two', priceCents: 4000, sku: 'SAMPLE-2', img: samplePlaceholderImg },
+      { slug: 'sample-product-three', name: 'Sample Product Three', priceCents: 6000, sku: 'SAMPLE-3', img: samplePlaceholderImg },
     ]
     let pos = 0
     for (const d of demos) {
