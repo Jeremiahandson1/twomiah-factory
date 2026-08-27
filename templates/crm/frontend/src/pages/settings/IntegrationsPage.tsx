@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
 import {
   Loader2, Check, ExternalLink, ToggleLeft, ToggleRight,
   MessageSquare, Mail, CreditCard, BookOpen, AlertCircle, RefreshCw,
@@ -40,11 +41,11 @@ export default function IntegrationsPage() {
 
   const loadIntegrations = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/status`, {
-        headers: getAuthHeaders(),
-      });
-      if (response.ok) {
-        const data = await response.json();
+      // Route through the api client so a lapsed access token refreshes+retries
+      // instead of 401'ing to a permanent "not connected". (Raw fetch here also
+      // read the wrong localStorage key — 'token' vs the client's 'accessToken'.)
+      const data = await api.get('/api/integrations/status') as any;
+      {
         if (data && typeof data === 'object') {
           setIntegrations(prev => ({
             quickbooks: { ...prev.quickbooks, ...data.quickbooks },
