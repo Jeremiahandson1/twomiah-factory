@@ -21,13 +21,13 @@ const isOverdue = (inv: { status: string; dueDate: Date | string | null; total: 
 }
 const deriveStatus = (inv: any) => (isOverdue(inv) ? 'overdue' : inv.status)
 
-const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().default(1), unitPrice: z.number().default(0) })
+const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().min(0, 'Quantity cannot be negative').default(1), unitPrice: z.number().min(0, 'Price cannot be negative').default(0) })
 const invoiceSchema = z.object({
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
   dueDate: z.string().optional(),
-  taxRate: z.number().default(0),
-  discount: z.number().default(0),
+  taxRate: z.number().min(0).max(100).default(0),
+  discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   terms: z.string().optional(),
   lineItems: z.array(lineItemSchema).default([]),
@@ -37,10 +37,12 @@ const invoiceSchema = z.object({
 // post-discount amount (the common US convention for an order-level discount).
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
-  const subtotal = round2(items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
-  const taxable = Math.max(0, subtotal - discount)
-  const taxAmount = round2(taxable * (taxRate / 100))
-  const total = round2(subtotal - discount + taxAmount)
+  const subtotal = round2(items.reduce((s, i) => s + Math.max(0, i.quantity) * Math.max(0, i.unitPrice), 0))
+  // A discount can never exceed the subtotal (that produced negative totals).
+  const effectiveDiscount = Math.min(Math.max(0, discount), subtotal)
+  const taxable = Math.max(0, subtotal - effectiveDiscount)
+  const taxAmount = round2(taxable * (Math.max(0, taxRate) / 100))
+  const total = round2(subtotal - effectiveDiscount + taxAmount)
   return { subtotal, taxAmount, total, balance: total }
 }
 
