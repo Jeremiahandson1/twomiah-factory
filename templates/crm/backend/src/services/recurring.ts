@@ -105,7 +105,7 @@ async function generateInvoiceNumber(companyId: string): Promise<string> {
  *
  * Because the schema has no recurringInvoice table we fall back to raw SQL.
  */
-export async function createRecurringInvoice(data: any, companyId: string) {
+export async function createRecurringInvoice(data: any, companyIdArg?: string) {
   const {
     contactId,
     projectId,
@@ -117,6 +117,10 @@ export async function createRecurringInvoice(data: any, companyId: string) {
     notes,
     autoSend,
   } = data
+  // The route passes companyId inside `data`; older callers pass it as the 2nd
+  // arg. Resolve either — an undefined companyId emitted an empty SQL value and
+  // produced "syntax error at or near ','".
+  const companyId = companyIdArg ?? data.companyId
 
   // Calculate totals
   let subtotal = 0
@@ -134,7 +138,7 @@ export async function createRecurringInvoice(data: any, companyId: string) {
   // Raw insert into recurring_invoice (table assumed to exist at DB level)
   const [recurring] = rows(await db.execute(sql`
     INSERT INTO recurring_invoice (company_id, contact_id, project_id, frequency, start_date, end_date, next_run_date, terms, subtotal, tax_rate, tax_amount, discount, total, notes, auto_send, status)
-    VALUES (${companyId}, ${contactId}, ${projectId || null}, ${frequency}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${terms || '30'}, ${subtotal}, ${taxRate}, ${taxAmount}, ${discount}, ${total}, ${notes}, ${autoSend || false}, 'active')
+    VALUES (${companyId}, ${contactId}, ${projectId || null}, ${frequency}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${terms || '30'}, ${subtotal}, ${taxRate}, ${taxAmount}, ${discount}, ${total}, ${notes ?? null}, ${autoSend || false}, 'active')
     RETURNING *
   `))
 
