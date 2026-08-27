@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../contexts/ToastContext';
 import {
   Building, Phone, Mail, MapPin, Image, Globe,
   ChevronRight, ChevronLeft, Check, Rocket,
@@ -160,6 +161,7 @@ const SETUP_OPTIONS = [
 /* ─── Main Component ───────────────────────────────────────────────────────── */
 export default function OnboardingWizard() {
   const navigate = useNavigate();
+  const toast = useToast();
   const { company, updateCompany } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -213,6 +215,12 @@ export default function OnboardingWizard() {
   };
 
   const handleNext = () => {
+    // Step 0 collects the company name; advancing with it blank later PUT an
+    // empty name to /api/company and wiped the company name.
+    if (currentStep === 0 && !profile.name?.trim()) {
+      toast.error('Company name is required');
+      return;
+    }
     if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
   };
 
