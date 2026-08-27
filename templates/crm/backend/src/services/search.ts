@@ -67,7 +67,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.company || item.email || '',
-            url: `/contacts/${item.id}`,
+            url: `/crm/contacts/${item.id}`,
             icon: 'user',
           }))
         )
@@ -100,7 +100,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.number,
-            url: `/projects/${item.id}`,
+            url: `/crm/projects/${item.id}`,
             icon: 'folder',
           }))
         )
@@ -132,7 +132,7 @@ export async function globalSearch(
             id: item.id,
             name: item.title,
             description: item.number,
-            url: `/jobs/${item.id}`,
+            url: `/crm/jobs/${item.id}`,
             icon: 'wrench',
           }))
         )
@@ -160,7 +160,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name || item.number,
             description: `${item.number} - $${Number(item.total).toLocaleString()}`,
-            url: `/quotes/${item.id}`,
+            url: `/crm/quotes/${item.id}`,
             icon: 'file-text',
           }))
         )
@@ -183,7 +183,7 @@ export async function globalSearch(
             id: item.id,
             name: item.number,
             description: `$${Number(item.total).toLocaleString()} - ${item.status}`,
-            url: `/invoices/${item.id}`,
+            url: `/crm/invoices/${item.id}`,
             icon: 'file-invoice',
           }))
         )
@@ -211,7 +211,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.mimeType || '',
-            url: `/documents/${item.id}`,
+            url: `/crm/documents/${item.id}`,
             icon: 'file',
           }))
         )
@@ -239,7 +239,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.role || item.email || '',
-            url: `/team/${item.id}`,
+            url: `/crm/team/${item.id}`,
             icon: 'users',
           }))
         )
@@ -267,7 +267,7 @@ export async function globalSearch(
             id: item.id,
             name: item.subject,
             description: item.number,
-            url: `/rfis/${item.id}`,
+            url: `/crm/rfis/${item.id}`,
             icon: 'help-circle',
           }))
         )

@@ -136,8 +136,17 @@ export async function getTasks(
 
   const [{ count: total }] = rows(await db.execute(sql.raw(`SELECT count(*)::int as count FROM task t WHERE ${where}`)))
 
+  // Raw SQL returns snake_case (due_date, created_at, assigned_to_id, …); the UI
+  // reads camelCase, so a task's date showed blank. Convert top-level keys.
+  const toCamel = (s: string) => s.replace(/_([a-z])/g, (_m: string, ch: string) => ch.toUpperCase())
+  const camelData = (data as any[]).map((row) => {
+    const out: Record<string, any> = {}
+    for (const [k, v] of Object.entries(row)) out[toCamel(k)] = v
+    return out
+  })
+
   return {
-    data,
+    data: camelData,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   }
 }
