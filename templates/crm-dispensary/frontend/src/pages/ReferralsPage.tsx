@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import {
   Users, Gift, Settings, RefreshCw, Award, DollarSign,
   CheckCircle, Clock, XCircle, TrendingUp, Crown
@@ -334,10 +335,10 @@ export default function ReferralsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-600">
-                          {ref.createdAt ? new Date(ref.createdAt).toLocaleDateString() : '--'}
+                          {ref.createdAt ? formatDate(ref.createdAt) : '--'}
                         </td>
                         <td className="px-4 py-3 text-gray-600">
-                          {ref.rewardedAt ? new Date(ref.rewardedAt).toLocaleDateString() : '--'}
+                          {ref.rewardedAt ? formatDate(ref.rewardedAt) : '--'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {ref.status === 'qualified' && (

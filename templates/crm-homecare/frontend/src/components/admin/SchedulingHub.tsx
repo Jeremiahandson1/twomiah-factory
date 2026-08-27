@@ -1,6 +1,7 @@
 // src/components/admin/SchedulingHub.jsx
 // Unified scheduling hub — 3 main tabs, slide-in create panel, fluid workflows
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 import AutoFillButton from './AutoFillButton';
@@ -1215,7 +1216,7 @@ const SchedulingHub = () => {
                   {absences.map(ab => (
                     <tr key={ab.id}>
                       <td><strong>{getCaregiverName(ab.caregiver_id)}</strong></td>
-                      <td>{new Date(ab.date).toLocaleDateString()}</td>
+                      <td>{formatDate(ab.date)}</td>
                       <td><span style={bge(ab.type==='no_show'?'#FEE2E2':ab.type==='sick'?'#DBEAFE':'#FEF3C7', ab.type==='no_show'?'#DC2626':ab.type==='sick'?'#2563EB':'#D97706')}>{ab.type?.replace('_', ' ').toUpperCase()}</span></td>
                       <td>{ab.reason || '—'}</td>
                       <td><button className='btn btn-sm btn-danger' onClick={() => deleteAbsence(ab.id)}>Delete</button></td>
@@ -1290,7 +1291,7 @@ const SchedulingHub = () => {
                   <div style={{ display: 'grid', gap: '0.5rem' }}>
                     {blackoutDates.sort((a, b) => new Date(a.start_date) - new Date(b.start_date)).map(bd => (
                       <div key={bd.id} style={{ padding: '0.6rem 0.75rem', background: '#FEF2F2', borderLeft: '3px solid #DC2626', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div><strong style={{ fontSize: '0.88rem' }}>{new Date(bd.start_date).toLocaleDateString()} – {new Date(bd.end_date).toLocaleDateString()}</strong>{bd.reason && <div style={{ fontSize: '0.82rem', color: '#666' }}>{bd.reason}</div>}</div>
+                        <div><strong style={{ fontSize: '0.88rem' }}>{formatDate(bd.start_date)} – {formatDate(bd.end_date)}</strong>{bd.reason && <div style={{ fontSize: '0.82rem', color: '#666' }}>{bd.reason}</div>}</div>
                         <button className='btn btn-sm btn-danger' onClick={() => deleteBlackout(bd.id)}>Delete</button>
                       </div>
                     ))}

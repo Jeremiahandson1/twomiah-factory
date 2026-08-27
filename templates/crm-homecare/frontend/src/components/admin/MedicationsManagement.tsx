@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/MedicationsManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react';
@@ -317,7 +318,7 @@ const MedicationsManagement = () => {
                             <tr key={med.id} style={{ opacity: 0.6 }}>
                               <td>{med.medication_name}</td>
                               <td>{med.dosage || '-'}</td>
-                              <td>{med.end_date ? new Date(med.end_date).toLocaleDateString() : '-'}</td>
+                              <td>{med.end_date ? formatDate(med.end_date) : '-'}</td>
                               <td>{getStatusBadge(false)}</td>
                             </tr>
                           ))}

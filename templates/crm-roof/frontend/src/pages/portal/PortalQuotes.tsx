@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { FileText, Loader2, PenTool, XCircle, CheckCircle, ChevronLeft } from 'lucide-react';
 import { portalHeaders } from './PortalLayout';
 import { SignatureModal, SignatureDisplay, type SignatureData } from '../../components/common/SignaturePad';
@@ -211,7 +212,7 @@ export default function PortalQuotes() {
 
           {expired && ['sent', 'viewed'].includes(openQuote.status) && (
             <div className="p-4 border-t border-gray-700 text-sm text-orange-300">
-              This proposal expired on {new Date(openQuote.expiresAt!).toLocaleDateString()}. Ask for an updated one.
+              This proposal expired on {formatDate(openQuote.expiresAt!)}. Ask for an updated one.
             </div>
           )}
 
@@ -221,7 +222,7 @@ export default function PortalQuotes() {
                 <CheckCircle className="w-5 h-5 text-green-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-medium text-green-300">
-                    Approved{openQuote.approvedAt ? ` on ${new Date(openQuote.approvedAt).toLocaleDateString()}` : ''}
+                    Approved{openQuote.approvedAt ? ` on ${formatDate(openQuote.approvedAt)}` : ''}
                   </p>
                   <SignatureDisplay
                     className="mt-3"
@@ -279,7 +280,7 @@ export default function PortalQuotes() {
         })()}
       </div>
       <div className="flex items-center justify-between text-xs text-gray-500">
-        <span>{q.expiresAt ? `${isExpired(q) ? 'Expired' : 'Expires'} ${new Date(q.expiresAt).toLocaleDateString()}` : ''}</span>
+        <span>{q.expiresAt ? `${isExpired(q) ? 'Expired' : 'Expires'} ${formatDate(q.expiresAt)}` : ''}</span>
         {q.signedBy && <span className="text-green-400">Signed by {q.signedBy}</span>}
       </div>
     </button>

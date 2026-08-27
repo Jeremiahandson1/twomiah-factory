@@ -3,6 +3,7 @@
  * Application for Payment (G702) + Continuation Sheet (G703) for GC pay apps.
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { FileText, Plus, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
@@ -77,7 +78,7 @@ export default function AiaFormsPage() {
                   <td className="px-4 py-3 font-mono text-sm">#{f.applicationNumber}</td>
                   <td className="px-4 py-3 font-semibold">{f.formType}</td>
                   <td className="px-4 py-3 text-sm">{f.project?.name || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{new Date(f.periodTo).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(f.periodTo)}</td>
                   <td className="px-4 py-3 font-mono text-sm">${Number(f.currentPaymentDue).toLocaleString()}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[f.status]}`}>{f.status}</span></td>
                   <td className="px-4 py-3">{f.status === 'draft' && <button onClick={() => sign(f.id)} className="text-blue-600 text-xs hover:underline">Sign</button>}</td>

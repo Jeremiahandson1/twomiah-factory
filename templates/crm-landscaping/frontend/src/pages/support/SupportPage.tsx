@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import { LifeBuoy, Plus, Search, MessageSquare, Star, Send, ArrowLeft, Clock, AlertTriangle, X, Bot, ChevronRight } from 'lucide-react';
@@ -374,7 +375,7 @@ export default function SupportPage() {
                   {isSlaBreached(t) && <AlertTriangle size={12} className="text-red-400" />}
                 </div>
                 <div className="text-xs text-gray-500 mt-0.5">
-                  {t.number} &middot; {t.category || 'General'} &middot; {new Date(t.createdAt).toLocaleDateString()}
+                  {t.number} &middot; {t.category || 'General'} &middot; {formatDate(t.createdAt)}
                 </div>
               </div>
               <ChevronRight size={16} className="text-gray-600" />

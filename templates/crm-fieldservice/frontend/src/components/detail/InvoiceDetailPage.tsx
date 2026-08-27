@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, RefreshCw, BookOpen } from 'lucide-react';
 import api from '../../services/api';
@@ -175,7 +176,7 @@ export default function InvoiceDetailPage() {
                 <tbody className="divide-y">
                   {invoice.payments.map((p, i) => (
                     <tr key={i}>
-                      <td className="px-4 py-2">{new Date(p.paidAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-2">{formatDate(p.paidAt)}</td>
                       <td className="px-4 py-2 capitalize">{p.method}</td>
                       <td className="px-4 py-2">{p.reference || '-'}</td>
                       <td className="px-4 py-2 text-right font-medium text-green-600">${Number(p.amount).toFixed(2)}</td>
@@ -200,19 +201,19 @@ export default function InvoiceDetailPage() {
               {invoice.dueDate && (
                 <div>
                   <p className="text-gray-500">Due Date</p>
-                  <p className={new Date(invoice.dueDate) < new Date() && computedBalance > 0 ? 'text-red-600 font-medium' : ''}>{new Date(invoice.dueDate).toLocaleDateString()}</p>
+                  <p className={new Date(invoice.dueDate) < new Date() && computedBalance > 0 ? 'text-red-600 font-medium' : ''}>{formatDate(invoice.dueDate)}</p>
                 </div>
               )}
               <div>
                 <p className="text-gray-500">Created</p>
-                <p>{new Date(invoice.createdAt).toLocaleDateString()}</p>
+                <p>{formatDate(invoice.createdAt)}</p>
               </div>
               <div className="pt-3 mt-3 border-t">
                 <p className="text-gray-500 mb-1">QuickBooks</p>
                 {invoice.syncedAt ? (
                   <div className="flex items-center gap-1.5">
                     <BookOpen className="w-3.5 h-3.5 text-green-500" />
-                    <span className="text-green-600 text-sm">Synced {new Date(invoice.syncedAt).toLocaleDateString()}</span>
+                    <span className="text-green-600 text-sm">Synced {formatDate(invoice.syncedAt)}</span>
                     <button onClick={handleSyncToQB} disabled={syncing} className="ml-auto text-gray-400 hover:text-gray-600">
                       <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                     </button>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -71,7 +72,7 @@ export default function DailyLogsPage() {
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ date: (item.date as string)?.split('T')[0] || '', projectId: item.projectId as string, weather: (item.weather as string) || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: (item.workPerformed as string) || '', materials: (item.materials as string) || '', delays: (item.delays as string) || '', safetyNotes: (item.safetyNotes as string) || '' }); setModalOpen(true); };
 
   const columns = [
-    { key: 'date', label: 'Date', render: (v: unknown) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
+    { key: 'date', label: 'Date', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
     { key: 'project', label: 'Project', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'user', label: 'Created By', render: (v: unknown) => v ? `${(v as Record<string, unknown>).firstName} ${(v as Record<string, unknown>).lastName}` : '-' },
     { key: 'weather', label: 'Weather' },

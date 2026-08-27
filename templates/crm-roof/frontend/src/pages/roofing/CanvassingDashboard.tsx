@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom'
 import {
   CloudLightning, ChevronRight,
@@ -227,7 +228,7 @@ export default function CanvassingDashboard() {
           <div>
             <h1 className="text-2xl font-bold">{s.name}</h1>
             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
-              <span>{new Date(s.startedAt || s.createdAt).toLocaleDateString()}</span>
+              <span>{formatDate(s.startedAt || s.createdAt)}</span>
               {s.weatherEvent && (
                 <span className="text-blue-600 flex items-center gap-1">
                   <CloudLightning size={14} /> {s.weatherEvent}
@@ -354,7 +355,7 @@ export default function CanvassingDashboard() {
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{new Date(s.startedAt || s.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-gray-500">{formatDate(s.startedAt || s.createdAt)}</td>
                     <td className="px-4 py-3">{s.totalDoors || 0}</td>
                     <td className="px-4 py-3 font-semibold text-green-600">{s.leadsCreated || 0}</td>
                     <td className="px-4 py-3">

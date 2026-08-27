@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { FileText, Calendar, DollarSign, RefreshCw, Plus, Eye, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -181,7 +182,7 @@ export default function TaxFilingPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 capitalize">{filing.period || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {filing.startDate ? new Date(filing.startDate).toLocaleDateString() : '—'} - {filing.endDate ? new Date(filing.endDate).toLocaleDateString() : '—'}
+                        {filing.startDate ? formatDate(filing.startDate) : '—'} - {filing.endDate ? formatDate(filing.endDate) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900">
                         {filing.totalAmount != null ? `$${Number(filing.totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}

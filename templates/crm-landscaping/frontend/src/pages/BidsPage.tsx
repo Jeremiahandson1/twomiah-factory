@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, Trophy, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -57,7 +58,7 @@ export default function BidsPage() {
     { key: 'projectName', label: 'Project', render: (v, r) => <div><p className="font-medium">{v}</p>{r.client && <p className="text-sm text-gray-500">{r.client}</p>}</div> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} statusColors={{ draft: 'bg-gray-100 text-gray-700', submitted: 'bg-blue-100 text-blue-700', under_review: 'bg-yellow-100 text-yellow-700', won: 'bg-green-100 text-green-700', lost: 'bg-red-100 text-red-700' }} /> },
     { key: 'bidAmount', label: 'Bid Amount', render: (v) => v ? `$${Number(v).toLocaleString()}` : '-' },
-    { key: 'dueDate', label: 'Due Date', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'dueDate', label: 'Due Date', render: (v) => v ? formatDate(v) : '-' },
     { key: 'bondRequired', label: 'Bond', render: (v) => v ? <span className="text-orange-600">Yes</span> : '-' },
   ];
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   RefreshCw, Plus, Play, Pause, X, MoreVertical, Calendar, 
@@ -222,7 +223,7 @@ export default function RecurringInvoiceList() {
                   {/* Next run date */}
                   {item.status === 'active' && item.nextRunDate && (
                     <div className="text-right text-sm">
-                      <p className="text-gray-500">Next: {new Date(item.nextRunDate).toLocaleDateString()}</p>
+                      <p className="text-gray-500">Next: {formatDate(item.nextRunDate)}</p>
                     </div>
                   )}
 

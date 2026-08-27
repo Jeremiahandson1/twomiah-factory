@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import {
   Star, Send, Mail, Phone, Clock, CheckCircle, Settings,
   BarChart3, ExternalLink, Loader2, TrendingUp, MessageSquare,
@@ -140,7 +141,7 @@ function DashboardTab() {
                       <StatusBadge status={r.status} />
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {r.sentAt ? new Date(r.sentAt).toLocaleDateString() : r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}
+                      {r.sentAt ? formatDate(r.sentAt) : r.createdAt ? formatDate(r.createdAt) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       {r.status === 'sent' && !r.followUpSentAt && (

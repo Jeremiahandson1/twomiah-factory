@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import {
   Search, Plus, AlertTriangle, Leaf, Shield, ShieldCheck, ShieldX, Clock,
   Package, Bug, Mountain, Droplets, FlaskConical, ChevronRight,
@@ -826,7 +827,7 @@ function ApplicationsTab() {
     {
       key: 'appliedAt',
       label: 'Date',
-      render: (val: string) => val ? new Date(val).toLocaleDateString() : '--',
+      render: (val: string) => val ? formatDate(val) : '--',
     },
     {
       key: 'inputName',
@@ -1636,7 +1637,7 @@ function TraceabilityTab() {
 
               <div className="border-t pt-4 mt-4 text-sm text-gray-600">
                 <p><span className="font-medium">Batch:</span> {traceData.batch?.batchNumber || '--'}</p>
-                <p><span className="font-medium">Harvested:</span> {traceData.batch?.harvestDate ? new Date(traceData.batch.harvestDate).toLocaleDateString() : '--'}</p>
+                <p><span className="font-medium">Harvested:</span> {traceData.batch?.harvestDate ? formatDate(traceData.batch.harvestDate) : '--'}</p>
                 <p><span className="font-medium">Organic Inputs:</span> {(traceData.inputs || []).filter((i: any) => i.isOrganic).length} of {(traceData.inputs || []).length}</p>
               </div>
             </div>
@@ -1669,7 +1670,7 @@ function TraceabilityTab() {
                       <h4 className="font-semibold text-blue-900 mb-1">Batch Information</h4>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <p><span className="text-blue-600">Batch #:</span> {traceData.batch.batchNumber}</p>
-                        <p><span className="text-blue-600">Received:</span> {traceData.batch.receivedDate ? new Date(traceData.batch.receivedDate).toLocaleDateString() : '--'}</p>
+                        <p><span className="text-blue-600">Received:</span> {traceData.batch.receivedDate ? formatDate(traceData.batch.receivedDate) : '--'}</p>
                         <p><span className="text-blue-600">Supplier:</span> {traceData.batch.supplier || '--'}</p>
                         <p><span className="text-blue-600">Grower:</span> {traceData.batch.grower || '--'}</p>
                       </div>
@@ -1728,7 +1729,7 @@ function TraceabilityTab() {
                             <div className="flex items-center gap-3 text-gray-500">
                               <span>{inp.quantity} {inp.unit}</span>
                               <span>{inp.method?.replace(/_/g, ' ')}</span>
-                              <span>{inp.date ? new Date(inp.date).toLocaleDateString() : ''}</span>
+                              <span>{inp.date ? formatDate(inp.date) : ''}</span>
                             </div>
                           </div>
                         ))}

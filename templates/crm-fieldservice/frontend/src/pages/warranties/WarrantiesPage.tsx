@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   Shield, Plus, Clock, AlertTriangle, CheckCircle,
   XCircle, Calendar, Loader2, FileText, Phone,
@@ -219,7 +220,7 @@ function WarrantiesList({ warranties, onRefresh }) {
                 ) : (
                   <div>
                     <p className={warranty.isExpiringSoon ? 'text-orange-600 font-medium' : 'text-gray-900'}>
-                      {new Date(warranty.expiresAt).toLocaleDateString()}
+                      {formatDate(warranty.expiresAt)}
                     </p>
                     <p className="text-sm text-gray-500">{warranty.daysRemaining} days left</p>
                   </div>
@@ -356,7 +357,7 @@ function ClaimsList({ claims, onRefresh }) {
                       <p className="text-sm text-gray-500">{claim.contact?.name}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-500">
-                      {new Date(claim.reportedDate).toLocaleDateString()}
+                      {formatDate(claim.reportedDate)}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-${status.color}-100 text-${status.color}-700`}>

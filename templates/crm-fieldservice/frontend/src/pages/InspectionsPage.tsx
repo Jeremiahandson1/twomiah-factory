@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Check, X as XIcon } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -55,7 +56,7 @@ export default function InspectionsPage() {
     { key: 'type', label: 'Type', render: (v) => <span className="font-medium">{v}</span> },
     { key: 'project', label: 'Project', render: (v) => v?.name || '-' },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} statusColors={{ scheduled: 'bg-blue-100 text-blue-700', passed: 'bg-green-100 text-green-700', failed: 'bg-red-100 text-red-700' }} /> },
-    { key: 'scheduledDate', label: 'Scheduled', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'scheduledDate', label: 'Scheduled', render: (v) => v ? formatDate(v) : '-' },
     { key: 'inspector', label: 'Inspector' },
   ];
 

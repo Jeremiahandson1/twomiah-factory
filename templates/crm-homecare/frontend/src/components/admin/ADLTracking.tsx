@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/ADLTracking.jsx
 import React, { useState, useEffect, useCallback } from 'react';
@@ -209,7 +210,7 @@ const ADLTracking = () => {
 
   // Group logs by date
   const logsByDate = logs.reduce((acc, log) => {
-    const date = new Date(log.performed_at).toLocaleDateString();
+    const date = formatDate(log.performed_at);
     if (!acc[date]) acc[date] = [];
     acc[date].push(log);
     return acc;

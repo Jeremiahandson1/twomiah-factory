@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -451,7 +452,7 @@ export default function SettingsPage() {
                   <p className="text-xs text-gray-500">Last synced: {new Date(qbStatus.lastSyncedAt).toLocaleString()}</p>
                 )}
                 {qbStatus.connectedSince && (
-                  <p className="text-xs text-gray-500">Connected since: {new Date(qbStatus.connectedSince).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-500">Connected since: {formatDate(qbStatus.connectedSince)}</p>
                 )}
                 <div className="flex gap-2 pt-2">
                   <button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">

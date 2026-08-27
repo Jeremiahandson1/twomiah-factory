@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
@@ -253,7 +254,7 @@ export default function CustomerPortal() {
                   <div className="w-2 h-2 rounded-full bg-emerald-400" />
                   <span className="text-sm text-slate-700">{item.description}</span>
                   <span className="text-xs text-slate-400 ml-auto">
-                    {new Date(item.createdAt).toLocaleDateString()}
+                    {formatDate(item.createdAt)}
                   </span>
                 </div>
               ))

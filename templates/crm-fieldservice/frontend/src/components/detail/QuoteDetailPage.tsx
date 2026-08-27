@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Copy, Briefcase, Wrench, MapPinned } from 'lucide-react';
 import api from '../../services/api';
@@ -244,34 +245,34 @@ export default function QuoteDetailPage() {
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-gray-400" />
                 <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{new Date(quote.createdAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(quote.createdAt)}</span>
               </div>
               {quote.sentAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-blue-500" />
                   <span className="text-gray-500">Sent</span>
-                  <span className="text-gray-900">{new Date(quote.sentAt).toLocaleDateString()}</span>
+                  <span className="text-gray-900">{formatDate(quote.sentAt)}</span>
                 </div>
               )}
               {quote.viewedAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-purple-500" />
                   <span className="text-gray-500">Viewed</span>
-                  <span className="text-gray-900">{new Date(quote.viewedAt).toLocaleDateString()}</span>
+                  <span className="text-gray-900">{formatDate(quote.viewedAt)}</span>
                 </div>
               )}
               {quote.approvedAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-green-500" />
                   <span className="text-gray-500">Approved</span>
-                  <span className="text-gray-900">{new Date(quote.approvedAt).toLocaleDateString()}</span>
+                  <span className="text-gray-900">{formatDate(quote.approvedAt)}</span>
                 </div>
               )}
               {quote.declinedAt && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-red-500" />
                   <span className="text-gray-500">Declined</span>
-                  <span className="text-gray-900">{new Date(quote.declinedAt).toLocaleDateString()}</span>
+                  <span className="text-gray-900">{formatDate(quote.declinedAt)}</span>
                 </div>
               )}
             </div>
@@ -309,12 +310,12 @@ export default function QuoteDetailPage() {
               {quote.expiryDate && (
                 <div>
                   <p className="text-gray-500">Valid Until</p>
-                  <p className={new Date(quote.expiryDate) < new Date() ? 'text-red-600' : ''}>{new Date(quote.expiryDate).toLocaleDateString()}</p>
+                  <p className={new Date(quote.expiryDate) < new Date() ? 'text-red-600' : ''}>{formatDate(quote.expiryDate)}</p>
                 </div>
               )}
               <div>
                 <p className="text-gray-500">Created</p>
-                <p>{new Date(quote.createdAt).toLocaleDateString()}</p>
+                <p>{formatDate(quote.createdAt)}</p>
               </div>
             </div>
           </div>

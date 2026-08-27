@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/AbsenceManagement.jsx
 import React, { useState, useEffect } from 'react';
@@ -213,7 +214,7 @@ const AbsenceManagement = () => {
             {absences.map(absence => (
               <tr key={absence.id}>
                 <td><strong>{getCaregiverName(absence.caregiver_id)}</strong></td>
-                <td>{new Date(absence.date).toLocaleDateString()}</td>
+                <td>{formatDate(absence.date)}</td>
                 <td>
                   <span className={`badge ${getTypeColor(absence.type)}`}>
                     {getTypeLabel(absence.type)}

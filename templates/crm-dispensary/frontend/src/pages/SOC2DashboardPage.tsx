@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import {
   ShieldCheck, Server, CheckCircle, Lock, Eye, AlertTriangle, RefreshCw,
   Download, Calendar, ChevronDown, ChevronRight, Clock, Users, Trash2,
@@ -472,7 +473,7 @@ export default function SOC2DashboardPage() {
                         <p className="text-xs text-slate-500 mb-2">{tc.code}</p>
                         <p className={`text-2xl font-bold ${scoreColor(data.score)}`}>{data.score}%</p>
                         <p className="text-xs text-slate-500 mt-1">
-                          {data.lastChecked ? new Date(data.lastChecked).toLocaleDateString() : 'Not checked'}
+                          {data.lastChecked ? formatDate(data.lastChecked) : 'Not checked'}
                         </p>
                       </div>
                     );
@@ -516,7 +517,7 @@ export default function SOC2DashboardPage() {
                                 <div className="flex items-center gap-4 ml-4">
                                   {statusBadge(control.status)}
                                   <span className="text-xs text-slate-500 whitespace-nowrap">
-                                    {control.lastChecked ? new Date(control.lastChecked).toLocaleDateString() : '—'}
+                                    {control.lastChecked ? formatDate(control.lastChecked) : '—'}
                                   </span>
                                 </div>
                               </div>
@@ -606,10 +607,10 @@ export default function SOC2DashboardPage() {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-400">
-                        {policy.lastPurge ? new Date(policy.lastPurge).toLocaleDateString() : 'Never'}
+                        {policy.lastPurge ? formatDate(policy.lastPurge) : 'Never'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-400">
-                        {policy.nextPurge ? new Date(policy.nextPurge).toLocaleDateString() : '—'}
+                        {policy.nextPurge ? formatDate(policy.nextPurge) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -846,10 +847,10 @@ export default function SOC2DashboardPage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-400">
-                          {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : '—'}
+                          {review.createdAt ? formatDate(review.createdAt) : '—'}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-400">
-                          {review.completedAt ? new Date(review.completedAt).toLocaleDateString() : '—'}
+                          {review.completedAt ? formatDate(review.completedAt) : '—'}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-400">
                           {review.reviewerName || review.reviewerEmail || '—'}
@@ -937,7 +938,7 @@ export default function SOC2DashboardPage() {
                       </td>
                       <td className="px-4 py-3">{riskBadge(change.riskLevel || 'low')}</td>
                       <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
-                        {change.createdAt ? new Date(change.createdAt).toLocaleDateString() : '—'}
+                        {change.createdAt ? formatDate(change.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         {change.rolledBack ? (

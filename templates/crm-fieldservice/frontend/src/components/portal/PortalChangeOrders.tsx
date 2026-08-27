@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, Link } from 'react-router-dom';
 import { ClipboardList, CheckCircle, XCircle, Clock, Loader2, PenTool, AlertTriangle } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -302,7 +303,7 @@ export function PortalChangeOrderDetail() {
               <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
               <div className="flex-1">
                 <p className="font-medium text-green-800">
-                  Approved on {new Date(changeOrder.approvedAt).toLocaleDateString()}
+                  Approved on {formatDate(changeOrder.approvedAt)}
                 </p>
                 {changeOrder.signature && (
                   <div className="mt-3">
@@ -324,7 +325,7 @@ export function PortalChangeOrderDetail() {
             <div className="flex items-center gap-2 text-red-700">
               <XCircle className="w-5 h-5" />
               <span className="font-medium">
-                Rejected{changeOrder.rejectedAt && ` on ${new Date(changeOrder.rejectedAt).toLocaleDateString()}`}
+                Rejected{changeOrder.rejectedAt && ` on ${formatDate(changeOrder.rejectedAt)}`}
               </span>
             </div>
             {changeOrder.rejectionReason && (

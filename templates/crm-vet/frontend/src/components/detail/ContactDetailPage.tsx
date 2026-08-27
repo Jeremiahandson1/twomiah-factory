@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
@@ -398,12 +399,12 @@ export default function ContactDetailPage() {
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
                 <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{new Date(contact.createdAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(contact.createdAt)}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
                 <span className="text-gray-500">Updated</span>
-                <span className="text-gray-900">{new Date(contact.updatedAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(contact.updatedAt)}</span>
               </div>
             </div>
           </div>
@@ -464,7 +465,7 @@ export default function ContactDetailPage() {
                       <FileBarChart className="w-5 h-5 text-blue-500" />
                       <div>
                         <p className="font-medium text-gray-900 text-sm">{report.totalSquares} squares</p>
-                        <p className="text-xs text-gray-500">{new Date(report.createdAt).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500">{formatDate(report.createdAt)}</p>
                       </div>
                     </div>
                     <span className={`px-2 py-0.5 text-xs rounded-full ${
@@ -511,7 +512,7 @@ export default function ContactDetailPage() {
                 {portalStatus?.lastVisit && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Last Login</span>
-                    <span className="text-gray-900">{new Date(portalStatus.lastVisit).toLocaleDateString()}</span>
+                    <span className="text-gray-900">{formatDate(portalStatus.lastVisit)}</span>
                   </div>
                 )}
                 {portalStatus?.enabled && (

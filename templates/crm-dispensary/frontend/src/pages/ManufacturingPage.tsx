@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Search, Factory, Play, CheckCircle, XCircle, Clock, FlaskConical, BarChart3 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -169,7 +170,7 @@ export default function ManufacturingPage() {
     }},
     { key: 'method', label: 'Method', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'operator', label: 'Operator', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'startedAt', label: 'Started', render: (val: string) => val ? new Date(val).toLocaleDateString() : <span className="text-gray-400">--</span> },
+    { key: 'startedAt', label: 'Started', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
     { key: 'yield', label: 'Yield', render: (val: number, row: any) => {
       if (row.outputWeight && row.inputWeight) {
         const yieldPct = ((row.outputWeight / row.inputWeight) * 100).toFixed(1);

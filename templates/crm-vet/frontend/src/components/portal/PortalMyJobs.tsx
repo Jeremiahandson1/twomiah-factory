@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDate } from '../../utils/date';
 import { Hammer, Loader2, MapPin, CalendarDays, CheckCircle2 } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
@@ -142,7 +143,7 @@ function JobCard({ job, busy, onComplete }: { job: SubJob; busy: boolean; onComp
               {job.scheduledDate && (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="w-3.5 h-3.5" />
-                  {new Date(job.scheduledDate).toLocaleDateString()}
+                  {formatDate(job.scheduledDate)}
                   {job.scheduledTime ? ` · ${job.scheduledTime}` : ''}
                 </span>
               )}

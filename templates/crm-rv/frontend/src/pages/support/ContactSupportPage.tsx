@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { LifeBuoy, Send, CheckCircle2 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -152,7 +153,7 @@ export default function ContactSupportPage() {
                 <div>
                   <p className="font-medium text-gray-900">{t.subject}</p>
                   <p className="text-xs text-gray-500">
-                    {t.number} - {new Date(t.created_at).toLocaleDateString()}
+                    {t.number} - {formatDate(t.created_at)}
                   </p>
                 </div>
                 <span className={'text-xs font-medium px-2 py-0.5 rounded ' + (TICKET_STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-600')}>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import api from '../services/api';
 import { Users, UserCheck, Calendar, AlertTriangle, DollarSign, Clock, Activity, TrendingUp } from 'lucide-react';
 
@@ -83,7 +84,7 @@ export default function DashboardPage() {
                   <span className="text-gray-400 mx-1">—</span>
                   <span className="text-gray-600 capitalize">{a.type}</span>
                 </div>
-                <span className="text-xs text-gray-400">{new Date(a.date).toLocaleDateString()}</span>
+                <span className="text-xs text-gray-400">{formatDate(a.date)}</span>
               </div>
             ))}
             {!activity?.pendingAbsences?.length && <p className="text-sm text-gray-400">No coverage needed</p>}

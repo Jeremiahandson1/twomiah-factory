@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
@@ -273,7 +274,7 @@ export default function CustomerPortal() {
               const units = act?.recentUnits || [];
               const leads = act?.recentLeads || [];
               const ros = act?.recentRepairOrders || [];
-              const when = (v: unknown) => v ? new Date(v as string).toLocaleDateString() : '';
+              const when = (v: unknown) => v ? formatDate(v as string) : '';
               return (units.length || leads.length || ros.length) ? (
                 <>
                   {units.slice(0, 2).map((item: Record<string, unknown>) => (

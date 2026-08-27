@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { Trophy, Target, Crown, Zap, Search, Plus, RefreshCw, Users, Star, Gift, Calendar } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -330,9 +331,9 @@ export default function GamifiedLoyaltyPage() {
                     {(challenge.startDate || challenge.endDate) && (
                       <div className="mt-2 text-xs text-gray-400 flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {challenge.startDate ? new Date(challenge.startDate).toLocaleDateString() : '—'}
+                        {challenge.startDate ? formatDate(challenge.startDate) : '—'}
                         {' — '}
-                        {challenge.endDate ? new Date(challenge.endDate).toLocaleDateString() : 'Ongoing'}
+                        {challenge.endDate ? formatDate(challenge.endDate) : 'Ongoing'}
                       </div>
                     )}
                   </div>
@@ -543,7 +544,7 @@ export default function GamifiedLoyaltyPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
-                        {entry.lastActivity ? new Date(entry.lastActivity).toLocaleDateString() : '—'}
+                        {entry.lastActivity ? formatDate(entry.lastActivity) : '—'}
                       </td>
                     </tr>
                   ))}
@@ -602,11 +603,11 @@ export default function GamifiedLoyaltyPage() {
                     <div className="space-y-1 text-sm text-gray-600">
                       <p className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        Start: {event.startDate ? new Date(event.startDate).toLocaleDateString() : '—'}
+                        Start: {event.startDate ? formatDate(event.startDate) : '—'}
                       </p>
                       <p className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        End: {event.endDate ? new Date(event.endDate).toLocaleDateString() : '—'}
+                        End: {event.endDate ? formatDate(event.endDate) : '—'}
                       </p>
                     </div>
                   </div>

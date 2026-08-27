@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, MessageSquare } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -61,7 +62,7 @@ export default function RFIsPage() {
     { key: 'project', label: 'Project', render: (v) => v?.name || '-' },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'priority', label: 'Priority', render: (v) => <StatusBadge status={v} statusColors={{ low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' }} /> },
-    { key: 'dueDate', label: 'Due', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'dueDate', label: 'Due', render: (v) => v ? formatDate(v) : '-' },
   ];
 
   return (

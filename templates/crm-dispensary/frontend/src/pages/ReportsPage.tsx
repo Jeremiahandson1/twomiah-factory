@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import {
   BarChart3, PieChart, Table, Plus, Play, Eye, Trash2, RefreshCw,
   Calendar, ChevronDown, ChevronUp, ArrowUpDown, Users, DollarSign,
@@ -452,7 +453,7 @@ export default function ReportsPage() {
                   <div>
                     <h3 className="font-semibold text-gray-900">{report.name}</h3>
                     <p className="text-sm text-gray-500">
-                      Type: {report.type || '--'} | Created: {report.createdAt ? new Date(report.createdAt).toLocaleDateString() : '--'}
+                      Type: {report.type || '--'} | Created: {report.createdAt ? formatDate(report.createdAt) : '--'}
                     </p>
                   </div>
                   <div className="flex gap-2">

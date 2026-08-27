@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { Activity, CheckSquare, Cpu, Server, Database, Shield, CreditCard, Wifi, ShoppingCart, Package, Clock, User, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -431,7 +432,7 @@ export default function PlatformPage() {
                           <tr key={order.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 font-medium text-gray-900">#{order.orderNumber || order.id?.slice(0, 8)}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">
-                              {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}
+                              {order.createdAt ? formatDate(order.createdAt) : '—'}
                             </td>
                             <td className="px-4 py-3 text-right text-gray-700">{order.itemCount || order.items?.length || 0}</td>
                             <td className="px-4 py-3 text-right font-medium text-gray-900">

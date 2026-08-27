@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   Star, Send, MessageSquare, Mail, Phone, Clock,
   CheckCircle, AlertCircle, Settings, BarChart3,
@@ -432,7 +433,7 @@ export function ReviewRequestsList() {
 
               <div className="text-right">
                 <p className="text-sm text-gray-500">
-                  {new Date(request.sentAt || request.createdAt).toLocaleDateString()}
+                  {formatDate(request.sentAt || request.createdAt)}
                 </p>
                 <p className={`text-xs capitalize ${
                   request.status === 'completed' ? 'text-green-600' :

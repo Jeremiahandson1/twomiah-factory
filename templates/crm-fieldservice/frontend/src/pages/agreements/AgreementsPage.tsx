@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   FileText, Plus, Search, Calendar, DollarSign, Users,
   AlertTriangle, RefreshCw, XCircle, Clock, Star, TrendingUp,
@@ -349,7 +350,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }) {
             <AlertTriangle className="w-4 h-4 text-orange-500" />
           )}
           <span className={`text-sm ${isExpiringSoon ? 'text-orange-600' : 'text-gray-500'}`}>
-            {new Date(agreement.endDate).toLocaleDateString()}
+            {formatDate(agreement.endDate)}
           </span>
         </div>
       </td>
@@ -494,7 +495,7 @@ function VisitsTab() {
               </div>
               <div className="text-right">
                 <p className="font-medium text-gray-900">
-                  {new Date(visit.scheduledDate).toLocaleDateString()}
+                  {formatDate(visit.scheduledDate)}
                 </p>
                 <p className="text-sm text-gray-500">
                   {visit.agreement?.contact?.phone}
@@ -856,7 +857,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
 
                   {reminderDate && (
                     <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
-                      <p>Next visit: <strong>{new Date(form.nextServiceDate).toLocaleDateString()}</strong></p>
+                      <p>Next visit: <strong>{formatDate(form.nextServiceDate)}</strong></p>
                       <p>Job will be created on: <strong>{reminderDate}</strong></p>
                     </div>
                   )}

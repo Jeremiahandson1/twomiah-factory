@@ -3,6 +3,7 @@
  * Track caregiver no-shows and client cancellations to spot patterns.
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { AlertTriangle, Plus, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
@@ -71,7 +72,7 @@ export default function NoShowPage() {
             {incidents.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No incidents logged.</td></tr> :
               incidents.map((i: any) => (
                 <tr key={i.id} className="border-b">
-                  <td className="px-4 py-3 text-sm">{i.reportedAt ? new Date(i.reportedAt).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3 text-sm">{i.reportedAt ? formatDate(i.reportedAt) : '—'}</td>
                   <td className="px-4 py-3 font-mono text-xs">{(i.caregiverId || '').substring(0, 8)}…</td>
                   <td className="px-4 py-3 font-mono text-xs">{(i.clientId || '').substring(0, 8)}…</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${REASON_COLORS[i.reason] || 'bg-gray-100'}`}>{(i.reason || '').replace(/_/g, ' ')}</span></td>

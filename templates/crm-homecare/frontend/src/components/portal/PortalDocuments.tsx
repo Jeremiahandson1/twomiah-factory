@@ -7,6 +7,7 @@
 // and that is stored with the signature.
 
 import React, { useState, useEffect, useRef } from 'react';
+import { formatDate } from '../../utils/date';
 import { apiCall } from '../../config';
 
 const STATUS_LABEL = {
@@ -193,7 +194,7 @@ const PortalDocuments = ({ token }) => {
 
         <h2 style={{ margin: '0 0 0.25rem', color: '#1a5276' }}>{openDoc.title}</h2>
         <p style={{ color: '#718096', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>
-          Sent {new Date(openDoc.sentAt).toLocaleDateString()}
+          Sent {formatDate(openDoc.sentAt)}
         </p>
 
         {error && (
@@ -363,8 +364,8 @@ const PortalDocuments = ({ token }) => {
                   <div style={{ fontWeight: 600, color: '#2d3748' }}>{doc.title}</div>
                   <div style={{ fontSize: '0.8rem', color: '#718096', marginTop: '2px' }}>
                     {doc.status === 'signed' && doc.signedAt
-                      ? `Signed ${new Date(doc.signedAt).toLocaleDateString()} by ${doc.signedBy}`
-                      : `Sent ${new Date(doc.sentAt).toLocaleDateString()}`}
+                      ? `Signed ${formatDate(doc.signedAt)} by ${doc.signedBy}`
+                      : `Sent ${formatDate(doc.sentAt)}`}
                   </div>
                 </div>
                 <span style={{

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Send, Check, DollarSign, ChevronLeft, ChevronRight, X, Receipt } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -240,7 +241,7 @@ export default function InvoicesPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
-                          {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}
+                          {inv.dueDate ? formatDate(inv.dueDate) : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Gift, Settings, Users, Plus, Edit, Trash2, Save } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -400,7 +401,7 @@ export default function LoyaltyPage() {
                     <td className="px-4 py-3 text-right font-medium text-gray-900">{member.points || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{member.lifetimePoints || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-900">${Number(member.totalSpent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{member.joinedAt ? formatDate(member.joinedAt) : '—'}</td>
                   </tr>
                 ))}
                 {members.length === 0 && !loadingMembers && (

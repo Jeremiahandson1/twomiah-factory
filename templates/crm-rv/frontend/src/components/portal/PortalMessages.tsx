@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams } from 'react-router-dom';
 import { MessageSquare, Send, ArrowLeft, Mail, MailOpen, Loader2, Plus } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -121,7 +122,7 @@ export default function PortalMessages() {
                         {message.subject || '(No subject)'}
                       </p>
                       <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                        {new Date(message.createdAt || message.created_at).toLocaleDateString()}
+                        {formatDate(message.createdAt || message.created_at)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 truncate mt-0.5">{message.body}</p>

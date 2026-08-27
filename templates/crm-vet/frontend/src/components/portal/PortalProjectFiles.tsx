@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { formatDate } from '../../utils/date';
 import { Link, useParams } from 'react-router-dom';
 import { FolderOpen, Loader2, Download, Upload, FileUp } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -193,7 +194,7 @@ function FileCard({ file }: { file: ProjectFile }) {
             <div className="flex flex-wrap gap-2 mt-0.5 text-xs text-gray-500">
               <span className="px-1.5 py-0.5 bg-gray-100 rounded">{CATEGORY_LABEL[file.type] || file.type}</span>
               {sizeKb > 0 && <span>{sizeKb} KB</span>}
-              <span>Added {new Date(file.createdAt).toLocaleDateString()}</span>
+              <span>Added {formatDate(file.createdAt)}</span>
             </div>
             {file.description && <p className="text-xs text-gray-500 mt-1">{file.description}</p>}
           </div>

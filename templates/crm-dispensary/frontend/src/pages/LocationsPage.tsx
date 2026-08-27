@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { MapPin, Package, ArrowRightLeft, ClipboardList, Plus, Edit, Trash2, Search, ArrowRight, Check } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -477,7 +478,7 @@ export default function LocationsPage() {
                         </td>
                         <td className="px-4 py-3 text-sm font-mono text-gray-500">{item.rfidTag || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">
-                          {item.lastCounted ? new Date(item.lastCounted).toLocaleDateString() : '—'}
+                          {item.lastCounted ? formatDate(item.lastCounted) : '—'}
                         </td>
                       </tr>
                     ))}
@@ -525,7 +526,7 @@ export default function LocationsPage() {
                   ) : transfers.map(transfer => (
                     <tr key={transfer.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {transfer.createdAt ? new Date(transfer.createdAt).toLocaleDateString() : '—'}
+                        {transfer.createdAt ? formatDate(transfer.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{transfer.fromLocationName || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{transfer.toLocationName || '—'}</td>

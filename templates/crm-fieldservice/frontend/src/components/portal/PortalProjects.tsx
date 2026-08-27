@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, Link } from 'react-router-dom';
 import { FolderKanban, MapPin, Calendar, Loader2, ArrowRight } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -139,10 +140,10 @@ function ProjectCard({ project, token }) {
         <div className="flex items-center gap-4 mt-4 text-sm text-gray-500">
           <Calendar className="w-4 h-4" />
           {project.startDate && (
-            <span>Started: {new Date(project.startDate).toLocaleDateString()}</span>
+            <span>Started: {formatDate(project.startDate)}</span>
           )}
           {project.endDate && (
-            <span>Est. completion: {new Date(project.endDate).toLocaleDateString()}</span>
+            <span>Est. completion: {formatDate(project.endDate)}</span>
           )}
         </div>
       )}
@@ -238,13 +239,13 @@ export function PortalProjectDetail() {
             {project.startDate && (
               <div>
                 <dt className="text-sm text-gray-500">Start Date</dt>
-                <dd className="mt-1 text-gray-900">{new Date(project.startDate).toLocaleDateString()}</dd>
+                <dd className="mt-1 text-gray-900">{formatDate(project.startDate)}</dd>
               </div>
             )}
             {project.endDate && (
               <div>
                 <dt className="text-sm text-gray-500">Estimated Completion</dt>
-                <dd className="mt-1 text-gray-900">{new Date(project.endDate).toLocaleDateString()}</dd>
+                <dd className="mt-1 text-gray-900">{formatDate(project.endDate)}</dd>
               </div>
             )}
             {project.description && (
@@ -277,7 +278,7 @@ export function PortalProjectDetail() {
                     </span>
                     {job.scheduledDate && (
                       <p className="text-xs text-gray-500 mt-1">
-                        {new Date(job.scheduledDate).toLocaleDateString()}
+                        {formatDate(job.scheduledDate)}
                       </p>
                     )}
                   </div>

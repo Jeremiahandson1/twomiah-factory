@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, Link } from 'react-router-dom';
 import { FileText, CheckCircle, XCircle, Clock, Eye, Download, Loader2, PenTool } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -119,7 +120,7 @@ function QuoteCard({ quote, token, highlight }) {
       </div>
       {quote.validUntil && (
         <p className="mt-2 text-sm text-gray-500">
-          Valid until {new Date(quote.validUntil).toLocaleDateString()}
+          Valid until {formatDate(quote.validUntil)}
         </p>
       )}
     </Link>
@@ -310,7 +311,7 @@ export function PortalQuoteDetail() {
               <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
               <div className="flex-1">
                 <p className="font-medium text-green-800">
-                  Quote approved on {new Date(quote.approvedAt).toLocaleDateString()}
+                  Quote approved on {formatDate(quote.approvedAt)}
                 </p>
                 {quote.signature && (
                   <div className="mt-3">

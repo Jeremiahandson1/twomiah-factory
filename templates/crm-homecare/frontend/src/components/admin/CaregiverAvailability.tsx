@@ -1,5 +1,6 @@
 // src/components/admin/CaregiverAvailability.jsx
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -499,7 +500,7 @@ const CaregiverAvailability = () => {
                       }}
                     >
                       <div>
-                        <strong>{new Date(bd.start_date).toLocaleDateString()} - {new Date(bd.end_date).toLocaleDateString()}</strong>
+                        <strong>{formatDate(bd.start_date)} - {formatDate(bd.end_date)}</strong>
                         {bd.reason && <div style={{ fontSize: '0.9rem', color: '#666' }}>{bd.reason}</div>}
                       </div>
                       <button

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Upload, File, Image, FileText, Download, Trash2, Eye, X, FolderOpen } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -143,7 +144,7 @@ export default function DocumentsPage() {
     { key: 'type', label: 'Type', render: (v) => <span className="capitalize">{v}</span> },
     { key: 'project', label: 'Project', render: (v) => v?.name || '-' },
     { key: 'size', label: 'Size', render: (v) => formatSize(v) },
-    { key: 'createdAt', label: 'Uploaded', render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'createdAt', label: 'Uploaded', render: (v) => formatDate(v) },
   ];
 
   return (

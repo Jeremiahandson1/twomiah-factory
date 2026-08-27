@@ -482,7 +482,7 @@ export default function SchedulingPage() {
               {templates.map(t => (
                 <div key={t.id} className="border rounded-lg p-4 bg-white">
                   <div className="font-medium mb-1">{t.name}</div>
-                  <div className="text-sm text-gray-500 mb-3">{t.shiftCount || 0} shifts &middot; Created {new Date(t.createdAt).toLocaleDateString()}</div>
+                  <div className="text-sm text-gray-500 mb-3">{t.shiftCount || 0} shifts &middot; Created {formatDate(t.createdAt)}</div>
                   <Button onClick={() => applyTemplate(t.id)}>Apply to Current Week</Button>
                 </div>
               ))}

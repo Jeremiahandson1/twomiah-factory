@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/DocumentsManagement.jsx
 import React, { useState, useEffect } from 'react';
@@ -278,14 +279,14 @@ const DocumentsManagement = () => {
                   <td>{getCategoryBadge(doc.category)}</td>
                   <td>{formatFileSize(doc.file_size)}</td>
                   <td style={{ fontSize: '0.85rem' }}>
-                    {new Date(doc.uploaded_at).toLocaleDateString()}
+                    {formatDate(doc.uploaded_at)}
                   </td>
                   <td>
                     {doc.expiration_date ? (
                       <span style={{ 
                         color: new Date(doc.expiration_date) < new Date() ? '#f44336' : '#333'
                       }}>
-                        {new Date(doc.expiration_date).toLocaleDateString()}
+                        {formatDate(doc.expiration_date)}
                       </span>
                     ) : '-'}
                   </td>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import {
   ShoppingCart, Plus, Package, Truck, Check, X, Search,
   ChevronDown, ChevronRight, FileText, Sparkles
@@ -247,7 +248,7 @@ export default function PurchaseOrdersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">{po.expectedDate || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{po.createdAt ? new Date(po.createdAt).toLocaleDateString() : '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -367,7 +368,7 @@ export default function PurchaseOrdersPage() {
                                 <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || ''}`}>{po.status}</span>
                               </td>
                               <td className="py-2">${(po.total || 0).toFixed(2)}</td>
-                              <td className="py-2 text-gray-500">{po.createdAt ? new Date(po.createdAt).toLocaleDateString() : '-'}</td>
+                              <td className="py-2 text-gray-500">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
                             </tr>
                           ))}
                         </tbody>

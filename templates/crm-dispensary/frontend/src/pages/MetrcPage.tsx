@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Shield, Settings, Package, ShoppingCart, Truck, History, RefreshCw, CheckCircle, XCircle, AlertTriangle, Link, Search } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -437,7 +438,7 @@ export default function MetrcPage() {
                         {pkg.productName || pkg.linkedProduct || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
-                        {pkg.lastModified ? new Date(pkg.lastModified).toLocaleDateString() : '—'}
+                        {pkg.lastModified ? formatDate(pkg.lastModified) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <button
@@ -510,7 +511,7 @@ export default function MetrcPage() {
                     <tr key={sale.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{sale.receiptNumber || sale.id}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {sale.salesDateTime ? new Date(sale.salesDateTime).toLocaleDateString() : sale.date || '—'}
+                        {sale.salesDateTime ? formatDate(sale.salesDateTime) : sale.date || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{sale.customerType || 'Patient'}</td>
                       <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">
@@ -585,7 +586,7 @@ export default function MetrcPage() {
                       <td className="px-4 py-3 text-sm text-gray-600">{transfer.shipperFacilityName || transfer.from || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{transfer.recipientFacilityName || transfer.to || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-500">
-                        {transfer.createdDateTime ? new Date(transfer.createdDateTime).toLocaleDateString() : transfer.date || '—'}
+                        {transfer.createdDateTime ? formatDate(transfer.createdDateTime) : transfer.date || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-right text-gray-600">{transfer.packageCount || 0}</td>
                       <td className="px-4 py-3">

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { Banknote, Lock, Unlock, Clock, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -261,7 +262,7 @@ export default function CashPage() {
                 return (
                   <tr key={session.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {session.openedAt ? new Date(session.openedAt).toLocaleDateString() : '—'}
+                      {session.openedAt ? formatDate(session.openedAt) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">{session.openedByName || '—'}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-700">${Number(session.openingAmount || 0).toFixed(2)}</td>

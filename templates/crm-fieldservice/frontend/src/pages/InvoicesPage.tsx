@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Send, DollarSign } from 'lucide-react';
 import api from '../services/api';
@@ -78,7 +79,7 @@ export default function InvoicesPage() {
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', render: (v) => `$${Number(v).toLocaleString()}` },
     { key: 'balance', label: 'Balance', render: (v) => Number(v) > 0 ? <span className="text-orange-600 font-medium">${Number(v).toLocaleString()}</span> : <span className="text-green-600">Paid</span> },
-    { key: 'dueDate', label: 'Due', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'dueDate', label: 'Due', render: (v) => v ? formatDate(v) : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();

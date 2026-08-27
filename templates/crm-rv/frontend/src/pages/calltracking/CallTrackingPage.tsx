@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import {
   Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed,
   Clock, MapPin, Tag, Play, Loader2, Search,
@@ -312,7 +313,7 @@ function CallRow({ call }: CallRowProps) {
         )}
       </td>
       <td className="px-4 py-3 text-gray-500">
-        <p>{new Date(call.startTime).toLocaleDateString()}</p>
+        <p>{formatDate(call.startTime)}</p>
         <p className="text-sm">{new Date(call.startTime).toLocaleTimeString()}</p>
       </td>
       <td className="px-4 py-3 text-gray-500">

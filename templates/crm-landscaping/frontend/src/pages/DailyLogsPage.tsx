@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -48,7 +49,7 @@ export default function DailyLogsPage() {
   const openEdit = (item) => { setEditing(item); setForm({ date: item.date?.split('T')[0] || '', projectId: item.projectId, weather: item.weather || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: item.workPerformed || '', materials: item.materials || '', delays: item.delays || '', safetyNotes: item.safetyNotes || '' }); setModalOpen(true); };
 
   const columns = [
-    { key: 'date', label: 'Date', render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'date', label: 'Date', render: (v) => formatDate(v) },
     { key: 'project', label: 'Project', render: (v) => v?.name || '-' },
     { key: 'user', label: 'Created By', render: (v) => v ? `${v.firstName} ${v.lastName}` : '-' },
     { key: 'weather', label: 'Weather' },

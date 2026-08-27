@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
@@ -307,7 +308,7 @@ export default function CustomerPortal() {
                     <div className="w-2 h-2 rounded-full bg-emerald-400" />
                     <span className="text-sm text-slate-700">Event: {(item.name as string) || 'Untitled'}{item.clientName ? ` — ${item.clientName}` : ''}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.eventDate ? new Date((item.eventDate as string) + 'T12:00:00').toLocaleDateString() : ''}
+                      {item.eventDate ? formatDate((item.eventDate as string) + 'T12:00:00') : ''}
                     </span>
                   </div>
                 ))}
@@ -316,7 +317,7 @@ export default function CustomerPortal() {
                     <div className="w-2 h-2 rounded-full bg-amber-400" />
                     <span className="text-sm text-slate-700">Enquiry: {(item.name as string) || 'Untitled'}{item.clientName ? ` — ${item.clientName}` : ''}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.eventDate ? new Date((item.eventDate as string) + 'T12:00:00').toLocaleDateString() : ''}
+                      {item.eventDate ? formatDate((item.eventDate as string) + 'T12:00:00') : ''}
                     </span>
                   </div>
                 ))}

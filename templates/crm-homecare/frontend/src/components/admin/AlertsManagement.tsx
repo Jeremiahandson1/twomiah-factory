@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/AlertsManagement.jsx
 import React, { useState, useEffect } from 'react';
@@ -309,7 +310,7 @@ const AlertsManagement = () => {
 
                   {alert.due_date && (
                     <div style={{ marginTop: '0.25rem', fontSize: '0.85rem', color: new Date(alert.due_date) < new Date() ? '#f44336' : '#666' }}>
-                      <strong>Due:</strong> {new Date(alert.due_date).toLocaleDateString()}
+                      <strong>Due:</strong> {formatDate(alert.due_date)}
                       {new Date(alert.due_date) < new Date() && ' (OVERDUE)'}
                     </div>
                   )}

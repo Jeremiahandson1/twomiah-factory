@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, Link } from 'react-router-dom';
 import { Receipt, Download, AlertCircle, CheckCircle, Clock, Loader2, CreditCard } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -95,7 +96,7 @@ function InvoiceCard({ invoice, token }: InvoiceCardProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${isOverdue ? 'bg-red-100' : 'bg-green-100'}`}><Receipt className={`w-5 h-5 ${isOverdue ? 'text-red-600' : 'text-green-600'}`} /></div>
-          <div><p className="font-medium text-gray-900">{invoice.number}</p><p className="text-sm text-gray-500">{invoice.dueDate ? `Due ${new Date(invoice.dueDate).toLocaleDateString()}` : 'No due date'}</p></div>
+          <div><p className="font-medium text-gray-900">{invoice.number}</p><p className="text-sm text-gray-500">{invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : 'No due date'}</p></div>
         </div>
         <div className="text-right">
           {Number(invoice.balance) > 0 ? (<><p className="text-lg font-bold text-gray-900">${Number(invoice.balance).toLocaleString()}</p><p className="text-xs text-gray-500">of ${Number(invoice.total).toLocaleString()}</p></>) : (<p className="text-lg font-bold text-green-600">Paid</p>)}
@@ -141,7 +142,7 @@ export function PortalInvoiceDetail() {
             <div><h1 className="text-2xl font-bold text-gray-900">Invoice {invoice.number}</h1>{invoice.project && <p className="text-gray-500">Project: {invoice.project.name}</p>}</div>
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || ''}`}>{invoice.status}</span>
           </div>
-          {invoice.dueDate && <p className={`mt-2 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>{isOverdue ? 'OVERDUE - ' : ''}Due {new Date(invoice.dueDate).toLocaleDateString()}</p>}
+          {invoice.dueDate && <p className={`mt-2 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>{isOverdue ? 'OVERDUE - ' : ''}Due {formatDate(invoice.dueDate)}</p>}
         </div>
         <div className="p-6 border-b">
           <table className="w-full">
@@ -170,7 +171,7 @@ export function PortalInvoiceDetail() {
         {(invoice.payments?.length ?? 0) > 0 && (
           <div className="p-6">
             <h3 className="font-semibold text-gray-900 mb-3">Payment History</h3>
-            <div className="space-y-2">{invoice.payments!.map((payment, i: number) => (<div key={i} className="flex justify-between text-sm py-2 border-b last:border-0"><div><span className="text-gray-900">{new Date(payment.paidAt).toLocaleDateString()}</span><span className="text-gray-500 ml-2">via {payment.method}</span></div><span className="font-medium text-green-600">${Number(payment.amount).toLocaleString()}</span></div>))}</div>
+            <div className="space-y-2">{invoice.payments!.map((payment, i: number) => (<div key={i} className="flex justify-between text-sm py-2 border-b last:border-0"><div><span className="text-gray-900">{formatDate(payment.paidAt)}</span><span className="text-gray-500 ml-2">via {payment.method}</span></div><span className="font-medium text-green-600">${Number(payment.amount).toLocaleString()}</span></div>))}</div>
           </div>
         )}
         <div className="p-6 bg-gray-100 border-t"><p className="text-sm text-gray-600">Questions about this invoice? Contact {invoice.company?.email || invoice.company?.phone}</p></div>

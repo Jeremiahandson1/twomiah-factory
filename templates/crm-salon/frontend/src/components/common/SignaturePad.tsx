@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Eraser, Check, X } from 'lucide-react';
 
 interface SignaturePadProps {
@@ -125,7 +126,7 @@ export default function SignaturePad({
         />
         <div className="border-t border-gray-300 px-4 py-2 bg-gray-50 flex items-center justify-between text-gray-900">
           <span className="text-xs text-gray-400">✕ Sign above this line</span>
-          <span className="text-xs text-gray-400">{new Date().toLocaleDateString()}</span>
+          <span className="text-xs text-gray-400">{formatDate()}</span>
         </div>
       </div>
 

@@ -3,6 +3,7 @@
  * Review requests (ask customers) + received reviews.
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Star, Send, Plus } from 'lucide-react';
 import api from '../../api/client';
 
@@ -63,7 +64,7 @@ export default function ReviewsPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-1">{[1,2,3,4,5].map((s) => <Star key={s} className={`w-4 h-4 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />)}</div>
-                    <div className="text-xs text-gray-500 mt-1">{r.reviewerName || 'Anonymous'} · {r.platform} · {new Date(r.receivedAt).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-500 mt-1">{r.reviewerName || 'Anonymous'} · {r.platform} · {formatDate(r.receivedAt)}</div>
                   </div>
                   {r.verified && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Verified</span>}
                 </div>
@@ -82,7 +83,7 @@ export default function ReviewsPage() {
                     <td className="px-4 py-3 font-mono text-xs">{r.contactId.substring(0, 8)}…</td>
                     <td className="px-4 py-3 text-sm">{r.channel}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[r.status]}`}>{r.status}</span></td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{r.sentAt ? new Date(r.sentAt).toLocaleDateString() : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{r.sentAt ? formatDate(r.sentAt) : '—'}</td>
                     <td className="px-4 py-3">{r.status === 'pending' && <button onClick={() => markSent(r.id)} className="text-blue-600 text-xs hover:underline flex items-center gap-1"><Send className="w-3 h-3" />Mark Sent</button>}</td>
                   </tr>
                 ))}

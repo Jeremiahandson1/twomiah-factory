@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
@@ -230,7 +231,7 @@ export default function ContactDetailPage() {
                       <div>
                         <p className="font-medium text-gray-900">#{order.orderNumber || order.id?.slice(0, 8)}</p>
                         <p className="text-sm text-gray-500">
-                          {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : '—'}
+                          {order.createdAt ? formatDate(order.createdAt) : '—'}
                           {' · '}{order.itemCount || order.items?.length || 0} items
                         </p>
                       </div>
@@ -326,12 +327,12 @@ export default function ContactDetailPage() {
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
                 <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{new Date(contact.createdAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(contact.createdAt)}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
                 <span className="text-gray-500">Updated</span>
-                <span className="text-gray-900">{new Date(contact.updatedAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(contact.updatedAt)}</span>
               </div>
             </div>
           </div>

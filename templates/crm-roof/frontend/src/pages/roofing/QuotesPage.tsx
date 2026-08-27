@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../../utils/date';
 import { Plus, Send, Check, X, ChevronLeft, ChevronRight, FileText, Trash2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -195,7 +196,7 @@ export default function QuotesPage() {
                           >
                             {q.signedBy}
                             <span className="block text-gray-500">
-                              {q.signedAt ? new Date(q.signedAt).toLocaleDateString() : ''}
+                              {q.signedAt ? formatDate(q.signedAt) : ''}
                             </span>
                           </button>
                         ) : (
@@ -206,10 +207,10 @@ export default function QuotesPage() {
                         ${Number(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {q.createdAt ? new Date(q.createdAt).toLocaleDateString() : '—'}
+                        {q.createdAt ? formatDate(q.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {q.expiresAt ? new Date(q.expiresAt).toLocaleDateString() : '—'}
+                        {q.expiresAt ? formatDate(q.expiresAt) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Ruler, ChevronLeft, ChevronRight, Plus, X, RefreshCw, CreditCard, AlertTriangle, CheckCircle, Loader2, Edit3 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -248,7 +249,7 @@ export default function MeasurementsPage() {
                         {m.cost != null ? `$${Number(m.cost).toFixed(2)}` : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
+                        {m.createdAt ? formatDate(m.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         {m.status === 'failed' && (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams } from 'react-router-dom';
 import { Palette, Check, Clock, ChevronDown, ChevronUp, Loader2, ImageIcon, StickyNote } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -288,7 +289,7 @@ function SelectionItem({
           )}
           {selection.due_date && (
             <p className={`text-xs mt-1 ${new Date(selection.due_date) < new Date() && selection.status === 'pending' ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-              Due: {new Date(selection.due_date).toLocaleDateString()}
+              Due: {formatDate(selection.due_date)}
             </p>
           )}
         </div>

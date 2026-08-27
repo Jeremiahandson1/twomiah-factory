@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import {
   Camera, QrCode, BarChart3, Search, Plus, Package, Leaf, FlaskConical,
   ShoppingCart, Eye, ClipboardCopy, Printer, CheckCircle, XCircle,
@@ -402,7 +403,7 @@ function BatchResultCard({ result, toast }: { result: any; toast: any }) {
         </div>
         <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-gray-600">
           <p>Quantity: {batch.quantity} {batch.unit}</p>
-          {batch.harvestDate && <p>Harvested: {new Date(batch.harvestDate).toLocaleDateString()}</p>}
+          {batch.harvestDate && <p>Harvested: {formatDate(batch.harvestDate)}</p>}
           {batch.thcPercent && <p>THC: {batch.thcPercent}%</p>}
           {batch.cbdPercent && <p>CBD: {batch.cbdPercent}%</p>}
         </div>

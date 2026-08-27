@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle } from 'lucide-react';
 import api from '../../services/api';
@@ -138,7 +139,7 @@ export default function JobDetailPage() {
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Scheduled</p>
-                    <p>{new Date((job.scheduledDate as string).split('T')[0] + 'T00:00:00').toLocaleDateString()} {job.scheduledTime}</p>
+                    <p>{formatDate((job.scheduledDate as string).split('T')[0] + 'T00:00:00')} {job.scheduledTime}</p>
                   </div>
                 </div>
               )}

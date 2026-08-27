@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Search, Radio, Scan, ClipboardList, History, Tag, MapPin, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -145,7 +146,7 @@ function TagsTab() {
     { key: 'batchId', label: 'Batch', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'location', label: 'Location', render: (val: string) => val ? <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" />{val}</span> : <span className="text-gray-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={statusColors} /> },
-    { key: 'lastScannedAt', label: 'Last Scanned', render: (val: string) => val ? new Date(val).toLocaleDateString() : <span className="text-gray-400">Never</span> },
+    { key: 'lastScannedAt', label: 'Last Scanned', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">Never</span> },
   ];
 
   return (

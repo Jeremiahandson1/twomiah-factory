@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, Check, X as XIcon } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -63,7 +64,7 @@ export default function ChangeOrdersPage() {
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'amount', label: 'Amount', render: (v) => `$${Number(v).toLocaleString()}` },
     { key: 'daysAdded', label: 'Days', render: (v) => v ? `+${v}` : '-' },
-    { key: 'signedBy', label: 'Signed', render: (v, row) => v ? <span className="text-green-700 text-sm">{v}{row.signedAt ? ` \u00b7 ${new Date(row.signedAt).toLocaleDateString()}` : ''}</span> : <span className="text-gray-400">-</span> },
+    { key: 'signedBy', label: 'Signed', render: (v, row) => v ? <span className="text-green-700 text-sm">{v}{row.signedAt ? ` \u00b7 ${formatDate(row.signedAt)}` : ''}</span> : <span className="text-gray-400">-</span> },
   ];
 
   return (

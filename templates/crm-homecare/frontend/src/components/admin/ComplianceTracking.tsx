@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 // src/components/admin/ComplianceTracking.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -443,7 +444,7 @@ const ComplianceTracking = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                     <div>
                       <strong>Check Date:</strong>
-                      <p>{new Date(backgroundCheck.check_date).toLocaleDateString()}</p>
+                      <p>{formatDate(backgroundCheck.check_date)}</p>
                     </div>
                     <div>
                       <strong>Status:</strong>
@@ -457,7 +458,7 @@ const ComplianceTracking = () => {
                       <div>
                         <strong>Expiration:</strong>
                         <p>
-                          {new Date(backgroundCheck.expiration_date).toLocaleDateString()}
+                          {formatDate(backgroundCheck.expiration_date)}
                           {isExpired(backgroundCheck.expiration_date) && <span style={{ color: '#d32f2f' }}> (EXPIRED)</span>}
                           {isExpiringSoon(backgroundCheck.expiration_date) && <span style={{ color: '#ff9800' }}> (EXPIRING SOON)</span>}
                         </p>
@@ -596,11 +597,11 @@ const ComplianceTracking = () => {
                         <div>
                           <strong>{getTrainingTypeLabel(training.training_type)}</strong>
                           <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.25rem' }}>
-                            Completed: {new Date(training.completion_date).toLocaleDateString()}
+                            Completed: {formatDate(training.completion_date)}
                           </div>
                           {training.expiration_date && (
                             <div style={{ fontSize: '0.9rem', color: '#666' }}>
-                              Expires: {new Date(training.expiration_date).toLocaleDateString()}
+                              Expires: {formatDate(training.expiration_date)}
                               {isExpired(training.expiration_date) && <span style={{ color: '#d32f2f' }}> (EXPIRED)</span>}
                               {isExpiringSoon(training.expiration_date) && <span style={{ color: '#ff9800' }}> (EXPIRING SOON)</span>}
                             </div>
@@ -658,7 +659,7 @@ const ComplianceTracking = () => {
                       <div>
                         <strong>{doc.document_name}</strong>
                         <div style={{ fontSize: '0.9rem', color: '#666', marginTop: '0.25rem' }}>
-                          Uploaded: {new Date(doc.uploaded_date).toLocaleDateString()}
+                          Uploaded: {formatDate(doc.uploaded_date)}
                         </div>
                       </div>
                       <a
@@ -769,7 +770,7 @@ const ExpiryOverview = () => {
                     {s.label}
                   </span>
                   <div style={{ fontSize: '0.78rem', color: '#6B7280', marginTop: '0.2rem' }}>
-                    {cg.expiration_date ? `Expires: ${new Date(cg.expiration_date).toLocaleDateString()}` : 'No check on file'}
+                    {cg.expiration_date ? `Expires: ${formatDate(cg.expiration_date)}` : 'No check on file'}
                     {daysUntil !== null && daysUntil > 0 && ` (${daysUntil} days)`}
                     {daysUntil !== null && daysUntil <= 0 && ` (${Math.abs(daysUntil)} days ago)`}
                   </div>

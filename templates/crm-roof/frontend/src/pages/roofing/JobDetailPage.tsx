@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, ChevronRight, Phone, Mail, Upload, Plus, Send, Clock,
@@ -356,7 +357,7 @@ export default function JobDetailPage() {
                   <div>
                     <p className="text-gray-500">Date of Loss</p>
                     <p className="font-medium text-gray-900">
-                      {job.dateOfLoss ? new Date(job.dateOfLoss).toLocaleDateString() : '—'}
+                      {job.dateOfLoss ? formatDate(job.dateOfLoss) : '—'}
                     </p>
                   </div>
                   <div>
@@ -497,7 +498,7 @@ export default function JobDetailPage() {
                         </div>
                         <div>
                           <p className="text-gray-500">Delivery Date</p>
-                          <p className="font-medium">{order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '—'}</p>
+                          <p className="font-medium">{order.deliveryDate ? formatDate(order.deliveryDate) : '—'}</p>
                         </div>
                         <div>
                           <p className="text-gray-500">Total Cost</p>

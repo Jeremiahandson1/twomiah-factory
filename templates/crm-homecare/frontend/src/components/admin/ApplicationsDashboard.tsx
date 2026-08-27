@@ -1,4 +1,5 @@
 import { toast } from '../Toast';
+import { formatDate } from '../../utils/date';
 // src/components/admin/ApplicationsDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -167,7 +168,7 @@ const ApplicationsDashboard = () => {
               <div className="app-header">
                 <div>
                   <h4>{app.first_name} {app.last_name}</h4>
-                  <p className="app-date">{new Date(app.created_at).toLocaleDateString()}</p>
+                  <p className="app-date">{formatDate(app.created_at)}</p>
                 </div>
                 <span className={`badge ${getStatusColor(app.status)}`}>
                   {(app.status ?? '').toUpperCase()}

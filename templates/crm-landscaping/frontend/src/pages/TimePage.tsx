@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -47,7 +48,7 @@ export default function TimePage() {
   const openEdit = (item) => { setEditing(item); setForm({ date: item.date?.split('T')[0] || '', hours: String(item.hours), description: item.description || '', billable: item.billable, projectId: item.projectId || '' }); setModalOpen(true); };
 
   const columns = [
-    { key: 'date', label: 'Date', render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'date', label: 'Date', render: (v) => formatDate(v) },
     { key: 'user', label: 'User', render: (v) => v ? `${v.firstName} ${v.lastName}` : '-' },
     { key: 'project', label: 'Project', render: (v) => v?.name || '-' },
     { key: 'hours', label: 'Hours', render: (v) => Number(v).toFixed(1) },

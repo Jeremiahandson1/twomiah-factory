@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, Link } from 'react-router-dom';
 import { Receipt, Download, AlertCircle, CheckCircle, Clock, Loader2, CreditCard } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -133,7 +134,7 @@ function InvoiceCard({ invoice, token }) {
           <div>
             <p className="font-medium text-gray-900">{invoice.number}</p>
             <p className="text-sm text-gray-500">
-              {invoice.dueDate ? `Due ${new Date(invoice.dueDate).toLocaleDateString()}` : 'No due date'}
+              {invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : 'No due date'}
             </p>
           </div>
         </div>
@@ -238,7 +239,7 @@ export function PortalInvoiceDetail() {
           </div>
           {invoice.dueDate && (
             <p className={`mt-2 ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
-              {isOverdue ? 'OVERDUE - ' : ''}Due {new Date(invoice.dueDate).toLocaleDateString()}
+              {isOverdue ? 'OVERDUE - ' : ''}Due {formatDate(invoice.dueDate)}
             </p>
           )}
         </div>
@@ -332,7 +333,7 @@ export function PortalInvoiceDetail() {
               {invoice.payments.map((payment, i) => (
                 <div key={i} className="flex justify-between text-sm py-2 border-b last:border-0">
                   <div>
-                    <span className="text-gray-900">{new Date(payment.paidAt).toLocaleDateString()}</span>
+                    <span className="text-gray-900">{formatDate(payment.paidAt)}</span>
                     <span className="text-gray-500 ml-2">via {payment.method}</span>
                   </div>
                   <span className="font-medium text-green-600">

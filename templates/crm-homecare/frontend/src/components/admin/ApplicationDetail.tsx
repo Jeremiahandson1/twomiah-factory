@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/ApplicationDetail.jsx
 import React, { useState, useEffect } from 'react';
@@ -146,9 +147,9 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
           <h3>Contact Information</h3>
           <p><strong>Email:</strong> <a href={`mailto:${app.email}`}>{app.email}</a></p>
           <p><strong>Phone:</strong> <a href={`tel:${app.phone}`}>{app.phone}</a></p>
-          {app.date_of_birth && <p><strong>DOB:</strong> {new Date(app.date_of_birth).toLocaleDateString()}</p>}
+          {app.date_of_birth && <p><strong>DOB:</strong> {formatDate(app.date_of_birth)}</p>}
           {app.address && <p><strong>Address:</strong> {app.address}, {app.city}, {app.state} {app.zip}</p>}
-          <p><strong>Applied:</strong> {new Date(app.created_at).toLocaleDateString()}</p>
+          <p><strong>Applied:</strong> {formatDate(app.created_at)}</p>
         </div>
 
         {/* Experience */}
@@ -226,7 +227,7 @@ const ApplicationDetail = ({ applicationId, onBack }) => {
           )}
           {app.hours_desired && <p><strong>Hours Desired:</strong> {app.hours_desired}</p>}
           {app.earliest_start_date && (
-            <p><strong>Can Start:</strong> {new Date(app.earliest_start_date).toLocaleDateString()}</p>
+            <p><strong>Can Start:</strong> {formatDate(app.earliest_start_date)}</p>
           )}
         </div>
 

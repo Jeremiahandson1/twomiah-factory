@@ -5,6 +5,7 @@
  * events from completed jobs / paid invoices).
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { DollarSign, Plus, Check, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
@@ -66,7 +67,7 @@ export default function CommissionsPage() {
                     <td className="px-4 py-3 font-mono text-sm">${Number(c.baseAmount).toLocaleString()}</td>
                     <td className="px-4 py-3 text-sm">{c.rateApplied ? `${c.rateApplied}%` : '—'}</td>
                     <td className="px-4 py-3 font-mono text-sm font-semibold">${Number(c.commissionAmount).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{new Date(c.earnedAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{formatDate(c.earnedAt)}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[c.status]}`}>{c.status}</span></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">

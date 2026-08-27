@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -49,7 +50,7 @@ export default function ExpensesPage() {
   const openEdit = (item) => { setEditing(item); setForm({ date: item.date?.split('T')[0] || '', category: item.category, vendor: item.vendor || '', description: item.description, amount: String(item.amount), billable: item.billable, projectId: item.projectId || '' }); setModalOpen(true); };
 
   const columns = [
-    { key: 'date', label: 'Date', render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'date', label: 'Date', render: (v) => formatDate(v) },
     { key: 'category', label: 'Category', render: (v) => <span className="capitalize">{v}</span> },
     { key: 'vendor', label: 'Vendor' },
     { key: 'description', label: 'Description' },

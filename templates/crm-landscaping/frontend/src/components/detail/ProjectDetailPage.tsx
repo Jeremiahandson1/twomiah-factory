@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowLeft, Edit, Trash2, MapPin, Calendar, DollarSign,
@@ -152,9 +153,9 @@ export default function ProjectDetailPage() {
                   <div>
                     <p className="text-sm text-gray-500">Timeline</p>
                     <p className="text-gray-900">
-                      {project.startDate && new Date(project.startDate).toLocaleDateString()}
+                      {project.startDate && formatDate(project.startDate)}
                       {project.startDate && project.endDate && ' - '}
-                      {project.endDate && new Date(project.endDate).toLocaleDateString()}
+                      {project.endDate && formatDate(project.endDate)}
                     </p>
                   </div>
                 </div>
@@ -371,20 +372,20 @@ export default function ProjectDetailPage() {
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
                 <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{new Date(project.createdAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(project.createdAt)}</span>
               </div>
               {project.startDate && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-blue-500" />
                   <span className="text-gray-500">Started</span>
-                  <span className="text-gray-900">{new Date(project.startDate).toLocaleDateString()}</span>
+                  <span className="text-gray-900">{formatDate(project.startDate)}</span>
                 </div>
               )}
               {project.endDate && (
                 <div className="flex items-center gap-3 text-sm">
                   <div className="w-2 h-2 rounded-full bg-purple-500" />
                   <span className="text-gray-500">End Date</span>
-                  <span className="text-gray-900">{new Date(project.endDate).toLocaleDateString()}</span>
+                  <span className="text-gray-900">{formatDate(project.endDate)}</span>
                 </div>
               )}
             </div>

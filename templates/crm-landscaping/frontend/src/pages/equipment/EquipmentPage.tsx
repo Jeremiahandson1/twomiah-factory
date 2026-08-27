@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   Wrench, Plus, Search, Filter, AlertTriangle, Shield,
   Calendar, Clock, Edit2, History, Loader2, ChevronRight,
@@ -229,7 +230,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }) {
         {equipment.installDate ? (
           <div>
             <p className="text-gray-900">
-              {new Date(equipment.installDate).toLocaleDateString()}
+              {formatDate(equipment.installDate)}
             </p>
             {equipment.age !== null && (
               <p className="text-sm text-gray-500">{equipment.age} years old</p>
@@ -617,13 +618,13 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
                         <p className="font-medium text-gray-900 mt-1">{j.title}</p>
                         <p className="text-sm text-gray-500">
                           {j.jobType && <span className="capitalize">{j.jobType}</span>}
-                          {j.scheduledDate && <span> — {new Date(j.scheduledDate).toLocaleDateString()}</span>}
+                          {j.scheduledDate && <span> — {formatDate(j.scheduledDate)}</span>}
                           {j.assignedTo && <span> — {j.assignedTo.firstName} {j.assignedTo.lastName}</span>}
                         </p>
                       </div>
                       {j.completedAt && (
                         <span className="text-xs text-green-600">
-                          Completed {new Date(j.completedAt).toLocaleDateString()}
+                          Completed {formatDate(j.completedAt)}
                         </span>
                       )}
                     </div>
@@ -644,7 +645,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
                       <div>
                         <p className="font-medium text-gray-900">{record.serviceType || record.type}</p>
                         <p className="text-sm text-gray-500">
-                          {new Date(record.serviceDate || record.performedAt).toLocaleDateString()}
+                          {formatDate(record.serviceDate || record.performedAt)}
                           {record.technician && ` — ${record.technician.firstName} ${record.technician.lastName}`}
                         </p>
                       </div>

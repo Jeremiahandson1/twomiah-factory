@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Link } from 'react-router-dom';
 import { FileText, Calendar, CheckCircle, Loader2, ArrowRight } from 'lucide-react';
 import portalApi from './portalApi';
@@ -71,13 +72,13 @@ export default function PortalAgreements() {
                   {a.startDate && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">Start Date</span>
-                      <span className="text-gray-900">{new Date(a.startDate).toLocaleDateString()}</span>
+                      <span className="text-gray-900">{formatDate(a.startDate)}</span>
                     </div>
                   )}
                   {a.endDate && (
                     <div className="flex justify-between">
                       <span className="text-gray-500">Renewal Date</span>
-                      <span className="text-gray-900">{new Date(a.endDate).toLocaleDateString()}</span>
+                      <span className="text-gray-900">{formatDate(a.endDate)}</span>
                     </div>
                   )}
                   {a.renewalType && (

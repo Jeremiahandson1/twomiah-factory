@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { Layers, Plus, Search, AlertTriangle, ArrowLeft, Shield, Trash2, Clock, FlaskConical, ChevronDown } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -280,15 +281,15 @@ export default function BatchesPage() {
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Harvest Date</dt>
-                    <dd className="text-sm text-gray-900">{detail.harvestDate ? new Date(detail.harvestDate).toLocaleDateString() : '—'}</dd>
+                    <dd className="text-sm text-gray-900">{detail.harvestDate ? formatDate(detail.harvestDate) : '—'}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Package Date</dt>
-                    <dd className="text-sm text-gray-900">{detail.packageDate ? new Date(detail.packageDate).toLocaleDateString() : '—'}</dd>
+                    <dd className="text-sm text-gray-900">{detail.packageDate ? formatDate(detail.packageDate) : '—'}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-sm text-gray-500">Expiration</dt>
-                    <dd className="text-sm text-gray-900">{detail.expirationDate ? new Date(detail.expirationDate).toLocaleDateString() : '—'}</dd>
+                    <dd className="text-sm text-gray-900">{detail.expirationDate ? formatDate(detail.expirationDate) : '—'}</dd>
                   </div>
                 </dl>
               </div>
@@ -389,7 +390,7 @@ export default function BatchesPage() {
                   <tbody className="divide-y">
                     {detail.adjustments.map((adj: any, idx: number) => (
                       <tr key={idx}>
-                        <td className="px-4 py-2 text-sm text-gray-500">{adj.date ? new Date(adj.date).toLocaleDateString() : '—'}</td>
+                        <td className="px-4 py-2 text-sm text-gray-500">{adj.date ? formatDate(adj.date) : '—'}</td>
                         <td className="px-4 py-2 text-sm text-gray-600">{adj.type}</td>
                         <td className={`px-4 py-2 text-sm text-right font-medium ${adj.quantity < 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {adj.quantity > 0 ? '+' : ''}{adj.quantity}
@@ -448,7 +449,7 @@ export default function BatchesPage() {
           <div className="space-y-1">
             {expiringBatches.slice(0, 5).map(b => (
               <p key={b.id} className="text-sm text-orange-700">
-                <span className="font-mono">{b.batchNumber}</span> ({b.productName}) expires {b.expirationDate ? new Date(b.expirationDate).toLocaleDateString() : 'soon'}
+                <span className="font-mono">{b.batchNumber}</span> ({b.productName}) expires {b.expirationDate ? formatDate(b.expirationDate) : 'soon'}
               </p>
             ))}
             {expiringBatches.length > 5 && (
@@ -524,7 +525,7 @@ export default function BatchesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500">
-                    {batch.expirationDate ? new Date(batch.expirationDate).toLocaleDateString() : '—'}
+                    {batch.expirationDate ? formatDate(batch.expirationDate) : '—'}
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-2">

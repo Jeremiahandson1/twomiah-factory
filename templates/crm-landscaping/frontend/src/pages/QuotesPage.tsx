@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Send, Check, X, FileText, Wrench, MapPinned, Briefcase } from 'lucide-react';
 import api from '../services/api';
@@ -124,7 +125,7 @@ export default function QuotesPage() {
     { key: 'name', label: 'Name', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500">{r.contact.name}</p>}</div> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', render: (v) => `$${Number(v).toLocaleString()}` },
-    { key: 'expiryDate', label: 'Expires', render: (v) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
+    { key: 'expiryDate', label: 'Expires', render: (v) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();

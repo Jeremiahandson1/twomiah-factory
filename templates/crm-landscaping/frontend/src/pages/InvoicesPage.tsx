@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Send, DollarSign } from 'lucide-react';
 import api from '../services/api';
@@ -85,7 +86,7 @@ export default function InvoicesPage() {
         ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         : <span className="text-green-600">Paid</span>;
     } },
-    { key: 'dueDate', label: 'Due', render: (v) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
+    { key: 'dueDate', label: 'Due', render: (v) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Truck, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -135,10 +136,10 @@ export default function MaterialsPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">
-                        {order.orderDate ? new Date(order.orderDate).toLocaleDateString() : '—'}
+                        {order.orderDate ? formatDate(order.orderDate) : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">
-                        {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString() : '—'}
+                        {order.deliveryDate ? formatDate(order.deliveryDate) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900">
                         {order.totalCost != null ? `$${Number(order.totalCost).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}

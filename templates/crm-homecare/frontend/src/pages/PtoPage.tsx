@@ -4,6 +4,7 @@
  * the caregiver_time_off table.
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { CalendarDays, Plus, Check, X, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
@@ -73,8 +74,8 @@ export default function PtoPage() {
                 <tr key={r.id} className="border-b">
                   <td className="px-4 py-3 font-mono text-xs">{(r.caregiverId || '').substring(0, 8)}…</td>
                   <td className="px-4 py-3 text-sm">{TYPE_LABELS[r.type] || r.type}</td>
-                  <td className="px-4 py-3 text-sm">{r.startDate ? new Date(r.startDate).toLocaleDateString() : '—'}</td>
-                  <td className="px-4 py-3 text-sm">{r.endDate ? new Date(r.endDate).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3 text-sm">{r.startDate ? formatDate(r.startDate) : '—'}</td>
+                  <td className="px-4 py-3 text-sm">{r.endDate ? formatDate(r.endDate) : '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{r.reason || '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[r.status] || 'bg-gray-100'}`}>{r.status || 'pending'}</span></td>
                   <td className="px-4 py-3">

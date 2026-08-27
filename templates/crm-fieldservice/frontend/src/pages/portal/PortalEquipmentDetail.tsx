@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Shield, Wrench, Calendar, CheckCircle, AlertTriangle, X, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import portalApi from './portalApi';
@@ -60,7 +61,7 @@ export default function PortalEquipmentDetail() {
           {eq.purchaseDate && (
             <div>
               <p className="text-xs text-gray-400 uppercase tracking-wider">Install Date</p>
-              <p className="text-gray-900">{new Date(eq.purchaseDate).toLocaleDateString()}</p>
+              <p className="text-gray-900">{formatDate(eq.purchaseDate)}</p>
             </div>
           )}
           {eq.location && (
@@ -77,7 +78,7 @@ export default function PortalEquipmentDetail() {
             <Shield className={`w-4 h-4 ${warrantyActive ? 'text-green-600' : 'text-red-600'}`} />
             <span className={`text-sm font-medium ${warrantyActive ? 'text-green-700' : 'text-red-700'}`}>
               Warranty {warrantyActive ? 'active' : 'expired'}
-              {eq.warrantyExpiry && ` — ${warrantyActive ? 'expires' : 'ended'} ${new Date(eq.warrantyExpiry).toLocaleDateString()}`}
+              {eq.warrantyExpiry && ` — ${warrantyActive ? 'expires' : 'ended'} ${formatDate(eq.warrantyExpiry)}`}
             </span>
           </div>
         )}
@@ -118,9 +119,9 @@ function ServiceVisitCard({ visit }: { visit: any }) {
             <div className="flex items-center gap-2 mt-1 text-sm">
               <span className="text-gray-500">
                 {visit.completedAt
-                  ? new Date(visit.completedAt).toLocaleDateString()
+                  ? formatDate(visit.completedAt)
                   : visit.scheduledDate
-                    ? new Date(visit.scheduledDate).toLocaleDateString()
+                    ? formatDate(visit.scheduledDate)
                     : ''}
               </span>
               <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 capitalize">

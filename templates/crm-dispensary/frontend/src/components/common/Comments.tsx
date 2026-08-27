@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   MessageCircle, Send, MoreVertical, Edit2, Trash2, 
   ThumbsUp, Reply, Loader2, User 
@@ -176,7 +177,7 @@ function CommentItem({ comment, onDelete, onReply, isReply = false }) {
               {comment.user?.firstName} {comment.user?.lastName}
             </span>
             <span className="text-xs text-gray-500">
-              {new Date(comment.createdAt).toLocaleDateString()}
+              {formatDate(comment.createdAt)}
               {comment.editedAt && ' (edited)'}
             </span>
           </div>

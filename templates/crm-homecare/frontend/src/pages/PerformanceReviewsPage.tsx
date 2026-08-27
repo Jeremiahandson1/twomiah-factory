@@ -3,6 +3,7 @@
  * Caregiver performance reviews with ratings and notes.
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { Award, Plus, Star, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
@@ -52,7 +53,7 @@ export default function PerformanceReviewsPage() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <div className="font-semibold">{r.caregiverName || r.caregiverId}</div>
-                  <div className="text-xs text-gray-500">{r.reviewDate ? new Date(r.reviewDate).toLocaleDateString() : '—'} · by {r.reviewer || '—'}</div>
+                  <div className="text-xs text-gray-500">{r.reviewDate ? formatDate(r.reviewDate) : '—'} · by {r.reviewer || '—'}</div>
                 </div>
                 <div className="flex items-center gap-0.5">{[1,2,3,4,5].map((s) => <Star key={s} className={`w-4 h-4 ${s <= (r.rating || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />)}</div>
               </div>

@@ -1,6 +1,7 @@
 // src/components/PaymentPage.jsx
 // Public page for clients to pay invoices via Stripe
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { useParams, useSearchParams } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '';
@@ -114,8 +115,8 @@ const PaymentPage = () => {
           <div style={styles.detailRow}>
             <span>Billing Period:</span>
             <span>
-              {invoice?.billingPeriod?.start && new Date(invoice.billingPeriod.start).toLocaleDateString()} - {' '}
-              {invoice?.billingPeriod?.end && new Date(invoice.billingPeriod.end).toLocaleDateString()}
+              {invoice?.billingPeriod?.start && formatDate(invoice.billingPeriod.start)} - {' '}
+              {invoice?.billingPeriod?.end && formatDate(invoice.billingPeriod.end)}
             </span>
           </div>
           <div style={styles.detailRow}>

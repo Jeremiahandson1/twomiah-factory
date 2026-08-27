@@ -1,4 +1,5 @@
 import { toast } from '../Toast';
+import { formatDate } from '../../utils/date';
 // src/components/admin/BackgroundChecks.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -280,10 +281,10 @@ const BackgroundChecks = () => {
                   <td>{getStatusBadge(check.status)}</td>
                   <td>{getResultBadge(check.result)}</td>
                   <td style={{ fontSize: '0.85rem' }}>
-                    {check.initiated_date ? new Date(check.initiated_date).toLocaleDateString() : '-'}
+                    {check.initiated_date ? formatDate(check.initiated_date) : '-'}
                   </td>
                   <td style={{ fontSize: '0.85rem' }}>
-                    {check.completed_date ? new Date(check.completed_date).toLocaleDateString() : '-'}
+                    {check.completed_date ? formatDate(check.completed_date) : '-'}
                   </td>
                   <td>
                     {check.expiration_date ? (
@@ -292,7 +293,7 @@ const BackgroundChecks = () => {
                                isExpiringSoon(check.expiration_date) ? '#ff9800' : '#333',
                         fontWeight: isExpired(check.expiration_date) || isExpiringSoon(check.expiration_date) ? 'bold' : 'normal'
                       }}>
-                        {new Date(check.expiration_date).toLocaleDateString()}
+                        {formatDate(check.expiration_date)}
                         {isExpired(check.expiration_date) && ' ⚠️'}
                       </span>
                     ) : '-'}

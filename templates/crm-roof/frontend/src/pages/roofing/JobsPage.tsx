@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -238,7 +239,7 @@ export default function JobsPage() {
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
-                      {job.createdAt ? new Date(job.createdAt).toLocaleDateString() : '—'}
+                      {job.createdAt ? formatDate(job.createdAt) : '—'}
                     </td>
                   </tr>
                 ))}

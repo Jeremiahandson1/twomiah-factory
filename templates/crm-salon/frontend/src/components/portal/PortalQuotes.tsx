@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, Link } from 'react-router-dom';
 import { FileText, CheckCircle, XCircle, Clock, Eye, Download, Loader2, PenTool } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -59,7 +60,7 @@ function QuoteCard({ quote, token, highlight }: QuoteCardProps) {
         <div className="flex items-center gap-3"><div className="p-2 bg-blue-100 rounded-lg"><FileText className="w-5 h-5 text-blue-600" /></div><div><p className="font-medium text-gray-900">{quote.name || quote.number}</p><p className="text-sm text-gray-500">{quote.number}</p></div></div>
         <div className="text-right"><p className="text-lg font-bold text-gray-900">${Number(quote.total).toLocaleString()}</p><span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLES[quote.status] || ''}`}>{quote.status}</span></div>
       </div>
-      {quote.validUntil && <p className="mt-2 text-sm text-gray-500">Valid until {new Date(quote.validUntil).toLocaleDateString()}</p>}
+      {quote.validUntil && <p className="mt-2 text-sm text-gray-500">Valid until {formatDate(quote.validUntil)}</p>}
     </Link>
   );
 }
@@ -115,7 +116,7 @@ export function PortalQuoteDetail() {
           </div>
         </div>
         {canRespond && (<div className="p-6 bg-orange-50 border-t"><p className="text-sm text-gray-600 mb-4">Please review this quote and provide your signature to approve.</p><div className="flex gap-3"><button onClick={() => setShowSignatureModal(true)} disabled={actionLoading} className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"><PenTool className="w-4 h-4" /> Sign & Approve</button><button onClick={handleReject} disabled={actionLoading} className="flex items-center gap-2 px-6 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"><XCircle className="w-4 h-4" /> Decline</button></div></div>)}
-        {quote.status === 'approved' && (<div className="p-6 bg-green-50 border-t"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" /><div className="flex-1"><p className="font-medium text-green-800">Quote approved on {new Date(quote.approvedAt!).toLocaleDateString()}</p>{quote.signature && <div className="mt-3"><SignatureDisplay signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} /></div>}</div></div></div>)}
+        {quote.status === 'approved' && (<div className="p-6 bg-green-50 border-t"><div className="flex items-start gap-4"><CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" /><div className="flex-1"><p className="font-medium text-green-800">Quote approved on {formatDate(quote.approvedAt!)}</p>{quote.signature && <div className="mt-3"><SignatureDisplay signature={quote.signature} signedBy={(quote.signedBy || quote.approvedBy) ?? undefined} signedAt={quote.approvedAt ?? undefined} /></div>}</div></div></div>)}
       </div>
       <SignatureModal isOpen={showSignatureModal} onClose={() => setShowSignatureModal(false)} onSave={handleApprove} title="Approve Quote" signerName={(contact?.name as string) || ''} />
     </div>

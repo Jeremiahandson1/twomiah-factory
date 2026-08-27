@@ -1,4 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -149,7 +150,7 @@ export default function RoofReportDetail() {
             {report.address}
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            {report.city}, {report.state} {report.zip} &middot; {new Date(report.createdAt).toLocaleDateString()}
+            {report.city}, {report.state} {report.zip} &middot; {formatDate(report.createdAt)}
           </p>
         </div>
         <div className="flex items-center gap-2">

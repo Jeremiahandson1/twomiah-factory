@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { Landmark, Settings, Users, ArrowRightLeft, Search, RefreshCw, Plus, Link2, DollarSign, TrendingUp } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -369,7 +370,7 @@ export default function PayByBankPage() {
                         <p>Status: <span className={`px-2 py-0.5 text-xs rounded-full ${account.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                           {account.active ? 'Active' : 'Inactive'}
                         </span></p>
-                        {account.linkedAt && <p>Linked: {new Date(account.linkedAt).toLocaleDateString()}</p>}
+                        {account.linkedAt && <p>Linked: {formatDate(account.linkedAt)}</p>}
                       </div>
                     </div>
                   ))}
@@ -441,7 +442,7 @@ export default function PayByBankPage() {
                   ) : transactions.map(txn => (
                     <tr key={txn.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {txn.createdAt ? new Date(txn.createdAt).toLocaleDateString() : '—'}
+                        {txn.createdAt ? formatDate(txn.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{txn.customerName || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">

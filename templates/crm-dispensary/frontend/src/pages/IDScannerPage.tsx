@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { ScanLine, Shield, AlertTriangle, CheckCircle, XCircle, User, Clock, Search, RefreshCw, CreditCard } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -343,7 +344,7 @@ export default function IDScannerPage() {
                     <Clock className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-500 w-24">Date of Birth:</span>
                     <span className="font-medium text-gray-900">
-                      {scanResult.dob ? new Date(scanResult.dob).toLocaleDateString() : '—'}
+                      {scanResult.dob ? formatDate(scanResult.dob) : '—'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
@@ -366,7 +367,7 @@ export default function IDScannerPage() {
                     <span className={`font-medium ${
                       scanResult.expiry && new Date(scanResult.expiry) < new Date() ? 'text-red-600' : 'text-gray-900'
                     }`}>
-                      {scanResult.expiry ? new Date(scanResult.expiry).toLocaleDateString() : '—'}
+                      {scanResult.expiry ? formatDate(scanResult.expiry) : '—'}
                       {scanResult.expiry && new Date(scanResult.expiry) < new Date() && (
                         <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700">EXPIRED</span>
                       )}
@@ -461,7 +462,7 @@ export default function IDScannerPage() {
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900">{scan.name || '—'}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">
-                        {scan.dob ? new Date(scan.dob).toLocaleDateString() : '—'}
+                        {scan.dob ? formatDate(scan.dob) : '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900 font-medium">{scan.age || calculateAge(scan.dob) || '—'}</td>
                       <td className="px-4 py-3 text-sm font-mono text-gray-600">{scan.idNumber || '—'}</td>
@@ -509,7 +510,7 @@ export default function IDScannerPage() {
                       </div>
                       <div className="grid md:grid-cols-3 gap-3 text-sm text-gray-600">
                         <span>ID: {scan.idNumber || '—'}</span>
-                        <span>DOB: {scan.dob ? new Date(scan.dob).toLocaleDateString() : '—'}</span>
+                        <span>DOB: {scan.dob ? formatDate(scan.dob) : '—'}</span>
                         <span>Scanned: {scan.createdAt ? new Date(scan.createdAt).toLocaleString() : '—'}</span>
                       </div>
                       {scan.flagReason && (

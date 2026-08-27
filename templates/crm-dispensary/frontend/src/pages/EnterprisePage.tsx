@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Search, Building2, BarChart3, CreditCard, FileCode2, MapPin, ChevronRight, DollarSign, ShieldCheck, Package } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -400,7 +401,7 @@ function MultiStoreReportsTab() {
                       {loc.metrcSync || 'unknown'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{loc.lastAudit ? new Date(loc.lastAudit).toLocaleDateString() : '--'}</td>
+                  <td className="px-4 py-3 text-gray-700">{loc.lastAudit ? formatDate(loc.lastAudit) : '--'}</td>
                   <td className="px-4 py-3"><span className={`font-medium ${(loc.issues || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>{loc.issues || 0}</span></td>
                 </tr>
               ))}
@@ -482,7 +483,7 @@ function ACHTab() {
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={txStatusColors} /> },
     { key: 'customerName', label: 'Customer', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'description', label: 'Description', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'createdAt', label: 'Date', render: (val: string) => val ? new Date(val).toLocaleDateString() : '--' },
+    { key: 'createdAt', label: 'Date', render: (val: string) => val ? formatDate(val) : '--' },
   ];
 
   return (

@@ -1,5 +1,6 @@
 // src/components/admin/ShiftSwaps.jsx
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -195,7 +196,7 @@ const ShiftSwaps = () => {
                   </td>
                   <td>{getStatusBadge(swap.status)}</td>
                   <td style={{ fontSize: '0.85rem' }}>
-                    {new Date(swap.requested_at).toLocaleDateString()}
+                    {formatDate(swap.requested_at)}
                   </td>
                   <td>
                     {swap.status === 'accepted' && (

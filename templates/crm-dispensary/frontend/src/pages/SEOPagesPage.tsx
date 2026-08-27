@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { Search, Globe, Eye, RefreshCw, Edit, CheckCircle, XCircle, ExternalLink, FileText } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -165,7 +166,7 @@ export default function SEOPagesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
-                        {page.lastIndexed ? new Date(page.lastIndexed).toLocaleDateString() : '—'}
+                        {page.lastIndexed ? formatDate(page.lastIndexed) : '—'}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button

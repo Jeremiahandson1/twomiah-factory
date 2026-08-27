@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Search, Star, DollarSign } from 'lucide-react';
 import api from '../services/api';
@@ -199,7 +200,7 @@ export default function CustomersPage() {
       label: 'Last Visit',
       render: (val: string) => (
         <span className="text-gray-500 text-sm">
-          {val ? new Date(val).toLocaleDateString() : 'Never'}
+          {val ? formatDate(val) : 'Never'}
         </span>
       ),
     },

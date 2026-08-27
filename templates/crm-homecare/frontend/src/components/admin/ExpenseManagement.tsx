@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 import { toast } from '../Toast';
 // src/components/admin/ExpenseManagement.jsx
 // Complete expense tracking: Categories, Filtering, Reports, Receipt Management, Budgets
@@ -440,7 +441,7 @@ const ExpenseManagement = () => {
               const categoryInfo = getCategoryInfo(expense.category);
               return (
                 <tr key={expense.id}>
-                  <td>{new Date(expense.expense_date).toLocaleDateString()}</td>
+                  <td>{formatDate(expense.expense_date)}</td>
                   <td>
                     <span style={{ 
                       display: 'inline-flex', 

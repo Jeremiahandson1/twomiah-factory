@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom'
 import {
   Zap, Plus, X, Check, XCircle, Phone, ArrowRight,
@@ -229,7 +230,7 @@ export default function StormLeadsPage() {
                   'bg-gray-100 text-gray-500'
                 }`}>{event.status.replace('_', ' ')}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-1">{new Date(event.eventDate).toLocaleDateString()}</p>
+              <p className="text-xs text-gray-500 mt-1">{formatDate(event.eventDate)}</p>
               <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                 {event.hailSizeInches && <span>{event.hailSizeInches}" hail</span>}
                 {event.windSpeedMph && <span>{event.windSpeedMph} mph</span>}
@@ -254,7 +255,7 @@ export default function StormLeadsPage() {
               <div>
                 <h2 className="text-lg font-bold capitalize flex items-center gap-2">
                   <Zap size={18} className="text-yellow-500" />
-                  {selectedEvent.eventType} — {new Date(selectedEvent.eventDate).toLocaleDateString()}
+                  {selectedEvent.eventType} — {formatDate(selectedEvent.eventDate)}
                 </h2>
                 <p className="text-sm text-gray-500">
                   {((selectedEvent.affectedZipCodes as string[]) || []).join(', ')} · {selectedEvent.leadCount || 0} leads

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, DoorOpen, CloudLightning, X,
@@ -212,7 +213,7 @@ export default function CanvassingView() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          name: newName || `Canvassing — ${new Date().toLocaleDateString()}`,
+          name: newName || `Canvassing — ${formatDate()}`,
           weatherEvent: newWeather || null,
           radiusMiles: newRadius ? Number(newRadius) : null,
           centerLat,
@@ -462,7 +463,7 @@ export default function CanvassingView() {
               {followUps.map((st: Stop) => (
                 <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
                   <p className="text-sm font-medium">{st.address}</p>
-                  <p className="text-xs text-gray-600">Follow up: {new Date(st.followUpDate).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-600">Follow up: {formatDate(st.followUpDate)}</p>
                 </div>
               ))}
             </div>
@@ -491,7 +492,7 @@ export default function CanvassingView() {
         <div className="p-4 space-y-4">
           <button
             onClick={() => {
-              setNewName(`Canvassing — ${new Date().toLocaleDateString()}`)
+              setNewName(`Canvassing — ${formatDate()}`)
               setShowStartModal(true)
             }}
             className="w-full py-4 bg-blue-600 text-white rounded-2xl font-semibold text-lg flex items-center justify-center gap-2 active:bg-blue-700"
@@ -510,7 +511,7 @@ export default function CanvassingView() {
                 >
                   <p className="font-medium text-sm">{s.name}</p>
                   <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
-                    <span>{new Date(s.startedAt || s.createdAt).toLocaleDateString()}</span>
+                    <span>{formatDate(s.startedAt || s.createdAt)}</span>
                     <span>{s.totalDoors || 0} doors</span>
                     <span className="text-green-600 font-medium">{s.leadsCreated || 0} leads</span>
                   </div>
@@ -685,7 +686,7 @@ export default function CanvassingView() {
                   }`}>{s.status}</span>
                 </div>
                 <div className="flex gap-4 mt-1 text-xs text-gray-500">
-                  <span>{new Date(s.startedAt || s.createdAt).toLocaleDateString()}</span>
+                  <span>{formatDate(s.startedAt || s.createdAt)}</span>
                   <span>{s.totalDoors || 0} doors</span>
                   <span>{s.leadsCreated || 0} leads</span>
                 </div>

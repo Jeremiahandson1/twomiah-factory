@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   CheckCircle2, Circle, Plus, Calendar, User, Flag, 
   Trash2, Edit2, Loader2, AlertCircle, FolderKanban,
@@ -222,7 +223,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }) {
             {task.dueDate && (
               <span className={`flex items-center gap-1 ${isOverdue ? 'text-red-500' : ''}`}>
                 <Calendar className="w-3 h-3" />
-                {new Date(task.dueDate).toLocaleDateString()}
+                {formatDate(task.dueDate)}
                 {isOverdue && ' (Overdue)'}
               </span>
             )}
@@ -536,7 +537,7 @@ export function TaskWidget() {
               <p className="text-sm font-medium text-gray-900 truncate">{task.title}</p>
               {task.dueDate && (
                 <p className="text-xs text-gray-500">
-                  Due {new Date(task.dueDate).toLocaleDateString()}
+                  Due {formatDate(task.dueDate)}
                 </p>
               )}
             </div>

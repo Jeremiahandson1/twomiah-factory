@@ -1,4 +1,5 @@
 import { confirm } from '../ConfirmModal';
+import { formatDate } from '../../utils/date';
 // src/components/admin/PerformanceRatings.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -370,7 +371,7 @@ const PerformanceRatings = () => {
                                 <div>
                                   <strong>{getClientName(review.client_id)}</strong>
                                   <div style={{ fontSize: '0.85rem', color: '#666' }}>
-                                    {new Date(review.review_date).toLocaleDateString()}
+                                    {formatDate(review.review_date)}
                                   </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Receipt, CreditCard, Loader2, ExternalLink } from 'lucide-react';
 import { portalHeaders } from './PortalLayout';
 
@@ -99,7 +100,7 @@ export default function PortalInvoices() {
                 </div>
 
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                  <span>Due: {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : '—'}</span>
+                  <span>Due: {inv.dueDate ? formatDate(inv.dueDate) : '—'}</span>
                   {inv.amountPaid > 0 && (
                     <span>Paid: ${Number(inv.amountPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                   )}

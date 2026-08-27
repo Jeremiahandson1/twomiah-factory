@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { ShieldCheck, FileText, Trash2, Plus, Edit, AlertTriangle, CheckCircle, Clock, Save, Send } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -391,10 +392,10 @@ export default function CompliancePage() {
                     <td className="px-4 py-3 text-sm font-mono text-gray-900">{license.licenseNumber}</td>
                     <td className="px-4 py-3 text-sm text-gray-600">{license.issuedBy || '—'}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">
-                      {license.issuedDate ? new Date(license.issuedDate).toLocaleDateString() : '—'}
+                      {license.issuedDate ? formatDate(license.issuedDate) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
-                      {license.expirationDate ? new Date(license.expirationDate).toLocaleDateString() : '—'}
+                      {license.expirationDate ? formatDate(license.expirationDate) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${licenseStatusBadge(license)}`}>
@@ -486,13 +487,13 @@ export default function CompliancePage() {
                 ) : reports.map(report => (
                   <tr key={report.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {report.createdAt ? new Date(report.createdAt).toLocaleDateString() : '—'}
+                      {report.createdAt ? formatDate(report.createdAt) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {REPORT_TYPES.find(r => r.value === report.type)?.label || report.type}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
-                      {report.startDate ? new Date(report.startDate).toLocaleDateString() : '—'} - {report.endDate ? new Date(report.endDate).toLocaleDateString() : '—'}
+                      {report.startDate ? formatDate(report.startDate) : '—'} - {report.endDate ? formatDate(report.endDate) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 text-xs rounded-full ${
@@ -563,7 +564,7 @@ export default function CompliancePage() {
                   ) : wasteEntries.map(entry => (
                     <tr key={entry.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : '—'}
+                        {entry.createdAt ? formatDate(entry.createdAt) : '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">{entry.productName || '—'}</td>
                       <td className="px-4 py-3 text-sm font-mono text-gray-600">{entry.batchNumber || '—'}</td>
@@ -835,7 +836,7 @@ export default function CompliancePage() {
               <div>
                 <span className="text-slate-400">Period:</span>
                 <span className="text-white ml-2">
-                  {viewingReport.startDate ? new Date(viewingReport.startDate).toLocaleDateString() : '—'} - {viewingReport.endDate ? new Date(viewingReport.endDate).toLocaleDateString() : '—'}
+                  {viewingReport.startDate ? formatDate(viewingReport.startDate) : '—'} - {viewingReport.endDate ? formatDate(viewingReport.endDate) : '—'}
                 </span>
               </div>
               <div>

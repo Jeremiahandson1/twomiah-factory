@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench, MapPinned } from 'lucide-react';
 import api from '../services/api';
@@ -101,7 +102,7 @@ export default function JobsPage() {
       const result = await api.jobs.complete(job.id);
       toast.success('Service call completed');
       if (result.nextServiceDate) {
-        toast.success(`Next maintenance visit scheduled for ${new Date(result.nextServiceDate).toLocaleDateString()}`);
+        toast.success(`Next maintenance visit scheduled for ${formatDate(result.nextServiceDate)}`);
       }
       load();
     } catch (err) { toast.error(err.message); }
@@ -112,7 +113,7 @@ export default function JobsPage() {
     { key: 'title', label: 'Title', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500">{r.contact.name}</p>}</div> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'priority', label: 'Priority', render: (v) => <StatusBadge status={v} statusColors={{ low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' }} /> },
-    { key: 'scheduledDate', label: 'Scheduled', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'scheduledDate', label: 'Scheduled', render: (v) => v ? formatDate(v) : '-' },
     { key: 'assignedTo', label: 'Assigned To', render: (v) => v ? `${v.firstName} ${v.lastName}` : '-' },
   ];
 

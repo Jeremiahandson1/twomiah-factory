@@ -1,6 +1,7 @@
 // src/components/MileageTracker.jsx
 // Simple start/stop mileage tracking for caregivers
 import React, { useState } from 'react';
+import { formatDate } from '../utils/date';
 import { API_BASE_URL } from '../config';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -356,7 +357,7 @@ const MileageTracker = ({ caregiverId }) => {
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <strong>{trip.miles} mi</strong>
                     <span style={{ color: '#666' }}>
-                      {new Date(trip.date).toLocaleDateString()}
+                      {formatDate(trip.date)}
                     </span>
                   </div>
                   {(trip.from_location || trip.to_location) && (

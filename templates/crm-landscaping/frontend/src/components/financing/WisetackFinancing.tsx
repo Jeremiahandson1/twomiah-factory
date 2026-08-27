@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   DollarSign, Calculator, CreditCard, CheckCircle, Clock,
   XCircle, ExternalLink, Loader2, AlertCircle, Percent,
@@ -506,7 +507,7 @@ export function WisetackSettings() {
             <CheckCircle className="w-5 h-5 text-green-600" />
             <span className="text-green-700 font-medium">Connected</span>
             <span className="text-sm text-green-600 ml-auto">
-              Since {new Date(status.connectedAt).toLocaleDateString()}
+              Since {formatDate(status.connectedAt)}
             </span>
           </div>
 

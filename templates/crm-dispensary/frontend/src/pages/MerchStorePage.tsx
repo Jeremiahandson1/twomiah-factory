@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, Search, Package, Eye, Plus } from 'lucide-react';
 import api from '../services/api';
@@ -134,7 +135,7 @@ export default function MerchStorePage() {
     {
       key: 'createdAt',
       label: 'Date',
-      render: (val: string) => <span className="text-gray-500 text-sm">{val ? new Date(val).toLocaleDateString() : '—'}</span>,
+      render: (val: string) => <span className="text-gray-500 text-sm">{val ? formatDate(val) : '—'}</span>,
     },
   ];
 

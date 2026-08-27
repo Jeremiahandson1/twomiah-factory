@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import {
   Shield, Smartphone, Mail, Key, Trash2, Copy, Download, Monitor,
   MapPin, Clock, AlertTriangle, CheckCircle, Info, X, RefreshCw,
@@ -72,7 +73,7 @@ function relativeTime(dateStr: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  return formatDate(dateStr);
 }
 
 export default function SecurityPage() {
@@ -861,7 +862,7 @@ export default function SecurityPage() {
                           {session.lastActivity ? relativeTime(session.lastActivity) : '—'}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-500">
-                          {session.createdAt ? new Date(session.createdAt).toLocaleDateString() : '—'}
+                          {session.createdAt ? formatDate(session.createdAt) : '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {!isCurrent && (

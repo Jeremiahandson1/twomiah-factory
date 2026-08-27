@@ -1,4 +1,5 @@
 import { toast } from '../Toast';
+import { formatDate } from '../../utils/date';
 // src/components/admin/PayrollProcessing.jsx
 // Complete payroll: Overtime, Mileage, PTO, Shift Differentials, Pay Stubs, Exports
 import React, { useState, useEffect } from 'react';
@@ -887,7 +888,7 @@ const PayrollProcessing = () => {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <p style={{ margin: 0 }}><strong>Pay Period:</strong> {payPeriod.startDate} to {payPeriod.endDate}</p>
-                  <p style={{ margin: '0.25rem 0 0' }}><strong>Pay Date:</strong> {new Date().toLocaleDateString()}</p>
+                  <p style={{ margin: '0.25rem 0 0' }}><strong>Pay Date:</strong> {formatDate()}</p>
                   {selectedPayroll.check_number && <p style={{ margin: '0.25rem 0 0' }}><strong>Check #:</strong> {selectedPayroll.check_number}</p>}
                 </div>
               </div>

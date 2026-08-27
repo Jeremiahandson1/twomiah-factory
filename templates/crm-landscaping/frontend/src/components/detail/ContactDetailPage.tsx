@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
@@ -420,7 +421,7 @@ export default function ContactDetailPage() {
                       )}
                       {eq.purchaseDate && (
                         <p className="text-gray-400">
-                          Installed {new Date(eq.purchaseDate).toLocaleDateString()}
+                          Installed {formatDate(eq.purchaseDate)}
                         </p>
                       )}
                       {eq.location && (
@@ -566,12 +567,12 @@ export default function ContactDetailPage() {
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
                 <span className="text-gray-500">Created</span>
-                <span className="text-gray-900">{new Date(contact.createdAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(contact.createdAt)}</span>
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-blue-500" />
                 <span className="text-gray-500">Updated</span>
-                <span className="text-gray-900">{new Date(contact.updatedAt).toLocaleDateString()}</span>
+                <span className="text-gray-900">{formatDate(contact.updatedAt)}</span>
               </div>
             </div>
           </div>
@@ -638,7 +639,7 @@ export default function ContactDetailPage() {
                 {portalStatus?.lastVisit && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Last Login</span>
-                    <span className="text-gray-900">{new Date(portalStatus.lastVisit).toLocaleDateString()}</span>
+                    <span className="text-gray-900">{formatDate(portalStatus.lastVisit)}</span>
                   </div>
                 )}
 
@@ -743,7 +744,7 @@ export default function ContactDetailPage() {
                         <Link key={j.id} to={`/crm/jobs/${j.id}`} className="p-3 flex items-center justify-between hover:bg-gray-50">
                           <div>
                             <p className="font-medium text-gray-900 text-sm">{j.title}</p>
-                            <p className="text-xs text-gray-500">{j.number} — {j.scheduledDate ? new Date(j.scheduledDate).toLocaleDateString() : ''}</p>
+                            <p className="text-xs text-gray-500">{j.number} — {j.scheduledDate ? formatDate(j.scheduledDate) : ''}</p>
                           </div>
                           <StatusBadge status={j.status} />
                         </Link>

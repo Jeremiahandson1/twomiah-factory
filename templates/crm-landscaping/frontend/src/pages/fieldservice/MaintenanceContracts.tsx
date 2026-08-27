@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import {
   FileText, Plus, Search, Calendar, DollarSign, Users,
   AlertTriangle, RefreshCw, XCircle, Clock, Loader2,
@@ -213,7 +214,7 @@ export default function MaintenanceContracts() {
                     <td className="px-4 py-3">
                       <p className="text-sm text-gray-700 dark:text-slate-300">
                         {contract.nextServiceDate
-                          ? new Date(contract.nextServiceDate).toLocaleDateString()
+                          ? formatDate(contract.nextServiceDate)
                           : '-'}
                       </p>
                     </td>
@@ -237,7 +238,7 @@ export default function MaintenanceContracts() {
                         )}
                         <span className={`text-sm ${isExpiringSoon ? 'text-orange-600' : 'text-gray-500 dark:text-slate-400'}`}>
                           {contract.endDate
-                            ? new Date(contract.endDate).toLocaleDateString()
+                            ? formatDate(contract.endDate)
                             : '-'}
                         </span>
                       </div>

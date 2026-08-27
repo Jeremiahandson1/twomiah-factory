@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Link } from 'react-router-dom';
 import { Wrench, Shield, ChevronRight, Loader2 } from 'lucide-react';
 import portalApi from './portalApi';
@@ -58,13 +59,13 @@ export default function PortalEquipment() {
                       </span>
                       {eq.purchaseDate && (
                         <span className="text-xs text-gray-400">
-                          Installed {new Date(eq.purchaseDate).toLocaleDateString()}
+                          Installed {formatDate(eq.purchaseDate)}
                         </span>
                       )}
                     </div>
                     {eq.lastServiceDate && (
                       <p className="text-xs text-gray-400 mt-1">
-                        Last serviced {new Date(eq.lastServiceDate).toLocaleDateString()}
+                        Last serviced {formatDate(eq.lastServiceDate)}
                       </p>
                     )}
                   </div>

@@ -1,5 +1,6 @@
 // src/components/admin/EmergencyCoverage.jsx
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { confirm } from '../ConfirmModal';
@@ -227,7 +228,7 @@ const EmergencyCoverage = () => {
         <div className="card">
           <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: '#374151' }}>
             ✅ {availableCaregivers.length} Caregiver{availableCaregivers.length !== 1 ? 's' : ''} Available
-            {selectedReport && <span style={{ fontWeight: '400', color: '#6B7280' }}> for {new Date(selectedReport.date).toLocaleDateString()}</span>}
+            {selectedReport && <span style={{ fontWeight: '400', color: '#6B7280' }}> for {formatDate(selectedReport.date)}</span>}
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {availableCaregivers.map(cg => {

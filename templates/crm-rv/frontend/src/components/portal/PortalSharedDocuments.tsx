@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDate } from '../../utils/date';
 import { FolderOpen, Loader2, Download } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
@@ -116,7 +117,7 @@ function DocCard({ doc }: { doc: SharedDoc }) {
               <span className="px-1.5 py-0.5 bg-gray-100 rounded">{TYPE_LABELS[doc.type] || doc.type}</span>
               {doc.projectName && <span>Project: {doc.projectName}</span>}
               {sizeKb > 0 && <span>{sizeKb} KB</span>}
-              <span>Shared {new Date(doc.sharedAt).toLocaleDateString()}</span>
+              <span>Shared {formatDate(doc.sharedAt)}</span>
             </div>
             {doc.description && <p className="text-xs text-gray-500 mt-1">{doc.description}</p>}
           </div>

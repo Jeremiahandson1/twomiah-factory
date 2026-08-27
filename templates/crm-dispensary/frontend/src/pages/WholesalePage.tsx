@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Search, Users, ShoppingCart, FlaskConical, Truck, FileCheck, DollarSign, ExternalLink } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -350,7 +351,7 @@ function OrdersTab() {
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={orderStatusColors} /> },
     { key: 'total', label: 'Total', render: (val: number) => <span className="font-medium text-gray-900">${Number(val || 0).toFixed(2)}</span> },
     { key: 'paymentStatus', label: 'Payment', render: (val: string) => <StatusBadge status={val} statusColors={paymentStatusColors} /> },
-    { key: 'dueDate', label: 'Due Date', render: (val: string) => val ? new Date(val).toLocaleDateString() : <span className="text-gray-400">--</span> },
+    { key: 'dueDate', label: 'Due Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
   ];
 
   const actions = [

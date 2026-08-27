@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { 
   DollarSign, Briefcase, FolderKanban, FileText, TrendingUp, TrendingDown,
   Users, Clock, AlertCircle, CheckCircle, Loader2, Calendar, ArrowUpRight
@@ -209,7 +210,7 @@ export default function ReportsDashboard() {
                      `Quote ${item.number}`}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {new Date(item.createdAt).toLocaleDateString()}
+                    {formatDate(item.createdAt)}
                   </p>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full ${

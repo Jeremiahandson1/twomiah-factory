@@ -7,6 +7,7 @@
  * shows recent events + matched contacts.
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Radio, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react';
 import api from '../../api/client';
 
@@ -119,7 +120,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3 text-sm">{e.city ? `${e.city}, ` : ''}{e.state || ''} {e.zip || ''}</td>
                   <td className="px-4 py-3 text-sm">{e.hailSizeInches ? `${e.hailSizeInches}"` : '—'}</td>
                   <td className="px-4 py-3 text-sm">{e.windSpeedMph ? `${e.windSpeedMph} mph` : '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{e.startedAt ? new Date(e.startedAt).toLocaleDateString() : '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{e.startedAt ? formatDate(e.startedAt) : '—'}</td>
                   <td className="px-4 py-3"><button onClick={() => matchEvent(e.id)} className="text-xs text-orange-600 hover:underline">Match Contacts</button></td>
                 </tr>
               ))}
@@ -139,7 +140,7 @@ export default function StormRadarPage() {
                   <td className="px-4 py-3 font-mono text-xs">{(m.contactId || '').substring(0, 8)}…</td>
                   <td className="px-4 py-3 text-sm">{m.distanceMiles ? `${m.distanceMiles} mi` : '—'}</td>
                   <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${MATCH_STATUS_COLORS[m.status] || 'bg-gray-100'}`}>{(m.status || '').replace(/_/g, ' ')}</span></td>
-                  <td className="px-4 py-3 text-sm text-gray-500">{new Date(m.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-sm text-gray-500">{formatDate(m.createdAt)}</td>
                   <td className="px-4 py-3">
                     <select value={m.status} onChange={(e) => updateMatchStatus(m.id, e.target.value)} className="text-xs border rounded px-2 py-1">
                       <option value="new">New</option><option value="contacted">Contacted</option><option value="quoted">Quoted</option><option value="booked">Booked</option><option value="not_interested">Not Interested</option>

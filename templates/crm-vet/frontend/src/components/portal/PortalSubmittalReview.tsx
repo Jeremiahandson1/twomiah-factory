@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDate } from '../../utils/date';
 import { FileCheck2, Loader2, CheckCircle2, RotateCcw, Clock } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
@@ -191,9 +192,9 @@ function SubmittalCard({
             {submittal.specSection && <p className="text-xs text-gray-500 mt-1">Spec: {submittal.specSection}</p>}
             {submittal.description && <p className="text-sm text-gray-600 mt-1">{submittal.description}</p>}
             <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
-              {submittal.dueDate && <span>Due {new Date(submittal.dueDate).toLocaleDateString()}</span>}
-              {submittal.submittedDate && <span>Submitted {new Date(submittal.submittedDate).toLocaleDateString()}</span>}
-              {submittal.approvedDate && <span>Approved {new Date(submittal.approvedDate).toLocaleDateString()}</span>}
+              {submittal.dueDate && <span>Due {formatDate(submittal.dueDate)}</span>}
+              {submittal.submittedDate && <span>Submitted {formatDate(submittal.submittedDate)}</span>}
+              {submittal.approvedDate && <span>Approved {formatDate(submittal.approvedDate)}</span>}
             </div>
             {submittal.notes && <p className="text-xs text-gray-500 mt-2 italic whitespace-pre-wrap">{submittal.notes}</p>}
           </div>

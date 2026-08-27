@@ -1,4 +1,5 @@
 import { toast } from '../Toast';
+import { formatDate } from '../../utils/date';
 // src/components/admin/ClaimsManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
@@ -298,7 +299,7 @@ const ClaimsManagement = () => {
                   <td><strong>{claim.claim_number}</strong></td>
                   <td>{claim.client_first_name} {claim.client_last_name}</td>
                   <td>{claim.payer_name}</td>
-                  <td>{claim.service_date_from ? new Date(claim.service_date_from).toLocaleDateString() : '-'}</td>
+                  <td>{claim.service_date_from ? formatDate(claim.service_date_from) : '-'}</td>
                   <td><strong>${(parseFloat(claim.charge_amount) || 0).toFixed(2)}</strong></td>
                   <td>{getStatusBadge(claim.status)}</td>
                   <td>

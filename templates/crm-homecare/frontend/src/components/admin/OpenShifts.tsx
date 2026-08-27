@@ -1,5 +1,6 @@
 // src/components/admin/OpenShifts.jsx
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -363,7 +364,7 @@ const OpenShifts = () => {
             </div>
             <div>
               <p><strong>Client:</strong> {currentShift.client_first_name} {currentShift.client_last_name}</p>
-              <p><strong>Date:</strong> {new Date(currentShift.shift_date).toLocaleDateString()}</p>
+              <p><strong>Date:</strong> {formatDate(currentShift.shift_date)}</p>
               <p><strong>Time:</strong> {currentShift.start_time?.slice(0,5)} - {currentShift.end_time?.slice(0,5)}</p>
               <p><strong>Rate:</strong> ${(parseFloat(currentShift.hourly_rate) || 0).toFixed(2)}/hr</p>
               {parseFloat(currentShift.bonus_amount) > 0 && (

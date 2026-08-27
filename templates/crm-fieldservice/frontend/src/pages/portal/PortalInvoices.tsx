@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Receipt, Loader2, ChevronRight, CreditCard, ChevronLeft, X } from 'lucide-react';
 import portalApi from './portalApi';
@@ -82,7 +83,7 @@ export default function PortalInvoices() {
           </button>
           <div className="flex-1">
             <h1 className="text-xl font-bold text-gray-900">Invoice {inv.number}</h1>
-            <p className="text-sm text-gray-500">{new Date(inv.issueDate).toLocaleDateString()}</p>
+            <p className="text-sm text-gray-500">{formatDate(inv.issueDate)}</p>
           </div>
           <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${STATUS_COLORS[inv.status] || ''}`}>
             {STATUS_LABELS[inv.status] || inv.status}
@@ -147,7 +148,7 @@ export default function PortalInvoices() {
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Due Date</span>
-              <span className="text-gray-900">{new Date(inv.dueDate).toLocaleDateString()}</span>
+              <span className="text-gray-900">{formatDate(inv.dueDate)}</span>
             </div>
           </div>
         )}
@@ -216,8 +217,8 @@ export default function PortalInvoices() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {new Date(inv.issueDate).toLocaleDateString()}
-                      {inv.dueDate && ` — Due ${new Date(inv.dueDate).toLocaleDateString()}`}
+                      {formatDate(inv.issueDate)}
+                      {inv.dueDate && ` — Due ${formatDate(inv.dueDate)}`}
                     </p>
                   </div>
                   <p className="font-semibold text-gray-900">${Number(inv.total).toFixed(2)}</p>

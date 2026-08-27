@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Search, Sprout, Warehouse, Scissors, Thermometer, Droplets, Leaf } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -203,7 +204,7 @@ function PlantsTab() {
       ),
     },
     { key: 'room', label: 'Room', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'plantDate', label: 'Plant Date', render: (val: string) => val ? new Date(val).toLocaleDateString() : <span className="text-gray-400">--</span> },
+    { key: 'plantDate', label: 'Plant Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
     {
       key: 'daysInPhase', label: 'Days in Phase', render: (val: number) => (
         <span className="text-gray-700">{val != null ? `${val}d` : '--'}</span>
@@ -523,7 +524,7 @@ function HarvestsTab() {
     { key: 'wetWeight', label: 'Wet Weight', render: (val: number) => val != null ? <span className="text-gray-700">{val}g</span> : <span className="text-gray-400">--</span> },
     { key: 'dryWeight', label: 'Dry Weight', render: (val: number) => val != null ? <span className="text-gray-700">{val}g</span> : <span className="text-gray-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={harvestStatuses} /> },
-    { key: 'createdAt', label: 'Date', render: (val: string) => val ? new Date(val).toLocaleDateString() : '--' },
+    { key: 'createdAt', label: 'Date', render: (val: string) => val ? formatDate(val) : '--' },
   ];
 
   return (

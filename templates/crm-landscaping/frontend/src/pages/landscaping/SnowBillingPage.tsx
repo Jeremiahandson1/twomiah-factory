@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { Plus, Trash2, Snowflake, Loader2, CloudSnow } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -146,7 +147,7 @@ export default function SnowBillingPage() {
               <div className="space-y-1 max-h-72 overflow-y-auto">
                 {events.map(ev => (
                   <div key={ev.id} className="flex justify-between text-sm border-b py-1.5">
-                    <span>{new Date(ev.servicedAt).toLocaleDateString()} · {ev.pushes} push · {Number(ev.snowfallInches)}"{ev.saltApplied ? ' · salt' : ''}</span>
+                    <span>{formatDate(ev.servicedAt)} · {ev.pushes} push · {Number(ev.snowfallInches)}"{ev.saltApplied ? ' · salt' : ''}</span>
                     <span className="font-semibold">${Number(ev.billableAmount).toFixed(2)}</span>
                   </div>
                 ))}
