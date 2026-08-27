@@ -47,10 +47,22 @@ const ENSURE = [
   `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS total numeric`,
   `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS next_run_date timestamp`,
   `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS auto_send boolean DEFAULT false`,
-  // Schema-managed column that drizzle-kit push should add but often can't
-  // (the pull phase is slow on a cold free-tier DB and gets killed by the boot
-  // timeout). Ensure it directly so /api/reviews stops 500ing.
+  // review_request is schema-managed, but drizzle-kit push hangs at "Pulling
+  // schema" on Render and never reconciles its added columns (job_id, channel,
+  // the *_at timestamps), so /api/reviews 500s. Reconcile it directly.
+  `CREATE TABLE IF NOT EXISTS review_request (
+     id text PRIMARY KEY, status text DEFAULT 'pending', channel text DEFAULT 'both',
+     sent_at timestamp, clicked_at timestamp, follow_up_sent_at timestamp,
+     opened_at timestamp, submitted_at timestamp, review_link text,
+     company_id text, job_id text, contact_id text, created_at timestamp DEFAULT now())`,
   `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS job_id text`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS channel text DEFAULT 'both'`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS sent_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS clicked_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS follow_up_sent_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS opened_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS submitted_at timestamp`,
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS review_link text`,
 ]
 for (const stmt of ENSURE) {
   try { await db.execute(sql.raw(stmt)) }

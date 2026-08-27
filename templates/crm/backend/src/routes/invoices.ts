@@ -240,7 +240,8 @@ app.post('/:id/send', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const [updated] = await db.update(invoice).set({ status: 'sent', sentAt: new Date(), updatedAt: new Date() }).where(eq(invoice.id, id)).returning()
+  const [updated] = await db.update(invoice).set({ status: 'sent', sentAt: new Date(), updatedAt: new Date() }).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Invoice not found' }, 404)
   emitToCompany(currentUser.companyId, EVENTS.INVOICE_SENT, { id: updated.id, number: updated.number })
   return c.json(updated)
 })

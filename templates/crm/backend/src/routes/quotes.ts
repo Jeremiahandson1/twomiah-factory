@@ -197,7 +197,8 @@ app.post('/:id/send', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const [updated] = await db.update(quote).set({ status: 'sent', sentAt: new Date(), updatedAt: new Date() }).where(eq(quote.id, id)).returning()
+  const [updated] = await db.update(quote).set({ status: 'sent', sentAt: new Date(), updatedAt: new Date() }).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Quote not found' }, 404)
   emitToCompany(currentUser.companyId, EVENTS.QUOTE_SENT, { id: updated.id, number: updated.number })
   return c.json(updated)
 })
@@ -206,14 +207,17 @@ app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const [updated] = await db.update(quote).set({ status: 'approved', approvedAt: new Date(), updatedAt: new Date() }).where(eq(quote.id, id)).returning()
+  const [updated] = await db.update(quote).set({ status: 'approved', approvedAt: new Date(), updatedAt: new Date() }).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Quote not found' }, 404)
   emitToCompany(currentUser.companyId, EVENTS.QUOTE_APPROVED, { id: updated.id, number: updated.number, total: updated.total })
   return c.json(updated)
 })
 
 app.post('/:id/reject', requirePermission('quotes:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(quote).set({ status: 'rejected', updatedAt: new Date() }).where(eq(quote.id, id)).returning()
+  const [updated] = await db.update(quote).set({ status: 'rejected', updatedAt: new Date() }).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Quote not found' }, 404)
   return c.json(updated)
 })
 

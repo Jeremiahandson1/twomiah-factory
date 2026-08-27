@@ -165,7 +165,7 @@ export default function PurchaseOrdersPage() {
             <div><label className="block text-sm font-medium mb-1">Vendor *</label>
               <select value={form.vendorId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, vendorId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
                 <option value="">Select...</option>
-                {contacts.map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{contactName(c)}</option>)}
+                {contacts.filter((c: Record<string, unknown>) => ['vendor', 'subcontractor'].includes(c.type as string)).map((c: Record<string, unknown>) => <option key={c.id as string} value={c.id as string}>{contactName(c)}</option>)}
               </select></div>
             <div><label className="block text-sm font-medium mb-1">Job</label>
               <select value={form.jobId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, jobId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">

@@ -82,7 +82,9 @@ app.get('/summary', async (c) => {
     cnt: count(),
   }).from(purchaseOrder).where(eq(purchaseOrder.companyId, currentUser.companyId)).groupBy(purchaseOrder.status)
   const byStatus = Object.fromEntries(rows.map(r => [r.status, { amount: Number(r.totalAmount || 0), count: r.cnt }]))
-  const open = rows.filter(r => !['billed', 'cancelled', 'declined'].includes(r.status))
+  // A draft PO is not yet committed — exclude it (and terminal statuses) from
+  // the "open committed" total, which was counting drafts as commitments.
+  const open = rows.filter(r => !['draft', 'billed', 'cancelled', 'declined'].includes(r.status))
     .reduce((s, r) => s + Number(r.totalAmount || 0), 0)
   return c.json({ byStatus, openCommitted: open })
 })
