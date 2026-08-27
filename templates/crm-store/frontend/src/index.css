@@ -26,3 +26,26 @@ body {
   .label { @apply block text-sm font-medium text-gray-700 mb-1; }
   .card { @apply bg-white rounded-xl border border-gray-200 shadow-sm; }
 }
+
+
+/* Google Places autocomplete dropdown — dark theme (pac-container is appended to <body>) */
+.dark .pac-container {
+  background-color: #0f172a; /* slate-900 */
+  border-color: #334155; /* slate-700 */
+  color: #e2e8f0; /* slate-200 */
+}
+.dark .pac-item {
+  border-top-color: #334155;
+  color: #cbd5e1; /* slate-300 */
+}
+.dark .pac-item:hover,
+.dark .pac-item-selected {
+  background-color: #1e293b; /* slate-800 */
+}
+.dark .pac-item-query,
+.dark .pac-matched {
+  color: #f1f5f9; /* slate-100 */
+}
+.dark .pac-icon {
+  filter: invert(0.85);
+}

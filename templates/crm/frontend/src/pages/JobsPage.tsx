@@ -56,6 +56,7 @@ export default function JobsPage() {
   }, [searchParams]);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
+  const [team, setTeam] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [useAddressOnFile, setUseAddressOnFile] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -79,13 +80,15 @@ export default function JobsPage() {
       const res = await api.jobs.list(params) as Record<string, unknown>;
       setData(res.data as Record<string, unknown>[]);
       setPagination(res.pagination as PaginationData | null);
-      // Load projects/contacts separately so failures don't block jobs
-      const [projRes, contRes] = await Promise.all([
+      // Load projects/contacts/team separately so failures don't block jobs
+      const [projRes, contRes, teamRes] = await Promise.all([
         api.projects.list({ limit: 100 }).catch(() => ({ data: [] })),
         api.contacts.list({ limit: 100 }).catch(() => ({ data: [] })),
+        api.team.list().catch(() => ({ data: [] })),
       ]) as Record<string, unknown>[];
       setProjects(projRes.data as Record<string, unknown>[]);
       setContacts(contRes.data as Record<string, unknown>[]);
+      setTeam((teamRes.data as Record<string, unknown>[]) || []);
     } catch (err) { toast.error('Failed to load jobs'); }
     finally { setLoading(false); }
   }, [page, search, statusFilter]);
@@ -158,7 +161,8 @@ export default function JobsPage() {
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Status</label><select value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600">{statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Priority</label><select value={form.priority} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, priority: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600">{priorities.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
-          {projects.length > 0 && <div><label className="block text-sm font-medium mb-1">Project</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>}
+          {projects.length > 0 && <div><label className="block text-sm font-medium mb-1">Project</label><select value={form.projectId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600"><option value="">Select...</option>{projects.map((p: Record<string, unknown>) => <option key={p.id as string} value={p.id as string}>{p.name as string}</option>)}</select></div>}
+          <div><label className="block text-sm font-medium mb-1">Assigned To</label><select value={form.assignedToId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({...form, assignedToId: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600"><option value="">Unassigned</option>{team.map((u: Record<string, unknown>) => <option key={u.id as string} value={u.id as string}>{u.firstName as string} {u.lastName as string}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Contact</label><select value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                 const selectedContact = contacts.find((c: Record<string, unknown>) => c.id === e.target.value);
                 const hasAddress = selectedContact?.address || selectedContact?.city;

@@ -212,7 +212,7 @@ function CampaignsTab() {
       {showForm && (
         <CampaignFormModal
           campaign={selectedCampaign}
-          onSave={() => { setShowForm(false); loadCampaigns(); }}
+          onSave={() => { setShowForm(false); loadCampaigns(); loadStats(); }}
           onClose={() => setShowForm(false)}
         />
       )}

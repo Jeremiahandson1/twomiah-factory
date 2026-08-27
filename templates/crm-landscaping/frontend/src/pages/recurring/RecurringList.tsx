@@ -155,7 +155,7 @@ export default function RecurringInvoiceList() {
                 <DollarSign className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold">${stats.monthlyRecurringRevenue?.toLocaleString()}</p>
+                <p className="text-2xl font-bold">${(stats.monthlyRecurringRevenue ?? 0).toLocaleString()}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">Monthly Revenue</p>
               </div>
             </div>

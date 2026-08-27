@@ -158,8 +158,8 @@ export default function EquipmentPage() {
           <StatCard
             icon={Calendar}
             label="Maintenance Due"
-            value={stats.needsMaintenance}
-            color={stats.needsMaintenance > 0 ? 'orange' : 'gray'}
+            value={stats.needsMaintenance ?? 0}
+            color={(stats.needsMaintenance ?? 0) > 0 ? 'orange' : 'gray'}
           />
           <StatCard
             icon={Shield}
