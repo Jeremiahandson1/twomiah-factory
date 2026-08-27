@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Send, Check, X, FileText, Wrench, MapPinned, Briefcase } from 'lucide-react';
@@ -12,6 +12,17 @@ const statuses = ['draft', 'sent', 'viewed', 'approved', 'declined', 'rejected',
 export default function QuotesPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    api.quotes.get(editId).then((item: unknown) => { if (!cancelled && item) openEdit(item as Record<string, unknown>); }).catch(() => {});
+    searchParams.delete('edit');
+    setSearchParams(searchParams, { replace: true });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
     const [data, setData] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [projects, setProjects] = useState([]);

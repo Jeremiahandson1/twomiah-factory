@@ -125,7 +125,8 @@ app.post('/sources', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
   const inboundEmail = `leads+${currentUser.companyId.slice(0, 8)}-${body.platform}@inbound.twomiah.com`
-  const webhookUrl = `${c.req.url.replace(/\/api\/leads\/sources$/, '')}/api/leads/inbound/webhook/${body.platform}`
+  const webhookBase = (process.env.FRONTEND_URL || c.req.url.replace(/\/api\/leads\/sources$/, '')).replace(/\/+$/, '').replace(/^http:\/\//, 'https://')
+  const webhookUrl = `${webhookBase}/api/leads/inbound/webhook/${body.platform}`
 
   const [source] = await db.insert(leadSource).values({
     id: createId(),

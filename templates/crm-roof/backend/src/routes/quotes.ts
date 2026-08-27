@@ -31,7 +31,7 @@ const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: n
 }
 
 // List quotes
-app.get('/', async (c) => {
+app.get('/', requirePermission('quotes:read'), async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const contactId = c.req.query('contactId')
@@ -72,7 +72,7 @@ app.get('/', async (c) => {
 })
 
 // Create quote with auto quoteNumber
-app.post('/', async (c) => {
+app.post('/', requirePermission('quotes:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = quoteSchema.parse(await c.req.json())
 
@@ -113,7 +113,7 @@ app.post('/', async (c) => {
 })
 
 // Get quote detail
-app.get('/:id', async (c) => {
+app.get('/:id', requirePermission('quotes:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -130,7 +130,7 @@ app.get('/:id', async (c) => {
 })
 
 // Update quote
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = quoteSchema.partial().parse(await c.req.json())
@@ -162,7 +162,7 @@ app.put('/:id', async (c) => {
 })
 
 // Send quote
-app.post('/:id/send', async (c) => {
+app.post('/:id/send', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -176,7 +176,7 @@ app.post('/:id/send', async (c) => {
 })
 
 // Approve quote
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

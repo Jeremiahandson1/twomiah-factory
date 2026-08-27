@@ -3,6 +3,7 @@ import { eq, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { agencies, users } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)

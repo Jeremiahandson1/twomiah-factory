@@ -4,13 +4,14 @@ import { db } from '../../db/index.ts'
 import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, equipment, site } from '../../db/schema.ts'
 import { eq, and, count, desc, asc, ilike, or } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { sendSMS } from '../services/sms.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().default(1), unitPrice: z.number().default(0) })
+const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().min(0, 'Quantity cannot be negative').default(1), unitPrice: z.number().min(0, 'Price cannot be negative').default(0) })
 const quoteSchema = z.object({
   name: z.string().min(1),
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
@@ -18,8 +19,8 @@ const quoteSchema = z.object({
   siteId: z.string().optional().transform(v => v === '' ? undefined : v),
   equipmentId: z.string().optional().transform(v => v === '' ? undefined : v),
   expiryDate: z.string().optional(),
-  taxRate: z.number().default(0),
-  discount: z.number().default(0),
+  taxRate: z.number().min(0).max(100).default(0),
+  discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   customerMessage: z.string().optional(),
   terms: z.string().optional(),
@@ -38,7 +39,7 @@ const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: n
   return { subtotal, taxAmount, total: round2(subtotal - discount + taxAmount) }
 }
 
-app.get('/', async (c) => {
+app.get('/', requirePermission('quotes:read'), async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const contactId = c.req.query('contactId')
@@ -91,7 +92,7 @@ app.get('/', async (c) => {
   return c.json({ data: dataWithRelations, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
-app.get('/stats', async (c) => {
+app.get('/stats', requirePermission('quotes:read'), async (c) => {
   const currentUser = c.get('user') as any
   const quotes = await db.select({ status: quote.status, total: quote.total }).from(quote).where(eq(quote.companyId, currentUser.companyId))
   const stats: Record<string, number> = { total: quotes.length, draft: 0, sent: 0, approved: 0, rejected: 0, totalValue: 0, approvedValue: 0 }
@@ -99,7 +100,7 @@ app.get('/stats', async (c) => {
   return c.json(stats)
 })
 
-app.get('/:id', async (c) => {
+app.get('/:id', requirePermission('quotes:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -117,7 +118,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...foundQuote, contact: quoteContact[0] || null, project: quoteProject[0] || null, equipment: quoteEquipment[0] || null, site: quoteSite[0] || null, lineItems })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('quotes:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = quoteSchema.parse(await c.req.json())
   const { lineItems, ...quoteData } = data
@@ -150,7 +151,7 @@ app.post('/', async (c) => {
   return c.json(result, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = quoteSchema.partial().parse(await c.req.json())
@@ -191,7 +192,7 @@ app.put('/:id', async (c) => {
   return c.json(result)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('quotes:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -203,7 +204,7 @@ app.delete('/:id', async (c) => {
   return c.body(null, 204)
 })
 
-app.post('/:id/send', async (c) => {
+app.post('/:id/send', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -224,7 +225,7 @@ app.post('/:id/send', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -233,7 +234,7 @@ app.post('/:id/approve', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/reject', async (c) => {
+app.post('/:id/reject', requirePermission('quotes:update'), async (c) => {
   const id = c.req.param('id')
   const [updated] = await db.update(quote).set({ status: 'rejected', updatedAt: new Date() }).where(eq(quote.id, id)).returning()
   return c.json(updated)
@@ -245,7 +246,7 @@ app.post('/:id/decline', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/convert-to-job', async (c) => {
+app.post('/:id/convert-to-job', requirePermission('jobs:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -293,7 +294,7 @@ app.post('/:id/convert-to-job', async (c) => {
   return c.json(newJob, 201)
 })
 
-app.post('/:id/convert-to-invoice', async (c) => {
+app.post('/:id/convert-to-invoice', requirePermission('invoices:create'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 // Tenant-facing company endpoints. Until now roof had NO /api/company mount —
 // the frontend's api.company.get()/updateFeatures() calls 404'd, and the only

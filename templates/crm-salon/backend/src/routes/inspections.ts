@@ -34,7 +34,8 @@ app.get('/', async (c) => {
     db.select({ value: count() }).from(inspection).where(where),
   ])
 
-  return c.json({ data, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } })
+  const flat = (data as any[]).map((d) => ({ ...d.inspection, project: d.project }))
+  return c.json({ data: flat, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } })
 })
 
 app.post('/', async (c) => {

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Play, CheckCircle } from 'lucide-react';
@@ -41,6 +41,17 @@ const initialForm: JobForm = { title: '', description: '', status: 'scheduled', 
 export default function JobsPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    api.jobs.get(editId).then((item: unknown) => { if (!cancelled && item) openEdit(item as Record<string, unknown>); }).catch(() => {});
+    searchParams.delete('edit');
+    setSearchParams(searchParams, { replace: true });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);

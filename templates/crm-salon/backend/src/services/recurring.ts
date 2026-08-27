@@ -12,6 +12,7 @@
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, contact, project } from '../../db/schema.ts'
 import { eq, and, lte, desc, sql } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 import emailService from './email.ts'
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
@@ -105,7 +106,7 @@ async function generateInvoiceNumber(companyId: string): Promise<string> {
  *
  * Because the schema has no recurringInvoice table we fall back to raw SQL.
  */
-export async function createRecurringInvoice(data: any, companyId: string) {
+export async function createRecurringInvoice(data: any, companyIdArg?: string) {
   const {
     contactId,
     projectId,
@@ -117,6 +118,7 @@ export async function createRecurringInvoice(data: any, companyId: string) {
     notes,
     autoSend,
   } = data
+  const companyId = companyIdArg ?? data.companyId
 
   // Calculate totals
   let subtotal = 0
@@ -133,8 +135,8 @@ export async function createRecurringInvoice(data: any, companyId: string) {
 
   // Raw insert into recurring_invoice (table assumed to exist at DB level)
   const [recurring] = rows(await db.execute(sql`
-    INSERT INTO recurring_invoice (company_id, contact_id, project_id, frequency, start_date, end_date, next_run_date, terms, subtotal, tax_rate, tax_amount, discount, total, notes, auto_send, status)
-    VALUES (${companyId}, ${contactId}, ${projectId || null}, ${frequency}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${terms || '30'}, ${subtotal}, ${taxRate}, ${taxAmount}, ${discount}, ${total}, ${notes}, ${autoSend || false}, 'active')
+    INSERT INTO recurring_invoice (id, company_id, contact_id, project_id, frequency, start_date, end_date, next_run_date, terms, subtotal, tax_rate, tax_amount, discount, total, notes, auto_send, status)
+    VALUES (${createId()}, ${companyId}, ${contactId}, ${projectId || null}, ${frequency}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${terms || '30'}, ${subtotal}, ${taxRate}, ${taxAmount}, ${discount}, ${total}, ${notes ?? null}, ${autoSend || false}, 'active')
     RETURNING *
   `))
 
@@ -142,8 +144,8 @@ export async function createRecurringInvoice(data: any, companyId: string) {
 
   for (const item of processedItems) {
     await db.execute(sql`
-      INSERT INTO recurring_line_item (recurring_invoice_id, description, quantity, unit_price, total, sort_order)
-      VALUES (${recurringId}, ${item.description}, ${item.quantity || 1}, ${item.unitPrice || 0}, ${item.total}, ${item.sortOrder})
+      INSERT INTO recurring_line_item (id, recurring_invoice_id, description, quantity, unit_price, total, sort_order)
+      VALUES (${createId()}, ${recurringId}, ${item.description}, ${item.quantity || 1}, ${item.unitPrice || 0}, ${item.total}, ${item.sortOrder})
     `)
   }
 
@@ -363,8 +365,8 @@ export async function updateRecurringInvoice(id: string, companyId: string, data
 
     for (const item of processedItems) {
       await db.execute(sql`
-        INSERT INTO recurring_line_item (recurring_invoice_id, description, quantity, unit_price, total, sort_order)
-        VALUES (${id}, ${item.description}, ${item.quantity}, ${item.unitPrice}, ${item.total}, ${item.sortOrder})
+        INSERT INTO recurring_line_item (id, recurring_invoice_id, description, quantity, unit_price, total, sort_order)
+        VALUES (${createId()}, ${id}, ${item.description}, ${item.quantity}, ${item.unitPrice}, ${item.total}, ${item.sortOrder})
       `)
     }
 

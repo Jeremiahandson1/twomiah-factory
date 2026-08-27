@@ -184,13 +184,13 @@ export async function getSelectionsSummary(projectId: string, companyId: string)
 
   for (const sel of selections) {
     summary[sel.status]++
-    summary.totalAllowance += sel.allowance || 0
+    summary.totalAllowance += Number(sel.allowance) || 0
 
     if (sel.selected_option) {
-      summary.totalSelected += sel.selected_option.price * sel.quantity
+      summary.totalSelected += Number(sel.selected_option.price) * Number(sel.quantity)
     }
 
-    summary.netDifference += sel.priceDifference || 0
+    summary.netDifference += Number(sel.priceDifference) || 0
 
     if (sel.due_date && new Date(sel.due_date) < now && sel.status === 'pending') {
       summary.overdue++

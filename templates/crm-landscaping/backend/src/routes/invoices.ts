@@ -10,15 +10,15 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
-const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().default(1), unitPrice: z.number().default(0) })
+const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().min(0, 'Quantity cannot be negative').default(1), unitPrice: z.number().min(0, 'Price cannot be negative').default(0) })
 const invoiceSchema = z.object({
   // An invoice must have a client and at least one line item — a completely
   // empty invoice ($0, no client) shouldn't be creatable.
   contactId: z.string().min(1, 'Select a client for this invoice').transform(v => v === '' ? undefined : v),
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
   dueDate: z.string().optional(),
-  taxRate: z.number().default(0),
-  discount: z.number().default(0),
+  taxRate: z.number().min(0).max(100).default(0),
+  discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   terms: z.string().optional(),
   lineItems: z.array(lineItemSchema).min(1, 'Add at least one line item'),

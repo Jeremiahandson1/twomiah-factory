@@ -10,13 +10,13 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
-const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().default(1), unitPrice: z.number().default(0) })
+const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().min(0, 'Quantity cannot be negative').default(1), unitPrice: z.number().min(0, 'Price cannot be negative').default(0) })
 const invoiceSchema = z.object({
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
   dueDate: z.string().optional(),
-  taxRate: z.number().default(0),
-  discount: z.number().default(0),
+  taxRate: z.number().min(0).max(100).default(0),
+  discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   terms: z.string().optional(),
   lineItems: z.array(lineItemSchema).default([]),

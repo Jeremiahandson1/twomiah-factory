@@ -14,9 +14,11 @@ interface ImportType {
 }
 
 interface PreviewData {
+  valid?: boolean;
+  error?: string;
   rowCount: number;
   columns: string[];
-  preview: Record<string, string>[];
+  sample: Record<string, string>[];
 }
 
 interface ImportResults {
@@ -202,7 +204,7 @@ export default function ImportPage() {
                   <table className="min-w-full text-sm border rounded-lg overflow-hidden">
                     <thead className="bg-gray-50">
                       <tr>
-                        {preview.columns.map((col: string, i: number) => (
+                        {(preview.columns || []).map((col: string, i: number) => (
                           <th key={i} className="px-3 py-2 text-left font-medium text-gray-700 border-b">
                             {col}
                           </th>
@@ -210,9 +212,9 @@ export default function ImportPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.preview.map((row: Record<string, string>, i: number) => (
+                      {(preview.sample || []).map((row: Record<string, string>, i: number) => (
                         <tr key={i} className="border-b last:border-0">
-                          {preview.columns.map((col: string, j: number) => (
+                          {(preview.columns || []).map((col: string, j: number) => (
                             <td key={j} className="px-3 py-2 text-gray-600 truncate max-w-48">
                               {row[col]}
                             </td>

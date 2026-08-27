@@ -67,7 +67,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.company || item.email || '',
-            url: `/contacts/${item.id}`,
+            url: `/crm/contacts/${item.id}`,
             icon: 'user',
           }))
         )
@@ -101,7 +101,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: `${item.category}${item.sku ? ` - ${item.sku}` : ''} - $${item.price}`,
-            url: `/products/${item.id}`,
+            url: `/crm/products/${item.id}`,
             icon: 'package',
           }))
         )
@@ -140,7 +140,7 @@ export async function globalSearch(
             id: item.id,
             name: `Order #${item.orderNumber || item.number || item.id.slice(0, 8)}`,
             description: `$${Number(item.total).toFixed(2)} - ${item.status}${item.customerName ? ` - ${item.customerName}` : ''}`,
-            url: `/orders/${item.id}`,
+            url: `/crm/orders/${item.id}`,
             icon: 'shopping-cart',
           }))
         )
@@ -168,7 +168,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.type || '',
-            url: `/documents/${item.id}`,
+            url: `/crm/documents/${item.id}`,
             icon: 'file',
           }))
         )
@@ -248,9 +248,9 @@ export async function getRecentItems(companyId: string, limit = 10) {
   ])
 
   return [
-    ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/contacts/${c.id}` })),
-    ...products.map((p) => ({ type: 'product', id: p.id, name: p.name, url: `/products/${p.id}` })),
-    ...orders.map((o) => ({ type: 'order', id: o.id, name: `Order #${o.orderNumber || o.number || o.id.slice(0, 8)}`, url: `/orders/${o.id}` })),
+    ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
+    ...products.map((p) => ({ type: 'product', id: p.id, name: p.name, url: `/crm/products/${p.id}` })),
+    ...orders.map((o) => ({ type: 'order', id: o.id, name: `Order #${o.orderNumber || o.number || o.id.slice(0, 8)}`, url: `/crm/orders/${o.id}` })),
   ].slice(0, limit)
 }
 

@@ -49,6 +49,10 @@ function dbReconcileStep(): string {
   // retries, and boot proceeds to seed+start on the migrated schema. Where push has
   // no ambiguity (most verticals) it completes in seconds and reconciles as before.
   return (
+    // Drop known-removed legacy tables first so drizzle-kit push has no rename
+    // ambiguity to prompt on (which used to hang push and leave the schema only
+    // partially reconciled — e.g. review_request.job_id never added).
+    'bun run db/prune-legacy.ts 2>&1 | head -20 || echo "[boot] prune-legacy skipped"; ' +
     'for i in 1 2 3 4 5; do ' +
       'OUT=$(timeout 45 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
       'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +

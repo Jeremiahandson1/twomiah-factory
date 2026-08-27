@@ -5,6 +5,7 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -48,8 +49,8 @@ app.put('/features', requireAdmin, async (c) => {
   return c.json(result)
 })
 
-// User management
-app.get('/users', async (c) => {
+// User management (roster carries emails/roles) — require team:read.
+app.get('/users', requirePermission('team:read'), async (c) => {
   const currentUser = c.get('user') as any
   const users = await db.select({
     id: user.id,
