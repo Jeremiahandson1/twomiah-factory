@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Play, CheckCircle } from 'lucide-react';
 import api from '../services/api';
@@ -127,7 +128,7 @@ export default function JobsPage() {
     { key: 'title', label: 'Title', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'priority', label: 'Priority', render: (v: unknown) => <StatusBadge status={v as string} statusColors={{ low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' }} /> },
-    { key: 'scheduledDate', label: 'Scheduled', render: (v: unknown) => v ? new Date((v as string).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
+    { key: 'scheduledDate', label: 'Scheduled', render: (v: unknown) => v ? formatDate((v as string).split('T')[0] + 'T00:00:00') : '-' },
     { key: 'assignedTo', label: 'Assigned To', render: (v: unknown) => v ? `${(v as Record<string, unknown>).firstName} ${(v as Record<string, unknown>).lastName}` : '-' },
   ];
 

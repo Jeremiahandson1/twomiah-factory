@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import {
   CreditCard, Check, ArrowRight, Loader2, AlertTriangle,
   Plus, Package, Calendar, Receipt, X, ChevronRight
@@ -281,7 +282,7 @@ export default function BillingSettingsPage() {
         {isTrialing && subscription?.currentPeriodEnd && (
           <div className="mt-4 p-4 bg-yellow-50 rounded-lg flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-yellow-600" />
-            <span className="text-yellow-700">Trial ends {new Date(subscription.currentPeriodEnd).toLocaleDateString()}. Add payment to continue.</span>
+            <span className="text-yellow-700">Trial ends {formatDate(subscription.currentPeriodEnd)}. Add payment to continue.</span>
           </div>
         )}
 
@@ -289,7 +290,7 @@ export default function BillingSettingsPage() {
           <div className="mt-4 p-4 bg-red-50 rounded-lg flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-red-600" />
-              <span className="text-red-700">Cancels {new Date(subscription!.currentPeriodEnd!).toLocaleDateString()}</span>
+              <span className="text-red-700">Cancels {formatDate(subscription!.currentPeriodEnd!)}</span>
             </div>
             <button onClick={handleReactivate} className="text-orange-600 hover:underline font-medium">Reactivate</button>
           </div>
@@ -372,7 +373,7 @@ export default function BillingSettingsPage() {
                 <div className="flex items-center gap-3">
                   <Receipt className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="font-medium text-gray-900">{new Date(invoice.createdAt).toLocaleDateString()}</p>
+                    <p className="font-medium text-gray-900">{formatDate(invoice.createdAt)}</p>
                     <p className="text-sm text-gray-500">Invoice #{invoice.number}</p>
                   </div>
                 </div>
@@ -534,7 +535,7 @@ function CancelModal({ onConfirm, onClose, saving, periodEnd }: CancelModalProps
       <div className="bg-white rounded-xl max-w-md w-full p-6">
         <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><AlertTriangle className="w-6 h-6 text-red-500" /></div>
         <h2 className="text-xl font-bold text-gray-900 text-center mb-2">Cancel Subscription?</h2>
-        <p className="text-gray-500 text-center mb-6">Access continues until {periodEnd && new Date(periodEnd).toLocaleDateString()}.</p>
+        <p className="text-gray-500 text-center mb-6">Access continues until {periodEnd && formatDate(periodEnd)}.</p>
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 px-4 py-3 border text-gray-700 rounded-lg hover:bg-gray-50">Keep</button>
           <button onClick={onConfirm} disabled={saving} className="flex-1 px-4 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2">

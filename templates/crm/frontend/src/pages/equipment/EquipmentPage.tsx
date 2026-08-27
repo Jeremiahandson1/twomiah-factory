@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import {
   Wrench, Plus, Search, Filter, AlertTriangle, Shield,
   Calendar, Clock, Edit2, History, Loader2, ChevronRight,
@@ -309,7 +310,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
         {equipment.installDate ? (
           <div>
             <p className="text-gray-900">
-              {new Date(equipment.installDate).toLocaleDateString()}
+              {formatDate(equipment.installDate)}
             </p>
             {equipment.age !== null && equipment.age !== undefined && (
               <p className="text-sm text-gray-500">{equipment.age} years old</p>
@@ -642,7 +643,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }: ServiceHistoryMo
                     <div>
                       <p className="font-medium text-gray-900">{record.serviceType}</p>
                       <p className="text-sm text-gray-500">
-                        {new Date(record.serviceDate).toLocaleDateString()}
+                        {formatDate(record.serviceDate)}
                         {record.technician && ` • ${record.technician.firstName} ${record.technician.lastName}`}
                       </p>
                     </div>

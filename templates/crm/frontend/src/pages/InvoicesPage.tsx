@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Send, DollarSign } from 'lucide-react';
 import api from '../services/api';
@@ -124,7 +125,7 @@ export default function InvoicesPage() {
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { const bal = Number(r.total) - Number(v || 0); return bal > 0.005 ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : <span className="text-green-600">Paid</span>; } },
-    { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
+    { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();

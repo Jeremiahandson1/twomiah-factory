@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import {
   Palette, Plus, Check, Clock, Package, Truck,
   DollarSign, AlertTriangle, ChevronRight, Search,
@@ -433,7 +434,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           {selection.dueDate && (
             <p className={`mt-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
               {isOverdue ? 'Overdue: ' : 'Due: '}
-              {new Date(selection.dueDate).toLocaleDateString()}
+              {formatDate(selection.dueDate)}
             </p>
           )}
         </div>

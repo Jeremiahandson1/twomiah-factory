@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { formatDate } from '../../utils/date';
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -484,7 +485,7 @@ export default function RoofReportsPage() {
                     <div className="flex flex-col">
                       <div className="flex items-center gap-1.5 text-sm text-gray-500">
                         <Calendar className="w-3.5 h-3.5" />
-                        {new Date(report.createdAt).toLocaleDateString()}
+                        {formatDate(report.createdAt)}
                       </div>
                       {report.imageryDate && (
                         <span className="text-[11px] text-gray-400">Imagery: {report.imageryDate}</span>

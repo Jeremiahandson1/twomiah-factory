@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Send, PackageCheck, Ban, RotateCcw } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -133,7 +134,7 @@ export default function PurchaseOrdersPage() {
     { key: 'job', label: 'Job', render: (v: unknown) => ((v as Record<string, unknown>)?.title as string) || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[v as string] || 'bg-gray-100 text-gray-600'}`}>{v as string}</span> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
-    { key: 'expectedDate', label: 'Expected', render: (v: unknown) => v ? new Date(v as string).toLocaleDateString() : '-' },
+    { key: 'expectedDate', label: 'Expected', render: (v: unknown) => v ? formatDate(v as string) : '-' },
   ];
 
   const rowActions = [

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formatDate } from '../../utils/date';
 import { UploadCloud, RotateCcw, Download, Trash2, Square, PenLine, MapPin, X } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -207,7 +208,7 @@ export function PlanMarkupModal({ doc, onClose }: { doc: Record<string, unknown>
           <div className="flex items-center gap-2">
             <select value={activeId || ''} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { const m = markups.find(x => (x.id as string) === e.target.value); if (m) selectMarkup(m); else newLayer(); }} className="px-2 py-1.5 border rounded-lg text-sm">
               <option value="">New layer…</option>
-              {markups.map(m => <option key={m.id as string} value={m.id as string}>{m.name as string} ({new Date(m.updatedAt as string).toLocaleDateString()})</option>)}
+              {markups.map(m => <option key={m.id as string} value={m.id as string}>{m.name as string} ({formatDate(m.updatedAt as string)})</option>)}
             </select>
             {([['rect', Square], ['pen', PenLine], ['pin', MapPin]] as const).map(([t, Icon]) => (
               <button key={t} onClick={() => setTool(t)} className={`p-2 rounded-lg border ${tool === t ? 'bg-blue-50 border-blue-400 text-blue-700' : 'text-gray-500'}`} title={t}><Icon className="w-4 h-4" /></button>

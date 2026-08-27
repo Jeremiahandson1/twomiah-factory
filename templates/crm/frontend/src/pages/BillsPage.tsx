@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDate } from '../utils/date';
 import { Plus, Edit, Trash2, Ban, HandCoins } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -137,7 +138,7 @@ export default function BillsPage() {
     ) },
     { key: 'amount', label: 'Amount', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
     { key: 'amountPaid', label: 'Paid', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
-    { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? new Date(v as string).toLocaleDateString() : '-' },
+    { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(v as string) : '-' },
     { key: 'source', label: 'Source', render: (v: unknown) => v === 'vendor_portal' ? <span className="text-xs text-teal-700">vendor portal</span> : <span className="text-xs text-gray-400">manual</span> },
   ];
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDate } from '../../utils/date';
 import { FileSignature, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
@@ -193,9 +194,9 @@ function WaiverCard({ waiver, onSign }: { waiver: Waiver; onSign: (() => void) |
               </p>
             )}
             <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
-              {waiver.throughDate && <span>Through {new Date(waiver.throughDate).toLocaleDateString()}</span>}
-              {waiver.dueDate && <span>Due {new Date(waiver.dueDate).toLocaleDateString()}</span>}
-              {waiver.signedDate && <span>Signed {new Date(waiver.signedDate).toLocaleDateString()}</span>}
+              {waiver.throughDate && <span>Through {formatDate(waiver.throughDate)}</span>}
+              {waiver.dueDate && <span>Due {formatDate(waiver.dueDate)}</span>}
+              {waiver.signedDate && <span>Signed {formatDate(waiver.signedDate)}</span>}
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@
  * these to the architect/owner for approval before ordering materials.
  */
 import { useState, useEffect } from 'react';
+import { formatDate } from '../utils/date';
 import { FileText, Plus, Check, X, RotateCcw, Loader2 } from 'lucide-react';
 import api from '../services/api';
 
@@ -125,7 +126,7 @@ export default function SubmittalsPage() {
                 <td className="px-4 py-3 text-sm">{TYPE_LABELS[s.submittalType] || s.submittalType}</td>
                 <td className="px-4 py-3 text-sm text-gray-500">{s.specSection || '—'}</td>
                 <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status] || 'bg-gray-100'}`}>{s.status.replace('_', ' ')}</span></td>
-                <td className="px-4 py-3 text-sm text-gray-500">{s.dueDate ? new Date(s.dueDate).toLocaleDateString() : '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-500">{s.dueDate ? formatDate(s.dueDate) : '—'}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     {s.status === 'draft' && <button onClick={() => runAction(s.id, 'submit')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Submit for review"><Plus className="w-4 h-4 rotate-45" /></button>}

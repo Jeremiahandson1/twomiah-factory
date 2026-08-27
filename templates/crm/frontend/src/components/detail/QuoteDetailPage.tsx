@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Copy, Briefcase } from 'lucide-react';
 import api from '../../services/api';
@@ -253,12 +254,12 @@ export default function QuoteDetailPage() {
               {quote.expiryDate && (
                 <div>
                   <p className="text-gray-500">Valid Until</p>
-                  <p className={new Date(String(quote.expiryDate).split('T')[0] + 'T00:00:00') < new Date() ? 'text-red-600' : ''}>{new Date(String(quote.expiryDate).split('T')[0] + 'T00:00:00').toLocaleDateString()}</p>
+                  <p className={new Date(String(quote.expiryDate).split('T')[0] + 'T00:00:00') < new Date() ? 'text-red-600' : ''}>{formatDate(String(quote.expiryDate).split('T')[0] + 'T00:00:00')}</p>
                 </div>
               )}
               <div>
                 <p className="text-gray-500">Created</p>
-                <p>{new Date(quote.createdAt).toLocaleDateString()}</p>
+                <p>{formatDate(quote.createdAt)}</p>
               </div>
             </div>
           </div>

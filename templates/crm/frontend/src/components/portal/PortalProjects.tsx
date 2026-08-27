@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDate } from '../../utils/date';
 import { useParams, Link } from 'react-router-dom';
 import { FolderKanban, MapPin, Calendar, Loader2, ArrowRight } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
@@ -75,7 +76,7 @@ function ProjectCard({ project, token }: ProjectCardProps) {
         <div className="mt-4"><div className="flex justify-between text-sm mb-1"><span className="text-gray-600">Progress</span><span className="font-medium">{project.progress}%</span></div><div className="h-2 bg-gray-200 rounded-full overflow-hidden"><div className="h-full bg-purple-500 transition-all" style={{ width: `${project.progress}%` }} /></div></div>
       )}
       {(project.startDate || project.endDate) && (
-        <div className="flex items-center gap-4 mt-4 text-sm text-gray-500"><Calendar className="w-4 h-4" />{project.startDate && <span>Started: {new Date(project.startDate).toLocaleDateString()}</span>}{project.endDate && <span>Est. completion: {new Date(project.endDate).toLocaleDateString()}</span>}</div>
+        <div className="flex items-center gap-4 mt-4 text-sm text-gray-500"><Calendar className="w-4 h-4" />{project.startDate && <span>Started: {formatDate(project.startDate)}</span>}{project.endDate && <span>Est. completion: {formatDate(project.endDate)}</span>}</div>
       )}
       <div className="flex items-center justify-end mt-4 text-orange-600 text-sm font-medium">View details <ArrowRight className="w-4 h-4 ml-1" /></div>
     </Link>
@@ -119,8 +120,8 @@ export function PortalProjectDetail() {
           <h3 className="font-semibold text-gray-900 mb-4">Project Details</h3>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {address && <div><dt className="text-sm text-gray-500">Location</dt><dd className="mt-1 text-gray-900">{address}</dd></div>}
-            {project.startDate && <div><dt className="text-sm text-gray-500">Start Date</dt><dd className="mt-1 text-gray-900">{new Date(project.startDate).toLocaleDateString()}</dd></div>}
-            {project.endDate && <div><dt className="text-sm text-gray-500">Estimated Completion</dt><dd className="mt-1 text-gray-900">{new Date(project.endDate).toLocaleDateString()}</dd></div>}
+            {project.startDate && <div><dt className="text-sm text-gray-500">Start Date</dt><dd className="mt-1 text-gray-900">{formatDate(project.startDate)}</dd></div>}
+            {project.endDate && <div><dt className="text-sm text-gray-500">Estimated Completion</dt><dd className="mt-1 text-gray-900">{formatDate(project.endDate)}</dd></div>}
             {project.description && <div className="sm:col-span-2"><dt className="text-sm text-gray-500">Description</dt><dd className="mt-1 text-gray-900">{project.description}</dd></div>}
           </dl>
         </div>
@@ -131,7 +132,7 @@ export function PortalProjectDetail() {
                 <div><p className="font-medium text-gray-900">{job.title}</p><p className="text-sm text-gray-500">{job.number}</p></div>
                 <div className="text-right">
                   <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${job.status === 'completed' ? 'bg-green-100 text-green-700' : job.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{job.status?.replace('_', ' ')}</span>
-                  {job.scheduledDate && <p className="text-xs text-gray-500 mt-1">{new Date(job.scheduledDate).toLocaleDateString()}</p>}
+                  {job.scheduledDate && <p className="text-xs text-gray-500 mt-1">{formatDate(job.scheduledDate)}</p>}
                 </div>
               </div>
             ))}

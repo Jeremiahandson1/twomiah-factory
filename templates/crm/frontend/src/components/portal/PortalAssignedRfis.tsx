@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDate } from '../../utils/date';
 import { HelpCircle, Loader2, CheckCircle2, Clock } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
@@ -176,9 +177,9 @@ function RfiCard({ rfi, onRespond }: { rfi: AssignedRfi; onRespond: (() => void)
               </div>
             )}
             <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
-              {rfi.dueDate && <span>Due {new Date(rfi.dueDate).toLocaleDateString()}</span>}
-              <span>Opened {new Date(rfi.createdAt).toLocaleDateString()}</span>
-              {rfi.respondedAt && <span>Answered {new Date(rfi.respondedAt).toLocaleDateString()}</span>}
+              {rfi.dueDate && <span>Due {formatDate(rfi.dueDate)}</span>}
+              <span>Opened {formatDate(rfi.createdAt)}</span>
+              {rfi.respondedAt && <span>Answered {formatDate(rfi.respondedAt)}</span>}
             </div>
           </div>
         </div>
