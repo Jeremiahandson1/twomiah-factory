@@ -39,7 +39,7 @@ app.get('/', async (c) => {
   const projectId = c.req.query('projectId')
   const assignedToId = c.req.query('assignedToId')
   const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '50')
+  const limit = Math.min(+(c.req.query('limit') || '50'), 100)
 
   const conditions = [eq(job.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(job.status, status))

@@ -51,7 +51,7 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
   const status = c.req.query('status')
   const contactId = c.req.query('contactId')
   const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '50')
+  const limit = Math.min(+(c.req.query('limit') || '50'), 100)
 
   const conditions = [eq(invoice.companyId, currentUser.companyId)]
   // 'overdue' isn't a stored status — translate the filter to "open + past due".

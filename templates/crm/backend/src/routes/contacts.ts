@@ -32,7 +32,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   const type = c.req.query('type')
   const search = c.req.query('search')
   const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '25')
+  const limit = Math.min(+(c.req.query('limit') || '25'), 100)
 
   const conditions = [eq(contact.companyId, currentUser.companyId)]
   if (type) conditions.push(eq(contact.type, type))
