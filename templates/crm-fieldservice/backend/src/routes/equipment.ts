@@ -149,4 +149,11 @@ app.post('/:id/history', requirePermission('equipment:update'), async (c) => {
   return c.json(record, 201)
 })
 
+
+app.delete('/:id', requirePermission('equipment:delete'), async (c) => {
+  const user = c.get('user') as any
+  await equipment.deleteEquipment(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
 export default app

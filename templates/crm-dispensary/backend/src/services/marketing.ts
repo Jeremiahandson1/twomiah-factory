@@ -230,7 +230,12 @@ export async function getMarketingStats(companyId: string) {
   }
 }
 
+export async function deleteCampaign(id: string, companyId: string) {
+  return db.delete(campaign).where(and(eq(campaign.id, id), eq(campaign.companyId, companyId)))
+}
+
 export default {
+  deleteCampaign,
   sendPromoEmail,
   getAudiencePreview,
   getSmsOptedInMembers,

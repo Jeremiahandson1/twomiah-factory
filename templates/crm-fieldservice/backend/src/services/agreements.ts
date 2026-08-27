@@ -743,7 +743,12 @@ export async function scanAndGenerateJobs() {
   return generated;
 }
 
+export async function deletePlan(id: string, companyId: string) {
+  return db.delete(agreementPlan).where(and(eq(agreementPlan.id, id), eq(agreementPlan.companyId, companyId)))
+}
+
 export default {
+  deletePlan,
   getPlans,
   createPlan,
   updatePlan,

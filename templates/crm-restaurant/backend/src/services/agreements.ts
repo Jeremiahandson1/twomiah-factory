@@ -610,7 +610,12 @@ export async function getExpiringAgreements(companyId: string, daysAhead = 60) {
     .orderBy(asc(serviceAgreement.endDate));
 }
 
+export async function deletePlan(id: string, companyId: string) {
+  return db.delete(agreementPlan).where(and(eq(agreementPlan.id, id), eq(agreementPlan.companyId, companyId)))
+}
+
 export default {
+  deletePlan,
   getPlans,
   createPlan,
   updatePlan,

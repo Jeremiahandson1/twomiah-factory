@@ -500,7 +500,12 @@ export async function searchForQuoting(companyId: string, query: string) {
     })))
 }
 
+export async function deletePricebookItem(id: string, companyId: string) {
+  return db.delete(pricebookItem).where(and(eq(pricebookItem.id, id), eq(pricebookItem.companyId, companyId)))
+}
+
 export default {
+  deletePricebookItem,
   createCategory,
   getCategories,
   updateCategory,

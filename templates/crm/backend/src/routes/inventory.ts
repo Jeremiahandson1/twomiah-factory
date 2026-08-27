@@ -298,4 +298,11 @@ app.get('/reports/value', async (c) => {
   return c.json(report)
 })
 
+
+app.delete('/items/:id', requirePermission('inventory:delete'), async (c) => {
+  const user = c.get('user') as any
+  await inventory.deleteInventoryItem(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
 export default app

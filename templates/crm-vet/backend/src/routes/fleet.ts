@@ -133,4 +133,11 @@ app.get('/stats', async (c) => {
   return c.json(stats)
 })
 
+
+app.delete('/vehicles/:id', requirePermission('fleet:delete'), async (c) => {
+  const user = c.get('user') as any
+  await fleet.deleteVehicle(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
 export default app

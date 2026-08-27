@@ -781,7 +781,12 @@ export async function getLowStockItems(companyId: string) {
     .sort((a, b) => a.totalStock - b.totalStock)
 }
 
+export async function deleteInventoryItem(id: string, companyId: string) {
+  return db.delete(inventoryItem).where(and(eq(inventoryItem.id, id), eq(inventoryItem.companyId, companyId)))
+}
+
 export default {
+  deleteInventoryItem,
   createItem,
   getItems,
   getItem,

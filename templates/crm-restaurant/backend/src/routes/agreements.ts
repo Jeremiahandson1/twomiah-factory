@@ -174,4 +174,11 @@ app.post('/billing/run', requirePermission('invoices:create'), async (c) => {
   return c.json(await agreements.processDueAgreements(user.companyId))
 })
 
+
+app.delete('/plans/:id', requirePermission('agreements:delete'), async (c) => {
+  const user = c.get('user') as any
+  await agreements.deletePlan(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
 export default app

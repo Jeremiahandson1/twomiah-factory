@@ -250,7 +250,12 @@ export async function getFleetStats(companyId: string) {
   }
 }
 
+export async function deleteVehicle(id: string, companyId: string) {
+  return db.delete(vehicle).where(and(eq(vehicle.id, id), eq(vehicle.companyId, companyId)))
+}
+
 export default {
+  deleteVehicle,
   createVehicle,
   getVehicles,
   getVehicle,

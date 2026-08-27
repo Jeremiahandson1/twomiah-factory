@@ -337,7 +337,12 @@ export async function getEquipmentStats(companyId: string) {
   };
 }
 
+export async function deleteEquipment(id: string, companyId: string) {
+  return db.delete(equipment).where(and(eq(equipment.id, id), eq(equipment.companyId, companyId)))
+}
+
 export default {
+  deleteEquipment,
   createEquipmentType,
   getEquipmentTypes,
   createEquipment,

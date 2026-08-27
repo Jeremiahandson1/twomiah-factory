@@ -177,4 +177,11 @@ app.get('/stats', async (c) => {
   return c.json(stats)
 })
 
+
+app.delete('/campaigns/:id', requirePermission('marketing:delete'), async (c) => {
+  const user = c.get('user') as any
+  await marketing.deleteCampaign(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
 export default app

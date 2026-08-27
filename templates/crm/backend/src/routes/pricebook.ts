@@ -209,4 +209,11 @@ app.get('/calculate-price', async (c) => {
   })
 })
 
+
+app.delete('/items/:id', requirePermission('pricebook:delete'), async (c) => {
+  const user = c.get('user') as any
+  await pricebook.deletePricebookItem(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
 export default app

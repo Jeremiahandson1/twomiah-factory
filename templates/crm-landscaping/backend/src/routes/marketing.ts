@@ -227,4 +227,11 @@ app.post('/contacts/:contactId/resubscribe', requirePermission('marketing:update
   return c.json(await marketing.resubscribe(c.req.param('contactId')!, user.companyId))
 })
 
+
+app.delete('/campaigns/:id', requirePermission('marketing:delete'), async (c) => {
+  const user = c.get('user') as any
+  await marketing.deleteCampaign(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
 export default app
