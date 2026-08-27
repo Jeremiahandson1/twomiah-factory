@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company } from '../../db/schema.ts'
+import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job } from '../../db/schema.ts'
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -249,6 +249,53 @@ app.post('/:id/convert-to-invoice', async (c) => {
 
   const result = { ...newInvoice, lineItems: insertedLineItems }
   emitToCompany(currentUser.companyId, EVENTS.INVOICE_CREATED, result)
+  return c.json(result, 201)
+})
+
+// Convert an approved quote into a schedulable job, carrying over the customer,
+// project, value, and notes, and linking back to the quote for provenance.
+app.post('/:id/convert-to-job', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [foundQuote] = await db.select().from(quote).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).limit(1)
+  if (!foundQuote) return c.json({ error: 'Quote not found' }, 404)
+  if (foundQuote.status !== 'approved') return c.json({ error: 'Only approved quotes can be converted to jobs' }, 400)
+
+  const quoteItems = await db.select().from(quoteLineItem).where(eq(quoteLineItem.quoteId, id)).orderBy(asc(quoteLineItem.sortOrder))
+  const [{ value: cnt }] = await db.select({ value: count() }).from(job).where(eq(job.companyId, currentUser.companyId))
+
+  const description = quoteItems.map(li => `${li.description} (${Number(li.quantity)} × ${Number(li.unitPrice).toFixed(2)})`).join('\n')
+
+  let address = '', city = '', state = '', zip = ''
+  if (foundQuote.contactId) {
+    const [ct] = await db.select().from(contact).where(eq(contact.id, foundQuote.contactId)).limit(1)
+    if (ct) { address = ct.address || ''; city = ct.city || ''; state = ct.state || ''; zip = ct.zip || '' }
+  }
+
+  const [newJob] = await db.insert(job).values({
+    number: `JOB-${String(Number(cnt) + 1).padStart(5, '0')}`,
+    title: foundQuote.name,
+    description,
+    status: 'scheduled',
+    priority: 'normal',
+    estimatedValue: foundQuote.total,
+    address, city, state, zip,
+    notes: `Converted from Quote ${foundQuote.number}`,
+    contactId: foundQuote.contactId,
+    projectId: foundQuote.projectId,
+    quoteId: foundQuote.id,
+    createdById: currentUser.userId,
+    companyId: currentUser.companyId,
+  }).returning()
+
+  const [jobProject, jobContact] = await Promise.all([
+    newJob.projectId ? db.select({ id: project.id, name: project.name }).from(project).where(eq(project.id, newJob.projectId)).limit(1) : Promise.resolve([]),
+    newJob.contactId ? db.select({ id: contact.id, name: contact.name }).from(contact).where(eq(contact.id, newJob.contactId)).limit(1) : Promise.resolve([]),
+  ])
+
+  const result = { ...newJob, project: jobProject[0] || null, contact: jobContact[0] || null }
+  emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
   return c.json(result, 201)
 })
 

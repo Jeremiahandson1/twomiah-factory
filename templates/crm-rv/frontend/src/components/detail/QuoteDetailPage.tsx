@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Copy } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Copy, Briefcase } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
@@ -104,6 +104,17 @@ export default function QuoteDetailPage() {
     }
   };
 
+  const handleConvertToJob = async () => {
+    try {
+      const created = await api.quotes.convertToJob(id);
+      toast.success('Job created');
+      navigate(`/crm/jobs/${created.id}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
+    }
+  };
+
   if (loading) return <SkeletonDetail />;
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadQuote} actionLabel="Retry" />;
   if (!quote) return <EmptyState title="Quote not found" />;
@@ -135,6 +146,11 @@ export default function QuoteDetailPage() {
           {quote.status === 'approved' && (
             <button onClick={handleConvertToInvoice} className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center gap-2">
               <Copy className="w-4 h-4" /> Create Invoice
+            </button>
+          )}
+          {quote.status === 'approved' && (
+            <button onClick={handleConvertToJob} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+              <Briefcase className="w-4 h-4" /> Create Job
             </button>
           )}
           <Link to={`/crm/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit, Trash2, Search, Send, Check, X, FileText } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Send, Check, X, FileText, Briefcase } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -96,6 +96,7 @@ export default function QuotesPage() {
   const handleApprove = async (q: Record<string, unknown>) => { try { await api.quotes.approve(q.id as string); toast.success('Quote approved'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleReject = async (q: Record<string, unknown>) => { try { await api.quotes.reject(q.id as string); toast.success('Quote rejected'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleConvert = async (q: Record<string, unknown>) => { try { await api.quotes.convertToInvoice(q.id as string); toast.success('Invoice created'); load(); } catch (err) { toast.error((err as Error).message); } };
+  const handleConvertToJob = async (q: Record<string, unknown>) => { try { await api.quotes.convertToJob(q.id as string); toast.success('Job created'); load(); } catch (err) { toast.error((err as Error).message); } };
 
   const addLineItem = () => setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: 1, unitPrice: 0 }] });
   const updateLineItem = (idx: number, field: string, val: string | number) => { const items = [...form.lineItems]; (items[idx] as Record<string, unknown>)[field] = val; setForm({ ...form, lineItems: items }); };
@@ -121,6 +122,7 @@ export default function QuotesPage() {
         { label: 'Approve', icon: Check, onClick: handleApprove },
         { label: 'Reject', icon: X, onClick: handleReject },
         { label: 'Convert to Invoice', icon: FileText, onClick: handleConvert },
+        { label: 'Convert to Job', icon: Briefcase, onClick: handleConvertToJob },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Quote' : 'New Quote'} size="xl">
