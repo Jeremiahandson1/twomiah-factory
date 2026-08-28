@@ -774,3 +774,19 @@ form textarea::placeholder {
     transform: translate(-2px, -2px) !important;
   }
 }
+
+/* Image hero (.hero-video): the general .hero-overlay rule above paints a solid
+   panel intended for this theme own text heroes; on a photo hero it would hide the
+   image. Restore a translucent dark scrim so the photo shows with readable text. */
+.hero-video .hero-overlay {
+  background: linear-gradient(rgba(10, 15, 25, 0.35), rgba(10, 15, 25, 0.7)) !important;
+  opacity: 1 !important;
+}
+.hero-video-content,
+.hero-video-content h1,
+.hero-video-content h2,
+.hero-video-content p,
+.hero-video-content .hero-tagline,
+.hero-video-content .hero-awards {
+  color: #ffffff !important;
+}
