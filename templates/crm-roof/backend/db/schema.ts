@@ -268,6 +268,7 @@ export const quote = pgTable('quote', {
   subtotal: decimal('subtotal', { precision: 10, scale: 2 }).notNull(),
   taxRate: decimal('tax_rate', { precision: 5, scale: 4 }).notNull(),
   taxAmount: decimal('tax_amount', { precision: 10, scale: 2 }).notNull(),
+  discount: decimal('discount', { precision: 10, scale: 2 }).default('0').notNull(),
   total: decimal('total', { precision: 10, scale: 2 }).notNull(),
   notes: text('notes'),
   customerMessage: text('customer_message'),

@@ -176,7 +176,15 @@ app.delete('/:id', async (c) => {
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
 
-  await db.delete(contact).where(eq(contact.id, id))
+  try {
+    await db.delete(contact).where(eq(contact.id, id))
+  } catch (e: any) {
+    // FK violation — the contact still has linked quotes/jobs/invoices.
+    if (e?.code === '23503' || /foreign key|violates foreign/i.test(e?.message || '')) {
+      return c.json({ error: 'Cannot delete a contact with linked quotes, jobs, or invoices. Remove or reassign those first.' }, 409)
+    }
+    throw e
+  }
   return c.body(null, 204)
 })
 

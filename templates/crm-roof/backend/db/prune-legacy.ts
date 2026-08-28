@@ -32,6 +32,7 @@ for (const t of LEGACY_TABLES) {
 // missing the `total` column made recurring-invoice creation 500. Ensure they
 // exist with every column the recurring service writes (idempotent).
 const ENSURE = [
+  `ALTER TABLE quote ADD COLUMN IF NOT EXISTS discount numeric DEFAULT 0`,
   // takeoff_item column drift: fieldservice-lineage migrations created this table
   // with the old cost columns; schema.ts uses assembly_id + measurement columns.
   // Pre-add them so drizzle-kit push sees no NEW column to rename-prompt on.

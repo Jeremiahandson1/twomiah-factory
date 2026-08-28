@@ -11,24 +11,30 @@ app.use('*', authenticate)
 
 const lineItemSchema = z.object({
   description: z.string().min(1),
-  quantity: z.number().default(1),
-  unitPrice: z.number().default(0),
+  quantity: z.number().min(0, 'Quantity cannot be negative').default(1),
+  unitPrice: z.number().min(0, 'Price cannot be negative').default(0),
 })
 
 const quoteSchema = z.object({
   contactId: z.string().min(1),
   jobId: z.string().optional().transform(v => v === '' ? undefined : v),
   lineItems: z.array(lineItemSchema).min(1),
-  taxRate: z.number().default(0),
+  taxRate: z.number().min(0).max(100).default(0),
+  discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   customerMessage: z.string().optional(),
   expiresAt: z.string().optional(),
 })
 
-const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number) => {
+// Round to whole cents (avoids $330.949-style totals) and tax the post-discount
+// amount (US convention for an order-level discount), matching the base CRM.
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number = 0) => {
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  return { subtotal, taxAmount, total: subtotal + taxAmount }
+  const effectiveDiscount = Math.min(Math.max(0, discount), subtotal)
+  const taxable = Math.max(0, subtotal - effectiveDiscount)
+  const taxAmount = round2(taxable * (Math.max(0, taxRate) / 100))
+  return { subtotal, taxAmount, total: round2(subtotal - effectiveDiscount + taxAmount) }
 }
 
 // List quotes
@@ -90,7 +96,7 @@ app.post('/', requirePermission('quotes:create'), async (c) => {
   }
   const quoteNumber = `Q-${String(nextNum).padStart(4, '0')}`
 
-  const totals = calcTotals(data.lineItems, data.taxRate)
+  const totals = calcTotals(data.lineItems, data.taxRate, data.discount)
 
   const [newQuote] = await db.insert(quote).values({
     companyId: currentUser.companyId,
@@ -104,6 +110,7 @@ app.post('/', requirePermission('quotes:create'), async (c) => {
     subtotal: totals.subtotal.toString(),
     taxRate: (data.taxRate / 100).toString(),
     taxAmount: totals.taxAmount.toString(),
+    discount: data.discount.toString(),
     total: totals.total.toString(),
     notes: data.notes,
     customerMessage: data.customerMessage,
@@ -150,11 +157,13 @@ app.put('/:id', requirePermission('quotes:update'), async (c) => {
 
   if (data.lineItems) {
     const taxRate = data.taxRate ?? (Number(existing.taxRate) * 100)
-    const totals = calcTotals(data.lineItems, taxRate)
+    const discount = data.discount ?? Number(existing.discount ?? 0)
+    const totals = calcTotals(data.lineItems, taxRate, discount)
     updateData.lineItems = data.lineItems.map(item => ({ ...item, total: item.quantity * item.unitPrice }))
     updateData.subtotal = totals.subtotal.toString()
     updateData.taxRate = (taxRate / 100).toString()
     updateData.taxAmount = totals.taxAmount.toString()
+    updateData.discount = discount.toString()
     updateData.total = totals.total.toString()
   }
 
