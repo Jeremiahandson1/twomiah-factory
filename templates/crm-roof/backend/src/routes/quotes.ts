@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { quote, contact, job, company } from '../../db/schema.ts'
 import { eq, and, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
