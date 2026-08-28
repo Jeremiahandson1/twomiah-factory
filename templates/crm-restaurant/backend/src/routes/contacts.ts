@@ -116,7 +116,14 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
 
-  await db.delete(contact).where(eq(contact.id, id))
+  try {
+    await db.delete(contact).where(eq(contact.id, id))
+  } catch (e: any) {
+    if (e?.code === "23503" || /foreign key|violates foreign/i.test(e?.message || "")) {
+      return c.json({ error: "Cannot delete a contact with linked quotes, jobs, or invoices. Remove or reassign those first." }, 409)
+    }
+    throw e
+  }
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id })
   audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: existing.id, entityName: existing.name, req: c.req })
   return c.body(null, 204)
