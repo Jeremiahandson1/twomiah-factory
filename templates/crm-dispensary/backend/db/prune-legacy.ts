@@ -16,7 +16,7 @@
 import { db } from './index.ts'
 import { sql } from 'drizzle-orm'
 
-const LEGACY_TABLES = ['quickbooks_connection', 'activity_log']
+const LEGACY_TABLES = ['quickbooks_connection', 'activity_log', 'ads_experiment_conversion', 'ads_experiment_assignment', 'ads_experiment']
 
 for (const t of LEGACY_TABLES) {
   try {
@@ -48,23 +48,6 @@ const ENSURE = [
   `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS unit text`,
   `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS category text`,
   `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS description text`,
-  // Pre-create the ads_experiment tables (schema-managed) so drizzle-kit push
-  // sees no NEW table and never renders the interactive "created or renamed?"
-  // prompt that hangs boot on Render (some verticals have several orphan tables
-  // it would otherwise offer as rename targets). Columns match schema.ts; push
-  // adds FKs/indexes non-interactively afterward.
-  `CREATE TABLE IF NOT EXISTS ads_experiment (
-     id text PRIMARY KEY, company_id text NOT NULL, name text NOT NULL, path text NOT NULL,
-     status text NOT NULL DEFAULT 'draft', variants json NOT NULL DEFAULT '[]', winner_key text,
-     started_at timestamptz, ended_at timestamptz,
-     created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`,
-  `CREATE TABLE IF NOT EXISTS ads_experiment_assignment (
-     id text PRIMARY KEY, experiment_id text NOT NULL, variant_key text NOT NULL,
-     visitor_id text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`,
-  `CREATE TABLE IF NOT EXISTS ads_experiment_conversion (
-     id text PRIMARY KEY, experiment_id text NOT NULL, variant_key text NOT NULL,
-     visitor_id text NOT NULL, event_type text NOT NULL DEFAULT 'lead', target_id text,
-     created_at timestamptz NOT NULL DEFAULT now())`,
   `CREATE TABLE IF NOT EXISTS recurring_invoice (
      id text PRIMARY KEY, company_id text NOT NULL, contact_id text, project_id text,
      frequency text, start_date timestamp, end_date timestamp, next_run_date timestamp,

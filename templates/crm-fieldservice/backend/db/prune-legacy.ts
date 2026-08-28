@@ -16,7 +16,7 @@
 import { db } from './index.ts'
 import { sql } from 'drizzle-orm'
 
-const LEGACY_TABLES = ['quickbooks_connection', 'activity_log']
+const LEGACY_TABLES = ['quickbooks_connection']
 
 for (const t of LEGACY_TABLES) {
   try {
