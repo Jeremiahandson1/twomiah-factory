@@ -91,7 +91,14 @@ app.post('/request/:jobId', async (c) => {
   const jobId = c.req.param('jobId')
   const { channel = 'both' } = await c.req.json()
 
-  const result = await reviews.sendReviewRequest(jobId, { channel })
+  let result
+  try {
+    result = await reviews.sendReviewRequest(jobId, { channel })
+  } catch (e: any) {
+    const msg = e?.message || 'Failed to send review request'
+    if (/not found/i.test(msg)) return c.json({ error: msg }, 404)
+    return c.json({ error: msg }, 400)
+  }
 
   audit.log({
     action: 'REVIEW_REQUEST_SENT',
