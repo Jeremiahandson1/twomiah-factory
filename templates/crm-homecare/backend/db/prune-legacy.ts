@@ -32,6 +32,21 @@ for (const t of LEGACY_TABLES) {
 // missing the `total` column made recurring-invoice creation 500. Ensure they
 // exist with every column the recurring service writes (idempotent).
 const ENSURE = [
+  // takeoff_item column drift: fieldservice-lineage migrations created this table
+  // with the old cost columns; schema.ts uses assembly_id + measurement columns.
+  // Pre-add them so drizzle-kit push sees no NEW column to rename-prompt on.
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS assembly_id text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS location text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS measurement_type text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS measurement_value numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS length numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS width numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS height numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS waste_factor numeric`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS sort_order integer`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS unit text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS category text`,
+  `ALTER TABLE takeoff_item ADD COLUMN IF NOT EXISTS description text`,
   // Pre-create the ads_experiment tables (schema-managed) so drizzle-kit push
   // sees no NEW table and never renders the interactive "created or renamed?"
   // prompt that hangs boot on Render (some verticals have several orphan tables
