@@ -32,6 +32,23 @@ for (const t of LEGACY_TABLES) {
 // missing the `total` column made recurring-invoice creation 500. Ensure they
 // exist with every column the recurring service writes (idempotent).
 const ENSURE = [
+  // Pre-create the ads_experiment tables (schema-managed) so drizzle-kit push
+  // sees no NEW table and never renders the interactive "created or renamed?"
+  // prompt that hangs boot on Render (some verticals have several orphan tables
+  // it would otherwise offer as rename targets). Columns match schema.ts; push
+  // adds FKs/indexes non-interactively afterward.
+  `CREATE TABLE IF NOT EXISTS ads_experiment (
+     id text PRIMARY KEY, company_id text NOT NULL, name text NOT NULL, path text NOT NULL,
+     status text NOT NULL DEFAULT 'draft', variants json NOT NULL DEFAULT '[]', winner_key text,
+     started_at timestamptz, ended_at timestamptz,
+     created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS ads_experiment_assignment (
+     id text PRIMARY KEY, experiment_id text NOT NULL, variant_key text NOT NULL,
+     visitor_id text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())`,
+  `CREATE TABLE IF NOT EXISTS ads_experiment_conversion (
+     id text PRIMARY KEY, experiment_id text NOT NULL, variant_key text NOT NULL,
+     visitor_id text NOT NULL, event_type text NOT NULL DEFAULT 'lead', target_id text,
+     created_at timestamptz NOT NULL DEFAULT now())`,
   `CREATE TABLE IF NOT EXISTS recurring_invoice (
      id text PRIMARY KEY, company_id text NOT NULL, contact_id text, project_id text,
      frequency text, start_date timestamp, end_date timestamp, next_run_date timestamp,

@@ -19,3 +19,23 @@ export function formatDate(value?: string | number | Date | null): string {
   }
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
 }
+
+// Format a date value as "YYYY-MM-DD" for an <input type="date"> value.
+// Uses local calendar components (after parsing date-only values at local
+// midnight) so the input never shows the previous day for western viewers.
+export function formatDateForInput(value?: string | number | Date | null): string {
+  if (value === null || value === undefined || value === '') return '';
+  let d: Date;
+  if (value instanceof Date) {
+    d = value;
+  } else {
+    const s = String(value);
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(s) || /T00:00:00(\.000)?Z?$/.test(s);
+    d = dateOnly ? new Date(s.slice(0, 10) + 'T00:00:00') : new Date(s);
+  }
+  if (isNaN(d.getTime())) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
