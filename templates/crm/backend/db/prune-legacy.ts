@@ -102,4 +102,30 @@ for (const stmt of ENSURE) {
 }
 console.log('[prune-legacy] recurring tables reconciled')
 
+// General drift reconcile. Some schema changes (new tables/columns) aren't
+// captured in migration files, so `drizzle-kit push` reconciles them on boot —
+// and renders interactive "created or renamed?" prompts that --force and piped
+// stdin cannot answer (it reads the controlling TTY), hanging boot ~15 min and
+// leaving the schema partial. Run push under a real pty via `script` with
+// newlines piped in, so every prompt auto-accepts its highlighted default
+// ("create" — never a data-losing rename/drop; --force already covers safe
+// drops). This reconciles ALL remaining drift non-interactively; the boot's own
+// push then finds nothing to do. If `script` is unavailable the catch logs and
+// boot falls back to the (bounded, retrying) start-command push.
+try {
+  const proc = Bun.spawnSync(
+    ['sh', '-c', "yes '' | timeout 150 script -qec 'bunx drizzle-kit push --force' /dev/null"],
+  )
+  const out = ((proc.stdout && proc.stdout.toString()) || '') + ((proc.stderr && proc.stderr.toString()) || '')
+  const tail = out
+    .split('\n')
+    .map((l: string) => l.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').trim())
+    .filter((l: string) => /changes applied|no changes|nothing to|error|not found/i.test(l))
+    .slice(-3)
+    .join(' | ')
+  console.log('[prune-legacy] pty push:', tail || 'completed')
+} catch (e: any) {
+  console.warn('[prune-legacy] pty push skipped:', e?.message || e)
+}
+
 process.exit(0)
