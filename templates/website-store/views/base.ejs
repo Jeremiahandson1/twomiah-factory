@@ -84,8 +84,8 @@
     "url": "{{SITE_URL}}",
     "logo": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
     "image": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
-    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
-<% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
+<% if (hasPhone) { %>    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
+<% } %><% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
 <% } %>    "priceRange": "$$"
     <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
     ,"sameAs": [
