@@ -180,8 +180,9 @@ app.delete('/:id', async (c) => {
     await db.delete(contact).where(eq(contact.id, id))
   } catch (e: any) {
     // FK violation — the contact still has linked quotes/jobs/invoices.
-    if (e?.code === '23503' || /foreign key|violates foreign/i.test(e?.message || '')) {
-      return c.json({ error: 'Cannot delete a contact with linked quotes, jobs, or invoices. Remove or reassign those first.' }, 409)
+    const fkBlob = [e?.code, e?.message, e?.cause?.code, e?.cause?.message].filter(Boolean).join(" ")
+    if (/23503|foreign key|violates foreign/i.test(fkBlob)) {
+      return c.json({ error: 'Cannot delete a contact with linked records (quotes, jobs, invoices, or recurring billing). Remove or reassign those first.' }, 409)
     }
     throw e
   }
