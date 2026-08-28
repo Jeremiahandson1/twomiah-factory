@@ -1,20 +1,11 @@
 /**
  * Audit Logging Service (Drizzle)
  * Tracks who changed what when
- *
- * NOTE: The schema does not currently define an "auditLog" table.
- * You must add one to db/schema.ts for this service to work. Example:
- *
- *   export const auditLog = pgTable('audit_log', { ... })
- *
- * Until then, this file uses raw SQL via db.execute / sql.
  */
 
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
-
-// We use raw SQL since the auditLog table may not be in schema yet.
-// If you add it, replace sql`` calls with proper Drizzle query builder usage.
+import { auditLog } from '../../db/schema.ts';
 
 export const ACTIONS = {
   CREATE: 'create',
@@ -36,17 +27,18 @@ export const ACTIONS = {
 export const ENTITIES = {
   USER: 'user',
   CONTACT: 'contact',
-  PRODUCT: 'product',
-  ORDER: 'order',
-  LOYALTY_MEMBER: 'loyalty_member',
-  LOYALTY_REWARD: 'loyalty_reward',
-  DELIVERY_ZONE: 'delivery_zone',
-  CASH_SESSION: 'cash_session',
+  PROJECT: 'project',
+  JOB: 'job',
+  QUOTE: 'quote',
+  INVOICE: 'invoice',
+  PAYMENT: 'payment',
+  TIME_ENTRY: 'time_entry',
+  EXPENSE: 'expense',
   DOCUMENT: 'document',
+  RFI: 'rfi',
+  CHANGE_ORDER: 'change_order',
   TEAM_MEMBER: 'team_member',
   COMPANY: 'company',
-  LEAD: 'lead',
-  LEAD_SOURCE: 'lead_source',
 } as const;
 
 interface AuditLogInput {
@@ -68,25 +60,20 @@ interface AuditLogInput {
  */
 export async function log({ action, entity, entityId, entityName, changes, metadata, req }: AuditLogInput): Promise<void> {
   try {
-    await db.execute(sql`
-      INSERT INTO audit_log (id, action, entity, entity_id, entity_name, changes, metadata, user_id, user_name, user_email, company_id, ip_address, user_agent, created_at)
-      VALUES (
-        gen_random_uuid(),
-        ${action},
-        ${entity},
-        ${entityId || null},
-        ${entityName || null},
-        ${changes ? JSON.stringify(changes) : null}::jsonb,
-        ${metadata ? JSON.stringify(metadata) : null}::jsonb,
-        ${req?.user?.userId || null},
-        ${req?.user?.email || null},
-        ${req?.user?.email || null},
-        ${req?.user?.companyId || null},
-        ${(req?.ip || req?.headers?.['x-forwarded-for']) as string || null},
-        ${req?.headers?.['user-agent'] as string || null},
-        NOW()
-      )
-    `);
+    await db.insert(auditLog).values({
+      action,
+      entity,
+      entityId: entityId || null,
+      entityName: entityName || null,
+      changes: changes || null,
+      metadata: metadata || null,
+      userId: req?.user?.userId || null,
+      userName: req?.user?.email || null,
+      userEmail: req?.user?.email || null,
+      companyId: req?.user?.companyId || null,
+      ipAddress: (req?.ip || req?.headers?.['x-forwarded-for']) as string || null,
+      userAgent: req?.headers?.['user-agent'] as string || null,
+    });
   } catch (error: unknown) {
     console.error('Audit log error:', (error as Error).message);
   }

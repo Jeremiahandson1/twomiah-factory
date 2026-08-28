@@ -398,11 +398,19 @@ export async function trackUsage(companyId: string, usageType: string, quantity 
  * Get current period usage
  */
 export async function getCurrentUsage(companyId: string) {
-  const subResult = await db.execute(sql`
-    SELECT * FROM subscription WHERE company_id = ${companyId} AND status = 'active' LIMIT 1
-  `);
-  const rows = (subResult as any).rows || subResult;
-  const subscription = rows[0];
+  // Factory-provisioned tenants don't self-manage a SaaS subscription, so the
+  // subscription/usage_record tables may not exist. Treat that as "no usage"
+  // rather than 500ing the billing page.
+  let subscription: any;
+  try {
+    const subResult = await db.execute(sql`
+      SELECT * FROM subscription WHERE company_id = ${companyId} AND status = 'active' LIMIT 1
+    `);
+    const rows = (subResult as any).rows || subResult;
+    subscription = rows[0];
+  } catch {
+    return null;
+  }
 
   if (!subscription) return null;
 
