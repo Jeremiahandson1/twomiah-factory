@@ -114,7 +114,7 @@ console.log('[prune-legacy] recurring tables reconciled')
 // boot falls back to the (bounded, retrying) start-command push.
 try {
   const proc = Bun.spawnSync(
-    ['sh', '-c', "yes '' | timeout 150 script -qec 'bunx drizzle-kit push --force' /dev/null"],
+    ['sh', '-c', "printf '\n%.0s' $(seq 1 300) | timeout 150 script -qec 'bunx drizzle-kit push --force' /dev/null"],
   )
   const out = ((proc.stdout && proc.stdout.toString()) || '') + ((proc.stderr && proc.stderr.toString()) || '')
   const tail = out
