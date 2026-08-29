@@ -665,8 +665,25 @@ app.post('/purchase/addon', authenticate, async (c) => {
 
 app.get('/usage', authenticate, async (c) => {
   const user = c.get('user') as any
-  const usage = await billing.getCurrentUsage(user.companyId)
-  return c.json(usage)
+  const companyId = user.companyId
+  // The meters read the real entity counts, not the SaaS subscription usage (which
+  // is null for factory-provisioned tenants — that's why they showed 0 / ∞). Count
+  // users, contacts and this-month's jobs directly. limit=null renders as ∞.
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const one = async (query: any): Promise<number> => {
+    try { const r: any = await db.execute(query); return Number((r.rows || r)[0]?.c || 0) } catch { return 0 }
+  }
+  const [users, contacts, jobs] = await Promise.all([
+    one(sql`SELECT COUNT(*)::int AS c FROM "user" WHERE company_id = ${companyId}`),
+    one(sql`SELECT COUNT(*)::int AS c FROM contact WHERE company_id = ${companyId}`),
+    one(sql`SELECT COUNT(*)::int AS c FROM job WHERE company_id = ${companyId} AND created_at >= ${monthStart}`),
+  ])
+  return c.json({
+    users: { current: users, limit: null },
+    contacts: { current: contacts, limit: null },
+    jobs: { current: jobs, limit: null },
+  })
 })
 
 app.get('/invoices', authenticate, async (c) => {
