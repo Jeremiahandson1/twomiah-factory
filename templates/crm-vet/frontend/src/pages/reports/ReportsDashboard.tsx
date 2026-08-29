@@ -73,12 +73,18 @@ export default function ReportsDashboard() {
 
   const loadData = async () => {
     setLoading(true);
+    // Period picker sent no date range, so every period returned identical numbers.
+    // The backend honors startDate/endDate; send them. (RPT date-filter: VET-12/REPORT-03/F16)
+    const days = parseInt(dateRange) || 30;
+    const endDate = new Date().toISOString().slice(0, 10);
+    const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    const range = `startDate=${startDate}&endDate=${endDate}`;
     try {
       const [dashboard, monthly, customers, team] = await Promise.all([
-        api.get('/api/reports/dashboard'),
+        api.get(`/api/reports/dashboard?${range}`),
         api.get('/api/reports/revenue/monthly?months=6'),
-        api.get('/api/reports/revenue/customers?limit=5'),
-        api.get('/api/reports/team'),
+        api.get(`/api/reports/revenue/customers?limit=5&${range}`),
+        api.get(`/api/reports/team?${range}`),
       ]);
 
       setData(dashboard || null);
