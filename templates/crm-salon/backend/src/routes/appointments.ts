@@ -103,6 +103,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (Number.isNaN(startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
   const serviceId = body.serviceId || null
   const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
+  // A manually-set end before the start was saved verbatim ("9:00 AM – 8:00 AM"). (SCHED-01)
+  if (endTime.getTime() <= startTime.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
 
   if (body.stylistId) {
     const clash = await findConflict(currentUser.companyId, body.stylistId, startTime, endTime)
@@ -159,6 +161,9 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const nextEnd: Date = updates.endTime ?? (existing.endTime ? new Date(existing.endTime) : new Date(nextStart.getTime() + 3600000))
   const nextStylist = 'stylistId' in updates ? updates.stylistId : existing.stylistId
   const nextStatus = 'status' in updates ? updates.status : existing.status
+  // Re-validate the effective pair — editing the end (or dragging the start) must not
+  // produce an end at/before the start. (SCHED-01)
+  if (nextEnd.getTime() <= nextStart.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
 
   if (nextStylist && !CANCELLED.includes(nextStatus)) {
     const clash = await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id)
