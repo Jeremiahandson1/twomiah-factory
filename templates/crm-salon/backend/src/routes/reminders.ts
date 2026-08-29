@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { serviceRecord, serviceMenu, contact, clientProfile, user } from '../../db/schema.ts'
-import { eq, and, inArray, isNotNull, sql } from 'drizzle-orm'
+import { serviceRecord, serviceMenu, contact, clientProfile, user, appointment } from '../../db/schema.ts'
+import { eq, and, inArray, isNotNull, sql, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { sendSMS } from '../services/sms.ts'
@@ -76,7 +76,16 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
     .map(r => ({ ...r, overdue: r.dueDate < t }))
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
 
-  return c.json({ count: data.length, overdue: data.filter(d => d.overdue).length, data })
+  // A client who already has a future appointment has effectively rebooked — don't nag
+  // them (and don't text them as overdue). (RECALL-02)
+  const booked = new Set(
+    (await db.select({ contactId: appointment.contactId }).from(appointment)
+      .where(and(eq(appointment.companyId, u.companyId), gt(appointment.startTime, new Date()))))
+      .map(a => a.contactId).filter(Boolean)
+  )
+  const filtered = data.filter(r => !booked.has(r.contactId))
+
+  return c.json({ count: filtered.length, overdue: filtered.filter(d => d.overdue).length, data: filtered })
 })
 
 // GET /reminders/lapsed?months=6 — clients whose last visit is older than N
