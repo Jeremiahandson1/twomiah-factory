@@ -101,6 +101,26 @@ app.route('/api/admin/shipping', shippingAdminRoutes)
 app.route('/media', mediaRoutes)
 
 app.onError((err, c) => {
+  // Validation errors are the client's fault, not a server fault.
+  if ((err as any)?.name === 'ZodError') {
+    const issues = (err as any).issues
+    return c.json({ error: issues?.[0]?.message || 'Invalid request' }, 400)
+  }
+  // Map raw Postgres error codes to honest 4xx instead of an opaque 500. Fixes:
+  // BUG-01 (int4 overflow on huge priceCents → 22003), BUG-02 (dup SKU → 23505),
+  // BUG-09 (non-uuid :id cast → 22P02), plus missing/not-null/FK/check violations.
+  const pgCode = (err as any)?.code || (err as any)?.cause?.code
+  if (typeof pgCode === 'string') {
+    switch (pgCode) {
+      case '23502': return c.json({ error: 'A required field is missing.' }, 400)
+      case '23503': return c.json({ error: 'A related record does not exist, or is still in use.' }, 409)
+      case '23505': return c.json({ error: 'That value already exists.' }, 409)
+      case '23514': return c.json({ error: 'A value is outside its allowed range.' }, 400)
+      case '22003': return c.json({ error: 'A number is too large for its field.' }, 400)
+      case '22P02': case '22007': case '22008':
+        return c.json({ error: 'One of the values is not valid for its field.' }, 400)
+    }
+  }
   logger.error('unhandled error', { error: err?.message, path: c.req.path })
   return c.json({ error: 'Internal server error' }, 500)
 })

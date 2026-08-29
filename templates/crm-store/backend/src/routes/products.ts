@@ -86,10 +86,13 @@ admin.delete('/:id', async (c) => {
 const variantSchema = z.object({
   sku: z.string().min(1),
   name: z.string().min(1),
-  priceCents: z.number().int().nonnegative(),
-  compareAtPriceCents: z.number().int().nonnegative().optional().nullable(),
-  weightOz: z.number().int().nonnegative().optional().nullable(),
-  inventoryQty: z.number().int().optional().nullable(),
+  // Cap money/int columns at Postgres int4 max — an over-max value overflowed the
+  // column and surfaced as a raw 500 instead of a validation error. (BUG-01)
+  priceCents: z.number().int().nonnegative().max(2147483647, 'Price is too large'),
+  compareAtPriceCents: z.number().int().nonnegative().max(2147483647, 'Price is too large').optional().nullable(),
+  weightOz: z.number().int().nonnegative().max(2147483647).optional().nullable(),
+  // Inventory can't go negative — this was accepted and stored as -99. (BUG-03)
+  inventoryQty: z.number().int().min(0, 'Inventory cannot be negative').max(2147483647).optional().nullable(),
   options: z.record(z.string()).optional().nullable(),
   position: z.number().int().optional(),
 })
