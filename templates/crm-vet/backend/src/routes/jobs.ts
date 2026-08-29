@@ -39,6 +39,7 @@ app.get('/', async (c) => {
   const search = c.req.query('search')
   const projectId = c.req.query('projectId')
   const assignedToId = c.req.query('assignedToId')
+  const date = c.req.query('date')
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
 
@@ -47,6 +48,13 @@ app.get('/', async (c) => {
   if (search) conditions.push(or(ilike(job.title, `%${search}%`), ilike(job.number, `%${search}%`))!)
   if (projectId) conditions.push(eq(job.projectId, projectId))
   if (assignedToId) conditions.push(eq(job.assignedToId, assignedToId))
+  // The dispatch board passes ?date=YYYY-MM-DD; it was ignored, so every board
+  // showed every job ever scheduled (F-11). Filter scheduledDate to that day.
+  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const dayStart = new Date(date + 'T00:00:00')
+    const dayEnd = new Date(dayStart.getTime() + 86400000)
+    if (!isNaN(dayStart.getTime())) conditions.push(gte(job.scheduledDate, dayStart), lt(job.scheduledDate, dayEnd))
+  }
 
   const where = and(...conditions)
   const [data, [{ value: total }]] = await Promise.all([
