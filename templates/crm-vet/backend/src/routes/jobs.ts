@@ -17,6 +17,7 @@ const jobSchema = z.object({
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   assignedToId: z.string().optional().transform(v => v === '' ? undefined : v),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
+  status: z.string().min(1).optional(),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
   // Accept the decimal string the API returns ("4.00") as well as a number —

@@ -20,6 +20,7 @@ const jobSchema = z.object({
   equipmentId: z.string().optional().transform(v => v === '' ? undefined : v),
   siteId: z.string().optional().transform(v => v === '' ? undefined : v),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
+  status: z.string().min(1).optional(),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
   // The edit form submits "" when Estimated Hours is left blank; coerce it to

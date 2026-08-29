@@ -17,6 +17,11 @@ const jobSchema = z.object({
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   assignedToId: z.string().optional().transform(v => v === '' ? undefined : v),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
+  // Job status is settable (the edit form and the dispatch board both PUT it);
+  // it was omitted from the schema, so .partial().parse() silently dropped it and
+  // the update looked like it saved but didn't. Statuses are tenant-configurable,
+  // so accept any non-empty string rather than a fixed enum.
+  status: z.string().min(1).optional(),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
   // Accept the decimal string the API returns ("4.00") as well as a number —
