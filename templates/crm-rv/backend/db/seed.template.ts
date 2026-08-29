@@ -78,15 +78,14 @@ async function main() {
   // Seed help articles if none exist
   const existingArticles = await db.select().from(supportKnowledgeBase).where(eq(supportKnowledgeBase.companyId, comp.id)).limit(1)
   if (existingArticles.length === 0) {
+    // Vertical-appropriate help articles (was shared contractor content).
     const helpArticles = [
-      { title: 'Getting Started with Your CRM', content: 'Welcome to your CRM! Start by adding contacts, creating jobs, and sending quotes. Use the sidebar to navigate between modules. Each module has a list view and detail view for managing records.', category: 'Getting Started', isFaq: true, sortOrder: 1 },
-      { title: 'Managing Contacts', content: 'Contacts are the foundation of your CRM. Add new contacts from the Contacts page. Each contact can have multiple jobs, quotes, and invoices linked to them. Use tags and notes to organize your contacts.', category: 'Getting Started', isFaq: false, sortOrder: 2 },
-      { title: 'Creating and Sending Quotes', content: 'Navigate to Quotes to create a new quote. Select a contact, add line items with descriptions and prices, then send the quote via email. Customers can approve quotes online through the customer portal.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 3 },
-      { title: 'Invoice Management', content: 'Create invoices from the Invoices page or convert approved quotes to invoices. Set payment terms, add line items, and send to customers. Track payment status and send reminders for overdue invoices.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 4 },
-      { title: 'How do I schedule jobs?', content: 'Go to the Schedule page to view your calendar. Click on a date to create a new job or drag existing jobs to reschedule. You can assign team members and set job duration. The calendar supports day, week, and month views.', category: 'Scheduling', isFaq: true, sortOrder: 5 },
-      { title: 'Team Management', content: 'Add team members from the Team page. Assign roles (admin, manager, technician) to control access. Team members can be assigned to jobs, tracked on the schedule, and have their time entries logged.', category: 'Team', isFaq: false, sortOrder: 6 },
-      { title: 'How do I track time?', content: 'Use the Time page to log hours for jobs. Team members can clock in/out or manually add time entries. Time entries can be linked to specific jobs for accurate billing and labor cost tracking.', category: 'Time & Expenses', isFaq: true, sortOrder: 7 },
-      { title: 'Document Management', content: 'Upload and organize documents in the Documents section. Attach files to contacts, jobs, or projects. Supported formats include PDF, images, and common document types.', category: 'Documents', isFaq: false, sortOrder: 8 },
+      { title: 'Getting Started', content: 'Welcome! Start by adding your unit inventory and contacts, then work deals from lead to delivery. Use the sidebar to move between modules.', category: 'Getting Started', isFaq: true, sortOrder: 1 },
+      { title: 'Managing Inventory', content: 'Add new and used units to Inventory with pricing and specs. Units can be attached to deals and marked sold when they move.', category: 'Inventory', isFaq: true, sortOrder: 2 },
+      { title: 'Contacts & Leads', content: 'Capture leads and customers in Contacts. Each contact can have multiple deals, service visits and documents linked to them.', category: 'Getting Started', isFaq: false, sortOrder: 3 },
+      { title: 'Working Deals', content: 'Create a deal for a contact and a unit, add F&I products and trade-in details, and move it through the pipeline to Sold and Delivered.', category: 'Sales', isFaq: false, sortOrder: 4 },
+      { title: 'Service & Parts', content: 'Open service ROs from the Service page and sell parts and accessories. Link service to a unit and customer for full history.', category: 'Service', isFaq: false, sortOrder: 5 },
+      { title: 'Invoices & Payments', content: 'Create invoices for sales, service and parts, add line items, and record payment. Track outstanding balances.', category: 'Billing', isFaq: false, sortOrder: 6 },
     ]
     for (const article of helpArticles) {
       await db.insert(supportKnowledgeBase).values({
@@ -111,8 +110,8 @@ async function main() {
     'Roofing': ['Lead', 'Estimate Sent', 'Approved', 'Scheduled', 'In Progress', 'Punch List', 'Complete', 'Invoiced'],
   }
 
-  const DEFAULT_CATEGORIES = ['General Services', 'Repairs', 'Installation', 'Consultation', 'Maintenance']
-  const DEFAULT_STATUSES = ['Estimate', 'Scheduled', 'In Progress', 'Complete', 'Invoiced']
+  const DEFAULT_CATEGORIES = ['New Units', 'Used Units', 'Service', 'Parts & Accessories', 'Financing & F&I']
+  const DEFAULT_STATUSES = ['Lead', 'Quoted', 'Negotiating', 'Sold', 'Delivered', 'Lost']
 
   const existingCats = await db.select().from(pricebookCategory).where(eq(pricebookCategory.companyId, comp.id)).limit(1)
   if (existingCats.length === 0) {
