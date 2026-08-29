@@ -54,7 +54,11 @@ app.post('/', async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
 
-  if (!body.description || !body.amount || !body.date) {
+  // The expense form posts `expenseDate`; accept it as an alias for `date` so a fully
+  // completed expense isn't rejected with "date is required". (C-02)
+  const date = body.date ?? body.expenseDate
+
+  if (!body.description || !body.amount || !date) {
     return c.json({ error: 'description, amount, and date are required' }, 400)
   }
 
@@ -62,13 +66,13 @@ app.post('/', async (c) => {
     .insert(expenses)
     .values({
       userId: user.userId,
-      category: body.category,
+      category: body.category || null,
       description: body.description,
       amount: body.amount,
-      date: body.date,
-      receiptUrl: body.receiptUrl,
+      date: date,
+      receiptUrl: body.receiptUrl || null,
       status: body.status || 'pending',
-      notes: body.notes,
+      notes: body.notes || null,
     })
     .returning()
 

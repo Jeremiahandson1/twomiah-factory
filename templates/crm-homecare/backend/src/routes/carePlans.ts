@@ -80,4 +80,12 @@ app.put('/:id', async (c) => {
   }
 })
 
+// Delete was missing entirely — the UI's delete control 404'd. (M-14)
+app.delete('/:id', async (c) => {
+  const id = c.req.param('id')
+  const [row] = await db.delete(carePlans).where(eq(carePlans.id, id)).returning()
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  return c.json({ success: true })
+})
+
 export default app
