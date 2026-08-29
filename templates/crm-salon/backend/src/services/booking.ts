@@ -168,6 +168,23 @@ export async function deleteBookableService(serviceId: string, companyId: string
   await db.execute(sql`DELETE FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId}`);
 }
 
+// Cancel a booking — set both the online_booking and its linked appointment (The Book)
+// to cancelled. There was no cancel/delete route, so a booking could never be undone. (BOOK-06)
+export async function cancelBooking(bookingId: string, companyId: string) {
+  const rows = await db.execute(sql`SELECT appointment_id FROM online_booking WHERE id = ${bookingId} AND company_id = ${companyId}`);
+  const apptId = (rows.rows?.[0] as any)?.appointment_id;
+  if (apptId) await db.execute(sql`UPDATE appointment SET status = 'cancelled', updated_at = NOW() WHERE id = ${apptId} AND company_id = ${companyId}`);
+  await db.execute(sql`UPDATE online_booking SET status = 'cancelled' WHERE id = ${bookingId} AND company_id = ${companyId}`);
+}
+
+// Change a booking's status (and its appointment) — e.g. confirm or no-show. (BOOK-06)
+export async function updateBookingStatus(bookingId: string, companyId: string, status: string) {
+  await db.execute(sql`UPDATE online_booking SET status = ${status} WHERE id = ${bookingId} AND company_id = ${companyId}`);
+  const rows = await db.execute(sql`SELECT appointment_id FROM online_booking WHERE id = ${bookingId} AND company_id = ${companyId}`);
+  const apptId = (rows.rows?.[0] as any)?.appointment_id;
+  if (apptId) await db.execute(sql`UPDATE appointment SET status = ${status}, updated_at = NOW() WHERE id = ${apptId} AND company_id = ${companyId}`);
+}
+
 // ============================================
 // AVAILABILITY
 // ============================================
@@ -587,6 +604,8 @@ export default {
   createBookableService,
   updateBookableService,
   deleteBookableService,
+  cancelBooking,
+  updateBookingStatus,
   getAvailableSlots,
   getAvailableDates,
   createBooking,

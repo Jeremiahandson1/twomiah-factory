@@ -190,6 +190,22 @@ app.get('/', async (c) => {
   return c.json(data)
 })
 
+// Cancel a booking (and its appointment) — no cancel/delete route existed. (BOOK-06)
+app.delete('/:id', async (c) => {
+  const user = c.get('user') as any
+  await booking.cancelBooking(c.req.param('id'), user.companyId)
+  return c.json({ success: true })
+})
+
+// Change a booking's status (confirm / no-show / etc.). (BOOK-06)
+app.patch('/:id', async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json().catch(() => ({} as any))
+  if (!body.status) return c.json({ error: 'status is required' }, 400)
+  await booking.updateBookingStatus(c.req.param('id'), user.companyId, String(body.status))
+  return c.json({ success: true })
+})
+
 app.get('/embed-code', async (c) => {
   const user = c.get('user') as any
   const [found] = await db.select({ slug: company.slug }).from(company).where(eq(company.id, user.companyId)).limit(1)
