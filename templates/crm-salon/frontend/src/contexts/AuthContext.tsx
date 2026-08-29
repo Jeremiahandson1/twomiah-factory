@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isAuthenticated = !!user;
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = user?.role === 'admin' || user?.role === 'owner';
   const isManager = ['admin', 'manager'].includes(user?.role ?? '');
 
   const getToken = useCallback(() => localStorage.getItem('accessToken'), []);
