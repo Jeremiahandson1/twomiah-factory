@@ -11,32 +11,22 @@ app.use('*', authenticate);
 // Articles are stored in a simple table. Seeded from Factory on deployment.
 
 app.get('/kb', async (c) => {
-  const user = c.get('user') as any;
   const search = c.req.query('search');
   const category = c.req.query('category');
 
   try {
-    let query = `SELECT * FROM help_articles WHERE agency_id = $1 AND published = true`;
-    const params: any[] = [user.agencyId];
-    let idx = 2;
-
-    if (category) {
-      query += ` AND category = $${idx}`;
-      params.push(category);
-      idx++;
-    }
-    if (search) {
-      query += ` AND (title ILIKE $${idx} OR content ILIKE $${idx})`;
-      params.push('%' + search + '%');
-      idx++;
-    }
-
-    query += ' ORDER BY sort_order ASC, view_count DESC LIMIT 100';
-    const result = await db.execute(sql.raw(query + ';-- ' + JSON.stringify(params)));
-    // Drizzle raw query workaround — use direct pg query
+    // Previously this filtered by agency_id = user.agencyId, but the JWT carries no
+    // agencyId (this DB serves one agency, like every other route), so the param was
+    // undefined and the query 500'd — and a broken throwaway sql.raw with unbound $1
+    // placeholders threw first. Rewritten: single parameterized query, optional
+    // category/search via null-guards, no agency filter. (H-05)
+    const cat = category || null;
+    const q = search ? '%' + search + '%' : null;
     const articles = await db.execute(sql`
       SELECT * FROM help_articles
-      WHERE agency_id = ${user.agencyId} AND published = true
+      WHERE published = true
+        AND (${cat}::text IS NULL OR category = ${cat})
+        AND (${q}::text IS NULL OR title ILIKE ${q} OR content ILIKE ${q})
       ORDER BY sort_order ASC, view_count DESC
       LIMIT 100
     `);

@@ -121,4 +121,14 @@ app.get('/:type', authenticate, async (c) => {
   return c.json({ type, data: overview })
 })
 
+// The Reports tabs POST to /hours, /performance, /satisfaction, /revenue — those had
+// no POST handler and 404'd, so four of five tabs rendered zeroes. Serve the same
+// data over POST instead of a dead route. (C-10)
+app.post('/:type', authenticate, async (c) => {
+  const type = c.req.param('type')
+  const body = await c.req.json().catch(() => ({} as any))
+  const overview = await buildOverview(body?.startDate, body?.endDate)
+  return c.json({ type, data: overview })
+})
+
 export default app

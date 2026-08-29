@@ -32,6 +32,19 @@ app.post('/templates', async (c) => {
   return c.json(row, 201)
 })
 
+// Edit was missing — the pencil control 404'd (create + delete worked). (M-15)
+app.put('/templates/:id', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  const patch: Record<string, any> = {}
+  if (body.name !== undefined) patch.name = body.name
+  if (body.body !== undefined) patch.body = body.body
+  if (body.category !== undefined) patch.category = body.category || null
+  const [row] = await db.update(smsTemplates).set(patch).where(eq(smsTemplates.id, id)).returning()
+  if (!row) return c.json({ error: 'Template not found' }, 404)
+  return c.json(row)
+})
+
 // POST /send
 app.post('/send', async (c) => {
   const { to, body } = await c.req.json()
