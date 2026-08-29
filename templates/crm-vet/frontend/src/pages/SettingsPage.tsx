@@ -230,7 +230,7 @@ export default function SettingsPage() {
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Temporary password *</label>
-                        <input type="text" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className="w-full text-sm border rounded-lg px-3 py-2" />
+                        <input type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className="w-full text-sm border rounded-lg px-3 py-2" />
                         <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
                       </div>
                       <div>
