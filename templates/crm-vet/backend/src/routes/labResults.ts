@@ -11,6 +11,16 @@ import { createId } from '@paralleldrive/cuid2'
 const app = new Hono()
 app.use('*', authenticate)
 
+// The File URL is free text. Reject any explicit scheme that isn't http/https
+// (javascript:, data:, vbscript:, file:, …) so a stored URL can't execute when
+// rendered as a link. Relative paths (no scheme) and http(s) are allowed through.
+function sanitizeFileUrl(u: unknown): string | null {
+  if (typeof u !== 'string' || !u.trim()) return null
+  const s = u.trim()
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^https?:/i.test(s)) return null
+  return s
+}
+
 // GET /lab-results — ?patientId=
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -41,7 +51,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     status: body.status || 'final',
     results: body.results || {},
     summary: body.summary || null,
-    fileUrl: body.fileUrl || null,
+    fileUrl: sanitizeFileUrl(body.fileUrl),
     notes: body.notes || null,
     companyId: currentUser.companyId,
   }).returning()
@@ -66,6 +76,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['patientId', 'visitId', 'testName', 'category', 'resultDate', 'status', 'results', 'summary', 'fileUrl', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  if ('fileUrl' in updates) updates.fileUrl = sanitizeFileUrl(updates.fileUrl)
 
   const [updated] = await db.update(labResult).set(updates).where(eq(labResult.id, id)).returning()
   await audit.log({ action: 'update', entity: 'lab_result', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })

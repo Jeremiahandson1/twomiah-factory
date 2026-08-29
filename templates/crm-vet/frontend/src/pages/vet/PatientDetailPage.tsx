@@ -9,6 +9,18 @@ import VisitEditorModal, { Visit } from '../../components/vet/VisitEditorModal';
 import { openPrintable } from '../../lib/printable';
 import { ageFromDob } from './PatientsPage';
 
+// The lab-result "File URL" is free text, so a stored javascript:/data: URL would
+// execute on click if handed straight to href. Only ever emit http/https.
+const safeUrl = (u?: string): string | undefined => {
+  if (!u) return undefined;
+  try {
+    const p = new URL(u, window.location.origin);
+    return p.protocol === 'http:' || p.protocol === 'https:' ? p.href : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * Patient chart — GET /api/patients/:id returns
  * { patient, owner, visits[], vaccinations[], prescriptions[], labResults[] }.
@@ -406,8 +418,8 @@ export default function PatientDetailPage() {
                     </div>
                   </div>
                   {l.summary && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{l.summary}</p>}
-                  {l.fileUrl && (
-                    <a href={l.fileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 mt-1">
+                  {safeUrl(l.fileUrl) && (
+                    <a href={safeUrl(l.fileUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 mt-1">
                       <FileText className="w-3 h-3" /> View file
                     </a>
                   )}

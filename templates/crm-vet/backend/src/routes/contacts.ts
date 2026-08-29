@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact, project, quote, invoice } from '../../db/schema.ts'
+import { contact, project, quote, invoice, patient } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -112,6 +112,18 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
+
+  // A client owns patients, and every patient's visits/vaccinations/prescriptions/
+  // lab results cascade-delete with them. That is medical history under statutory
+  // retention — a contact delete must never silently destroy it. Block the delete
+  // when patients are attached (the DB cascade would otherwise return a clean 204).
+  const [{ value: patientCount }] = await db.select({ value: count() }).from(patient).where(eq(patient.ownerId, id))
+  if (Number(patientCount) > 0) {
+    return c.json({
+      error: `This client has ${patientCount} patient${Number(patientCount) === 1 ? '' : 's'} with medical history. Reassign or remove their patients before deleting the client.`,
+      patientCount: Number(patientCount),
+    }, 409)
+  }
 
   try {
     await db.delete(contact).where(eq(contact.id, id))
