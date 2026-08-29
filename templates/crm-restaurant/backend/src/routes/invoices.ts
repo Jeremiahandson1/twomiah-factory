@@ -22,10 +22,15 @@ const invoiceSchema = z.object({
   lineItems: z.array(lineItemSchema).default([]),
 })
 
-const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+// Tax the post-discount amount (US convention), clamp discount to the subtotal so
+// it can't go negative, and round to whole cents — matching the base CRM.
+const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number = 0) => {
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  const total = subtotal + taxAmount - discount
+  const effectiveDiscount = Math.min(Math.max(0, discount), subtotal)
+  const taxable = Math.max(0, subtotal - effectiveDiscount)
+  const taxAmount = round2(taxable * (Math.max(0, taxRate) / 100))
+  const total = round2(subtotal - effectiveDiscount + taxAmount)
   return { subtotal, taxAmount, total, balance: total }
 }
 

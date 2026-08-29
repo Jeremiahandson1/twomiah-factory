@@ -27,8 +27,9 @@ const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: n
   // Discount applies BEFORE tax — the customer must not be taxed on money they
   // never paid (H-06). Guard against a discount larger than the subtotal.
   const taxable = Math.max(0, subtotal - discount)
-  const taxAmount = taxable * (taxRate / 100)
-  const total = taxable + taxAmount
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+  const taxAmount = round2(taxable * (taxRate / 100))
+  const total = round2(taxable + taxAmount)
   return { subtotal, taxAmount, total, balance: total }
 }
 

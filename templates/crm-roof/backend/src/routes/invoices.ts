@@ -23,10 +23,11 @@ const invoiceSchema = z.object({
   dueDate: z.string().optional(),
 })
 
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number) => {
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  return { subtotal, taxAmount, total: subtotal + taxAmount }
+  const taxAmount = round2(subtotal * (Math.max(0, taxRate) / 100))
+  return { subtotal, taxAmount, total: round2(subtotal + taxAmount) }
 }
 
 // List invoices

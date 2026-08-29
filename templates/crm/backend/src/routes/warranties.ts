@@ -131,11 +131,20 @@ app.get('/claims/:id', async (c) => {
 app.post('/claims', async (c) => {
   const user = c.get('user') as any;
   const body = await c.req.json();
-  const claim = await warranties.createClaim(user.companyId, {
-    ...body,
-    reportedBy: user.userId,
-  });
-  return c.json(claim, 201);
+  if (!body?.warrantyId) return c.json({ error: 'A warranty is required to file a claim.' }, 400);
+  if (!body?.title) return c.json({ error: 'A claim title is required.' }, 400);
+  try {
+    const claim = await warranties.createClaim(user.companyId, {
+      ...body,
+      reportedBy: user.userId,
+    });
+    return c.json(claim, 201);
+  } catch (e: any) {
+    const msg = e?.message || 'Failed to create claim';
+    if (/not found/i.test(msg)) return c.json({ error: msg }, 404);
+    if (/expired|voided/i.test(msg)) return c.json({ error: msg }, 400);
+    throw e;
+  }
 });
 
 // Update claim status
