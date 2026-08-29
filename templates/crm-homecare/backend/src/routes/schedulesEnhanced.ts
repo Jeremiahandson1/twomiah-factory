@@ -50,28 +50,59 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const body = await c.req.json()
 
-  // Check for conflicts: overlapping times for same caregiver on same day
-  const conflicts: any[] = []
-  if (body.caregiverId && body.startTime && body.endTime) {
-    const newStart = new Date(body.startTime)
-    const newEnd = new Date(body.endTime)
-
-    const existing = await db
-      .select()
-      .from(schedules)
-      .where(
-        and(
-          eq(schedules.caregiverId, body.caregiverId),
-          eq(schedules.isActive, true),
-          lte(schedules.startTime, newEnd),
-          gte(schedules.endTime, newStart),
-        )
-      )
-
-    conflicts.push(...existing)
+  // start_time/end_time are TIMESTAMP columns, but the client sends "HH:MM" plus
+  // a date (single) or dayOfWeek + effectiveDate (recurring). new Date("09:00") is
+  // Invalid, which crashed both the conflict query (toISOString) and the insert.
+  // Combine the wall-clock time with the schedule's date into a real datetime.
+  const baseDate = body.date || body.effectiveDate || body.anchorDate || new Date().toISOString().slice(0, 10)
+  const toTs = (t: unknown): Date | null => {
+    if (!t) return null
+    const str = String(t)
+    if (/^\d{4}-\d{2}-\d{2}T/.test(str)) { const d = new Date(str); return isNaN(d.getTime()) ? null : d }
+    const m = str.match(/^(\d{1,2}):(\d{2})/)
+    if (!m) return null
+    const d = new Date(`${baseDate}T${m[1].padStart(2, '0')}:${m[2]}:00`)
+    return isNaN(d.getTime()) ? null : d
   }
+  const startTs = toTs(body.startTime)
+  const endTs = toTs(body.endTime)
+  if (!body.caregiverId || !body.clientId) return c.json({ error: 'A caregiver and client are required.' }, 400)
+  if (!startTs || !endTs) return c.json({ error: 'A valid start and end time are required.' }, 400)
 
-  const [row] = await db.insert(schedules).values(body).returning()
+  // Conflict check with the normalized timestamps.
+  const existing = await db
+    .select()
+    .from(schedules)
+    .where(
+      and(
+        eq(schedules.caregiverId, body.caregiverId),
+        eq(schedules.isActive, true),
+        lte(schedules.startTime, endTs),
+        gte(schedules.endTime, startTs),
+      )
+    )
+  const conflicts = existing
+
+  // Insert only known columns; coerce empty strings to null (untouched optional
+  // inputs were posting "" into date/int/FK columns and 500ing — Cause C).
+  const clean = (v: unknown) => (v === '' || v === undefined ? null : v)
+  const [row] = await db.insert(schedules).values({
+    clientId: body.clientId,
+    caregiverId: body.caregiverId,
+    title: clean(body.title) as any,
+    startTime: startTs,
+    endTime: endTs,
+    frequency: body.frequency || 'weekly',
+    effectiveDate: clean(body.effectiveDate) as any,
+    anchorDate: clean(body.anchorDate) as any,
+    scheduleType: body.scheduleType || 'recurring',
+    isActive: true,
+    dayOfWeek: body.dayOfWeek === '' || body.dayOfWeek == null ? null : Number(body.dayOfWeek),
+    date: clean(body.date) as any,
+    notes: clean(body.notes) as any,
+    careTypeId: clean(body.careTypeId) as any,
+    status: body.status || 'active',
+  }).returning()
 
   return c.json({
     ...row,
