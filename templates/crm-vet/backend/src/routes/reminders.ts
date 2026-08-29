@@ -70,7 +70,9 @@ app.get('/lapsed', requirePermission('contacts:read'), async (c) => {
     .leftJoin(contact, eq(patient.ownerId, contact.id))
     .where(and(eq(patient.companyId, u.companyId), eq(patient.deceased, false)))
     .groupBy(patient.id, contact.id)
-    .having(sql`max(${visit.visitDate}) < ${cutoffIso} OR max(${visit.visitDate}) IS NULL`)
+    // "Lapsed" means they used to come and stopped — a patient who has NEVER visited is
+    // new, not lapsed. Dropping the "OR ... IS NULL" that swept newly-created pets in. (VET-17)
+    .having(sql`max(${visit.visitDate}) < ${cutoffIso}`)
 
   return c.json({ count: rows.length, months, data: rows })
 })
