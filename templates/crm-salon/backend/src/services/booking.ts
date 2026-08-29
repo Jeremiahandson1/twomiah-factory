@@ -163,6 +163,11 @@ export async function updateBookableService(serviceId: string, companyId: string
   }
 }
 
+// Remove a bookable service — the delete control 404'd; no route existed. (BOOK-06)
+export async function deleteBookableService(serviceId: string, companyId: string) {
+  await db.execute(sql`DELETE FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId}`);
+}
+
 // ============================================
 // AVAILABILITY
 // ============================================
@@ -581,6 +586,7 @@ export default {
   getBookableServices,
   createBookableService,
   updateBookableService,
+  deleteBookableService,
   getAvailableSlots,
   getAvailableDates,
   createBooking,

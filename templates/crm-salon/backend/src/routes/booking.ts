@@ -25,7 +25,9 @@ app.get('/public/:companySlug', async (c) => {
 
   const [settings, services] = await Promise.all([
     booking.getBookingSettings(found.id),
-    booking.getBookableServices(found.id),
+    // Public widget must only offer ACTIVE services — switching one off left it
+    // bookable because this passed no activeOnly flag. (BOOK-05)
+    booking.getBookableServices(found.id, true),
   ])
 
   if (!settings.enabled) return c.json({ error: 'Online booking is not enabled' }, 403)
@@ -165,6 +167,13 @@ app.put('/services/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   await booking.updateBookableService(id, user.companyId, body)
+  return c.json({ success: true })
+})
+
+// Delete a bookable service — the delete control 404'd; no route existed. (BOOK-06)
+app.delete('/services/:id', async (c) => {
+  const user = c.get('user') as any
+  await booking.deleteBookableService(c.req.param('id'), user.companyId)
   return c.json({ success: true })
 })
 
