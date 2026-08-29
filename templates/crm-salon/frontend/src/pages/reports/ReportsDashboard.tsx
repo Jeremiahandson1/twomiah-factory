@@ -159,36 +159,14 @@ export default function ReportsDashboard() {
           color="orange"
           alert={revenue.overdueCount > 0}
         />
-        <MetricCard
-          title="Jobs Completed"
-          value={jobs.completed}
-          subtitle={`${jobs.total} total jobs`}
-          icon={Briefcase}
-          color="blue"
-          trend={jobs.completionRate}
-          trendLabel="completion rate"
-        />
-        <MetricCard
-          title="Quote Conversion"
-          value={`${quotes.conversionRate}%`}
-          subtitle={`${quotes.approved} of ${quotes.total} approved`}
-          icon={FileText}
-          color="purple"
-        />
+        {/* A salon has no jobs or quotes — backend returns none; removed. (REPORT-05) */}
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Chart */}
+      {/* Charts Row — Job Status removed; a salon has no jobs. (REPORT-05) */}
+      <div className="grid grid-cols-1 gap-6">
         <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
           <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Revenue Trend</h3>
           <RevenueChart data={monthlyRevenue} />
-        </div>
-
-        {/* Job Status */}
-        <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
-          <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Job Status</h3>
-          <JobStatusChart jobs={jobs} />
         </div>
       </div>
 
@@ -285,28 +263,7 @@ export default function ReportsDashboard() {
         </div>
       </div>
 
-      {/* Project Summary */}
-      <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
-        <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Project Summary</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
-            <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{projects.total}</p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Total Projects</p>
-          </div>
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <p className="text-3xl font-bold text-green-600">{projects.active}</p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Active</p>
-          </div>
-          <div className="text-center p-4 bg-blue-50 rounded-lg">
-            <p className="text-3xl font-bold text-blue-600">{projects.completed}</p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Completed</p>
-          </div>
-          <div className="text-center p-4 bg-orange-50 rounded-lg">
-            <p className="text-3xl font-bold text-orange-600">${(projects.totalValue / 1000).toFixed(0)}k</p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Total Value</p>
-          </div>
-        </div>
-      </div>
+      {/* Project Summary removed — a salon has no projects. (REPORT-05) */}
     </div>
   );
 }

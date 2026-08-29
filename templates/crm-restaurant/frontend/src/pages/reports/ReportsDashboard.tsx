@@ -313,7 +313,8 @@ export default function ReportsDashboard() {
         </div>
       </div>
 
-      {/* Project Summary */}
+      {/* Project Summary — construction-only; hidden for an events venue. (F20/REPORT-05) */}
+      {!isEvents && (
       <div className="bg-white rounded-xl border p-6 dark:bg-slate-900">
         <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Project Summary</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -335,6 +336,7 @@ export default function ReportsDashboard() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
