@@ -4,6 +4,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import api from '../../services/api';
 import { FEATURE_CATEGORIES } from '../../data/features';
+
+// Internal deployment / sales SKUs — these are never features a tenant toggles for
+// themselves ("Source Code Access $9,997" appeared as a switch). Hide them. (VET-06)
+const INTERNAL_FEATURE_IDS = new Set(['self_hosted', 'white_label', 'source_code']);
 import { ArrowLeft } from 'lucide-react';
 
 // Self-serve feature toggles — brings the Settings "Features" card to life
@@ -89,7 +93,10 @@ export default function FeaturesSettingsPage() {
       </p>
 
       <div className="space-y-6">
-        {FEATURE_CATEGORIES.map((cat) => {
+        {FEATURE_CATEGORIES
+          .map((cat) => ({ ...cat, features: cat.features.filter((f) => !INTERNAL_FEATURE_IDS.has(f.id)) }))
+          .filter((cat) => cat.features.length > 0)
+          .map((cat) => {
           const onCount = cat.features.filter((f) => selected.has(f.id)).length;
           return (
             <div key={cat.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
