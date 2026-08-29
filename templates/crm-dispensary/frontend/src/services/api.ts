@@ -91,21 +91,29 @@ class ApiClient {
   }
 
   async refreshAccessToken() {
-    try {
-      const response = await fetchWithTimeout(`${this.baseUrl}/api/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: this.refreshToken }),
-      });
-      
-      if (!response.ok) return false;
-      
-      const data = await response.json();
-      this.setTokens(data.accessToken, data.refreshToken);
-      return true;
-    } catch {
-      return false;
-    }
+    // Single-flight: a page that fires several requests at once produces several
+    // 401s, each calling this. The server ROTATES the refresh token on use, so the
+    // second call presents a token the first already invalidated, fails, and logs
+    // the user out mid-session (F-02). Share one in-flight refresh across callers.
+    if (this.refreshPromise) return this.refreshPromise;
+    this.refreshPromise = (async () => {
+      try {
+        const response = await fetchWithTimeout(`${this.baseUrl}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: this.refreshToken }),
+        });
+        if (!response.ok) return false;
+        const data = await response.json();
+        this.setTokens(data.accessToken, data.refreshToken);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+    return this.refreshPromise;
   }
 
   // Auth
