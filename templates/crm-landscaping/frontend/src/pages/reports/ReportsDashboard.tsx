@@ -267,7 +267,7 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendLab
   };
 
   return (
-    <div className={`bg-white rounded-xl border p-5 ${alert ? 'border-orange-300' : ''}`}>
+    <div className={`bg-white dark:bg-slate-900 dark:border-slate-700 rounded-xl border p-5 ${alert ? 'border-orange-300' : ''}`}>
       <div className="flex items-start justify-between">
         <div className={`p-2 rounded-lg ${colors[color]}`}>
           <Icon className="w-5 h-5" />
