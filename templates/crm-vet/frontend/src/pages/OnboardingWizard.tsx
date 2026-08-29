@@ -48,54 +48,8 @@ const INTEGRATIONS: Integration[] = [
       'Choose which data to sync (invoices, expenses, or both)',
     ],
   },
-  {
-    id: 'jobber',
-    label: 'Jobber',
-    description: 'Import existing jobs, clients, and quotes from Jobber.',
-    category: 'accounting',
-    guideSteps: [
-      'Export your data from Jobber (Clients, Jobs, Quotes as CSV)',
-      'Go to Settings > Import in your CRM',
-      'Upload each CSV file and map the columns',
-      'Review the import preview and confirm',
-    ],
-  },
-  {
-    id: 'angi',
-    label: "Angi's List / HomeAdvisor",
-    description: 'Automatically pull leads from Angi into your CRM lead inbox.',
-    category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources in your CRM',
-      'Click "Connect Angi" and enter your Angi Pro account credentials',
-      'New leads will automatically flow into your Lead Inbox',
-      'Set up auto-reply templates to respond to leads instantly',
-    ],
-  },
-  {
-    id: 'thumbtack',
-    label: 'Thumbtack',
-    description: 'Pull Thumbtack leads directly into your CRM.',
-    category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources',
-      'Click "Connect Thumbtack" and authenticate with your Thumbtack Pro account',
-      'Configure which service categories to import leads from',
-      'Leads will appear in your Lead Inbox automatically',
-    ],
-  },
-  {
-    id: 'google_lsa',
-    label: 'Google Local Services',
-    description: 'Import Google LSA leads into your CRM automatically.',
-    category: 'lead_sources',
-    guideSteps: [
-      'Go to Settings > Integrations > Lead Sources',
-      'Click "Connect Google LSA" and sign in with your Google account',
-      'Authorize access to your Local Services Ads account',
-      'New LSA leads will appear in your Lead Inbox',
-    ],
-  },
+  // Jobber import + Angi/Thumbtack/Google-LSA lead sources removed — field-service
+  // concepts, not relevant integrations for this vertical. (FIT-01/F14)
   {
     id: 'stripe',
     label: 'Stripe Payments',
