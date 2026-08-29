@@ -8,13 +8,24 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
+// Never serialize provider secrets to the client (VET-41 / F-26): GET & PUT /api/company
+// returned the whole company row — including the Twilio auth token, account SID and Stripe
+// customer id — to any authenticated user, regardless of role.
+const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword'] as const
+function sanitizeCompany<T extends Record<string, any>>(row: T): T {
+  if (!row) return row
+  const clone: any = { ...row }
+  for (const f of COMPANY_SECRETS) delete clone[f]
+  return clone
+}
+
 app.use('*', authenticate)
 
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const [result] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(result)
+  return c.json(sanitizeCompany(result))
 })
 
 app.put('/', requireAdmin, async (c) => {
@@ -27,7 +38,7 @@ app.put('/', requireAdmin, async (c) => {
   const data = schema.parse(body)
   const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(result)
+  return c.json(sanitizeCompany(result))
 })
 
 app.put('/features', requireAdmin, async (c) => {
@@ -43,7 +54,7 @@ app.put('/features', requireAdmin, async (c) => {
   }
   const [result] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(result)
+  return c.json(sanitizeCompany(result))
 })
 
 // User management (roster carries emails/roles) — require team:read.

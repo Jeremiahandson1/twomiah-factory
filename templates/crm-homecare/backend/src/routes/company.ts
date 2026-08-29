@@ -8,10 +8,21 @@ import { requirePermission } from '../middleware/permissions.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Never serialize provider secrets to the client (VET-41 / F-26 pattern): GET & PUT
+// /api/company returned the whole agency row — Twilio auth token, account SID, Stripe
+// customer id — to any authenticated user. PHI app, so this matters more here.
+const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword'] as const
+function sanitizeCompany<T extends Record<string, any>>(row: T): T {
+  if (!row) return row
+  const clone: any = { ...row }
+  for (const f of COMPANY_SECRETS) delete clone[f]
+  return clone
+}
+
 // GET /
 app.get('/', async (c) => {
   const [agency] = await db.select().from(agencies).limit(1)
-  return c.json(agency || {})
+  return c.json(sanitizeCompany(agency || {}))
 })
 
 // PUT /
@@ -31,7 +42,7 @@ app.put('/', requireAdmin, async (c) => {
     ;[agency] = await db.insert(agencies).values({ ...body, slug }).returning()
   }
 
-  return c.json(agency)
+  return c.json(sanitizeCompany(agency))
 })
 
 // PUT /features — self-serve feature toggles (Settings → Features).
@@ -52,7 +63,7 @@ app.put('/features', requireAdmin, async (c) => {
     .set({ enabledFeatures: features, settings: { ...settings, enabledFeatures: features }, updatedAt: new Date() })
     .where(eq(agencies.id, existing.id))
     .returning()
-  return c.json(agency)
+  return c.json(sanitizeCompany(agency))
 })
 
 // GET /users - User management (all staff)

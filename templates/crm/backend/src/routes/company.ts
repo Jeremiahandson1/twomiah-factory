@@ -15,7 +15,7 @@ app.use('*', authenticate)
 // row we return — it's write-only from the client's point of view. The account
 // SID and stripe customer id are identifiers, not secrets, so they stay.
 const sanitizeCompany = <T extends Record<string, any>>(row: T): Omit<T, 'twilioAuthToken'> => {
-  const { twilioAuthToken, ...safe } = row
+  const { twilioAuthToken, twilioAccountSid, stripeCustomerId, sendgridApiKey, smtpPassword, ...safe } = row
   return safe
 }
 
