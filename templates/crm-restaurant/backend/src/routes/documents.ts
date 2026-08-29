@@ -51,7 +51,9 @@ app.get('/', async (c) => {
   ])
 
   return c.json({
-    data: documents,
+    // Flatten the joined row: the client reads name/type/size/uploadedAt off the
+    // top level, so a nested { document: {...} } rendered every row blank.
+    data: documents.map((d: any) => { const { document: doc, ...rest } = d; return { ...doc, ...rest }; }),
     pagination: {
       page: pageNum,
       limit: limitNum,
