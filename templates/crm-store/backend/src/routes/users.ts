@@ -127,6 +127,9 @@ app.put('/:id', requireOwner, async (c) => {
   const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
   const data = parsed.data
+  // Only name/isActive are editable — role escalation is deliberately ignored. But a body
+  // with just {role} left data empty, and an empty UPDATE SET 500'd. Return a clean 400. (BUG-10)
+  if (Object.keys(data).length === 0) return c.json({ error: 'No editable changes provided (roles are managed separately).' }, 400)
 
   const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1)
   if (!target) return c.json({ error: 'User not found' }, 404)
