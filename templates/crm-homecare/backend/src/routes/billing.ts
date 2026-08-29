@@ -425,33 +425,46 @@ app.post('/invoices/manual', async (c) => {
   const [client] = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1)
   if (!client) return c.json({ error: 'Client not found' }, 404)
 
+  // Each line item needs a caregiver (the column is NOT NULL). This was optional in the
+  // form, so a blank caregiver 500'd the line-item insert AFTER the invoice header was
+  // already committed — leaving orphaned $0 PENDING invoices on every retry. (C-18)
+  if (lineItemsInput.some((li: any) => !li.caregiverId)) {
+    return c.json({ error: 'Each line item needs a caregiver.' }, 400)
+  }
+
   const subtotal = lineItemsInput.reduce((sum: number, li: any) => sum + parseFloat(li.amount || 0), 0)
   const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}-${clientId.slice(0, 4).toUpperCase()}`
 
   const dueDate = new Date(billingPeriodEnd)
   dueDate.setDate(dueDate.getDate() + 30)
 
-  const [invoice] = await db.insert(invoices).values({
-    invoiceNumber,
-    clientId,
-    billingPeriodStart,
-    billingPeriodEnd,
-    subtotal: String(subtotal),
-    total: String(subtotal),
-    paymentDueDate: dueDate.toISOString().split('T')[0],
-    notes,
-  }).returning()
+  // Header + line items must commit together — otherwise a line-item failure orphans
+  // the header. (C-18)
+  const { invoice, createdLineItems } = await db.transaction(async (tx) => {
+    const [invoice] = await tx.insert(invoices).values({
+      invoiceNumber,
+      clientId,
+      billingPeriodStart,
+      billingPeriodEnd,
+      subtotal: String(subtotal),
+      total: String(subtotal),
+      paymentDueDate: dueDate.toISOString().split('T')[0],
+      notes,
+    }).returning()
 
-  const createdLineItems = await db.insert(invoiceLineItems)
-    .values(lineItemsInput.map((li: any) => ({
-      invoiceId: invoice.id,
-      caregiverId: li.caregiverId || null,
-      description: li.description || 'Home Care Services',
-      hours: String(li.hours || 0),
-      rate: String(li.rate || 0),
-      amount: String(li.amount || 0),
-    })))
-    .returning()
+    const createdLineItems = await tx.insert(invoiceLineItems)
+      .values(lineItemsInput.map((li: any) => ({
+        invoiceId: invoice.id,
+        caregiverId: li.caregiverId,
+        description: li.description || 'Home Care Services',
+        hours: String(li.hours || 0),
+        rate: String(li.rate || 0),
+        amount: String(li.amount || 0),
+      })))
+      .returning()
+
+    return { invoice, createdLineItems }
+  })
 
   return c.json({
     ...invoice,

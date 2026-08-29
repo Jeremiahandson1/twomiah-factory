@@ -682,9 +682,10 @@ const PayrollProcessing = () => {
             </button>
           </div>
 
-          {discrepancies && (
+          {discrepancies?.totals && (
             <>
-              {/* Summary */}
+              {/* Summary — guard on .totals: discrepancies could load without it and
+                  reading discrepancies.totals.totalShifts crashed the whole tab. (C-19) */}
               <div style={{ display:'flex', gap:'0.75rem', marginBottom:'1rem', flexWrap:'wrap' }}>
                 {[
                   { label:'Shifts with Discrepancies', val: discrepancies.totals.totalShifts, color:'#6366F1' },
