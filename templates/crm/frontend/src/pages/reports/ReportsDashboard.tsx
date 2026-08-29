@@ -342,6 +342,9 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendLab
         )}
       </div>
       <div className="mt-3">
+        {/* The title prop was passed but never rendered, so every KPI card showed a
+            bare number with no heading — "collection rate" read as the metric label. */}
+        <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{title}</p>
         <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{value}</p>
         <p className="text-sm text-gray-500 dark:text-slate-400">{subtitle}</p>
         {trendLabel && <p className="text-xs text-gray-400 mt-1">{trendLabel}</p>}
