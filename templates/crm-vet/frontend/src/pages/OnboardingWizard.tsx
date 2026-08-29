@@ -163,6 +163,9 @@ export default function OnboardingWizard() {
   const { company, updateCompany } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  // Step 1 validated nothing and the final save error was swallowed to the console, so a
+  // blank name / bad email advanced and then silently discarded every edit. (VET-09/ONB-01/02)
+  const [stepError, setStepError] = useState<string | null>(null);
 
   // Company profile form state — pre-filled from factory data
   const [profile, setProfile] = useState({
@@ -216,6 +219,18 @@ export default function OnboardingWizard() {
     if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
   };
 
+  // Validate the company details before leaving step 1 — a blank name or malformed
+  // email otherwise poisons the final save (server 400) and loses everything. (VET-09/ONB-01)
+  const handleVerifyNext = () => {
+    const name = (profile.name || '').trim();
+    if (!name) { setStepError('Please enter your business name.'); return; }
+    if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email.trim())) {
+      setStepError('Please enter a valid email address (or leave it blank).'); return;
+    }
+    setStepError(null);
+    handleNext();
+  };
+
   const handleBack = () => {
     if (currentStep > 0) setCurrentStep(prev => prev - 1);
   };
@@ -245,6 +260,8 @@ export default function OnboardingWizard() {
       navigate('/crm', { replace: true });
     } catch (err) {
       console.error('Failed to complete onboarding:', err);
+      // Surface it instead of stranding the user on a dead button. (VET-09)
+      setStepError((err as any)?.message || 'Could not save your details — check the fields and try again.');
     } finally {
       setSaving(false);
     }
@@ -318,6 +335,7 @@ export default function OnboardingWizard() {
       {/* Navigation — hidden on the Branded Email step, which ships its own Back/Save controls */}
       {currentStep !== 2 && (
       <div className="border-t dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4">
+        {stepError && <div className="max-w-2xl mx-auto mb-3 text-sm text-red-600 dark:text-red-400">{stepError}</div>}
         <div className="max-w-2xl mx-auto flex justify-between">
           {currentStep > 0 ? (
             <button onClick={handleBack} className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
@@ -336,7 +354,7 @@ export default function OnboardingWizard() {
             )}
 
             {currentStep < STEPS.length - 1 ? (
-              <button onClick={handleNext} className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors shadow-sm">
+              <button onClick={currentStep === 0 ? handleVerifyNext : handleNext} className="flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors shadow-sm">
                 {currentStep === 0 ? 'Looks Good' : 'Continue'} <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
