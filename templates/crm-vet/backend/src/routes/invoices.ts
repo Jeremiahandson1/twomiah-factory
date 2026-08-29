@@ -126,6 +126,9 @@ app.get('/:id', requirePermission('invoices:read'), async (c) => {
 app.post('/', requirePermission('invoices:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = invoiceSchema.parse(await c.req.json())
+  // An invoice with no client saved and even accepted payment, counting toward revenue
+  // with "—" as the client. Require a client on create. (VET-18)
+  if (!data.contactId) return c.json({ error: 'A client is required to create an invoice.' }, 400)
   const { lineItems, ...invoiceData } = data
   const totals = calcTotals(lineItems, data.taxRate, data.discount)
 
