@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useMemo, type ReactNode } from 'react'
+import { createContext, useContext, useState, useMemo, useEffect, type ReactNode } from 'react'
 
 interface ToastAPI {
   (msg: string, type?: 'success' | 'error' | 'info'): void
@@ -25,6 +25,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     fn.info = (msg: string) => fn(msg, 'info')
     return fn
   }, [])
+
+  // Route legacy window.alert() through the in-app toast instead of a blocking native popup.
+  useEffect(() => {
+    const original = window.alert
+    window.alert = (message?: any) => {
+      const m = message == null ? '' : String(message)
+      const isError = /fail|error|invalid|unable|cannot|can.t|denied|wrong|not found|required|must /i.test(m)
+      toast(m, isError ? 'error' : 'info')
+    }
+    return () => { window.alert = original }
+  }, [toast])
 
   return (
     <ToastContext.Provider value={toast}>
