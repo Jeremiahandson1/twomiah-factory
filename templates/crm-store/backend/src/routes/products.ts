@@ -15,7 +15,13 @@ function slugify(s: string) {
 
 // ── Products ─────────────────────────────────────────────────────────────────
 admin.get('/', async (c) => {
-  const rows = await db.select().from(products).orderBy(asc(products.position), desc(products.createdAt))
+  // Honor ?limit / ?page when supplied — they were accepted and ignored, so the whole
+  // catalog came back regardless. No params still returns everything (admin grid). (BUG-12)
+  const limitRaw = c.req.query('limit')
+  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw) || 0, 1), 200) : undefined
+  const page = Math.max(parseInt(c.req.query('page') || '1') || 1, 1)
+  const base = db.select().from(products).orderBy(asc(products.position), desc(products.createdAt))
+  const rows = limit !== undefined ? await base.limit(limit).offset((page - 1) * limit) : await base
   const ids = rows.map((r) => r.id)
   const [imgs, vars] = ids.length ? await Promise.all([
     db.select().from(productImages).where(inArray(productImages.productId, ids)).orderBy(asc(productImages.position)),
@@ -120,8 +126,22 @@ admin.delete('/variants/:variantId', async (c) => {
 })
 
 // ── Images (by URL — upload comes in Phase 2) ────────────────────────────────
+// A pasted image URL must be a public https URL — the old z.string().url() accepted
+// javascript: (stored-XSS) and http://169.254.169.254/ (SSRF to cloud metadata). (BUG-05)
+const safeImageUrl = z.string().url().refine((u) => {
+  let parsed: URL
+  try { parsed = new URL(u) } catch { return false }
+  if (parsed.protocol !== 'https:') return false
+  const host = parsed.hostname.toLowerCase()
+  if (host === 'localhost' || host.endsWith('.localhost')) return false
+  // block loopback / private / link-local / metadata ranges
+  if (/^(0\.|127\.|10\.|169\.254\.|192\.168\.)/.test(host)) return false
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false
+  return true
+}, 'Image URL must be a public https:// address')
+
 const imageSchema = z.object({
-  url: z.string().url(),
+  url: safeImageUrl,
   alt: z.string().optional().nullable(),
   position: z.number().int().optional(),
   isPrimary: z.boolean().optional(),
