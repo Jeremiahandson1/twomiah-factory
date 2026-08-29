@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { teamMember } from '../../db/schema.ts'
+import { teamMember, user as userTable } from '../../db/schema.ts'
 import { eq, and, count, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission, requireRole } from '../middleware/permissions.ts'
@@ -26,6 +26,34 @@ app.get('/', requirePermission('team:read'), async (c) => {
     db.select().from(teamMember).where(where).orderBy(asc(teamMember.name)).offset((pageNum - 1) * limitNum).limit(limitNum),
     db.select({ value: count() }).from(teamMember).where(where),
   ])
+
+  // F-14: real staff (the owner + provisioned logins) live in the user table, not
+  // teamMember — a freshly provisioned tenant has an empty teamMember roster, so the
+  // Team page read "No data" even though people exist and are pickable as staff.
+  // When there are no team_member rows, list the login accounts instead, marked
+  // _source:'user' so the UI can present them read-only (edit/delete target the
+  // teamMember table). Once a real team member is added, that roster takes over.
+  if (Number(total) === 0) {
+    const uConds: any[] = [eq(userTable.companyId, user.companyId)]
+    if (active !== undefined) uConds.push(eq(userTable.isActive, active === 'true'))
+    const users = await db.select({
+      id: userTable.id, firstName: userTable.firstName, lastName: userTable.lastName,
+      email: userTable.email, phone: userTable.phone, role: userTable.role, isActive: userTable.isActive,
+    }).from(userTable).where(and(...uConds)).orderBy(asc(userTable.firstName))
+    const mapped = users.map((u) => ({
+      id: u.id,
+      name: `${u.firstName} ${u.lastName}`.trim(),
+      email: u.email,
+      phone: u.phone,
+      role: u.role,
+      department: null,
+      hireDate: null,
+      hourlyRate: null,
+      active: u.isActive,
+      _source: 'user' as const,
+    }))
+    return c.json({ data: mapped, pagination: { page: 1, limit: limitNum, total: mapped.length, pages: 1 } })
+  }
 
   return c.json({ data, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } })
 })
