@@ -57,13 +57,15 @@ app.post('/', async (c) => {
       entityType: body.entityType,
       entityId: body.entityId,
       logType: body.logType || 'note',
-      direction: body.direction,
-      subject: body.subject,
+      direction: body.direction || null,
+      subject: body.subject || null,
       body: body.body,
       loggedById: user.userId,
       loggedByName: user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.name || null,
-      clientId: body.clientId,
-      followUpDate: body.followUpDate,
+      // Blank optional fields arrive as "" — an empty string into a date/uuid column
+      // 500s. Treat blank as null so a note without a follow-up saves. (C-06)
+      clientId: body.clientId || null,
+      followUpDate: body.followUpDate || null,
       followUpDone: body.followUpDone || false,
       isPinned: body.isPinned || false,
     })

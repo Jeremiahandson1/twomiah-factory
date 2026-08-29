@@ -128,10 +128,22 @@ app.get('/caregiver/:id', async (c) => {
 app.post('/', async (c) => {
   try {
     const body = await c.req.json()
-    const [row] = await db.insert(backgroundChecks).values(body).returning()
+    // Blank optional fields arrive as "" — an empty string into a numeric column
+    // ("cost") throws `invalid input syntax for type numeric` and 500s. Coerce blanks
+    // to null so a check without a cost saves. (H-10)
+    const clean: any = {}
+    for (const [k, v] of Object.entries(body)) clean[k] = (v === '' ? null : v)
+    const [row] = await db.insert(backgroundChecks).values(clean).returning()
     return c.json(stripSensitive(row), 201)
   } catch (error: any) {
-    return c.json({ error: error.message }, 500)
+    // Bad input (empty string, bad number/date) is a 400, not a raw 500 with the
+    // Postgres error text. Genuine server faults still surface via the code check.
+    const pgCode = error?.code || error?.cause?.code
+    if (pgCode === '23502') return c.json({ error: 'A required field is missing.' }, 400)
+    if (typeof pgCode === 'string' && ['22P02', '22007', '22008', '23503', '23514'].includes(pgCode)) {
+      return c.json({ error: 'One of the values is not valid for its field.' }, 400)
+    }
+    return c.json({ error: 'Could not save the background check.' }, 500)
   }
 })
 

@@ -67,11 +67,19 @@ app.get('/', async (c) => {
 function normalizeAuth(body: any) {
   const v = { ...body }
   if (body.authNumber == null && body.authorizationNumber != null) v.authNumber = body.authorizationNumber
-  if (body.unitsAuthorized == null && body.authorizedUnits != null) v.unitsAuthorized = body.authorizedUnits
+  // The DB column is `authorizedUnits` (NOT NULL). This mapping was backwards — it
+  // renamed the value to `unitsAuthorized` (not a column) and deleted authorizedUnits,
+  // so every insert dropped the required column and 500'd. Accept either spelling and
+  // land it on the real column. (C-04)
+  if (body.authorizedUnits == null && body.unitsAuthorized != null) v.authorizedUnits = body.unitsAuthorized
   if (body.payerId == null && body.referralSourceId != null) v.payerId = body.referralSourceId
   delete v.authorizationNumber
-  delete v.authorizedUnits
+  delete v.unitsAuthorized
   delete v.referralSourceId
+  // Blank optionals arrive as "" — an empty string into a uuid FK / typed column 500s.
+  for (const k of ['payerId', 'procedureCode', 'modifier', 'notes', 'authNumber', 'midasAuthId', 'unitType']) {
+    if (v[k] === '') delete v[k]
+  }
   return v
 }
 

@@ -69,13 +69,15 @@ app.post('/', async (c) => {
     .insert(incidents)
     .values({
       clientId: body.clientId,
-      caregiverId: body.caregiverId,
+      // Optional FK/text: the form posts "" when left blank, which crashes the
+      // insert (empty string into a uuid FK column → 500). Treat blank as absent. (C-05)
+      caregiverId: body.caregiverId || null,
       incidentType: body.incidentType,
       severity: body.severity || 'low',
       date: date,
       description: body.description,
-      involvedParties: body.involvedParties,
-      actionTaken: body.actionTaken,
+      involvedParties: body.involvedParties || null,
+      actionTaken: body.actionTaken || null,
       investigationStatus: body.investigationStatus || 'open',
       reportedById: user.userId,
     })
