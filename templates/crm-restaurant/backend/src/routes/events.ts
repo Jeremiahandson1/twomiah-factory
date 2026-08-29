@@ -33,6 +33,17 @@ app.use('*', authenticate)
 
 const HELD = ['tentative', 'confirmed', 'completed']
 
+// Server-side event validation — the API accepted end-before-start, negative and
+// absurd guest counts, and persisted them (only the widget validated). (F5)
+function eventValidationError(gc: any, gcf: any, start: any, end: any): string | null {
+  const n = (v: any) => (v === '' || v == null ? null : Number(v))
+  const g = n(gc), gf = n(gcf)
+  if (g != null && (isNaN(g) || g < 0 || g > 1000000)) return 'Guest count must be between 0 and 1,000,000.'
+  if (gf != null && (isNaN(gf) || gf < 0 || gf > 1000000)) return 'Final guest count must be between 0 and 1,000,000.'
+  if (start && end && String(end) <= String(start)) return 'End time must be after the start time.'
+  return null
+}
+
 async function findClash(companyId: string, spaceId: string, eventDate: string, ignoreId?: string) {
   const rows = await db.select().from(event)
     .where(and(
@@ -153,6 +164,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     return c.json({ error: 'eventDate is required as YYYY-MM-DD' }, 400)
   }
 
+  const vErr = eventValidationError(body.guestCount, body.guestCountFinal, body.startTime, body.endTime)
+  if (vErr) return c.json({ error: vErr }, 400)
+
   const status = body.status || 'enquiry'
   if (body.spaceId && HELD.includes(status)) {
     const clash = await findClash(currentUser.companyId, body.spaceId, body.eventDate)
@@ -206,6 +220,16 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   if (updates.eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(updates.eventDate)) {
     return c.json({ error: 'eventDate must be YYYY-MM-DD' }, 400)
   }
+
+  // Validate against the effective values (incoming update falling back to existing),
+  // so editing just one of start/end still re-checks the pair. (F5)
+  const vErr = eventValidationError(
+    'guestCount' in updates ? updates.guestCount : existing.guestCount,
+    'guestCountFinal' in updates ? updates.guestCountFinal : existing.guestCountFinal,
+    'startTime' in updates ? updates.startTime : existing.startTime,
+    'endTime' in updates ? updates.endTime : existing.endTime,
+  )
+  if (vErr) return c.json({ error: vErr }, 400)
 
   // Moving the date, changing the room, or promoting an enquiry to tentative
   // can all create a double-book, so re-check on any of them.
