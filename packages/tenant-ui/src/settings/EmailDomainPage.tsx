@@ -39,9 +39,15 @@ export function EmailDomainPage(): React.ReactElement {
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/email-domain/status', { headers: authHeaders() })
-      if (!res.ok) throw new Error('Status check failed: ' + res.status)
-      const data = await res.json()
-      setStatus(data)
+      // No domain endpoint / none configured yet reads as "unconfigured", not a red
+      // "Status check failed: 404" error banner above the friendly empty state. (BUG-06)
+      if (res.status === 404) {
+        setStatus({ status: 'unconfigured' })
+      } else if (!res.ok) {
+        throw new Error('Status check failed: ' + res.status)
+      } else {
+        setStatus(await res.json())
+      }
     } catch (err: any) { setError(err.message) }
     setLoading(false)
   }
