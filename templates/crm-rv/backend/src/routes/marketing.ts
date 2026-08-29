@@ -93,8 +93,13 @@ app.put('/campaigns/:id', requirePermission('marketing:update'), async (c) => {
 app.post('/campaigns/:id/send', requirePermission('marketing:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
-  const result = await marketing.sendCampaign(id, user.companyId)
-  return c.json(result)
+  try {
+    const result = await marketing.sendCampaign(id, user.companyId)
+    return c.json(result)
+  } catch (e: any) {
+    // Empty-audience / all-failed sends throw — report the truth as a 400, not a 500.
+    return c.json({ error: e?.message || 'Unable to send campaign' }, 400)
+  }
 })
 
 app.post('/campaigns/:id/schedule', requirePermission('marketing:update'), async (c) => {

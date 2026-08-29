@@ -220,6 +220,12 @@ export async function sendCampaign(campaignId: string, companyId: string) {
   // Send to the audience the campaign was built for — not to everyone.
   const contacts = await getAudienceContacts(companyId, campaignRow.audienceType, campaignRow.audienceFilter)
 
+  // Delivery truth (SEND-02): an empty audience is not a successful send. Refuse it
+  // loudly instead of flipping the campaign to "sent" with recipientCount 0.
+  if (contacts.length === 0) {
+    throw new Error('This campaign has no deliverable recipients. Add contacts with email addresses to the selected audience, then send.')
+  }
+
   await db.update(campaign)
     .set({ status: 'sending', sentAt: new Date(), recipientCount: contacts.length })
     .where(eq(campaign.id, campaignId))
@@ -279,11 +285,14 @@ export async function sendCampaign(campaignId: string, companyId: string) {
     }
   }
 
+  // Delivery truth (SEND-01/02): if every send failed, the campaign did NOT go out —
+  // don't record it as "sent". Surface the failed count so the UI can tell the truth.
+  const finalStatus = sentCount === 0 ? 'failed' : 'sent'
   await db.update(campaign)
-    .set({ status: 'sent', recipientCount: sentCount })
+    .set({ status: finalStatus, recipientCount: sentCount })
     .where(eq(campaign.id, campaignId))
 
-  return { sent: sentCount, audience: contacts.length }
+  return { sent: sentCount, audience: contacts.length, failed: contacts.length - sentCount, status: finalStatus }
 }
 
 /**
