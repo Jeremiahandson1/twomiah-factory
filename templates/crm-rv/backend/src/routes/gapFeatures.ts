@@ -45,8 +45,17 @@ bookingRoutes.get('/public/:slug/slots', async (c) => {
 bookingRoutes.post('/public/:slug', async (c) => {
   const slug = c.req.param('slug')
   const body = await c.req.json()
-  const result = await booking.createBooking(slug, body)
-  return c.json(result, 201)
+  // Ordinary rejections (slot taken, closed day, outside hours, past date) throw
+  // in the service; return them as a clean 4xx to the customer instead of a raw
+  // 500 "Internal server error" (BOOK-03).
+  try {
+    const result = await booking.createBooking(slug, body)
+    return c.json(result, 201)
+  } catch (e: any) {
+    const msg = e?.message || 'Sorry, that booking could not be completed.'
+    if (/not found/i.test(msg)) return c.json({ error: msg }, 404)
+    return c.json({ error: msg }, 400)
+  }
 })
 
 // ADMIN (authenticated)

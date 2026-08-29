@@ -379,6 +379,16 @@ export async function createBooking(companyId: string, data: {
     phone, address, city, state, zip, notes,
   } = data;
 
+  // The /dates helper only offers future working days, but a direct POST can send
+  // any date — reject anything before today so bookings can't be injected in the
+  // past (BOOK-04). Basic shape check too, so a bad date doesn't crash later.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || !/^\d{2}:\d{2}/.test(String(time || ''))) {
+    throw new Error('A valid date and time are required.');
+  }
+  if (String(date) < new Date().toISOString().slice(0, 10)) {
+    throw new Error('That date is in the past.');
+  }
+
   // Validate slot availability
   const slots = await getAvailableSlots(companyId, date, serviceId);
   const slot = slots.find(s => s.time === time);
