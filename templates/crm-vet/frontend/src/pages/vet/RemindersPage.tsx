@@ -39,7 +39,11 @@ interface LapsedRow {
 
 function fmtDate(s?: string): string {
   if (!s) return '—';
-  const d = new Date(s);
+  // Date-only / midnight-UTC values must render at local midnight, or a negative
+  // UTC offset shows the previous day (VET-03). Datetimes render as-is.
+  const str = String(s);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
