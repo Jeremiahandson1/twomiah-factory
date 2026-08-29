@@ -121,10 +121,12 @@ export default function CustomerPortal() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {[
-              { label: 'Contacts', value: stats.contactCount || 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: stats.openJobCount || stats.jobCount || 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: stats.pendingQuoteCount || 0, icon: FileText, color: 'amber' },
-              { label: 'Revenue (MTD)', value: `$${(stats.monthlyRevenue || 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              // /api/dashboard/stats returns { contacts, jobs:{total}, quotes:{pending}, invoices:{totalValue} };
+              // the old keys (contactCount/openJobCount/…) never existed, so every tile read 0.
+              { label: 'Contacts', value: (stats as any).contacts ?? 0, icon: Users, color: 'blue' },
+              { label: 'Open Jobs', value: (stats as any).jobs?.total ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Pending Quotes', value: (stats as any).quotes?.pending ?? 0, icon: FileText, color: 'amber' },
+              { label: 'Total Invoiced', value: `${Number((stats as any).invoices?.totalValue ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>

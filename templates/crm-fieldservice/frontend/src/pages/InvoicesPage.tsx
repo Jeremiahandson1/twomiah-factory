@@ -45,7 +45,9 @@ export default function InvoicesPage() {
       const params = { page, limit: 25 };
       if (statusFilter) params.status = statusFilter;
       const [res, contRes] = await Promise.all([api.invoices.list(params), api.contacts.list({ limit: 100 })]);
-      setData(res.data);
+      // API sends total + amountPaid but no balance; compute it so the list/payment
+      // dialog stop reading undefined (which rendered every unpaid invoice as "Paid").
+      setData((res.data as any[]).map((inv: any) => ({ ...inv, balance: inv.balance != null ? Number(inv.balance) : Number(inv.total || 0) - Number(inv.amountPaid || 0) })));
       setPagination(res.pagination);
       setContacts(contRes.data);
     } catch (err) { toast.error('Failed to load invoices'); }
