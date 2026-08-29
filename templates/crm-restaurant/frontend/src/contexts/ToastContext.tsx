@@ -1,5 +1,5 @@
 import React from 'react';
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import type { Toast, ToastType, ToastActions } from '../types';
 
@@ -45,6 +45,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const removeToast = useCallback((id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
+
+  // Route legacy window.alert() calls through the in-app toast instead of a blocking,
+  // unstyled native popup (which also leaked the Render hostname). Most existing alerts
+  // are failure messages, so colour them as errors unless they read like info. confirm()
+  // stays native for now — it needs a synchronous boolean a toast can't return.
+  useEffect(() => {
+    const original = window.alert;
+    window.alert = (message?: any) => {
+      const msg = message == null ? '' : String(message);
+      const isError = /fail|error|invalid|unable|cannot|can.t|denied|wrong|not found|required|must /i.test(msg);
+      addToast(msg, isError ? 'error' : 'info');
+    };
+    return () => { window.alert = original; };
+  }, [addToast]);
 
   const toast: ToastActions = {
     success: (msg: string, duration?: number) => addToast(msg, 'success', duration),
