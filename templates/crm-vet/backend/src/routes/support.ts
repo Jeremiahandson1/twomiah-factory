@@ -202,6 +202,18 @@ app.patch('/tickets/:id', async (c) => {
   return c.json(ticket);
 });
 
+// DELETE /support/tickets/:id — no delete route existed (delete control 404'd). (VET-40)
+app.delete('/tickets/:id', async (c) => {
+  const u = c.get('user') as any;
+  const id = c.req.param('id');
+  const [ticket] = await db.select({ id: supportTicket.id }).from(supportTicket)
+    .where(and(eq(supportTicket.id, id), eq(supportTicket.companyId, u.companyId))).limit(1);
+  if (!ticket) return c.json({ error: 'Ticket not found' }, 404);
+  await db.delete(supportTicketMessage).where(eq(supportTicketMessage.ticketId, id));
+  await db.delete(supportTicket).where(and(eq(supportTicket.id, id), eq(supportTicket.companyId, u.companyId)));
+  return c.json({ success: true });
+});
+
 // POST /support/tickets/:id/rate
 app.post('/tickets/:id/rate', async (c) => {
   const u = c.get('user') as any;
