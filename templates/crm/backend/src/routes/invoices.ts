@@ -6,6 +6,7 @@ import { eq, and, count, desc, asc, lt, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import emailService from '../services/email.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -240,8 +241,39 @@ app.post('/:id/send', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  const [found] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
+  if (!found) return c.json({ error: 'Invoice not found' }, 404)
+
+  // Delivery truth (SEND-01): this used to flip the invoice to "sent" without ever
+  // emailing anyone — an invoice to a missing/undeliverable address still showed
+  // "Sent". Require a real recipient, actually send, and only record sent on success.
+  let recipientEmail: string | null = null
+  let contactName = 'there'
+  if (found.contactId) {
+    const [ct] = await db.select().from(contact).where(eq(contact.id, found.contactId)).limit(1)
+    if (ct) { recipientEmail = ct.email || null; contactName = ct.name || contactName }
+  }
+  if (!recipientEmail) {
+    return c.json({ error: 'This invoice has no contact email address to send to. Add an email to the contact first.' }, 400)
+  }
+
+  const [co] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const balance = Number(found.total) - Number(found.amountPaid || 0)
+  try {
+    await emailService.sendInvoice(recipientEmail, {
+      invoiceNumber: found.number,
+      companyName: co?.name || 'Your provider',
+      companyEmail: co?.email || '',
+      contactName,
+      total: found.total,
+      balance,
+      dueDate: found.dueDate ? new Date(found.dueDate as any).toLocaleDateString() : 'Upon receipt',
+    })
+  } catch (err: any) {
+    return c.json({ error: `Could not send the invoice email: ${err?.message || 'delivery failed'}. It was not marked as sent.` }, 502)
+  }
+
   const [updated] = await db.update(invoice).set({ status: 'sent', sentAt: new Date(), updatedAt: new Date() }).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).returning()
-  if (!updated) return c.json({ error: 'Invoice not found' }, 404)
   emitToCompany(currentUser.companyId, EVENTS.INVOICE_SENT, { id: updated.id, number: updated.number })
   return c.json(updated)
 })
