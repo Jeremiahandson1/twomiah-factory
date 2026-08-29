@@ -46,6 +46,17 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
 
+  if (!body.planId || !body.patientId) return c.json({ error: 'planId and patientId are required' }, 400)
+  // A patient could be enrolled in the same plan twice (double monthly charge). Block it. (VET-25)
+  const [dupe] = await db.select({ id: wellnessEnrollment.id }).from(wellnessEnrollment)
+    .where(and(
+      eq(wellnessEnrollment.companyId, currentUser.companyId),
+      eq(wellnessEnrollment.patientId, body.patientId),
+      eq(wellnessEnrollment.planId, body.planId),
+      eq(wellnessEnrollment.status, 'active'),
+    )).limit(1)
+  if (dupe) return c.json({ error: 'This patient is already enrolled in that plan.' }, 409)
+
   const [created] = await db.insert(wellnessEnrollment).values({
     id: createId(),
     planId: body.planId,
@@ -53,7 +64,8 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
     ownerId: body.ownerId || null,
     status: body.status || 'active',
     billingCycle: body.billingCycle || 'monthly',
-    startDate: body.startDate || null,
+    // Default the start date so enrolments don't show "—". (VET-25)
+    startDate: body.startDate || new Date().toISOString().slice(0, 10),
     renewsAt: body.renewsAt || null,
     cancelledAt: body.cancelledAt ? new Date(body.cancelledAt) : null,
     companyId: currentUser.companyId,
