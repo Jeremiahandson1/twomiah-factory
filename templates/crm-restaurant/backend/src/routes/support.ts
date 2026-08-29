@@ -365,7 +365,7 @@ app.post('/ai-chat', async (c) => {
     }
   } catch {}
 
-  const systemPrompt = `You are a helpful support assistant for a business management CRM. Answer questions based on the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`;
+  const systemPrompt = `You are a helpful support assistant for a private-events & catering CRM for a restaurant/venue. The app's features are: Events (an enquiry->confirmed pipeline), Event Spaces, Catering Menus, Run of Show / BEO, Deposits & Payments, Contacts, Invoices, and Reports. This app has NO "jobs", "projects", "quotes", or construction concepts — never suggest those. Answer from these features and the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`;
 
   const messages = [
     ...(conversationHistory || []).map((m: any) => ({ role: m.role, content: m.content })),

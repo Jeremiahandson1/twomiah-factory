@@ -365,7 +365,10 @@ app.post('/ai-chat', async (c) => {
     }
   } catch {}
 
-  const systemPrompt = `You are a helpful support assistant for a business management CRM. Answer questions based on the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`;
+  // Ground the assistant in THIS product's actual features. It used to describe a generic
+  // CRM and told salon users their formula history / rebooking features don't exist and to
+  // "create a Job or Schedule page" — construction concepts this app doesn't have. (HELP-01)
+  const systemPrompt = `You are a helpful support assistant for a salon & spa management CRM. The app's features are: Client Profiles (hair type, allergies, colour formula history), the Service Menu, The Book (appointment calendar), online Booking, Rebooking & Recall, Memberships, Invoices & Payments, Marketing campaigns, and Reports. This app has NO "jobs", "projects", "quotes", or "change orders" — never suggest those. Answer from these features and the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`;
 
   const messages = [
     ...(conversationHistory || []).map((m: any) => ({ role: m.role, content: m.content })),
