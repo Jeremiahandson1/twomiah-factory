@@ -118,8 +118,8 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Home Care CRM</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Home Care CRM</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Clients, caregivers, scheduling, billing, and compliance
             </p>
           </div>
@@ -139,8 +139,8 @@ export default function CustomerPortal() {
                 </div>
                 <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
-              <p className="text-sm text-slate-500">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Live Website</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 View your public-facing website
               </p>
             </a>
@@ -161,8 +161,8 @@ export default function CustomerPortal() {
                 </div>
                 <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Website Manager</h3>
-              <p className="text-sm text-slate-500">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Website Manager</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Edit pages, services, gallery, and content
               </p>
             </a>
@@ -180,8 +180,8 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Account Settings</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Account Settings</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Agency info, users, integrations, billing
             </p>
           </div>

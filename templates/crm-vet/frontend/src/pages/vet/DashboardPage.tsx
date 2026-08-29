@@ -126,7 +126,7 @@ export default function DashboardPage() {
       <Link
         to="/crm/reminders"
         className={`block rounded-xl border p-5 transition hover:shadow-md ${
-          reminderTotal > 0 ? 'bg-red-50 border-red-200' : 'bg-white'
+          reminderTotal > 0 ? 'bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900' : 'bg-white dark:bg-slate-900 dark:border-slate-700'
         }`}
       >
         <div className="flex items-center justify-between gap-4">
