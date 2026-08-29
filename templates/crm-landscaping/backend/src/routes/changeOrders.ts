@@ -15,6 +15,9 @@ const changeOrderSchema = z.object({
   projectId: z.string(),
   reason: z.string().optional(),
   daysAdded: z.number().default(0),
+  // Status was omitted so PUT {status} silently no-op'd (API-02); it flows through
+  // ...coData once accepted. Guided transitions still use /submit,/approve,/reject.
+  status: z.string().optional(),
   lineItems: z.array(lineItemSchema).default([]),
 })
 

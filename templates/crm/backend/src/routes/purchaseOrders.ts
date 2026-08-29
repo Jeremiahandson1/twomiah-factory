@@ -29,6 +29,9 @@ const poSchema = z.object({
   shipTo: z.string().optional(),
   taxRate: z.number().min(0).max(100).default(0),
   notes: z.string().optional(),
+  // Status was omitted from the schema, so PUT {status} parsed to nothing and the
+  // update silently no-op'd (API-02). Accept it; guided transitions still use /:id/action.
+  status: z.enum(['draft', 'sent', 'acknowledged', 'declined', 'received', 'billed', 'cancelled']).optional(),
   lines: z.array(lineSchema).min(1),
 })
 
@@ -167,6 +170,7 @@ app.put('/:id', async (c) => {
   if (data.expectedDate !== undefined) update.expectedDate = data.expectedDate ? new Date(data.expectedDate) : null
   if (data.shipTo !== undefined) update.shipTo = data.shipTo || null
   if (data.notes !== undefined) update.notes = data.notes || null
+  if (data.status) update.status = data.status
 
   const taxRate = data.taxRate !== undefined ? data.taxRate : Number(existing.taxRate)
   if (data.taxRate !== undefined) update.taxRate = String(data.taxRate)
