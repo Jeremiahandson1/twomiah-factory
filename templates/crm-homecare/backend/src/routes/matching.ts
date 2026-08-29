@@ -264,7 +264,18 @@ app.post('/optimize', async (c) => {
     }
   })
 
-  return c.json({ assignments, score: assignments.length })
+  // The Optimizer UI reads summary.coveragePercent and crashed the whole page
+  // (ErrorBoundary) when the response only had { assignments, score }. Provide the
+  // coverage summary it expects. (C-09)
+  const covered = assignments.filter((a) => a.suggestedCaregivers.length > 0).length
+  const coveragePercent = assignments.length ? Math.round((covered / assignments.length) * 100) : 0
+  return c.json({
+    assignments,
+    score: assignments.length,
+    covered,
+    coveragePercent,
+    summary: { totalClients: assignments.length, covered, uncovered: assignments.length - covered, coveragePercent },
+  })
 })
 
 // POST /api/matching/apply-schedule — no-op stub

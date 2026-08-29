@@ -165,7 +165,9 @@ app.get('/login-activity', async (c) => {
     user: userFirstName ? { firstName: userFirstName, lastName: userLastName, role: userRole } : null,
   }))
 
-  return c.json(formatted)
+  // The Login Activity page reads {data:[…]} and showed "0 records" against a bare
+  // array. Return the envelope it expects. (H-01)
+  return c.json({ data: formatted })
 })
 
 export default app
