@@ -132,7 +132,13 @@ app.post('/', requirePermission('invoices:create'), async (c) => {
   const { lineItems, ...invoiceData } = data
   const totals = calcTotals(lineItems, data.taxRate, data.discount)
 
-  const [{ value: cnt }] = await db.select({ value: count() }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
+  // Number from the highest existing invoice number, not the row count — deleting an
+  // invoice dropped the count so count()+1 collided with a still-existing number. (VET-03)
+  const existingNumbers = await db.select({ number: invoice.number }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
+  const maxSeq = existingNumbers.reduce((max, r) => {
+    const m = String(r.number || '').match(/(\d+)\s*$/)
+    return m ? Math.max(max, parseInt(m[1], 10)) : max
+  }, 0)
 
   const [newInvoice] = await db.insert(invoice).values({
     ...invoiceData,
@@ -142,7 +148,7 @@ app.post('/', requirePermission('invoices:create'), async (c) => {
     amountPaid: '0',
     taxRate: invoiceData.taxRate.toString(),
     discount: invoiceData.discount.toString(),
-    number: `INV-${String(Number(cnt) + 1).padStart(5, '0')}`,
+    number: `INV-${String(maxSeq + 1).padStart(5, '0')}`,
     dueDate: data.dueDate ? new Date(data.dueDate) : null,
     companyId: currentUser.companyId,
   }).returning()
@@ -210,6 +216,11 @@ app.delete('/:id', requirePermission('invoices:delete'), async (c) => {
 
   const [existing] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Invoice not found' }, 404)
+
+  // Never delete an invoice that has taken money — it destroys the financial record. (VET-04/CC-02)
+  if (Number(existing.amountPaid) > 0 || existing.status === 'paid') {
+    return c.json({ error: 'Cannot delete an invoice with payments recorded. Void it instead.' }, 400)
+  }
 
   await db.delete(invoice).where(eq(invoice.id, id))
   return c.body(null, 204)

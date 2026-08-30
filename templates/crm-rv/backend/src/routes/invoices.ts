@@ -228,6 +228,11 @@ app.delete('/:id', requirePermission('invoices:delete'), async (c) => {
   const [existing] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Invoice not found' }, 404)
 
+  // Never delete an invoice that has taken money — it destroys the financial record. (VET-04/CC-02)
+  if (Number(existing.amountPaid) > 0 || existing.status === 'paid') {
+    return c.json({ error: 'Cannot delete an invoice with payments recorded. Void it instead.' }, 400)
+  }
+
   await db.delete(invoice).where(eq(invoice.id, id))
   return c.body(null, 204)
 })
