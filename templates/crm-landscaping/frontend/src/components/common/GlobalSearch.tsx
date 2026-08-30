@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, User, Folder, Wrench, FileText, File, Users, HelpCircle, Loader2 } from 'lucide-react';
 import api from '../../services/api';
@@ -139,7 +140,9 @@ export default function GlobalSearch() {
     );
   }
 
-  return (
+  // Portal the overlay to <body> — the input lives in a `hidden md:block` wrapper, so
+  // below 768px the whole subtree (incl. this fixed overlay) inherited display:none. (CC-09/VET-09)
+  return createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div 
@@ -248,6 +251,7 @@ export default function GlobalSearch() {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
