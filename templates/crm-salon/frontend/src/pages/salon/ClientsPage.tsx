@@ -32,18 +32,24 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [showForm, setShowForm] = useState<boolean>(false);
+  const [page, setPage] = useState<number>(1);
+  const [pages, setPages] = useState<number>(1);
+  const [total, setTotal] = useState<number>(0);
 
+  // A new search always starts back on page 1.
+  useEffect(() => { setPage(1); }, [search]);
   useEffect(() => {
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]);
+  }, [search, page]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/api/clients?search=${encodeURIComponent(search)}`);
+      const res = await api.get(`/api/clients?search=${encodeURIComponent(search)}&page=${page}&limit=25`);
       setClients(res.data || []);
+      if (res.pagination) { setPages(Number(res.pagination.pages) || 1); setTotal(Number(res.pagination.total) || 0); }
     } catch (error) {
       console.error('Failed to load clients:', error);
     } finally {
@@ -123,6 +129,17 @@ export default function ClientsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && total > 0 && (
+        <div className="flex items-center justify-between text-sm text-gray-500 dark:text-slate-400">
+          <span>Showing {clients.length} of {total}</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1.5 border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800">Prev</button>
+            <span>Page {page} of {pages}</span>
+            <button onClick={() => setPage((p) => Math.min(pages, p + 1))} disabled={page >= pages} className="px-3 py-1.5 border rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-800">Next</button>
+          </div>
         </div>
       )}
 
