@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, ne } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -29,7 +29,8 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
 
-  const conditions = [eq(contact.companyId, currentUser.companyId)]
+  // The client book is people who sit in the chair — not vendors/suppliers. (CC-20)
+  const conditions = [eq(contact.companyId, currentUser.companyId), ne(contact.type, 'vendor')]
   if (search) {
     conditions.push(or(
       ilike(contact.name, `%${search}%`),
