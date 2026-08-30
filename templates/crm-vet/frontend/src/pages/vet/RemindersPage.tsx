@@ -99,24 +99,34 @@ export default function RemindersPage() {
     else loadLapsed();
   }, [tab, loadDue, loadLapsed]);
 
-  const toggle = (ownerId?: string) => {
-    if (!ownerId) return;
+  // Select by row, not by owner. A patient with two vaccines due is two rows; keying the
+  // checkbox by ownerId made ticking the second row toggle the first back off (VET-11).
+  // Due rows are keyed by vaccinationId; lapsed rows (one per client) stay keyed by ownerId.
+  const toggle = (key?: string) => {
+    if (!key) return;
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(ownerId)) next.delete(ownerId);
-      else next.add(ownerId);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
   const rows = tab === 'due' ? dueRows : lapsedRows;
-  const allOwnerIds = Array.from(new Set(rows.map((r) => r.ownerId).filter(Boolean))) as string[];
-  const allSelected = allOwnerIds.length > 0 && allOwnerIds.every((id) => selected.has(id));
+  const rowKey = (r: DueRow | LapsedRow): string | undefined =>
+    tab === 'due' ? (r as DueRow).vaccinationId : (r as LapsedRow).ownerId;
+  const allRowKeys = Array.from(new Set(rows.map(rowKey).filter(Boolean))) as string[];
+  const allSelected = allRowKeys.length > 0 && allRowKeys.every((id) => selected.has(id));
 
   const toggleAll = () => {
     if (allSelected) setSelected(new Set());
-    else setSelected(new Set(allOwnerIds));
+    else setSelected(new Set(allRowKeys));
   };
+
+  // At send time, resolve the selected rows down to unique owner contact ids.
+  const selectedContactIds = tab === 'due'
+    ? Array.from(new Set(dueRows.filter((r) => selected.has(r.vaccinationId) && r.ownerId).map((r) => r.ownerId as string)))
+    : Array.from(selected);
 
   return (
     <div className="space-y-6">
@@ -130,7 +140,7 @@ export default function RemindersPage() {
       {/* Tabs */}
       <div className="flex gap-1 border-b">
         <button
-          onClick={() => setTab('due')}
+          onClick={() => { setTab('due'); setSelected(new Set()); }}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             tab === 'due' ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
@@ -138,7 +148,7 @@ export default function RemindersPage() {
           <Syringe className="w-4 h-4" /> Vaccines Due
         </button>
         <button
-          onClick={() => setTab('lapsed')}
+          onClick={() => { setTab('lapsed'); setSelected(new Set()); }}
           className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             tab === 'lapsed' ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
@@ -193,7 +203,7 @@ export default function RemindersPage() {
           {tab === 'due' ? 'No vaccines due in this window' : 'No lapsed clients'}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
+        <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-left dark:bg-slate-900 dark:text-slate-400">
               <tr>
@@ -218,7 +228,7 @@ export default function RemindersPage() {
                 ? dueRows.map((r) => (
                     <tr key={r.vaccinationId} className={r.overdue ? 'bg-red-50' : ''}>
                       <td className="px-4 py-3">
-                        <input type="checkbox" checked={!!r.ownerId && selected.has(r.ownerId)} onChange={() => toggle(r.ownerId)} disabled={!r.ownerId} className="w-4 h-4" />
+                        <input type="checkbox" checked={selected.has(r.vaccinationId)} onChange={() => toggle(r.vaccinationId)} disabled={!r.ownerId} className="w-4 h-4" />
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {r.patientName || '—'} <span className="text-xs text-gray-400 capitalize">{r.species}</span>
@@ -255,7 +265,7 @@ export default function RemindersPage() {
 
       {showSend && (
         <SendReminderModal
-          contactIds={Array.from(selected)}
+          contactIds={selectedContactIds}
           onDone={() => { setShowSend(false); setSelected(new Set()); }}
           onClose={() => setShowSend(false)}
         />
