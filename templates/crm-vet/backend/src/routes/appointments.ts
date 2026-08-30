@@ -103,7 +103,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     const clash = await findProviderConflict(currentUser.companyId, body.providerId, start, effEnd)
     if (clash) {
       return c.json({
-        error: 'This provider already has an appointment in that time slot. Pass allowConflict to override.',
+        error: 'This provider already has an appointment in that time slot.',
         conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
       }, 409)
     }
@@ -173,7 +173,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     const clash = await findProviderConflict(currentUser.companyId, effProvider, effStart, effEnd, id)
     if (clash) {
       return c.json({
-        error: 'This provider already has an appointment in that time slot. Pass allowConflict to override.',
+        error: 'This provider already has an appointment in that time slot.',
         conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
       }, 409)
     }

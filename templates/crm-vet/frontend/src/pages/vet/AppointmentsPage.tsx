@@ -97,6 +97,17 @@ export default function AppointmentsPage() {
     }
   };
 
+  // Move an appointment through its lifecycle. Without this the card stopped at Check In,
+  // so a booked slot could never be freed and the day sheet filled with stale rows. (VET-13)
+  const setStatus = async (a: Appointment, status: string) => {
+    try {
+      await api.put(`/api/appointments/${a.id}`, { status });
+      load();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to update appointment');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -153,6 +164,18 @@ export default function AppointmentsPage() {
                   <CheckCircle2 className="w-4 h-4" /> Check In
                 </button>
               )}
+              {a.status === 'checked_in' && (
+                <button onClick={() => setStatus(a, 'in_progress')} className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">Start</button>
+              )}
+              {a.status === 'in_progress' && (
+                <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">Complete</button>
+              )}
+              {['scheduled', 'confirmed', 'checked_in'].includes(a.status || 'scheduled') && (
+                <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">No-Show</button>
+              )}
+              {!['completed', 'cancelled', 'no_show'].includes(a.status || 'scheduled') && (
+                <button onClick={() => setStatus(a, 'cancelled')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm">Cancel</button>
+              )}
             </div>
           ))}
         </div>
@@ -175,6 +198,7 @@ interface PatientOption { id: string; name?: string; ownerId?: string; ownerName
 
 function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: string; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
+  const [conflictMsg, setConflictMsg] = useState<string | null>(null);
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [providers, setProviders] = useState<StaffMember[]>([]);
   const [ownerId, setOwnerId] = useState<string>('');
@@ -207,8 +231,8 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
     if (p?.ownerId) setOwnerId(p.ownerId);
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent, allowConflict = false) => {
+    e?.preventDefault();
     if (!form.patientId) { alert('Patient is required'); return; }
     setSaving(true);
     try {
@@ -226,10 +250,18 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
       if (form.room) payload.room = form.room;
       if (form.reason) payload.reason = form.reason;
       if (form.notes) payload.notes = form.notes;
+      if (allowConflict) payload.allowConflict = true;
       await api.post('/api/appointments', payload);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to create appointment');
+      const msg = (err as Error).message || 'Failed to create appointment';
+      // A provider double-book returns 409. Surface it as an explicit choice with an
+      // override, instead of dumping the raw error at the receptionist. (VET-22)
+      if (!allowConflict && /already has an appointment/i.test(msg)) {
+        setConflictMsg(msg);
+      } else {
+        alert(msg);
+      }
     } finally {
       setSaving(false);
     }
@@ -301,6 +333,16 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notes</label>
               <textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
+            {conflictMsg && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="font-medium">{conflictMsg}</p>
+                <p className="mt-1 text-amber-700">Book this appointment anyway, or change the time or provider.</p>
+                <div className="flex gap-2 mt-2">
+                  <button type="button" disabled={saving} onClick={() => { setConflictMsg(null); submit(undefined, true); }} className="px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">Book anyway</button>
+                  <button type="button" onClick={() => setConflictMsg(null)} className="px-3 py-1.5 border border-amber-300 rounded-lg hover:bg-amber-100">Change time</button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
