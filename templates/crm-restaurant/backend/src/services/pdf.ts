@@ -7,15 +7,21 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
   doc.fontSize(14).text(title, { align: 'left' })
   doc.moveDown()
 
+  // Format dates instead of dumping a raw JS Date string, and cap the status. (R2-03)
+  const fmtDate = (d: any) => { if (!d) return ''; const dt = new Date(d); return isNaN(dt.getTime()) ? String(d) : dt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }
   if (data.number) doc.fontSize(10).text(`Number: ${data.number}`)
-  if (data.date) doc.text(`Date: ${data.date}`)
-  if (data.dueDate) doc.text(`Due Date: ${data.dueDate}`)
-  if (data.status) doc.text(`Status: ${data.status}`)
+  if (data.date || data.createdAt) doc.text(`Date: ${fmtDate(data.date || data.createdAt)}`)
+  if (data.dueDate) doc.text(`Due Date: ${fmtDate(data.dueDate)}`)
+  if (data.status) doc.text(`Status: ${String(data.status).charAt(0).toUpperCase()}${String(data.status).slice(1)}`)
   doc.moveDown()
 
   const contact = data.contact
   if (contact) {
-    doc.text(`Bill To: ${contact.firstName || ''} ${contact.lastName || ''}`.trim())
+    const contactName = contact.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim()
+    doc.text('Bill To:')
+    if (contactName) doc.text(contactName)
+    const addrLines = [contact.address, [contact.city, contact.state].filter(Boolean).join(', '), contact.zip].filter(Boolean)
+    for (const line of addrLines) doc.text(String(line))
     if (contact.email) doc.text(contact.email)
     if (contact.phone) doc.text(contact.phone)
     doc.moveDown()
@@ -41,8 +47,15 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
     doc.moveDown()
   }
 
-  if (data.total != null) {
-    doc.fontSize(12).text(`Total: $${Number(data.total).toFixed(2)}`, { align: 'right' })
+  // Full money breakdown, not just a bare Total. (R2-03)
+  doc.fontSize(10)
+  if (data.subtotal != null) doc.text(`Subtotal: $${Number(data.subtotal).toFixed(2)}`, { align: 'right' })
+  if (Number(data.discount) > 0) doc.text(`Discount: -$${Number(data.discount).toFixed(2)}`, { align: 'right' })
+  if (Number(data.taxAmount) > 0) doc.text(`Tax: $${Number(data.taxAmount).toFixed(2)}`, { align: 'right' })
+  if (data.total != null) doc.fontSize(12).text(`Total: $${Number(data.total).toFixed(2)}`, { align: 'right' })
+  if (Number(data.amountPaid) > 0) {
+    doc.fontSize(10).text(`Paid: -$${Number(data.amountPaid).toFixed(2)}`, { align: 'right' })
+    doc.fontSize(12).text(`Balance Due: $${(Number(data.total) - Number(data.amountPaid)).toFixed(2)}`, { align: 'right' })
   }
 }
 
