@@ -1631,6 +1631,7 @@ export const bookingSettings = pgTable('booking_settings', {
   maxDaysOut: integer('max_days_out').default(30).notNull(),
   slotDurationMinutes: integer('slot_duration_minutes').default(60).notNull(),
   workingHours: json('working_hours').notNull(),
+  timezone: text('timezone').default('America/Chicago').notNull(), // salon-local tz for slot times (CC-33)
 
   primaryColor: text('primary_color'),
   logo: text('logo'),

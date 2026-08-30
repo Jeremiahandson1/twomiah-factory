@@ -18,6 +18,17 @@ import { contact, appointment, serviceMenu, bookingSettings } from '../../db/sch
 import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 
+// Convert a wall-clock date+time in a named timezone to the correct UTC instant (DST-aware).
+// A UTC server would otherwise store the salon's local 1:00 PM as 13:00Z — five hours early
+// in America/Chicago, so every online booking landed at 8:00 AM. (CC-33)
+function zonedWallTimeToUtc(dateStr: string, timeStr: string, timeZone: string): Date {
+  const [h, m] = timeStr.split(':').map(Number);
+  const asUtc = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`);
+  const local = new Date(asUtc.toLocaleString('en-US', { timeZone }));
+  const utc = new Date(asUtc.toLocaleString('en-US', { timeZone: 'UTC' }));
+  return new Date(asUtc.getTime() - (local.getTime() - utc.getTime()));
+}
+
 // ============================================
 // BOOKING SETTINGS
 // ============================================
@@ -425,10 +436,10 @@ export async function createBooking(companyId: string, data: {
     theContact = newContact;
   }
 
-  // Build scheduled date
-  const [hour, min] = time.split(':').map(Number);
-  const scheduledDate = new Date(date);
-  scheduledDate.setHours(hour, min, 0, 0);
+  // Build scheduled date in the salon's timezone, not the UTC server's. (CC-33)
+  const [bset] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings)
+    .where(eq(bookingSettings.companyId, companyId)).limit(1);
+  const scheduledDate = zonedWallTimeToUtc(String(date), time, bset?.timezone || 'America/Chicago');
 
   // Create the APPOINTMENT — this is what the front desk sees in The Book.
   // The bookable_service catalog is the widget's own; if a service-menu entry
