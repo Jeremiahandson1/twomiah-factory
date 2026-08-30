@@ -54,6 +54,7 @@ export default function WellnessPlansPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [editing, setEditing] = useState<WellnessPlan | null>(null);
+  const [showEnroll, setShowEnroll] = useState<boolean>(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,6 +81,17 @@ export default function WellnessPlansPage() {
       load();
     } catch {
       alert('Failed to delete plan');
+    }
+  };
+
+  // Cancel (unenrol) an enrollment — recurring billing, so it must be stoppable. (VET-14)
+  const unenroll = async (e: Enrollment) => {
+    if (!confirm(`Cancel ${e.patientName || 'this patient'}'s enrollment in ${e.planName || 'this plan'}?`)) return;
+    try {
+      await api.put(`/api/wellness-plans/enrollments/${e.id}`, { status: 'cancelled' });
+      load();
+    } catch {
+      alert('Failed to cancel enrollment');
     }
   };
 
@@ -145,10 +157,15 @@ export default function WellnessPlansPage() {
 
           {/* Enrollments */}
           <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
-            <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-              <Users className="w-4 h-4 text-teal-500" /> Enrollments
-              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
+                <Users className="w-4 h-4 text-teal-500" /> Enrollments
+                <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
+              </h2>
+              <button onClick={() => setShowEnroll(true)} disabled={plans.length === 0} className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm disabled:opacity-50" title={plans.length === 0 ? 'Create a plan first' : ''}>
+                <Plus className="w-4 h-4" /> Enroll Patient
+              </button>
+            </div>
             {enrollments.length === 0 ? (
               <p className="text-sm text-gray-400 py-6 text-center">No active enrollments</p>
             ) : (
@@ -161,6 +178,7 @@ export default function WellnessPlansPage() {
                       <th className="px-4 py-3 font-medium">Plan</th>
                       <th className="px-4 py-3 font-medium">Started</th>
                       <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -172,6 +190,11 @@ export default function WellnessPlansPage() {
                         <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{fmtDate(e.startDate)}</td>
                         <td className="px-4 py-3">
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{e.status || 'active'}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {(e.status || 'active') === 'active' && (
+                            <button onClick={() => unenroll(e)} className="text-xs text-red-600 hover:text-red-700">Cancel</button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -190,6 +213,87 @@ export default function WellnessPlansPage() {
           onClose={() => { setShowForm(false); setEditing(null); }}
         />
       )}
+
+      {showEnroll && (
+        <EnrollModal
+          plans={plans}
+          onSave={() => { setShowEnroll(false); load(); }}
+          onClose={() => setShowEnroll(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Enroll Modal ---------------- */
+
+interface PatientLite { id: string; name?: string; species?: string; ownerName?: string }
+
+function EnrollModal({ plans, onSave, onClose }: { plans: WellnessPlan[]; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [patients, setPatients] = useState<PatientLite[]>([]);
+  const [patientId, setPatientId] = useState('');
+  const [planId, setPlanId] = useState(plans[0]?.id || '');
+
+  useEffect(() => {
+    api.get('/api/patients?limit=500')
+      .then((res) => setPatients(res.data || []))
+      .catch(() => setPatients([]));
+  }, []);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patientId) { alert('Select a patient'); return; }
+    if (!planId) { alert('Select a plan'); return; }
+    setSaving(true);
+    try {
+      // ownerId is derived server-side from the patient. (VET-14)
+      await api.post('/api/wellness-plans/enrollments', { patientId, planId });
+      onSave();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to enroll patient');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Enroll Patient</h2>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Patient <span className="text-red-500">*</span></label>
+              <select value={patientId} onChange={(e) => setPatientId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
+                <option value="">Select a patient…</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name || 'Unnamed'}{p.ownerName ? ` — ${p.ownerName}` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Plan <span className="text-red-500">*</span></label>
+              <select value={planId} onChange={(e) => setPlanId(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required>
+                <option value="">Select a plan…</option>
+                {plans.map((pl) => (
+                  <option key={pl.id} value={pl.id}>{pl.name || 'Plan'}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                {saving ? 'Enrolling…' : 'Enroll'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

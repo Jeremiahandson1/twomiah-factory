@@ -57,11 +57,20 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
     )).limit(1)
   if (dupe) return c.json({ error: 'This patient is already enrolled in that plan.' }, 409)
 
+  // Derive the owner from the patient so the enrolment's Owner column isn't "—". The
+  // enrollment is billed to the pet's owner; don't rely on the client to pass ownerId. (VET-14)
+  let ownerId = body.ownerId || null
+  if (!ownerId) {
+    const [pat] = await db.select({ ownerId: patient.ownerId }).from(patient)
+      .where(and(eq(patient.id, body.patientId), eq(patient.companyId, currentUser.companyId))).limit(1)
+    ownerId = pat?.ownerId || null
+  }
+
   const [created] = await db.insert(wellnessEnrollment).values({
     id: createId(),
     planId: body.planId,
     patientId: body.patientId,
-    ownerId: body.ownerId || null,
+    ownerId,
     status: body.status || 'active',
     billingCycle: body.billingCycle || 'monthly',
     // Default the start date so enrolments don't show "—". (VET-25)
