@@ -31,8 +31,8 @@ import { createId } from '@paralleldrive/cuid2'
  */
 export async function createTemplate(companyId: string, data: any) {
   const result = await db.execute(sql`
-    INSERT INTO email_template (company_id, name, subject, body, category, design_json, active)
-    VALUES (${companyId}, ${data.name}, ${data.subject}, ${data.body}, ${data.category}, ${data.designJson ? JSON.stringify(data.designJson) : null}, true)
+    INSERT INTO email_template (company_id, name, subject, body, type, active)
+    VALUES (${companyId}, ${data.name}, ${data.subject}, ${data.body}, ${data.category ?? 'general'}, true)
     RETURNING *
   `)
   return result.rows?.[0] ?? result
@@ -43,11 +43,11 @@ export async function createTemplate(companyId: string, data: any) {
  */
 export async function getTemplates(companyId: string, { category, active = true }: { category?: string; active?: boolean | null } = {}) {
   let whereExtra = sql``
-  if (category) whereExtra = sql`${whereExtra} AND category = ${category}`
+  if (category) whereExtra = sql`${whereExtra} AND type = ${category}`
   if (active !== null) whereExtra = sql`${whereExtra} AND active = ${active}`
 
   const result = await db.execute(sql`
-    SELECT * FROM email_template
+    SELECT *, type AS category FROM email_template
     WHERE company_id = ${companyId} ${whereExtra}
     ORDER BY name ASC
   `)
@@ -63,7 +63,7 @@ export async function updateTemplate(templateId: string, companyId: string, data
   if (data.name !== undefined) setClauses.push(sql`name = ${data.name}`)
   if (data.subject !== undefined) setClauses.push(sql`subject = ${data.subject}`)
   if (data.body !== undefined) setClauses.push(sql`body = ${data.body}`)
-  if (data.category !== undefined) setClauses.push(sql`category = ${data.category}`)
+  if (data.category !== undefined) setClauses.push(sql`type = ${data.category}`)
   if (data.active !== undefined) setClauses.push(sql`active = ${data.active}`)
 
   if (setClauses.length === 0) return
@@ -81,14 +81,14 @@ export async function updateTemplate(templateId: string, companyId: string, data
  */
 export async function duplicateTemplate(templateId: string, companyId: string) {
   const origResult = await db.execute(sql`
-    SELECT * FROM email_template WHERE id = ${templateId} AND company_id = ${companyId}
+    SELECT *, type AS category FROM email_template WHERE id = ${templateId} AND company_id = ${companyId}
   `)
   const original = (origResult.rows?.[0] ?? null) as any
   if (!original) throw new Error('Template not found')
 
   const result = await db.execute(sql`
-    INSERT INTO email_template (company_id, name, subject, body, category, design_json, active)
-    VALUES (${companyId}, ${original.name + ' (Copy)'}, ${original.subject}, ${original.body}, ${original.category}, ${original.design_json}, true)
+    INSERT INTO email_template (company_id, name, subject, body, type, active)
+    VALUES (${companyId}, ${original.name + ' (Copy)'}, ${original.subject}, ${original.body}, ${original.type ?? original.category ?? 'general'}, true)
     RETURNING *
   `)
   return result.rows?.[0] ?? result
