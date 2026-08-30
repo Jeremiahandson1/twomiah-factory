@@ -92,6 +92,20 @@ export async function saveFile(
   const ext = path.extname(file.name).toLowerCase()
   const key = `${companyId}/${subdir}/${crypto.randomUUID()}${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
+
+  // Verify magic bytes match the declared type so evil.pdf (really HTML) is rejected. (R2-05)
+  const _b = buffer
+  const _sniff = (_b.length >= 4 && _b[0] === 0x25 && _b[1] === 0x50 && _b[2] === 0x44 && _b[3] === 0x46) ? 'application/pdf'
+    : (_b.length >= 8 && _b[0] === 0x89 && _b[1] === 0x50 && _b[2] === 0x4e && _b[3] === 0x47) ? 'image/png'
+    : (_b.length >= 3 && _b[0] === 0xff && _b[1] === 0xd8 && _b[2] === 0xff) ? 'image/jpeg'
+    : (_b.length >= 4 && _b[0] === 0x47 && _b[1] === 0x49 && _b[2] === 0x46 && _b[3] === 0x38) ? 'image/gif'
+    : (_b.length >= 12 && _b.toString('ascii', 0, 4) === 'RIFF' && _b.toString('ascii', 8, 12) === 'WEBP') ? 'image/webp'
+    : null
+  const _sniffable = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']
+  if (_sniffable.includes(file.type) && _sniff !== file.type) {
+    throw new Error('File content does not match its declared type (' + file.type + ').')
+  }
+
   await put(key, buffer, file.type)
 
   return { path: key, originalname: file.name, mimetype: file.type, size: file.size }
