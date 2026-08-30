@@ -158,17 +158,27 @@ export default function PatientsPage() {
 interface NewPatientModalProps {
   onSave: () => void;
   onClose: () => void;
+  patient?: Record<string, unknown> | null;
 }
 
-function NewPatientModal({ onSave, onClose }: NewPatientModalProps) {
+export function NewPatientModal({ onSave, onClose, patient }: NewPatientModalProps) {
+  const editing = !!patient;
   const [saving, setSaving] = useState<boolean>(false);
-  const [ownerId, setOwnerId] = useState<string>('');
+  const [ownerId, setOwnerId] = useState<string>((patient?.ownerId as string) || '');
   const [, setOwner] = useState<ContactLite | null>(null);
   const [form, setForm] = useState({
-    name: '', species: 'dog', breed: '', sex: 'unknown', spayedNeutered: false,
-    dob: '', weightLb: '', color: '', microchip: '', bloodType: '',
-    insuranceProvider: '', insurancePolicy: '', allergies: '', alerts: '',
-    rabiesTag: '', notes: '',
+    name: (patient?.name as string) || '', species: (patient?.species as string) || 'dog',
+    breed: (patient?.breed as string) || '', sex: (patient?.sex as string) || 'unknown',
+    spayedNeutered: !!patient?.spayedNeutered,
+    dob: ((patient?.dob as string) || '').slice(0, 10),
+    weightLb: patient?.weightLb != null ? String(patient.weightLb) : '',
+    color: (patient?.color as string) || '', microchip: (patient?.microchip as string) || '',
+    bloodType: (patient?.bloodType as string) || '',
+    insuranceProvider: (patient?.insuranceProvider as string) || '',
+    insurancePolicy: (patient?.insurancePolicy as string) || '',
+    allergies: (patient?.allergies as string) || '', alerts: (patient?.alerts as string) || '',
+    rabiesTag: (patient?.rabiesTag as string) || '', notes: (patient?.notes as string) || '',
+    deceased: !!patient?.deceased,
   });
 
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
@@ -179,29 +189,33 @@ function NewPatientModal({ onSave, onClose }: NewPatientModalProps) {
     if (!ownerId) { alert('An owner is required'); return; }
     setSaving(true);
     try {
+      // On edit send every field (empty string clears it); on create keep the terse payload.
       const payload: Record<string, unknown> = {
         ownerId,
         name: form.name.trim(),
         species: form.species,
         sex: form.sex,
         spayedNeutered: form.spayedNeutered,
+        deceased: form.deceased,
       };
-      if (form.breed) payload.breed = form.breed;
-      if (form.dob) payload.dob = form.dob;
-      if (form.weightLb) payload.weightLb = Number(form.weightLb);
-      if (form.color) payload.color = form.color;
-      if (form.microchip) payload.microchip = form.microchip;
-      if (form.bloodType) payload.bloodType = form.bloodType;
-      if (form.insuranceProvider) payload.insuranceProvider = form.insuranceProvider;
-      if (form.insurancePolicy) payload.insurancePolicy = form.insurancePolicy;
-      if (form.allergies) payload.allergies = form.allergies;
-      if (form.alerts) payload.alerts = form.alerts;
-      if (form.rabiesTag) payload.rabiesTag = form.rabiesTag;
-      if (form.notes) payload.notes = form.notes;
-      await api.post('/api/patients', payload);
+      const put = (k: string, v: unknown) => { if (editing || v) payload[k] = v; };
+      put('breed', form.breed);
+      put('dob', form.dob || null);
+      put('weightLb', form.weightLb ? Number(form.weightLb) : (editing ? null : undefined));
+      put('color', form.color);
+      put('microchip', form.microchip);
+      put('bloodType', form.bloodType);
+      put('insuranceProvider', form.insuranceProvider);
+      put('insurancePolicy', form.insurancePolicy);
+      put('allergies', form.allergies);
+      put('alerts', form.alerts);
+      put('rabiesTag', form.rabiesTag);
+      put('notes', form.notes);
+      if (editing) await api.put(`/api/patients/${patient!.id as string}`, payload);
+      else await api.post('/api/patients', payload);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to create patient');
+      alert((err as Error).message || `Failed to ${editing ? 'update' : 'create'} patient`);
     } finally {
       setSaving(false);
     }
@@ -213,7 +227,7 @@ function NewPatientModal({ onSave, onClose }: NewPatientModalProps) {
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
         <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold">New Patient</h2>
+            <h2 className="text-lg font-bold">{editing ? 'Edit Patient' : 'New Patient'}</h2>
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
@@ -266,9 +280,17 @@ function NewPatientModal({ onSave, onClose }: NewPatientModalProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input id="spayedNeutered" type="checkbox" checked={form.spayedNeutered} onChange={(e) => set('spayedNeutered', e.target.checked)} className="w-4 h-4" />
-              <label htmlFor="spayedNeutered" className="text-sm font-medium text-gray-700 dark:text-slate-200">Spayed / Neutered</label>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <input id="spayedNeutered" type="checkbox" checked={form.spayedNeutered} onChange={(e) => set('spayedNeutered', e.target.checked)} className="w-4 h-4" />
+                <label htmlFor="spayedNeutered" className="text-sm font-medium text-gray-700 dark:text-slate-200">Spayed / Neutered</label>
+              </div>
+              {editing && (
+                <div className="flex items-center gap-2">
+                  <input id="deceased" type="checkbox" checked={form.deceased} onChange={(e) => set('deceased', e.target.checked)} className="w-4 h-4" />
+                  <label htmlFor="deceased" className="text-sm font-medium text-gray-700 dark:text-slate-200">Deceased</label>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -302,7 +324,7 @@ function NewPatientModal({ onSave, onClose }: NewPatientModalProps) {
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
-                {saving ? 'Saving...' : 'Create Patient'}
+                {saving ? 'Saving...' : (editing ? 'Save Changes' : 'Create Patient')}
               </button>
             </div>
           </form>

@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Loader2, PawPrint, AlertTriangle, User, Phone, Mail, Plus, FileText,
-  Syringe, Pill, FlaskConical, Stethoscope, ArrowLeft, ExternalLink, X,
+  Syringe, Pill, FlaskConical, Stethoscope, ArrowLeft, ExternalLink, X, Edit, Trash2,
 } from 'lucide-react';
 import api from '../../services/api';
 import VisitEditorModal, { Visit } from '../../components/vet/VisitEditorModal';
 import { openPrintable } from '../../lib/printable';
-import { ageFromDob } from './PatientsPage';
+import { ageFromDob, NewPatientModal } from './PatientsPage';
+import { ConfirmDialog } from '../../components/ui/Modal';
 
 // The lab-result "File URL" is free text, so a stored javascript:/data: URL would
 // execute on click if handed straight to href. Only ever emit http/https.
@@ -126,9 +127,12 @@ type Tab = 'visits' | 'vaccinations' | 'prescriptions' | 'labs';
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<Detail>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [tab, setTab] = useState<Tab>('visits');
+  const [showEdit, setShowEdit] = useState<boolean>(false);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const [showVisit, setShowVisit] = useState<boolean>(false);
   const [editVisit, setEditVisit] = useState<Visit | null>(null);
   const [showVaccine, setShowVaccine] = useState<boolean>(false);
@@ -149,6 +153,18 @@ export default function PatientDetailPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Patients had no edit or delete anywhere in the UI (VET-08). Delete is guarded server-side —
+  // a patient with medical history can't be hard-deleted, only marked deceased.
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      await api.delete(`/api/patients/${id}`);
+      navigate('/crm/patients');
+    } catch (err) {
+      alert((err as Error).message || 'Failed to delete patient');
+    }
+  };
 
   if (loading) {
     return (
@@ -196,16 +212,26 @@ export default function PatientDetailPage() {
 
       {/* Header */}
       <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-teal-50 rounded-lg">
-            <PawPrint className="w-6 h-6 text-teal-600" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-teal-50 rounded-lg">
+              <PawPrint className="w-6 h-6 text-teal-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
+                {p.name || 'Unnamed'}
+                {p.deceased && <span className="text-sm font-normal text-gray-400">(deceased)</span>}
+              </h1>
+              <p className="text-gray-500 capitalize dark:text-slate-400">{signalment || '—'}</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-              {p.name || 'Unnamed'}
-              {p.deceased && <span className="text-sm font-normal text-gray-400">(deceased)</span>}
-            </h1>
-            <p className="text-gray-500 capitalize dark:text-slate-400">{signalment || '—'}</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
+              <Edit className="w-4 h-4" /> Edit
+            </button>
+            <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50">
+              <Trash2 className="w-4 h-4" /> Delete
+            </button>
           </div>
         </div>
 
@@ -445,6 +471,23 @@ export default function PatientDetailPage() {
       {showVaccine && <VaccineModal patientId={p.id} onSave={() => { setShowVaccine(false); load(); }} onClose={() => setShowVaccine(false)} />}
       {showRx && <RxModal patientId={p.id} onSave={() => { setShowRx(false); load(); }} onClose={() => setShowRx(false)} />}
       {showLab && <LabModal patientId={p.id} onSave={() => { setShowLab(false); load(); }} onClose={() => setShowLab(false)} />}
+
+      {showEdit && (
+        <NewPatientModal
+          patient={{ ...(p as Record<string, unknown>), ownerId: (p as Record<string, unknown>).ownerId ?? owner?.id }}
+          onSave={() => { setShowEdit(false); load(); }}
+          onClose={() => setShowEdit(false)}
+        />
+      )}
+      <ConfirmDialog
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title={`Delete ${p.name || 'patient'}?`}
+        message="This permanently removes the patient. A patient with visit or vaccination history can't be deleted — mark it deceased to retire the record instead."
+        confirmText="Delete"
+        variant="danger"
+      />
     </div>
   );
 }
