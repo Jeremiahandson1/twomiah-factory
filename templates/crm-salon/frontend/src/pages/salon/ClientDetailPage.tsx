@@ -387,6 +387,7 @@ export default function ClientDetailPage() {
       {showProfile && (
         <ProfileModal
           contactId={ct.id}
+          contact={ct}
           profile={profile}
           onSave={() => { setShowProfile(false); load(); }}
           onClose={() => setShowProfile(false)}
@@ -398,9 +399,18 @@ export default function ClientDetailPage() {
 
 /* ---------------- Profile Modal ---------------- */
 
-function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: string; profile: Profile; onSave: () => void; onClose: () => void }) {
+function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contactId: string; contact: Contact; profile: Profile; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
+  // The three fields most likely to change (name/phone/email) live on the contact, not the
+  // profile, and were only editable from Contacts. Surface them here too. (CC-22)
+  const [contactForm, setContactForm] = useState({
+    name: contact.name || '',
+    phone: contact.phone || '',
+    mobile: contact.mobile || '',
+    email: contact.email || '',
+  });
+  const setC = (k: string, v: string) => setContactForm((f) => ({ ...f, [k]: v }));
   const [form, setForm] = useState({
     preferredStylistId: profile.preferredStylistId || '',
     hairType: profile.hairType || '',
@@ -424,10 +434,12 @@ function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: stri
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!contactForm.name.trim()) { alert('Name is required'); return; }
     setSaving(true);
     try {
-      // Send every field, blanks included — the route maps '' to null, which is
-      // how a stylist clears an allergy note that no longer applies.
+      // Contact fields go to the contact; profile fields to the profile. Send every profile
+      // field blank-included — the route maps '' to null.
+      await api.put(`/api/contacts/${contactId}`, contactForm);
       await api.put(`/api/clients/${contactId}/profile`, form);
       onSave();
     } catch (err) {
@@ -448,6 +460,22 @@ function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: stri
           </div>
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name <span className="text-red-500">*</span></label>
+                <input type="text" value={contactForm.name} onChange={(e) => setC('name', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Mobile</label>
+                <input type="tel" value={contactForm.mobile} onChange={(e) => setC('mobile', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Phone</label>
+                <input type="tel" value={contactForm.phone} onChange={(e) => setC('phone', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div className="col-span-2 md:col-span-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Email</label>
+                <input type="email" value={contactForm.email} onChange={(e) => setC('email', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Hair Type</label>
                 <select value={form.hairType} onChange={(e) => set('hairType', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
