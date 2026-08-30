@@ -564,7 +564,9 @@ async function getRecentActivity(companyId: string, limit = 10) {
 function buildDateConditions(startDate?: string, endDate?: string) {
   return {
     gte: startDate ? new Date(startDate) : undefined,
-    lte: endDate ? new Date(endDate) : undefined,
+    // endDate is inclusive of the whole day — new Date(endDate) is UTC midnight at the
+    // start of the day, which silently dropped that day's activity. (VET-17)
+    lte: endDate ? new Date(new Date(endDate).getTime() + 86400000 - 1) : undefined,
   }
 }
 

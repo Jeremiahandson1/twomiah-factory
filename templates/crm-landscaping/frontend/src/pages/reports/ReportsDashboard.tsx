@@ -316,7 +316,7 @@ function RevenueChart({ data }) {
               />
             </div>
             <span className="text-xs text-gray-500 dark:text-slate-400">
-              {new Date(month.month + '-01').toLocaleDateString('en-US', { month: 'short' })}
+              {new Date(month.month + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
             </span>
           </div>
         ))}
