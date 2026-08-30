@@ -30,7 +30,7 @@ const contactSchema = z.object({
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const type = c.req.query('type')
-  const search = c.req.query('search')
+  const search = c.req.query('search')?.trim()
   const page = +(c.req.query('page') || '1')
   const limit = Math.min(+(c.req.query('limit') || '25'), 100)
 
@@ -41,6 +41,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
       ilike(contact.name, `%${search}%`),
       ilike(contact.email, `%${search}%`),
       ilike(contact.company, `%${search}%`),
+      ilike(contact.phone, `%${search}%`),
     )!)
   }
 
