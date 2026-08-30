@@ -53,8 +53,19 @@ interface Patient {
   allergies?: string;
   alerts?: string;
   rabiesTag?: string;
+  bloodType?: string;
+  insuranceProvider?: string;
+  insurancePolicy?: string;
+  ownerId?: string;
   deceased?: boolean;
   notes?: string;
+}
+
+// Vet weights are stored as decimals ("62.00"); show them without trailing zeros. (VET-27)
+function fmtWeight(w?: number | string): string {
+  const n = Number(w);
+  if (!Number.isFinite(n)) return String(w ?? '');
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
 }
 interface Vaccination {
   id: string;
@@ -194,7 +205,7 @@ export default function PatientDetailPage() {
     p.breed,
     p.sex,
     ageFromDob(p.dob),
-    p.weightLb ? `${p.weightLb} lb` : '',
+    p.weightLb ? `${fmtWeight(p.weightLb)} lb` : '',
   ].filter(Boolean).join(' · ');
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
@@ -263,6 +274,8 @@ export default function PatientDetailPage() {
               {p.microchip && <div className="flex justify-between"><dt className="text-gray-400">Microchip</dt><dd>{p.microchip}</dd></div>}
               {p.rabiesTag && <div className="flex justify-between"><dt className="text-gray-400">Rabies Tag</dt><dd>{p.rabiesTag}</dd></div>}
               {p.color && <div className="flex justify-between"><dt className="text-gray-400">Color</dt><dd>{p.color}</dd></div>}
+              {p.bloodType && <div className="flex justify-between"><dt className="text-gray-400">Blood Type</dt><dd>{p.bloodType}</dd></div>}
+              {p.insuranceProvider && <div className="flex justify-between gap-4"><dt className="text-gray-400">Insurance</dt><dd className="text-right">{p.insuranceProvider}{p.insurancePolicy ? ` · ${p.insurancePolicy}` : ''}</dd></div>}
               <div className="flex justify-between"><dt className="text-gray-400">Spayed/Neutered</dt><dd>{p.spayedNeutered ? 'Yes' : 'No'}</dd></div>
               {p.allergies && <div className="flex justify-between"><dt className="text-gray-400">Allergies</dt><dd>{p.allergies}</dd></div>}
             </dl>
@@ -325,7 +338,7 @@ export default function PatientDetailPage() {
                   )}
                   {(v.weightLb || v.temperatureF || v.heartRate || v.respRate) && (
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
-                      {v.weightLb ? <span>Wt {v.weightLb} lb</span> : null}
+                      {v.weightLb ? <span>Wt {fmtWeight(v.weightLb)} lb</span> : null}
                       {v.temperatureF ? <span>Temp {v.temperatureF}°F</span> : null}
                       {v.heartRate ? <span>HR {v.heartRate}</span> : null}
                       {v.respRate ? <span>RR {v.respRate}</span> : null}
@@ -365,7 +378,7 @@ export default function PatientDetailPage() {
                     <tr key={v.id} className={isOverdue(v.dueDate) ? 'bg-red-50' : ''}>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {v.vaccine || '—'}
-                        {v.isRabies && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Rabies</span>}
+                        {v.isRabies && !/rabies/i.test(v.vaccine || '') && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Rabies</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(v.givenDate)}</td>
                       <td className={`px-4 py-3 ${isOverdue(v.dueDate) ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
@@ -551,6 +564,13 @@ function VaccineModal({ patientId, onSave, onClose }: { patientId: string; onSav
         const v = (form as Record<string, string>)[k];
         if (v) payload[k] = v;
       });
+      // A blank due date means no reminder ever fires. Default to a one-year booster from
+      // the given date so the vaccine at least schedules a follow-up. (VET-27)
+      if (!form.dueDate && form.givenDate) {
+        const d = new Date(`${form.givenDate}T00:00:00`);
+        d.setFullYear(d.getFullYear() + 1);
+        payload.dueDate = d.toISOString().slice(0, 10);
+      }
       await api.post('/api/vaccinations', payload);
       onSave();
     } catch (err) {
