@@ -67,9 +67,12 @@ export default function ContactsPage() {
     const editId = searchParams.get('edit');
     if (!editId) return;
     let cancelled = false;
-    api.contacts.get(editId).then((item: unknown) => { if (!cancelled && item) openEditModal(item as Record<string, unknown>); }).catch(() => {});
-    searchParams.delete('edit');
-    setSearchParams(searchParams, { replace: true });
+    api.contacts.get(editId).then((item: unknown) => {
+      if (cancelled || !item) return;
+      openEditModal(item as Record<string, unknown>);
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }).catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);

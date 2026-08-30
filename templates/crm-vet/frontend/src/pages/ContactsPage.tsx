@@ -67,9 +67,14 @@ export default function ContactsPage() {
     const editId = searchParams.get('edit');
     if (!editId) return;
     let cancelled = false;
-    api.contacts.get(editId).then((item: unknown) => { if (!cancelled && item) openEditModal(item as Record<string, unknown>); }).catch(() => {});
-    searchParams.delete('edit');
-    setSearchParams(searchParams, { replace: true });
+    // Clear ?edit AFTER the modal opens — deleting it synchronously re-ran this effect and
+    // its cleanup set cancelled=true before the fetch resolved, so the modal never opened. (VET-07)
+    api.contacts.get(editId).then((item: unknown) => {
+      if (cancelled || !item) return;
+      openEditModal(item as Record<string, unknown>);
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }).catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);

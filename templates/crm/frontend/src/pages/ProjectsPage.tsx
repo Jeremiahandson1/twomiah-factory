@@ -46,9 +46,12 @@ export default function ProjectsPage() {
     const editId = searchParams.get('edit');
     if (!editId) return;
     let cancelled = false;
-    api.projects.get(editId).then((item: unknown) => { if (!cancelled && item) openEdit(item as Record<string, unknown>); }).catch(() => {});
-    searchParams.delete('edit');
-    setSearchParams(searchParams, { replace: true });
+    api.projects.get(editId).then((item: unknown) => {
+      if (cancelled || !item) return;
+      openEdit(item as Record<string, unknown>);
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }).catch(() => {});
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
