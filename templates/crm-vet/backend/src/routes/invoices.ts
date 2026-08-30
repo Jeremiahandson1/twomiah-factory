@@ -185,8 +185,15 @@ app.put('/:id', requirePermission('invoices:update'), async (c) => {
   if (lineItems) {
     await db.delete(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, id))
     const calc = calcTotals(lineItems, data.taxRate ?? Number(existing.taxRate), data.discount ?? Number(existing.discount))
-    const balance = calc.total - Number(existing.amountPaid)
-    totals = { subtotal: calc.subtotal.toString(), taxAmount: calc.taxAmount.toString(), total: calc.total.toString(), amountPaid: existing.amountPaid }
+    // Never let an edit drop the total below what's already been collected — that silently
+    // creates an unrecorded overpayment and leaves the invoice reading "Paid". (CC-02)
+    const paid = Number(existing.amountPaid)
+    if (calc.total < paid - 0.005) {
+      return c.json({ error: `This invoice already has $${paid.toFixed(2)} in payments; the total can't be lowered below that. Refund or void instead.` }, 400)
+    }
+    // Keep the status in step with the new total (a raised total un-pays a paid invoice).
+    const newStatus = paid >= calc.total - 0.005 ? 'paid' : paid > 0 ? 'partial' : existing.status
+    totals = { subtotal: calc.subtotal.toString(), taxAmount: calc.taxAmount.toString(), total: calc.total.toString(), amountPaid: existing.amountPaid, status: newStatus }
   }
 
   const updateData: Record<string, any> = { ...invoiceData, ...totals, updatedAt: new Date() }
