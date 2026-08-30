@@ -16,6 +16,12 @@
   select,
   textarea {
     @apply text-gray-900 dark:text-slate-100;
+    /* dark-mode field background so typed text isn't invisible (CC-36) */
+    @apply dark:bg-slate-800 dark:border-slate-700;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    @apply dark:text-slate-400;
   }
 
   /* Dark-mode fallback for form fields. Many inputs hardcode `bg-white

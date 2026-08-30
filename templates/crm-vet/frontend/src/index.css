@@ -16,6 +16,13 @@
   select,
   textarea {
     @apply text-gray-900 dark:text-slate-100;
+    /* Text followed the theme but the background didn't, so dark mode showed light text on
+       a white field — effectively invisible. Pull the field colours from the same set. (CC-36) */
+    @apply dark:bg-slate-800 dark:border-slate-700;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    @apply dark:text-slate-400;
   }
 
   ::-webkit-scrollbar {
