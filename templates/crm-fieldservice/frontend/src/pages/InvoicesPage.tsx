@@ -56,7 +56,9 @@ export default function InvoicesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const calcTotals = () => { const subtotal = form.lineItems.reduce((s, li) => s + (li.quantity * li.unitPrice), 0); const taxAmount = subtotal * (form.taxRate / 100); return { subtotal, taxAmount, total: subtotal + taxAmount - form.discount }; };
+  // Match the server's calcTotals: tax on the POST-discount amount, discount clamped,
+  // rounded to cents — otherwise the preview disagrees with the saved invoice. (CC-01)
+  const calcTotals = () => { const round2 = (n: number) => Math.round(n * 100) / 100; const subtotal = round2(form.lineItems.reduce((s, li) => s + (li.quantity * li.unitPrice), 0)); const effectiveDiscount = Math.min(Math.max(0, form.discount), subtotal); const taxable = subtotal - effectiveDiscount; const taxAmount = round2(taxable * (form.taxRate / 100)); return { subtotal, taxAmount, total: round2(taxable + taxAmount) }; };
 
   const handleSave = async () => {
     setSaving(true);
