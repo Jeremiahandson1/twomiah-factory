@@ -113,6 +113,8 @@ app.get('/rabies/:vaccinationId', requirePermission('contacts:read'), async (c) 
   const [vet] = vax.providerId ? await db.select().from(user).where(eq(user.id, vax.providerId)).limit(1) : [null as any]
 
   const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
+  // Title-case enum values ("dog"/"male") — this is a legal document, not a DB dump. (VET-28)
+  const cap = (s: any) => String(s ?? '').replace(/\b\w/g, (ch: string) => ch.toUpperCase())
   const age = pet?.dob ? Math.max(0, Math.floor((Date.now() - new Date(pet.dob).getTime()) / (365.25 * 86400000))) + ' yr' : ''
   const row = (label: string, val: string) => `<tr><td class="l">${label}</td><td class="v">${esc(val)}</td></tr>`
 
@@ -138,12 +140,12 @@ app.get('/rabies/:vaccinationId', requirePermission('contacts:read'), async (c) 
   <h2>Owner</h2>
   <table>${row('Name', owner?.name || '')}${row('Address', [owner?.address, owner?.city, owner?.state, owner?.zip].filter(Boolean).join(', '))}${row('Phone', owner?.mobile || owner?.phone || '')}</table>
   <h2>Animal</h2>
-  <table>${row('Name', pet?.name || '')}${row('Species', pet?.species || '')}${row('Breed', pet?.breed || '')}${row('Sex', (pet?.sex || '') + (pet?.spayedNeutered ? ' (spayed/neutered)' : ''))}${row('Color / Markings', pet?.color || '')}${row('Age', age)}${row('Microchip', pet?.microchip || '')}</table>
+  <table>${row('Name', pet?.name || '')}${row('Species', cap(pet?.species || ''))}${row('Breed', cap(pet?.breed || ''))}${row('Sex', cap(pet?.sex || '') + (pet?.spayedNeutered ? ' (spayed/neutered)' : ''))}${row('Color / Markings', pet?.color || '')}${row('Age', age)}${row('Microchip', pet?.microchip || '')}</table>
   <h2>Vaccination</h2>
   <table>${row('Vaccine', vax.vaccine || 'Rabies')}${row('Manufacturer', vax.manufacturer || '')}${row('Lot / Serial', [vax.lotNumber, vax.serialNumber].filter(Boolean).join(' / '))}${row('Date Administered', vax.givenDate || '')}${row('Expiration / Due', vax.dueDate || '')}${row('Tag Number', vax.rabiesTag || pet?.rabiesTag || '')}${row('Route / Site', [vax.route, vax.site].filter(Boolean).join(' / '))}</table>
   <div class="sign">
     <div>${esc([vet?.firstName, vet?.lastName].filter(Boolean).join(' ') || '')}<br>Veterinarian</div>
-    <div>License #<br>&nbsp;</div>
+    <div>${esc(clinic?.licenseNumber || '')}<br>License #</div>
   </div>
   <p class="note">This certificate reflects the records of ${esc(clinic?.name || 'the practice')}. Rabies certificate format and retention requirements vary by state.</p>
 </body></html>`
