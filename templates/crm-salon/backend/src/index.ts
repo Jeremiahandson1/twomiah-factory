@@ -133,7 +133,10 @@ app.use('*', cors({
   credentials: true,
 }))
 
-function createRateLimiter(windowMs: number, max: number) {
+// Each limiter owns an independent bucket. `countMethod`, when given, makes the bucket count
+// only the methods it owns — so read traffic (which the app generates constantly, e.g. the
+// Messages page polls every 10s) can never drain the budget that writes (saving records) need.
+function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean) {
   const hits = new Map<string, { count: number; resetAt: number }>()
 
   // Periodic cleanup to prevent memory leak
@@ -145,22 +148,28 @@ function createRateLimiter(windowMs: number, max: number) {
   }, windowMs)
 
   return async (c: Context, next: Next) => {
-    const key = c.req.header('x-forwarded-for') || 'unknown'
+    if (countMethod && !countMethod(c.req.method)) return next()
+    const key = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || 'unknown'
     const now = Date.now()
-    const entry = hits.get(key)
-    if (!entry || now > entry.resetAt) {
-      hits.set(key, { count: 1, resetAt: now + windowMs })
-    } else {
-      entry.count++
-      if (entry.count > max) {
-        return c.json({ error: 'Too many requests, please try again later' }, 429)
-      }
+    let entry = hits.get(key)
+    if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + windowMs }; hits.set(key, entry) }
+    entry.count++
+    c.header('RateLimit-Limit', String(max))
+    c.header('RateLimit-Remaining', String(Math.max(0, max - entry.count)))
+    if (entry.count > max) {
+      c.header('Retry-After', String(Math.max(1, Math.ceil((entry.resetAt - now) / 1000))))
+      return c.json({ error: 'Too many requests, please try again later' }, 429)
     }
     await next()
   }
 }
 
-app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 100 : 1000))
+const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE'
+// Separate, generous ceilings sized for real use: reads are cheap and constant (polling,
+// page loads ~10 req each, several concurrent staff); writes are human-paced. Abuse is still
+// capped, but normal browsing can no longer lock you out of saving.
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
