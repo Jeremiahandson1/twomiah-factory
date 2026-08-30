@@ -179,8 +179,19 @@ export async function updateCampaign(campaignId: string, companyId: string, data
     throw new Error('Cannot update sent campaign')
   }
 
+  // Map the payload to real columns: the frontend sends `body` but the column is
+  // `content`, so a raw .set(data) silently dropped the body (and passed junk keys
+  // like segmentType) -> editing a campaign wiped its body. (VET-06)
+  const updates: Record<string, unknown> = { updatedAt: new Date() }
+  if (data.name !== undefined) updates.name = data.name
+  if (data.subject !== undefined) updates.subject = data.subject
+  if (data.body !== undefined) updates.content = data.body
+  if (data.audienceType !== undefined) updates.audienceType = data.audienceType
+  if (data.audienceFilter !== undefined) updates.audienceFilter = data.audienceFilter
+  if (data.scheduledFor !== undefined) updates.scheduledDate = data.scheduledFor ? new Date(data.scheduledFor) : null
+
   const [updated] = await db.update(campaign)
-    .set(data)
+    .set(updates)
     .where(eq(campaign.id, campaignId))
     .returning()
 

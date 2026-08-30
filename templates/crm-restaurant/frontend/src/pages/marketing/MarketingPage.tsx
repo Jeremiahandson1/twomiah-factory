@@ -439,7 +439,7 @@ function CampaignFormModal({ campaign, onSave, onClose }: CampaignFormModalProps
   const [form, setForm] = useState<{ name: string; subject: string; body: string; audienceType: string; segmentType: string; segmentCreatedAfter: string }>({
     name: (campaign?.name as string) || '',
     subject: (campaign?.subject as string) || '',
-    body: (campaign?.body as string) || '',
+    body: (campaign?.content as string) || '', // read content column, not body (VET-06)
     audienceType: (campaign?.audienceType as string) || 'all',
     segmentType: existingFilter?.type || '',
     segmentCreatedAfter: (existingFilter?.createdAfter || '').slice(0, 10),
