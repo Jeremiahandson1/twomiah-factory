@@ -16,6 +16,14 @@ import { eq, and, or, ilike, desc } from 'drizzle-orm'
 /**
  * Parse CSV content
  */
+// Neutralize CSV/Excel formula injection: a value beginning with = + - @ (or a control
+// char) executes as a formula when the data is later exported and opened. Prefix it with a
+// single quote so it's stored and re-exported as literal text. (R2-06)
+function deFormula<T>(v: T): T {
+  return (typeof v === 'string' && /^[=+\-@\t\r]/.test(v)) ? ("'" + v) as unknown as T : v
+}
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 function parseCSV(content: string, options: Record<string, any> = {}): Record<string, string>[] {
   return parse(content, {
     columns: true,
@@ -146,6 +154,13 @@ export async function importContacts(csvContent: string, companyId: string, opti
         continue
       }
 
+      // Match the manual form: a malformed email is an error, not a silent import. (R2-06)
+      if (email && !EMAIL_RE.test(email)) {
+        results.errors.push({ line: lineNum, error: `Invalid email: ${email}` })
+        results.skipped++
+        continue
+      }
+
       // Check for existing contact — match by email OR name
       let existingContact: any = null
       if (email) {
@@ -185,18 +200,18 @@ export async function importContacts(csvContent: string, companyId: string, opti
 
       const contactData = {
         companyId,
-        name,
+        name: deFormula(name),
         email: email || null,
         phone: getValue(row, ...CONTACT_COLUMN_MAP.phone),
         mobile: getValue(row, ...CONTACT_COLUMN_MAP.mobile),
-        company: getValue(row, ...CONTACT_COLUMN_MAP.company),
+        company: deFormula(getValue(row, ...CONTACT_COLUMN_MAP.company)),
         type: mapContactType(getValue(row, ...CONTACT_COLUMN_MAP.type)),
-        address: fullAddress || null,
-        city: primaryCity,
-        state: primaryState,
+        address: deFormula(fullAddress || null),
+        city: deFormula(primaryCity),
+        state: deFormula(primaryState),
         zip: primaryZip,
-        notes: fullNotes,
-        source: getValue(row, ...CONTACT_COLUMN_MAP.source),
+        notes: deFormula(fullNotes),
+        source: deFormula(getValue(row, ...CONTACT_COLUMN_MAP.source)),
         tags: tags ? JSON.stringify(tags.split(',').map((t: string) => t.trim())) : '[]',
       }
 
