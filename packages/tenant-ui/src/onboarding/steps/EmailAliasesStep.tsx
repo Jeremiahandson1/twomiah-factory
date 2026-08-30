@@ -9,6 +9,10 @@ interface Props {
   productId: string
   onBack: () => void
   onNext: () => void
+  // The email the admin just typed/corrected earlier in onboarding. Step 1's edits aren't
+  // persisted until the wizard completes, so falling back to the server's company.email
+  // showed a stale address here. Prefer this live value. (VET-23)
+  defaultForwardTo?: string
 }
 
 function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
@@ -19,7 +23,7 @@ function authHeaders() { return { 'Content-Type': 'application/json', 'Authoriza
 function ss(key: string, product: string): string { try { return sessionStorage.getItem(`onb_${product}_${key}`) || '' } catch { return '' } }
 function ssSet(key: string, product: string, val: string) { try { sessionStorage.setItem(`onb_${product}_${key}`, val) } catch {} }
 
-export function EmailAliasesStep({ productId, onBack, onNext }: Props): React.ReactElement {
+export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }: Props): React.ReactElement {
   const defaults = getAliasDefaultsForProduct(productId)
   const [checked, setChecked] = useState<Set<string>>(() => {
     const saved = ss('checked', productId)
@@ -39,8 +43,11 @@ export function EmailAliasesStep({ productId, onBack, onNext }: Props): React.Re
   React.useEffect(() => { ssSet('extra', productId, JSON.stringify(extraAliases)) }, [extraAliases, productId])
   React.useEffect(() => { ssSet('checked', productId, JSON.stringify([...checked])) }, [checked, productId])
 
-  // Pre-fill forward-to with company.email when we have it (and nothing saved)
+  // Pre-fill forward-to. Prefer the address the admin just entered in step 1 (which isn't
+  // persisted yet) over the server's stored company.email, which is stale here. (VET-23)
   React.useEffect(() => {
+    if (forwardTo) return
+    if (defaultForwardTo && defaultForwardTo.trim()) { setForwardTo(defaultForwardTo.trim()); return }
     fetch('/api/company', { headers: authHeaders() }).then(r => r.json()).then(d => {
       if (d?.email && !forwardTo) setForwardTo(d.email)
     }).catch(() => {})

@@ -273,7 +273,7 @@ export default function OnboardingWizard() {
               onSkip={skipIntegration}
             />
           )}
-          {currentStep === 2 && <EmailAliasesStep productId="crm-vet" onBack={handleBack} onNext={handleNext} />}
+          {currentStep === 2 && <EmailAliasesStep productId="crm-vet" defaultForwardTo={profile.email} onBack={handleBack} onNext={handleNext} />}
           {currentStep === 3 && <StepSetupHelp choice={setupChoice} onChoose={setSetupChoice} />}
           {currentStep === 4 && (
             <StepReady
