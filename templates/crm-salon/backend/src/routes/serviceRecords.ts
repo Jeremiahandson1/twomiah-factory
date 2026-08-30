@@ -78,6 +78,11 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     .limit(1)
   if (!ct) return c.json({ error: 'Client not found' }, 404)
 
+  // A negative price charged dragged the client's lifetime value negative. (CC-18)
+  if (body.priceCharged != null && (isNaN(Number(body.priceCharged)) || Number(body.priceCharged) < 0)) {
+    return c.json({ error: 'Price charged cannot be negative.' }, 400)
+  }
+
   const [created] = await db.insert(serviceRecord).values({
     id: createId(),
     contactId: body.contactId,

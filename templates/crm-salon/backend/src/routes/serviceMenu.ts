@@ -40,6 +40,14 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (typeof body.name !== 'string' || !body.name.trim()) {
     return c.json({ error: 'name is required' }, 400)
   }
+  // The payment fields are validated; the service catalog wasn't — a negative price or a
+  // 0-minute duration was accepted (and a −$50 service dragged a client's LTV negative). (CC-18)
+  if (body.price != null && (isNaN(Number(body.price)) || Number(body.price) < 0)) {
+    return c.json({ error: 'Price cannot be negative.' }, 400)
+  }
+  if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1)) {
+    return c.json({ error: 'Duration must be at least 1 minute.' }, 400)
+  }
 
   const [created] = await db.insert(serviceMenu).values({
     id: createId(),
@@ -70,6 +78,13 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     .where(and(eq(serviceMenu.id, id), eq(serviceMenu.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Service not found' }, 404)
+
+  if (body.price != null && (isNaN(Number(body.price)) || Number(body.price) < 0)) {
+    return c.json({ error: 'Price cannot be negative.' }, 400)
+  }
+  if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1)) {
+    return c.json({ error: 'Duration must be at least 1 minute.' }, 400)
+  }
 
   // Whitelist editable columns — never let companyId/id be reassigned from the body.
   const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'active'] as const
