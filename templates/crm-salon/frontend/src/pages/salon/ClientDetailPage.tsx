@@ -72,7 +72,11 @@ interface Detail {
 
 function fmtDate(s?: string | null): string {
   if (!s) return '—';
-  const d = new Date(s);
+  const str = String(s);
+  // Parse a date-only value ("1990-03-14") at LOCAL midnight — new Date(str) reads it as
+  // UTC midnight and rolls back a day for viewers west of UTC. (CC-07)
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }

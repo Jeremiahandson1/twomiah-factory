@@ -44,7 +44,10 @@ function money(v: number | string | undefined | null): string {
 }
 function fmtDate(s?: string): string {
   if (!s) return '—';
-  const d = new Date(s);
+  const str = String(s);
+  // date-only ("2026-08-29") parsed at LOCAL midnight, else it rolls back a day. (CC-07)
+  const dateOnly = /^d{4}-d{2}-d{2}$/.test(str) || /T00:00:00(.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
