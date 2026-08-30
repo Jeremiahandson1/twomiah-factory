@@ -116,10 +116,11 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],
 }))
 
-function createRateLimiter(windowMs: number, max: number) {
+function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean) {
   const hits = new Map<string, { count: number; resetAt: number }>()
   return async (c: Context, next: Next) => {
-    const key = c.req.header('x-forwarded-for') || 'unknown'
+    if (countMethod && !countMethod(c.req.method)) return next()
+    const key = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || 'unknown'
     const now = Date.now()
     const entry = hits.get(key)
     if (!entry || now > entry.resetAt) {
@@ -134,7 +135,10 @@ function createRateLimiter(windowMs: number, max: number) {
   }
 }
 
-app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 100 : 1000))
+const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE'
+// Reads and writes get independent buckets so browsing can't lock out saving.
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
