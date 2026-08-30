@@ -51,7 +51,8 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     db.select({ value: count() }).from(contact).where(where),
   ])
 
-  return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+  const safeData = data.map(({ portalToken, portalTokenExp, ...rest }) => rest) // strip portal token (VET-29)
+  return c.json({ data: safeData, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
 app.get('/stats', requirePermission('contacts:read'), async (c) => {
@@ -79,7 +80,8 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     db.select({ id: event.id, name: event.name, status: event.status, eventDate: event.eventDate }).from(event).where(eq(event.contactId, id)),
   ])
 
-  return c.json({ ...foundContact, projects, quotes, invoices, events })
+  const { portalToken, portalTokenExp, ...safeContact } = foundContact // (VET-29)
+  return c.json({ ...safeContact, projects, quotes, invoices, events })
 })
 
 app.post('/', requirePermission('contacts:create'), async (c) => {
