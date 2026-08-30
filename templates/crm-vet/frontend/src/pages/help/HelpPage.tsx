@@ -3,6 +3,19 @@ import api from '../../services/api';
 import { Search, BookOpen, ChevronDown, ChevronRight, Bot, Send, ArrowLeft, ExternalLink, Plus, Edit2, Trash2, X, Eye } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
+// The AI reply comes back as markdown. Render **bold**, strip heading hashes, and keep line
+// breaks instead of dumping literal ** and # with everything on one line. (VET-24)
+function renderMarkdown(text: string): JSX.Element[] {
+  const lines = String(text ?? '').split('\n');
+  return lines.map((line, i) => {
+    const clean = line.replace(/^#{1,6}\s*/, '');
+    const parts = clean.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
+      /^\*\*[^*]+\*\*$/.test(part) ? <strong key={j}>{part.slice(2, -2)}</strong> : part
+    );
+    return <div key={i} className={line.trim() === '' ? 'h-2' : ''}>{parts}</div>;
+  });
+}
+
 type Article = {
   id: string;
   title: string;
@@ -67,7 +80,8 @@ export default function HelpPage() {
   };
 
   const sendChat = async () => {
-    if (!chatInput.trim()) return;
+    // Guard against Enter + button both firing (or a fast double-press) posting twice. (VET-24)
+    if (!chatInput.trim() || chatLoading) return;
     const msg = { role: 'user', content: chatInput };
     setChatMessages(prev => [...prev, msg]);
     setChatInput('');
@@ -125,8 +139,8 @@ export default function HelpPage() {
           <ArrowLeft size={16} /> Back
         </button>
         <div className="flex items-center gap-2 mb-4">
-          <Bot size={22} className="text-purple-400" />
-          <h1 className="text-lg font-bold text-white">AI Support Assistant</h1>
+          <Bot size={22} className="text-purple-500 dark:text-purple-400" />
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">AI Support Assistant</h1>
         </div>
         <div className="bg-gray-900 border border-gray-800 rounded-xl min-h-[400px] flex flex-col">
           <div className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[500px]">
@@ -136,7 +150,7 @@ export default function HelpPage() {
             {chatMessages.map((msg, i) => (
               <div key={i} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                 <div className={'max-w-[80%] rounded-xl px-4 py-2 text-sm ' + (msg.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300')}>
-                  {msg.content}
+                  {msg.role === 'assistant' ? renderMarkdown(msg.content) : msg.content}
                 </div>
               </div>
             ))}
@@ -144,7 +158,7 @@ export default function HelpPage() {
           </div>
           <div className="border-t border-gray-800 p-3 flex gap-2">
             <input value={chatInput} onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChat()}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
               placeholder="Ask a question..." className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none" />
             <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
               className="px-3 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-lg text-sm">
