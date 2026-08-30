@@ -15,7 +15,11 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'bids:read', 'team:read', 'company:read', 'dashboard:*', 'schedule:*', 'pricebook:*',
   ],
   field: [
-    'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
+    // Clinical staff (technician/receptionist) must be able to record care and bill for it.
+    // Vet patients/visits/vaccinations/appointments/wellness all gate on contacts:*. (R2-02)
+    'contacts:read', 'contacts:create', 'contacts:update',
+    'invoices:read', 'invoices:create', 'invoices:update',
+    'projects:read', 'jobs:read', 'jobs:update', 'time:read',
     'time:create', 'time:update', 'expenses:read', 'expenses:create', 'documents:read',
     'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read',
     'punch-lists:update', 'daily-logs:read', 'daily-logs:create', 'inspections:read',
@@ -30,7 +34,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   user: [],
 }
 
-const ROLE_MAPPING: Record<string, string> = { user: 'field' }
+const ROLE_MAPPING: Record<string, string> = { user: 'field', staff: 'field' }
 export const ROLE_HIERARCHY = ['viewer', 'field', 'manager', 'admin', 'owner']
 
 function normalizeRole(role: string): string {
