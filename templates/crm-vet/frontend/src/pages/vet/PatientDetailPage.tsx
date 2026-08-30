@@ -177,6 +177,17 @@ export default function PatientDetailPage() {
     }
   };
 
+  // Turn a visit's charge into a draft invoice and jump to it. (VET-15)
+  const billVisit = async (visitId: string) => {
+    try {
+      const inv = await api.post(`/api/visits/${visitId}/invoice`);
+      if (inv?.id) navigate(`/crm/invoices/${inv.id}`);
+      else load();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to bill this visit');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -327,6 +338,11 @@ export default function PatientDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(v.total)}</span>
+                      {(v as Record<string, unknown>).invoiceId ? (
+                        <Link to={`/crm/invoices/${(v as Record<string, unknown>).invoiceId as string}`} className="text-sm text-green-600 hover:text-green-700">Billed →</Link>
+                      ) : Number(v.total) > 0 ? (
+                        <button onClick={() => billVisit(v.id)} className="text-sm text-teal-600 hover:text-teal-700">Bill this visit</button>
+                      ) : null}
                       <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-600 hover:text-teal-700">Edit</button>
                     </div>
                   </div>

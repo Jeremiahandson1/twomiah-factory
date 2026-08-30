@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { visit, user } from '../../db/schema.ts'
+import { visit, user, patient, invoice, invoiceLineItem } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -78,6 +78,59 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   await audit.log({ action: 'create', entity: 'visit', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'visit' })
   return c.json(created, 201)
+})
+
+// POST /visits/:id/invoice — turn a visit's charge into a draft invoice billed to the
+// pet's owner. Without this the charge captured on a visit never reached billing. (VET-15)
+app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [v] = await db.select().from(visit)
+    .where(and(eq(visit.id, id), eq(visit.companyId, currentUser.companyId))).limit(1)
+  if (!v) return c.json({ error: 'Visit not found' }, 404)
+  if (v.invoiceId) return c.json({ error: 'This visit has already been billed.' }, 409)
+  const charge = Number(v.total)
+  if (!charge || charge <= 0) return c.json({ error: 'This visit has no charge to bill.' }, 400)
+
+  const [pet] = await db.select({ ownerId: patient.ownerId, name: patient.name }).from(patient)
+    .where(eq(patient.id, v.patientId)).limit(1)
+  if (!pet?.ownerId) return c.json({ error: 'This patient has no owner to bill.' }, 400)
+
+  // Next number from the highest existing one, matching the invoices route. (VET-03)
+  const existingNumbers = await db.select({ number: invoice.number }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
+  const maxSeq = existingNumbers.reduce((max, r) => {
+    const m = String(r.number || '').match(/(\d+)\s*$/)
+    return m ? Math.max(max, parseInt(m[1], 10)) : max
+  }, 0)
+  const amount = (Math.round(charge * 100) / 100).toFixed(2)
+
+  const [inv] = await db.insert(invoice).values({
+    contactId: pet.ownerId,
+    subtotal: amount,
+    taxAmount: '0',
+    total: amount,
+    amountPaid: '0',
+    taxRate: '0',
+    discount: '0',
+    number: `INV-${String(maxSeq + 1).padStart(5, '0')}`,
+    status: 'draft',
+    companyId: currentUser.companyId,
+  }).returning()
+
+  await db.insert(invoiceLineItem).values({
+    invoiceId: inv.id,
+    description: `Veterinary visit${v.visitDate ? ' — ' + new Date(v.visitDate).toLocaleDateString('en-US') : ''}${pet.name ? ` (${pet.name})` : ''}`,
+    quantity: '1',
+    unitPrice: amount,
+    total: amount,
+    sortOrder: 0,
+  })
+
+  await db.update(visit).set({ invoiceId: inv.id, updatedAt: new Date() }).where(eq(visit.id, id))
+  await audit.log({ action: 'create', entity: 'invoice', entityId: inv.id, metadata: { fromVisit: id }, req: { user: currentUser } })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'invoice' })
+  return c.json(inv, 201)
 })
 
 // PUT /visits/:id

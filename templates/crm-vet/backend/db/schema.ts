@@ -3732,6 +3732,7 @@ export const visit = pgTable('visit', {
   treatments: text('treatments'),
   notes: text('notes'),
   total: decimal('total', { precision: 10, scale: 2 }),
+  invoiceId: text('invoice_id'), // set once the visit charge has been billed (VET-15)
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
