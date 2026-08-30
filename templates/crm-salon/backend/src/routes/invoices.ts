@@ -271,7 +271,7 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const paymentSchema = z.object({ amount: z.number().positive(), method: z.string(), reference: z.string().optional(), notes: z.string().optional() })
+  const paymentSchema = z.object({ amount: z.number().positive(), method: z.enum(['card', 'cash', 'check', 'bank_transfer', 'stripe', 'other']), reference: z.string().optional(), notes: z.string().optional() })
   const data = paymentSchema.parse(await c.req.json())
 
   const [foundInvoice] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
@@ -279,16 +279,20 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
 
   // Reject overpayment: recording more than the balance due poisons
   // amountPaid and every report built on it (collection rate, revenue).
-  const balanceDue = Number(foundInvoice.total) - Number(foundInvoice.amountPaid)
-  if (data.amount > balanceDue + 0.005) {
+  // Work in whole cents so 89.999 can't bank  .00 and status can't desync. (R2-04)
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const amount = round2(data.amount)
+  if (amount <= 0) return c.json({ error: 'Payment amount must be at least /usr/bin/bash.01' }, 400)
+  const balanceDue = round2(Number(foundInvoice.total) - Number(foundInvoice.amountPaid))
+  if (amount > balanceDue + 0.005) {
     return c.json({ error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }, 400)
   }
 
-  const [newPayment] = await db.insert(payment).values({ ...data, amount: data.amount.toString(), invoiceId: id }).returning()
+  const [newPayment] = await db.insert(payment).values({ ...data, amount: amount.toString(), invoiceId: id }).returning()
 
-  const newAmountPaid = Number(foundInvoice.amountPaid) + data.amount
-  const newBalance = Number(foundInvoice.total) - newAmountPaid
-  const newStatus = newBalance <= 0 ? 'paid' : newAmountPaid > 0 ? 'partial' : foundInvoice.status
+  const newAmountPaid = round2(Number(foundInvoice.amountPaid) + amount)
+  const newBalance = round2(Number(foundInvoice.total) - newAmountPaid)
+  const newStatus = newBalance <= 0.005 ? 'paid' : newAmountPaid > 0 ? 'partial' : foundInvoice.status
 
   await db.update(invoice).set({
     amountPaid: newAmountPaid.toString(),
