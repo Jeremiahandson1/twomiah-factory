@@ -104,7 +104,20 @@ export default function AppointmentsPage() {
     }
   };
 
+  // Cancel / no-show / complete so a chair can be freed and no-shows tracked. (CC-25)
+  const setStatus = async (a: Appt, status: string) => {
+    try {
+      await api.put(`/api/appointments/${a.id}`, { status });
+      load();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to update the appointment');
+    }
+  };
+
   const booked = appts.filter((a) => !CLOSED.has(a.status || 'scheduled')).length;
+  // Completed and cancelled are opposite outcomes; don't lump them under one label. (CC-24)
+  const done = appts.filter((a) => (a.status || '') === 'completed').length;
+  const cancelled = appts.filter((a) => { const s = a.status || ''; return s === 'cancelled' || s === 'no_show'; }).length;
 
   return (
     <div className="space-y-6">
@@ -125,7 +138,7 @@ export default function AppointmentsPage() {
         </div>
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Today</button>
         <span className="text-sm text-gray-500 dark:text-slate-400">
-          {booked} booked{appts.length !== booked ? ` · ${appts.length - booked} closed/cancelled` : ''}
+          {booked} booked{done ? ` · ${done} done` : ''}{cancelled ? ` · ${cancelled} cancelled` : ''}
         </span>
       </div>
 
@@ -175,6 +188,13 @@ export default function AppointmentsPage() {
                 <button onClick={() => setClosing(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm">
                   <Scissors className="w-4 h-4" /> Log Service
                 </button>
+              )}
+              {!CLOSED.has(a.status || 'scheduled') && (
+                <>
+                  <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 text-sm">Complete</button>
+                  <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">No-Show</button>
+                  <button onClick={() => setStatus(a, 'cancelled')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm">Cancel</button>
+                </>
               )}
             </div>
           ))}
