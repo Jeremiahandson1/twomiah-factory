@@ -29,7 +29,14 @@ export default function MessagesPage() {
   const loadConversations = async () => {
     try {
       const data = await api.get(`/api/sms/conversations?search=${search}&unreadOnly=${unreadFilter}`);
-      setConversations(data.data || []);
+      // Backend returns rows shaped { conversation: {...}, contact: {...} }.
+      // Flatten so conv.id / conv.phoneNumber / conv.unreadCount resolve — otherwise
+      // GET /conversations/undefined/messages 404s and Messages is dead. (CC-03/VET-05)
+      setConversations((data.data || []).map((row: Record<string, unknown>) =>
+        row.conversation
+          ? { ...(row.conversation as Record<string, unknown>), contact: row.contact }
+          : row
+      ));
       setLoading(false);
     } catch (error: unknown) {
       console.error('Failed to load conversations:', error);
