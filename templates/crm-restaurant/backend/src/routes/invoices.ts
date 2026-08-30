@@ -98,8 +98,11 @@ app.get('/stats', requirePermission('invoices:read'), async (c) => {
   const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0 }
   invoices.forEach(inv => {
     stats[inv.status] = (stats[inv.status] || 0) + 1
-    stats.totalAmount += Number(inv.total)
-    stats.outstanding += Number(inv.total) - Number(inv.amountPaid)
+    // Drafts aren't sent; exclude from invoiced + outstanding so collection rate stays meaningful. (VET-19)
+    if (inv.status !== 'draft') {
+      stats.totalAmount += Number(inv.total)
+      stats.outstanding += Number(inv.total) - Number(inv.amountPaid)
+    }
     if (inv.status === 'paid') stats.paidAmount += Number(inv.total)
   })
   return c.json(stats)
