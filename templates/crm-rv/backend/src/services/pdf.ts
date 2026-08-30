@@ -12,7 +12,8 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
   if (data.number) doc.fontSize(10).text(`Number: ${data.number}`)
   if (data.date || data.createdAt) doc.text(`Date: ${fmtDate(data.date || data.createdAt)}`)
   if (data.dueDate) doc.text(`Due Date: ${fmtDate(data.dueDate)}`)
-  if (data.status) doc.text(`Status: ${String(data.status).charAt(0).toUpperCase()}${String(data.status).slice(1)}`)
+  // Don't print internal "draft" status on the customer's copy. (CC-34)
+  if (data.status && data.status !== 'draft') doc.text(`Status: ${String(data.status).charAt(0).toUpperCase()}${String(data.status).slice(1)}`)
   doc.moveDown()
 
   const contact = data.contact
@@ -29,20 +30,30 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
 
   const items = data.lineItems || data.items || []
   if (items.length > 0) {
-    doc.fontSize(10).text('Description', 72, doc.y, { continued: true, width: 250 })
-    doc.text('Qty', { continued: true, width: 50, align: 'right' })
-    doc.text('Price', { continued: true, width: 80, align: 'right' })
-    doc.text('Total', { width: 80, align: 'right' })
+    // Fixed column x-positions. The old `continued` layout drew Qty/Price/Total on top of
+    // each other (all within a ~7pt band). Page body is x=72..540. (CC-34)
+    const colDesc = 72, colQty = 300, colPrice = 372, colTotal = 456
+    const wDesc = 210, wQty = 60, wPrice = 78, wTotal = 84
+    const headY = doc.y
+    doc.fontSize(10).font('Helvetica-Bold')
+    doc.text('Description', colDesc, headY, { width: wDesc })
+    doc.text('Qty', colQty, headY, { width: wQty, align: 'right' })
+    doc.text('Price', colPrice, headY, { width: wPrice, align: 'right' })
+    doc.text('Total', colTotal, headY, { width: wTotal, align: 'right' })
+    doc.font('Helvetica')
     doc.moveDown(0.5)
 
     for (const item of items) {
-      const qty = item.quantity || 1
-      const price = Number(item.unitPrice || item.price || 0)
-      const total = qty * price
-      doc.text(item.description || item.name || '', 72, doc.y, { continued: true, width: 250 })
-      doc.text(String(qty), { continued: true, width: 50, align: 'right' })
-      doc.text(`$${price.toFixed(2)}`, { continued: true, width: 80, align: 'right' })
-      doc.text(`$${total.toFixed(2)}`, { width: 80, align: 'right' })
+      const qty = Number(item.quantity ?? 1)
+      const price = Number(item.unitPrice ?? item.price ?? 0)
+      const lineTotal = Number(item.total ?? qty * price)
+      const rowY = doc.y
+      doc.text(String(item.description || item.name || ''), colDesc, rowY, { width: wDesc })
+      const rowEnd = doc.y
+      doc.text(String(qty), colQty, rowY, { width: wQty, align: 'right' })
+      doc.text(`$${price.toFixed(2)}`, colPrice, rowY, { width: wPrice, align: 'right' })
+      doc.text(`$${lineTotal.toFixed(2)}`, colTotal, rowY, { width: wTotal, align: 'right' })
+      doc.y = Math.max(rowY + 14, rowEnd) // advance past the tallest cell in the row
     }
     doc.moveDown()
   }
