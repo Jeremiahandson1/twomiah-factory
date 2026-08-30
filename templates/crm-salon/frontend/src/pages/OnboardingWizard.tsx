@@ -181,6 +181,13 @@ export default function OnboardingWizard() {
     if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(profile.email).trim())) {
       setStepError('Please enter a valid email address (or leave it blank).'); return;
     }
+    // Phone and ZIP were accepted as free text ("abc", "99999999"); validate like email. (CC-19)
+    if (profile.phone && String(profile.phone).replace(/\D/g, '').length < 10) {
+      setStepError('Please enter a valid phone number (at least 10 digits), or leave it blank.'); return;
+    }
+    if (profile.zip && !/^\d{5}(-\d{4})?$/.test(String(profile.zip).trim())) {
+      setStepError('Please enter a valid ZIP code, or leave it blank.'); return;
+    }
     setStepError(null);
     handleNext();
   };
