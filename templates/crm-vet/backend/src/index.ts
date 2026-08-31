@@ -175,6 +175,15 @@ app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 // Cap oversized text fields on every JSON write (patients, invoices, appointments, …).
 app.use('/api/*', boundInputLengths)
 
+// Cap pagination so a single request can't ask for the whole table (?limit=100000).
+app.use('/api/*', async (c, next) => {
+  const lim = c.req.query('limit')
+  if (lim != null && lim !== '' && (!Number.isFinite(Number(lim)) || Number(lim) > 1000)) {
+    return c.json({ error: 'The limit parameter cannot exceed 1000 — use pagination for larger result sets.' }, 400)
+  }
+  await next()
+})
+
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 
 // API routes
