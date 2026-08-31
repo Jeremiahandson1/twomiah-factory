@@ -1,13 +1,15 @@
 /**
  * Global Search Service
  *
- * Searches across all entities: contacts, projects, jobs, quotes, invoices, etc.
- * Returns unified results with type, name, and link.
+ * Searches across a venue's entities: contacts, events, spaces, catering menus,
+ * invoices, documents, and staff. Construction entities (projects/jobs/quotes/RFIs)
+ * were removed when the restaurant/events CRM was scoped down — they linked to
+ * routes that no longer exist. Returns unified results with type, name, and link.
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi, event, eventSpace, menuPackage } from '../../db/schema.ts'
-import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
+import { contact, invoice, document, teamMember, event, eventSpace, menuPackage } from '../../db/schema.ts'
+import { eq, and, or, ilike, desc, asc } from 'drizzle-orm'
 
 interface SearchResult {
   type: string
@@ -34,12 +36,10 @@ export async function globalSearch(
   }
 
   const searchTerm = query.trim()
-  const perType = Math.ceil(limit / 6)
+  const perType = Math.ceil(limit / 5)
   const pattern = `%${searchTerm}%`
 
-  // Index the venue-side entities this business actually books, not just the
-  // contractor set — events/spaces/menus were missing from the palette (H-03).
-  const searchTypes = types || ['contact', 'event', 'space', 'menu', 'quote', 'invoice', 'document']
+  const searchTypes = types || ['contact', 'event', 'space', 'menu', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
 
@@ -76,94 +76,51 @@ export async function globalSearch(
     )
   }
 
-  // Projects
-  if (searchTypes.includes('project')) {
+  // Events (enquiry → confirmed bookings)
+  if (searchTypes.includes('event')) {
     searches.push(
       db
-        .select({ id: project.id, name: project.name, number: project.number, status: project.status })
-        .from(project)
-        .where(
-          and(
-            eq(project.companyId, companyId),
-            or(
-              ilike(project.name, pattern),
-              ilike(project.number, pattern),
-              ilike(project.description, pattern),
-              ilike(project.address, pattern)
-            )
-          )
-        )
-        .orderBy(desc(project.updatedAt))
+        .select({ id: event.id, name: event.name, status: event.status, eventDate: event.eventDate })
+        .from(event)
+        .where(and(eq(event.companyId, companyId), or(ilike(event.name, pattern), ilike(event.notes, pattern))))
+        .orderBy(desc(event.updatedAt))
         .limit(perType)
         .then((items) =>
           items.map((item) => ({
-            type: 'project',
-            subtype: item.status,
-            id: item.id,
-            name: item.name,
-            description: item.number,
-            url: `/crm/projects/${item.id}`,
-            icon: 'folder',
+            type: 'event', subtype: item.status, id: item.id, name: item.name || 'Untitled event',
+            description: item.eventDate ? String(item.eventDate) : '', url: `/crm/events/${item.id}`, icon: 'calendar',
           }))
         )
     )
   }
 
-  // Jobs
-  if (searchTypes.includes('job')) {
+  // Spaces
+  if (searchTypes.includes('space')) {
     searches.push(
       db
-        .select({ id: job.id, title: job.title, number: job.number, status: job.status })
-        .from(job)
-        .where(
-          and(
-            eq(job.companyId, companyId),
-            or(
-              ilike(job.title, pattern),
-              ilike(job.number, pattern),
-              ilike(job.description, pattern)
-            )
-          )
-        )
-        .orderBy(desc(job.updatedAt))
+        .select({ id: eventSpace.id, name: eventSpace.name })
+        .from(eventSpace)
+        .where(and(eq(eventSpace.companyId, companyId), ilike(eventSpace.name, pattern)))
         .limit(perType)
         .then((items) =>
           items.map((item) => ({
-            type: 'job',
-            subtype: item.status,
-            id: item.id,
-            name: item.title,
-            description: item.number,
-            url: `/crm/jobs/${item.id}`,
-            icon: 'wrench',
+            type: 'space', subtype: null, id: item.id, name: item.name, description: 'Space', url: `/crm/spaces`, icon: 'map-pin',
           }))
         )
     )
   }
 
-  // Quotes
-  if (searchTypes.includes('quote')) {
+  // Catering menu packages
+  if (searchTypes.includes('menu')) {
     searches.push(
       db
-        .select({ id: quote.id, name: quote.name, number: quote.number, status: quote.status, total: quote.total })
-        .from(quote)
-        .where(
-          and(
-            eq(quote.companyId, companyId),
-            or(ilike(quote.number, pattern), ilike(quote.name, pattern))
-          )
-        )
-        .orderBy(desc(quote.updatedAt))
+        .select({ id: menuPackage.id, name: menuPackage.name })
+        .from(menuPackage)
+        .where(and(eq(menuPackage.companyId, companyId), ilike(menuPackage.name, pattern)))
         .limit(perType)
         .then((items) =>
           items.map((item) => ({
-            type: 'quote',
-            subtype: item.status,
-            id: item.id,
-            name: item.name || item.number,
-            description: `${item.number} - $${Number(item.total).toLocaleString()}`,
-            url: `/crm/quotes/${item.id}`,
-            icon: 'file-text',
+            type: 'menu', subtype: null, id: item.id, name: item.name, description: 'Catering package', url: `/crm/menus`, icon: 'utensils',
           }))
         )
     )
@@ -220,56 +177,6 @@ export async function globalSearch(
     )
   }
 
-  // Events (enquiry → confirmed bookings)
-  if (searchTypes.includes('event')) {
-    searches.push(
-      db
-        .select({ id: event.id, name: event.name, status: event.status, eventDate: event.eventDate })
-        .from(event)
-        .where(and(eq(event.companyId, companyId), or(ilike(event.name, pattern), ilike(event.notes, pattern))))
-        .orderBy(desc(event.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'event', subtype: item.status, id: item.id, name: item.name || 'Untitled event',
-            description: item.eventDate ? String(item.eventDate) : '', url: `/crm/events/${item.id}`, icon: 'calendar',
-          }))
-        )
-    )
-  }
-
-  // Spaces
-  if (searchTypes.includes('space')) {
-    searches.push(
-      db
-        .select({ id: eventSpace.id, name: eventSpace.name })
-        .from(eventSpace)
-        .where(and(eq(eventSpace.companyId, companyId), ilike(eventSpace.name, pattern)))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'space', subtype: null, id: item.id, name: item.name, description: 'Space', url: `/crm/spaces`, icon: 'map-pin',
-          }))
-        )
-    )
-  }
-
-  // Catering menu packages
-  if (searchTypes.includes('menu')) {
-    searches.push(
-      db
-        .select({ id: menuPackage.id, name: menuPackage.name })
-        .from(menuPackage)
-        .where(and(eq(menuPackage.companyId, companyId), ilike(menuPackage.name, pattern)))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'menu', subtype: null, id: item.id, name: item.name, description: 'Catering package', url: `/crm/menus`, icon: 'utensils',
-          }))
-        )
-    )
-  }
-
   // Team Members
   if (searchTypes.includes('team')) {
     searches.push(
@@ -293,34 +200,6 @@ export async function globalSearch(
             description: item.role || item.email || '',
             url: `/crm/team/${item.id}`,
             icon: 'users',
-          }))
-        )
-    )
-  }
-
-  // RFIs
-  if (searchTypes.includes('rfi')) {
-    searches.push(
-      db
-        .select({ id: rfi.id, number: rfi.number, subject: rfi.subject, status: rfi.status })
-        .from(rfi)
-        .where(
-          and(
-            eq(rfi.companyId, companyId),
-            or(ilike(rfi.number, pattern), ilike(rfi.subject, pattern))
-          )
-        )
-        .orderBy(desc(rfi.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'rfi',
-            subtype: item.status,
-            id: item.id,
-            name: item.subject,
-            description: item.number,
-            url: `/crm/rfis/${item.id}`,
-            icon: 'help-circle',
           }))
         )
     )
@@ -374,34 +253,27 @@ export async function quickSearch(companyId: string, query: string, limit = 10) 
 }
 
 /**
- * Get recent items (for empty search state)
+ * Get recent items (for empty search state) — recent contacts and events.
  */
 export async function getRecentItems(companyId: string, limit = 10) {
-  const [contacts, projects, jobs] = await Promise.all([
+  const [contacts, events] = await Promise.all([
     db
       .select({ id: contact.id, name: contact.name, type: contact.type })
       .from(contact)
       .where(eq(contact.companyId, companyId))
       .orderBy(desc(contact.updatedAt))
-      .limit(3),
+      .limit(5),
     db
-      .select({ id: project.id, name: project.name, number: project.number })
-      .from(project)
-      .where(eq(project.companyId, companyId))
-      .orderBy(desc(project.updatedAt))
-      .limit(3),
-    db
-      .select({ id: job.id, title: job.title, number: job.number })
-      .from(job)
-      .where(eq(job.companyId, companyId))
-      .orderBy(desc(job.updatedAt))
-      .limit(4),
+      .select({ id: event.id, name: event.name })
+      .from(event)
+      .where(eq(event.companyId, companyId))
+      .orderBy(desc(event.updatedAt))
+      .limit(5),
   ])
 
   return [
     ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
-    ...projects.map((p) => ({ type: 'project', id: p.id, name: p.name, url: `/crm/projects/${p.id}` })),
-    ...jobs.map((j) => ({ type: 'job', id: j.id, name: j.title, url: `/crm/jobs/${j.id}` })),
+    ...events.map((e) => ({ type: 'event', id: e.id, name: e.name || 'Untitled event', url: `/crm/events/${e.id}` })),
   ].slice(0, limit)
 }
 
