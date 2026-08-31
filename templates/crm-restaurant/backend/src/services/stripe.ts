@@ -12,7 +12,6 @@ import Stripe from 'stripe'
 import { db } from '../../db/index.ts'
 import { contact, invoice, payment, company, roofReport } from '../../db/schema.ts'
 import { eq, sql } from 'drizzle-orm'
-import { generateAndSaveReport } from '../routes/roofReports.ts'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
@@ -505,6 +504,10 @@ async function handleRoofReportCheckout(session: Stripe.Checkout.Session) {
   }
 
   try {
+    // Lazy import: the roof-reports route is pruned from non-roof verticals, so a
+    // top-level import would crash boot everywhere but crm-roof. This handler only
+    // runs for an actual roof-report payment webhook, which those verticals never see.
+    const { generateAndSaveReport } = await import('../routes/roofReports.ts')
     const report = await generateAndSaveReport(
       meta.companyId,
       meta.address || '',
