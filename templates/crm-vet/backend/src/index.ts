@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
+import { boundInputLengths } from './middleware/inputBounds.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
@@ -170,6 +171,9 @@ app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'pr
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
+
+// Cap oversized text fields on every JSON write (patients, invoices, appointments, …).
+app.use('/api/*', boundInputLengths)
 
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 

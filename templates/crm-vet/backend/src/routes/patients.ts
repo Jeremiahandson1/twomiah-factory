@@ -7,6 +7,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { stripTags } from '../utils/sanitize.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -120,9 +121,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const [created] = await db.insert(patient).values({
     id: createId(),
     ownerId: body.ownerId,
-    name: body.name,
+    name: stripTags(String(body.name || '')),
     species: body.species || 'dog',
-    breed: body.breed || null,
+    breed: body.breed ? stripTags(String(body.breed)) : null,
     sex: body.sex || null,
     spayedNeutered: body.spayedNeutered ?? false,
     dob: body.dob || null,
@@ -165,6 +166,9 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['ownerId', 'name', 'species', 'breed', 'sex', 'spayedNeutered', 'dob', 'weightLb', 'color', 'microchip', 'bloodType', 'insuranceProvider', 'insurancePolicy', 'allergies', 'alerts', 'rabiesTag', 'photo', 'deceased', 'deceasedDate', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  // Strip any HTML from the free-text display fields.
+  if (updates.name != null) updates.name = stripTags(String(updates.name))
+  if (updates.breed != null) updates.breed = stripTags(String(updates.breed))
 
   const [updated] = await db.update(patient).set(updates).where(eq(patient.id, id)).returning()
   await audit.log({ action: 'update', entity: 'patient', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
