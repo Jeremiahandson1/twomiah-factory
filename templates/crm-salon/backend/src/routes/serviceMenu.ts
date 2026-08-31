@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { serviceMenu } from '../../db/schema.ts'
-import { eq, and, asc } from 'drizzle-orm'
+import { eq, and, asc, ne, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -48,6 +48,15 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1)) {
     return c.json({ error: 'Duration must be at least 1 minute.' }, 400)
   }
+  // Rebook interval can't be negative (F25).
+  if (body.rebookIntervalDays != null && (isNaN(Number(body.rebookIntervalDays)) || Number(body.rebookIntervalDays) < 0)) {
+    return c.json({ error: 'Rebook interval cannot be negative.' }, 400)
+  }
+  // No two services with the same name (F24).
+  const [dup] = await db.select({ id: serviceMenu.id }).from(serviceMenu)
+    .where(and(eq(serviceMenu.companyId, currentUser.companyId), sql`lower(${serviceMenu.name}) = lower(${body.name.trim()})`))
+    .limit(1)
+  if (dup) return c.json({ error: 'A service with that name already exists.' }, 409)
 
   const [created] = await db.insert(serviceMenu).values({
     id: createId(),
@@ -84,6 +93,15 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   }
   if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1)) {
     return c.json({ error: 'Duration must be at least 1 minute.' }, 400)
+  }
+  if (body.rebookIntervalDays != null && (isNaN(Number(body.rebookIntervalDays)) || Number(body.rebookIntervalDays) < 0)) {
+    return c.json({ error: 'Rebook interval cannot be negative.' }, 400)
+  }
+  if (typeof body.name === 'string' && body.name.trim()) {
+    const [dup] = await db.select({ id: serviceMenu.id }).from(serviceMenu)
+      .where(and(eq(serviceMenu.companyId, currentUser.companyId), ne(serviceMenu.id, id), sql`lower(${serviceMenu.name}) = lower(${body.name.trim()})`))
+      .limit(1)
+    if (dup) return c.json({ error: 'A service with that name already exists.' }, 409)
   }
 
   // Whitelist editable columns — never let companyId/id be reassigned from the body.

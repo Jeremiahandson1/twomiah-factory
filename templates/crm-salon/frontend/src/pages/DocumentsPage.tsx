@@ -139,7 +139,7 @@ export default function DocumentsPage() {
     return (b / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const documentTypes = ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'];
+  const documentTypes = ['general', 'consent', 'contract', 'photo', 'invoice', 'receipt', 'other'];
 
   const columns = [
     {

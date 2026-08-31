@@ -9,7 +9,10 @@ app.use('*', authenticate)
 // Dashboard summary
 app.get('/dashboard', requirePermission('reports:read'), async (c) => {
   const user = c.get('user') as any
-  const summary = await reporting.getDashboardSummary(user.companyId)
+  const summary = await reporting.getDashboardSummary(user.companyId, {
+    startDate: c.req.query('startDate'),
+    endDate: c.req.query('endDate'),
+  })
   return c.json(summary)
 })
 

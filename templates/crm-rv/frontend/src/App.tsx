@@ -23,29 +23,17 @@ import MigrationPage from './pages/settings/MigrationPage';
 import ImportPage from './pages/settings/ImportPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import ContactsPage from './pages/ContactsPage';
-import JobsPage from './pages/JobsPage';
-import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
-import SchedulePage from './pages/SchedulePage';
-import TimePage from './pages/TimePage';
-import ExpensesPage from './pages/ExpensesPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
 // Feature pages
-import FleetPage from './pages/fleet/FleetPage';
 import InventoryPage from './pages/inventory/InventoryPage';
-import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
-import BookingsPage from './pages/booking/BookingsPage';
-import AgreementsPage from './pages/agreements/AgreementsPage';
-import WarrantiesPage from './pages/warranties/WarrantiesPage';
 import CallTrackingPage from './pages/calltracking/CallTrackingPage';
 import { AIReceptionistPage } from './components/features/AIReceptionistPage';
-import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
-import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
 import SupportPage from './pages/support/SupportPage';
@@ -77,8 +65,6 @@ import ContactSupportPage from './pages/support/ContactSupportPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
-import JobDetailPage from './components/detail/JobDetailPage';
-import QuoteDetailPage from './components/detail/QuoteDetailPage';
 import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
 
 // Layout
@@ -90,14 +76,10 @@ import { PortalProvider } from './contexts/PortalContext';
 import {
   PortalLayout,
   PortalDashboard,
-  PortalQuotes,
-  PortalQuoteDetail,
   PortalInvoices,
   PortalPaymentMethods,
   PortalInvoiceDetail,
   PortalMessages,
-  PortalMyJobs,
-  PortalSharedDocuments,
 } from './components/portal';
 
 
@@ -119,11 +101,8 @@ function App() {
             <ToastProvider>
               <SocketProvider>
                 <Routes>
-                  {/* Public marketing / reseller pages — these belong to the sales
-                      site, not a deployed dealership. On a tenant they leaked the
-                      vendor's "Own {tenant} forever" storefront and a home-services
-                      pricing catalog (H-11/H-12), so they only render when the
-                      marketing build explicitly opts in. */}
+                  {/* Public marketing / reseller pages — only render when the
+                      marketing build explicitly opts in (H-11/H-12). */}
                   {import.meta.env.VITE_ENABLE_PUBLIC_MARKETING === 'true' && (
                     <>
                       <Route path="/pricing" element={<PricingPage />} />
@@ -144,22 +123,44 @@ function App() {
                   {/* Onboarding wizard — shown before CRM if not completed */}
                   <Route path="/crm/onboarding" element={<ProtectedRoute><OnboardingWizard /></ProtectedRoute>} />
 
-                  {/* CRM — full business management interface */}
+                  {/* CRM — full dealership management interface */}
                   <Route path="/crm" element={<ProtectedRoute><OnboardingGate><AppLayout /></OnboardingGate></ProtectedRoute>}>
                     <Route index element={<RvDashboardPage />} />
+                    {/* RV / Powersports dealership */}
+                    <Route path="units" element={<RvInventoryPage />} />
+                    <Route path="sales-pipeline" element={<SalesPipelinePage />} />
+                    <Route path="desking" element={<DeskingPage />} />
+                    <Route path="fi" element={<FIPage />} />
+                    <Route path="service" element={<ServicePage />} />
+                    <Route path="parts-catalog" element={<OEMPartsPage />} />
+                    <Route path="labor-guide" element={<LaborGuidePage />} />
+                    <Route path="title-reg" element={<TitleRegPage />} />
+                    <Route path="floorplan" element={<FloorplanPage />} />
+                    <Route path="rentals" element={<RentalsPage />} />
+                    <Route path="accounting" element={<AccountingPage />} />
+                    <Route path="alerts" element={<AlertsPage />} />
+                    <Route path="ai-reports" element={<AIReportsPage />} />
+                    <Route path="ai-leads" element={<AILeadResponderPage />} />
+                    <Route path="ai-trade" element={<AITradeAppraisalPage />} />
+                    <Route path="inventory" element={<InventoryPage />} />
+                    {/* Shared CRM */}
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
-                    <Route path="jobs" element={<JobsPage />} />
-                    <Route path="jobs/:id" element={<JobDetailPage />} />
-                    <Route path="quotes" element={<QuotesPage />} />
-                    <Route path="quotes/:id" element={<QuoteDetailPage />} />
                     <Route path="invoices" element={<InvoicesPage />} />
                     <Route path="invoices/:id" element={<InvoiceDetailPage />} />
-                    <Route path="schedule" element={<SchedulePage />} />
-                    <Route path="time" element={<TimePage />} />
-                    <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
+                    <Route path="marketing" element={<MarketingPage />} />
+                    <Route path="call-tracking" element={<CallTrackingPage />} />
+                    <Route path="ai-receptionist" element={<AIReceptionistPage />} />
+                    <Route path="messages" element={<MessagesPage />} />
+                    <Route path="reports" element={<ReportsDashboard />} />
+                    <Route path="reviews" element={<ReviewsPage />} />
+                    <Route path="leads" element={<LeadInboxPage />} />
+                    <Route path="lead-sources" element={<LeadSourcesPage />} />
+                    <Route path="ads" element={<AdsPage />} />
+                    <Route path="support" element={<SupportPage />} />
+                    <Route path="help" element={<HelpPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
@@ -173,57 +174,15 @@ function App() {
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="fleet" element={<FleetPage />} />
-                    <Route path="inventory" element={<InventoryPage />} />
-                    {/* RV / Powersports dealership */}
-                    <Route path="units" element={<RvInventoryPage />} />
-                    <Route path="sales-pipeline" element={<SalesPipelinePage />} />
-                    <Route path="ai-reports" element={<AIReportsPage />} />
-                    <Route path="ai-leads" element={<AILeadResponderPage />} />
-                    <Route path="ai-trade" element={<AITradeAppraisalPage />} />
-                    <Route path="parts-catalog" element={<OEMPartsPage />} />
-                    <Route path="labor-guide" element={<LaborGuidePage />} />
-                    <Route path="fi" element={<FIPage />} />
-                    <Route path="desking" element={<DeskingPage />} />
-                    <Route path="title-reg" element={<TitleRegPage />} />
-                    <Route path="floorplan" element={<FloorplanPage />} />
-                    <Route path="rentals" element={<RentalsPage />} />
-                    <Route path="accounting" element={<AccountingPage />} />
-                    <Route path="service" element={<ServicePage />} />
-                    <Route path="alerts" element={<AlertsPage />} />
-                    <Route path="equipment" element={<EquipmentPage />} />
-                    <Route path="marketing" element={<MarketingPage />} />
-                    <Route path="bookings" element={<BookingsPage />} />
-                    <Route path="agreements" element={<AgreementsPage />} />
-                    <Route path="warranties" element={<WarrantiesPage />} />
-                    <Route path="call-tracking" element={<CallTrackingPage />} />
-                    <Route path="ai-receptionist" element={<AIReceptionistPage />} />
-                    <Route path="recurring" element={<RecurringListPage />} />
-                    <Route path="recurring/new" element={<RecurringForm />} />
-                    <Route path="recurring/:id/edit" element={<RecurringForm />} />
-                    <Route path="tasks" element={<TasksPage />} />
-                    <Route path="messages" element={<MessagesPage />} />
-                    <Route path="reports" element={<ReportsDashboard />} />
-                    <Route path="reviews" element={<ReviewsPage />} />
-                    <Route path="leads" element={<LeadInboxPage />} />
-                    <Route path="lead-sources" element={<LeadSourcesPage />} />
-                    <Route path="support" element={<SupportPage />} />
-                    <Route path="ads" element={<AdsPage />} />
-                    <Route path="help" element={<HelpPage />} />
                   </Route>
 
                   {/* Client Portal (public, token-based auth) */}
                   <Route path="/portal/:token" element={<PortalProvider><PortalLayout /></PortalProvider>}>
                     <Route index element={<PortalDashboard />} />
-                    <Route path="quotes" element={<PortalQuotes />} />
-                    <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
                     <Route path="invoices" element={<PortalInvoices />} />
-                    <Route path="payment-methods" element={<PortalPaymentMethods />} />
                     <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
+                    <Route path="payment-methods" element={<PortalPaymentMethods />} />
                     <Route path="messages" element={<PortalMessages />} />
-                    {/* Service / collaborator routes */}
-                    <Route path="my-jobs" element={<PortalMyJobs />} />
-                    <Route path="shared-documents" element={<PortalSharedDocuments />} />
                   </Route>
 
                   {/* Catch all */}

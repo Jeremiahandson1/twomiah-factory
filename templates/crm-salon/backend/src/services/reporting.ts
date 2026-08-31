@@ -489,30 +489,28 @@ export async function getQuoteStats(companyId: string, { startDate, endDate }: {
 /**
  * Get complete dashboard data
  */
-export async function getDashboardSummary(companyId: string) {
+export async function getDashboardSummary(companyId: string, opts: { startDate?: string; endDate?: string } = {}) {
+  // Honor the caller's date range; default to the last 30 days only when none is
+  // given, so the period picker (7/30/90) actually changes the numbers. (F58)
   const today = new Date()
-  const thirtyDaysAgo = new Date(today)
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+  const endDate = opts.endDate || today.toISOString()
+  const startDate = opts.startDate || (() => {
+    const d = new Date(today); d.setDate(d.getDate() - 30); return d.toISOString()
+  })()
+  const range = { startDate, endDate }
+  const dayMs = 86400000
+  const periodDays = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / dayMs))
 
   const [revenue, jobs, projects, quotes, recentActivity] = await Promise.all([
-    getRevenueOverview(companyId, {
-      startDate: thirtyDaysAgo.toISOString(),
-      endDate: today.toISOString(),
-    }),
-    getJobStats(companyId, {
-      startDate: thirtyDaysAgo.toISOString(),
-      endDate: today.toISOString(),
-    }),
+    getRevenueOverview(companyId, range),
+    getJobStats(companyId, range),
     getProjectStats(companyId),
-    getQuoteStats(companyId, {
-      startDate: thirtyDaysAgo.toISOString(),
-      endDate: today.toISOString(),
-    }),
+    getQuoteStats(companyId, range),
     getRecentActivity(companyId, 10),
   ])
 
   return {
-    period: '30 days',
+    period: `${periodDays} days`,
     revenue,
     jobs,
     projects,

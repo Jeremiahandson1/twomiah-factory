@@ -71,7 +71,7 @@ export default function ContactSupportPage() {
     <div className="p-6 max-w-3xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-          <LifeBuoy className="w-6 h-6" /> Contact Twomiah
+          <LifeBuoy className="w-6 h-6" /> Contact Support
         </h1>
         <p className="text-gray-500 mt-1 dark:text-slate-400">
           Something wrong with the software itself? Tell us here — it goes straight to our team.

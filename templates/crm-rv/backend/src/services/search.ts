@@ -1,13 +1,15 @@
 /**
  * Global Search Service
  *
- * Searches across all entities: contacts, projects, jobs, quotes, invoices, etc.
- * Returns unified results with type, name, and link.
+ * Searches a dealership's entities: customers, units (inventory by VIN/stock/make),
+ * deals, repair orders, invoices, and documents. Construction entities
+ * (projects/jobs/quotes/RFIs) were removed when the RV CRM was scoped down — they
+ * linked to routes that no longer exist. Returns unified results with type, name, link.
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi } from '../../db/schema.ts'
-import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
+import { contact, unit, salesLead, repairOrder, invoice, document, teamMember } from '../../db/schema.ts'
+import { eq, and, or, ilike, desc, asc } from 'drizzle-orm'
 
 interface SearchResult {
   type: string
@@ -19,9 +21,6 @@ interface SearchResult {
   icon: string
 }
 
-/**
- * Search all entities
- */
 export async function globalSearch(
   companyId: string,
   query: string,
@@ -34,14 +33,14 @@ export async function globalSearch(
   }
 
   const searchTerm = query.trim()
-  const perType = Math.ceil(limit / 6)
+  const perType = Math.ceil(limit / 5)
   const pattern = `%${searchTerm}%`
 
-  const searchTypes = types || ['contact', 'project', 'job', 'quote', 'invoice', 'document']
+  const searchTypes = types || ['contact', 'unit', 'deal', 'repair-order', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
 
-  // Contacts
+  // Customers / contacts
   if (searchTypes.includes('contact')) {
     searches.push(
       db
@@ -74,94 +73,90 @@ export async function globalSearch(
     )
   }
 
-  // Projects
-  if (searchTypes.includes('project')) {
+  // Units / inventory — the dealership searches by VIN, stock #, make/model
+  if (searchTypes.includes('unit')) {
     searches.push(
       db
-        .select({ id: project.id, name: project.name, number: project.number, status: project.status })
-        .from(project)
+        .select({ id: unit.id, year: unit.year, make: unit.make, modelName: unit.modelName, stockNumber: unit.stockNumber, vin: unit.vin, status: unit.status })
+        .from(unit)
         .where(
           and(
-            eq(project.companyId, companyId),
+            eq(unit.companyId, companyId),
             or(
-              ilike(project.name, pattern),
-              ilike(project.number, pattern),
-              ilike(project.description, pattern),
-              ilike(project.address, pattern)
+              ilike(unit.stockNumber, pattern),
+              ilike(unit.vin, pattern),
+              ilike(unit.make, pattern),
+              ilike(unit.modelName, pattern)
             )
           )
         )
-        .orderBy(desc(project.updatedAt))
+        .orderBy(desc(unit.year))
         .limit(perType)
         .then((items) =>
           items.map((item) => ({
-            type: 'project',
+            type: 'unit',
             subtype: item.status,
             id: item.id,
-            name: item.name,
-            description: item.number,
-            url: `/crm/projects/${item.id}`,
-            icon: 'folder',
+            name: [item.year, item.make, item.modelName].filter(Boolean).join(' ') || 'Unit',
+            description: [item.stockNumber && `Stock ${item.stockNumber}`, item.vin && `VIN ${item.vin}`].filter(Boolean).join(' · '),
+            url: `/crm/units`,
+            icon: 'truck',
           }))
         )
     )
   }
 
-  // Jobs
-  if (searchTypes.includes('job')) {
+  // Deals / sales pipeline
+  if (searchTypes.includes('deal')) {
     searches.push(
       db
-        .select({ id: job.id, title: job.title, number: job.number, status: job.status })
-        .from(job)
+        .select({ id: salesLead.id, stage: salesLead.stage, source: salesLead.source, notes: salesLead.notes })
+        .from(salesLead)
         .where(
           and(
-            eq(job.companyId, companyId),
-            or(
-              ilike(job.title, pattern),
-              ilike(job.number, pattern),
-              ilike(job.description, pattern)
-            )
+            eq(salesLead.companyId, companyId),
+            or(ilike(salesLead.notes, pattern), ilike(salesLead.source, pattern), ilike(salesLead.stage, pattern))
           )
         )
-        .orderBy(desc(job.updatedAt))
+        .orderBy(desc(salesLead.updatedAt))
         .limit(perType)
         .then((items) =>
           items.map((item) => ({
-            type: 'job',
-            subtype: item.status,
+            type: 'deal',
+            subtype: item.stage,
             id: item.id,
-            name: item.title,
-            description: item.number,
-            url: `/crm/jobs/${item.id}`,
-            icon: 'wrench',
-          }))
-        )
-    )
-  }
-
-  // Quotes
-  if (searchTypes.includes('quote')) {
-    searches.push(
-      db
-        .select({ id: quote.id, name: quote.name, number: quote.number, status: quote.status, total: quote.total })
-        .from(quote)
-        .where(
-          and(
-            eq(quote.companyId, companyId),
-            or(ilike(quote.number, pattern), ilike(quote.name, pattern))
-          )
-        )
-        .orderBy(desc(quote.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'quote',
-            subtype: item.status,
-            id: item.id,
-            name: item.name || item.number,
-            description: `${item.number} - $${Number(item.total).toLocaleString()}`,
-            url: `/crm/quotes/${item.id}`,
+            name: `Deal · ${item.stage || 'open'}`,
+            description: item.source || '',
+            url: `/crm/sales-pipeline`,
             icon: 'file-text',
+          }))
+        )
+    )
+  }
+
+  // Repair orders / service
+  if (searchTypes.includes('repair-order')) {
+    searches.push(
+      db
+        .select({ id: repairOrder.id, roNumber: repairOrder.roNumber, status: repairOrder.status, advisorName: repairOrder.advisorName })
+        .from(repairOrder)
+        .where(
+          and(
+            eq(repairOrder.companyId, companyId),
+            or(ilike(repairOrder.roNumber, pattern), ilike(repairOrder.advisorName, pattern), ilike(repairOrder.notes, pattern))
+          )
+        )
+        .orderBy(desc(repairOrder.updatedAt))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'repair-order',
+            subtype: item.status,
+            id: item.id,
+            name: `RO ${item.roNumber || ''}`.trim(),
+            description: item.advisorName || item.status || '',
+            url: `/crm/service`,
+            icon: 'wrench',
           }))
         )
     )
@@ -211,7 +206,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.mimeType || '',
-            url: `/crm/documents/${item.id}`,
+            url: `/crm/documents`,
             icon: 'file',
           }))
         )
@@ -246,38 +241,7 @@ export async function globalSearch(
     )
   }
 
-  // RFIs
-  if (searchTypes.includes('rfi')) {
-    searches.push(
-      db
-        .select({ id: rfi.id, number: rfi.number, subject: rfi.subject, status: rfi.status })
-        .from(rfi)
-        .where(
-          and(
-            eq(rfi.companyId, companyId),
-            or(ilike(rfi.number, pattern), ilike(rfi.subject, pattern))
-          )
-        )
-        .orderBy(desc(rfi.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'rfi',
-            subtype: item.status,
-            id: item.id,
-            name: item.subject,
-            description: item.number,
-            url: `/crm/rfis/${item.id}`,
-            icon: 'help-circle',
-          }))
-        )
-    )
-  }
-
-  // Execute all searches in parallel
   const resultsArrays = await Promise.all(searches)
-
-  // Flatten and sort by relevance
   let results = resultsArrays.flat()
 
   const lowerQuery = searchTerm.toLowerCase()
@@ -286,70 +250,33 @@ export async function globalSearch(
     const bExact = b.name.toLowerCase() === lowerQuery
     if (aExact && !bExact) return -1
     if (!aExact && bExact) return 1
-
     const aStarts = a.name.toLowerCase().startsWith(lowerQuery)
     const bStarts = b.name.toLowerCase().startsWith(lowerQuery)
     if (aStarts && !bStarts) return -1
     if (!aStarts && bStarts) return 1
-
     return 0
   })
 
   results = results.slice(0, limit)
 
-  return {
-    results,
-    query: searchTerm,
-    count: results.length,
-  }
+  return { results, query: searchTerm, count: results.length }
 }
 
-/**
- * Quick search - lighter weight, just names
- */
 export async function quickSearch(companyId: string, query: string, limit = 10) {
-  if (!query || query.length < 2) {
-    return []
-  }
-
+  if (!query || query.length < 2) return []
   const results = await globalSearch(companyId, query, { limit })
-  return results.results.map((r) => ({
-    type: r.type,
-    id: r.id,
-    name: r.name,
-    url: r.url,
-  }))
+  return results.results.map((r) => ({ type: r.type, id: r.id, name: r.name, url: r.url }))
 }
 
-/**
- * Get recent items (for empty search state)
- */
+/** Recent items (empty search state) — recent customers and units. */
 export async function getRecentItems(companyId: string, limit = 10) {
-  const [contacts, projects, jobs] = await Promise.all([
-    db
-      .select({ id: contact.id, name: contact.name, type: contact.type })
-      .from(contact)
-      .where(eq(contact.companyId, companyId))
-      .orderBy(desc(contact.updatedAt))
-      .limit(3),
-    db
-      .select({ id: project.id, name: project.name, number: project.number })
-      .from(project)
-      .where(eq(project.companyId, companyId))
-      .orderBy(desc(project.updatedAt))
-      .limit(3),
-    db
-      .select({ id: job.id, title: job.title, number: job.number })
-      .from(job)
-      .where(eq(job.companyId, companyId))
-      .orderBy(desc(job.updatedAt))
-      .limit(4),
+  const [contacts, units] = await Promise.all([
+    db.select({ id: contact.id, name: contact.name }).from(contact).where(eq(contact.companyId, companyId)).orderBy(desc(contact.updatedAt)).limit(5),
+    db.select({ id: unit.id, year: unit.year, make: unit.make, modelName: unit.modelName }).from(unit).where(eq(unit.companyId, companyId)).orderBy(desc(unit.year)).limit(5),
   ])
-
   return [
     ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
-    ...projects.map((p) => ({ type: 'project', id: p.id, name: p.name, url: `/crm/projects/${p.id}` })),
-    ...jobs.map((j) => ({ type: 'job', id: j.id, name: j.title, url: `/crm/jobs/${j.id}` })),
+    ...units.map((u) => ({ type: 'unit', id: u.id, name: [u.year, u.make, u.modelName].filter(Boolean).join(' ') || 'Unit', url: `/crm/units` })),
   ].slice(0, limit)
 }
 

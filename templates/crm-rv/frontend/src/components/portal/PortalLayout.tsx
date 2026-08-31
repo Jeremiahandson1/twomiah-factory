@@ -5,12 +5,6 @@ import { usePortal } from '../../contexts/PortalContext';
 const ROLE_LABELS: Record<string, string> = {
   client: 'Customer Portal',
   lead: 'Customer Portal',
-  vendor: 'Vendor Portal',
-  subcontractor: 'Subcontractor Portal',
-  architect: 'Architect Portal',
-  consultant: 'Consultant Portal',
-  inspector: 'Inspector Portal',
-  supplier: 'Supplier Portal',
 };
 
 export default function PortalLayout() {
@@ -45,29 +39,15 @@ export default function PortalLayout() {
     );
   }
 
+  // An RV buyer's portal — their invoices, payment method, and messages. No
+  // contractor quotes/jobs or sub/architect roles.
   type NavItem = { to: string; icon: typeof Home; label: string; end?: boolean };
-  const dashboard: NavItem = { to: `/portal/${token}`, icon: Home, label: 'Dashboard', end: true };
-  const messages: NavItem = { to: `/portal/${token}/messages`, icon: MessageSquare, label: 'Messages' };
-  const documents: NavItem = { to: `/portal/${token}/shared-documents`, icon: FolderOpen, label: 'Documents' };
-
-  const isSub = contactType === 'subcontractor' || contactType === 'vendor' || contactType === 'supplier';
-
-  const navItems = isSub
-    ? [
-        dashboard,
-        { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'My Jobs' },
-        documents,
-        messages,
-      ]
-    : [
-        dashboard,
-        { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
-        { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
-          { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
-        { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'Service' },
-        documents,
-        messages,
-      ];
+  const navItems: NavItem[] = [
+    { to: `/portal/${token}`, icon: Home, label: 'Dashboard', end: true },
+    { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
+    { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
+    { to: `/portal/${token}/messages`, icon: MessageSquare, label: 'Messages' },
+  ];
 
   const portalLabel = ROLE_LABELS[contactType] || 'Portal';
 

@@ -18,58 +18,53 @@ interface LeadSource {
 
 const PLATFORMS = [
   {
-    value: 'angi',
-    label: 'Angi (Angie\'s List)',
-    color: '#2e7d32',
-    instructions: [
-      'Log in to your Angi for Pros account',
-      'Go to Settings > Lead Notifications > Email',
-      'Set your notification email to the inbound address below',
-      'Angi will forward all new lead emails to your CRM',
-    ],
-  },
-  {
-    value: 'homeadvisor',
-    label: 'HomeAdvisor',
-    color: '#e65100',
-    instructions: [
-      'Log in to your HomeAdvisor Pro account',
-      'Go to My Account > Notification Preferences',
-      'Add the inbound email address below as a notification recipient',
-      'Enable "New Lead" email notifications',
-    ],
-  },
-  {
-    value: 'thumbtack',
-    label: 'Thumbtack',
-    color: '#1565c0',
-    instructions: [
-      'Log in to your Thumbtack Pro account',
-      'Go to Settings > Notifications',
-      'Add the inbound email below to receive lead notifications',
-      'Alternatively, set up email forwarding from your registered email',
-    ],
-  },
-  {
-    value: 'google_lsa',
-    label: 'Google Local Services',
+    value: 'google',
+    label: 'Google Business',
     color: '#c62828',
     instructions: [
-      'Google LSA leads arrive via phone calls and messages',
-      'Set up email forwarding from your Google LSA notification email',
-      'Forward all "New lead" emails to the inbound address below',
-      'You can also use the webhook URL with a third-party integration (Zapier, Make)',
+      'Open your Google Business Profile',
+      'Turn on message and booking notifications by email',
+      'Forward those "New message / New booking" emails to the inbound address below',
+      'New enquiries then land in your Lead Inbox automatically',
     ],
   },
   {
-    value: 'houzz',
-    label: 'Houzz',
+    value: 'instagram',
+    label: 'Instagram',
     color: '#6a1b9a',
     instructions: [
-      'Log in to your Houzz Pro account',
-      'Go to Settings > Email Notifications',
-      'Forward lead notification emails to the inbound address below',
-      'Houzz does not support direct webhooks — email forwarding is recommended',
+      'In the Instagram app, enable email notifications for DMs and enquiries',
+      'Forward booking-enquiry emails to the inbound address below',
+      'Or connect Instagram lead forms via a Zapier/Make webhook to the URL below',
+    ],
+  },
+  {
+    value: 'facebook',
+    label: 'Facebook',
+    color: '#1565c0',
+    instructions: [
+      'In Facebook Page settings, enable email notifications for messages and lead forms',
+      'Forward those notification emails to the inbound address below',
+      'Lead-form submissions can also be routed via a Zapier/Make webhook',
+    ],
+  },
+  {
+    value: 'yelp',
+    label: 'Yelp',
+    color: '#e65100',
+    instructions: [
+      'Log in to your Yelp for Business account',
+      'Enable email notifications for new messages and quote requests',
+      'Forward those emails to the inbound address below',
+    ],
+  },
+  {
+    value: 'referral',
+    label: 'Referrals & Walk-ins',
+    color: '#2e7d32',
+    instructions: [
+      'Add walk-ins and word-of-mouth referrals here to keep every enquiry in one place',
+      'You can also forward referral emails to the inbound address below',
     ],
   },
 ];

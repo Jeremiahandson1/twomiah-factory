@@ -56,7 +56,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 
-  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Support' },
 ];
 
 export default function AppLayout() {

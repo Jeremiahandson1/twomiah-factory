@@ -29,6 +29,17 @@ function zonedWallTimeToUtc(dateStr: string, timeStr: string, timeZone: string):
   return new Date(asUtc.getTime() - (local.getTime() - utc.getTime()));
 }
 
+// Minutes-since-midnight of a UTC instant in the salon's timezone. Appointment
+// times are stored in UTC, so comparing them to wall-clock slots with getHours()
+// (server = UTC on Render) mismatched by the tz offset and let taken slots stay
+// open — a double-booking. This reads the real salon-local hour/minute. (F45)
+function utcToZonedMinutes(d: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d);
+  const h = Number(parts.find((p) => p.type === 'hour')?.value || 0);
+  const m = Number(parts.find((p) => p.type === 'minute')?.value || 0);
+  return h * 60 + m;
+}
+
 // ============================================
 // BOOKING SETTINGS
 // ============================================
@@ -289,12 +300,18 @@ export async function getAvailableSlots(companyId: string, date: string, service
       lte(appointment.startTime, endOfDay),
     ));
 
+  // Compare stored (UTC) appointment times against wall-clock slots in the salon's
+  // own timezone, not the server's — otherwise taken slots stay open. (F45)
+  const [tzRow] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings)
+    .where(eq(bookingSettings.companyId, companyId)).limit(1);
+  const tz = tzRow?.timezone || 'America/Chicago';
+
   // Mark unavailable slots. Cancelled / no-show rows free the slot back up.
   for (const a of existingAppointments) {
     if (!a.startTime || a.status === 'cancelled' || a.status === 'no_show') continue;
-    const apptStart = a.startTime.getHours() * 60 + a.startTime.getMinutes();
+    const apptStart = utcToZonedMinutes(a.startTime, tz);
     const apptEnd = a.endTime
-      ? a.endTime.getHours() * 60 + a.endTime.getMinutes()
+      ? utcToZonedMinutes(a.endTime, tz)
       : apptStart + 60;
 
     for (const slot of slots) {

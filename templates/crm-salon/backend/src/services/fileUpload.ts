@@ -183,8 +183,13 @@ export function deleteFile(filePath: string): boolean {
 }
 
 export function getFileUrl(filePath: string, companyId: string): string {
-  const relativePath = filePath.replace(UPLOAD_DIR, '').replace(/\\/g, '/')
-  return `/uploads${relativePath}`
+  // filePath may be absolute (<cwd>/uploads/<co>/…) OR already relative (uploads/<co>/…).
+  // Anchor on the last "uploads/" segment so we never emit "/uploadsuploads/…" (F65).
+  const norm = filePath.replace(/\\/g, '/')
+  const marker = 'uploads/'
+  const i = norm.lastIndexOf(marker)
+  const rel = i >= 0 ? norm.slice(i + marker.length) : norm.replace(/^\/+/, '')
+  return `/uploads/${rel}`
 }
 
 export function getFileInfo(filePath: string): { name: string; path: string; size: number; created: Date; modified: Date; extension: string } | null {

@@ -98,6 +98,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (!body.startTime) return c.json({ error: 'startTime is required' }, 400)
+  // An appointment with no client is a ghost booking — require one (F16).
+  if (!body.contactId) return c.json({ error: 'A client is required for the appointment.' }, 400)
 
   const startTime = new Date(body.startTime)
   if (Number.isNaN(startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)

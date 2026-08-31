@@ -50,27 +50,20 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/service', icon: Wrench, label: 'Service', features: ['service_dept'], section: 'Parts & Service' },
   { to: '/crm/labor-guide', icon: Clock, label: 'Labor Guide', section: 'Parts & Service' },
   { to: '/crm/inventory', icon: Package, label: 'Parts & Inventory', features: ['inventory', 'parts_tracking'], section: 'Parts & Service' },
-  { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'], section: 'Parts & Service' },
 
   // Operations
   { to: '/crm/floorplan', icon: DollarSign, label: 'Floorplan', section: 'Operations' },
   { to: '/crm/rentals', icon: Repeat, label: 'Rentals', section: 'Operations' },
-  { to: '/crm/schedule', icon: Calendar, label: 'Schedule', section: 'Operations' },
-  { to: '/crm/time', icon: Clock, label: 'Time', section: 'Operations' },
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', features: ['deal_pipeline', 'service_dept'], section: 'Operations' },
 
   // Back Office
   { to: '/crm/accounting', icon: Receipt, label: 'Accounting', section: 'Back Office' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', section: 'Back Office' },
-  { to: '/crm/quotes', icon: FileText, label: 'Quotes', section: 'Back Office' },
-  { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', section: 'Back Office' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', section: 'Back Office' },
-  { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', section: 'Back Office' },
 
   // Customers & Marketing
   { to: '/crm/contacts', icon: Users, label: 'Contacts', section: 'Customers & Marketing' },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'], section: 'Customers & Marketing' },
-  { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'], section: 'Customers & Marketing' },
   { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing' },
   { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'], section: 'Customers & Marketing' },

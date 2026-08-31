@@ -29,9 +29,7 @@ interface ImportResults {
 }
 
 const IMPORT_TYPES: ImportType[] = [
-  { id: 'contacts', label: 'Contacts', icon: Users, description: 'Import customers, vendors, and leads' },
-  { id: 'projects', label: 'Projects', icon: FolderKanban, description: 'Import project records' },
-  { id: 'jobs', label: 'Jobs', icon: Briefcase, description: 'Import work orders and jobs' },
+  { id: 'contacts', label: 'Clients', icon: Users, description: 'Import clients and leads' },
   { id: 'products', label: 'Products/Services', icon: Package, description: 'Import products and service items' },
   { id: 'invoices', label: 'Invoices', icon: Receipt, description: 'Import invoices and open balances from Jobber, HousecallPro or QuickBooks' },
 ];
@@ -63,7 +61,7 @@ export default function ImportPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const previewData = await api.upload(`/import/preview/${selectedType}`, formData);
+      const previewData = await api.upload(`/api/import/preview/${selectedType}`, formData);
       setPreview(previewData as PreviewData);
     } catch (err: unknown) {
       setError((err as Error).message || 'Failed to preview file');
@@ -85,7 +83,7 @@ export default function ImportPage() {
         formData.append(key, String(value));
       });
 
-      const result = await api.upload(`/import/${selectedType}`, formData);
+      const result = await api.upload(`/api/import/${selectedType}`, formData);
       setResults(result as ImportResults);
     } catch (err: unknown) {
       setError((err as Error).message || 'Import failed');
@@ -95,7 +93,7 @@ export default function ImportPage() {
   };
 
   const handleDownloadTemplate = () => {
-    window.open(`${(api as unknown as Record<string, string>).baseUrl || ''}/import/template/${selectedType}`, '_blank');
+    window.open(`${(api as unknown as Record<string, string>).baseUrl || ''}/api/import/template/${selectedType}`, '_blank');
   };
 
   const resetImport = () => {
