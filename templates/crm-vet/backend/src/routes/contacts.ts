@@ -7,24 +7,25 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
+import { shortText, longText } from '../utils/sanitize.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
 const contactSchema = z.object({
-  name: z.string().min(1),
+  name: shortText(200).pipe(z.string().min(1, 'Name is required')),
   type: z.enum(['lead', 'client', 'subcontractor', 'vendor']).default('lead'),
-  company: z.string().optional(),
-  email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
-  mobile: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
-  source: z.string().optional(),
-  notes: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  company: shortText(200).optional(),
+  email: z.string().email().max(320).optional().or(z.literal('')),
+  phone: shortText(40).optional(),
+  mobile: shortText(40).optional(),
+  address: longText(500).optional(),
+  city: shortText(120).optional(),
+  state: shortText(120).optional(),
+  zip: shortText(20).optional(),
+  source: shortText(200).optional(),
+  notes: longText(10000).optional(),
+  tags: z.array(shortText(60)).max(50).optional(),
 })
 
 app.get('/', requirePermission('contacts:read'), async (c) => {

@@ -148,6 +148,13 @@ app.post('/send', async (c) => {
     templateId,
   })
 
+  // The message row is saved either way, but a failed send must not report 200 —
+  // that masks an empty wallet / provider error as success.
+  if ((result as any)?.status === 'failed') {
+    const err = (result as any).errorMessage || 'Message could not be sent'
+    const walletEmpty = /wallet/i.test(err)
+    return c.json({ ...result, error: err }, walletEmpty ? 402 : 502)
+  }
   return c.json(result)
 })
 
@@ -174,6 +181,10 @@ app.post('/conversations/:id/reply', async (c) => {
     userId: user.userId,
   })
 
+  if ((result as any)?.status === 'failed') {
+    const err = (result as any).errorMessage || 'Message could not be sent'
+    return c.json({ ...result, error: err }, /wallet/i.test(err) ? 402 : 502)
+  }
   return c.json(result)
 })
 

@@ -18,9 +18,9 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE as string) || 10 * 1024 * 1024 // 10MB
 const ALLOWED_MIMES: Record<string, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
   spreadsheet: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
-  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
+  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/plain'],
 }
 
 function ensureDir(dir: string): void {
@@ -65,9 +65,13 @@ export async function saveFile(
   subdir = 'general',
   allowedTypes = 'all'
 ): Promise<UploadedFile> {
+  // The browser sends the full media type incl. parameters, e.g.
+  // "text/plain;charset=utf-8" — compare against the bare type, not the raw string,
+  // or a plain .txt is rejected even though its base type is allowed.
+  const baseType = (file.type || '').split(';')[0].trim().toLowerCase()
   const mimes = ALLOWED_MIMES[allowedTypes] || ALLOWED_MIMES.all
-  if (!mimes.includes(file.type)) {
-    throw new Error(`Invalid file type: ${file.type}. Allowed: ${allowedTypes}`)
+  if (!mimes.includes(baseType)) {
+    throw new Error(`Invalid file type: ${baseType || 'unknown'}. Allowed: ${mimes.join(', ')}`)
   }
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(`File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
@@ -82,8 +86,8 @@ export async function saveFile(
 
   // Verify the content matches the declared type, so an HTML file renamed evil.pdf and sent
   // as application/pdf can't be stored and later served as a "PDF". (R2-05)
-  if (SNIFFABLE_MIMES.has(file.type) && sniffMime(buffer) !== file.type) {
-    throw new Error(`File content does not match its declared type (${file.type}).`)
+  if (SNIFFABLE_MIMES.has(baseType) && sniffMime(buffer) !== baseType) {
+    throw new Error(`File content does not match its declared type (${baseType}).`)
   }
 
   fs.writeFileSync(filePath, buffer)
@@ -91,7 +95,7 @@ export async function saveFile(
   return {
     path: filePath,
     originalname: file.name,
-    mimetype: file.type,
+    mimetype: baseType,
     size: file.size,
   }
 }

@@ -89,7 +89,7 @@ app.get('/status', authenticate, async (c) => {
 app.get('/quickbooks/auth-url', authenticate, async (c) => {
   const user = c.get('user') as any
 
-  if (!QB_CLIENT_ID) return c.json({ error: 'QuickBooks not configured' }, 500)
+  if (!QB_CLIENT_ID) return c.json({ error: 'QuickBooks integration is not configured for this workspace.', configured: false }, 503)
 
   const state = Buffer.from(JSON.stringify({
     companyId: user.companyId,
@@ -224,6 +224,8 @@ app.post('/quickbooks/sync', authenticate, async (c) => {
 
 app.get('/stripe/connect-url', authenticate, async (c) => {
   const user = c.get('user') as any
+
+  if (!stripe) return c.json({ error: 'Stripe integration is not configured for this workspace.', configured: false }, 503)
 
   const [comp] = await db.select({
     name: company.name,

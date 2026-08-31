@@ -65,8 +65,13 @@ app.get('/public/:companySlug/slots', async (c) => {
   const [found] = await db.select().from(company).where(eq(company.slug, companySlug)).limit(1)
   if (!found) return c.json({ error: 'Company not found' }, 404)
 
-  const slots = await booking.getAvailableSlots(found.id, date, serviceId)
-  return c.json(slots)
+  try {
+    const slots = await booking.getAvailableSlots(found.id, date, serviceId)
+    return c.json(slots)
+  } catch (err: any) {
+    // A malformed date or unknown service is a bad request, not a server error.
+    return c.json({ error: err?.message || 'Could not load availability for that date.', slots: [] }, 400)
+  }
 })
 
 const bookingSchema = z.object({
@@ -86,9 +91,15 @@ const bookingSchema = z.object({
 
 app.post('/public/:companySlug', async (c) => {
   const companySlug = c.req.param('companySlug')
-  const body = await c.req.json()
+  const body = await c.req.json().catch(() => null)
+  if (!body || typeof body !== 'object') return c.json({ error: 'Invalid request body' }, 400)
   if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
-  const data = bookingSchema.parse(body)
+  const parsed = bookingSchema.safeParse(body)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return c.json({ error: issue?.message || 'Invalid booking details', field: issue?.path?.join('.') }, 400)
+  }
+  const data = parsed.data
 
   const [found] = await db.select().from(company).where(eq(company.slug, companySlug)).limit(1)
   if (!found) return c.json({ error: 'Company not found' }, 404)
@@ -102,7 +113,16 @@ app.post('/public/:companySlug', async (c) => {
     return c.json({ error: 'Address is required' }, 400)
   }
 
-  const result = await booking.createBooking(found.id, data)
+  let result
+  try {
+    result = await booking.createBooking(found.id, data)
+  } catch (err: any) {
+    // Booking failures are user-actionable (slot taken, past date, bad service) —
+    // return a helpful 4xx, not a raw 500. A taken slot is a conflict.
+    const msg = err?.message || 'Could not complete your booking. Please pick another time.'
+    const conflict = /no longer available|already has|taken|conflict/i.test(msg)
+    return c.json({ error: msg }, conflict ? 409 : 400)
+  }
 
   return c.json({
     success: true,

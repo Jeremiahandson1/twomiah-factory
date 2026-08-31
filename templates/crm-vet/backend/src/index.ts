@@ -19,7 +19,7 @@ import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
 import { startMarketingProcessor } from './services/marketing.ts'
-import { startAgreementBillingProcessor } from './services/agreements.ts'
+// [vet-scope] import { startAgreementBillingProcessor } from './services/agreements.ts' — service agreements are a contractor concept; a vet uses wellness plans
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -210,7 +210,7 @@ app.route('/api/documents', documentsRoutes)
 app.route('/api/billing', billingRoutes)
 app.route('/api/integrations', integrationsRoutes)
 app.route('/api/agency', agencyAdminRoutes)
-app.route('/api/agreements', agreementsRoutes)
+// [vet-scope] app.route('/api/agreements', agreementsRoutes) — contractor service agreements; vet uses wellness plans
 app.route('/api/audit', auditRoutes)
 app.route('/api/booking', bookingRoutes)
 app.route('/api/bulk', bulkRoutes)
@@ -234,7 +234,7 @@ app.route('/api/portal', portalRoutes)
 // [vet-scope] try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
 app.route('/api/push', pushRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
-app.route('/api/recurring', recurringRoutes)
+// [vet-scope] app.route('/api/recurring', recurringRoutes) — contractor recurring jobs/invoices; vet uses wellness-plan billing
 app.route('/api/reports', reportingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 // [vet-scope] app.route('/api/routing', routingRoutes)
@@ -490,7 +490,7 @@ initializeSocket(server as any)
 syncFeatures().catch(console.error)
 startReviewProcessor()
 startMarketingProcessor()
-startAgreementBillingProcessor()
+// [vet-scope] startAgreementBillingProcessor() — agreements removed for veterinary
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)
