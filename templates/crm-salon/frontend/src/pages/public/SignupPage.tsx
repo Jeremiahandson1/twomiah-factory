@@ -105,26 +105,6 @@ const PLANS: Record<string, Plan> = {
       'Advanced reporting',
     ],
   },
-  construction: {
-    id: 'construction',
-    name: 'Construction',
-    price: 599,
-    priceAnnual: 479,
-    description: 'Complete construction management',
-    users: 20,
-    highlights: [
-      'Everything in Business',
-      'Projects & phases',
-      'Change orders & RFIs',
-      'Daily logs & inspections',
-      'Punch lists',
-      'Bid management',
-      'Gantt charts',
-      'Selections portal',
-      'Draw schedules (AIA)',
-      'Lien waivers',
-    ],
-  },
 };
 
 const FEATURE_COMPARISON: FeatureGroup[] = [
@@ -157,16 +137,6 @@ const FEATURE_COMPARISON: FeatureGroup[] = [
     { name: 'Custom Forms', starter: false, pro: false, business: true, construction: true },
     { name: 'Consumer Financing', starter: false, pro: false, business: true, construction: true },
     { name: 'Advanced Reporting', starter: false, pro: false, business: true, construction: true },
-  ]},
-  { category: 'Construction Management', features: [
-    { name: 'Projects & Phases', starter: false, pro: false, business: false, construction: true },
-    { name: 'Change Orders & RFIs', starter: false, pro: false, business: false, construction: true },
-    { name: 'Daily Logs & Inspections', starter: false, pro: false, business: false, construction: true },
-    { name: 'Punch Lists', starter: false, pro: false, business: false, construction: true },
-    { name: 'Gantt Charts', starter: false, pro: false, business: false, construction: true },
-    { name: 'Selections Portal', starter: false, pro: false, business: false, construction: true },
-    { name: 'Draw Schedules (AIA)', starter: false, pro: false, business: false, construction: true },
-    { name: 'Lien Waivers', starter: false, pro: false, business: false, construction: true },
   ]},
   { category: 'Limits', features: [
     { name: 'Contacts', starter: '500', pro: '2,500', business: '10,000', construction: '25,000' },
@@ -531,7 +501,7 @@ interface PlanSelectionProps {
 
 function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle }: PlanSelectionProps) {
   const [showComparison, setShowComparison] = useState<boolean>(false);
-  const tierKeys: string[] = ['starter', 'pro', 'business', 'construction'];
+  const tierKeys: string[] = ['starter', 'pro', 'business'];
 
   return (
     <div>

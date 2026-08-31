@@ -1,13 +1,15 @@
 /**
  * Global Search Service
  *
- * Searches across all entities: contacts, projects, jobs, quotes, invoices, etc.
+ * Searches across a salon's entities: clients (contacts), invoices, documents,
+ * and staff. Construction entities (projects/jobs/quotes/RFIs) were removed when
+ * the salon CRM was scoped down — they linked to routes that no longer exist.
  * Returns unified results with type, name, and link.
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi } from '../../db/schema.ts'
-import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
+import { contact, invoice, document, teamMember } from '../../db/schema.ts'
+import { eq, and, or, ilike, desc, asc } from 'drizzle-orm'
 
 interface SearchResult {
   type: string
@@ -34,14 +36,14 @@ export async function globalSearch(
   }
 
   const searchTerm = query.trim()
-  const perType = Math.ceil(limit / 6)
+  const perType = Math.ceil(limit / 4)
   const pattern = `%${searchTerm}%`
 
-  const searchTypes = types || ['contact', 'project', 'job', 'quote', 'invoice', 'document']
+  const searchTypes = types || ['contact', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
 
-  // Contacts
+  // Clients / contacts
   if (searchTypes.includes('contact')) {
     searches.push(
       db
@@ -69,99 +71,6 @@ export async function globalSearch(
             description: item.company || item.email || '',
             url: `/crm/contacts/${item.id}`,
             icon: 'user',
-          }))
-        )
-    )
-  }
-
-  // Projects
-  if (searchTypes.includes('project')) {
-    searches.push(
-      db
-        .select({ id: project.id, name: project.name, number: project.number, status: project.status })
-        .from(project)
-        .where(
-          and(
-            eq(project.companyId, companyId),
-            or(
-              ilike(project.name, pattern),
-              ilike(project.number, pattern),
-              ilike(project.description, pattern),
-              ilike(project.address, pattern)
-            )
-          )
-        )
-        .orderBy(desc(project.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'project',
-            subtype: item.status,
-            id: item.id,
-            name: item.name,
-            description: item.number,
-            url: `/crm/projects/${item.id}`,
-            icon: 'folder',
-          }))
-        )
-    )
-  }
-
-  // Jobs
-  if (searchTypes.includes('job')) {
-    searches.push(
-      db
-        .select({ id: job.id, title: job.title, number: job.number, status: job.status })
-        .from(job)
-        .where(
-          and(
-            eq(job.companyId, companyId),
-            or(
-              ilike(job.title, pattern),
-              ilike(job.number, pattern),
-              ilike(job.description, pattern)
-            )
-          )
-        )
-        .orderBy(desc(job.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'job',
-            subtype: item.status,
-            id: item.id,
-            name: item.title,
-            description: item.number,
-            url: `/crm/jobs/${item.id}`,
-            icon: 'wrench',
-          }))
-        )
-    )
-  }
-
-  // Quotes
-  if (searchTypes.includes('quote')) {
-    searches.push(
-      db
-        .select({ id: quote.id, name: quote.name, number: quote.number, status: quote.status, total: quote.total })
-        .from(quote)
-        .where(
-          and(
-            eq(quote.companyId, companyId),
-            or(ilike(quote.number, pattern), ilike(quote.name, pattern))
-          )
-        )
-        .orderBy(desc(quote.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'quote',
-            subtype: item.status,
-            id: item.id,
-            name: item.name || item.number,
-            description: `${item.number} - $${Number(item.total).toLocaleString()}`,
-            url: `/crm/quotes/${item.id}`,
-            icon: 'file-text',
           }))
         )
     )
@@ -218,7 +127,7 @@ export async function globalSearch(
     )
   }
 
-  // Team Members
+  // Team Members (stylists)
   if (searchTypes.includes('team')) {
     searches.push(
       db
@@ -241,34 +150,6 @@ export async function globalSearch(
             description: item.role || item.email || '',
             url: `/crm/team/${item.id}`,
             icon: 'users',
-          }))
-        )
-    )
-  }
-
-  // RFIs
-  if (searchTypes.includes('rfi')) {
-    searches.push(
-      db
-        .select({ id: rfi.id, number: rfi.number, subject: rfi.subject, status: rfi.status })
-        .from(rfi)
-        .where(
-          and(
-            eq(rfi.companyId, companyId),
-            or(ilike(rfi.number, pattern), ilike(rfi.subject, pattern))
-          )
-        )
-        .orderBy(desc(rfi.updatedAt))
-        .limit(perType)
-        .then((items) =>
-          items.map((item) => ({
-            type: 'rfi',
-            subtype: item.status,
-            id: item.id,
-            name: item.subject,
-            description: item.number,
-            url: `/crm/rfis/${item.id}`,
-            icon: 'help-circle',
           }))
         )
     )
@@ -322,35 +203,17 @@ export async function quickSearch(companyId: string, query: string, limit = 10) 
 }
 
 /**
- * Get recent items (for empty search state)
+ * Get recent items (for empty search state) — recent clients only.
  */
 export async function getRecentItems(companyId: string, limit = 10) {
-  const [contacts, projects, jobs] = await Promise.all([
-    db
-      .select({ id: contact.id, name: contact.name, type: contact.type })
-      .from(contact)
-      .where(eq(contact.companyId, companyId))
-      .orderBy(desc(contact.updatedAt))
-      .limit(3),
-    db
-      .select({ id: project.id, name: project.name, number: project.number })
-      .from(project)
-      .where(eq(project.companyId, companyId))
-      .orderBy(desc(project.updatedAt))
-      .limit(3),
-    db
-      .select({ id: job.id, title: job.title, number: job.number })
-      .from(job)
-      .where(eq(job.companyId, companyId))
-      .orderBy(desc(job.updatedAt))
-      .limit(4),
-  ])
+  const contacts = await db
+    .select({ id: contact.id, name: contact.name, type: contact.type })
+    .from(contact)
+    .where(eq(contact.companyId, companyId))
+    .orderBy(desc(contact.updatedAt))
+    .limit(limit)
 
-  return [
-    ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
-    ...projects.map((p) => ({ type: 'project', id: p.id, name: p.name, url: `/crm/projects/${p.id}` })),
-    ...jobs.map((j) => ({ type: 'job', id: j.id, name: j.title, url: `/crm/jobs/${j.id}` })),
-  ].slice(0, limit)
+  return contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` }))
 }
 
 export default { globalSearch, quickSearch, getRecentItems }

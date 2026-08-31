@@ -3,14 +3,8 @@ import { Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageS
 import { usePortal } from '../../contexts/PortalContext';
 
 const ROLE_LABELS: Record<string, string> = {
-  client: 'Customer Portal',
-  lead: 'Customer Portal',
-  vendor: 'Vendor Portal',
-  subcontractor: 'Subcontractor Portal',
-  architect: 'Architect Portal',
-  consultant: 'Consultant Portal',
-  inspector: 'Inspector Portal',
-  supplier: 'Supplier Portal',
+  client: 'Client Portal',
+  lead: 'Client Portal',
 };
 
 export default function PortalLayout() {
@@ -45,41 +39,15 @@ export default function PortalLayout() {
     );
   }
 
+  // A salon client's portal — their bookings, invoices, and messages. No
+  // contractor projects/quotes/change-orders/selections or sub/architect roles.
   type NavItem = { to: string; icon: typeof Home; label: string; end?: boolean };
-  const dashboard: NavItem = { to: `/portal/${token}`, icon: Home, label: 'Dashboard', end: true };
-  const messages: NavItem = { to: `/portal/${token}/messages`, icon: MessageSquare, label: 'Messages' };
-  const documents: NavItem = { to: `/portal/${token}/shared-documents`, icon: FolderOpen, label: 'Documents' };
-
-  const isSub = contactType === 'subcontractor' || contactType === 'vendor' || contactType === 'supplier';
-  const isArchitect = contactType === 'architect' || contactType === 'consultant' || contactType === 'inspector';
-
-  const navItems = isSub
-    ? [
-        dashboard,
-        { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'My Jobs' },
-        { to: `/portal/${token}/lien-waivers`, icon: FileSignature, label: 'Lien Waivers' },
-        documents,
-        messages,
-      ]
-    : isArchitect
-      ? [
-          dashboard,
-          { to: `/portal/${token}/rfis-assigned`, icon: HelpCircle, label: 'RFIs' },
-          { to: `/portal/${token}/submittal-review`, icon: FileCheck2, label: 'Submittals' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          documents,
-          messages,
-        ]
-      : [
-          dashboard,
-          { to: `/portal/${token}/projects`, icon: FolderKanban, label: 'Projects' },
-          { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
-          { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
-          { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          { to: `/portal/${token}/selections`, icon: Palette, label: 'Selections' },
-          messages,
-        ];
+  const navItems: NavItem[] = [
+    { to: `/portal/${token}`, icon: Home, label: 'Dashboard', end: true },
+    { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
+    { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
+    { to: `/portal/${token}/messages`, icon: MessageSquare, label: 'Messages' },
+  ];
 
   const portalLabel = ROLE_LABELS[contactType] || 'Portal';
 

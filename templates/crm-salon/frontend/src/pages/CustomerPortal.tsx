@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
-  Clock, LogOut, Camera, Sparkles, BookOpen, Ruler
+  Clock, LogOut, Camera, Sparkles, BookOpen, Ruler,
+  Calendar, CreditCard
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -150,10 +151,10 @@ export default function CustomerPortal() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {([
-              { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Appointments Today', value: (stats.appointments as Record<string, unknown>)?.today ?? 0, icon: Calendar, color: 'blue' },
+              { label: 'Active Clients', value: (stats.clients as Record<string, unknown>)?.total ?? 0, icon: Users, color: 'emerald' },
+              { label: 'Memberships', value: (stats.memberships as Record<string, unknown>)?.activeEnrollments ?? 0, icon: CreditCard, color: 'amber' },
+              { label: 'Revenue (mo)', value: `$${Number((stats.services as Record<string, unknown>)?.revenueThisMonth ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
@@ -186,9 +187,9 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Business CRM</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Salon CRM</h3>
             <p className="text-sm text-slate-500">
-              Contacts, jobs, quotes, invoices, scheduling, and more
+              The book, clients, service menu, memberships, invoices, and more
             </p>
           </div>
 
@@ -236,32 +237,7 @@ export default function CustomerPortal() {
             </a>
           )}
 
-          {/* Pricebook Promo — show if they don't have it yet */}
-          {!hasFeature('pricebook') && (
-            <div
-              onClick={() => navigate('/crm/pricebook-trial')}
-              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-amber-600" />
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                  <Sparkles className="w-3 h-3" />
-                  FREE TRIAL
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Pricebook</h3>
-              <p className="text-sm text-slate-500">
-                Standardized pricing catalog — consistent quotes, faster estimates
-              </p>
-            </div>
-          )}
-
-          {/* Exterior Visualizer add-on is contractor/roofer-only — no promo on salon portals */}
-
-          {/* Instant Roof Estimator add-on is contractor/roofer-only — no promo on salon portals */}
+          {/* Pricebook / Visualizer / Roof Estimator promos are contractor-only — not shown on salon portals */}
 
           {/* Settings */}
           <div
@@ -288,23 +264,23 @@ export default function CustomerPortal() {
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
-            {(activity?.recentJobs?.length || activity?.recentQuotes?.length || activity?.recentInvoices?.length) ? (
+            {(activity?.upcomingAppointments?.length || activity?.recentServices?.length || activity?.recentClients?.length) ? (
               <>
-                {(activity?.recentJobs || []).slice(0, 3).map((item: Record<string, unknown>) => (
+                {(activity?.upcomingAppointments || []).slice(0, 3).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-sm text-slate-700">Job: {(item.title as string) || (item.number as string)} — {((item.status as string)?.replace('_', ' ')) || 'pending'}</span>
+                    <span className="text-sm text-slate-700">Appointment: {(item.clientName as string) || (item.title as string) || 'Booking'} — {((item.status as string)?.replace('_', ' ')) || 'scheduled'}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? formatDate(item.updatedAt as string) : ''}
+                      {item.startTime ? formatDate(item.startTime as string) : ''}
                     </span>
                   </div>
                 ))}
-                {(activity?.recentQuotes || []).slice(0, 2).map((item: Record<string, unknown>) => (
+                {(activity?.recentServices || []).slice(0, 2).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-sm text-slate-700">Quote: {(item.name as string) || (item.number as string)} — ${Number(item.total || 0).toLocaleString()}</span>
+                    <span className="text-sm text-slate-700">Service: {(item.serviceName as string) || 'Visit'} — ${Number(item.priceCharged || 0).toLocaleString()}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? formatDate(item.updatedAt as string) : ''}
+                      {item.createdAt ? formatDate(item.createdAt as string) : ''}
                     </span>
                   </div>
                 ))}
@@ -313,7 +289,7 @@ export default function CustomerPortal() {
               <div className="px-6 py-8 text-center">
                 <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm text-slate-500">No recent activity</p>
-                <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
+                <p className="text-xs text-slate-400 mt-1">Get started by adding clients and booking appointments</p>
               </div>
             )}
           </div>

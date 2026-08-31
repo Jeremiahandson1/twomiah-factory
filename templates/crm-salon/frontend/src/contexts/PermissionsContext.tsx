@@ -13,37 +13,31 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
   owner: ['*'],
 
   admin: [
-    'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:*',
-    'time:*', 'expenses:*', 'documents:*', 'rfis:*', 'change-orders:*',
-    'punch-lists:*', 'daily-logs:*', 'inspections:*', 'bids:*',
-    'team:*', 'company:read', 'company:update', 'dashboard:*', 'schedule:*',
+    'contacts:*', 'clients:*', 'appointments:*', 'service-menu:*', 'memberships:*',
+    'invoices:*', 'documents:*', 'reports:*', 'marketing:*',
+    'team:*', 'company:read', 'company:update', 'dashboard:*',
   ],
 
   manager: [
-    'contacts:*', 'projects:*', 'jobs:*', 'quotes:*',
+    'contacts:*', 'clients:*', 'appointments:*', 'service-menu:*', 'memberships:*',
     'invoices:read', 'invoices:create', 'invoices:update',
-    'time:*', 'expenses:*', 'documents:*', 'rfis:*', 'change-orders:*',
-    'punch-lists:*', 'daily-logs:*', 'inspections:*', 'bids:read',
-    'team:read', 'company:read', 'dashboard:*', 'schedule:*',
+    'documents:*', 'reports:read', 'marketing:read',
+    'team:read', 'company:read', 'dashboard:*',
   ],
 
+  // Stylist / front-desk staff
   field: [
-    'contacts:read', 'projects:read', 'jobs:read', 'jobs:update',
-    'time:read', 'time:create', 'time:update',
-    'expenses:read', 'expenses:create',
+    'contacts:read', 'clients:read', 'clients:update',
+    'appointments:read', 'appointments:create', 'appointments:update',
+    'service-menu:read', 'memberships:read',
     'documents:read', 'documents:create',
-    'rfis:read', 'rfis:create',
-    'punch-lists:read', 'punch-lists:update',
-    'daily-logs:read', 'daily-logs:create',
-    'inspections:read', 'company:read', 'dashboard:read', 'schedule:read',
+    'company:read', 'dashboard:read',
   ],
 
   viewer: [
-    'contacts:read', 'projects:read', 'jobs:read', 'quotes:read',
-    'invoices:read', 'time:read', 'expenses:read', 'documents:read',
-    'rfis:read', 'change-orders:read', 'punch-lists:read', 'daily-logs:read',
-    'inspections:read', 'bids:read', 'team:read', 'company:read',
-    'dashboard:read', 'schedule:read',
+    'contacts:read', 'clients:read', 'appointments:read', 'service-menu:read',
+    'memberships:read', 'invoices:read', 'documents:read', 'reports:read',
+    'team:read', 'company:read', 'dashboard:read',
   ],
 
   // Legacy role mapping
