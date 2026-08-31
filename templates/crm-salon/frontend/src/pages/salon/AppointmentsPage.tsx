@@ -79,10 +79,12 @@ function dayBounds(day: string, tz: string): { from: string; to: string } {
 
 function fmtTime(s?: string, timeZone?: string): string {
   if (!s) return '—';
-  const d = new Date(s);
+  // The API serializes the naive timestamp column without a zone marker; that value
+  // IS the UTC instant, so mark it UTC before parsing — otherwise new Date() reads it
+  // as browser-local and the salon-TZ conversion is off by the offset (+5h). (F43)
+  const hasTz = /[zZ]$|[+-]\d\d:?\d\d$/.test(s);
+  const d = new Date(hasTz ? s : s.replace(' ', 'T') + 'Z');
   if (isNaN(d.getTime())) return '—';
-  // Render in the salon's timezone so the hour is correct regardless of where the
-  // front-desk browser is. (F43)
   return d.toLocaleTimeString('en-US', { timeZone, hour: 'numeric', minute: '2-digit' });
 }
 

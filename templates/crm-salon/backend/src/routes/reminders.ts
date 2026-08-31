@@ -5,6 +5,7 @@ import { eq, and, inArray, isNotNull, sql, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { sendSMS } from '../services/sms.ts'
+import { walletSufficient } from '../services/messagingUsage.ts'
 
 /**
  * Rebooking / recall engine — the retention wedge.
@@ -163,6 +164,12 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
   const message: string = (body.message || '').trim()
   if (!contactIds.length || !message) return c.json({ error: 'contactIds and message are required' }, 400)
 
+  // Same empty-wallet gate as /api/sms/send — don't report texts as "sent" when the
+  // wallet is empty (they'd all be saved status:'failed'). (F18 reminders path)
+  if (!(await walletSufficient())) {
+    return c.json({ error: 'SMS unavailable — top up your messaging balance to send.', sent: 0, failed: contactIds.length, failures: contactIds }, 402)
+  }
+
   const clients = await db.select().from(contact).where(and(eq(contact.companyId, u.companyId), inArray(contact.id, contactIds)))
   let sent = 0
   const failures: string[] = []
@@ -170,8 +177,11 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
     const to = (ct as any).mobile || ct.phone
     if (!to) { failures.push(ct.id); continue }
     try {
-      await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message, userId: u.userId })
-      sent++
+      // sendSMS records a failed send as status:'failed' instead of throwing — count
+      // by the real outcome so the UI can't show a false "1 text sent".
+      const r = await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message, userId: u.userId })
+      if ((r as any)?.status === 'failed') failures.push(ct.id)
+      else sent++
     } catch { failures.push(ct.id) }
   }
   return c.json({ sent, failed: failures.length, failures })

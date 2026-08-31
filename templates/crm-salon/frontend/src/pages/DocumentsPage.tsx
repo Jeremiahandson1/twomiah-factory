@@ -50,14 +50,12 @@ export default function DocumentsPage() {
     try {
       const params: Record<string, string | number> = { page, limit: 25, ...filter };
       Object.keys(params).forEach(k => !params[k] && delete params[k]);
-      const [resRaw, projResRaw] = await Promise.all([
-        api.documents.list(params),
-        api.projects.list({ limit: 100 })
-      ]);
-      const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
+      // A salon has no projects — the old projects fetch hit a removed route (404),
+      // rejected the whole load, and left the list showing "No documents yet". (F90)
+      const resRaw = await api.documents.list(params);
+      const res = resRaw as Record<string, unknown>;
       setDocuments(res.data as Record<string, unknown>[]);
       setPagination(res.pagination as PaginationData | null);
-      setProjects(projRes.data as Record<string, unknown>[]);
     } catch (err) {
       toast.error('Failed to load documents');
     } finally {
@@ -117,9 +115,19 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDownload = async (doc: Record<string, unknown>) => {
+  const handleDownload = (doc: Record<string, unknown>) => {
     try {
-      window.open(`${(api as unknown as Record<string, string>).baseUrl || ''}/api/documents/${doc.id}/download`, '_blank');
+      // Use the file's own url (served by the /uploads static route) via a same-origin
+      // <a download> — window.open on the authenticated /download endpoint sent no token
+      // and 401'd. (F65)
+      const url = doc.url as string;
+      if (!url) { toast.error('This document has no file'); return; }
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (doc.originalName as string) || (doc.name as string) || 'document';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     } catch (err) {
       toast.error('Download failed');
     }
@@ -165,7 +173,6 @@ export default function DocumentsPage() {
       }
     },
     { key: 'type', label: 'Type', render: (v: unknown) => <span className="capitalize">{v as string}</span> },
-    { key: 'project', label: 'Project', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'size', label: 'Size', render: (v: unknown) => formatSize(v) },
     { key: 'createdAt', label: 'Uploaded', render: (v: unknown) => formatDate(v as string) },
   ];
@@ -193,7 +200,7 @@ export default function DocumentsPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4 mb-6 dark:bg-slate-900">
-        <div className="grid md:grid-cols-4 gap-4">
+        <div className="grid md:grid-cols-3 gap-4">
           <input
             type="text"
             placeholder="Search documents..."
@@ -209,16 +216,6 @@ export default function DocumentsPage() {
             <option value="">All Types</option>
             {documentTypes.map(t => (
               <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
-          </select>
-          <select
-            value={filter.projectId}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter({ ...filter, projectId: e.target.value })}
-            className="px-3 py-2 border rounded-lg"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p: Record<string, unknown>) => (
-              <option key={p.id as string} value={p.id as string}>{p.name as string}</option>
             ))}
           </select>
           <button

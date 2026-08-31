@@ -357,7 +357,28 @@ const MIME_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp',
   '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
   '.html': 'text/html',
+  '.pdf': 'application/pdf', '.csv': 'text/csv', '.txt': 'text/plain',
+  '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 }
+
+// ─── Serve uploaded files (document/photo urls are /uploads/<company>/…) ──────
+// Registered BEFORE the SPA catch-all, which would otherwise return index.html for
+// /uploads/* and make every document preview show the app shell. (F65)
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+app.get('/uploads/*', (c) => {
+  const rel = decodeURIComponent(c.req.path.replace(/^\/uploads\//, ''))
+  if (rel.includes('..')) return c.json({ error: 'Not found' }, 404)
+  const filePath = path.join(UPLOAD_DIR, rel)
+  try {
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      const ext = path.extname(filePath).toLowerCase()
+      const mime = MIME_TYPES[ext] || 'application/octet-stream'
+      return c.body(fs.readFileSync(filePath), 200, { 'Content-Type': mime, 'Cache-Control': 'private, max-age=3600' })
+    }
+  } catch {}
+  return c.json({ error: 'Not found' }, 404)
+})
 
 // ─── Serve frontend SPA from backend (no separate static site needed) ────────
 const hasFrontendBuild = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'))
