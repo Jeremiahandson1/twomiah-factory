@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import sms from '../services/sms.ts'
+import { walletSufficient } from '../services/messagingUsage.ts'
 
 const app = new Hono()
 
@@ -139,19 +140,15 @@ app.post('/send', async (c) => {
     return c.json({ error: 'contactId or toPhone is required' }, 400)
   }
 
-  const result = await sms.sendSMS(user.companyId, {
-    contactId,
-    toPhone,
-    message,
-    userId: user.userId,
-    jobId,
-    templateId,
-  })
+  // An empty messaging wallet is a known state — gate it explicitly with 402 so it
+  // never becomes an unhandled 500 from a downstream send attempt. (F18)
+  if (!(await walletSufficient())) {
+    return c.json({ error: 'SMS unavailable — top up your messaging balance to send.' }, 402)
+  }
 
-  // A failed send must not report 200 — that masks an empty wallet / provider error (F18).
+  const result = await sms.sendSMS(user.companyId, { contactId, toPhone, message, userId: user.userId, jobId, templateId })
   if ((result as any)?.status === 'failed') {
-    const err = (result as any).errorMessage || 'Message could not be sent'
-    return c.json({ ...result, error: err }, /wallet/i.test(err) ? 402 : 502)
+    return c.json({ ...result, error: (result as any).errorMessage || 'Message could not be sent' }, 502)
   }
   return c.json(result)
 })
@@ -172,16 +169,18 @@ app.post('/conversations/:id/reply', async (c) => {
     return c.json({ error: 'Conversation not found' }, 404)
   }
 
+  if (!(await walletSufficient())) {
+    return c.json({ error: 'SMS unavailable — top up your messaging balance to send.' }, 402)
+  }
+
   const result = await sms.sendSMS(user.companyId, {
     toPhone: conversation.phone,
     contactId: conversation.contactId,
     message,
     userId: user.userId,
   })
-
   if ((result as any)?.status === 'failed') {
-    const err = (result as any).errorMessage || 'Message could not be sent'
-    return c.json({ ...result, error: err }, /wallet/i.test(err) ? 402 : 502)
+    return c.json({ ...result, error: (result as any).errorMessage || 'Message could not be sent' }, 502)
   }
   return c.json(result)
 })
