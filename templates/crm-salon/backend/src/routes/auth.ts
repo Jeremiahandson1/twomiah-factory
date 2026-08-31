@@ -5,7 +5,7 @@ import { z } from 'zod'
 import crypto from 'crypto'
 const uuidv4 = () => crypto.randomUUID()
 import { db } from '../../db/index.ts'
-import { company, user } from '../../db/schema.ts'
+import { company, user, bookingSettings } from '../../db/schema.ts'
 import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
@@ -238,12 +238,15 @@ app.post('/login', async (c) => {
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
+  const [bset] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings).where(eq(bookingSettings.companyId, foundCompany.id)).limit(1)
+  const timezone = bset?.timezone || 'America/Chicago'
+
   const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
   await db.update(user).set({ refreshToken: tokens.refreshToken, lastLogin: new Date(), updatedAt: new Date() }).where(eq(user.id, foundUser.id))
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, timezone, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
     ...tokens,
   })
 })
@@ -288,13 +291,18 @@ app.get('/me', authenticate, async (c) => {
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
+  // The salon's timezone (source of truth: booking settings) so the app renders and
+  // stores appointment times in the salon's local wall clock, not the browser's. (F43)
+  const [bset] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings).where(eq(bookingSettings.companyId, foundCompany.id)).limit(1)
+  const timezone = bset?.timezone || 'America/Chicago'
+
   // Import permissions
   const { getPermissions, normalizeRole } = await import('../middleware/permissions.ts')
   const permissions = getPermissions(foundUser.role)
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, timezone, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
     permissions,
   })
 })

@@ -5,6 +5,17 @@ import api from '../../services/api';
 import ClientPicker from '../../components/salon/ClientPicker';
 import ServiceRecordEditorModal from '../../components/salon/ServiceRecordEditorModal';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { useAuth } from '../../contexts/AuthContext';
+
+// Convert a wall-clock date+time typed at the desk into the correct UTC instant for
+// the SALON's timezone (not the browser's), so front-desk and online bookings agree. (F43)
+function zonedWallTimeToUtcISO(dateStr: string, timeStr: string, timeZone: string): string {
+  const [h, m] = timeStr.split(':').map(Number);
+  const asUtc = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`);
+  const local = new Date(asUtc.toLocaleString('en-US', { timeZone }));
+  const utc = new Date(asUtc.toLocaleString('en-US', { timeZone: 'UTC' }));
+  return new Date(asUtc.getTime() - (local.getTime() - utc.getTime())).toISOString();
+}
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -60,11 +71,13 @@ function dayBounds(day: string): { from: string; to: string } {
   return { from: start.toISOString(), to: end.toISOString() };
 }
 
-function fmtTime(s?: string): string {
+function fmtTime(s?: string, timeZone?: string): string {
   if (!s) return '—';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  // Render in the salon's timezone so the hour is correct regardless of where the
+  // front-desk browser is. (F43)
+  return d.toLocaleTimeString('en-US', { timeZone, hour: 'numeric', minute: '2-digit' });
 }
 
 function stylistName(a: Appointment): string {
@@ -72,6 +85,8 @@ function stylistName(a: Appointment): string {
 }
 
 export default function AppointmentsPage() {
+  const { company } = useAuth();
+  const tz = (company as any)?.timezone || 'America/Chicago';
   const [day, setDay] = useState<string>(todayStr());
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -154,8 +169,8 @@ export default function AppointmentsPage() {
             <div key={a.id} className="bg-white rounded-xl border p-4 flex items-center gap-4 flex-wrap dark:bg-slate-900">
               <div className="flex items-center gap-2 text-gray-900 font-medium w-40 dark:text-slate-100">
                 <Clock className="w-4 h-4 text-gray-400" />
-                {fmtTime(a.startTime)}
-                {a.endTime && <span className="text-xs text-gray-400">– {fmtTime(a.endTime)}</span>}
+                {fmtTime(a.startTime, tz)}
+                {a.endTime && <span className="text-xs text-gray-400">– {fmtTime(a.endTime, tz)}</span>}
               </div>
               <div className="flex-1 min-w-[180px]">
                 <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -224,6 +239,8 @@ export default function AppointmentsPage() {
 /* ---------------- New Appointment Modal ---------------- */
 
 function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: string; onSave: () => void; onClose: () => void }) {
+  const { company } = useAuth();
+  const tz = (company as any)?.timezone || 'America/Chicago';
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
@@ -273,13 +290,13 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
     try {
       const payload: Record<string, unknown> = {
         contactId,
-        startTime: new Date(`${form.date}T${form.startTime}:00`).toISOString(),
+        startTime: zonedWallTimeToUtcISO(form.date, form.startTime, tz),
         status: 'scheduled',
       };
       if (form.serviceId) payload.serviceId = form.serviceId;
       if (form.stylistId) payload.stylistId = form.stylistId;
       // Left blank, the backend derives the end from the service duration.
-      if (form.endTime) payload.endTime = new Date(`${form.date}T${form.endTime}:00`).toISOString();
+      if (form.endTime) payload.endTime = zonedWallTimeToUtcISO(form.date, form.endTime, tz);
       if (form.station) payload.station = form.station;
       if (form.quotedPrice !== '') payload.quotedPrice = Number(form.quotedPrice);
       if (form.notes) payload.notes = form.notes;
