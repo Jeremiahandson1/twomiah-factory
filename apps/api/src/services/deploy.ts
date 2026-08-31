@@ -53,10 +53,10 @@ function dbReconcileStep(): string {
     // ambiguity to prompt on (which used to hang push and leave the schema only
     // partially reconciled — e.g. review_request.job_id never added).
     'bun run db/prune-legacy.ts 2>&1 | head -20 || echo "[boot] prune-legacy skipped"; ' +
-    'for i in 1 2 3 4 5; do ' +
-      'OUT=$(timeout 180 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
+    'for i in 1 2 3; do ' +
+      'OUT=$(timeout 45 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
       'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +
-      'echo "[boot] drizzle push not verified (attempt $i), retrying in 8s"; sleep 8; ' +
+      'echo "[boot] drizzle push not verified (attempt $i), retrying in 5s"; sleep 5; ' +
     'done'
   )
 }
