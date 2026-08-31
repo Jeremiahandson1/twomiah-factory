@@ -60,15 +60,21 @@ interface Appointment {
 }
 interface ServiceOption { id: string; name?: string; durationMin?: number; price?: string | number }
 
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+function todayStr(timeZone?: string): string {
+  if (!timeZone) return new Date().toISOString().slice(0, 10);
+  // Today's date in the salon's timezone (en-CA formats as YYYY-MM-DD).
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
-function dayBounds(day: string): { from: string; to: string } {
-  // Local-day bounds, sent as ISO.
-  const start = new Date(`${day}T00:00:00`);
-  const end = new Date(`${day}T23:59:59.999`);
-  return { from: start.toISOString(), to: end.toISOString() };
+function dayBounds(day: string, tz: string): { from: string; to: string } {
+  // The selected day's bounds in the SALON's timezone, sent as UTC ISO — so the query
+  // window matches the salon's calendar day, not the browser's. (F43)
+  const from = zonedWallTimeToUtcISO(day, '00:00', tz);
+  const nextUtc = new Date(`${day}T00:00:00Z`);
+  nextUtc.setUTCDate(nextUtc.getUTCDate() + 1);
+  const nextDay = nextUtc.toISOString().slice(0, 10);
+  const to = new Date(new Date(zonedWallTimeToUtcISO(nextDay, '00:00', tz)).getTime() - 1).toISOString();
+  return { from, to };
 }
 
 function fmtTime(s?: string, timeZone?: string): string {
@@ -87,7 +93,7 @@ function stylistName(a: Appointment): string {
 export default function AppointmentsPage() {
   const { company } = useAuth();
   const tz = (company as any)?.timezone || 'America/Chicago';
-  const [day, setDay] = useState<string>(todayStr());
+  const [day, setDay] = useState<string>(todayStr(tz));
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -96,7 +102,7 @@ export default function AppointmentsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { from, to } = dayBounds(day);
+      const { from, to } = dayBounds(day, tz);
       const res = await api.get(`/api/appointments?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const rows: Appointment[] = res.data || [];
       rows.sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
@@ -151,7 +157,7 @@ export default function AppointmentsPage() {
           <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="pl-10 pr-4 py-2 border rounded-lg" />
         </div>
-        <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Today</button>
+        <button onClick={() => setDay(todayStr(tz))} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Today</button>
         <span className="text-sm text-gray-500 dark:text-slate-400">
           {booked} booked{done ? ` · ${done} done` : ''}{cancelled ? ` · ${cancelled} cancelled` : ''}
         </span>
