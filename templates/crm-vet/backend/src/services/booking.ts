@@ -363,21 +363,25 @@ export async function createBooking(companyId: string, data: {
     throw new Error('That date is in the past.');
   }
 
-  // Validate slot availability
-  const slots = await getAvailableSlots(companyId, date, serviceId);
-  const slot = slots.find(s => s.time === time);
-
-  if (!slot) {
-    throw new Error('Selected time slot is no longer available');
-  }
-
-  // Get service details
+  // Look up the service FIRST so an unknown serviceId is reported as such, rather
+  // than falling through and surfacing as "slot no longer available".
   let service: any = null;
   if (serviceId) {
     const svcResult = await db.execute(sql`
       SELECT * FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId} LIMIT 1
     `);
     service = ((svcResult as any).rows || svcResult)[0] || null;
+    if (!service) {
+      throw new Error('That service is not available for booking.');
+    }
+  }
+
+  // Validate slot availability
+  const slots = await getAvailableSlots(companyId, date, serviceId);
+  const slot = slots.find(s => s.time === time);
+
+  if (!slot) {
+    throw new Error('Selected time slot is no longer available');
   }
 
   // Find or create contact
