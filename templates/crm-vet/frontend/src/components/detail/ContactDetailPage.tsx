@@ -305,64 +305,6 @@ export default function ContactDetailPage() {
             </div>
           )}
 
-          {/* Related Projects */}
-          {(contact.projects?.length ?? 0) > 0 && (
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-              <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Projects</h2>
-                <span className="text-sm text-gray-500 dark:text-slate-400">{contact.projects!.length}</span>
-              </div>
-              <div className="divide-y">
-                {contact.projects!.map((project) => (
-                  <Link
-                    key={project.id}
-                    to={`/crm/projects/${project.id}`}
-                    className="p-4 flex items-center justify-between hover:bg-gray-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Briefcase className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-slate-100">{project.name}</p>
-                        <p className="text-sm text-gray-500 dark:text-slate-400">{project.number}</p>
-                      </div>
-                    </div>
-                    <StatusBadge status={project.status} />
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Related Quotes */}
-          {(contact.quotes?.length ?? 0) > 0 && (
-            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
-              <div className="p-4 border-b flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900 dark:text-slate-100">Quotes</h2>
-                <span className="text-sm text-gray-500 dark:text-slate-400">{contact.quotes!.length}</span>
-              </div>
-              <div className="divide-y">
-                {contact.quotes!.map((quote) => (
-                  <Link
-                    key={quote.id}
-                    to={`/crm/quotes/${quote.id}`}
-                    className="p-4 flex items-center justify-between hover:bg-gray-50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-slate-100">{quote.name}</p>
-                        <p className="text-sm text-gray-500 dark:text-slate-400">{quote.number}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">${Number(quote.total).toLocaleString()}</p>
-                      <StatusBadge status={quote.status} />
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Sidebar */}
@@ -371,14 +313,6 @@ export default function ContactDetailPage() {
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Summary</h2>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-slate-400">Projects</span>
-                <span className="font-medium">{contact.projects?.length || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-slate-400">Quotes</span>
-                <span className="font-medium">{contact.quotes?.length || 0}</span>
-              </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500 dark:text-slate-400">Invoices</span>
                 <span className="font-medium">{contact.invoices?.length || 0}</span>
@@ -414,18 +348,18 @@ export default function ContactDetailPage() {
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
               <Link
-                to={`/crm/quotes?contactId=${id}`}
+                to={`/crm/patients`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
                 <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                Create Quote
+                Patients
               </Link>
               <Link
-                to={`/crm/jobs?contactId=${id}`}
+                to={`/crm/appointments`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
                 <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                Schedule Job
+                Book Appointment
               </Link>
               <Link
                 to={`/crm/invoices?contactId=${id}`}

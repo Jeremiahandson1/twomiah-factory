@@ -50,36 +50,14 @@ export default function PortalLayout() {
   const messages: NavItem = { to: `/portal/${token}/messages`, icon: MessageSquare, label: 'Messages' };
   const documents: NavItem = { to: `/portal/${token}/shared-documents`, icon: FolderOpen, label: 'Documents' };
 
-  const isSub = contactType === 'subcontractor' || contactType === 'vendor' || contactType === 'supplier';
-  const isArchitect = contactType === 'architect' || contactType === 'consultant' || contactType === 'inspector';
-
-  const navItems = isSub
-    ? [
-        dashboard,
-        { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'My Jobs' },
-        { to: `/portal/${token}/lien-waivers`, icon: FileSignature, label: 'Lien Waivers' },
-        documents,
-        messages,
-      ]
-    : isArchitect
-      ? [
-          dashboard,
-          { to: `/portal/${token}/rfis-assigned`, icon: HelpCircle, label: 'RFIs' },
-          { to: `/portal/${token}/submittal-review`, icon: FileCheck2, label: 'Submittals' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          documents,
-          messages,
-        ]
-      : [
-          dashboard,
-          { to: `/portal/${token}/projects`, icon: FolderKanban, label: 'Projects' },
-          { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
-          { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
-          { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          { to: `/portal/${token}/selections`, icon: Palette, label: 'Selections' },
-          messages,
-        ];
+  // A pet owner's portal — no contractor projects/quotes/change-orders/selections/RFIs. (R2-07)
+  const navItems: NavItem[] = [
+    dashboard,
+    { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
+    { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
+    documents,
+    messages,
+  ];
 
   const portalLabel = ROLE_LABELS[contactType] || 'Portal';
 

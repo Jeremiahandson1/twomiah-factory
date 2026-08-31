@@ -90,7 +90,7 @@ export default function RecurringForm() {
     try {
       const [contactsRes, projectsRes] = await Promise.all([
         api.get('/api/contacts?type=client&limit=200'),
-        api.get('/api/projects?limit=200'),
+        api.get('/api/projects?limit=200').catch(() => ({ data: [] })), // projects removed on vet
       ]);
       setContacts((contactsRes as Record<string, unknown>).data as Record<string, unknown>[] || []);
       setProjects((projectsRes as Record<string, unknown>).data as Record<string, unknown>[] || []);

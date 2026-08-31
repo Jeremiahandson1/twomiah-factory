@@ -31,49 +31,55 @@ export async function getBookingSettings(companyId: string) {
   `);
   const rows = (result as any).rows || result;
 
-  if (rows.length > 0) return rows[0];
+  if (rows.length > 0) return normalizeBookingSettings(rows[0]);
 
-  // Create defaults
-  const defaultSettings = {
-    enabled: true,
-    title: 'Book an Appointment',
-    description: 'Schedule your service appointment online.',
-    leadTimeHours: 24,
-    maxDaysOut: 30,
-    slotDurationMinutes: 60,
-    workingHours: {
-      monday: { start: '08:00', end: '17:00', enabled: true },
-      tuesday: { start: '08:00', end: '17:00', enabled: true },
-      wednesday: { start: '08:00', end: '17:00', enabled: true },
-      thursday: { start: '08:00', end: '17:00', enabled: true },
-      friday: { start: '08:00', end: '17:00', enabled: true },
-      saturday: { start: '09:00', end: '14:00', enabled: false },
-      sunday: { start: '09:00', end: '14:00', enabled: false },
-    },
-    requirePhone: true,
-    requireAddress: true,
-    sendConfirmationEmail: true,
-    sendConfirmationSms: false,
-    primaryColor: '{{PRIMARY_COLOR}}',
-    logoUrl: null,
+  // Defaults, inserted with the columns booking_settings ACTUALLY has. The previous INSERT
+  // listed title/description/lead_time_hours/require_phone/logo_url — none of which exist —
+  // so every settings read 500'd and the public booking page couldn't load. (booking-500)
+  const workingHours = {
+    monday: { start: '08:00', end: '17:00', enabled: true },
+    tuesday: { start: '08:00', end: '17:00', enabled: true },
+    wednesday: { start: '08:00', end: '17:00', enabled: true },
+    thursday: { start: '08:00', end: '17:00', enabled: true },
+    friday: { start: '08:00', end: '17:00', enabled: true },
+    saturday: { start: '09:00', end: '14:00', enabled: false },
+    sunday: { start: '09:00', end: '14:00', enabled: false },
   };
-
   await db.execute(sql`
-    INSERT INTO booking_settings (id, company_id, enabled, title, description, lead_time_hours, max_days_out, slot_duration_minutes, working_hours, require_phone, require_address, send_confirmation_email, send_confirmation_sms, primary_color, logo_url, created_at, updated_at)
+    INSERT INTO booking_settings (id, company_id, enabled, lead_time_days, max_days_out, slot_duration_minutes, working_hours, primary_color, logo, welcome_message, confirmation_message, notify_email, notify_sms, created_at, updated_at)
     VALUES (
       gen_random_uuid(), ${companyId}, true,
-      ${defaultSettings.title}, ${defaultSettings.description},
-      ${defaultSettings.leadTimeHours}, ${defaultSettings.maxDaysOut}, ${defaultSettings.slotDurationMinutes},
-      ${JSON.stringify(defaultSettings.workingHours)}::jsonb,
-      ${defaultSettings.requirePhone}, ${defaultSettings.requireAddress},
-      ${defaultSettings.sendConfirmationEmail}, ${defaultSettings.sendConfirmationSms},
-      ${defaultSettings.primaryColor}, ${null},
+      1, 30, 60,
+      ${JSON.stringify(workingHours)}::jsonb,
+      ${'{{PRIMARY_COLOR}}'}, ${null},
+      ${'Book an Appointment'}, ${'Schedule your appointment online.'},
+      true, false,
       NOW(), NOW()
     )
   `);
 
   const created = await db.execute(sql`SELECT * FROM booking_settings WHERE company_id = ${companyId} LIMIT 1`);
-  return ((created as any).rows || created)[0];
+  return normalizeBookingSettings(((created as any).rows || created)[0]);
+}
+
+// The route and slot logic read a mix of names; the table stores snake_case and has no
+// title/require flags. Expose one shape that satisfies every consumer.
+function normalizeBookingSettings(row: any) {
+  if (!row) return row;
+  return {
+    ...row,
+    enabled: row.enabled,
+    slot_duration_minutes: row.slot_duration_minutes,
+    working_hours: row.working_hours,
+    lead_time_hours: (row.lead_time_days ?? 1) * 24,
+    max_days_out: row.max_days_out,
+    title: row.welcome_message || 'Book an Appointment',
+    description: row.confirmation_message || '',
+    requirePhone: true,
+    requireAddress: false,
+    logoUrl: row.logo || null,
+    primaryColor: row.primary_color || null,
+  };
 }
 
 export async function updateBookingSettings(companyId: string, data: Record<string, unknown>) {

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt,
-  Calendar, Clock, DollarSign, FileQuestion, ClipboardList, CheckSquare,
-  BookOpen, ClipboardCheck, Target, Settings, ChevronDown, ChevronUp
+  Menu, X, Home, Users, Receipt, Calendar, Settings, ChevronDown, ChevronUp,
+  PawPrint, BellRing, HeartPulse, FolderOpen, MessageSquare, BarChart3, Megaphone
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -22,38 +21,31 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    label: 'Main',
+    label: 'Clinical',
     items: [
-      { to: '/', icon: Home, label: 'Dashboard', exact: true },
-      { to: '/contacts', icon: Users, label: 'Contacts' },
-      { to: '/projects', icon: FolderKanban, label: 'Projects' },
-      { to: '/jobs', icon: Briefcase, label: 'Jobs' },
+      { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
+      { to: '/crm/patients', icon: PawPrint, label: 'Patients' },
+      { to: '/crm/appointments', icon: Calendar, label: 'Appointments' },
+      { to: '/crm/reminders', icon: BellRing, label: 'Reminders' },
+      { to: '/crm/wellness-plans', icon: HeartPulse, label: 'Wellness Plans' },
     ],
   },
   {
-    label: 'Financial',
+    label: 'Front Desk',
     items: [
-      { to: '/quotes', icon: FileText, label: 'Quotes' },
-      { to: '/invoices', icon: Receipt, label: 'Invoices' },
-      { to: '/expenses', icon: DollarSign, label: 'Expenses' },
+      { to: '/crm/contacts', icon: Users, label: 'Owners' },
+      { to: '/crm/invoices', icon: Receipt, label: 'Invoices' },
+      { to: '/crm/documents', icon: FolderOpen, label: 'Documents' },
+      { to: '/crm/messages', icon: MessageSquare, label: 'Messages' },
     ],
   },
   {
-    label: 'Operations',
+    label: 'Business',
     items: [
-      { to: '/schedule', icon: Calendar, label: 'Schedule' },
-      { to: '/time', icon: Clock, label: 'Time Tracking' },
-      { to: '/rfis', icon: FileQuestion, label: 'RFIs' },
-      { to: '/change-orders', icon: ClipboardList, label: 'Change Orders' },
-    ],
-  },
-  {
-    label: 'Quality',
-    items: [
-      { to: '/punch-lists', icon: CheckSquare, label: 'Punch Lists' },
-      { to: '/daily-logs', icon: BookOpen, label: 'Daily Logs' },
-      { to: '/inspections', icon: ClipboardCheck, label: 'Inspections' },
-      { to: '/bids', icon: Target, label: 'Bids' },
+      { to: '/crm/reports', icon: BarChart3, label: 'Reports' },
+      { to: '/crm/marketing', icon: Megaphone, label: 'Marketing' },
+      { to: '/crm/team', icon: Users, label: 'Team' },
+      { to: '/crm/settings', icon: Settings, label: 'Settings' },
     ],
   },
 ];

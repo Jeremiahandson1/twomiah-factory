@@ -39,7 +39,7 @@ export async function globalSearch(
 
   // 'patient' (pets) is the primary thing a clinic searches by — it was
   // missing from the default set, so ⌘K "Luna" returned nothing.
-  const searchTypes = types || ['patient', 'contact', 'quote', 'invoice', 'document']
+  const searchTypes = types || ['patient', 'contact', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
 
@@ -359,32 +359,16 @@ export async function quickSearch(companyId: string, query: string, limit = 10) 
  * Get recent items (for empty search state)
  */
 export async function getRecentItems(companyId: string, limit = 10) {
-  const [contacts, projects, jobs] = await Promise.all([
-    db
-      .select({ id: contact.id, name: contact.name, type: contact.type })
-      .from(contact)
-      .where(eq(contact.companyId, companyId))
-      .orderBy(desc(contact.updatedAt))
-      .limit(3),
-    db
-      .select({ id: project.id, name: project.name, number: project.number })
-      .from(project)
-      .where(eq(project.companyId, companyId))
-      .orderBy(desc(project.updatedAt))
-      .limit(3),
-    db
-      .select({ id: job.id, title: job.title, number: job.number })
-      .from(job)
-      .where(eq(job.companyId, companyId))
-      .orderBy(desc(job.updatedAt))
-      .limit(4),
-  ])
+  // Recent owners only — the old version also returned projects/jobs, which link to routes
+  // that no longer exist on the vet CRM. (vet-scope)
+  const contacts = await db
+    .select({ id: contact.id, name: contact.name, type: contact.type })
+    .from(contact)
+    .where(eq(contact.companyId, companyId))
+    .orderBy(desc(contact.updatedAt))
+    .limit(limit)
 
-  return [
-    ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
-    ...projects.map((p) => ({ type: 'project', id: p.id, name: p.name, url: `/crm/projects/${p.id}` })),
-    ...jobs.map((j) => ({ type: 'job', id: j.id, name: j.title, url: `/crm/jobs/${j.id}` })),
-  ].slice(0, limit)
+  return contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` }))
 }
 
 export default { globalSearch, quickSearch, getRecentItems }

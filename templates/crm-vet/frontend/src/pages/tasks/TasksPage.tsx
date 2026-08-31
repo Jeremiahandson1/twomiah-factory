@@ -365,7 +365,7 @@ function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
     try {
       const [usersRes, projectsRes] = await Promise.all([
         api.get('/api/team'),
-        api.get('/api/projects?status=active&limit=100'),
+        api.get('/api/projects?status=active&limit=100').catch(() => ({ data: [] })), // projects removed on vet
       ]);
       setUsers(((usersRes as Record<string, unknown>).data || usersRes || []) as UserData[]);
       setProjects(((projectsRes as Record<string, unknown>).data || []) as ProjectData[]);

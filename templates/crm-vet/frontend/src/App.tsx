@@ -157,30 +157,10 @@ function App() {
                     <Route index element={<VetDashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
-                    <Route path="projects" element={<ProjectsPage />} />
-                    <Route path="projects/:id" element={<ProjectDetailPage />} />
-                    <Route path="jobs" element={<JobsPage />} />
-                    <Route path="jobs/:id" element={<JobDetailPage />} />
-                    <Route path="quotes" element={<QuotesPage />} />
-                    <Route path="quotes/:id" element={<QuoteDetailPage />} />
                     <Route path="invoices" element={<InvoicesPage />} />
                     <Route path="invoices/:id" element={<InvoiceDetailPage />} />
-                    <Route path="schedule" element={<SchedulePage />} />
-                    <Route path="time" element={<TimePage />} />
-                    <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
-                    <Route path="rfis" element={<RFIsPage />} />
-                    <Route path="submittals" element={<SubmittalsPage />} />
-                    <Route path="lien-waivers" element={<LienWaiversPage />} />
-                    <Route path="draw-schedules" element={<DrawSchedulesPage />} />
-                    <Route path="aia-forms" element={<AiaFormsPage />} />
-                    <Route path="gantt" element={<GanttChartsPage />} />
-                    <Route path="change-orders" element={<ChangeOrdersPage />} />
-                    <Route path="punch-lists" element={<PunchListsPage />} />
-                    <Route path="daily-logs" element={<DailyLogsPage />} />
-                    <Route path="inspections" element={<InspectionsPage />} />
-                    <Route path="bids" element={<BidsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
@@ -194,32 +174,22 @@ function App() {
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="fleet" element={<FleetPage />} />
-                    <Route path="inventory" element={<InventoryPage />} />
-                    <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
                     <Route path="bookings" element={<BookingsPage />} />
-                    <Route path="pricebook" element={<PricebookPage />} />
                     <Route path="agreements" element={<AgreementsPage />} />
-                    <Route path="warranties" element={<WarrantiesPage />} />
                     <Route path="call-tracking" element={<CallTrackingPage />} />
                     <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                     <Route path="recurring" element={<RecurringListPage />} />
                     <Route path="recurring/new" element={<RecurringForm />} />
                     <Route path="recurring/:id/edit" element={<RecurringForm />} />
-                    <Route path="takeoffs" element={<TakeoffsPage />} />
                     <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
-                    <Route path="selections" element={<SelectionsPage />} />
                     <Route path="reviews" element={<ReviewsPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
                     <Route path="ads" element={<AdsPage />} />
-                    <Route path="pricebook-trial" element={<PricebookTrialPage />} />
-                    <Route path="roof-reports" element={<RoofReportsPage />} />
-                    <Route path="roof-reports/:id" element={<RoofReportDetail />} />
                     <Route path="patients" element={<PatientsPage />} />
                     <Route path="patients/:id" element={<PatientDetailPage />} />
                     <Route path="appointments" element={<AppointmentsPage />} />
@@ -231,23 +201,11 @@ function App() {
                   {/* Client Portal (public, token-based auth) */}
                   <Route path="/portal/:token" element={<PortalProvider><PortalLayout /></PortalProvider>}>
                     <Route index element={<PortalDashboard />} />
-                    <Route path="projects" element={<PortalProjects />} />
-                    <Route path="projects/:projectId" element={<PortalProjectDetail />} />
-                    <Route path="projects/:projectId/files" element={<PortalProjectFiles />} />
-                    <Route path="quotes" element={<PortalQuotes />} />
-                    <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
                     <Route path="invoices" element={<PortalInvoices />} />
                     <Route path="payment-methods" element={<PortalPaymentMethods />} />
                     <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
-                    <Route path="change-orders" element={<PortalChangeOrders />} />
-                    <Route path="change-orders/:changeOrderId" element={<PortalChangeOrderDetail />} />
-                    <Route path="selections" element={<PortalSelections />} />
                     <Route path="messages" element={<PortalMessages />} />
                     {/* Collaborator routes (subs, architects, consultants) */}
-                    <Route path="my-jobs" element={<PortalMyJobs />} />
-                    <Route path="lien-waivers" element={<PortalLienWaivers />} />
-                    <Route path="submittal-review" element={<PortalSubmittalReview />} />
-                    <Route path="rfis-assigned" element={<PortalAssignedRfis />} />
                     <Route path="shared-documents" element={<PortalSharedDocuments />} />
                   </Route>
 
