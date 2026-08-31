@@ -3,6 +3,18 @@ import { Calendar, Plus, Copy, Check, DollarSign, Clock, ExternalLink } from 'lu
 import api from '../../services/api';
 import BookingSettingsTab from './BookingSettingsTab';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
+
+// Format a booking's date+time in the SALON's timezone. The API serializes the naive
+// timestamp without a zone marker, so mark it UTC first, then render salon-local —
+// otherwise a 09:00 booking shows as +offset (e.g. 2:00 PM). (F43)
+function fmtBookingDateTime(s?: string, timeZone?: string): string {
+  if (!s) return '-';
+  const hasTz = /[zZ]$|[+-]\d\d:?\d\d$/.test(s);
+  const d = new Date(hasTz ? s : s.replace(' ', 'T') + 'Z');
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleString('en-US', { timeZone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
 
 interface BookingRow {
   id: string;
@@ -52,6 +64,8 @@ const money = (v: unknown) => `$${Number(v || 0).toLocaleString(undefined, { min
 
 export default function BookingsPage() {
   const toast = useToast();
+  const { company } = useAuth();
+  const tz = (company as any)?.timezone || 'America/Chicago';
   const [tab, setTab] = useState<'bookings' | 'services' | 'embed' | 'settings'>('bookings');
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [services, setServices] = useState<BookableService[]>([]);
@@ -178,7 +192,7 @@ export default function BookingsPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{b.service_name || '-'}</td>
                       <td className="px-4 py-3 text-gray-700 dark:text-slate-200">
-                        {b.scheduled_date ? new Date(b.scheduled_date).toLocaleString() : '-'}
+                        {fmtBookingDateTime(b.scheduled_date, tz)}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_STYLES[b.status || ''] || 'bg-gray-100 text-gray-600'}`}>

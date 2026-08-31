@@ -42,6 +42,7 @@ export default function DocumentsPage() {
   const [uploadForm, setUploadForm] = useState<UploadForm>({ name: '', type: 'general', projectId: '', description: '' });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewDoc, setPreviewDoc] = useState<Record<string, unknown> | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
 
@@ -115,23 +116,46 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDownload = (doc: Record<string, unknown>) => {
+  // Fetch a document's bytes through the AUTHENTICATED /download endpoint. An
+  // <iframe src>/<a href> can't send the bearer token, and the raw /uploads url can
+  // serve the SPA shell for legacy/missing files — so both preview and download go
+  // through this and use an object URL. (F65)
+  const fetchDocBlobUrl = async (docId: string): Promise<string> => {
+    const token = localStorage.getItem('accessToken');
+    const baseUrl = (api as unknown as Record<string, string>).baseUrl || '';
+    const res = await fetch(`${baseUrl}/api/documents/${docId}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error('Could not open file');
+    return URL.createObjectURL(await res.blob());
+  };
+
+  const handleDownload = async (doc: Record<string, unknown>) => {
     try {
-      // Use the file's own url (served by the /uploads static route) via a same-origin
-      // <a download> — window.open on the authenticated /download endpoint sent no token
-      // and 401'd. (F65)
-      const url = doc.url as string;
-      if (!url) { toast.error('This document has no file'); return; }
+      const objectUrl = await fetchDocBlobUrl(doc.id as string);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = objectUrl;
       a.download = (doc.originalName as string) || (doc.name as string) || 'document';
       document.body.appendChild(a);
       a.click();
       a.remove();
+      URL.revokeObjectURL(objectUrl);
     } catch (err) {
       toast.error('Download failed');
     }
   };
+
+  // Load the preview as an authenticated blob whenever a document is selected.
+  useEffect(() => {
+    if (!previewDoc) { setPreviewUrl(null); return; }
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    fetchDocBlobUrl(previewDoc.id as string)
+      .then((u) => { if (cancelled) { URL.revokeObjectURL(u); } else { objectUrl = u; setPreviewUrl(u); } })
+      .catch(() => { if (!cancelled) toast.error('Could not open document'); });
+    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewDoc]);
 
   const getFileIcon = (mimeType: unknown): React.ComponentType<{ className?: string }> => {
     if ((mimeType as string)?.startsWith('image/')) return Image;
@@ -331,10 +355,12 @@ export default function DocumentsPage() {
             >
               <X className="w-5 h-5" />
             </button>
-            {(previewDoc.mimeType as string)?.startsWith('image/') ? (
-              <img src={previewDoc.url as string} alt={previewDoc.name as string} className="max-w-full max-h-[90vh] rounded-lg" />
+            {!previewUrl ? (
+              <div className="w-[800px] h-[400px] flex items-center justify-center bg-white rounded-lg text-gray-500 dark:bg-slate-900 dark:text-slate-400">Loading…</div>
+            ) : (previewDoc.mimeType as string)?.startsWith('image/') ? (
+              <img src={previewUrl} alt={previewDoc.name as string} className="max-w-full max-h-[90vh] rounded-lg" />
             ) : (
-              <iframe src={previewDoc.url as string} className="w-[800px] h-[90vh] bg-white rounded-lg dark:bg-slate-900" />
+              <iframe src={previewUrl} title={previewDoc.name as string} className="w-[800px] h-[90vh] bg-white rounded-lg dark:bg-slate-900" />
             )}
           </div>
         </div>
