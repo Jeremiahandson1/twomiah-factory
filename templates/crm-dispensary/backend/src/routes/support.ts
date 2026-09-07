@@ -166,6 +166,61 @@ app.post('/tickets', async (c) => {
   return c.json(ticket, 201);
 });
 
+// ─── Pattern Detection (Level 5) ────────────────────────────────────────────
+// NOTE: must be declared BEFORE `/tickets/:id` or the literal path is shadowed
+// by the param route and 404s.
+app.get('/tickets/patterns', async (c) => {
+  const u = c.get('user') as any;
+
+  try {
+    // Category distribution
+    const byCategory = await db.select({
+      category: supportTicket.category,
+      cnt: count(),
+    }).from(supportTicket)
+      .where(eq(supportTicket.companyId, u.companyId))
+      .groupBy(supportTicket.category);
+
+    // Priority distribution
+    const byPriority = await db.select({
+      priority: supportTicket.priority,
+      cnt: count(),
+    }).from(supportTicket)
+      .where(eq(supportTicket.companyId, u.companyId))
+      .groupBy(supportTicket.priority);
+
+    // Average rating
+    const [avgRating] = await db.select({
+      avg: sql<number>`avg(${supportTicket.rating})`,
+      cnt: sql<number>`count(${supportTicket.rating})`,
+    }).from(supportTicket)
+      .where(and(eq(supportTicket.companyId, u.companyId), sql`${supportTicket.rating} is not null`));
+
+    // Recent trends — tickets per day for last 30 days
+    const daily = await db.select({
+      day: sql<string>`date(${supportTicket.createdAt})`,
+      cnt: count(),
+    }).from(supportTicket)
+      .where(and(
+        eq(supportTicket.companyId, u.companyId),
+        sql`${supportTicket.createdAt} > now() - interval '30 days'`,
+      ))
+      .groupBy(sql`date(${supportTicket.createdAt})`)
+      .orderBy(sql`date(${supportTicket.createdAt})`);
+
+    return c.json({
+      byCategory,
+      byPriority,
+      averageRating: avgRating?.avg ? Number(avgRating.avg).toFixed(1) : null,
+      ratedCount: avgRating?.cnt || 0,
+      dailyTrend: daily,
+    });
+  } catch (e: any) {
+    if (e.message?.includes('does not exist')) return c.json({ byCategory: [], byPriority: [], averageRating: null, ratedCount: 0, dailyTrend: [] });
+    throw e;
+  }
+});
+
 // GET /support/tickets/:id
 app.get('/tickets/:id', async (c) => {
   const u = c.get('user') as any;
@@ -429,60 +484,6 @@ app.post('/sla-policies', async (c) => {
   }).returning();
 
   return c.json(policy, 201);
-});
-
-// ─── Pattern Detection (Level 5) ────────────────────────────────────────────
-
-app.get('/tickets/patterns', async (c) => {
-  const u = c.get('user') as any;
-
-  try {
-    // Category distribution
-    const byCategory = await db.select({
-      category: supportTicket.category,
-      cnt: count(),
-    }).from(supportTicket)
-      .where(eq(supportTicket.companyId, u.companyId))
-      .groupBy(supportTicket.category);
-
-    // Priority distribution
-    const byPriority = await db.select({
-      priority: supportTicket.priority,
-      cnt: count(),
-    }).from(supportTicket)
-      .where(eq(supportTicket.companyId, u.companyId))
-      .groupBy(supportTicket.priority);
-
-    // Average rating
-    const [avgRating] = await db.select({
-      avg: sql<number>`avg(${supportTicket.rating})`,
-      cnt: sql<number>`count(${supportTicket.rating})`,
-    }).from(supportTicket)
-      .where(and(eq(supportTicket.companyId, u.companyId), sql`${supportTicket.rating} is not null`));
-
-    // Recent trends — tickets per day for last 30 days
-    const daily = await db.select({
-      day: sql<string>`date(${supportTicket.createdAt})`,
-      cnt: count(),
-    }).from(supportTicket)
-      .where(and(
-        eq(supportTicket.companyId, u.companyId),
-        sql`${supportTicket.createdAt} > now() - interval '30 days'`,
-      ))
-      .groupBy(sql`date(${supportTicket.createdAt})`)
-      .orderBy(sql`date(${supportTicket.createdAt})`);
-
-    return c.json({
-      byCategory,
-      byPriority,
-      averageRating: avgRating?.avg ? Number(avgRating.avg).toFixed(1) : null,
-      ratedCount: avgRating?.cnt || 0,
-      dailyTrend: daily,
-    });
-  } catch (e: any) {
-    if (e.message?.includes('does not exist')) return c.json({ byCategory: [], byPriority: [], averageRating: null, ratedCount: 0, dailyTrend: [] });
-    throw e;
-  }
 });
 
 export default app;

@@ -23,28 +23,41 @@ export default function AnalyticsPage() {
       // Map period to date range
       const now = new Date();
       const periodDays = period === '1d' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 90;
-      const startDate = new Date(now.getTime() - periodDays * 86400000).toISOString().slice(0, 10);
+      // Window is exactly `periodDays` days ending today. Subtracting the full periodDays
+      // put startDate a day too early, so "Today" (1d) spanned yesterday+today — the charts
+      // plotted two bars under a Today selection. Subtract periodDays-1 so Today = today only
+      // and the range matches the selector label + the KPI's single-day summary. (retest#8)
+      const startDate = new Date(now.getTime() - (periodDays - 1) * 86400000).toISOString().slice(0, 10);
       const endDate = now.toISOString().slice(0, 10);
       const dateParams = { startDate, endDate };
 
-      const [summaryRes, revenueRes, mixRes, peakRes] = await Promise.all([
-        api.get('/api/analytics/summary', { date: endDate }),
+      const [summaryRes, revenueRes, mixRes, peakRes, customersRes] = await Promise.all([
+        api.get('/api/analytics/summary', { startDate, endDate }),
         api.get('/api/analytics/sales', { ...dateParams, period: periodDays <= 7 ? 'day' : 'week' }),
         api.get('/api/analytics/products', dateParams),
         api.get('/api/analytics/peak-hours', dateParams),
+        api.get('/api/analytics/customers', dateParams),
       ]);
 
       // Build metrics from summary response
       const orders = summaryRes?.orders || {};
       setMetrics({
         totalRevenue: Number(orders.revenue || 0),
-        totalOrders: Number(orders.completed_orders || orders.total_orders || 0),
+        // Use completed_orders (matches the completed-only revenue). `||` treated a
+        // legitimate 0 (all orders refunded) as missing and fell back to total_orders,
+        // so a day of refunds showed "2 orders / $0.00". Nullish-coalesce instead. (retest#7)
+        totalOrders: Number(orders.completed_orders ?? orders.total_orders ?? 0),
         avgOrderValue: Number(orders.avg_order_value || 0),
-        uniqueCustomers: 0,
+        uniqueCustomers: Number(customersRes?.uniqueCustomers || 0),
       });
 
+      // 30/90-day ranges bucket by week (period='week'), so d.period is the week-start date.
+      // Label weekly bars "Wk <date>" so a bar starting e.g. Aug 31 reads as the week it covers,
+      // not a single day that looks like it precedes its own data. (retest#13 cosmetic)
+      const isWeekly = periodDays > 7;
+      const fmt = (s: string) => { const dt = new Date(String(s) + 'T00:00:00'); return isNaN(dt.getTime()) ? String(s) : dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
       const salesData = revenueRes?.data || (Array.isArray(revenueRes) ? revenueRes : []);
-      setRevenueData(salesData.map((d: any) => ({ date: d.period, label: d.period, revenue: Number(d.revenue || 0) })));
+      setRevenueData(salesData.map((d: any) => ({ date: d.period, label: (isWeekly ? 'Wk ' : '') + fmt(d.period), revenue: Number(d.revenue || 0) })));
 
       const prodData = Array.isArray(mixRes) ? mixRes : mixRes?.data || [];
       setProductMix(prodData.map((p: any) => ({ category: p.product_name || p.category, name: p.product_name, revenue: Number(p.total_revenue || 0), count: Number(p.total_sold || 0) })));
@@ -52,8 +65,14 @@ export default function AnalyticsPage() {
       const peakData = peakRes?.data || (Array.isArray(peakRes) ? peakRes : []);
       setPeakHours(peakData.map((h: any) => ({ hour: h.hour, orders: Number(h.order_count || 0) })));
 
-      // Customer metrics from summary
-      setCustomerMetrics(null);
+      // Customer insights from /customers (real, range-scoped)
+      setCustomerMetrics({
+        newCustomers: Number(customersRes?.newCustomers || 0),
+        returningCustomers: Number(customersRes?.returningCustomers || 0),
+        retentionRate: Number(customersRes?.retentionRate || 0),
+        avgVisits: Number(customersRes?.avgVisits || 0),
+        lifetimeValue: Number(customersRes?.lifetimeValue || 0),
+      });
     } catch (err) {
       console.error('Failed to load analytics:', err);
     } finally {
@@ -117,7 +136,7 @@ export default function AnalyticsPage() {
           </p>
           {metrics?.revenueChange != null && (
             <p className={`text-sm mt-1 ${metrics.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {metrics.revenueChange >= 0 ? '+' : ''}{metrics.revenueChange.toFixed(1)}% vs prior
+              {metrics.revenueChange >= 0 ? '+' : ''}{Number(metrics.revenueChange).toFixed(1)}% vs prior
             </p>
           )}
         </div>
@@ -132,7 +151,7 @@ export default function AnalyticsPage() {
           <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics?.totalOrders || 0}</p>
           {metrics?.ordersChange != null && (
             <p className={`text-sm mt-1 ${metrics.ordersChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {metrics.ordersChange >= 0 ? '+' : ''}{metrics.ordersChange.toFixed(1)}% vs prior
+              {metrics.ordersChange >= 0 ? '+' : ''}{Number(metrics.ordersChange).toFixed(1)}% vs prior
             </p>
           )}
         </div>
@@ -144,7 +163,7 @@ export default function AnalyticsPage() {
             </div>
             <span className="text-sm text-gray-500 dark:text-slate-400">Avg Order Value</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${(metrics?.avgOrderValue || 0).toFixed(2)}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">${Number(metrics?.avgOrderValue || 0).toFixed(2)}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
@@ -256,11 +275,11 @@ export default function AnalyticsPage() {
             </div>
             <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
               <p className="text-sm text-gray-500 dark:text-slate-400">Retention Rate</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{(customerMetrics?.retentionRate || 0).toFixed(1)}%</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{Number(customerMetrics?.retentionRate || 0).toFixed(1)}%</p>
             </div>
             <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
               <p className="text-sm text-gray-500 dark:text-slate-400">Avg Visits/Customer</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{(customerMetrics?.avgVisits || 0).toFixed(1)}</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{Number(customerMetrics?.avgVisits || 0).toFixed(1)}</p>
             </div>
             <div className="col-span-2 p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
               <p className="text-sm text-gray-500 dark:text-slate-400">Customer Lifetime Value</p>

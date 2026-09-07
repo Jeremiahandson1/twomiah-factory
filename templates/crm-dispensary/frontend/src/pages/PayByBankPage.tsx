@@ -92,7 +92,7 @@ export default function PayByBankPage() {
     if (!customerSearch.trim()) return;
     setLoadingCustomers(true);
     try {
-      const data = await api.get('/api/customers', { search: customerSearch, limit: 20 });
+      const data = await api.get('/api/contacts', { search: customerSearch, limit: 20 });
       setCustomers(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       console.error('Failed to search customers:', err);

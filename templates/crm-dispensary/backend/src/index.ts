@@ -23,6 +23,7 @@ const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 import authRoutes from './routes/auth.ts'
 import platformSupportRoutes from './routes/platformSupport.ts'
 import messagingBillingRoutes from './routes/messagingBilling.ts'
+import billingRoutes from './routes/billing.ts'
 import contactsRoutes from './routes/contacts.ts'
 import teamRoutes from './routes/team.ts'
 import companyRoutes from './routes/company.ts'
@@ -88,6 +89,7 @@ import securityRoutes from './routes/security.ts'
 import complianceControlsRoutes from './routes/compliance-controls.ts'
 import growInputsRoutes from './routes/grow-inputs.ts'
 import qrScannerRoutes from './routes/qr-scanner.ts'
+import posRoutes from './routes/pos.ts'
 import schedulingRoutes from './routes/scheduling.ts'
 import trainingRoutes from './routes/training.ts'
 import fraudDetectionRoutes from './routes/fraud-detection.ts'
@@ -158,6 +160,7 @@ if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
+app.route('/api/billing', billingRoutes)
 app.route('/api/contacts', contactsRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/company', companyRoutes)
@@ -231,6 +234,7 @@ app.route('/api/security', securityRoutes)
 app.route('/api/compliance-controls', complianceControlsRoutes)
 app.route('/api/grow-inputs', growInputsRoutes)
 app.route('/api/qr-scanner', qrScannerRoutes)
+app.route('/api/pos', posRoutes)
 app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/training', trainingRoutes)
 app.route('/api/fraud-detection', fraudDetectionRoutes)
@@ -323,7 +327,22 @@ if (hasFrontendBuild) {
 
   // An unmatched /api/* request must 404 in JSON — NOT fall through to the SPA
   // catch-all/notFound, which would hand back index.html with a 200 and break res.json().
-  app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+  // Method-aware: if the path IS served under other verbs, the request used the
+  // wrong method → 405 + Allow (proper REST), not a misleading 404. Only a path no
+  // verb serves is a real 404. (F98)
+  app.all('/api/*', (c) => {
+    const p = c.req.path, reqM = c.req.method
+    const allowed = [...new Set(
+      app.routes
+        .filter(r => r.method !== 'ALL' && r.path.startsWith('/api') &&
+          new RegExp('^' + r.path.replace(/\/:[^/]+/g, '/[^/]+').replace(/\*/g, '.*') + '$').test(p))
+        .map(r => r.method)
+    )]
+    if (allowed.length && !allowed.includes(reqM)) {
+      return c.json({ error: `Method ${reqM} not allowed on ${p}. Allowed: ${allowed.join(', ')}` }, 405, { Allow: allowed.join(', ') })
+    }
+    return c.json({ error: `Route not found: ${reqM} ${p}` }, 404)
+  })
 
   // Register known SPA route prefixes explicitly before the catch-all
   // so they are matched deterministically and never fall through to notFound

@@ -68,7 +68,7 @@ app.post('/location', async (c) => {
 
   const result = await db.execute(sql`
     INSERT INTO driver_locations(id, driver_id, lat, lng, heading, speed, accuracy, battery_level, order_id, company_id, created_at)
-    VALUES (gen_random_uuid(), ${currentUser.id}, ${data.lat}, ${data.lng}, ${data.heading || null}, ${data.speed || null}, ${data.accuracy || null}, ${data.batteryLevel || null}, ${data.orderId || null}, ${currentUser.companyId}, NOW())
+    VALUES (gen_random_uuid(), ${currentUser.userId}, ${data.lat}, ${data.lng}, ${data.heading || null}, ${data.speed || null}, ${data.accuracy || null}, ${data.batteryLevel || null}, ${data.orderId || null}, ${currentUser.companyId}, NOW())
     RETURNING *
   `)
 
@@ -109,6 +109,43 @@ app.get('/location/:driverId/history', async (c) => {
   `)
 
   return c.json((result as any).rows || result)
+})
+
+// GET /drivers — Driver roster with latest known location for the Tracking "Driver
+// Locations" tab and the route-assign dropdown. Drivers are active staff users; each is
+// joined to their most recent driver_locations ping for battery/last-seen.
+app.get('/drivers', authenticate, async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT u.id,
+           TRIM(u.first_name || ' ' || u.last_name) as name,
+           u.phone,
+           loc.battery_level,
+           loc.lat, loc.lng,
+           loc.created_at as last_updated
+    FROM "user" u
+    LEFT JOIN LATERAL (
+      SELECT battery_level, lat, lng, created_at
+      FROM driver_locations dl
+      WHERE dl.driver_id = u.id AND dl.company_id = ${currentUser.companyId}
+      ORDER BY dl.created_at DESC
+      LIMIT 1
+    ) loc ON true
+    WHERE u.company_id = ${currentUser.companyId}
+      AND u.is_active = true
+      AND u.role NOT IN ('owner', 'admin')
+    ORDER BY name ASC
+  `)
+  const rows = (result as any).rows || result
+  const data = rows.map((r: any) => ({
+    id: r.id,
+    name: r.name || 'Unknown Driver',
+    phone: r.phone || null,
+    batteryLevel: r.battery_level ?? null,
+    lastLocation: (r.lat != null && r.lng != null) ? `${Number(r.lat).toFixed(5)}, ${Number(r.lng).toFixed(5)}` : null,
+    lastUpdated: r.last_updated || null,
+  }))
+  return c.json(data)
 })
 
 // ===== ROUTE OPTIMIZATION (auth required) =====
@@ -367,17 +404,23 @@ app.put('/routes/:id/complete', async (c) => {
 app.get('/public/:trackingToken', async (c) => {
   const trackingToken = c.req.param('trackingToken')
 
-  // Look up order by tracking token
-  const orderResult = await db.execute(sql`
-    SELECT o.id, o.delivery_status, o.estimated_delivery_at, o.driver_id,
-           u.first_name as driver_first_name
-    FROM orders o
-    LEFT JOIN "user" u ON u.id = o.driver_id
-    WHERE o.tracking_token = ${trackingToken}
-      AND o.type = 'delivery'
-  `)
-
-  const order = ((orderResult as any).rows || orderResult)?.[0]
+  // Look up order by tracking token. The orders table does not yet carry a
+  // tracking_token / estimated_delivery_at column, so a lookup failure degrades to
+  // a 404 (public route — never surface a 500 to an unauthenticated caller).
+  let order: any = null
+  try {
+    const orderResult = await db.execute(sql`
+      SELECT o.id, o.delivery_status, o.driver_id,
+             u.first_name as driver_first_name
+      FROM orders o
+      LEFT JOIN "user" u ON u.id = o.driver_id
+      WHERE o.tracking_token = ${trackingToken}
+        AND o.type = 'delivery'
+    `)
+    order = ((orderResult as any).rows || orderResult)?.[0]
+  } catch {
+    return c.json({ error: 'Tracking info not found' }, 404)
+  }
   if (!order) return c.json({ error: 'Tracking info not found' }, 404)
 
   // Get driver's latest location if en route
@@ -424,7 +467,7 @@ app.get('/public/:trackingToken', async (c) => {
   return c.json({
     status: order.delivery_status,
     driverFirstName: order.driver_first_name || null,
-    estimatedArrival: order.estimated_delivery_at || null,
+    estimatedArrival: order.estimated_delivery_at || null, // column not in schema yet → null
     driverLocation,
     currentLeg,
   })

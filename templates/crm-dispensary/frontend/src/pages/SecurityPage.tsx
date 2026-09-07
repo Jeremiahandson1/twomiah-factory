@@ -257,7 +257,7 @@ export default function SecurityPage() {
   const generateBackupCodes = async () => {
     setGeneratingCodes(true);
     try {
-      const data = await api.post('/api/security/mfa/backup-codes');
+      const data = await api.get('/api/security/mfa/backup-codes');
       setBackupCodes(data?.codes || []);
       setBackupCodesModal(true);
     } catch {
@@ -319,7 +319,7 @@ export default function SecurityPage() {
   // Security Events
   const acknowledgeEvent = async (eventId: string, acknowledged: boolean) => {
     try {
-      await api.put('/api/security/events/' + eventId, { acknowledged });
+      await api.put('/api/security/events/' + eventId + '/acknowledge', { acknowledged });
       setEvents(prev => prev.map(e => e.id === eventId ? { ...e, acknowledged } : e));
     } catch {
       toast.error('Failed to update event');

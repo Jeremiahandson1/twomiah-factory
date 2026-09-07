@@ -51,6 +51,7 @@ export default function SchedulingPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [shifts, setShifts] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Shift modal
@@ -85,13 +86,15 @@ export default function SchedulingPage() {
     try {
       const start = formatDate(weekDates[0]);
       const end = formatDate(weekDates[6]);
-      const [shiftData, empData] = await Promise.all([
+      const [shiftData, empData, locData] = await Promise.all([
         api.get('/api/scheduling/shifts', { startDate: start, endDate: end }),
         api.get('/api/team', { limit: 100 }),
+        api.get('/api/locations').catch(() => []),
       ]);
       setShifts(Array.isArray(shiftData) ? shiftData : shiftData?.data || []);
       const emps = Array.isArray(empData) ? empData : empData?.data || [];
       setEmployees(emps);
+      setLocations(Array.isArray(locData) ? locData : locData?.data || []);
     } catch (err) {
       toast.error('Failed to load schedule');
     } finally {
@@ -575,8 +578,13 @@ export default function SchedulingPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Location</label>
-              <input value={shiftForm.locationId} onChange={e => setShiftForm({ ...shiftForm, locationId: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg" placeholder="Location ID" />
+              <select value={shiftForm.locationId} onChange={e => setShiftForm({ ...shiftForm, locationId: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg">
+                <option value="">{locations.length ? 'No specific location' : 'No locations configured'}</option>
+                {locations.map((l: any) => (
+                  <option key={l.id} value={l.id}>{l.name || l.locationName || l.id}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div>

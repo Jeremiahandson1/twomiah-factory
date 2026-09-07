@@ -5,6 +5,10 @@ import { ShoppingBag, Search, Package, Eye, Plus } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
+import { Modal } from '../components/ui/Modal';
+
+// Merch = the 'accessory' product category (branded goods sold online).
+const MERCH_CATEGORY = 'accessory';
 
 export default function MerchStorePage() {
   const toast = useToast();
@@ -16,11 +20,14 @@ export default function MerchStorePage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: '', sku: '', price: '', stockQuantity: '', description: '' });
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const params: any = { page, limit: 25, category: 'merch' };
+      const params: any = { page, limit: 25, category: MERCH_CATEGORY };
       if (search) params.search = search;
       const data = await api.get('/api/products', params);
       setProducts(Array.isArray(data) ? data : data?.data || []);
@@ -51,6 +58,36 @@ export default function MerchStorePage() {
     if (tab === 'products') loadProducts();
     else loadOrders();
   }, [tab, loadProducts, loadOrders]);
+
+  const openCreate = () => {
+    setForm({ name: '', sku: '', price: '', stockQuantity: '', description: '' });
+    setModalOpen(true);
+  };
+
+  const handleCreate = async () => {
+    if (!form.name.trim()) { toast.error('Product name is required'); return; }
+    const price = parseFloat(form.price);
+    if (isNaN(price) || price < 0) { toast.error('Enter a valid price'); return; }
+    setSaving(true);
+    try {
+      await api.post('/api/products', {
+        name: form.name.trim(),
+        category: MERCH_CATEGORY,
+        price,
+        sku: form.sku.trim() || undefined,
+        stockQuantity: form.stockQuantity ? parseInt(form.stockQuantity, 10) : 0,
+        description: form.description.trim() || undefined,
+      });
+      toast.success('Merch product created');
+      setModalOpen(false);
+      setTab('products');
+      loadProducts();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create product');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     setPage(1);
@@ -145,7 +182,7 @@ export default function MerchStorePage() {
         title="Merch Store"
         subtitle="Branded merchandise management"
         action={
-          <Button onClick={() => navigate('/crm/products')}>
+          <Button onClick={openCreate}>
             <Plus className="w-4 h-4 mr-2 inline" />
             Add Product
           </Button>
@@ -206,6 +243,37 @@ export default function MerchStorePage() {
           emptyMessage="No online orders found"
         />
       )}
+
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add Merch Product" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Name *</label>
+            <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500" placeholder="Branded T-Shirt" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Price *</label>
+              <input type="number" step="0.01" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500" placeholder="24.99" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Stock</label>
+              <input type="number" min="0" value={form.stockQuantity} onChange={(e) => setForm({ ...form, stockQuantity: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500" placeholder="0" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">SKU</label>
+            <input type="text" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500" placeholder="MERCH-001" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-green-500" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-slate-300 hover:bg-slate-800 rounded-lg font-medium">Cancel</button>
+          <Button onClick={handleCreate} disabled={saving}>{saving ? 'Creating...' : 'Add Product'}</Button>
+        </div>
+      </Modal>
     </div>
   );
 }

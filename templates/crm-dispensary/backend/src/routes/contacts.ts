@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact, order, loyaltyMember } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
+import { contact, order, loyaltyMember, loyaltyTransaction } from '../../db/schema.ts'
+import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -22,6 +22,12 @@ const contactSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   zip: z.string().optional(),
+  // Dispensary customer fields — real columns date_of_birth / medical_card_*.
+  // Empty strings from the form are coerced to undefined so they don't get
+  // written into the date columns as invalid ''.
+  dateOfBirth: z.string().optional().transform((v) => (v ? v : undefined)),
+  medicalCardNumber: z.string().optional(),
+  medicalCardExpiry: z.string().optional().transform((v) => (v ? v : undefined)),
   source: z.string().optional(),
   notes: z.string().optional(),
   tags: z.array(z.string()).optional(),
@@ -31,17 +37,25 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const type = c.req.query('type')
   const search = c.req.query('search')?.trim()
-  const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '25')
+  // Clamp paging: negative page → negative SQL OFFSET → 500 (F93); unbounded limit
+  // pulls every row (F94).
+  const page = Math.max(1, Math.floor(+(c.req.query('page') || '1') || 1))
+  const limit = Math.min(100, Math.max(1, Math.floor(+(c.req.query('limit') || '25') || 25)))
 
+  const loyaltyTier = c.req.query('loyaltyTier')?.trim()
   const conditions = [eq(contact.companyId, currentUser.companyId)]
   if (type) conditions.push(eq(contact.type, type))
+  // Honor the loyalty-tier filter — the Customers page sent ?loyaltyTier=bronze but the list
+  // ignored it and returned everyone. Restrict to contacts whose membership is that tier. (retest#9)
+  if (loyaltyTier) conditions.push(sql`${contact.id} IN (SELECT contact_id FROM loyalty_members WHERE company_id = ${currentUser.companyId} AND tier = ${loyaltyTier})`)
   if (search) {
+    // Escape LIKE wildcards so a literal "%"/"_" matches itself, not every row (F1).
+    const esc = search.replace(/[\\%_]/g, (ch) => '\\' + ch)
     conditions.push(or(
-      ilike(contact.name, `%${search}%`),
-      ilike(contact.email, `%${search}%`),
-      ilike(contact.company, `%${search}%`),
-      ilike(contact.phone, `%${search}%`),
+      ilike(contact.name, `%${esc}%`),
+      ilike(contact.email, `%${esc}%`),
+      ilike(contact.company, `%${esc}%`),
+      ilike(contact.phone, `%${esc}%`),
     )!)
   }
 
@@ -52,15 +66,67 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   ])
 
   const safeData = data.map(({ portalToken, portalTokenExp, ...rest }) => rest) // strip portal token (VET-29)
+
+  // The customers list showed Total Spent $0 and a blank tier for patients with orders,
+  // because the list omitted totalSpent/loyaltyTier/loyaltyPoints (only the detail had
+  // them). Attach per-contact spend + loyalty so the columns populate. (retest#5 N2)
+  const [spentRes, loyRes] = await Promise.all([
+    // Spend/order-count/last-visit are COMPLETED-only. Using status != 'cancelled' still
+    // counted refunded orders, so a refund reversed points but left spend and count inflated —
+    // a customer could bank spend (and any spend-keyed tier) from returned goods. (retest#10)
+    db.execute(sql`SELECT contact_id, COALESCE(SUM(COALESCE(total::numeric, 0)), 0)::numeric as spent, COUNT(*)::int as order_count, MAX(created_at) as last_order FROM orders WHERE company_id = ${currentUser.companyId} AND status = 'completed' AND contact_id IS NOT NULL GROUP BY contact_id`),
+    db.execute(sql`SELECT contact_id, tier, points_balance FROM loyalty_members WHERE company_id = ${currentUser.companyId}`),
+  ])
+  const spentMap = new Map(((spentRes as any).rows || spentRes).map((r: any) => [r.contact_id, r]))
+  const loyMap = new Map(((loyRes as any).rows || loyRes).map((r: any) => [r.contact_id, r]))
+  for (const cRow of safeData as any[]) {
+    const s: any = spentMap.get(cRow.id)
+    cRow.totalSpent = String(s?.spent ?? 0)
+    cRow.orderCount = Number(s?.order_count ?? 0)
+    cRow.lastVisit = s?.last_order ?? null
+    const l: any = loyMap.get(cRow.id)
+    cRow.loyaltyTier = l?.tier ?? null
+    cRow.loyaltyPoints = Number(l?.points_balance ?? 0)
+  }
+
   return c.json({ data: safeData, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 
 app.get('/stats', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const contacts = await db.select({ type: contact.type }).from(contact).where(eq(contact.companyId, currentUser.companyId))
-  const stats: Record<string, number> = { total: contacts.length, lead: 0, client: 0, patient: 0, vendor: 0 }
+  const stats: Record<string, number> = { total: contacts.length, lead: 0, client: 0, patient: 0, vendor: 0, bronze: 0, silver: 0, gold: 0, platinum: 0 }
   contacts.forEach(ct => stats[ct.type] = (stats[ct.type] || 0) + 1)
+  // Tier counts for the loyalty-tier cards — they read stats[tier] (bronze/silver/gold/platinum)
+  // but /stats only returned contact-type counts, so every tier card read 0. (retest#9)
+  const tierRows = await db.execute(sql`SELECT tier, COUNT(*)::int as cnt FROM loyalty_members WHERE company_id = ${currentUser.companyId} GROUP BY tier`)
+  for (const r of ((tierRows as any).rows || tierRows) as any[]) { if (r.tier && r.tier in stats) stats[r.tier] = Number(r.cnt) }
   return c.json(stats)
+})
+
+// GET /:id/loyalty — Loyalty snapshot for the contact detail page. Literal-suffix route,
+// declared above '/:id' so it is matched first. Returns null (200) when the contact has no
+// loyalty membership, which the UI renders as "No loyalty data available".
+app.get('/:id/loyalty', requirePermission('contacts:read'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [member] = await db.select().from(loyaltyMember)
+    .where(and(eq(loyaltyMember.contactId, id), eq(loyaltyMember.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!member) return c.json(null)
+
+  const recentTransactions = await db.select({
+    type: loyaltyTransaction.type,
+    points: loyaltyTransaction.points,
+    description: loyaltyTransaction.description,
+    createdAt: loyaltyTransaction.createdAt,
+  }).from(loyaltyTransaction)
+    .where(eq(loyaltyTransaction.memberId, member.id))
+    .orderBy(desc(loyaltyTransaction.createdAt))
+    .limit(10)
+
+  return c.json({ ...member, points: member.pointsBalance ?? 0, recentTransactions })
 })
 
 app.get('/:id', requirePermission('contacts:read'), async (c) => {
@@ -85,6 +151,23 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const cBody = await c.req.json()
   if (cBody.email && typeof cBody.email === 'string') cBody.email = cBody.email.toLowerCase().trim()
   const data = contactSchema.parse(cBody)
+
+  // Block duplicate customers within the company on email or phone (S22). Only
+  // check the identifiers actually supplied so blank fields never collide.
+  const dupeChecks = []
+  if (data.email) dupeChecks.push(eq(contact.email, data.email))
+  if (data.phone) dupeChecks.push(eq(contact.phone, data.phone))
+  if (dupeChecks.length) {
+    const [existing] = await db.select({ id: contact.id, email: contact.email, phone: contact.phone })
+      .from(contact)
+      .where(and(eq(contact.companyId, currentUser.companyId), or(...dupeChecks)!))
+      .limit(1)
+    if (existing) {
+      const field = existing.email && data.email && existing.email === data.email ? 'email address' : 'phone number'
+      return c.json({ error: `A customer with that ${field} already exists.` }, 409)
+    }
+  }
+
   const [newContact] = await db.insert(contact).values({ ...data, companyId: currentUser.companyId }).returning()
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, newContact)
   audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, req: c.req })

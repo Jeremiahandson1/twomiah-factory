@@ -37,7 +37,7 @@ export default function PredictiveInventoryPage() {
   const loadForecasts = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/inventory/forecasts');
+      const data = await api.get('/api/predictive-inventory/forecasts');
       setForecasts(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       toast.error('Failed to load forecasts');
@@ -49,7 +49,7 @@ export default function PredictiveInventoryPage() {
   const loadSuggestions = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/inventory/reorder-suggestions');
+      const data = await api.get('/api/predictive-inventory/reorder-suggestions');
       const items = Array.isArray(data) ? data : data?.data || [];
       setSuggestions(items);
       setApprovedCount(items.filter((s: any) => s.approved).length);
@@ -63,8 +63,22 @@ export default function PredictiveInventoryPage() {
   const loadTrends = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/inventory/trends');
-      setTrends(Array.isArray(data) ? data : data?.data || []);
+      const data = await api.get('/api/predictive-inventory/trends');
+      // Backend returns { topMovers, declining, seasonal }; flatten into the tagged
+      // array this page filters by trend ('up' | 'down').
+      if (Array.isArray(data)) {
+        setTrends(data);
+      } else {
+        const top = (data?.topMovers || []).map((t: any) => ({
+          id: t.productId, productName: t.name, trend: 'up',
+          dailySales: Number(t.dailyAvgSales7d ?? t.dailyAvgSales30d ?? 0),
+        }));
+        const down = (data?.declining || []).map((t: any) => ({
+          id: t.productId, productName: t.name, trend: 'down',
+          dailySales: Number(t.dailyAvgSales7d ?? 0),
+        }));
+        setTrends([...top, ...down]);
+      }
     } catch (err) {
       toast.error('Failed to load trends');
     } finally {
@@ -75,7 +89,7 @@ export default function PredictiveInventoryPage() {
   const runForecast = async () => {
     setRunningForecast(true);
     try {
-      await api.post('/api/inventory/forecasts/run');
+      await api.post('/api/predictive-inventory/forecast');
       toast.success('Forecast generated');
       loadForecasts();
     } catch (err: any) {
@@ -87,7 +101,7 @@ export default function PredictiveInventoryPage() {
 
   const handleApproveSuggestion = async (id: string) => {
     try {
-      await api.put(`/api/inventory/reorder-suggestions/${id}/approve`);
+      await api.put(`/api/predictive-inventory/reorder-suggestions/${id}/approve`);
       toast.success('Reorder approved');
       loadSuggestions();
     } catch (err: any) {
@@ -97,7 +111,7 @@ export default function PredictiveInventoryPage() {
 
   const handleDismissSuggestion = async (id: string) => {
     try {
-      await api.put(`/api/inventory/reorder-suggestions/${id}/dismiss`);
+      await api.put(`/api/predictive-inventory/reorder-suggestions/${id}/dismiss`);
       toast.success('Suggestion dismissed');
       loadSuggestions();
     } catch (err: any) {

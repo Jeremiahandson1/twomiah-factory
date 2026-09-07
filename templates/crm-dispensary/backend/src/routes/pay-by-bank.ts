@@ -8,6 +8,16 @@ import audit from '../services/audit.ts'
 
 const app = new Hono()
 
+// Raw db.execute rows are snake_case but the Pay-by-Bank UI reads camelCase
+// (accountName, accountMask, customerName, ...). Convert keys before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+const camelAll = (rows: any[]): any[] => (Array.isArray(rows) ? rows.map(camel) : rows)
+
 // ============================================
 // WEBHOOK (no auth — called by Plaid)
 // ============================================
@@ -24,12 +34,12 @@ app.post('/webhook', async (c) => {
       const eventType = event.event_type // e.g. transferred, settled, failed, returned
 
       if (eventType === 'settled' || eventType === 'transferred') {
+        // ach_transactions has transfer_id + processed_at (no plaid_transfer_id/settled_at/updated_at)
         await db.execute(sql`
           UPDATE ach_transactions
           SET status = 'completed',
-              settled_at = NOW(),
-              updated_at = NOW()
-          WHERE plaid_transfer_id = ${transferId}
+              processed_at = NOW()
+          WHERE transfer_id = ${transferId}
         `)
       } else if (eventType === 'failed' || eventType === 'returned') {
         const failureReason = event.failure_reason?.description || event.event_type
@@ -37,8 +47,8 @@ app.post('/webhook', async (c) => {
           UPDATE ach_transactions
           SET status = 'failed',
               failure_reason = ${failureReason},
-              updated_at = NOW()
-          WHERE plaid_transfer_id = ${transferId}
+              processed_at = NOW()
+          WHERE transfer_id = ${transferId}
         `)
       }
     }
@@ -59,7 +69,7 @@ app.get('/config', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const result = await db.execute(sql`
-    SELECT id, client_id, environment, enabled, created_at, updated_at
+    SELECT id, plaid_client_id AS client_id, plaid_environment AS environment, enabled, created_at, updated_at
     FROM plaid_config
     WHERE company_id = ${currentUser.companyId}
     LIMIT 1
@@ -84,15 +94,15 @@ app.put('/config', requireRole('manager'), async (c) => {
   const data = configSchema.parse(await c.req.json())
 
   const result = await db.execute(sql`
-    INSERT INTO plaid_config(id, client_id, secret, environment, enabled, company_id, created_at, updated_at)
+    INSERT INTO plaid_config(id, plaid_client_id, plaid_secret, plaid_environment, enabled, company_id, created_at, updated_at)
     VALUES (gen_random_uuid(), ${data.clientId}, ${data.secret}, ${data.environment}, ${data.enabled}, ${currentUser.companyId}, NOW(), NOW())
     ON CONFLICT (company_id) DO UPDATE SET
-      client_id = ${data.clientId},
-      secret = ${data.secret},
-      environment = ${data.environment},
+      plaid_client_id = ${data.clientId},
+      plaid_secret = ${data.secret},
+      plaid_environment = ${data.environment},
       enabled = ${data.enabled},
       updated_at = NOW()
-    RETURNING id, client_id, environment, enabled, created_at, updated_at
+    RETURNING id, plaid_client_id AS client_id, plaid_environment AS environment, enabled, created_at, updated_at
   `)
 
   const config = ((result as any).rows || result)?.[0]
@@ -124,7 +134,7 @@ app.post('/link-token', async (c) => {
 
   // Get Plaid config
   const configResult = await db.execute(sql`
-    SELECT client_id, secret, environment FROM plaid_config
+    SELECT plaid_client_id AS client_id, plaid_secret AS secret, plaid_environment AS environment FROM plaid_config
     WHERE company_id = ${currentUser.companyId} AND enabled = true
     LIMIT 1
   `)
@@ -176,7 +186,7 @@ app.post('/exchange-token', async (c) => {
 
   // Get Plaid config
   const configResult = await db.execute(sql`
-    SELECT client_id, secret, environment FROM plaid_config
+    SELECT plaid_client_id AS client_id, plaid_secret AS secret, plaid_environment AS environment FROM plaid_config
     WHERE company_id = ${currentUser.companyId} AND enabled = true
     LIMIT 1
   `)
@@ -229,14 +239,16 @@ app.post('/exchange-token', async (c) => {
   const account = authResult.accounts?.[0]
   const institution = authResult.item?.institution_id || null
 
-  // Store bank account
+  // Store bank account. Schema columns are plaid_access_token, plaid_account_id,
+  // institution_name, is_active; there is no item_id or updated_at column
+  // (NEEDS SCHEMA to persist the Plaid item_id).
   const result = await db.execute(sql`
-    INSERT INTO customer_bank_accounts(id, contact_id, access_token, item_id, account_id, institution, account_name, account_mask, account_type, active, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.contactId}, ${accessToken}, ${itemId}, ${account?.account_id || null}, ${institution}, ${account?.name || null}, ${account?.mask || null}, ${account?.type || 'depository'}, true, ${currentUser.companyId}, NOW(), NOW())
-    RETURNING id, contact_id, institution, account_name, account_mask, account_type, active, created_at
+    INSERT INTO customer_bank_accounts(id, contact_id, plaid_access_token, plaid_account_id, institution_name, account_name, account_mask, account_type, is_active, company_id, created_at)
+    VALUES (gen_random_uuid(), ${data.contactId}, ${accessToken}, ${account?.account_id || null}, ${institution}, ${account?.name || null}, ${account?.mask || null}, ${account?.type || 'depository'}, true, ${currentUser.companyId}, NOW())
+    RETURNING id, contact_id, institution_name AS institution, account_name, account_mask, account_type, is_active AS active, created_at
   `)
 
-  const bankAccount = ((result as any).rows || result)?.[0]
+  const bankAccount = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -260,15 +272,15 @@ app.get('/accounts/:contactId', async (c) => {
   const contactId = c.req.param('contactId')
 
   const result = await db.execute(sql`
-    SELECT id, contact_id, institution, account_name, account_mask, account_type, active, created_at
+    SELECT id, contact_id, institution_name AS institution, account_name, account_mask, account_type, is_active AS active, created_at
     FROM customer_bank_accounts
     WHERE contact_id = ${contactId}
       AND company_id = ${currentUser.companyId}
-      AND active = true
+      AND is_active = true
     ORDER BY created_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(camelAll((result as any).rows || result))
 })
 
 // Deactivate a bank account
@@ -278,7 +290,7 @@ app.delete('/accounts/:id', async (c) => {
 
   const result = await db.execute(sql`
     UPDATE customer_bank_accounts
-    SET active = false, updated_at = NOW()
+    SET is_active = false
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING id, account_mask
   `)
@@ -315,7 +327,7 @@ app.post('/charge', async (c) => {
 
   // Get Plaid config
   const configResult = await db.execute(sql`
-    SELECT client_id, secret, environment FROM plaid_config
+    SELECT plaid_client_id AS client_id, plaid_secret AS secret, plaid_environment AS environment FROM plaid_config
     WHERE company_id = ${currentUser.companyId} AND enabled = true
     LIMIT 1
   `)
@@ -324,11 +336,11 @@ app.post('/charge', async (c) => {
 
   // Get bank account details (including access_token)
   const accountResult = await db.execute(sql`
-    SELECT access_token, account_id FROM customer_bank_accounts
+    SELECT plaid_access_token AS access_token, plaid_account_id AS account_id FROM customer_bank_accounts
     WHERE id = ${data.bankAccountId}
       AND contact_id = ${data.contactId}
       AND company_id = ${currentUser.companyId}
-      AND active = true
+      AND is_active = true
     LIMIT 1
   `)
   const bankAccount = ((accountResult as any).rows || accountResult)?.[0]
@@ -366,10 +378,11 @@ app.post('/charge', async (c) => {
 
   const plaidTransferId = transferResult.transfer?.id
 
-  // Store ACH transaction
+  // Store ACH transaction. Schema column is transfer_id (no plaid_transfer_id/updated_at);
+  // amount is a text column.
   const txnResult = await db.execute(sql`
-    INSERT INTO ach_transactions(id, contact_id, order_id, bank_account_id, plaid_transfer_id, amount, status, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.contactId}, ${data.orderId}, ${data.bankAccountId}, ${plaidTransferId}, ${data.amount}, 'processing', ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO ach_transactions(id, contact_id, order_id, bank_account_id, transfer_id, amount, status, company_id, created_at)
+    VALUES (gen_random_uuid(), ${data.contactId}, ${data.orderId}, ${data.bankAccountId}, ${plaidTransferId}, ${String(data.amount)}, 'processing', ${currentUser.companyId}, NOW())
     RETURNING *
   `)
 
@@ -404,7 +417,7 @@ app.get('/transactions', async (c) => {
 
   const dataResult = await db.execute(sql`
     SELECT at.*, c.name as customer_name, c.email as customer_email,
-           ba.account_mask, ba.institution
+           ba.account_mask, ba.institution_name AS institution
     FROM ach_transactions at
     LEFT JOIN contact c ON c.id = at.contact_id
     LEFT JOIN customer_bank_accounts ba ON ba.id = at.bank_account_id
@@ -415,14 +428,74 @@ app.get('/transactions', async (c) => {
   `)
 
   const countResult = await db.execute(sql`
-    SELECT COUNT(*)::int as total FROM ach_transactions
-    WHERE company_id = ${currentUser.companyId} ${statusFilter}
+    SELECT COUNT(*)::int as total FROM ach_transactions at
+    WHERE at.company_id = ${currentUser.companyId} ${statusFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = camelAll((dataResult as any).rows || dataResult)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+})
+
+// Stats tiles: transaction count + settled ACH volume.
+app.get('/stats', async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT
+      COUNT(*)::int as total_transactions,
+      COALESCE(SUM(amount::numeric) FILTER (WHERE status = 'completed'), 0) as total_volume,
+      COALESCE(AVG(amount::numeric) FILTER (WHERE status = 'completed'), 0) as avg_size
+    FROM ach_transactions
+    WHERE company_id = ${currentUser.companyId}
+  `)
+  const row = ((result as any).rows || result)?.[0] || {}
+  return c.json({
+    totalTransactions: Number(row.total_transactions || 0),
+    totalVolume: Number(row.total_volume || 0),
+    avgSize: Number(row.avg_size || 0),
+  })
+})
+
+// Initiate Plaid Link for a specific customer (contactId in the path). Returns a link
+// token the frontend hands to Plaid Link. Graceful 400 when Pay-by-Bank isn't configured.
+app.post('/link/:contactId', async (c) => {
+  const currentUser = c.get('user') as any
+  const contactId = c.req.param('contactId')
+
+  const configResult = await db.execute(sql`
+    SELECT plaid_client_id AS client_id, plaid_secret AS secret, plaid_environment AS environment FROM plaid_config
+    WHERE company_id = ${currentUser.companyId} AND enabled = true
+    LIMIT 1
+  `)
+  const config = ((configResult as any).rows || configResult)?.[0]
+  if (!config) return c.json({ error: 'Pay by Bank is not configured' }, 400)
+
+  const baseUrl = config.environment === 'production'
+    ? 'https://production.plaid.com'
+    : config.environment === 'development'
+      ? 'https://development.plaid.com'
+      : 'https://sandbox.plaid.com'
+
+  const response = await fetch(`${baseUrl}/link/token/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: config.client_id,
+      secret: config.secret,
+      user: { client_user_id: contactId },
+      client_name: 'Dispensary POS',
+      products: ['auth', 'transactions'],
+      country_codes: ['US'],
+      language: 'en',
+    }),
+  })
+  const result = await response.json() as any
+  if (!response.ok) {
+    return c.json({ error: result.error_message || 'Failed to create link token' }, 400)
+  }
+
+  return c.json({ linkToken: result.link_token, expiration: result.expiration, contactId })
 })
 
 export default app

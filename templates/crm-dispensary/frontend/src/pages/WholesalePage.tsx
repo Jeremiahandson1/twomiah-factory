@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
-import { Plus, Search, Users, ShoppingCart, FlaskConical, Truck, FileCheck, DollarSign, ExternalLink } from 'lucide-react';
+import { Plus, Search, Users, ShoppingCart, FlaskConical, Truck, FileCheck, DollarSign, ExternalLink, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -147,6 +147,17 @@ function CustomersTab() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this customer? This cannot be undone.')) return;
+    try {
+      await api.delete('/api/wholesale/customers', id);
+      toast.success('Customer deleted');
+      loadCustomers();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete customer');
+    }
+  };
+
   const columns = [
     { key: 'name', label: 'Name', render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span> },
     { key: 'licenseNumber', label: 'License #', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{val}</span> : <span className="text-gray-400">--</span> },
@@ -156,7 +167,7 @@ function CustomersTab() {
         {row.contactEmail && <p className="text-xs text-gray-500 dark:text-slate-400">{row.contactEmail}</p>}
       </div>
     )},
-    { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="capitalize text-gray-700 dark:text-slate-200">{val?.replace(/([A-Z])/g, ' $1') || '--'}</span> },
+    { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="text-gray-700 dark:text-slate-200">{({ cod: 'COD', net15: 'Net 15', net30: 'Net 30', net60: 'Net 60', prepaid: 'Prepaid' } as Record<string, string>)[String(val || '').toLowerCase().replace(/[^a-z0-9]/g, '')] || val || '--'}</span> },
     { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600' : 'text-green-600'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-400">$0.00</span> },
   ];
 
@@ -170,7 +181,7 @@ function CustomersTab() {
         <Button onClick={openCreate} className="ml-auto"><Plus className="w-4 h-4 mr-2 inline" />Add Customer</Button>
       </div>
 
-      <DataTable data={customers} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={openEdit} emptyMessage="No wholesale customers" />
+      <DataTable data={customers} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={openEdit} actions={[{ label: 'Delete', icon: Trash2, onClick: (row: any) => handleDelete(row.id), className: 'text-red-600' }]} emptyMessage="No wholesale customers" />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingCustomer ? 'Edit Customer' : 'Add Customer'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
@@ -234,7 +245,9 @@ function OrdersTab() {
   const [formData, setFormData] = useState({
     customerId: '', shippingAddress: '', notes: '',
   });
-  const [lineItems, setLineItems] = useState<any[]>([{ productName: '', batchId: '', quantity: '', price: '', metrcTag: '' }]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [lineItems, setLineItems] = useState<any[]>([{ productId: '', productName: '', batchId: '', quantity: '', price: '', metrcTag: '' }]);
   const [manifestNumber, setManifestNumber] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('check');
@@ -257,13 +270,24 @@ function OrdersTab() {
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useEffect(() => { setPage(1); }, [search]);
 
+  // Customer + product pickers for the create dialog (raw-id free-text fields were unusable).
+  useEffect(() => {
+    api.get('/api/wholesale/customers').then((d: any) => setCustomers(Array.isArray(d) ? d : d?.data || [])).catch(() => {});
+    api.get('/api/products', { limit: 200 }).then((d: any) => setProducts(Array.isArray(d) ? d : d?.data || [])).catch(() => {});
+  }, []);
+
   const addLineItem = () => {
-    setLineItems([...lineItems, { productName: '', batchId: '', quantity: '', price: '', metrcTag: '' }]);
+    setLineItems([...lineItems, { productId: '', productName: '', batchId: '', quantity: '', price: '', metrcTag: '' }]);
   };
 
   const updateLineItem = (idx: number, field: string, value: string) => {
     const updated = [...lineItems];
     updated[idx] = { ...updated[idx], [field]: value };
+    // Selecting a product fills its id + name and defaults the price from the product record.
+    if (field === 'productId') {
+      const p = products.find((x: any) => x.id === value);
+      if (p) { updated[idx].productName = p.name; if (!updated[idx].price) updated[idx].price = String(p.price ?? ''); }
+    }
     setLineItems(updated);
   };
 
@@ -274,24 +298,27 @@ function OrdersTab() {
 
   const handleCreateOrder = async () => {
     if (!formData.customerId) { toast.error('Select a customer'); return; }
-    const items = lineItems.filter(li => li.productName && li.quantity && li.price).map(li => ({
-      ...li,
+    // Backend expects `items: [{ productId, quantity, unitPrice, batchId?, metrcTag? }]`.
+    const items = lineItems.filter(li => li.productId && li.quantity && li.price).map(li => ({
+      productId: li.productId,
       quantity: parseInt(li.quantity),
-      price: parseFloat(li.price),
+      unitPrice: parseFloat(li.price),
+      ...(li.batchId ? { batchId: li.batchId } : {}),
+      ...(li.metrcTag ? { metrcTag: li.metrcTag } : {}),
     }));
-    if (items.length === 0) { toast.error('Add at least one line item'); return; }
+    if (items.length === 0) { toast.error('Add at least one line item with a product, quantity and price'); return; }
     setSaving(true);
     try {
       await api.post('/api/wholesale/orders', {
         customerId: formData.customerId,
         shippingAddress: formData.shippingAddress || undefined,
         notes: formData.notes || undefined,
-        lineItems: items,
+        items,
       });
       toast.success('Order created');
       setCreateModalOpen(false);
       setFormData({ customerId: '', shippingAddress: '', notes: '' });
-      setLineItems([{ productName: '', batchId: '', quantity: '', price: '', metrcTag: '' }]);
+      setLineItems([{ productId: '', productName: '', batchId: '', quantity: '', price: '', metrcTag: '' }]);
       loadOrders();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create order');
@@ -302,7 +329,7 @@ function OrdersTab() {
 
   const handleAction = async (orderId: string, action: string, data?: any) => {
     try {
-      await api.post(`/api/wholesale/orders/${orderId}/${action}`, data || {});
+      await api.put(`/api/wholesale/orders/${orderId}/${action}`, data || {});
       toast.success(`Order ${action}ed`);
       loadOrders();
     } catch (err: any) {
@@ -314,7 +341,7 @@ function OrdersTab() {
     if (!selectedOrder) return;
     setSaving(true);
     try {
-      await api.post(`/api/wholesale/orders/${selectedOrder.id}/ship`, { manifestNumber });
+      await api.put(`/api/wholesale/orders/${selectedOrder.id}/ship`, { manifestNumber });
       toast.success('Order shipped');
       setShipModalOpen(false);
       setManifestNumber('');
@@ -330,7 +357,7 @@ function OrdersTab() {
     if (!selectedOrder || !paymentAmount) return;
     setSaving(true);
     try {
-      await api.post(`/api/wholesale/orders/${selectedOrder.id}/payment`, {
+      await api.put(`/api/wholesale/orders/${selectedOrder.id}/payment`, {
         amount: parseFloat(paymentAmount),
         method: paymentMethod,
       });
@@ -379,8 +406,13 @@ function OrdersTab() {
         <div className="space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Customer ID *</label>
-              <input type="text" value={formData.customerId} onChange={(e) => setFormData({ ...formData, customerId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="Customer ID" />
+              <label className="block text-sm font-medium text-slate-300 mb-1">Customer *</label>
+              <select value={formData.customerId} onChange={(e) => setFormData({ ...formData, customerId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500">
+                <option value="">{customers.length ? 'Select a customer…' : 'No wholesale customers — add one first'}</option>
+                {customers.map((cst: any) => (
+                  <option key={cst.id} value={cst.id}>{cst.name}{cst.licenseNumber ? ` (${cst.licenseNumber})` : ''}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1">Shipping Address</label>
@@ -398,7 +430,12 @@ function OrdersTab() {
                 <div key={idx} className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-3">
                     {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Product</label>}
-                    <input type="text" value={item.productName} onChange={(e) => updateLineItem(idx, 'productName', e.target.value)} className="w-full px-2 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-orange-500" placeholder="Product" />
+                    <select value={item.productId} onChange={(e) => updateLineItem(idx, 'productId', e.target.value)} className="w-full px-2 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-orange-500">
+                      <option value="">Select…</option>
+                      {products.map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="col-span-2">
                     {idx === 0 && <label className="block text-xs text-slate-400 mb-1">Batch</label>}

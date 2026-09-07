@@ -129,10 +129,14 @@ export const contact = pgTable('contact', {
   city: text('city'),
   state: text('state'),
   zip: text('zip'),
+  dateOfBirth: date('date_of_birth'),
+  medicalCardNumber: text('medical_card_number'),
+  medicalCardExpiry: date('medical_card_expiry'),
   lat: real('lat'),
   lng: real('lng'),
   notes: text('notes'),
   source: text('source'),
+  storeCredit: text('store_credit').default('0'), // referral / refund store-credit balance
   tags: json('tags').default([]).notNull(),
   customFields: json('custom_fields').default({}).notNull(),
   portalEnabled: boolean('portal_enabled').default(false).notNull(),
@@ -230,6 +234,7 @@ export const order = pgTable('orders', {
   taxAmount: text('tax_amount').default('0'),
   discountAmount: text('discount_amount').default('0'),
   loyaltyDiscount: text('loyalty_discount').default('0'),
+  refundedAmount: text('refunded_amount').default('0'), // cumulative $ refunded across partial refunds
   total: text('total').default('0'),
   totalCannabisWeightOz: text('total_cannabis_weight_oz').default('0'),
   paymentMethod: text('payment_method'), // cash|debit|ach
@@ -273,6 +278,10 @@ export const order = pgTable('orders', {
   kioskSessionId: text('kiosk_session_id'),
   externalOrderId: text('external_order_id'),
   externalPosSystem: text('external_pos_system'), // dutchie|treez|blaze
+  trackingToken: text('tracking_token'), // public delivery/pickup tracking link token
+  estimatedDeliveryAt: timestamp('estimated_delivery_at'),
+  items: json('items'), // snapshot of line items for online/delivery orders
+  source: text('source'), // pos|online|kiosk|delivery|marketplace
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => [
@@ -292,6 +301,7 @@ export const orderItem = pgTable('order_items', {
   productName: text('product_name'),
   productCategory: text('product_category'),
   quantity: integer('quantity').default(1),
+  refundedQuantity: integer('refunded_quantity').default(0), // units returned across partial refunds
   unitPrice: text('unit_price'),
   totalPrice: text('total_price'),
   weightGrams: text('weight_grams'),
@@ -753,7 +763,10 @@ export const metrcSyncLog = pgTable('metrc_sync_log', {
   recordsProcessed: integer('records_processed').default(0),
   recordsCreated: integer('records_created').default(0),
   recordsUpdated: integer('records_updated').default(0),
+  recordsFailed: integer('records_failed').default(0),
   error: text('error'),
+  errorMessage: text('error_message'),
+  source: text('source'), // manual|scheduled|webhook
   startedAt: timestamp('started_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
 })
@@ -1058,6 +1071,12 @@ export const kioskSession = pgTable('kiosk_sessions', {
   completedAt: timestamp('completed_at'),
   idVerified: boolean('id_verified').default(false),
   ageVerified: boolean('age_verified').default(false),
+  // Self-order kiosk needs to persist the in-progress cart, the collected DOB and an
+  // updated_at across the age-gate → browse → add-item → checkout flow. The kiosk device
+  // has no kiosk-provisioning concept, so kiosk_id stays a plain nullable string.
+  items: json('items').$type<any[]>().default([]),
+  dobProvided: text('dob_provided'),
+  updatedAt: timestamp('updated_at').defaultNow(),
 })
 
 // ==================== AI RECOMMENDATIONS ====================
@@ -1269,6 +1288,8 @@ export const manufacturingJob = pgTable('manufacturing_jobs', {
   operatorId: text('operator_id').references(() => user.id),
   startedAt: timestamp('started_at'),
   completedAt: timestamp('completed_at'),
+  failedAt: timestamp('failed_at'),
+  failureReason: text('failure_reason'),
   qualityNotes: text('quality_notes'),
   metrcReported: boolean('metrc_reported').default(false),
   notes: text('notes'),
@@ -1296,6 +1317,9 @@ export const wholesaleCustomer = pgTable('wholesale_customers', {
   creditLimit: text('credit_limit'),
   currentBalance: text('current_balance').default('0'),
   notes: text('notes'),
+  expirationDate: timestamp('expiration_date'),
+  taxExempt: boolean('tax_exempt').default(false),
+  status: text('status').default('active'), // active|inactive|suspended
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1309,6 +1333,7 @@ export const wholesaleOrder = pgTable('wholesale_orders', {
   customerId: text('customer_id').notNull().references(() => wholesaleCustomer.id),
   orderNumber: text('order_number').notNull(),
   status: text('status').default('draft'), // draft|submitted|confirmed|shipped|delivered|invoiced|paid|cancelled
+  items: json('items').default([]), // Array of { productId, batchId, quantity, unitPrice, metrcTag }
   subtotal: text('subtotal').default('0'),
   taxAmount: text('tax_amount').default('0'),
   total: text('total').default('0'),
@@ -1318,8 +1343,16 @@ export const wholesaleOrder = pgTable('wholesale_orders', {
   transferId: text('transfer_id'),
   notes: text('notes'),
   dueDate: date('due_date'),
+  confirmedAt: timestamp('confirmed_at'),
   shippedAt: timestamp('shipped_at'),
   deliveredAt: timestamp('delivered_at'),
+  invoiceNumber: text('invoice_number'),
+  invoicedAt: timestamp('invoiced_at'),
+  amountPaid: text('amount_paid').default('0'),
+  paymentMethod: text('payment_method'),
+  paymentReference: text('payment_reference'),
+  paidAt: timestamp('paid_at'),
+  payments: json('payments').default([]), // Array of { id, amount, method, reference, notes, recordedBy, createdAt }
   createdBy: text('created_by').references(() => user.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1547,6 +1580,7 @@ export const customerBankAccount = pgTable('customer_bank_accounts', {
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
   plaidAccessToken: text('plaid_access_token'), // Encrypted
   plaidAccountId: text('plaid_account_id'),
+  itemId: text('item_id'), // Plaid Item ID
   institutionName: text('institution_name'),
   accountName: text('account_name'),
   accountMask: text('account_mask'), // Last 4 digits
@@ -1588,6 +1622,8 @@ export const walletPass = pgTable('wallet_passes', {
   serialNumber: text('serial_number').notNull().unique(),
   authToken: text('auth_token'),
   pushToken: text('push_token'), // For push updates
+  passData: json('pass_data'), // Generated pass payload / field values
+  deviceId: text('device_id'), // Registered device for push updates
   lastUpdatedAt: timestamp('last_updated_at'),
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -1661,7 +1697,9 @@ export const inventoryForecast = pgTable('inventory_forecasts', {
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   productId: text('product_id').notNull().references(() => product.id, { onDelete: 'cascade' }),
   locationId: text('location_id').references(() => location.id),
-  forecastDate: date('forecast_date').notNull(),
+  // Nullable: the predictive-inventory /forecast upsert does not supply forecast_date;
+  // a NOT NULL here would 500 the insert.
+  forecastDate: date('forecast_date'),
   predictedDailySales: text('predicted_daily_sales'),
   daysUntilStockout: integer('days_until_stockout'),
   suggestedReorderQty: integer('suggested_reorder_qty'),
@@ -1669,10 +1707,20 @@ export const inventoryForecast = pgTable('inventory_forecasts', {
   confidence: real('confidence'), // 0-1
   algorithm: text('algorithm').default('moving_average'), // moving_average|exponential_smoothing|seasonal
   inputData: json('input_data'), // { historicalSales, seasonality, trend }
+  // Written by the predictive-inventory /forecast upsert (moving-average model).
+  currentStock: text('current_stock'),
+  dailyAvgSales7d: text('daily_avg_sales_7d'),
+  dailyAvgSales30d: text('daily_avg_sales_30d'),
+  urgency: text('urgency'), // low|normal|high|critical
+  totalSold90d: integer('total_sold_90d'),
+  dataPoints: integer('data_points'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => [
   index('inv_forecast_company_idx').on(t.companyId),
   index('inv_forecast_product_idx').on(t.productId),
+  // Supports the /forecast ON CONFLICT (product_id, company_id) upsert.
+  uniqueIndex('inv_forecast_product_company_unique').on(t.productId, t.companyId),
 ])
 
 export const reorderSuggestion = pgTable('reorder_suggestions', {
@@ -1682,6 +1730,11 @@ export const reorderSuggestion = pgTable('reorder_suggestions', {
   locationId: text('location_id').references(() => location.id),
   currentStock: integer('current_stock'),
   suggestedQuantity: integer('suggested_quantity'),
+  // The predictive-inventory /reorder-suggestions/generate upsert writes `suggested_qty`
+  // (distinct from the legacy `suggested_quantity` that purchase-orders/from-suggestions reads).
+  suggestedQty: integer('suggested_qty'),
+  dailyAvgSales: text('daily_avg_sales'),
+  daysUntilStockout: integer('days_until_stockout'),
   estimatedStockoutDate: date('estimated_stockout_date'),
   urgency: text('urgency').default('normal'), // low|normal|high|critical
   supplier: text('supplier'),
@@ -1690,6 +1743,7 @@ export const reorderSuggestion = pgTable('reorder_suggestions', {
   approvedBy: text('approved_by').references(() => user.id),
   approvedAt: timestamp('approved_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => [
   index('reorder_company_idx').on(t.companyId),
 ])
@@ -1789,6 +1843,7 @@ export const equivalencyRule = pgTable('equivalency_rules', {
   category: text('category').notNull(), // flower|concentrate|edible|tincture|topical
   equivalencyFactor: text('equivalency_factor').notNull(), // Grams of flower equivalent per unit
   unitOfMeasure: text('unit_of_measure').notNull(), // grams|mg|ml|each
+  purchaseLimitGrams: text('purchase_limit_grams'), // per-transaction legal limit in flower-equivalent grams
   description: text('description'),
   isActive: boolean('is_active').default(true),
   effectiveDate: date('effective_date'),
@@ -1817,6 +1872,8 @@ export const taxFiling = pgTable('tax_filings', {
   filingData: json('filing_data'), // Full breakdown for the return
   filedAt: timestamp('filed_at'),
   filedBy: text('filed_by').references(() => user.id),
+  reviewedBy: text('reviewed_by'),
+  reviewedAt: timestamp('reviewed_at'),
   confirmationNumber: text('confirmation_number'),
   dueDate: date('due_date'),
   notes: text('notes'),
@@ -1854,6 +1911,8 @@ export const companyIntegration = pgTable('company_integrations', {
   lastSyncAt: timestamp('last_sync_at'),
   lastSyncStatus: text('last_sync_status'),
   lastSyncError: text('last_sync_error'),
+  lastTestAt: timestamp('last_test_at'),
+  lastTestResult: text('last_test_result'), // success|error (last connection test)
   webhookUrl: text('webhook_url'),
   webhookSecret: text('webhook_secret'),
   enabledAt: timestamp('enabled_at'),
@@ -1886,6 +1945,7 @@ export const uptimeIncident = pgTable('uptime_incidents', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   service: text('service').notNull(),
+  affectedServices: json('affected_services').default([]), // Array of impacted service names
   severity: text('severity').default('minor'), // minor|major|critical
   title: text('title').notNull(),
   description: text('description'),
@@ -2438,6 +2498,7 @@ export const fraudRule = pgTable('fraud_rules', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
+  description: text('description'),
   ruleType: text('rule_type').notNull(), // void_threshold|discount_threshold|cash_variance_threshold|inventory_variance_pct|after_hours_login|rapid_transactions
   threshold: text('threshold').notNull(),
   period: text('period'), // per_shift|per_day|per_week
@@ -2642,3 +2703,147 @@ export const gbpConnection = pgTable('gbp_connection', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// ==================== SMS MESSAGING ====================
+
+export const smsConversation = pgTable('sms_conversations', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull(),
+  phone: text('phone'),
+  contactId: text('contact_id'),
+  contactName: text('contact_name'),
+  status: text('status').default('active'), // active|archived
+  unread: boolean('unread').default(false),
+  lastMessage: text('last_message'),
+  lastMessageAt: timestamp('last_message_at'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  // The inbound webhook upserts ON CONFLICT (company_id, phone).
+  uniqueIndex('sms_conversation_company_phone_unique').on(t.companyId, t.phone),
+  index('sms_conversation_company_idx').on(t.companyId),
+])
+
+export const smsMessage = pgTable('sms_messages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  conversationId: text('conversation_id'),
+  companyId: text('company_id'),
+  direction: text('direction'), // inbound|outbound
+  phone: text('phone'),
+  body: text('body'),
+  twilioSid: text('twilio_sid'),
+  status: text('status'), // sent|received|delivered|failed|...
+  errorCode: text('error_code'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('sms_message_conversation_idx').on(t.conversationId),
+  index('sms_message_company_idx').on(t.companyId),
+])
+
+export const smsTemplate = pgTable('sms_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id'),
+  name: text('name'),
+  body: text('body'),
+  category: text('category'),
+  variables: json('variables').default([]),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('sms_template_company_idx').on(t.companyId),
+])
+
+export const smsAutoResponder = pgTable('sms_auto_responders', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id'),
+  name: text('name'),
+  triggerType: text('trigger_type'), // any|keyword|exact
+  triggerKeyword: text('trigger_keyword'),
+  responseMessage: text('response_message'),
+  enabled: boolean('enabled').default(true),
+  priority: integer('priority').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('sms_auto_responder_company_idx').on(t.companyId),
+])
+
+// ==================== WEB PUSH SUBSCRIPTIONS ====================
+
+export const pushSubscription = pgTable('push_subscription', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id'),
+  userId: text('user_id'),
+  endpoint: text('endpoint'),
+  p256dh: text('p256dh'),
+  auth: text('auth'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow(),
+}, (t) => [
+  index('push_subscription_user_idx').on(t.userId),
+])
+
+// ==================== MARKETING (email/SMS campaigns, sequences) ====================
+
+export const marketingTemplate = pgTable('marketing_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id'),
+  name: text('name'),
+  subject: text('subject'),
+  content: text('content'),
+  type: text('type').default('email'), // email|sms
+  category: text('category'),
+  variables: json('variables').default([]),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('marketing_template_company_idx').on(t.companyId),
+])
+
+export const marketingCampaign = pgTable('marketing_campaigns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id'),
+  name: text('name'),
+  type: text('type').default('email'), // email|sms
+  subject: text('subject'),
+  content: text('content'),
+  audienceFilter: json('audience_filter').default({}),
+  status: text('status').default('draft'), // draft|scheduled|sent
+  scheduledAt: timestamp('scheduled_at'),
+  sentAt: timestamp('sent_at'),
+  recipientCount: integer('recipient_count').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('marketing_campaign_company_idx').on(t.companyId),
+  index('marketing_campaign_status_idx').on(t.status),
+])
+
+export const marketingSequence = pgTable('marketing_sequences', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id'),
+  name: text('name'),
+  triggerType: text('trigger_type'), // signup|purchase|manual|...
+  steps: json('steps').default([]), // Array of { delayDays, templateId, channel, ... }
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+}, (t) => [
+  index('marketing_sequence_company_idx').on(t.companyId),
+])
+
+export const marketingSequenceEnrollment = pgTable('marketing_sequence_enrollments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id'),
+  sequenceId: text('sequence_id'),
+  contactId: text('contact_id'),
+  currentStep: integer('current_step').default(0),
+  status: text('status').default('active'), // active|completed|cancelled
+  enrolledAt: timestamp('enrolled_at').defaultNow(),
+  completedAt: timestamp('completed_at'),
+}, (t) => [
+  index('marketing_seq_enroll_company_idx').on(t.companyId),
+  index('marketing_seq_enroll_sequence_idx').on(t.sequenceId),
+])

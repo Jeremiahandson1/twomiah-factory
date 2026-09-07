@@ -129,7 +129,9 @@ export default function LabelsPage() {
       width: String(tpl.width || '2'),
       height: String(tpl.height || '1'),
       orientation: tpl.orientation || 'landscape',
-      fields: tpl.fields || ['productName'],
+      fields: Array.isArray(tpl.fields)
+        ? tpl.fields.map((f: any) => (typeof f === 'string' ? f : f?.key)).filter(Boolean)
+        : ['productName'],
       showQrCode: tpl.showQrCode ?? true,
       showBarcode: tpl.showBarcode ?? false,
       showLogo: tpl.showLogo ?? true,
@@ -150,6 +152,15 @@ export default function LabelsPage() {
         ...templateForm,
         width: parseFloat(templateForm.width) || 2,
         height: parseFloat(templateForm.height) || 1,
+        // Backend templateSchema requires `fields` to be an array of positioned
+        // field objects ({ key, x, y }); the form tracks selected field keys as
+        // strings. Map them to minimal objects (simple stacked layout) so the
+        // save validates and the field selection is preserved.
+        fields: (templateForm.fields || []).map((key, i) => ({
+          key,
+          x: 8,
+          y: 8 + i * 16,
+        })),
       };
       if (editingTemplate) {
         await api.put(`/api/labels/templates/${editingTemplate.id}`, payload);
@@ -185,7 +196,7 @@ export default function LabelsPage() {
 
   const previewTemplate = async (tpl: any) => {
     try {
-      const data = await api.get(`/api/labels/templates/${tpl.id}/preview`);
+      const data = await api.post(`/api/labels/templates/${tpl.id}/preview`, {});
       setPreviewHtml(data?.html || '<p>Preview not available</p>');
       setPreviewModal(true);
     } catch (err) {
@@ -310,9 +321,10 @@ export default function LabelsPage() {
                     <span className="text-xs text-gray-400">{tpl.width}" x {tpl.height}"</span>
                   </div>
                   <div className="flex flex-wrap gap-1 mb-3">
-                    {(tpl.fields || []).slice(0, 5).map((f: string) => (
-                      <span key={f} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded dark:bg-slate-800 dark:text-slate-400">{f}</span>
-                    ))}
+                    {(tpl.fields || []).slice(0, 5).map((f: any) => {
+                      const fieldKey = typeof f === 'string' ? f : f?.key;
+                      return <span key={fieldKey} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded dark:bg-slate-800 dark:text-slate-400">{fieldKey}</span>;
+                    })}
                     {(tpl.fields || []).length > 5 && (
                       <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded dark:bg-slate-800 dark:text-slate-400">+{tpl.fields.length - 5}</span>
                     )}

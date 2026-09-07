@@ -312,8 +312,8 @@ function buildClient(config: MetrcConfig): MetrcClient {
 async function getMetrcConfig(companyId: number): Promise<MetrcConfig> {
   const rows = await db.execute(
     sql`SELECT id, company_id as "companyId", api_key as "apiKey", user_key as "userKey",
-               license_number as "licenseNumber", state, last_sync_at as "lastSyncAt", enabled
-        FROM metrc_config WHERE company_id = ${companyId} AND enabled = true LIMIT 1`
+               license_number as "licenseNumber", state, last_sync_at as "lastSyncAt", auto_sync as "enabled"
+        FROM metrc_config WHERE company_id = ${companyId} LIMIT 1`
   )
   const config = (rows as any).rows?.[0] || (rows as any)[0]
   if (!config) throw new Error(`No Metrc config found for company ${companyId}`)

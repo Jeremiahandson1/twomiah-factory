@@ -74,7 +74,7 @@ export default function GamifiedLoyaltyPage() {
   const loadChallenges = async () => {
     setLoadingChallenges(true);
     try {
-      const data = await api.get('/api/loyalty/challenges');
+      const data = await api.get('/api/gamified-loyalty/challenges');
       const list = Array.isArray(data) ? data : data?.data || [];
       setChallenges(list);
       if (tab === 'leaderboard' && list.length > 0 && !selectedChallenge) {
@@ -91,7 +91,7 @@ export default function GamifiedLoyaltyPage() {
     if (!selectedChallenge) return;
     setLoadingLeaderboard(true);
     try {
-      const data = await api.get(`/api/loyalty/challenges/${selectedChallenge}/leaderboard`);
+      const data = await api.get(`/api/gamified-loyalty/challenges/${selectedChallenge}/leaderboard`);
       setLeaderboard(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       console.error('Failed to load leaderboard:', err);
@@ -103,7 +103,7 @@ export default function GamifiedLoyaltyPage() {
   const loadEvents = async () => {
     setLoadingEvents(true);
     try {
-      const data = await api.get('/api/loyalty/multiplier-events');
+      const data = await api.get('/api/gamified-loyalty/multipliers');
       setEvents(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       console.error('Failed to load events:', err);
@@ -149,10 +149,10 @@ export default function GamifiedLoyaltyPage() {
         rewardValue: parseFloat(challengeForm.rewardValue) || 0,
       };
       if (editingChallenge) {
-        await api.put(`/api/loyalty/challenges/${editingChallenge.id}`, payload);
+        await api.put(`/api/gamified-loyalty/challenges/${editingChallenge.id}`, payload);
         toast.success('Challenge updated');
       } else {
-        await api.post('/api/loyalty/challenges', payload);
+        await api.post('/api/gamified-loyalty/challenges', payload);
         toast.success('Challenge created');
       }
       setChallengeModal(false);
@@ -171,7 +171,7 @@ export default function GamifiedLoyaltyPage() {
     }
     setSavingEvent(true);
     try {
-      await api.post('/api/loyalty/multiplier-events', {
+      await api.post('/api/gamified-loyalty/multiplier-events', {
         name: eventForm.name,
         multiplier: parseFloat(eventForm.multiplier) || 2,
         startDate: eventForm.startDate,
@@ -192,7 +192,7 @@ export default function GamifiedLoyaltyPage() {
     if (!memberSearch.trim()) return;
     setLoadingMember(true);
     try {
-      const data = await api.get('/api/customers', { search: memberSearch, limit: 20 });
+      const data = await api.get('/api/contacts', { search: memberSearch, limit: 20 });
       setMemberResults(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       console.error('Failed to search members:', err);
@@ -206,7 +206,7 @@ export default function GamifiedLoyaltyPage() {
     setMemberResults([]);
     setLoadingProgress(true);
     try {
-      const data = await api.get(`/api/loyalty/members/${member.id}/progress`);
+      const data = await api.get(`/api/gamified-loyalty/member/${member.id}/challenges`);
       setMemberProgress(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       console.error('Failed to load member progress:', err);

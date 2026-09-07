@@ -1,3 +1,4 @@
+import './lib/dialogShim.ts'; // in-app dialogs (replace native alert/confirm/prompt) — must load first
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';

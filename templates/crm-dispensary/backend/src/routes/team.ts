@@ -14,48 +14,57 @@ const schema = z.object({ name: z.string().min(1), email: z.string().email().opt
 app.get('/', requirePermission('team:read'), async (c) => {
   const { active, department, page = '1', limit = '50' } = c.req.query() as any
   const user = c.get('user') as any
+  const pageNum = +page
+  const limitNum = +limit
+
   const conditions: any[] = [eq(teamMember.companyId, user.companyId)]
   if (active !== undefined) conditions.push(eq(teamMember.active, active === 'true'))
   if (department) conditions.push(eq(teamMember.department, department))
 
-  const where = and(...conditions)
-  const pageNum = +page
-  const limitNum = +limit
+  const members = await db.select().from(teamMember).where(and(...conditions)).orderBy(asc(teamMember.name))
 
-  const [data, [{ value: total }]] = await Promise.all([
-    db.select().from(teamMember).where(where).orderBy(asc(teamMember.name)).offset((pageNum - 1) * limitNum).limit(limitNum),
-    db.select({ value: count() }).from(teamMember).where(where),
-  ])
-
-  // F-14: real staff (the owner + provisioned logins) live in the user table, not
-  // teamMember — a freshly provisioned tenant has an empty teamMember roster, so the
-  // Team page read "No data" even though people exist and are pickable as staff.
-  // When there are no team_member rows, list the login accounts instead, marked
-  // _source:'user' so the UI can present them read-only (edit/delete target the
-  // teamMember table). Once a real team member is added, that roster takes over.
-  if (Number(total) === 0) {
+  // F-14: the owner and provisioned logins live in the user table, not teamMember,
+  // and must ALWAYS appear on the Team page — not only when the teamMember roster is
+  // empty. (The old code dropped the fallback the moment one team_member existed, so
+  // the owner vanished once staff were added.) Union the login accounts in, deduped
+  // by email against the team_member roster (team_member rows win — they're
+  // editable; user rows are marked _source:'user' so the UI shows them read-only).
+  // A department filter excludes users, which have no department.
+  const combined: any[] = [...members]
+  if (!department) {
     const uConds: any[] = [eq(userTable.companyId, user.companyId)]
     if (active !== undefined) uConds.push(eq(userTable.isActive, active === 'true'))
     const users = await db.select({
       id: userTable.id, firstName: userTable.firstName, lastName: userTable.lastName,
       email: userTable.email, phone: userTable.phone, role: userTable.role, isActive: userTable.isActive,
-    }).from(userTable).where(and(...uConds)).orderBy(asc(userTable.firstName))
-    const mapped = users.map((u) => ({
-      id: u.id,
-      name: `${u.firstName} ${u.lastName}`.trim(),
-      email: u.email,
-      phone: u.phone,
-      role: u.role,
-      department: null,
-      hireDate: null,
-      hourlyRate: null,
-      active: u.isActive,
-      _source: 'user' as const,
-    }))
-    return c.json({ data: mapped, pagination: { page: 1, limit: limitNum, total: mapped.length, pages: 1 } })
+    }).from(userTable).where(and(...uConds))
+
+    const memberEmails = new Set(
+      members.map((m: any) => (m.email || '').toLowerCase()).filter(Boolean)
+    )
+    for (const u of users) {
+      if (u.email && memberEmails.has(u.email.toLowerCase())) continue
+      combined.push({
+        id: u.id,
+        name: `${u.firstName} ${u.lastName}`.trim(),
+        email: u.email,
+        phone: u.phone,
+        role: u.role,
+        department: null,
+        hireDate: null,
+        hourlyRate: null,
+        active: u.isActive,
+        _source: 'user' as const,
+      })
+    }
   }
 
-  return c.json({ data, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } })
+  combined.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  const total = combined.length
+  const start = (pageNum - 1) * limitNum
+  const data = combined.slice(start, start + limitNum)
+
+  return c.json({ data, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) || 1 } })
 })
 
 app.get('/:id', requirePermission('team:read'), async (c) => {

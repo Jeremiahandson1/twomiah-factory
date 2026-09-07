@@ -13,8 +13,13 @@ export function DataTable({
   searchPlaceholder = 'Search...',
   onSearch,
   searchValue = '',
+  error = null,
+  onRetry,
 }) {
   const [openMenu, setOpenMenu] = useState(null);
+  // Anchor the row action menu with fixed positioning so it escapes the card's
+  // overflow-hidden / overflow-x-auto clipping (S21).
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
 
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
@@ -57,6 +62,22 @@ export function DataTable({
                   <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
                 </td>
               </tr>
+            ) : error ? (
+              // Distinguish a failed load (500/network) from a genuinely empty
+              // list so a broken fetch doesn't masquerade as "no data".
+              <tr>
+                <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-12 text-center">
+                  <p className="text-sm text-red-600 mb-3">{typeof error === 'string' && error ? error : 'Something went wrong loading this list.'}</p>
+                  {onRetry && (
+                    <button
+                      onClick={onRetry}
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg"
+                    >
+                      Retry
+                    </button>
+                  )}
+                </td>
+              </tr>
             ) : data.length === 0 ? (
               <tr>
                 <td colSpan={columns.length + (actions ? 1 : 0)} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">
@@ -81,7 +102,14 @@ export function DataTable({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setOpenMenu(openMenu === row.id ? null : row.id);
+                            if (openMenu === row.id) { setOpenMenu(null); return; }
+                            const r = e.currentTarget.getBoundingClientRect();
+                            const width = 144;
+                            const estHeight = (actions.length * 40) + 8;
+                            const top = (r.bottom + estHeight > window.innerHeight) ? Math.max(8, r.top - estHeight) : r.bottom + 4;
+                            const left = Math.max(8, r.right - width);
+                            setMenuPos({ top, left });
+                            setOpenMenu(row.id);
                           }}
                           className="p-1.5 rounded-md border border-gray-200 hover:bg-gray-100 hover:border-gray-300 text-gray-500 hover:text-gray-700 transition-colors dark:border-slate-700 dark:text-slate-400"
                         >
@@ -89,8 +117,11 @@ export function DataTable({
                         </button>
                         {openMenu === row.id && (
                           <>
-                            <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border z-20 py-1 dark:bg-slate-900">
+                            <div className="fixed inset-0 z-40" onClick={() => setOpenMenu(null)} />
+                            <div
+                              className="fixed w-36 bg-white rounded-lg shadow-lg border border-gray-200 z-50 py-1 dark:bg-slate-900 dark:border-slate-700"
+                              style={{ top: menuPos.top, left: menuPos.left }}
+                            >
                               {actions.map((action, idx) => (
                                 <button
                                   key={idx}
@@ -99,7 +130,7 @@ export function DataTable({
                                     setOpenMenu(null);
                                     action.onClick(row);
                                   }}
-                                  className={`w-full px-4 py-2 text-sm text-left flex items-center gap-2 hover:bg-gray-50 ${action.className || ''}`}
+                                  className={`w-full px-4 py-2 text-sm text-left flex items-center gap-2 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-800 ${action.className || ''}`}
                                 >
                                   {action.icon && <action.icon className="w-4 h-4" />}
                                   {action.label}

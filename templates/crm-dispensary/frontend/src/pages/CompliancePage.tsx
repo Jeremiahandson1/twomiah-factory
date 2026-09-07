@@ -169,12 +169,15 @@ export default function CompliancePage() {
       return;
     }
     setSavingLicense(true);
+    // The server expects `licenseType`; the form tracks it as `type`, so licence
+    // saves 400'd until this mapping. (retest#5 compliance)
+    const licensePayload = { ...licenseForm, licenseType: licenseForm.type };
     try {
       if (editingLicense) {
-        await api.put(`/api/compliance/licenses/${editingLicense.id}`, licenseForm);
+        await api.put(`/api/compliance/licenses/${editingLicense.id}`, licensePayload);
         toast.success('License updated');
       } else {
-        await api.post('/api/compliance/licenses', licenseForm);
+        await api.post('/api/compliance/licenses', licensePayload);
         toast.success('License created');
       }
       setLicenseModal(false);
@@ -210,8 +213,8 @@ export default function CompliancePage() {
     }
     setGeneratingReport(true);
     try {
-      await api.post('/api/compliance/reports', {
-        type: reportType,
+      await api.post('/api/compliance/reports/generate', {
+        reportType,
         startDate: reportStartDate,
         endDate: reportEndDate,
       });
@@ -264,7 +267,7 @@ export default function CompliancePage() {
   const reportWasteToMetrc = async (wasteId: string) => {
     setReportingToMetrc(wasteId);
     try {
-      await api.post(`/api/compliance/waste/${wasteId}/report-metrc`);
+      await api.put(`/api/compliance/waste/${wasteId}/metrc`);
       toast.success('Reported to Metrc');
       loadWaste();
     } catch (err: any) {

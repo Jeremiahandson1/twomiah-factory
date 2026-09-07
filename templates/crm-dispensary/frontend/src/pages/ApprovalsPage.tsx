@@ -129,7 +129,7 @@ export default function ApprovalsPage() {
 
   const handleApproval = async (id: string, action: 'approve' | 'reject') => {
     try {
-      await api.post(`/api/approvals/${id}/${action}`);
+      await api.put(`/api/approvals/${id}/${action}`);
       toast.success(`Request ${action}d`);
       loadPending();
     } catch (err: any) {

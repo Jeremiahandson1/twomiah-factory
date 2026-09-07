@@ -30,14 +30,27 @@ app.get('/:type/csv', requirePermission('dashboard:read'), async (c) => {
   const type = c.req.param('type')
   const { status, startDate, endDate, contactId, projectId, limit } = c.req.query() as any
 
-  const result = await exportService.exportToCSV(type, user.companyId, {
-    status,
-    startDate,
-    endDate,
-    contactId,
-    projectId,
-    limit: limit ? parseInt(limit) : undefined,
-  })
+  // Unknown export type must be a 400, not an unhandled 500 from the service throw.
+  if (!exportService.getExportFields(type)) {
+    return c.json({ error: `Unknown export type: ${type}. Supported types: ${exportService.getExportTypes().join(', ')}` }, 400)
+  }
+
+  let result
+  try {
+    result = await exportService.exportToCSV(type, user.companyId, {
+      status,
+      startDate,
+      endDate,
+      contactId,
+      projectId,
+      limit: limit ? parseInt(limit) : undefined,
+    })
+  } catch (err: any) {
+    if (String(err?.message || '').includes('Unknown entity type')) {
+      return c.json({ error: `Unknown export type: ${type}` }, 400)
+    }
+    return c.json({ error: 'Export failed', detail: err?.message || 'Unknown error' }, 500)
+  }
 
   audit.log({
     action: audit.ACTIONS.EXPORT,
@@ -62,14 +75,27 @@ app.get('/:type/excel', requirePermission('dashboard:read'), async (c) => {
   const type = c.req.param('type')
   const { status, startDate, endDate, contactId, projectId, limit } = c.req.query() as any
 
-  const result = await exportService.exportToExcel(type, user.companyId, {
-    status,
-    startDate,
-    endDate,
-    contactId,
-    projectId,
-    limit: limit ? parseInt(limit) : undefined,
-  })
+  // Unknown export type must be a 400, not an unhandled 500 from the service throw.
+  if (!exportService.getExportFields(type)) {
+    return c.json({ error: `Unknown export type: ${type}. Supported types: ${exportService.getExportTypes().join(', ')}` }, 400)
+  }
+
+  let result
+  try {
+    result = await exportService.exportToExcel(type, user.companyId, {
+      status,
+      startDate,
+      endDate,
+      contactId,
+      projectId,
+      limit: limit ? parseInt(limit) : undefined,
+    })
+  } catch (err: any) {
+    if (String(err?.message || '').includes('Unknown entity type')) {
+      return c.json({ error: `Unknown export type: ${type}` }, 400)
+    }
+    return c.json({ error: 'Export failed', detail: err?.message || 'Unknown error' }, 500)
+  }
 
   audit.log({
     action: audit.ACTIONS.EXPORT,

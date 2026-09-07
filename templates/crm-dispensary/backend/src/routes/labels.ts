@@ -9,6 +9,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute(sql`...`) rows come back snake_case, but the frontend reads
+// camelCase. Convert row keys to camelCase before responding. (matches cash.ts et al.)
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // -- Zod schemas --
 
 const labelFieldSchema = z.object({
@@ -40,15 +49,15 @@ const templateSchema = z.object({
 })
 
 const printJobSchema = z.object({
-  templateId: z.string().uuid(),
-  productId: z.string().uuid().optional(),
-  batchId: z.string().uuid().optional(),
+  templateId: z.string().min(1),
+  productId: z.string().min(1).optional(),
+  batchId: z.string().min(1).optional(),
   quantity: z.number().int().min(1).default(1),
 })
 
 const generateSchema = z.object({
-  productId: z.string().uuid(),
-  templateId: z.string().uuid(),
+  productId: z.string().min(1),
+  templateId: z.string().min(1),
 })
 
 // ==========================================
@@ -65,7 +74,7 @@ app.get('/templates', async (c) => {
     ORDER BY is_default DESC, name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Create label template (manager+)
@@ -111,7 +120,7 @@ app.post('/templates', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(created, 201)
+  return c.json(camel(created), 201)
 })
 
 // Update label template (manager+)
@@ -172,7 +181,7 @@ app.put('/templates/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Delete label template (manager+)
@@ -238,7 +247,7 @@ app.post('/templates/:id/preview', async (c) => {
 
   const html = buildLabelHtml(template, fields, sampleData)
 
-  return c.json({ html, template, sampleData })
+  return c.json({ html, template: camel(template), sampleData })
 })
 
 // ==========================================
@@ -326,7 +335,7 @@ app.post('/print', async (c) => {
     req: c.req,
   })
 
-  return c.json({ job, labelData, html }, 201)
+  return c.json({ job: camel(job), labelData, html }, 201)
 })
 
 // List print jobs (paginated)
@@ -363,7 +372,7 @@ app.get('/print-jobs', async (c) => {
   const data = (dataResult as any).rows || dataResult
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0)
 
-  return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+  return c.json({ data: data.map(camel), pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
 })
 
 // Update print job status
@@ -399,7 +408,7 @@ app.put('/print-jobs/:id/status', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // ==========================================
@@ -491,7 +500,7 @@ app.post('/generate', async (c) => {
   const fields = typeof template.fields === 'string' ? JSON.parse(template.fields) : template.fields
   const html = buildLabelHtml(template, fields, labelData)
 
-  return c.json({ labelData, html, template })
+  return c.json({ labelData, html, template: camel(template) })
 })
 
 // ==========================================

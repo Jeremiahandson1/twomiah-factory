@@ -45,21 +45,30 @@ const productSchema = z.object({
   subcategory: z.string().optional(),
   brand: z.string().optional(),
   strain: z.string().optional(),
+  // Frontend form sends strainName/unit/isMerch — real columns are
+  // strain_name/unit_type/is_merch, so accept them here instead of stripping.
+  // `unit` is remapped to the unitType column on write below.
+  strainName: z.string().optional(),
+  unit: z.string().optional(),
+  isMerch: z.boolean().optional(),
   strainType: z.enum(['sativa', 'indica', 'hybrid', 'cbd', 'na']).optional(),
-  thcPercent: z.number().min(0).max(100).optional(),
-  cbdPercent: z.number().min(0).max(100).optional(),
-  weight: z.number().optional(),
+  // Money/measure columns are stored as TEXT, so a GET returns them as strings; when the edit
+  // form round-trips a fetched product back through PUT those arrive as "22.5" not 22.5. Coerce
+  // so the write path accepts exactly what the read path emitted (recurring string/number split).
+  thcPercent: z.coerce.number().min(0).max(100).optional(),
+  cbdPercent: z.coerce.number().min(0).max(100).optional(),
+  weight: z.coerce.number().optional(),
   weightUnit: z.enum(['g', 'oz', 'mg', 'ml', 'each']).default('g'),
-  price: z.number().min(0).max(1_000_000),
-  costPrice: z.number().min(0).max(1_000_000).optional(),
+  price: z.coerce.number().min(0).max(1_000_000),
+  costPrice: z.coerce.number().min(0).max(1_000_000).optional(),
   taxCategory: z.enum(['cannabis', 'non_cannabis']).default('cannabis'),
   trackInventory: z.boolean().default(true),
-  stockQuantity: z.number().int().min(0).default(0),
-  lowStockThreshold: z.number().int().min(0).default(10),
+  stockQuantity: z.coerce.number().int().min(0).default(0),
+  lowStockThreshold: z.coerce.number().int().min(0).default(10),
   requiresIdCheck: z.boolean().default(true),
   requiresWeighing: z.boolean().default(false),
   visible: z.boolean().default(true),
-  menuOrder: z.number().int().default(0),
+  menuOrder: z.coerce.number().int().default(0),
   imageUrl: z.string().optional(),
   images: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
@@ -77,6 +86,17 @@ const productSchema = z.object({
   notes: z.string().optional(),
   active: z.boolean().default(true),
 })
+
+// The edit form fetches a product then PUTs it back; empty optional columns come back as null
+// (e.g. barcode, sku, strain). The optional string fields reject null ("Expected string,
+// received null"), so drop null-valued top-level keys before validating — a null means
+// "not provided / leave unchanged" here, not "set to null".
+const stripNulls = (body: any): any => {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return body
+  const out: any = {}
+  for (const k of Object.keys(body)) if (body[k] !== null) out[k] = body[k]
+  return out
+}
 
 // List products with filters
 app.get('/', async (c) => {
@@ -142,14 +162,26 @@ app.get('/:id', async (c) => {
 // Create product (manager+)
 app.post('/', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
-  const data = productSchema.parse(await c.req.json())
+  const data = productSchema.parse(stripNulls(await c.req.json()))
 
-  const [created] = await db.insert(product).values({
+  // Block a duplicate SKU within the company (S22). Blank SKU is allowed to repeat.
+  if (data.sku && data.sku.trim()) {
+    const [dupe] = await db.select({ id: product.id }).from(product)
+      .where(and(eq(product.companyId, currentUser.companyId), eq(product.sku, data.sku.trim())))
+      .limit(1)
+    if (dupe) return c.json({ error: `A product with SKU "${data.sku.trim()}" already exists.` }, 409)
+  }
+
+  const values: any = {
     ...data,
     price: String(data.price),
     costPrice: data.costPrice != null ? String(data.costPrice) : undefined,
     companyId: currentUser.companyId,
-  } as any).returning()
+  }
+  // `unit` is a form field; the column is unit_type (Drizzle: unitType).
+  if ('unit' in values) { values.unitType = values.unit; delete values.unit }
+
+  const [created] = await db.insert(product).values(values).returning()
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -166,7 +198,7 @@ app.post('/', requireRole('manager'), async (c) => {
 app.put('/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = productSchema.partial().parse(await c.req.json())
+  const data = productSchema.partial().parse(stripNulls(await c.req.json()))
 
   const [existing] = await db.select().from(product)
     .where(and(eq(product.id, id), eq(product.companyId, currentUser.companyId)))
@@ -176,6 +208,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
   const updateData: any = { ...data, updatedAt: new Date() }
   if (data.price != null) updateData.price = String(data.price)
   if (data.costPrice != null) updateData.costPrice = String(data.costPrice)
+  if ('unit' in updateData) { updateData.unitType = updateData.unit; delete updateData.unit }
 
   const [updated] = await db.update(product).set(updateData).where(eq(product.id, id)).returning()
 

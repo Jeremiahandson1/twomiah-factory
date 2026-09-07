@@ -9,6 +9,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case but the frontend reads camelCase, so fields
+// rendered blank. Convert row keys to camelCase before responding. (retest#5 N1)
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // List RFID tags
 app.get('/tags', async (c) => {
   const currentUser = c.get('user') as any
@@ -57,7 +66,7 @@ app.get('/tags', async (c) => {
       ${locationFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -78,8 +87,8 @@ app.post('/tags', requireRole('manager'), async (c) => {
   const data = tagSchema.parse(await c.req.json())
 
   const result = await db.execute(sql`
-    INSERT INTO rfid_tags(id, epc, tid, product_id, batch_id, location_id, encoded_data, status, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.epc}, ${data.tid || null}, ${data.productId || null}, ${data.batchId || null}, ${data.locationId || null}, ${data.encodedData ? JSON.stringify(data.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO rfid_tags(id, epc, tid, product_id, batch_id, location_id, encoded_data, status, company_id, created_at)
+    VALUES (gen_random_uuid(), ${data.epc}, ${data.tid || null}, ${data.productId || null}, ${data.batchId || null}, ${data.locationId || null}, ${data.encodedData ? JSON.stringify(data.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW())
     RETURNING *
   `)
 
@@ -93,7 +102,7 @@ app.post('/tags', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(tag, 201)
+  return c.json(camel(tag), 201)
 })
 
 // Bulk register RFID tags
@@ -116,8 +125,8 @@ app.post('/tags/bulk', requireRole('manager'), async (c) => {
 
   for (const tag of data.tags) {
     const result = await db.execute(sql`
-      INSERT INTO rfid_tags(id, epc, tid, product_id, batch_id, location_id, encoded_data, status, company_id, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${tag.epc}, ${tag.tid || null}, ${tag.productId || null}, ${tag.batchId || null}, ${tag.locationId || null}, ${tag.encodedData ? JSON.stringify(tag.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW(), NOW())
+      INSERT INTO rfid_tags(id, epc, tid, product_id, batch_id, location_id, encoded_data, status, company_id, created_at)
+      VALUES (gen_random_uuid(), ${tag.epc}, ${tag.tid || null}, ${tag.productId || null}, ${tag.batchId || null}, ${tag.locationId || null}, ${tag.encodedData ? JSON.stringify(tag.encodedData) : null}::jsonb, 'active', ${currentUser.companyId}, NOW())
       RETURNING *
     `)
     const row = ((result as any).rows || result)?.[0]
@@ -132,7 +141,7 @@ app.post('/tags/bulk', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ created: created.length, tags: created }, 201)
+  return c.json({ created: created.length, tags: created.map(camel) }, 201)
 })
 
 // Update RFID tag
@@ -149,12 +158,14 @@ app.put('/tags/:id', requireRole('manager'), async (c) => {
   })
   const data = tagSchema.parse(await c.req.json())
 
-  const sets: any[] = [sql`updated_at = NOW()`]
+  // rfid_tags has no updated_at column — seeding it here 500'd every tag edit.
+  const sets: any[] = []
   if (data.productId !== undefined) sets.push(sql`product_id = ${data.productId}`)
   if (data.batchId !== undefined) sets.push(sql`batch_id = ${data.batchId}`)
   if (data.locationId !== undefined) sets.push(sql`location_id = ${data.locationId}`)
   if (data.status !== undefined) sets.push(sql`status = ${data.status}`)
   if (data.encodedData !== undefined) sets.push(sql`encoded_data = ${JSON.stringify(data.encodedData)}::jsonb`)
+  if (sets.length === 0) return c.json({ error: 'No fields to update' }, 400)
 
   const setClause = sets.reduce((acc, s, i) => i === 0 ? s : sql`${acc}, ${s}`)
 
@@ -167,7 +178,7 @@ app.put('/tags/:id', requireRole('manager'), async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Tag not found' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Deactivate RFID tag
@@ -176,7 +187,7 @@ app.delete('/tags/:id', requireRole('manager'), async (c) => {
   const id = c.req.param('id')
 
   const result = await db.execute(sql`
-    UPDATE rfid_tags SET status = 'inactive', updated_at = NOW()
+    UPDATE rfid_tags SET status = 'inactive'
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
@@ -220,7 +231,7 @@ app.post('/scan', async (c) => {
   // Log scan event
   await db.execute(sql`
     INSERT INTO rfid_scan_log(id, epc, tag_id, scan_type, location_id, reader_device, rssi, scanned_by, company_id, created_at)
-    VALUES (gen_random_uuid(), ${data.epc}, ${tag?.id || null}, ${data.scanType}, ${data.locationId}, ${data.readerDevice || null}, ${data.rssi || null}, ${currentUser.id}, ${currentUser.companyId}, NOW())
+    VALUES (gen_random_uuid(), ${data.epc}, ${tag?.id || null}, ${data.scanType}, ${data.locationId}, ${data.readerDevice || null}, ${data.rssi || null}, ${currentUser.userId}, ${currentUser.companyId}, NOW())
   `)
 
   // Update tag's last scanned timestamp
@@ -234,7 +245,7 @@ app.post('/scan', async (c) => {
   // For sale scan type, return product info for POS
   if (data.scanType === 'sale' && tag) {
     return c.json({
-      tag,
+      tag: camel(tag),
       product: {
         id: tag.product_id,
         name: tag.product_name,
@@ -247,7 +258,7 @@ app.post('/scan', async (c) => {
     })
   }
 
-  return c.json({ tag: tag || null, matched: !!tag })
+  return c.json({ tag: tag ? camel(tag) : null, matched: !!tag })
 })
 
 // Process bulk RFID scan (inventory count)
@@ -295,7 +306,7 @@ app.post('/scan/bulk', async (c) => {
     const tagMatch = matched.find((t: any) => t.epc === scan.epc)
     await db.execute(sql`
       INSERT INTO rfid_scan_log(id, epc, tag_id, scan_type, location_id, rssi, scanned_by, company_id, created_at)
-      VALUES (gen_random_uuid(), ${scan.epc}, ${tagMatch?.id || null}, ${data.scanType}, ${data.locationId}, ${scan.rssi || null}, ${currentUser.id}, ${currentUser.companyId}, NOW())
+      VALUES (gen_random_uuid(), ${scan.epc}, ${tagMatch?.id || null}, ${data.scanType}, ${data.locationId}, ${scan.rssi || null}, ${currentUser.userId}, ${currentUser.companyId}, NOW())
     `)
   }
 
@@ -317,9 +328,9 @@ app.post('/scan/bulk', async (c) => {
   })
 
   return c.json({
-    matched,
+    matched: matched.map(camel),
     unmatched,
-    expected,
+    expected: expected.map(camel),
     summary: {
       scanned: data.scans.length,
       matched: matched.length,
@@ -327,6 +338,50 @@ app.post('/scan/bulk', async (c) => {
       missing: expected.length,
     },
   })
+})
+
+// Accept an inventory-count reconciliation.
+// The bulk scan (POST /scan/bulk) returns { matched, unmatched, expected }. "Expected" are the
+// active tags assigned to the location that were NOT scanned — i.e. missing/shrinkage. Accepting
+// the count marks those missing tags as 'lost' so the tag inventory reflects the physical count.
+app.post('/inventory-count/accept', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const results = body?.results || {}
+  const location = typeof body?.location === 'string' ? body.location : null
+  const scannedEpcs: string[] = Array.isArray(body?.scannedEpcs)
+    ? body.scannedEpcs.filter((e: any) => typeof e === 'string')
+    : []
+  const expected: any[] = Array.isArray(results?.expected) ? results.expected : []
+
+  // Ids of the missing (expected-but-not-scanned) tags. Scope the update by company so we can
+  // never touch another tenant's tags. rfid_tags.id is a text column (schema.ts).
+  const missingIds = expected.map((t: any) => t?.id).filter((id: any): id is string => typeof id === 'string')
+
+  let markedLost = 0
+  if (missingIds.length > 0) {
+    const res = await db.execute(sql`
+      UPDATE rfid_tags
+      SET status = 'lost'
+      WHERE id = ANY(${missingIds}::text[])
+        AND company_id = ${currentUser.companyId}
+        AND status = 'active'
+      RETURNING id
+    `)
+    markedLost = ((res as any).rows || res).length
+  }
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'rfid_inventory_count',
+    entityId: null,
+    entityName: `Inventory count accepted${location ? ` @ ${location}` : ''}`,
+    metadata: { location, scanned: scannedEpcs.length, missing: missingIds.length, markedLost },
+    req: c.req,
+  })
+
+  return c.json({ success: true, accepted: scannedEpcs.length, missing: missingIds.length, markedLost, location })
 })
 
 // Scan history log
@@ -371,7 +426,7 @@ app.get('/scan-log', async (c) => {
       ${typeFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })

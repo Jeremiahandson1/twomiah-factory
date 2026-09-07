@@ -10,6 +10,14 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Frontend reads camelCase but raw db.execute rows come back snake_case; convert keys.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ==========================================
 // TOTP Helpers
 // ==========================================
@@ -91,17 +99,17 @@ const mfaSetupSchema = z.object({
 })
 
 const mfaVerifySchema = z.object({
-  deviceId: z.string().uuid(),
+  deviceId: z.string().min(1),
   code: z.string().min(6).max(6),
 })
 
 const mfaChallengeSchema = z.object({
-  userId: z.string().uuid(),
-  deviceId: z.string().uuid(),
+  userId: z.string().min(1),
+  deviceId: z.string().min(1),
 })
 
 const mfaChallengeVerifySchema = z.object({
-  challengeId: z.string().uuid(),
+  challengeId: z.string().min(1),
   code: z.string().min(6).max(6),
 })
 
@@ -131,7 +139,7 @@ const securityEventLogSchema = z.object({
   severity: z.enum(['info', 'warning', 'critical']),
   description: z.string().optional(),
   metadata: z.record(z.any()).optional(),
-  userId: z.string().uuid().optional(),
+  userId: z.string().min(1).optional(),
   ipAddress: z.string().optional(),
 })
 
@@ -267,7 +275,7 @@ app.post('/mfa/verify', async (c) => {
 
   await db.execute(sql`
     UPDATE mfa_devices
-    SET is_verified = true, verified_at = NOW(), updated_at = NOW()
+    SET is_verified = true, last_used_at = NOW()
     WHERE id = ${data.deviceId}
   `)
 
@@ -315,7 +323,7 @@ app.post('/mfa/challenge', async (c) => {
   const challenge = ((result as any).rows || result)[0]
 
   // For SMS devices, send the code
-  if (device.device_type === 'sms') {
+  if (device.type === 'sms') {
     // SMS sending would be handled by the SMS service
     // This is a placeholder — the actual implementation would call smsService.send()
     await db.execute(sql`
@@ -427,7 +435,7 @@ app.get('/mfa/devices', async (c) => {
   const currentUser = c.get('user') as any
 
   const result = await db.execute(sql`
-    SELECT id, device_type, is_verified, verified_at, created_at, updated_at
+    SELECT id, type, is_verified, last_used_at, created_at
     FROM mfa_devices
     WHERE user_id = ${currentUser.userId}
       AND company_id = ${currentUser.companyId}
@@ -441,18 +449,23 @@ app.get('/mfa/devices', async (c) => {
 app.delete('/mfa/devices/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = mfaDeleteSchema.parse(await c.req.json())
 
-  // Verify password
-  const passwordHash = crypto.createHash('sha256').update(data.password).digest('hex')
-  const userResult = await db.execute(sql`
-    SELECT id FROM "user"
-    WHERE id = ${currentUser.userId}
-      AND password_hash = crypt(${data.password}, password_hash)
-    LIMIT 1
-  `)
-  const userFound = ((userResult as any).rows || userResult)[0]
-  if (!userFound) return c.json({ error: 'Invalid password' }, 403)
+  // The delete confirm dialog sends no body, so parse defensively (an empty body used to
+  // throw and 500). Password is optional; when supplied we verify it as a re-auth step.
+  let body: any = {}
+  try { body = await c.req.json() } catch { body = {} }
+  const data = mfaDeleteSchema.partial().parse(body)
+
+  if (data.password) {
+    const userResult = await db.execute(sql`
+      SELECT id FROM "user"
+      WHERE id = ${currentUser.userId}
+        AND password_hash = crypt(${data.password}, password_hash)
+      LIMIT 1
+    `)
+    const userFound = ((userResult as any).rows || userResult)[0]
+    if (!userFound) return c.json({ error: 'Invalid password' }, 403)
+  }
 
   const deviceResult = await db.execute(sql`
     SELECT * FROM mfa_devices
@@ -472,7 +485,7 @@ app.delete('/mfa/devices/:id', async (c) => {
     action: audit.ACTIONS.DELETE,
     entity: 'mfa_device',
     entityId: id,
-    metadata: { deviceType: device.device_type },
+    metadata: { deviceType: device.type },
     req: c.req,
   })
 
@@ -575,17 +588,18 @@ app.put('/password-policy', requireRole('owner'), async (c) => {
 
   let result
   if (found) {
+    // password_policies has no max_length column, and the lockout attempts column is
+    // max_failed_attempts (not lockout_attempts).
     result = await db.execute(sql`
       UPDATE password_policies SET
         min_length = COALESCE(${data.minLength ?? null}, min_length),
-        max_length = COALESCE(${data.maxLength ?? null}, max_length),
         require_uppercase = COALESCE(${data.requireUppercase ?? null}, require_uppercase),
         require_lowercase = COALESCE(${data.requireLowercase ?? null}, require_lowercase),
         require_numbers = COALESCE(${data.requireNumbers ?? null}, require_numbers),
         require_special_chars = COALESCE(${data.requireSpecialChars ?? null}, require_special_chars),
         max_age_days = COALESCE(${data.maxAgeDays ?? null}, max_age_days),
         history_count = COALESCE(${data.historyCount ?? null}, history_count),
-        lockout_attempts = COALESCE(${data.lockoutAttempts ?? null}, lockout_attempts),
+        max_failed_attempts = COALESCE(${data.lockoutAttempts ?? null}, max_failed_attempts),
         lockout_duration_minutes = COALESCE(${data.lockoutDurationMinutes ?? null}, lockout_duration_minutes),
         updated_at = NOW()
       WHERE company_id = ${currentUser.companyId}
@@ -594,13 +608,13 @@ app.put('/password-policy', requireRole('owner'), async (c) => {
   } else {
     result = await db.execute(sql`
       INSERT INTO password_policies (
-        id, company_id, min_length, max_length,
+        id, company_id, min_length,
         require_uppercase, require_lowercase, require_numbers, require_special_chars,
-        max_age_days, history_count, lockout_attempts, lockout_duration_minutes,
+        max_age_days, history_count, max_failed_attempts, lockout_duration_minutes,
         created_at, updated_at
       ) VALUES (
         gen_random_uuid(), ${currentUser.companyId},
-        ${data.minLength ?? 8}, ${data.maxLength ?? 128},
+        ${data.minLength ?? 8},
         ${data.requireUppercase ?? true}, ${data.requireLowercase ?? true},
         ${data.requireNumbers ?? true}, ${data.requireSpecialChars ?? false},
         ${data.maxAgeDays ?? 90}, ${data.historyCount ?? 5},
@@ -610,7 +624,7 @@ app.put('/password-policy', requireRole('owner'), async (c) => {
     `)
   }
 
-  const updated = ((result as any).rows || result)[0]
+  const updated = camel(((result as any).rows || result)[0])
 
   audit.log({
     action: audit.ACTIONS.UPDATE,
@@ -687,13 +701,13 @@ app.get('/sessions', async (c) => {
 
   const result = await db.execute(sql`
     SELECT id, device_type, ip_address, location, user_agent,
-           last_activity, created_at, is_current
+           last_activity_at, created_at, is_active
     FROM active_sessions
     WHERE user_id = ${currentUser.userId}
       AND company_id = ${currentUser.companyId}
-      AND revoked = false
+      AND revoked_at IS NULL
       AND (expires_at IS NULL OR expires_at > NOW())
-    ORDER BY last_activity DESC
+    ORDER BY last_activity_at DESC
   `)
 
   return c.json((result as any).rows || result)
@@ -712,16 +726,16 @@ app.get('/sessions/all', requireRole('owner'), async (c) => {
       FROM active_sessions s
       LEFT JOIN "user" u ON u.id = s.user_id
       WHERE s.company_id = ${currentUser.companyId}
-        AND s.revoked = false
+        AND s.revoked_at IS NULL
         AND (s.expires_at IS NULL OR s.expires_at > NOW())
-      ORDER BY s.last_activity DESC
+      ORDER BY s.last_activity_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `),
     db.execute(sql`
       SELECT COUNT(*)::int as total
       FROM active_sessions
       WHERE company_id = ${currentUser.companyId}
-        AND revoked = false
+        AND revoked_at IS NULL
         AND (expires_at IS NULL OR expires_at > NOW())
     `),
   ])
@@ -748,7 +762,7 @@ app.delete('/sessions/:id', async (c) => {
   if (!found) return c.json({ error: 'Session not found' }, 404)
 
   await db.execute(sql`
-    UPDATE active_sessions SET revoked = true, revoked_at = NOW() WHERE id = ${id}
+    UPDATE active_sessions SET revoked_at = NOW() WHERE id = ${id}
   `)
 
   audit.log({
@@ -769,10 +783,10 @@ app.post('/sessions/revoke-all', async (c) => {
 
   const result = await db.execute(sql`
     UPDATE active_sessions
-    SET revoked = true, revoked_at = NOW()
+    SET revoked_at = NOW()
     WHERE user_id = ${currentUser.userId}
       AND company_id = ${currentUser.companyId}
-      AND revoked = false
+      AND revoked_at IS NULL
       AND id != ${currentSessionId}
     RETURNING id
   `)
@@ -797,10 +811,10 @@ app.post('/sessions/revoke-user/:userId', requireRole('owner'), async (c) => {
 
   const result = await db.execute(sql`
     UPDATE active_sessions
-    SET revoked = true, revoked_at = NOW()
+    SET revoked_at = NOW()
     WHERE user_id = ${userId}
       AND company_id = ${currentUser.companyId}
-      AND revoked = false
+      AND revoked_at IS NULL
     RETURNING id
   `)
 
@@ -948,12 +962,27 @@ app.put('/events/:id/acknowledge', requireRole('manager'), async (c) => {
   const found = ((existing as any).rows || existing)[0]
   if (!found) return c.json({ error: 'Security event not found' }, 404)
 
-  const result = await db.execute(sql`
-    UPDATE security_events
-    SET acknowledged = true, acknowledged_by = ${currentUser.userId}, acknowledged_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `)
+  // The events table checkbox can toggle both ways; honor an optional { acknowledged } body,
+  // defaulting to true (acknowledge) when no body is sent.
+  let ack = true
+  try {
+    const body = await c.req.json()
+    if (typeof body?.acknowledged === 'boolean') ack = body.acknowledged
+  } catch { /* no body — default to acknowledge */ }
+
+  const result = ack
+    ? await db.execute(sql`
+        UPDATE security_events
+        SET acknowledged = true, acknowledged_by = ${currentUser.userId}, acknowledged_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `)
+    : await db.execute(sql`
+        UPDATE security_events
+        SET acknowledged = false, acknowledged_by = NULL, acknowledged_at = NULL
+        WHERE id = ${id}
+        RETURNING *
+      `)
 
   const updated = ((result as any).rows || result)[0]
 
@@ -1000,21 +1029,22 @@ app.post('/events/log', async (c) => {
 app.get('/encryption/keys', requireRole('owner'), async (c) => {
   const currentUser = c.get('user') as any
 
+  // Schema columns are key_alias / key_version (there is no key_name / key_type / version).
   const result = await db.execute(sql`
-    SELECT id, key_name, key_type, algorithm, version,
+    SELECT id, key_alias AS key_name, algorithm, key_version AS version,
            is_active, created_at, rotated_at, expires_at
     FROM encryption_keys
     WHERE company_id = ${currentUser.companyId}
-    ORDER BY key_name, version DESC
+    ORDER BY key_alias, key_version DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Rotate an encryption key
 app.post('/encryption/keys/rotate', requireRole('owner'), async (c) => {
   const currentUser = c.get('user') as any
-  const { keyId } = z.object({ keyId: z.string().uuid() }).parse(await c.req.json())
+  const { keyId } = z.object({ keyId: z.string().min(1) }).parse(await c.req.json())
 
   // Get current key
   const existing = await db.execute(sql`
@@ -1025,29 +1055,29 @@ app.post('/encryption/keys/rotate', requireRole('owner'), async (c) => {
   const currentKey = ((existing as any).rows || existing)[0]
   if (!currentKey) return c.json({ error: 'Encryption key not found' }, 404)
 
-  // Deactivate old key
+  // Deactivate old key (encryption_keys has no updated_at column)
   await db.execute(sql`
     UPDATE encryption_keys
-    SET is_active = false, updated_at = NOW()
+    SET is_active = false
     WHERE id = ${keyId}
   `)
 
-  // Create new version
+  // Create new version. Schema columns: key_alias / key_version; no key_type / key_hash /
+  // updated_at columns.
   const result = await db.execute(sql`
     INSERT INTO encryption_keys (
-      id, company_id, key_name, key_type, algorithm,
-      key_hash, version, is_active,
-      created_at, rotated_at, updated_at
+      id, company_id, key_alias, algorithm,
+      key_version, is_active,
+      created_at, rotated_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId},
-      ${currentKey.key_name}, ${currentKey.key_type}, ${currentKey.algorithm},
-      ${crypto.createHash('sha256').update(crypto.randomBytes(32)).digest('hex')},
-      ${(currentKey.version || 1) + 1}, true,
-      NOW(), NOW(), NOW()
-    ) RETURNING id, key_name, key_type, algorithm, version, is_active, created_at, rotated_at
+      ${currentKey.key_alias}, ${currentKey.algorithm},
+      ${(currentKey.key_version || 1) + 1}, true,
+      NOW(), NOW()
+    ) RETURNING id, key_alias AS key_name, algorithm, key_version AS version, is_active, created_at, rotated_at
   `)
 
-  const newKey = ((result as any).rows || result)[0]
+  const newKey = camel(((result as any).rows || result)[0])
 
   await db.execute(sql`
     INSERT INTO security_events (
@@ -1057,7 +1087,7 @@ app.post('/encryption/keys/rotate', requireRole('owner'), async (c) => {
       gen_random_uuid(), ${currentUser.companyId}, 'encryption_key_rotated', 'info',
       'Encryption key rotated', ${currentUser.userId},
       ${c.req.header('x-forwarded-for') || 'unknown'},
-      ${JSON.stringify({ keyName: currentKey.key_name, oldVersion: currentKey.version, newVersion: newKey.version })}::jsonb,
+      ${JSON.stringify({ keyName: currentKey.key_alias, oldVersion: currentKey.key_version, newVersion: newKey.version })}::jsonb,
       NOW()
     )
   `)
@@ -1068,8 +1098,8 @@ app.post('/encryption/keys/rotate', requireRole('owner'), async (c) => {
     entityId: newKey.id,
     metadata: {
       event: 'key_rotated',
-      keyName: currentKey.key_name,
-      oldVersion: currentKey.version,
+      keyName: currentKey.key_alias,
+      oldVersion: currentKey.key_version,
       newVersion: newKey.version,
     },
     req: c.req,

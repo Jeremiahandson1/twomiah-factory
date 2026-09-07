@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   BookOpen, GraduationCap, Shield, UserPlus, Plus, Play, Check, X,
-  Clock, AlertTriangle, ChevronRight, Video, FileText, HelpCircle, Award
+  Clock, AlertTriangle, ChevronRight, Video, FileText, HelpCircle, Award, Users
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';

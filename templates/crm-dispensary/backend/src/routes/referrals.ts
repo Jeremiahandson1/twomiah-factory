@@ -59,10 +59,10 @@ app.put('/config', requireRole('manager'), async (c) => {
     ON CONFLICT (company_id) DO UPDATE SET
       enabled = COALESCE(${data.enabled ?? null}::boolean, referral_config.enabled),
       referrer_reward_type = COALESCE(${data.referrerRewardType ?? null}, referral_config.referrer_reward_type),
-      referrer_reward_value = COALESCE(${data.referrerRewardValue ?? null}::numeric, referral_config.referrer_reward_value),
+      referrer_reward_value = COALESCE(${data.referrerRewardValue ?? null}::text, referral_config.referrer_reward_value),
       referred_reward_type = COALESCE(${data.referredRewardType ?? null}, referral_config.referred_reward_type),
-      referred_reward_value = COALESCE(${data.referredRewardValue ?? null}::numeric, referral_config.referred_reward_value),
-      min_purchase_amount = COALESCE(${data.minPurchaseAmount ?? null}::numeric, referral_config.min_purchase_amount),
+      referred_reward_value = COALESCE(${data.referredRewardValue ?? null}::text, referral_config.referred_reward_value),
+      min_purchase_amount = COALESCE(${data.minPurchaseAmount ?? null}::text, referral_config.min_purchase_amount),
       expiration_days = COALESCE(${data.expirationDays ?? null}::int, referral_config.expiration_days),
       max_referrals_per_customer = COALESCE(${data.maxReferralsPerCustomer ?? null}::int, referral_config.max_referrals_per_customer),
       updated_at = NOW()
@@ -116,6 +116,51 @@ app.get('/', async (c) => {
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+})
+
+// Referral program stats — MUST be declared before '/:id' or it is swallowed by the
+// param route and returns 404 for the literal /stats path. (route ordering)
+app.get('/stats', async (c) => {
+  const currentUser = c.get('user') as any
+
+  const totalResult = await db.execute(sql`
+    SELECT
+      COUNT(*)::int as total_referrals,
+      COUNT(*) FILTER (WHERE status = 'signed_up' OR status = 'rewarded')::int as converted,
+      COUNT(*) FILTER (WHERE status = 'rewarded')::int as rewarded,
+      COUNT(*) FILTER (WHERE status = 'pending')::int as pending
+    FROM referrals
+    WHERE company_id = ${currentUser.companyId}
+  `)
+
+  const stats = ((totalResult as any).rows || totalResult)?.[0] || {}
+  const conversionRate = stats.total_referrals > 0
+    ? ((stats.converted / stats.total_referrals) * 100).toFixed(1)
+    : '0.0'
+
+  // Top referrers
+  const topResult = await db.execute(sql`
+    SELECT r.referrer_id, c.name as referrer_name, c.email as referrer_email,
+           COUNT(*)::int as total_referrals,
+           COUNT(*) FILTER (WHERE r.status = 'rewarded')::int as successful_referrals
+    FROM referrals r
+    LEFT JOIN contact c ON c.id = r.referrer_id
+    WHERE r.company_id = ${currentUser.companyId}
+    GROUP BY r.referrer_id, c.name, c.email
+    ORDER BY total_referrals DESC
+    LIMIT 10
+  `)
+
+  const topReferrers = (topResult as any).rows || topResult
+
+  return c.json({
+    totalReferrals: stats.total_referrals || 0,
+    converted: stats.converted || 0,
+    rewarded: stats.rewarded || 0,
+    pending: stats.pending || 0,
+    conversionRate: parseFloat(conversionRate),
+    topReferrers,
+  })
 })
 
 // Referral detail
@@ -275,37 +320,45 @@ app.post('/:id/reward', requireRole('manager'), async (c) => {
   const config = ((configResult as any).rows || configResult)?.[0]
   if (!config) return c.json({ error: 'Referral program not configured' }, 400)
 
-  // Award referrer loyalty points/credit
+  // Award referrer loyalty points/credit.
+  // Table is `loyalty_members` (plural) and the columns are points_balance / total_points_earned
+  // (schema.ts) — the old code wrote to a singular `loyalty_member` table and a non-existent
+  // `points_earned` column, so every points reward 500'd.
   if (config.referrer_reward_type === 'points' && config.referrer_reward_value > 0) {
     await db.execute(sql`
-      UPDATE loyalty_member
+      UPDATE loyalty_members
       SET points_balance = points_balance + ${config.referrer_reward_value},
-          points_earned = points_earned + ${config.referrer_reward_value},
+          total_points_earned = total_points_earned + ${config.referrer_reward_value},
           updated_at = NOW()
       WHERE contact_id = ${referral.referrer_id} AND company_id = ${currentUser.companyId}
     `)
-  } else if ((config.referrer_reward_type === 'credit' || config.referrer_reward_type === 'discount_flat') && config.referrer_reward_value > 0) {
+  }
+  // credit / discount_flat rewards add to the referrer's store-credit balance (contact.store_credit,
+  // TEXT, added wave-2). Stored as numeric-in-text so it survives arithmetic.
+  if ((config.referrer_reward_type === 'credit' || config.referrer_reward_type === 'discount_flat') && config.referrer_reward_value > 0) {
     await db.execute(sql`
       UPDATE contact
-      SET store_credit = COALESCE(store_credit, 0) + ${config.referrer_reward_value},
+      SET store_credit = (COALESCE(NULLIF(store_credit, ''), '0')::numeric + ${config.referrer_reward_value})::text,
           updated_at = NOW()
       WHERE id = ${referral.referrer_id} AND company_id = ${currentUser.companyId}
     `)
   }
 
-  // Award referred customer loyalty points/credit
+  // Award referred customer loyalty points/credit (same schema correction as the referrer above).
   if (config.referred_reward_type === 'points' && config.referred_reward_value > 0) {
     await db.execute(sql`
-      UPDATE loyalty_member
+      UPDATE loyalty_members
       SET points_balance = points_balance + ${config.referred_reward_value},
-          points_earned = points_earned + ${config.referred_reward_value},
+          total_points_earned = total_points_earned + ${config.referred_reward_value},
           updated_at = NOW()
       WHERE contact_id = ${referral.referred_id} AND company_id = ${currentUser.companyId}
     `)
-  } else if ((config.referred_reward_type === 'credit' || config.referred_reward_type === 'discount_flat') && config.referred_reward_value > 0) {
+  }
+  // credit / discount_flat: add to the referred customer's store-credit balance (see referrer branch).
+  if ((config.referred_reward_type === 'credit' || config.referred_reward_type === 'discount_flat') && config.referred_reward_value > 0) {
     await db.execute(sql`
       UPDATE contact
-      SET store_credit = COALESCE(store_credit, 0) + ${config.referred_reward_value},
+      SET store_credit = (COALESCE(NULLIF(store_credit, ''), '0')::numeric + ${config.referred_reward_value})::text,
           updated_at = NOW()
       WHERE id = ${referral.referred_id} AND company_id = ${currentUser.companyId}
     `)
@@ -331,50 +384,6 @@ app.post('/:id/reward', requireRole('manager'), async (c) => {
   })
 
   return c.json(updated)
-})
-
-// Referral program stats
-app.get('/stats', async (c) => {
-  const currentUser = c.get('user') as any
-
-  const totalResult = await db.execute(sql`
-    SELECT
-      COUNT(*)::int as total_referrals,
-      COUNT(*) FILTER (WHERE status = 'signed_up' OR status = 'rewarded')::int as converted,
-      COUNT(*) FILTER (WHERE status = 'rewarded')::int as rewarded,
-      COUNT(*) FILTER (WHERE status = 'pending')::int as pending
-    FROM referrals
-    WHERE company_id = ${currentUser.companyId}
-  `)
-
-  const stats = ((totalResult as any).rows || totalResult)?.[0] || {}
-  const conversionRate = stats.total_referrals > 0
-    ? ((stats.converted / stats.total_referrals) * 100).toFixed(1)
-    : '0.0'
-
-  // Top referrers
-  const topResult = await db.execute(sql`
-    SELECT r.referrer_id, c.name as referrer_name, c.email as referrer_email,
-           COUNT(*)::int as total_referrals,
-           COUNT(*) FILTER (WHERE r.status = 'rewarded')::int as successful_referrals
-    FROM referrals r
-    LEFT JOIN contact c ON c.id = r.referrer_id
-    WHERE r.company_id = ${currentUser.companyId}
-    GROUP BY r.referrer_id, c.name, c.email
-    ORDER BY total_referrals DESC
-    LIMIT 10
-  `)
-
-  const topReferrers = (topResult as any).rows || topResult
-
-  return c.json({
-    totalReferrals: stats.total_referrals || 0,
-    converted: stats.converted || 0,
-    rewarded: stats.rewarded || 0,
-    pending: stats.pending || 0,
-    conversionRate: parseFloat(conversionRate),
-    topReferrers,
-  })
 })
 
 export default app

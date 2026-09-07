@@ -346,7 +346,7 @@ export default function MenuSyncPage() {
                     <div className="p-4">
                       <div className="flex items-start justify-between mb-1">
                         <h3 className="font-semibold">{product.name}</h3>
-                        <span className="text-green-600 font-bold">${(product.price || 0).toFixed(2)}</span>
+                        <span className="text-green-600 font-bold">${Number(product.price || 0).toFixed(2)}</span>
                       </div>
                       <div className="flex gap-2 mb-2">
                         {product.category && (

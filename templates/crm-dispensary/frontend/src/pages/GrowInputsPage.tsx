@@ -15,15 +15,14 @@ import { Modal } from '../components/ui/Modal';
 
 const inputTypes = [
   { value: '', label: 'All Types' },
-  { value: 'nutrient', label: 'Nutrient' },
+  { value: 'fertilizer', label: 'Fertilizer' },
   { value: 'pesticide', label: 'Pesticide' },
-  { value: 'soil', label: 'Soil' },
-  { value: 'amendment', label: 'Amendment' },
-  { value: 'growth_regulator', label: 'Growth Regulator' },
+  { value: 'herbicide', label: 'Herbicide' },
   { value: 'fungicide', label: 'Fungicide' },
-  { value: 'insecticide', label: 'Insecticide' },
-  { value: 'adjuvant', label: 'Adjuvant' },
-  { value: 'ipm', label: 'IPM' },
+  { value: 'growth_regulator', label: 'Growth Regulator' },
+  { value: 'soil_amendment', label: 'Soil Amendment' },
+  { value: 'foliar_spray', label: 'Foliar Spray' },
+  { value: 'beneficial_insect', label: 'Beneficial Insect' },
   { value: 'other', label: 'Other' },
 ];
 
@@ -93,7 +92,7 @@ const tabs = [
 const initialInputForm = {
   name: '',
   brand: '',
-  type: 'nutrient',
+  type: 'fertilizer',
   category: 'fertilizer',
   isOrganic: false,
   isOMRIListed: false,
@@ -266,7 +265,7 @@ function InventoryTab() {
     setFormData({
       name: item.name || '',
       brand: item.brand || '',
-      type: item.type || 'nutrient',
+      type: item.type || 'fertilizer',
       category: item.category || 'fertilizer',
       isOrganic: item.isOrganic || false,
       isOMRIListed: item.isOMRIListed || false,
@@ -296,6 +295,10 @@ function InventoryTab() {
         currentStock: formData.currentStock ? parseFloat(formData.currentStock) : 0,
         minStock: formData.minStock ? parseFloat(formData.minStock) : 0,
         costPerUnit: formData.costPerUnit ? parseFloat(formData.costPerUnit) : 0,
+        // Backend expects activeIngredients as string[]; form holds {name,concentration,unit}
+        activeIngredients: (formData.activeIngredients || [])
+          .map((i: any) => (typeof i === 'string' ? i : i?.name))
+          .filter(Boolean),
       };
       if (editingInput) {
         await api.put(`/api/grow-inputs/${editingInput.id}`, payload);
@@ -426,7 +429,9 @@ function InventoryTab() {
     {
       key: 'costPerUnit',
       label: 'Cost',
-      render: (val: number) => val ? `$${val.toFixed(2)}` : '--',
+      // val arrives as a string ("5") from the camelized raw-SQL API — String.toFixed
+      // doesn't exist and crashed the page. Coerce first. (retest#7)
+      render: (val: any) => (val != null && val !== '') ? `$${Number(val).toFixed(2)}` : '--',
     },
     {
       key: 'expirationDate',

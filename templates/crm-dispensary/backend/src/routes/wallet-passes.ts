@@ -10,6 +10,16 @@ import crypto from 'crypto'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute rows are snake_case but the wallet-pass UI reads camelCase
+// (serialNumber, customerName, pointsBalance, ...). Convert keys before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+const camelAll = (rows: any[]): any[] => (Array.isArray(rows) ? rows.map(camel) : rows)
+
 // ============================================
 // GENERATE WALLET PASS
 // ============================================
@@ -181,14 +191,15 @@ app.post('/generate', async (c) => {
     }
   }
 
-  // Store wallet pass record
+  // Store wallet pass record. Schema columns are loyalty_member_id and is_active; there is no
+  // pass_data or updated_at column (NEEDS SCHEMA to persist the built pass JSON).
   const result = await db.execute(sql`
-    INSERT INTO wallet_passes(id, contact_id, member_id, serial_number, auth_token, platform, pass_data, active, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.contactId}, ${member.id}, ${serialNumber}, ${authToken}, ${data.platform}, ${JSON.stringify(passData)}::jsonb, true, ${currentUser.companyId}, NOW(), NOW())
-    RETURNING id, serial_number, platform, active, created_at
+    INSERT INTO wallet_passes(id, contact_id, loyalty_member_id, serial_number, auth_token, platform, is_active, company_id, created_at)
+    VALUES (gen_random_uuid(), ${data.contactId}, ${member.id}, ${serialNumber}, ${authToken}, ${data.platform}, true, ${currentUser.companyId}, NOW())
+    RETURNING id, serial_number, platform, is_active, created_at
   `)
 
-  const walletPass = ((result as any).rows || result)?.[0]
+  const walletPass = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -212,51 +223,6 @@ app.post('/generate', async (c) => {
 })
 
 // ============================================
-// PASS DATA (for wallet app updates)
-// ============================================
-
-// Get pass data by serial number
-app.get('/:serialNumber', async (c) => {
-  const currentUser = c.get('user') as any
-  const serialNumber = c.req.param('serialNumber')
-
-  const passResult = await db.execute(sql`
-    SELECT wp.*, lm.points_balance, lm.tier, lm.total_visits, lm.total_spent,
-           c.name as customer_name
-    FROM wallet_passes wp
-    JOIN loyalty_members lm ON lm.id = wp.member_id
-    JOIN contact c ON c.id = wp.contact_id
-    WHERE wp.serial_number = ${serialNumber}
-      AND wp.company_id = ${currentUser.companyId}
-      AND wp.active = true
-    LIMIT 1
-  `)
-
-  const pass = ((passResult as any).rows || passResult)?.[0]
-  if (!pass) return c.json({ error: 'Pass not found' }, 404)
-
-  // Count available rewards
-  const rewardsResult = await db.execute(sql`
-    SELECT COUNT(*)::int as count FROM loyalty_rewards
-    WHERE company_id = ${currentUser.companyId}
-      AND active = true
-      AND points_required <= ${Number(pass.points_balance)}
-  `)
-  const availableRewards = Number(((rewardsResult as any).rows || rewardsResult)?.[0]?.count || 0)
-
-  return c.json({
-    serialNumber: pass.serial_number,
-    platform: pass.platform,
-    customerName: pass.customer_name,
-    points: Number(pass.points_balance) || 0,
-    tier: pass.tier || 'bronze',
-    totalVisits: Number(pass.total_visits) || 0,
-    totalSpent: Number(pass.total_spent) || 0,
-    availableRewards,
-  })
-})
-
-// ============================================
 // DEVICE REGISTRATION (push updates)
 // ============================================
 
@@ -276,16 +242,17 @@ app.post('/:serialNumber/register', async (c) => {
     SELECT id FROM wallet_passes
     WHERE serial_number = ${serialNumber}
       AND company_id = ${currentUser.companyId}
-      AND active = true
+      AND is_active = true
     LIMIT 1
   `)
   const pass = ((passResult as any).rows || passResult)?.[0]
   if (!pass) return c.json({ error: 'Pass not found' }, 404)
 
-  // Store push token and device ID directly on the wallet_passes row
+  // Store push token on the wallet_passes row. There is no device_id or updated_at column
+  // on wallet_passes (NEEDS SCHEMA to also persist the device id).
   await db.execute(sql`
     UPDATE wallet_passes
-    SET push_token = ${data.pushToken}, device_id = ${data.deviceId}, updated_at = NOW()
+    SET push_token = ${data.pushToken}
     WHERE id = ${pass.id}
   `)
 
@@ -319,7 +286,7 @@ app.post('/update/:contactId', requireRole('manager'), async (c) => {
     FROM wallet_passes wp
     WHERE wp.contact_id = ${contactId}
       AND wp.company_id = ${currentUser.companyId}
-      AND wp.active = true
+      AND wp.is_active = true
   `)
   const passes = (passesResult as any).rows || passesResult
 
@@ -327,28 +294,27 @@ app.post('/update/:contactId', requireRole('manager'), async (c) => {
 
   // Get registered devices from wallet_passes push_token field
   const devicesResult = await db.execute(sql`
-    SELECT wp.push_token, wp.device_id, wp.platform
+    SELECT wp.push_token, wp.platform
     FROM wallet_passes wp
     WHERE wp.contact_id = ${contactId}
       AND wp.company_id = ${currentUser.companyId}
-      AND wp.active = true
+      AND wp.is_active = true
       AND wp.push_token IS NOT NULL
   `)
   const devices = (devicesResult as any).rows || devicesResult
 
-  // Update pass data in DB (mark as needing refresh)
+  // Mark passes as needing refresh (last_updated_at; there is no updated_at column)
   await db.execute(sql`
     UPDATE wallet_passes
-    SET updated_at = NOW()
+    SET last_updated_at = NOW()
     WHERE contact_id = ${contactId}
       AND company_id = ${currentUser.companyId}
-      AND active = true
+      AND is_active = true
   `)
 
   // In production, this would send APNs push for Apple passes
   // and call Google Wallet API for Google passes
   const pushResults = devices.map((device: any) => ({
-    deviceId: device.device_id,
     platform: device.platform,
     status: 'queued',
   }))
@@ -386,12 +352,12 @@ app.get('/passes', requireRole('manager'), async (c) => {
   const offset = (page - 1) * limit
 
   const dataResult = await db.execute(sql`
-    SELECT wp.id, wp.serial_number, wp.platform, wp.active, wp.created_at, wp.updated_at,
+    SELECT wp.id, wp.serial_number, wp.platform, wp.is_active, wp.created_at, wp.last_updated_at,
            c.name as customer_name, c.email as customer_email,
            lm.points_balance, lm.tier
     FROM wallet_passes wp
     JOIN contact c ON c.id = wp.contact_id
-    LEFT JOIN loyalty_members lm ON lm.id = wp.member_id
+    LEFT JOIN loyalty_members lm ON lm.id = wp.loyalty_member_id
     WHERE wp.company_id = ${currentUser.companyId}
     ORDER BY wp.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
@@ -402,7 +368,7 @@ app.get('/passes', requireRole('manager'), async (c) => {
     WHERE company_id = ${currentUser.companyId}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = camelAll((dataResult as any).rows || dataResult)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -415,7 +381,7 @@ app.delete('/:id', async (c) => {
 
   const result = await db.execute(sql`
     UPDATE wallet_passes
-    SET active = false, updated_at = NOW()
+    SET is_active = false
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING id, serial_number, contact_id
   `)
@@ -423,9 +389,9 @@ app.delete('/:id', async (c) => {
   const pass = ((result as any).rows || result)?.[0]
   if (!pass) return c.json({ error: 'Pass not found' }, 404)
 
-  // Clear push token on the pass
+  // Clear push token on the pass (no device_id column on wallet_passes)
   await db.execute(sql`
-    UPDATE wallet_passes SET push_token = NULL, device_id = NULL WHERE id = ${id}
+    UPDATE wallet_passes SET push_token = NULL WHERE id = ${id}
   `)
 
   audit.log({
@@ -437,6 +403,52 @@ app.delete('/:id', async (c) => {
   })
 
   return c.json({ success: true })
+})
+
+// ============================================
+// PASS DATA (for wallet app updates)
+// ============================================
+
+// GET /:serialNumber — Get pass data by serial number.
+// Registered AFTER the literal routes (/passes) so those are not captured as a serial number.
+app.get('/:serialNumber', async (c) => {
+  const currentUser = c.get('user') as any
+  const serialNumber = c.req.param('serialNumber')
+
+  const passResult = await db.execute(sql`
+    SELECT wp.*, lm.points_balance, lm.tier, lm.total_visits, lm.total_spent,
+           c.name as customer_name
+    FROM wallet_passes wp
+    JOIN loyalty_members lm ON lm.id = wp.loyalty_member_id
+    JOIN contact c ON c.id = wp.contact_id
+    WHERE wp.serial_number = ${serialNumber}
+      AND wp.company_id = ${currentUser.companyId}
+      AND wp.is_active = true
+    LIMIT 1
+  `)
+
+  const pass = ((passResult as any).rows || passResult)?.[0]
+  if (!pass) return c.json({ error: 'Pass not found' }, 404)
+
+  // Count available rewards
+  const rewardsResult = await db.execute(sql`
+    SELECT COUNT(*)::int as count FROM loyalty_rewards
+    WHERE company_id = ${currentUser.companyId}
+      AND active = true
+      AND points_required <= ${Number(pass.points_balance)}
+  `)
+  const availableRewards = Number(((rewardsResult as any).rows || rewardsResult)?.[0]?.count || 0)
+
+  return c.json({
+    serialNumber: pass.serial_number,
+    platform: pass.platform,
+    customerName: pass.customer_name,
+    points: Number(pass.points_balance) || 0,
+    tier: pass.tier || 'bronze',
+    totalVisits: Number(pass.total_visits) || 0,
+    totalSpent: Number(pass.total_spent) || 0,
+    availableRewards,
+  })
 })
 
 export default app

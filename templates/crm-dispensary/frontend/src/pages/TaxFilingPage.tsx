@@ -48,7 +48,7 @@ export default function TaxFilingPage() {
   const loadFilings = async () => {
     setLoadingFilings(true);
     try {
-      const data = await api.get('/api/tax/filings');
+      const data = await api.get('/api/tax-filing/filings');
       setFilings(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       toast.error('Failed to load filings');
@@ -60,7 +60,7 @@ export default function TaxFilingPage() {
   const loadDeadlines = async () => {
     setLoadingDeadlines(true);
     try {
-      const data = await api.get('/api/tax/deadlines');
+      const data = await api.get('/api/tax-filing/deadlines');
       setDeadlines(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       toast.error('Failed to load deadlines');
@@ -72,7 +72,7 @@ export default function TaxFilingPage() {
   const loadSummary = async () => {
     setLoadingSummary(true);
     try {
-      const data = await api.get('/api/tax/summary');
+      const data = await api.get('/api/tax-filing/summary');
       setSummary(data);
     } catch (err) {
       toast.error('Failed to load tax summary');
@@ -88,7 +88,7 @@ export default function TaxFilingPage() {
     }
     setGenerating(true);
     try {
-      await api.post('/api/tax/filings/generate', generateForm);
+      await api.post('/api/tax-filing/filings/generate', generateForm);
       toast.success('Filing generated');
       setGenerateModal(false);
       setGenerateForm({ type: 'state_excise', period: 'monthly', startDate: '', endDate: '' });
@@ -105,7 +105,7 @@ export default function TaxFilingPage() {
     setDetailModal(true);
     setDetailLoading(true);
     try {
-      const data = await api.get(`/api/tax/filings/${filing.id}`);
+      const data = await api.get(`/api/tax-filing/filings/${filing.id}`);
       setDetailFiling(data);
     } catch (err) {
       toast.error('Failed to load filing detail');

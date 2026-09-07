@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
-import { Plus, Search, Sprout, Warehouse, Scissors, Thermometer, Droplets, Leaf } from 'lucide-react';
+import { Plus, Search, Sprout, Warehouse, Scissors, Thermometer, Droplets, Leaf, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -177,6 +177,17 @@ function PlantsTab() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this plant? This cannot be undone.')) return;
+    try {
+      await api.delete('/api/cultivation/plants', id);
+      toast.success('Plant deleted');
+      loadPlants();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete plant');
+    }
+  };
+
   const handlePhaseChange = async (plantId: string, newPhase: string) => {
     try {
       await api.put(`/api/cultivation/plants/${plantId}`, { phase: newPhase });
@@ -229,7 +240,7 @@ function PlantsTab() {
         </Button>
       </div>
 
-      <DataTable data={plants} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No plants found" />
+      <DataTable data={plants} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} actions={[{ label: 'Delete', icon: Trash2, onClick: (row: any) => handleDelete(row.id), className: 'text-red-600' }]} emptyMessage="No plants found" />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add Plant" size="lg">
         <div className="grid md:grid-cols-2 gap-4">

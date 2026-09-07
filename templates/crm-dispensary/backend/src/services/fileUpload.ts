@@ -37,9 +37,9 @@ const s3 = new S3Client({
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE as string) || 10 * 1024 * 1024 // 10MB
 const ALLOWED_MIMES: Record<string, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-  spreadsheet: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
-  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
+  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/csv'],
+  spreadsheet: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/plain'],
+  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/plain'],
 }
 
 /** True when R2 credentials are present and uploads/reads can succeed. */
@@ -89,9 +89,14 @@ export async function saveFile(
   subdir = 'general',
   allowedTypes = 'all'
 ): Promise<UploadedFile> {
+  // Browsers append a "; charset=..." parameter to text MIME types (text/csv,
+  // text/plain), which broke the exact-match allowlist and rejected valid CSVs.
+  // Normalize to the bare type before checking and before storing.
+  const declaredType = (file.type || '').split(';')[0].trim().toLowerCase()
   const mimes = ALLOWED_MIMES[allowedTypes] || ALLOWED_MIMES.all
-  if (!mimes.includes(file.type)) {
-    throw new Error(`Invalid file type: ${file.type}. Allowed: ${allowedTypes}`)
+  if (!mimes.includes(declaredType)) {
+    // Report the actual allowed types, not the category literal ("Allowed: all").
+    throw new Error(`Invalid file type: ${file.type || 'unknown'}. Allowed: ${mimes.join(', ')}`)
   }
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(`File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
@@ -110,13 +115,13 @@ export async function saveFile(
     : (_b.length >= 12 && _b.toString('ascii', 0, 4) === 'RIFF' && _b.toString('ascii', 8, 12) === 'WEBP') ? 'image/webp'
     : null
   const _sniffable = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']
-  if (_sniffable.includes(file.type) && _sniff !== file.type) {
-    throw new Error('File content does not match its declared type (' + file.type + ').')
+  if (_sniffable.includes(declaredType) && _sniff !== declaredType) {
+    throw new Error('File content does not match its declared type (' + declaredType + ').')
   }
 
-  await put(key, buffer, file.type)
+  await put(key, buffer, declaredType)
 
-  return { path: key, originalname: file.name, mimetype: file.type, size: file.size }
+  return { path: key, originalname: file.name, mimetype: declaredType, size: file.size }
 }
 
 /** Save multiple files. */

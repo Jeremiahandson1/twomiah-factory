@@ -9,6 +9,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Frontend reads camelCase (alert.type, alert.employeeName, rule.active, ...) but raw
+// db.execute rows come back snake_case. Convert row keys to camelCase before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ─── Alerts ─────────────────────────────────────────────────────────────────
 
 // List fraud alerts
@@ -24,15 +33,17 @@ app.get('/alerts', async (c) => {
   let typeFilter = sql``
   let severityFilter = sql``
   let statusFilter = sql``
-  if (type) typeFilter = sql`AND fa.type = ${type}`
+  // The alert "type" column is alert_type (there is no fa.type).
+  if (type) typeFilter = sql`AND fa.alert_type = ${type}`
   if (severity) severityFilter = sql`AND fa.severity = ${severity}`
   if (status) statusFilter = sql`AND fa.status = ${status}`
 
   const dataResult = await db.execute(sql`
     SELECT fa.*,
-           u.first_name || ' ' || u.last_name as flagged_user_name
+           fa.alert_type AS type,
+           u.first_name || ' ' || u.last_name as employee_name
     FROM fraud_alerts fa
-    LEFT JOIN "user" u ON u.id = fa.user_id
+    LEFT JOIN "user" u ON u.id = fa.related_user_id
     WHERE fa.company_id = ${currentUser.companyId}
       ${typeFilter} ${severityFilter} ${statusFilter}
     ORDER BY
@@ -47,7 +58,7 @@ app.get('/alerts', async (c) => {
       ${typeFilter} ${severityFilter} ${statusFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -58,16 +69,14 @@ app.put('/alerts/:id/investigate', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // fraud_alerts only tracks status (no investigated_by_id/investigated_at/updated_at columns)
   const result = await db.execute(sql`
     UPDATE fraud_alerts SET
-      status = 'investigating',
-      investigated_by_id = ${currentUser.userId},
-      investigated_at = NOW(),
-      updated_at = NOW()
+      status = 'investigating'
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Alert not found' }, 404)
 
   audit.log({
@@ -86,22 +95,24 @@ app.put('/alerts/:id/resolve', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // The dashboard's Resolve button posts no body, so resolution is optional with a default —
+  // parsing an empty body must not 500.
   const resolveSchema = z.object({
-    resolution: z.string().min(1),
+    resolution: z.string().min(1).optional(),
   })
-  const data = resolveSchema.parse(await c.req.json())
+  const data = resolveSchema.parse(await c.req.json().catch(() => ({})))
+  const resolution = data.resolution || 'Resolved via dashboard'
 
   const result = await db.execute(sql`
     UPDATE fraud_alerts SET
       status = 'resolved',
-      resolution = ${data.resolution},
-      resolved_by_id = ${currentUser.userId},
-      resolved_at = NOW(),
-      updated_at = NOW()
+      resolution = ${resolution},
+      resolved_by = ${currentUser.userId},
+      resolved_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Alert not found' }, 404)
 
   audit.log({
@@ -109,7 +120,7 @@ app.put('/alerts/:id/resolve', requireRole('manager'), async (c) => {
     entity: 'fraud_alert',
     entityId: id,
     changes: { status: { old: updated.status, new: 'resolved' } },
-    metadata: { resolution: data.resolution },
+    metadata: { resolution },
     req: c.req,
   })
 
@@ -121,22 +132,23 @@ app.put('/alerts/:id/dismiss', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // Dismiss also posts no body from the dashboard — reason is optional with a default.
   const dismissSchema = z.object({
-    reason: z.string().min(1),
+    reason: z.string().min(1).optional(),
   })
-  const data = dismissSchema.parse(await c.req.json())
+  const data = dismissSchema.parse(await c.req.json().catch(() => ({})))
+  const reason = data.reason || 'Dismissed via dashboard'
 
   const result = await db.execute(sql`
     UPDATE fraud_alerts SET
       status = 'dismissed',
-      resolution = ${data.reason},
-      resolved_by_id = ${currentUser.userId},
-      resolved_at = NOW(),
-      updated_at = NOW()
+      resolution = ${reason},
+      resolved_by = ${currentUser.userId},
+      resolved_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Alert not found' }, 404)
 
   audit.log({
@@ -144,7 +156,7 @@ app.put('/alerts/:id/dismiss', requireRole('manager'), async (c) => {
     entity: 'fraud_alert',
     entityId: id,
     changes: { status: { old: updated.status, new: 'dismissed' } },
-    metadata: { reason: data.reason },
+    metadata: { reason },
     req: c.req,
   })
 
@@ -157,13 +169,14 @@ app.put('/alerts/:id/dismiss', requireRole('manager'), async (c) => {
 app.get('/rules', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
+  // The column is rule_type / is_active; expose them as type / active for the client.
   const dataResult = await db.execute(sql`
-    SELECT * FROM fraud_rules
+    SELECT *, rule_type AS type, is_active AS active FROM fraud_rules
     WHERE company_id = ${currentUser.companyId}
-    ORDER BY type ASC, created_at ASC
+    ORDER BY rule_type ASC, created_at ASC
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   return c.json({ data })
 })
 
@@ -188,12 +201,13 @@ app.post('/rules', requireRole('admin'), async (c) => {
   })
   const data = ruleSchema.parse(await c.req.json())
 
+  // Schema columns are rule_type / is_active; there is no description column.
   const result = await db.execute(sql`
-    INSERT INTO fraud_rules(id, name, type, threshold, severity, description, enabled, company_id, created_at)
-    VALUES (gen_random_uuid(), ${data.name}, ${data.type}, ${data.threshold}, ${data.severity}, ${data.description || null}, ${data.enabled}, ${currentUser.companyId}, NOW())
-    RETURNING *
+    INSERT INTO fraud_rules(id, name, rule_type, threshold, severity, is_active, company_id, created_at)
+    VALUES (gen_random_uuid(), ${data.name}, ${data.type}, ${String(data.threshold)}, ${data.severity}, ${data.enabled}, ${currentUser.companyId}, NOW())
+    RETURNING *, rule_type AS type, is_active AS active
   `)
-  const rule = ((result as any).rows || result)?.[0]
+  const rule = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -227,18 +241,17 @@ app.put('/rules/:id', requireRole('admin'), async (c) => {
   const existing = ((existingResult as any).rows || existingResult)?.[0]
   if (!existing) return c.json({ error: 'Rule not found' }, 404)
 
+  // Columns are rule_type / is_active; no description or updated_at column on fraud_rules.
   const result = await db.execute(sql`
     UPDATE fraud_rules SET
       name = COALESCE(${data.name || null}, name),
-      threshold = COALESCE(${data.threshold ?? null}, threshold),
+      threshold = COALESCE(${data.threshold != null ? String(data.threshold) : null}, threshold),
       severity = COALESCE(${data.severity || null}, severity),
-      description = COALESCE(${data.description || null}, description),
-      enabled = COALESCE(${data.enabled ?? null}, enabled),
-      updated_at = NOW()
+      is_active = COALESCE(${data.enabled ?? null}, is_active)
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
-    RETURNING *
+    RETURNING *, rule_type AS type, is_active AS active
   `)
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.UPDATE,
@@ -258,7 +271,7 @@ app.delete('/rules/:id', requireRole('admin'), async (c) => {
   const id = c.req.param('id')
 
   const result = await db.execute(sql`
-    UPDATE fraud_rules SET enabled = false, updated_at = NOW()
+    UPDATE fraud_rules SET is_active = false
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
@@ -281,26 +294,27 @@ app.delete('/rules/:id', requireRole('admin'), async (c) => {
 app.post('/scan', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
-  // Load all active rules
+  // Load all active rules (is_active, not enabled)
   const rulesResult = await db.execute(sql`
-    SELECT * FROM fraud_rules WHERE company_id = ${currentUser.companyId} AND enabled = true
+    SELECT * FROM fraud_rules WHERE company_id = ${currentUser.companyId} AND is_active = true
   `)
   const rules = (rulesResult as any).rows || rulesResult
 
   const alertsGenerated: any[] = []
 
+  // fraud_alerts uses alert_type + evidence (json); there is no type/metadata column.
   async function createAlert(type: string, severity: string, userId: string | null, description: string, metadata: any) {
     const result = await db.execute(sql`
-      INSERT INTO fraud_alerts(id, type, severity, status, user_id, description, metadata, company_id, created_at)
+      INSERT INTO fraud_alerts(id, alert_type, severity, status, related_user_id, description, evidence, company_id, created_at)
       VALUES (gen_random_uuid(), ${type}, ${severity}, 'open', ${userId}, ${description}, ${JSON.stringify(metadata)}::jsonb, ${currentUser.companyId}, NOW())
-      RETURNING *
+      RETURNING *, alert_type AS type
     `)
-    const alert = ((result as any).rows || result)?.[0]
+    const alert = camel(((result as any).rows || result)?.[0])
     alertsGenerated.push(alert)
   }
 
   for (const rule of rules) {
-    switch (rule.type) {
+    switch (rule.rule_type) {
       // 1. Void threshold: count voids per budtender this shift
       case 'void_threshold': {
         const voidsResult = await db.execute(sql`
@@ -381,7 +395,7 @@ app.post('/scan', requireRole('manager'), async (c) => {
                  END as variance_pct
           FROM products p
           LEFT JOIN (
-            SELECT product_id, counted_qty FROM inventory_adjustments
+            SELECT product_id, quantity_after AS counted_qty FROM inventory_adjustments
             WHERE company_id = ${currentUser.companyId}
             AND created_at >= NOW() - INTERVAL '7 days'
             ORDER BY created_at DESC
@@ -487,7 +501,7 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
     SELECT fa.*,
            u.first_name || ' ' || u.last_name as flagged_user_name
     FROM fraud_alerts fa
-    LEFT JOIN "user" u ON u.id = fa.user_id
+    LEFT JOIN "user" u ON u.id = fa.related_user_id
     WHERE fa.company_id = ${currentUser.companyId}
       AND fa.created_at >= NOW() - INTERVAL '7 days'
     ORDER BY fa.created_at DESC
@@ -496,16 +510,16 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
 
   // Top flagged employees
   const topFlaggedResult = await db.execute(sql`
-    SELECT fa.user_id,
+    SELECT fa.related_user_id,
            u.first_name || ' ' || u.last_name as user_name,
            COUNT(*)::int as alert_count,
            COUNT(*) FILTER (WHERE fa.status = 'open')::int as open_count
     FROM fraud_alerts fa
-    LEFT JOIN "user" u ON u.id = fa.user_id
+    LEFT JOIN "user" u ON u.id = fa.related_user_id
     WHERE fa.company_id = ${currentUser.companyId}
-      AND fa.user_id IS NOT NULL
+      AND fa.related_user_id IS NOT NULL
       AND fa.created_at >= NOW() - INTERVAL '30 days'
-    GROUP BY fa.user_id, u.first_name, u.last_name
+    GROUP BY fa.related_user_id, u.first_name, u.last_name
     ORDER BY alert_count DESC
     LIMIT 10
   `)
@@ -519,7 +533,7 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
       COUNT(*)::int as products_with_variance
     FROM products p
     LEFT JOIN (
-      SELECT DISTINCT ON (product_id) product_id, counted_qty
+      SELECT DISTINCT ON (product_id) product_id, quantity_after AS counted_qty
       FROM inventory_adjustments
       WHERE company_id = ${currentUser.companyId}
       ORDER BY product_id, created_at DESC
