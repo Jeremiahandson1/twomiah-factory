@@ -48,15 +48,18 @@ export default function PlatformPage() {
     setLoadingHealth(true);
     try {
       const [servicesData, incidentsData] = await Promise.all([
-        api.get('/api/platform/health'),
-        api.get('/api/platform/incidents'),
+        api.get('/api/platform/health/status'),
+        api.get('/api/platform/health/incidents'),
       ]);
-      setServices(Array.isArray(servicesData) ? servicesData : servicesData?.services || [
-        { name: 'API', status: servicesData?.api || 'operational', uptime: servicesData?.apiUptime || 99.9 },
-        { name: 'Database', status: servicesData?.database || 'operational', uptime: servicesData?.dbUptime || 99.9 },
-        { name: 'Metrc', status: servicesData?.metrc || 'operational', uptime: servicesData?.metrcUptime || 99.5 },
-        { name: 'Payments', status: servicesData?.payments || 'operational', uptime: servicesData?.paymentsUptime || 99.9 },
-      ]);
+      // Backend returns { status, services: [{ service, status, latencyMs }] }.
+      // Normalize service name + status to what the cards render.
+      const nameMap: Record<string, string> = { api: 'API', database: 'Database', metrc: 'Metrc', payments: 'Payments' };
+      const statusMap: Record<string, string> = { healthy: 'operational', unhealthy: 'down', degraded: 'degraded' };
+      const rawServices = Array.isArray(servicesData) ? servicesData : servicesData?.services || [];
+      setServices(rawServices.map((s: any) => ({
+        name: s.name || nameMap[s.service] || s.service,
+        status: statusMap[s.status] || s.status,
+      })));
       setIncidents(Array.isArray(incidentsData) ? incidentsData : incidentsData?.data || []);
     } catch (err) {
       toast.error('Failed to load health status');
@@ -96,7 +99,7 @@ export default function PlatformPage() {
 
   const markStepComplete = async (stepId: string) => {
     try {
-      await api.put(`/api/platform/onboarding/${stepId}/complete`);
+      await api.put(`/api/platform/onboarding/steps/${stepId}`);
       toast.success('Step marked complete');
       loadOnboarding();
     } catch (err: any) {

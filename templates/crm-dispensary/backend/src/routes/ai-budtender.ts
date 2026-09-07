@@ -10,6 +10,14 @@ import crypto from 'crypto'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute rows come back snake_case; the admin UI reads camelCase. Convert keys.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ============================================
 // KEYWORD FALLBACK ENGINE (used when no API key)
 // ============================================
@@ -439,10 +447,12 @@ app.post('/session', async (c) => {
     { role: 'assistant', content: greetingMessage, timestamp: new Date().toISOString() },
   ])
 
+  // Schema columns: recommended_products (not recommended_product_ids); no status/created_at/
+  // updated_at columns — session lifecycle is tracked via completed_at, started_at defaults now().
   const result = await db.execute(sql`
-    INSERT INTO ai_budtender_sessions(id, session_token, channel, contact_id, messages, recommended_product_ids, status, last_message_at, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${sessionToken}, ${data.channel}, ${data.contactId || null}, ${initialMessages}::jsonb, '[]'::jsonb, 'active', NOW(), ${currentUser.companyId}, NOW(), NOW())
-    RETURNING id, session_token, channel, status, created_at
+    INSERT INTO ai_budtender_sessions(id, session_token, channel, contact_id, messages, recommended_products, last_message_at, company_id)
+    VALUES (gen_random_uuid(), ${sessionToken}, ${data.channel}, ${data.contactId || null}, ${initialMessages}::jsonb, '[]'::jsonb, NOW(), ${currentUser.companyId})
+    RETURNING id, session_token, channel, started_at as created_at
   `)
 
   const session = ((result as any).rows || result)?.[0]
@@ -473,7 +483,7 @@ app.post('/chat', async (c) => {
     SELECT * FROM ai_budtender_sessions
     WHERE session_token = ${data.sessionToken}
       AND company_id = ${currentUser.companyId}
-      AND status = 'active'
+      AND completed_at IS NULL
     LIMIT 1
   `)
   const session = ((sessionResult as any).rows || sessionResult)?.[0]
@@ -511,7 +521,7 @@ app.post('/chat', async (c) => {
     const allProductsResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
              p.thc_percent, p.cbd_percent, p.price, p.sale_price,
-             p.description, p.effects, p.image_url, p.weight, p.unit,
+             p.description, p.effects, p.image_url, p.weight, p.unit_type as unit,
              p.stock_quantity
       FROM products p
       WHERE p.company_id = ${currentUser.companyId}
@@ -584,17 +594,16 @@ app.post('/chat', async (c) => {
     )
 
     const recommendedIds = recommendedProducts.map((p: any) => p.id)
-    const existingRecs = typeof session.recommended_product_ids === 'string'
-      ? JSON.parse(session.recommended_product_ids)
-      : (session.recommended_product_ids || [])
+    const existingRecs = typeof session.recommended_products === 'string'
+      ? JSON.parse(session.recommended_products)
+      : (session.recommended_products || [])
     const allRecs = [...new Set([...existingRecs, ...recommendedIds])]
 
     await db.execute(sql`
       UPDATE ai_budtender_sessions
       SET messages = ${JSON.stringify(existingMessages)}::jsonb,
-          recommended_product_ids = ${JSON.stringify(allRecs)}::jsonb,
-          last_message_at = NOW(),
-          updated_at = NOW()
+          recommended_products = ${JSON.stringify(allRecs)}::jsonb,
+          last_message_at = NOW()
       WHERE id = ${session.id}
     `)
 
@@ -685,7 +694,7 @@ async function handleKeywordFallback(
     const productsResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
              p.thc_percent, p.cbd_percent, p.price, p.sale_price,
-             p.description, p.effects, p.image_url, p.weight, p.unit,
+             p.description, p.effects, p.image_url, p.weight, p.unit_type as unit,
              COALESCE(p.total_sold, 0) as popularity,
              CASE WHEN p.sale_price IS NOT NULL AND p.sale_price < p.price THEN true ELSE false END as on_sale,
              CASE WHEN p.created_at >= NOW() - INTERVAL '14 days' THEN true ELSE false END as new_arrival
@@ -747,7 +756,7 @@ async function handleKeywordFallback(
     const historyResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
              p.thc_percent, p.cbd_percent, p.price, p.sale_price,
-             p.description, p.effects, p.image_url, p.weight, p.unit,
+             p.description, p.effects, p.image_url, p.weight, p.unit_type as unit,
              COALESCE(p.total_sold, 0) as popularity
       FROM products p
       WHERE p.company_id = ${currentUser.companyId}
@@ -768,17 +777,16 @@ async function handleKeywordFallback(
   )
 
   const recommendedIds = products.map((p: any) => p.id)
-  const existingRecs = typeof session.recommended_product_ids === 'string'
-    ? JSON.parse(session.recommended_product_ids)
-    : (session.recommended_product_ids || [])
+  const existingRecs = typeof session.recommended_products === 'string'
+    ? JSON.parse(session.recommended_products)
+    : (session.recommended_products || [])
   const allRecs = [...new Set([...existingRecs, ...recommendedIds])]
 
   await db.execute(sql`
     UPDATE ai_budtender_sessions
     SET messages = ${JSON.stringify(existingMessages)}::jsonb,
-        recommended_product_ids = ${JSON.stringify(allRecs)}::jsonb,
-        last_message_at = NOW(),
-        updated_at = NOW()
+        recommended_products = ${JSON.stringify(allRecs)}::jsonb,
+        last_message_at = NOW()
     WHERE id = ${session.id}
   `)
 
@@ -829,7 +837,7 @@ app.post('/chat/:sessionToken/add-to-cart', async (c) => {
     SELECT id, contact_id FROM ai_budtender_sessions
     WHERE session_token = ${sessionToken}
       AND company_id = ${currentUser.companyId}
-      AND status = 'active'
+      AND completed_at IS NULL
     LIMIT 1
   `)
   const session = ((sessionResult as any).rows || sessionResult)?.[0]
@@ -873,7 +881,7 @@ app.post('/chat/:sessionToken/add-to-cart', async (c) => {
 
   await db.execute(sql`
     UPDATE ai_budtender_sessions
-    SET cart_items = ${JSON.stringify(cartItems)}::jsonb, updated_at = NOW()
+    SET cart_items = ${JSON.stringify(cartItems)}::jsonb
     WHERE id = ${session.id}
   `)
 
@@ -907,7 +915,7 @@ app.post('/chat/:sessionToken/complete', async (c) => {
     SELECT * FROM ai_budtender_sessions
     WHERE session_token = ${sessionToken}
       AND company_id = ${currentUser.companyId}
-      AND status = 'active'
+      AND completed_at IS NULL
     LIMIT 1
   `)
   const session = ((sessionResult as any).rows || sessionResult)?.[0]
@@ -936,38 +944,25 @@ app.post('/chat/:sessionToken/complete', async (c) => {
   const cartTotal = cartItems.reduce((sum: number, item: any) =>
     sum + (Number(item.unit_price) * Number(item.quantity)), 0)
 
-  // Create order if cart has items and customer is linked
-  let orderId: string | null = null
-  if (cartItems.length > 0 && session.contact_id) {
-    const orderItems = cartItems.map((item: any) => ({
-      productId: item.product_id,
-      name: item.product_name,
-      quantity: Number(item.quantity),
-      unitPrice: Number(item.unit_price),
-      subtotal: Number(item.unit_price) * Number(item.quantity),
-    }))
-
-    const orderResult = await db.execute(sql`
-      INSERT INTO orders(id, number, contact_id, type, status, items, subtotal, total, source, company_id, created_at, updated_at)
-      VALUES (gen_random_uuid(), 'AI-' || LPAD(nextval('order_number_seq')::text, 6, '0'), ${session.contact_id}, 'walk_in', 'pending', ${JSON.stringify(orderItems)}::jsonb, ${cartTotal}, ${cartTotal}, 'ai_budtender', ${currentUser.companyId}, NOW(), NOW())
-      RETURNING id, number
-    `)
-    const createdOrder = ((orderResult as any).rows || orderResult)?.[0]
-    orderId = createdOrder?.id
-  }
+  // NOTE: the orders table (schema.ts) has no `items`/`source` columns and there is no
+  // `order_number_seq`; line items live in the separate order_items table. Directly
+  // inserting an order here 500s, so we do not auto-create an order from the AI session.
+  // The suggested cart is preserved on the session (cart_items) and returned below so the
+  // POS/orders flow can convert it. orderId stays null until that conversion exists.
+  const orderId: string | null = null
 
   // Close session
   const messages = typeof session.messages === 'string'
     ? JSON.parse(session.messages)
     : (session.messages || [])
 
+  // Schema tracks completion via completed_at (no status/message_count/updated_at columns).
   await db.execute(sql`
     UPDATE ai_budtender_sessions
-    SET status = 'completed',
+    SET completed_at = NOW(),
         satisfaction = ${data.satisfaction || null},
         order_id = ${orderId},
-        message_count = ${messages.length},
-        updated_at = NOW()
+        converted_to_order = ${orderId !== null}
     WHERE id = ${session.id}
   `)
 
@@ -1011,34 +1006,133 @@ app.get('/sessions', requireRole('manager'), async (c) => {
   const status = c.req.query('status')
   const channel = c.req.query('channel')
 
+  // No status/message_count/created_at columns in schema: derive status from completed_at,
+  // message count from the messages json array, and use started_at as the created timestamp.
   let statusFilter = sql``
-  if (status) statusFilter = sql`AND abs.status = ${status}`
+  if (status) statusFilter = sql`AND (CASE WHEN abs.completed_at IS NOT NULL THEN 'completed' ELSE 'active' END) = ${status}`
 
   let channelFilter = sql``
   if (channel) channelFilter = sql`AND abs.channel = ${channel}`
 
   const dataResult = await db.execute(sql`
-    SELECT abs.id, abs.session_token, abs.channel, abs.status, abs.satisfaction,
-           abs.message_count, abs.order_id, abs.last_message_at, abs.created_at,
+    SELECT abs.id, abs.session_token, abs.channel,
+           (CASE WHEN abs.completed_at IS NOT NULL THEN 'completed' ELSE 'active' END) as status,
+           abs.satisfaction,
+           json_array_length(abs.messages) as message_count, abs.order_id,
+           abs.last_message_at, abs.started_at as created_at,
            c.name as customer_name, c.email as customer_email
     FROM ai_budtender_sessions abs
     LEFT JOIN contact c ON c.id = abs.contact_id
     WHERE abs.company_id = ${currentUser.companyId}
       ${statusFilter}
       ${channelFilter}
-    ORDER BY abs.created_at DESC
+    ORDER BY abs.started_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `)
 
   const countResult = await db.execute(sql`
-    SELECT COUNT(*)::int as total FROM ai_budtender_sessions
-    WHERE company_id = ${currentUser.companyId} ${statusFilter} ${channelFilter}
+    SELECT COUNT(*)::int as total FROM ai_budtender_sessions abs
+    WHERE abs.company_id = ${currentUser.companyId} ${statusFilter} ${channelFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+})
+
+// ============================================
+// DEMO (stateless)
+// ============================================
+
+// POST /demo — Stateless "Live Demo" chat for the admin config page. Reuses the same Claude/keyword
+// engine as /chat but persists nothing (no session row). Graceful when no ANTHROPIC_API_KEY: falls
+// back to keyword matching. Payload: { message, history:[{role,content}] }.
+app.post('/demo', async (c) => {
+  const currentUser = c.get('user') as any
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const message = typeof body?.message === 'string' ? body.message.trim() : ''
+  if (!message) return c.json({ error: 'Message is required' }, 400)
+  const history: { role: string; content: string }[] = Array.isArray(body?.history)
+    ? body.history
+        .filter((m: any) => m && typeof m.content === 'string' && (m.role === 'user' || m.role === 'assistant'))
+        .map((m: any) => ({ role: m.role, content: m.content }))
+    : []
+
+  // Company + config
+  const companyResult = await db.execute(sql`SELECT name FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
+  const companyName = ((companyResult as any).rows || companyResult)?.[0]?.name || 'our dispensary'
+  const configResult = await db.execute(sql`
+    SELECT max_recommendations, personality, system_prompt, temperature FROM ai_budtender_config
+    WHERE company_id = ${currentUser.companyId} LIMIT 1
+  `)
+  const config = ((configResult as any).rows || configResult)?.[0]
+  const maxRecs = config?.max_recommendations || 5
+
+  // In-stock catalog
+  const allProductsResult = await db.execute(sql`
+    SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
+           p.thc_percent, p.cbd_percent, p.price, p.sale_price,
+           p.description, p.effects, p.image_url, p.weight, p.unit_type as unit, p.stock_quantity
+    FROM products p
+    WHERE p.company_id = ${currentUser.companyId} AND p.active = true AND p.in_stock = true
+    ORDER BY p.total_sold DESC NULLS LAST
+    LIMIT 200
+  `)
+  const allProducts = (allProductsResult as any).rows || allProductsResult
+
+  const mapProduct = (p: any) => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    strainName: p.strain_name,
+    strainType: p.strain_type,
+    thcPercentage: p.thc_percent,
+    cbdPercentage: p.cbd_percent,
+    price: p.price,
+    salePrice: p.sale_price,
+    imageUrl: p.image_url,
+    description: p.description,
+  })
+
+  // Claude path
+  const anthropic = await getAnthropicClient()
+  if (anthropic) {
+    try {
+      const systemPrompt = buildSystemPrompt(companyName, config?.personality || 'friendly', config?.system_prompt || null, allProducts, null)
+      const conversation = [...history, { role: 'user', content: message }]
+      const temperature = parseFloat(config?.temperature || '0.7')
+      const responseMessage = await generateAIResponse(anthropic, systemPrompt, conversation, temperature)
+      const recs = extractRecommendedProductNames(responseMessage, allProducts).slice(0, maxRecs)
+      return c.json({ message: responseMessage, response: responseMessage, source: 'claude', recommendations: recs.map(mapProduct) })
+    } catch (err: any) {
+      console.error('Claude demo error, falling back to keyword matching:', err.message)
+    }
+  }
+
+  // Keyword fallback: filter the in-stock catalog by parsed intent, else show popular picks.
+  const intents = parseUserIntent(message)
+  let products = allProducts
+  if (intents.length > 0) {
+    const strainTypes = intents.map(i => i.strainType).filter(Boolean)
+    const categories = intents.map(i => i.category).filter(Boolean)
+    const filtered = allProducts.filter((p: any) =>
+      (strainTypes.length === 0 || strainTypes.includes(p.strain_type)) &&
+      (categories.length === 0 || categories.includes(p.category)),
+    )
+    products = filtered.length > 0 ? filtered : allProducts
+  }
+  products = products.slice(0, maxRecs)
+
+  const responseMessage = buildResponseMessage(intents, products, null, false, companyName)
+  return c.json({
+    message: responseMessage,
+    response: responseMessage,
+    source: 'keyword',
+    intents: intents.map(i => i.intent),
+    recommendations: products.map(mapProduct),
+  })
 })
 
 // ============================================
@@ -1050,7 +1144,8 @@ app.get('/analytics', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const days = +(c.req.query('days') || '30')
 
-  // Overall stats
+  // No message_count column: derive from the messages json array. No created_at column:
+  // use started_at. Recommendations live in recommended_products (json).
   const statsResult = await db.execute(sql`
     SELECT
       COUNT(*)::int as total_sessions,
@@ -1060,11 +1155,11 @@ app.get('/analytics', requireRole('manager'), async (c) => {
         ELSE 0
       END as conversion_rate,
       ROUND(AVG(satisfaction)::numeric, 2) as avg_satisfaction,
-      ROUND(AVG(message_count)::numeric, 1) as avg_messages_per_session,
+      ROUND(AVG(json_array_length(messages))::numeric, 1) as avg_messages_per_session,
       COUNT(DISTINCT contact_id)::int as unique_customers
     FROM ai_budtender_sessions
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= NOW() - INTERVAL '1 day' * ${days}
+      AND started_at >= NOW() - INTERVAL '1 day' * ${days}
   `)
   const stats = ((statsResult as any).rows || statsResult)?.[0]
 
@@ -1074,7 +1169,7 @@ app.get('/analytics', requireRole('manager'), async (c) => {
     FROM ai_budtender_sessions abs
     JOIN orders o ON o.id = abs.order_id
     WHERE abs.company_id = ${currentUser.companyId}
-      AND abs.created_at >= NOW() - INTERVAL '1 day' * ${days}
+      AND abs.started_at >= NOW() - INTERVAL '1 day' * ${days}
       AND o.status NOT IN ('cancelled', 'refunded')
   `)
   const revenue = ((revenueResult as any).rows || revenueResult)?.[0]
@@ -1082,31 +1177,31 @@ app.get('/analytics', requireRole('manager'), async (c) => {
   // Top recommended products
   const topProductsResult = await db.execute(sql`
     WITH rec_products AS (
-      SELECT jsonb_array_elements_text(recommended_product_ids) as product_id
+      SELECT json_array_elements_text(recommended_products) as product_id
       FROM ai_budtender_sessions
       WHERE company_id = ${currentUser.companyId}
-        AND created_at >= NOW() - INTERVAL '1 day' * ${days}
+        AND started_at >= NOW() - INTERVAL '1 day' * ${days}
     )
     SELECT p.id, p.name, p.category, p.strain_type, p.price,
            COUNT(*)::int as times_recommended
     FROM rec_products rp
-    JOIN products p ON p.id = rp.product_id::uuid
+    JOIN products p ON p.id = rp.product_id
     GROUP BY p.id, p.name, p.category, p.strain_type, p.price
     ORDER BY times_recommended DESC
     LIMIT 10
   `)
-  const topProducts = (topProductsResult as any).rows || topProductsResult
+  const topProducts = ((topProductsResult as any).rows || topProductsResult).map(camel)
 
   // Sessions by channel
   const channelResult = await db.execute(sql`
     SELECT channel, COUNT(*)::int as count
     FROM ai_budtender_sessions
     WHERE company_id = ${currentUser.companyId}
-      AND created_at >= NOW() - INTERVAL '1 day' * ${days}
+      AND started_at >= NOW() - INTERVAL '1 day' * ${days}
     GROUP BY channel
     ORDER BY count DESC
   `)
-  const byChannel = (channelResult as any).rows || channelResult
+  const byChannel = ((channelResult as any).rows || channelResult).map(camel)
 
   // Satisfaction distribution
   const satisfactionResult = await db.execute(sql`
@@ -1114,11 +1209,11 @@ app.get('/analytics', requireRole('manager'), async (c) => {
     FROM ai_budtender_sessions
     WHERE company_id = ${currentUser.companyId}
       AND satisfaction IS NOT NULL
-      AND created_at >= NOW() - INTERVAL '1 day' * ${days}
+      AND started_at >= NOW() - INTERVAL '1 day' * ${days}
     GROUP BY satisfaction
     ORDER BY satisfaction
   `)
-  const satisfactionDistribution = (satisfactionResult as any).rows || satisfactionResult
+  const satisfactionDistribution = ((satisfactionResult as any).rows || satisfactionResult).map(camel)
 
   return c.json({
     periodDays: days,

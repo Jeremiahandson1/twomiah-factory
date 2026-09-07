@@ -8,6 +8,16 @@ import audit from '../services/audit.ts'
 
 const app = new Hono()
 
+// Raw db.execute rows come back snake_case, but the platform frontend reads camelCase
+// (imageUrl, orderNumber, percentComplete, ...). Convert row keys before responding. (cash.ts N1)
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+const camelAll = (rows: any[]): any[] => (Array.isArray(rows) ? rows.map(camel) : rows)
+
 // ═══════════════════════════════════════════════════════════════════════════
 // HEALTH & UPTIME (some public, some authed)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -160,7 +170,7 @@ app.get('/health/incidents', async (c) => {
       ${severityFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = camelAll((dataResult as any).rows || dataResult)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -174,17 +184,21 @@ app.post('/health/incidents', requireRole('admin'), async (c) => {
     title: z.string().min(1),
     description: z.string().optional(),
     severity: z.enum(['minor', 'major', 'critical']),
+    service: z.string().optional(),
     affectedServices: z.array(z.string()).default([]),
   })
   const data = incidentSchema.parse(await c.req.json())
 
+  // uptime_incidents.service is a single NOT NULL column (no affected_services column).
+  const service = data.service || data.affectedServices[0] || 'general'
+
   const result = await db.execute(sql`
-    INSERT INTO uptime_incidents (id, title, description, severity, affected_services, status, reported_by, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.title}, ${data.description || null}, ${data.severity}, ${JSON.stringify(data.affectedServices)}::jsonb, 'investigating', ${currentUser.userId}, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO uptime_incidents (id, service, title, description, severity, status, started_at, company_id, created_at)
+    VALUES (gen_random_uuid(), ${service}, ${data.title}, ${data.description || null}, ${data.severity}, 'investigating', NOW(), ${currentUser.companyId}, NOW())
     RETURNING *
   `)
 
-  const incident = ((result as any).rows || result)?.[0]
+  const incident = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -210,11 +224,19 @@ app.put('/health/incidents/:id', requireRole('admin'), async (c) => {
   })
   const data = updateSchema.parse(await c.req.json())
 
-  const sets: any[] = [sql`updated_at = NOW()`]
+  // uptime_incidents has no updated_at or latest_message column; status updates append
+  // to the `updates` jsonb array instead. (schema is source of truth)
+  const sets: any[] = []
   if (data.status !== undefined) sets.push(sql`status = ${data.status}`)
-  if (data.message !== undefined) sets.push(sql`latest_message = ${data.message}`)
   if (data.severity !== undefined) sets.push(sql`severity = ${data.severity}`)
   if (data.status === 'resolved') sets.push(sql`resolved_at = NOW()`)
+  if (data.status !== undefined || data.message !== undefined) {
+    const entry = { status: data.status || null, message: data.message || null, timestamp: new Date().toISOString() }
+    // updates is a json column; cast through jsonb for the concat, then back to json for assignment.
+    sets.push(sql`updates = (COALESCE(updates::jsonb, '[]'::jsonb) || ${JSON.stringify([entry])}::jsonb)::json`)
+  }
+
+  if (sets.length === 0) return c.json({ error: 'No fields to update' }, 400)
 
   const setClause = sets.reduce((acc, s, i) => i === 0 ? s : sql`${acc}, ${s}`)
 
@@ -224,7 +246,7 @@ app.put('/health/incidents/:id', requireRole('admin'), async (c) => {
     RETURNING *
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Incident not found' }, 404)
 
   audit.log({
@@ -269,12 +291,31 @@ app.get('/onboarding', async (c) => {
     LIMIT 1
   `)
   const checklist = ((checklistResult as any).rows || checklistResult)?.[0]
-  if (!checklist) return c.json({ error: 'Onboarding not initialized. POST /onboarding/initialize to start.' }, 404)
+  // Return a 200 not_started payload (not 404) when no checklist row exists yet, so the UI can
+  // render the default steps and offer to initialize. Previously this 404'd for every fresh tenant.
+  if (!checklist) {
+    return c.json({
+      initialized: false,
+      status: 'not_started',
+      percentComplete: 0,
+      assignedManagerName: null,
+      assignedManagerEmail: null,
+      steps: DEFAULT_ONBOARDING_STEPS.map((step) => ({
+        id: `default-${step.stepNumber}`,
+        stepNumber: step.stepNumber,
+        title: step.title,
+        description: step.description,
+        completed: false,
+        completedAt: null,
+        completedBy: null,
+      })),
+    })
+  }
 
   const steps = Array.isArray(checklist.steps) ? checklist.steps
     : (typeof checklist.steps === 'string' ? JSON.parse(checklist.steps) : [])
 
-  return c.json({ ...checklist, steps })
+  return c.json({ ...camel(checklist), initialized: true, steps })
 })
 
 // POST /onboarding/initialize — Create checklist with default steps
@@ -296,10 +337,11 @@ app.post('/onboarding/initialize', requireRole('manager'), async (c) => {
   const existing = ((existingResult as any).rows || existingResult)?.[0]
   if (existing) return c.json({ error: 'Onboarding already initialized' }, 409)
 
-  // Create checklist
+  // Create checklist. Schema columns are assigned_manager_name/email; there is no started_at
+  // (created_at marks the start). (schema is source of truth)
   const checklistResult = await db.execute(sql`
-    INSERT INTO onboarding_checklists (id, company_id, success_manager_name, success_manager_email, status, started_at, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.managerName || null}, ${data.managerEmail || null}, 'in_progress', NOW(), NOW(), NOW())
+    INSERT INTO onboarding_checklists (id, company_id, assigned_manager_name, assigned_manager_email, status, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.managerName || null}, ${data.managerEmail || null}, 'in_progress', NOW(), NOW())
     RETURNING *
   `)
   const checklist = ((checklistResult as any).rows || checklistResult)?.[0]
@@ -317,7 +359,7 @@ app.post('/onboarding/initialize', requireRole('manager'), async (c) => {
 
   await db.execute(sql`
     UPDATE onboarding_checklists
-    SET steps = ${JSON.stringify(steps)}::jsonb, updated_at = NOW()
+    SET steps = ${JSON.stringify(steps)}::json, updated_at = NOW()
     WHERE id = ${checklist.id}
   `)
 
@@ -330,7 +372,7 @@ app.post('/onboarding/initialize', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ ...checklist, steps }, 201)
+  return c.json({ ...camel(checklist), steps }, 201)
 })
 
 // PUT /onboarding/steps/:stepId — Mark step complete
@@ -359,7 +401,7 @@ app.put('/onboarding/steps/:stepId', async (c) => {
 
   await db.execute(sql`
     UPDATE onboarding_checklists
-    SET steps = ${JSON.stringify(steps)}::jsonb, updated_at = NOW()
+    SET steps = ${JSON.stringify(steps)}::json, updated_at = NOW()
     WHERE id = ${checklist.id}
   `)
 
@@ -383,12 +425,12 @@ app.put('/onboarding/manager', requireRole('manager'), async (c) => {
 
   const result = await db.execute(sql`
     UPDATE onboarding_checklists
-    SET success_manager_name = ${name}, success_manager_email = ${email}, updated_at = NOW()
+    SET assigned_manager_name = ${name}, assigned_manager_email = ${email}, updated_at = NOW()
     WHERE company_id = ${currentUser.companyId}
     RETURNING *
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Onboarding not initialized' }, 404)
 
   return c.json(updated)
@@ -413,8 +455,8 @@ app.get('/onboarding/progress', async (c) => {
   const completedSteps = steps.filter((s: any) => s.completed).length
   const nextSteps = steps.filter((s: any) => !s.completed).slice(0, 3).map((s: any) => ({ title: s.title, step_number: s.stepNumber }))
   const percentComplete = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0
-  const daysSinceStart = checklist.started_at
-    ? Math.floor((Date.now() - new Date(checklist.started_at).getTime()) / (1000 * 60 * 60 * 24))
+  const daysSinceStart = checklist.created_at
+    ? Math.floor((Date.now() - new Date(checklist.created_at).getTime()) / (1000 * 60 * 60 * 24))
     : 0
 
   return c.json({
@@ -423,8 +465,8 @@ app.get('/onboarding/progress', async (c) => {
     totalSteps,
     nextSteps,
     daysSinceStart,
-    successManager: checklist.success_manager_name
-      ? { name: checklist.success_manager_name, email: checklist.success_manager_email }
+    successManager: checklist.assigned_manager_name
+      ? { name: checklist.assigned_manager_name, email: checklist.assigned_manager_email }
       : null,
   })
 })
@@ -443,28 +485,12 @@ app.get('/hardware', async (c) => {
   const result = await db.execute(sql`
     SELECT id, slug, name, category, description, price, image_url, specs, in_stock
     FROM hardware_products
-    WHERE active = true
+    WHERE is_active = true
       ${categoryFilter}
     ORDER BY category ASC, name ASC
   `)
 
-  return c.json((result as any).rows || result)
-})
-
-// GET /hardware/:slug — Hardware product detail
-app.get('/hardware/:slug', async (c) => {
-  const slug = c.req.param('slug')
-
-  const result = await db.execute(sql`
-    SELECT * FROM hardware_products
-    WHERE slug = ${slug} AND active = true
-    LIMIT 1
-  `)
-
-  const product = ((result as any).rows || result)?.[0]
-  if (!product) return c.json({ error: 'Hardware product not found' }, 404)
-
-  return c.json(product)
+  return c.json(camelAll((result as any).rows || result))
 })
 
 // ─── Authenticated hardware ordering ────────────────────────────────────────
@@ -478,7 +504,7 @@ app.post('/hardware/orders', async (c) => {
 
   const orderSchema = z.object({
     items: z.array(z.object({
-      productId: z.string().uuid(),
+      productId: z.string().min(1),
       quantity: z.number().int().min(1),
     })).min(1),
     shippingAddress: z.object({
@@ -498,7 +524,7 @@ app.post('/hardware/orders', async (c) => {
   for (const item of data.items) {
     const prodResult = await db.execute(sql`
       SELECT id, name, price, in_stock FROM hardware_products
-      WHERE id = ${item.productId} AND active = true
+      WHERE id = ${item.productId} AND is_active = true
       LIMIT 1
     `)
     const prod = ((prodResult as any).rows || prodResult)?.[0]
@@ -520,13 +546,15 @@ app.post('/hardware/orders', async (c) => {
   // Generate order number
   const orderNumber = `HW-${Date.now().toString(36).toUpperCase()}`
 
+  // items is a json column; shipping_address is a text column — pass JSON strings and let
+  // Postgres apply the assignment cast (no ::jsonb, which text/json columns reject).
   const result = await db.execute(sql`
     INSERT INTO hardware_orders (id, order_number, items, shipping_address, total, status, company_id, ordered_by, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${orderNumber}, ${JSON.stringify(resolvedItems)}::jsonb, ${JSON.stringify(data.shippingAddress)}::jsonb, ${total}, 'pending', ${currentUser.companyId}, ${currentUser.userId}, NOW(), NOW())
+    VALUES (gen_random_uuid(), ${orderNumber}, ${JSON.stringify(resolvedItems)}, ${JSON.stringify(data.shippingAddress)}, ${String(total)}, 'pending', ${currentUser.companyId}, ${currentUser.userId}, NOW(), NOW())
     RETURNING *
   `)
 
-  const hwOrder = ((result as any).rows || result)?.[0]
+  const hwOrder = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -559,7 +587,7 @@ app.get('/hardware/orders', async (c) => {
     WHERE company_id = ${currentUser.companyId}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = camelAll((dataResult as any).rows || dataResult)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -576,10 +604,27 @@ app.get('/hardware/orders/:id', async (c) => {
     LIMIT 1
   `)
 
-  const hwOrder = ((result as any).rows || result)?.[0]
+  const hwOrder = camel(((result as any).rows || result)?.[0])
   if (!hwOrder) return c.json({ error: 'Hardware order not found' }, 404)
 
   return c.json(hwOrder)
+})
+
+// GET /hardware/:slug — Hardware product detail
+// Registered AFTER /hardware/orders* so the literal "orders" path is not captured as a slug.
+app.get('/hardware/:slug', async (c) => {
+  const slug = c.req.param('slug')
+
+  const result = await db.execute(sql`
+    SELECT * FROM hardware_products
+    WHERE slug = ${slug} AND is_active = true
+    LIMIT 1
+  `)
+
+  const product = camel(((result as any).rows || result)?.[0])
+  if (!product) return c.json({ error: 'Hardware product not found' }, 404)
+
+  return c.json(product)
 })
 
 export default app

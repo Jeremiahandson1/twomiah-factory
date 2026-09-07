@@ -9,6 +9,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute rows are snake_case but the IDScanner history/flagged views read
+// camelCase (idNumber, flagReason, createdAt, ...). Convert keys before responding.
+const camelScan = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ─── Barcode Parsing ────────────────────────────────────────────────────────
 
 /**
@@ -71,7 +80,7 @@ app.post('/scan', async (c) => {
     scanMethod: z.enum(['barcode', 'magnetic_stripe', 'ocr', 'manual', 'digital_id']),
     rawData: z.string().min(1),
     deviceId: z.string().optional(),
-    locationId: z.string().uuid(),
+    locationId: z.string().min(1),
   })
 
   let data: z.infer<typeof scanSchema>
@@ -121,8 +130,8 @@ app.post('/scan', async (c) => {
 
   // Log to id_scans table
   const result = await db.execute(sql`
-    INSERT INTO id_scans (id, scan_method, raw_data, device_id, location_id, first_name, last_name, dob, expiration, state, id_number, id_type, age, is_underage, is_expired, matched_contact_id, is_flagged, company_id, scanned_by, created_at)
-    VALUES (gen_random_uuid(), ${data.scanMethod}, ${data.rawData}, ${data.deviceId || null}, ${data.locationId}, ${parsed.firstName}, ${parsed.lastName}, ${parsed.dob}, ${parsed.expiration}, ${parsed.state}, ${parsed.idNumber}, ${parsed.idType}, ${age}, ${isUnderage}, ${isExpired}, ${matchedContactId}, ${isUnderage || isExpired}, ${currentUser.companyId}, ${currentUser.id}, NOW())
+    INSERT INTO id_scans (id, scan_method, raw_data, device_id, location_id, first_name, last_name, date_of_birth, expiration_date, id_state, id_number, id_type, age_at_scan, is_underage, is_expired, contact_id, is_flagged, company_id, scanned_by, created_at)
+    VALUES (gen_random_uuid(), ${data.scanMethod}, ${JSON.stringify(data.rawData)}::jsonb, ${data.deviceId || null}, ${data.locationId}, ${parsed.firstName}, ${parsed.lastName}, ${parsed.dob}, ${parsed.expiration}, ${parsed.state}, ${parsed.idNumber}, ${parsed.idType}, ${age}, ${isUnderage}, ${isExpired}, ${matchedContactId}, ${isUnderage || isExpired}, ${currentUser.companyId}, ${currentUser.userId}, NOW())
     RETURNING *
   `)
 
@@ -152,7 +161,7 @@ app.post('/scan/verify', async (c) => {
   const currentUser = c.get('user') as any
 
   const verifySchema = z.object({
-    checkinId: z.string().uuid(),
+    checkinId: z.string().min(1),
     scanData: z.object({
       scanMethod: z.enum(['barcode', 'magnetic_stripe', 'ocr', 'manual', 'digital_id']),
       rawData: z.string().min(1),
@@ -233,8 +242,10 @@ app.get('/scans', async (c) => {
 
   const [dataResult, countResult] = await Promise.all([
     db.execute(sql`
-      SELECT id, scan_method, device_id, location_id, first_name, last_name, dob, expiration,
-             state, id_number, id_type, age, is_underage, is_expired, matched_contact_id,
+      SELECT id, scan_method, device_id, location_id, first_name, last_name,
+             date_of_birth AS dob, expiration_date AS expiration,
+             id_state AS state, id_number, id_type, age_at_scan AS age,
+             is_underage, is_expired, contact_id AS matched_contact_id,
              is_flagged, flag_reason, scanned_by, created_at
       FROM id_scans
       WHERE company_id = ${currentUser.companyId}
@@ -261,12 +272,76 @@ app.get('/scans', async (c) => {
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
 })
 
+// Derived verification status used by the History/Flagged views.
+const STATUS_CASE = sql`CASE
+  WHEN is_flagged = true THEN 'flagged'
+  WHEN is_underage = true THEN 'underage'
+  WHEN is_expired = true THEN 'expired'
+  ELSE 'verified' END`
+
+// GET /history — scan history the IDScanner "Scan History" tab renders (camelCase, derived status).
+app.get('/history', async (c) => {
+  const currentUser = c.get('user') as any
+  const status = c.req.query('status')
+  const search = c.req.query('search')
+  const page = +(c.req.query('page') || '1')
+  const limit = +(c.req.query('limit') || '50')
+  const offset = (page - 1) * limit
+
+  let statusFilter = sql``
+  if (status === 'flagged') statusFilter = sql`AND is_flagged = true`
+  else if (status === 'underage') statusFilter = sql`AND is_flagged = false AND is_underage = true`
+  else if (status === 'expired') statusFilter = sql`AND is_flagged = false AND is_underage = false AND is_expired = true`
+  else if (status === 'verified') statusFilter = sql`AND is_flagged = false AND is_underage = false AND is_expired = false`
+
+  let searchFilter = sql``
+  if (search) {
+    const like = `%${search}%`
+    searchFilter = sql`AND (first_name ILIKE ${like} OR last_name ILIKE ${like} OR id_number ILIKE ${like})`
+  }
+
+  const result = await db.execute(sql`
+    SELECT id,
+           NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '') AS name,
+           date_of_birth AS dob, age_at_scan AS age, id_number, id_state AS state,
+           scan_method AS method, ${STATUS_CASE} AS status,
+           is_flagged, flag_reason, is_underage, is_expired, created_at
+    FROM id_scans
+    WHERE company_id = ${currentUser.companyId}
+      ${statusFilter}
+      ${searchFilter}
+    ORDER BY created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `)
+  const data = ((result as any).rows || result).map(camelScan)
+  return c.json({ data })
+})
+
+// GET /flagged — flagged scans for the "Flagged" tab.
+app.get('/flagged', async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT id,
+           NULLIF(TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '') AS name,
+           date_of_birth AS dob, age_at_scan AS age, id_number, id_state AS state,
+           scan_method AS method, ${STATUS_CASE} AS status,
+           is_flagged, flag_reason, is_underage, is_expired, created_at
+    FROM id_scans
+    WHERE company_id = ${currentUser.companyId}
+      AND is_flagged = true
+    ORDER BY created_at DESC
+    LIMIT 100
+  `)
+  const data = ((result as any).rows || result).map(camelScan)
+  return c.json({ data })
+})
+
 // POST /flag — Flag a scan as suspicious
 app.post('/flag', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const flagSchema = z.object({
-    scanId: z.string().uuid(),
+    scanId: z.string().min(1),
     reason: z.string().min(1),
   })
 

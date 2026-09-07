@@ -52,25 +52,41 @@ app.post('/unsubscribe', async (c) => {
 // Get user's subscriptions
 app.get('/subscriptions', async (c) => {
   const user = c.get('user') as any
-  const subscriptions = await push.getUserSubscriptions(user.userId)
-  return c.json(subscriptions.map((s: any) => ({
-    id: s.id,
-    endpoint: s.endpoint,
-    createdAt: s.createdAt,
-    userAgent: s.userAgent,
-  })))
+  try {
+    const subscriptions = await push.getUserSubscriptions(user.userId)
+    return c.json(subscriptions.map((s: any) => ({
+      id: s.id,
+      endpoint: s.endpoint,
+      createdAt: s.createdAt,
+      userAgent: s.userAgent,
+    })))
+  } catch (e: any) {
+    // push_subscription table isn't provisioned on every tenant — treat as none.
+    if (e?.message?.includes('does not exist')) return c.json([])
+    throw e
+  }
 })
 
 // Send test notification to self
 app.post('/test', async (c) => {
   const user = c.get('user') as any
-  const result = await push.sendToUser(user.userId, {
-    title: 'Test Notification',
-    body: 'Push notifications are working!',
-    url: '/',
-  })
-
-  return c.json(result)
+  // No VAPID keys configured → graceful 400, never a 500.
+  if (!push.getVapidPublicKey()) {
+    return c.json({ error: 'Push notifications not configured' }, 400)
+  }
+  try {
+    const result = await push.sendToUser(user.userId, {
+      title: 'Test Notification',
+      body: 'Push notifications are working!',
+      url: '/',
+    })
+    return c.json(result)
+  } catch (e: any) {
+    if (e?.message?.includes('does not exist')) {
+      return c.json({ error: 'Push notifications not configured' }, 400)
+    }
+    throw e
+  }
 })
 
 // Admin: Send notification to user

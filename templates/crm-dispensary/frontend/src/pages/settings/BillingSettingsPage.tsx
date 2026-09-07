@@ -4,18 +4,20 @@ import {
   CreditCard, Check, ArrowRight, Loader2, AlertTriangle, 
   Plus, Package, Calendar, Receipt, X, ChevronRight
 } from 'lucide-react';
+import api from '../../services/api';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
-
+// Dispensary tiers — mirrors the public PricingPage + backend PLANS. Per-seat
+// overage model: `price` is the base (includes `users.included` seats); extra
+// seats up to `users.max` bill +$`users.additionalPrice`/mo each; you cannot
+// exceed max (must upgrade). Enterprise is flat/unlimited (max null, no overage).
 const PLANS = {
-  starter: { id: 'starter', name: 'Starter', price: 49, priceAnnual: 39, users: 2 },
-  pro: { id: 'pro', name: 'Pro', price: 149, priceAnnual: 119, users: 5 },
-  business: { id: 'business', name: 'Business', price: 299, priceAnnual: 239, users: 15 },
-  construction: { id: 'construction', name: 'Construction', price: 599, priceAnnual: 479, users: 20 },
-  enterprise: { id: 'enterprise', name: 'Enterprise', price: 199, priceAnnual: 159, perUser: true },
+  starter: { id: 'starter', name: 'Starter', price: 299, priceAnnual: 239, users: { included: 5, max: 10, additionalPrice: 29 } },
+  pro: { id: 'pro', name: 'Pro', price: 499, priceAnnual: 399, users: { included: 15, max: 25, additionalPrice: 29 } },
+  business: { id: 'business', name: 'Business', price: 799, priceAnnual: 639, users: { included: 30, max: 50, additionalPrice: 29 } },
+  enterprise: { id: 'enterprise', name: 'Enterprise', price: 1299, priceAnnual: 1039, users: { included: 100, max: null, additionalPrice: 0 } },
 };
 
-const PLAN_ORDER = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+const PLAN_ORDER = ['starter', 'pro', 'business', 'enterprise'];
 
 export default function BillingSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -39,39 +41,26 @@ export default function BillingSettingsPage() {
 
   const openSmsBilling = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/messaging-billing/portal-link`, { headers: getAuthHeaders() });
-      const d = await res.json();
-      if (res.ok && d.url) window.open(d.url, '_blank'); else alert(d.error || 'Could not open billing');
+      const d = await api.get('/api/messaging-billing/portal-link') as any;
+      if (d?.url) window.open(d.url, '_blank'); else alert(d?.error || 'Could not open billing');
     } catch { alert('Could not open billing'); }
   };
-  const getAuthHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${localStorage.getItem('token')}`,
-  });
 
   const loadBillingData = async () => {
     try {
-      const [subRes, usageRes, invoicesRes, pmRes, addonsRes] = await Promise.all([
-        fetch(`${API_URL}/api/billing/subscription`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/billing/usage`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/billing/invoices`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/billing/payment-methods`, { headers: getAuthHeaders() }),
-        fetch(`${API_URL}/api/billing/addons`, { headers: getAuthHeaders() }),
-      ]);
-
       const [subData, usageData, invoicesData, pmData, addonsData] = await Promise.all([
-        subRes.json(),
-        usageRes.json(),
-        invoicesRes.json(),
-        pmRes.json(),
-        addonsRes.json(),
-      ]);
+        api.get('/api/billing/subscription'),
+        api.get('/api/billing/usage'),
+        api.get('/api/billing/invoices'),
+        api.get('/api/billing/payment-methods'),
+        api.get('/api/billing/addons'),
+      ]) as any[];
 
-      setSubscription(subData.subscription);
+      setSubscription(subData?.subscription);
       setUsage(usageData);
       setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
-      setPaymentMethods(pmData.paymentMethods || []);
-      setAddons(addonsData.addons || []);
+      setPaymentMethods(pmData?.paymentMethods || []);
+      setAddons(addonsData?.addons || []);
     } catch (err) {
       setError('Failed to load billing data');
     } finally {
@@ -84,22 +73,14 @@ export default function BillingSettingsPage() {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/billing/subscription/change-plan`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ plan: newPlan }),
-      });
+      const data = await api.post('/api/billing/subscription/change-plan', { plan: newPlan }) as any;
 
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || 'Failed to change plan');
-
-      if (data.checkoutUrl) {
+      if (data?.checkoutUrl) {
         window.location.href = data.checkoutUrl;
         return;
       }
 
-      setSuccess(data.message || 'Plan updated successfully');
+      setSuccess(data?.message || 'Plan updated successfully');
       setShowPlanModal(false);
       loadBillingData();
     } catch (err) {
@@ -114,17 +95,9 @@ export default function BillingSettingsPage() {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/billing/addons/purchase`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ addonId }),
-      });
+      const data = await api.post('/api/billing/addons/purchase', { addonId }) as any;
 
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || 'Failed to purchase add-on');
-
-      if (data.checkoutUrl) {
+      if (data?.checkoutUrl) {
         window.location.href = data.checkoutUrl;
         return;
       }
@@ -139,20 +112,29 @@ export default function BillingSettingsPage() {
     }
   };
 
+  const handleRemoveAddon = async (addonId) => {
+    if (!window.confirm('Remove this add-on? You will lose access to its features.')) return;
+    setSaving(true);
+    setError('');
+
+    try {
+      await api.post('/api/billing/addons/remove', { addonId });
+
+      setSuccess('Add-on removed');
+      loadBillingData();
+    } catch (err) {
+      setError(err.message || err.response?.data?.error || 'Failed to remove add-on');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCancelSubscription = async () => {
     setSaving(true);
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/billing/subscription/cancel`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ immediate: false }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.error || 'Failed to cancel subscription');
+      await api.post('/api/billing/subscription/cancel', { immediate: false });
 
       setSuccess('Subscription will be canceled at the end of your billing period');
       setShowCancelModal(false);
@@ -166,12 +148,7 @@ export default function BillingSettingsPage() {
 
   const handleReactivate = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/billing/subscription/reactivate`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-
-      if (!response.ok) throw new Error('Failed to reactivate');
+      await api.post('/api/billing/subscription/reactivate');
 
       setSuccess('Subscription reactivated');
       loadBillingData();
@@ -182,17 +159,12 @@ export default function BillingSettingsPage() {
 
   const handleAddPaymentMethod = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/billing/payment-methods/setup`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
-      if (data.clientSecret) {
+      const data = await api.post('/api/billing/payment-methods/setup') as any;
+      if (data?.clientSecret) {
         alert('Payment method setup would open Stripe Elements here');
       }
     } catch (err) {
-      setError('Failed to setup payment method');
+      setError(err.message || err.response?.data?.error || 'Failed to setup payment method');
     }
   };
 
@@ -243,7 +215,13 @@ export default function BillingSettingsPage() {
               {isTrialing && <span className="bg-yellow-100 text-yellow-700 text-sm px-2 py-1 rounded-full">Trial</span>}
               {isCanceled && <span className="bg-red-100 text-red-700 text-sm px-2 py-1 rounded-full">Canceling</span>}
             </div>
-            <p className="text-gray-500 mt-1 dark:text-slate-400">${currentPlan.perUser ? `${currentPlan.price}/user` : currentPlan.price}/mo · {currentPlan.users} users</p>
+            <p className="text-gray-500 mt-1 dark:text-slate-400">
+              ${subscription?.basePrice ?? currentPlan.price}/mo
+              {currentPlan.users.max === null
+                ? ' · Unlimited users'
+                : ` · ${currentPlan.users.included} users included`}
+              {subscription?.extraSeats > 0 && ` · +${subscription.extraSeats} seat${subscription.extraSeats === 1 ? '' : 's'} → $${subscription.effectiveMonthly}/mo`}
+            </p>
           </div>
           <button onClick={() => setShowPlanModal(true)} className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 flex items-center gap-2">
             Change Plan <ChevronRight className="w-4 h-4" />
@@ -273,9 +251,17 @@ export default function BillingSettingsPage() {
         <div className="bg-white rounded-xl border p-6 mb-6 dark:bg-slate-900">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 dark:text-slate-100">Usage</h2>
           <div className="grid md:grid-cols-3 gap-6">
-            <UsageBar label="Users" current={usage.users?.current || 0} limit={usage.users?.limit} />
-            <UsageBar label="Contacts" current={usage.contacts?.current || 0} limit={usage.contacts?.limit} />
-            <UsageBar label="Jobs (monthly)" current={usage.jobs?.current || 0} limit={usage.jobs?.limit} />
+            <SeatUsage
+              current={usage.users?.current || 0}
+              included={usage.users?.included ?? currentPlan.users.included}
+              max={usage.users?.max ?? currentPlan.users.max}
+              additionalPrice={usage.users?.additionalPrice ?? currentPlan.users.additionalPrice}
+              billableExtra={usage.users?.billableExtra || 0}
+              extraCost={usage.users?.extraCost || 0}
+              effectiveMonthly={subscription?.effectiveMonthly}
+            />
+            <UsageBar label="Customers" current={usage.contacts?.current || 0} limit={usage.contacts?.limit} />
+            <UsageBar label="Orders (monthly)" current={usage.orders?.current || 0} limit={usage.orders?.limit} />
           </div>
         </div>
       )}
@@ -297,7 +283,10 @@ export default function BillingSettingsPage() {
                   <p className="font-medium text-gray-900 dark:text-slate-100">{addon.name}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">${addon.price}/mo</p>
                 </div>
-                <span className="text-green-600 text-sm font-medium">Active</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-green-600 text-sm font-medium">Active</span>
+                  <button onClick={() => handleRemoveAddon(addon.id)} disabled={saving} className="text-red-500 hover:text-red-600 text-sm font-medium disabled:opacity-50">Remove</button>
+                </div>
               </div>
             ))}
           </div>
@@ -370,7 +359,7 @@ export default function BillingSettingsPage() {
       )}
 
       {/* Modals */}
-      {showPlanModal && <PlanModal currentPlan={subscription?.plan} onSelect={handleChangePlan} onClose={() => setShowPlanModal(false)} saving={saving} />}
+      {showPlanModal && <PlanModal currentPlan={subscription?.plan} onSelect={handleChangePlan} onClose={() => { setError(''); setShowPlanModal(false); }} saving={saving} error={error} />}
       {showAddonModal && <AddonModal addons={addons} onPurchase={handlePurchaseAddon} onClose={() => setShowAddonModal(false)} saving={saving} />}
       {showCancelModal && <CancelModal onConfirm={handleCancelSubscription} onClose={() => setShowCancelModal(false)} saving={saving} periodEnd={subscription?.currentPeriodEnd} />}
     </div>
@@ -395,7 +384,48 @@ function UsageBar({ label, current, limit }) {
   );
 }
 
-function PlanModal({ currentPlan, onSelect, onClose, saving }) {
+// Seat usage with the per-seat overage model: measures against `included` seats,
+// shows the +$/user overage rule, the current effective bill when over included,
+// and an upgrade prompt when at the plan max. Enterprise (max null) = unlimited.
+function SeatUsage({ current, included, max, additionalPrice, billableExtra, extraCost, effectiveMonthly }) {
+  const unlimited = max === null || max === undefined;
+  const over = billableExtra > 0;
+  const atMax = !unlimited && current >= max;
+  const denom = unlimited ? (included || 1) : (max || included || 1);
+  const percentage = Math.min((current / denom) * 100, 100);
+
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span className="text-gray-600 dark:text-slate-400" title="Team members with a sign-in account. Roster entries without a login aren't billed as seats.">Login seats</span>
+        <span className={atMax ? 'text-red-600 font-medium' : 'text-gray-900 dark:text-slate-200'}>
+          {unlimited
+            ? `${current.toLocaleString()} / ∞`
+            : `${current.toLocaleString()} / ${included.toLocaleString()} included`}
+        </span>
+      </div>
+      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${atMax ? 'bg-red-500' : over ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${percentage}%` }} />
+      </div>
+      {unlimited ? (
+        <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Unlimited users</p>
+      ) : (
+        <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">
+          +${additionalPrice}/user beyond {included} (up to {max})
+          {over && ` · +${billableExtra} seat${billableExtra === 1 ? '' : 's'} = +$${extraCost}/mo`}
+        </p>
+      )}
+      {over && effectiveMonthly != null && (
+        <p className="text-xs text-gray-700 mt-1 font-medium dark:text-slate-300">Current total: ${effectiveMonthly}/mo</p>
+      )}
+      {atMax && (
+        <p className="text-xs text-red-600 mt-1 font-medium">At plan max — upgrade to add more users.</p>
+      )}
+    </div>
+  );
+}
+
+function PlanModal({ currentPlan, onSelect, onClose, saving, error }) {
   const [selected, setSelected] = useState(currentPlan);
   const currentIndex = PLAN_ORDER.indexOf(currentPlan);
 
@@ -422,14 +452,23 @@ function PlanModal({ currentPlan, onSelect, onClose, saving }) {
                       {isUpgrade && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Upgrade</span>}
                       {isDowngrade && <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Downgrade</span>}
                     </div>
-                    <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{plan.users} users included</p>
+                    <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">
+                      {plan.users.max === null
+                        ? 'Unlimited users'
+                        : `${plan.users.included} users included · +$${plan.users.additionalPrice}/user up to ${plan.users.max}`}
+                    </p>
                   </div>
-                  <div className="text-right"><span className="text-xl font-bold">${plan.perUser ? `${plan.price}/user` : plan.price}</span><span className="text-gray-500 dark:text-slate-400">/mo</span></div>
+                  <div className="text-right"><span className="text-xl font-bold">${plan.price}</span><span className="text-gray-500 dark:text-slate-400">/mo</span></div>
                 </div>
               </button>
             );
           })}
         </div>
+        {error && (
+          <div className="mx-6 mb-1 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm" role="alert">
+            {error}
+          </div>
+        )}
         <div className="p-6 border-t flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
           <button onClick={() => onSelect(selected)} disabled={saving || selected === currentPlan} className="px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 flex items-center gap-2">

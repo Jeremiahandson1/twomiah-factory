@@ -22,12 +22,18 @@ const challengeSchema = z.object({
     streakDays: z.number().optional(),
     punchesRequired: z.number().optional(),
     referralsRequired: z.number().optional(),
-  }),
-  rewardType: z.enum(['points', 'discount_percent', 'discount_fixed', 'free_item', 'tier_upgrade']),
-  rewardValue: z.number().min(0),
+  }).optional(),
+  // The dialog sends target/period/category FLAT (not nested in `rules`) and omits the
+  // dates and a structured rewardType. Accept the flat payload; fold it into `rules` and
+  // default the dates + reward in the handler. (retest#15)
+  target: z.number().optional(),
+  period: z.string().optional(),
+  category: z.string().optional(),
+  rewardType: z.enum(['points', 'discount_percent', 'discount_fixed', 'free_item', 'tier_upgrade']).default('points'),
+  rewardValue: z.number().min(0).default(0),
   bonusMultiplier: z.number().min(1).optional(),
-  startDate: z.string(),
-  endDate: z.string(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
   imageUrl: z.string().optional(),
   isRecurring: z.boolean().default(false),
 })
@@ -45,7 +51,7 @@ app.get('/challenges', async (c) => {
   const result = await db.execute(sql`
     SELECT lc.*,
       (SELECT COUNT(*)::int FROM loyalty_challenge_progress lcp WHERE lcp.challenge_id = lc.id) as participant_count,
-      (SELECT COUNT(*)::int FROM loyalty_challenge_progress lcp WHERE lcp.challenge_id = lc.id AND lcp.completed = true) as completed_count
+      (SELECT COUNT(*)::int FROM loyalty_challenge_progress lcp WHERE lcp.challenge_id = lc.id AND lcp.is_completed = true) as completed_count
     FROM loyalty_challenges lc
     WHERE lc.company_id = ${currentUser.companyId} ${activeClause}
     ORDER BY lc.start_date DESC
@@ -58,10 +64,14 @@ app.get('/challenges', async (c) => {
 app.post('/challenges', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const data = challengeSchema.parse(await c.req.json())
+  // Fold flat target/period/category into rules; default dates (blank/omitted → now .. +30d).
+  const rules = data.rules ?? { target: data.target, period: data.period, category: data.category }
+  const startDate = data.startDate ? new Date(data.startDate) : new Date()
+  const endDate = data.endDate ? new Date(data.endDate) : new Date(Date.now() + 30 * 86400000)
 
   const result = await db.execute(sql`
     INSERT INTO loyalty_challenges(id, name, description, type, rules, reward_type, reward_value, bonus_multiplier, start_date, end_date, image_url, is_recurring, is_active, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.name}, ${data.description || null}, ${data.type}, ${JSON.stringify(data.rules)}::jsonb, ${data.rewardType}, ${data.rewardValue}, ${data.bonusMultiplier || null}, ${new Date(data.startDate)}, ${new Date(data.endDate)}, ${data.imageUrl || null}, ${data.isRecurring}, true, ${currentUser.companyId}, NOW(), NOW())
+    VALUES (gen_random_uuid(), ${data.name}, ${data.description || null}, ${data.type}, ${JSON.stringify(rules)}::jsonb, ${data.rewardType}, ${data.rewardValue}, ${data.bonusMultiplier || null}, ${startDate}, ${endDate}, ${data.imageUrl || null}, ${data.isRecurring}, true, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -159,7 +169,8 @@ app.get('/challenges/:id/leaderboard', async (c) => {
     JOIN loyalty_members lm ON lm.id = lcp.member_id
     JOIN contact c ON c.id = lm.contact_id
     WHERE lcp.challenge_id = ${id} AND lcp.company_id = ${currentUser.companyId}
-    ORDER BY lcp.progress DESC, lcp.completed_at ASC NULLS LAST
+    -- progress is a json column (no ordering operator); rank by the numeric percent_complete
+    ORDER BY lcp.percent_complete DESC, lcp.completed_at ASC NULLS LAST
     LIMIT ${limit}
   `)
 
@@ -172,13 +183,13 @@ app.get('/member/:memberId/challenges', async (c) => {
   const memberId = c.req.param('memberId')
 
   const result = await db.execute(sql`
-    SELECT lc.*, lcp.progress, lcp.completed, lcp.completed_at, lcp.reward_claimed, lcp.id as progress_id
+    SELECT lc.*, lcp.progress, lcp.is_completed, lcp.completed_at, lcp.reward_claimed, lcp.id as progress_id
     FROM loyalty_challenge_progress lcp
     JOIN loyalty_challenges lc ON lc.id = lcp.challenge_id
     WHERE lcp.member_id = ${memberId}
       AND lcp.company_id = ${currentUser.companyId}
       AND lc.is_active = true
-    ORDER BY lcp.completed ASC, lc.end_date ASC
+    ORDER BY lcp.is_completed ASC, lc.end_date ASC
   `)
 
   return c.json((result as any).rows || result)
@@ -442,6 +453,52 @@ app.get('/multipliers', async (c) => {
   `)
 
   return c.json((result as any).rows || result)
+})
+
+// POST /multiplier-events — Create a bonus-multiplier event.
+// Multiplier events are stored as loyalty_challenges rows with type 'bonus_multiplier' (that's what
+// GET /multipliers reads), so this mirrors the challenge insert. The dialog sends a flat
+// { name, multiplier, startDate, endDate } payload; dates default to now .. +30d when blank.
+app.post('/multiplier-events', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+
+  const eventSchema = z.object({
+    name: z.string().min(1),
+    multiplier: z.coerce.number().min(1).default(2),
+    description: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  })
+
+  let data: z.infer<typeof eventSchema>
+  try {
+    data = eventSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const startDate = data.startDate ? new Date(data.startDate) : new Date()
+  const endDate = data.endDate ? new Date(data.endDate) : new Date(Date.now() + 30 * 86400000)
+
+  const result = await db.execute(sql`
+    INSERT INTO loyalty_challenges(id, name, description, type, rules, reward_type, reward_value, bonus_multiplier, start_date, end_date, is_recurring, is_active, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.name}, ${data.description || null}, 'bonus_multiplier', '{}'::jsonb, 'points', 0, ${data.multiplier}, ${startDate}, ${endDate}, false, true, ${currentUser.companyId}, NOW(), NOW())
+    RETURNING *
+  `)
+
+  const created = ((result as any).rows || result)?.[0]
+
+  audit.log({
+    action: audit.ACTIONS.CREATE,
+    entity: 'loyalty_challenge',
+    entityId: created?.id,
+    entityName: data.name,
+    metadata: { type: 'bonus_multiplier', multiplier: data.multiplier },
+    req: c.req,
+  })
+
+  return c.json(created, 201)
 })
 
 export default app

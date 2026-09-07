@@ -17,8 +17,11 @@ app.get('/sales', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
 
-  const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 86400000)
-  const end = endDate ? new Date(endDate) : new Date()
+  // endDate must cover the WHOLE day. Parsing it as bare midnight made `completed_at <= end`
+  // exclude every sale after 00:00 today, so a "Today" chart came back empty and the last day
+  // of any range dropped its daytime orders. Match /summary's full-day bounds. (retest#8)
+  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
+  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
 
   let dateTrunc: string
   switch (period) {
@@ -27,9 +30,13 @@ app.get('/sales', async (c) => {
     default: dateTrunc = 'day'
   }
 
+  // Bucket/filter by COALESCE(completed_at, created_at): some completed orders have a NULL
+  // completed_at (status-flow / seeded completions), so filtering on completed_at dropped a
+  // whole day (e.g. 09-01) from the chart while /summary — which keys off created_at — still
+  // counted it. The chart lost $182 the KPI showed. Fall back to created_at. (retest#10)
   const result = await db.execute(sql`
     SELECT
-      date_trunc(${dateTrunc}, completed_at)::date as period,
+      date_trunc(${dateTrunc}, COALESCE(completed_at, created_at))::date as period,
       COUNT(*)::int as order_count,
       COALESCE(SUM(total::numeric), 0) as revenue,
       COALESCE(SUM(subtotal::numeric), 0) as subtotal,
@@ -39,8 +46,8 @@ app.get('/sales', async (c) => {
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status = 'completed'
-      AND completed_at >= ${start}
-      AND completed_at <= ${end}
+      AND COALESCE(completed_at, created_at) >= ${start}
+      AND COALESCE(completed_at, created_at) <= ${end}
     GROUP BY 1
     ORDER BY 1 ASC
   `)
@@ -67,8 +74,11 @@ app.get('/products', async (c) => {
   const endDate = c.req.query('endDate')
   const limit = +(c.req.query('limit') || '20')
 
-  const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 86400000)
-  const end = endDate ? new Date(endDate) : new Date()
+  // endDate must cover the WHOLE day. Parsing it as bare midnight made `completed_at <= end`
+  // exclude every sale after 00:00 today, so a "Today" chart came back empty and the last day
+  // of any range dropped its daytime orders. Match /summary's full-day bounds. (retest#8)
+  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
+  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
 
   const result = await db.execute(sql`
     SELECT
@@ -83,8 +93,8 @@ app.get('/products', async (c) => {
     JOIN orders o ON o.id = oi.order_id
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status = 'completed'
-      AND o.completed_at >= ${start}
-      AND o.completed_at <= ${end}
+      AND COALESCE(o.completed_at, o.created_at) >= ${start}
+      AND COALESCE(o.completed_at, o.created_at) <= ${end}
     GROUP BY oi.product_id, oi.product_name, oi.category
     ORDER BY total_revenue DESC
     LIMIT ${limit}
@@ -96,10 +106,16 @@ app.get('/products', async (c) => {
 // Daily summary
 app.get('/summary', async (c) => {
   const currentUser = c.get('user') as any
+  // Range-aware: the KPI row must reflect the selected period, not always a single day.
+  // Previously this only accepted `date`, and the client always sent date=today, so the KPIs
+  // were byte-identical across Today/7/30/90. Honor startDate/endDate when present; fall back
+  // to a single `date` for back-compat. (retest#9)
+  const startDate = c.req.query('startDate')
+  const endDate = c.req.query('endDate')
   const date = c.req.query('date') || new Date().toISOString().slice(0, 10)
 
-  const dayStart = new Date(date + 'T00:00:00')
-  const dayEnd = new Date(date + 'T23:59:59')
+  const dayStart = new Date((startDate || date) + 'T00:00:00')
+  const dayEnd = new Date((endDate || date) + 'T23:59:59.999')
 
   const [ordersResult, categoryResult, paymentResult, loyaltyResult] = await Promise.all([
     // Order totals
@@ -171,8 +187,11 @@ app.get('/peak-hours', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
 
-  const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 86400000)
-  const end = endDate ? new Date(endDate) : new Date()
+  // endDate must cover the WHOLE day. Parsing it as bare midnight made `completed_at <= end`
+  // exclude every sale after 00:00 today, so a "Today" chart came back empty and the last day
+  // of any range dropped its daytime orders. Match /summary's full-day bounds. (retest#8)
+  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
+  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
 
   const result = await db.execute(sql`
     SELECT
@@ -197,6 +216,88 @@ app.get('/peak-hours', async (c) => {
   , null)
 
   return c.json({ data, peakHour: peak?.hour ?? null, startDate: start, endDate: end })
+})
+
+// Customer insights
+app.get('/customers', async (c) => {
+  const currentUser = c.get('user') as any
+  const startDate = c.req.query('startDate')
+  const endDate = c.req.query('endDate')
+
+  // Match /summary + /sales full-day bounds so the panel lines up with the KPI row and charts.
+  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
+  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
+
+  const [rangeResult, newResult, ltvResult] = await Promise.all([
+    // In-range cohort: unique/returning customers, avg visits, retention.
+    // Bucket by COALESCE(completed_at, created_at) like the other analytics fixes so completed
+    // orders with a NULL completed_at still fall inside the window.
+    db.execute(sql`
+      WITH range_orders AS (
+        SELECT contact_id
+        FROM orders
+        WHERE company_id = ${currentUser.companyId}
+          AND status = 'completed'
+          AND contact_id IS NOT NULL
+          AND COALESCE(completed_at, created_at) >= ${start}
+          AND COALESCE(completed_at, created_at) <= ${end}
+      ),
+      per_customer AS (
+        SELECT contact_id, COUNT(*)::int AS order_count
+        FROM range_orders
+        GROUP BY contact_id
+      )
+      SELECT
+        COUNT(*)::int AS unique_customers,
+        COUNT(CASE WHEN order_count > 1 THEN 1 END)::int AS returning_customers,
+        COALESCE(AVG(order_count), 0) AS avg_visits
+      FROM per_customer
+    `),
+    // New customers: contacts whose FIRST-EVER completed order (lifetime) lands in the range.
+    db.execute(sql`
+      WITH first_order AS (
+        SELECT contact_id, MIN(COALESCE(completed_at, created_at)) AS first_at
+        FROM orders
+        WHERE company_id = ${currentUser.companyId}
+          AND status = 'completed'
+          AND contact_id IS NOT NULL
+        GROUP BY contact_id
+      )
+      SELECT COUNT(*)::int AS new_customers
+      FROM first_order
+      WHERE first_at >= ${start} AND first_at <= ${end}
+    `),
+    // Customer Lifetime Value: all-time average completed spend per customer.
+    db.execute(sql`
+      WITH per_customer AS (
+        SELECT contact_id, SUM(total::numeric) AS spend
+        FROM orders
+        WHERE company_id = ${currentUser.companyId}
+          AND status = 'completed'
+          AND contact_id IS NOT NULL
+        GROUP BY contact_id
+      )
+      SELECT COALESCE(AVG(spend), 0) AS lifetime_value
+      FROM per_customer
+    `),
+  ])
+
+  const range = ((rangeResult as any).rows || rangeResult)?.[0] || {}
+  const newRow = ((newResult as any).rows || newResult)?.[0] || {}
+  const ltvRow = ((ltvResult as any).rows || ltvResult)?.[0] || {}
+
+  const uniqueCustomers = Number(range.unique_customers || 0)
+  const returningCustomers = Number(range.returning_customers || 0)
+  const retentionRate = uniqueCustomers > 0 ? (returningCustomers / uniqueCustomers) * 100 : 0
+
+  return c.json({
+    uniqueCustomers,
+    newCustomers: Number(newRow.new_customers || 0),
+    returningCustomers,
+    retentionRate,
+    avgVisits: Number(range.avg_visits || 0),
+    lifetimeValue: Number(ltvRow.lifetime_value || 0),
+  })
 })
 
 export default app

@@ -160,16 +160,21 @@ app.post('/sync', async (c) => {
 
     return c.json({ success: true, result })
   } catch (err: any) {
+    // "Not connected" is a normal state, not a server fault — return 400 with a
+    // clear message instead of a 500 the operator can't act on. (M11 follow-up)
+    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API credentials in Settings first.' }, 400)
     return c.json({ error: err.message || 'Sync failed' }, 500)
   }
 })
 
 // POST /sync/packages — Sync only packages
+// The Metrc service exposes a single syncAll() (no per-type method), so packages
+// sync runs the full sync. Missing config returns a graceful 400, never a 500.
 app.post('/sync/packages', async (c) => {
   const currentUser = c.get('user') as any
 
   try {
-    const result = await metrcService.syncPackages(currentUser.companyId)
+    const result = await metrcService.syncAll(currentUser.companyId)
 
     audit.log({
       action: audit.ACTIONS.CREATE,
@@ -185,16 +190,19 @@ app.post('/sync/packages', async (c) => {
 
     return c.json({ success: true, result })
   } catch (err: any) {
+    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API credentials in Settings first.' }, 400)
     return c.json({ error: err.message || 'Package sync failed' }, 500)
   }
 })
 
 // POST /sync/sales — Sync only sales
+// The Metrc service exposes a single syncAll() (no per-type method), so sales
+// sync runs the full sync. Missing config returns a graceful 400, never a 500.
 app.post('/sync/sales', async (c) => {
   const currentUser = c.get('user') as any
 
   try {
-    const result = await metrcService.syncSales(currentUser.companyId)
+    const result = await metrcService.syncAll(currentUser.companyId)
 
     audit.log({
       action: audit.ACTIONS.CREATE,
@@ -210,11 +218,34 @@ app.post('/sync/sales', async (c) => {
 
     return c.json({ success: true, result })
   } catch (err: any) {
+    if (/No Metrc config/i.test(err?.message || '')) return c.json({ error: 'Metrc is not connected. Add your Metrc API credentials in Settings first.' }, 400)
     return c.json({ error: err.message || 'Sales sync failed' }, 500)
   }
 })
 
 // GET /sync/log — Get sync history (paginated, most recent first)
+// GET /sync/status — latest sync state for the header badge (status + lastSyncAt).
+app.get('/sync/status', async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT status, records_processed, error, started_at, completed_at
+    FROM metrc_sync_log
+    WHERE company_id = ${currentUser.companyId}
+    ORDER BY started_at DESC
+    LIMIT 1
+  `)
+  const row = ((result as any).rows || result)?.[0]
+  if (!row) return c.json({ status: null, lastSyncAt: null })
+  const ok = ['success', 'completed', 'synced'].includes(String(row.status || '').toLowerCase())
+  return c.json({
+    status: ok ? 'success' : 'error',
+    rawStatus: row.status ?? null,
+    recordsProcessed: Number(row.records_processed || 0),
+    error: row.error ?? null,
+    lastSyncAt: row.completed_at || row.started_at || null,
+  })
+})
+
 app.get('/sync/log', async (c) => {
   const currentUser = c.get('user') as any
   const page = +(c.req.query('page') || '1')
@@ -227,7 +258,7 @@ app.get('/sync/log', async (c) => {
              error, started_at, completed_at
       FROM metrc_sync_log
       WHERE company_id = ${currentUser.companyId}
-      ORDER BY created_at DESC
+      ORDER BY started_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `),
     db.execute(sql`
@@ -306,7 +337,7 @@ app.get('/packages/:id', async (c) => {
 
 // POST /packages/:id/link — Link a Metrc package to a local product
 const linkSchema = z.object({
-  productId: z.string().uuid(),
+  productId: z.string().min(1),
 })
 
 app.post('/packages/:id/link', async (c) => {
@@ -391,7 +422,7 @@ app.get('/sales', async (c) => {
 
 // POST /sales/report — Report a specific order to Metrc
 const reportSaleSchema = z.object({
-  orderId: z.string().uuid(),
+  orderId: z.string().min(1),
 })
 
 app.post('/sales/report', async (c) => {

@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import { 
+import {
   Loader2, Check, ExternalLink, ToggleLeft, ToggleRight,
   MessageSquare, Mail, CreditCard, BookOpen, AlertCircle, RefreshCw
 } from 'lucide-react';
-
-const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
@@ -22,11 +20,6 @@ export default function IntegrationsPage() {
   useEffect(() => {
     loadIntegrations();
   }, []);
-
-  const getAuthHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${localStorage.getItem('token')}`,
-  });
 
   const loadIntegrations = async () => {
     try {
@@ -50,11 +43,8 @@ export default function IntegrationsPage() {
 
   const handleQuickBooksConnect = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/quickbooks/auth-url`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (data.authUrl) {
+      const data = await api.get('/api/integrations/quickbooks/auth-url') as any;
+      if (data?.authUrl) {
         window.location.href = data.authUrl;
       }
     } catch (err) {
@@ -67,10 +57,7 @@ export default function IntegrationsPage() {
     
     setSaving('quickbooks');
     try {
-      await fetch(`${API_URL}/api/integrations/quickbooks/disconnect`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post('/api/integrations/quickbooks/disconnect');
       setIntegrations(prev => ({
         ...prev,
         quickbooks: { connected: false, companyName: null, lastSync: null },
@@ -85,11 +72,8 @@ export default function IntegrationsPage() {
 
   const handleStripeConnect = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/stripe/connect-url`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
-      if (data.connectUrl) {
+      const data = await api.get('/api/integrations/stripe/connect-url') as any;
+      if (data?.connectUrl) {
         window.location.href = data.connectUrl;
       }
     } catch (err) {
@@ -102,10 +86,7 @@ export default function IntegrationsPage() {
     
     setSaving('stripe');
     try {
-      await fetch(`${API_URL}/api/integrations/stripe/disconnect`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post('/api/integrations/stripe/disconnect');
       setIntegrations(prev => ({
         ...prev,
         stripe: { connected: false, accountId: null, chargesEnabled: false },
@@ -123,16 +104,8 @@ export default function IntegrationsPage() {
     setError('');
     
     try {
-      const response = await fetch(`${API_URL}/api/integrations/${service}/toggle`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ enabled: !integrations[service].enabled }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
-      
+      await api.post(`/api/integrations/${service}/toggle`, { enabled: !integrations[service].enabled });
+
       setIntegrations(prev => ({
         ...prev,
         [service]: { ...prev[service], enabled: !prev[service].enabled },
@@ -148,10 +121,7 @@ export default function IntegrationsPage() {
   const handleSyncNow = async () => {
     setSaving('sync');
     try {
-      await fetch(`${API_URL}/api/integrations/quickbooks/sync`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post('/api/integrations/quickbooks/sync');
       setSuccess('Sync started');
       loadIntegrations();
     } catch (err) {

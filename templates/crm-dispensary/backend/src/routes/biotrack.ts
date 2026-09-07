@@ -62,9 +62,12 @@ async function getConfig(companyId: string): Promise<BioTrackConfig | null> {
 }
 
 async function logSync(companyId: string, syncType: string, status: string, recordsSynced: number, recordsFailed: number, errorMessage: string | null, startedAt: Date) {
+  // metrc_sync_log has no source/records_failed/error_message columns (shared with
+  // Metrc). Map onto the real columns: records_processed + error. recordsFailed is
+  // folded into the error payload the caller already passes when totalFailed > 0.
   await db.execute(sql`
-    INSERT INTO metrc_sync_log (id, company_id, sync_type, status, records_synced, records_failed, error_message, started_at, completed_at, source, created_at)
-    VALUES (gen_random_uuid(), ${companyId}, ${syncType}, ${status}, ${recordsSynced}, ${recordsFailed}, ${errorMessage}, ${startedAt.toISOString()}::timestamptz, NOW(), 'biotrack', NOW())
+    INSERT INTO metrc_sync_log (id, company_id, sync_type, status, records_processed, error, started_at, completed_at)
+    VALUES (gen_random_uuid(), ${companyId}, ${syncType}, ${status}, ${recordsSynced}, ${errorMessage}, ${startedAt.toISOString()}::timestamptz, NOW())
   `)
 }
 
@@ -287,6 +290,29 @@ app.post('/sync', async (c) => {
 })
 
 // GET /sync/log — Sync history (paginated)
+// GET /sync/status — latest sync state for the header badge (status + lastSyncAt).
+// BioTrack shares metrc_sync_log with Metrc; return the most recent row.
+app.get('/sync/status', async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT status, records_processed, error, started_at, completed_at
+    FROM metrc_sync_log
+    WHERE company_id = ${currentUser.companyId}
+    ORDER BY started_at DESC
+    LIMIT 1
+  `)
+  const row = ((result as any).rows || result)?.[0]
+  if (!row) return c.json({ status: null, lastSyncAt: null })
+  const ok = ['success', 'completed', 'synced'].includes(String(row.status || '').toLowerCase())
+  return c.json({
+    status: ok ? 'success' : 'error',
+    rawStatus: row.status ?? null,
+    recordsProcessed: Number(row.records_processed || 0),
+    error: row.error ?? null,
+    lastSyncAt: row.completed_at || row.started_at || null,
+  })
+})
+
 app.get('/sync/log', async (c) => {
   const currentUser = c.get('user') as any
   const page = +(c.req.query('page') || '1')
@@ -295,19 +321,20 @@ app.get('/sync/log', async (c) => {
 
   const [dataResult, countResult] = await Promise.all([
     db.execute(sql`
-      SELECT id, sync_type, status, records_synced, records_failed,
-             error_message, started_at, completed_at, created_at
+      SELECT id, sync_type, status,
+             records_processed AS records_synced,
+             0 AS records_failed,
+             error AS error_message,
+             started_at, completed_at, started_at AS created_at
       FROM metrc_sync_log
       WHERE company_id = ${currentUser.companyId}
-        AND source = 'biotrack'
-      ORDER BY created_at DESC
+      ORDER BY started_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `),
     db.execute(sql`
       SELECT COUNT(*)::int as total
       FROM metrc_sync_log
       WHERE company_id = ${currentUser.companyId}
-        AND source = 'biotrack'
     `),
   ])
 

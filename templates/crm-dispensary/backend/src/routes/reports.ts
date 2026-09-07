@@ -9,6 +9,16 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case, but the frontend reads camelCase — so fields
+// (created_by_name, report_type, is_public, widget_type, avg_order_value, etc.)
+// rendered blank. Convert row keys to camelCase before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ── Saved Reports ──────────────────────────────────────────────────────
 
 // List saved reports
@@ -20,11 +30,11 @@ app.get('/saved', async (c) => {
     FROM saved_reports sr
     LEFT JOIN "user" u ON u.id = sr.created_by
     WHERE sr.company_id = ${currentUser.companyId}
-      AND (sr.is_public = true OR sr.created_by = ${currentUser.id})
+      AND (sr.is_public = true OR sr.created_by = ${currentUser.userId})
     ORDER BY sr.pinned DESC, sr.updated_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Create saved report
@@ -56,7 +66,7 @@ app.post('/saved', async (c) => {
 
   const result = await db.execute(sql`
     INSERT INTO saved_reports(id, company_id, created_by, name, description, report_type, config, is_public, pinned, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${currentUser.id}, ${data.name}, ${data.description || null}, ${data.reportType}, ${JSON.stringify(data.config)}::jsonb, ${data.isPublic}, ${data.pinned}, NOW(), NOW())
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${currentUser.userId}, ${data.name}, ${data.description || null}, ${data.reportType}, ${JSON.stringify(data.config)}::jsonb, ${data.isPublic}, ${data.pinned}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -70,7 +80,7 @@ app.post('/saved', async (c) => {
     req: c.req,
   })
 
-  return c.json(report, 201)
+  return c.json(camel(report), 201)
 })
 
 // Update saved report
@@ -120,7 +130,7 @@ app.put('/saved/:id', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Report not found' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Delete saved report
@@ -251,7 +261,7 @@ app.post('/saved/:id/run', async (c) => {
     }
   }
 
-  return c.json({ report: { id: report.id, name: report.name, reportType: report.report_type }, data })
+  return c.json({ report: { id: report.id, name: report.name, reportType: report.report_type }, data: data.map(camel) })
 })
 
 // ── BI Widgets ─────────────────────────────────────────────────────────
@@ -266,7 +276,7 @@ app.get('/widgets', async (c) => {
     ORDER BY position->>'y' ASC, position->>'x' ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Create widget
@@ -278,14 +288,14 @@ app.post('/widgets', async (c) => {
     widgetType: z.enum(['kpi', 'line_chart', 'bar_chart', 'pie_chart', 'table', 'heatmap', 'gauge']),
     dataSource: z.enum(['sales', 'orders', 'inventory', 'loyalty', 'budtenders', 'compliance']),
     config: z.record(z.any()).default({}),
-    position: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }),
+    position: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).default({ x: 0, y: 0, w: 4, h: 4 }),
     refreshInterval: z.number().int().min(0).default(300),
   })
   const data = widgetSchema.parse(await c.req.json())
 
   const result = await db.execute(sql`
     INSERT INTO bi_widgets(id, company_id, created_by, title, widget_type, data_source, config, position, refresh_interval, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${currentUser.id}, ${data.title}, ${data.widgetType}, ${data.dataSource}, ${JSON.stringify(data.config)}::jsonb, ${JSON.stringify(data.position)}::jsonb, ${data.refreshInterval}, NOW(), NOW())
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${currentUser.userId}, ${data.title}, ${data.widgetType}, ${data.dataSource}, ${JSON.stringify(data.config ?? {})}::jsonb, ${JSON.stringify(data.position ?? { x: 0, y: 0, w: 4, h: 4 })}::jsonb, ${data.refreshInterval ?? null}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -299,7 +309,7 @@ app.post('/widgets', async (c) => {
     req: c.req,
   })
 
-  return c.json(widget, 201)
+  return c.json(camel(widget), 201)
 })
 
 // Update widget
@@ -336,7 +346,7 @@ app.put('/widgets/:id', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Widget not found' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Delete widget
@@ -486,7 +496,7 @@ app.post('/widgets/:id/data', async (c) => {
     }
   }
 
-  return c.json({ widgetId: widget.id, dataSource: widget.data_source, data })
+  return c.json({ widgetId: widget.id, dataSource: widget.data_source, data: Array.isArray(data) ? data.map(camel) : camel(data) })
 })
 
 // ── Budtender Performance ──────────────────────────────────────────────
@@ -505,8 +515,8 @@ app.get('/budtender-performance', async (c) => {
       u.id as budtender_id,
       u.first_name || ' ' || u.last_name as name,
       COUNT(o.id)::int as order_count,
-      COALESCE(SUM(o.total), 0)::numeric as revenue,
-      COALESCE(AVG(o.total), 0)::numeric as avg_order_value,
+      COALESCE(SUM(o.total::numeric), 0)::numeric as revenue,
+      COALESCE(AVG(o.total::numeric), 0)::numeric as avg_order_value,
       (
         SELECT p.category FROM order_items oi
         JOIN products p ON p.id = oi.product_id
@@ -516,11 +526,10 @@ app.get('/budtender-performance', async (c) => {
         ORDER BY SUM(oi.quantity) DESC
         LIMIT 1
       ) as top_category,
-      (
-        SELECT COUNT(*)::int FROM loyalty_members lm
-        WHERE lm.enrolled_by = u.id AND lm.company_id = ${currentUser.companyId}
-      ) as loyalty_enrollments,
-      COALESCE(SUM(o.tip_amount), 0)::numeric as tips_earned
+      -- loyalty_members has no enrolled_by/budtender attribution column in the schema,
+      -- so per-budtender enrollment counts aren't derivable; report 0 rather than 500.
+      0::int as loyalty_enrollments,
+      COALESCE(SUM(o.tip_amount::numeric), 0)::numeric as tips_earned
     FROM "user" u
     LEFT JOIN orders o ON o.budtender_id = u.id
       AND o.company_id = ${currentUser.companyId}
@@ -532,7 +541,7 @@ app.get('/budtender-performance', async (c) => {
     ORDER BY revenue DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 export default app

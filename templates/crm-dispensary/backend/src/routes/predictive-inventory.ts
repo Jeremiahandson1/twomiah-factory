@@ -9,6 +9,14 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute rows come back snake_case; the admin UI reads camelCase. Convert keys.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // POST /forecast — Generate forecasts for all products
 app.post('/forecast', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
@@ -110,7 +118,7 @@ app.get('/forecasts', async (c) => {
   if (locationId) filters = sql`${filters} AND p.location_id = ${locationId}`
 
   const dataResult = await db.execute(sql`
-    SELECT f.*, p.name as product_name, p.category, p.brand, p.image_url, p.sku
+    SELECT f.*, f.daily_avg_sales_7d AS daily_avg_sales, p.name as product_name, p.category, p.brand, p.image_url, p.sku
     FROM inventory_forecasts f
     JOIN products p ON p.id = f.product_id
     WHERE f.company_id = ${currentUser.companyId} ${filters}
@@ -127,7 +135,7 @@ app.get('/forecasts', async (c) => {
     WHERE f.company_id = ${currentUser.companyId} ${filters}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -187,7 +195,9 @@ app.get('/reorder-suggestions', async (c) => {
   if (status) filters = sql`${filters} AND rs.status = ${status}`
 
   const dataResult = await db.execute(sql`
-    SELECT rs.*, p.name as product_name, p.category, p.brand, p.sku, p.image_url, p.cost_price, p.stock_quantity
+    SELECT rs.*, rs.suggested_qty AS reorder_qty,
+           (rs.status = 'approved') AS approved, (rs.status = 'dismissed') AS dismissed,
+           p.name as product_name, p.category, p.brand, p.sku, p.image_url, p.cost_price, p.stock_quantity
     FROM reorder_suggestions rs
     JOIN products p ON p.id = rs.product_id
     WHERE rs.company_id = ${currentUser.companyId} ${filters}
@@ -203,7 +213,7 @@ app.get('/reorder-suggestions', async (c) => {
     WHERE rs.company_id = ${currentUser.companyId} ${filters}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -261,21 +271,22 @@ app.put('/reorder-suggestions/:id/approve', requireRole('manager'), async (c) =>
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // reorder_suggestions has no updated_at column in the schema; touching it 500s.
   const result = await db.execute(sql`
     UPDATE reorder_suggestions
-    SET status = 'approved', approved_by = ${currentUser.id}, approved_at = NOW(), updated_at = NOW()
+    SET status = 'approved', approved_by = ${currentUser.userId}, approved_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId} AND status = 'pending'
     RETURNING *
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Suggestion not found or already processed' }, 404)
 
   audit.log({
     action: audit.ACTIONS.UPDATE,
     entity: 'reorder_suggestion',
     entityId: id,
-    metadata: { type: 'approve', productId: updated.product_id },
+    metadata: { type: 'approve', productId: updated.productId },
     req: c.req,
   })
 
@@ -287,21 +298,22 @@ app.put('/reorder-suggestions/:id/dismiss', requireRole('manager'), async (c) =>
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // reorder_suggestions has no updated_at column in the schema; touching it 500s.
   const result = await db.execute(sql`
     UPDATE reorder_suggestions
-    SET status = 'dismissed', updated_at = NOW()
+    SET status = 'dismissed'
     WHERE id = ${id} AND company_id = ${currentUser.companyId} AND status = 'pending'
     RETURNING *
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Suggestion not found or already processed' }, 404)
 
   audit.log({
     action: audit.ACTIONS.UPDATE,
     entity: 'reorder_suggestion',
     entityId: id,
-    metadata: { type: 'dismiss', productId: updated.product_id },
+    metadata: { type: 'dismiss', productId: updated.productId },
     req: c.req,
   })
 
@@ -312,35 +324,37 @@ app.put('/reorder-suggestions/:id/dismiss', requireRole('manager'), async (c) =>
 app.get('/trends', async (c) => {
   const currentUser = c.get('user') as any
 
-  // Top movers: highest velocity (7-day avg)
+  // daily_avg_sales_7d / _30d are TEXT columns; numeric comparison/arithmetic on them
+  // (> 0, subtraction, division) throws in Postgres. Cast per-row to numeric (NULLIF guards
+  // empty/NULL) for both ordering and the declining math. (schema fix)
   const topMoversResult = await db.execute(sql`
     SELECT f.product_id, p.name, p.category, p.brand, p.image_url,
            f.daily_avg_sales_7d, f.daily_avg_sales_30d, f.total_sold_90d, f.current_stock
     FROM inventory_forecasts f
     JOIN products p ON p.id = f.product_id
     WHERE f.company_id = ${currentUser.companyId}
-    ORDER BY f.daily_avg_sales_7d DESC
+    ORDER BY NULLIF(f.daily_avg_sales_7d, '')::numeric DESC NULLS LAST
     LIMIT 10
   `)
-  const topMovers = (topMoversResult as any).rows || topMoversResult
+  const topMovers = ((topMoversResult as any).rows || topMoversResult).map(camel)
 
   // Declining: products where 7-day avg is significantly less than 30-day avg
   const decliningResult = await db.execute(sql`
     SELECT f.product_id, p.name, p.category, p.brand, p.image_url,
            f.daily_avg_sales_7d, f.daily_avg_sales_30d, f.total_sold_90d,
-           CASE WHEN f.daily_avg_sales_30d > 0
-             THEN ROUND(((f.daily_avg_sales_7d - f.daily_avg_sales_30d) / f.daily_avg_sales_30d * 100)::numeric, 1)
+           CASE WHEN NULLIF(f.daily_avg_sales_30d, '')::numeric > 0
+             THEN ROUND(((NULLIF(f.daily_avg_sales_7d, '')::numeric - NULLIF(f.daily_avg_sales_30d, '')::numeric) / NULLIF(f.daily_avg_sales_30d, '')::numeric * 100)::numeric, 1)
              ELSE 0
            END as change_pct
     FROM inventory_forecasts f
     JOIN products p ON p.id = f.product_id
     WHERE f.company_id = ${currentUser.companyId}
-      AND f.daily_avg_sales_30d > 0
-      AND f.daily_avg_sales_7d < f.daily_avg_sales_30d * 0.7
-    ORDER BY (f.daily_avg_sales_7d / GREATEST(f.daily_avg_sales_30d, 0.01)) ASC
+      AND NULLIF(f.daily_avg_sales_30d, '')::numeric > 0
+      AND NULLIF(f.daily_avg_sales_7d, '')::numeric < NULLIF(f.daily_avg_sales_30d, '')::numeric * 0.7
+    ORDER BY (NULLIF(f.daily_avg_sales_7d, '')::numeric / GREATEST(NULLIF(f.daily_avg_sales_30d, '')::numeric, 0.01)) ASC
     LIMIT 10
   `)
-  const declining = (decliningResult as any).rows || decliningResult
+  const declining = ((decliningResult as any).rows || decliningResult).map(camel)
 
   // Seasonal patterns: sales by day of week over last 90 days
   const seasonalResult = await db.execute(sql`
@@ -355,7 +369,7 @@ app.get('/trends', async (c) => {
     GROUP BY EXTRACT(DOW FROM o.created_at)
     ORDER BY day_of_week
   `)
-  const seasonal = (seasonalResult as any).rows || seasonalResult
+  const seasonal = ((seasonalResult as any).rows || seasonalResult).map(camel)
 
   return c.json({ topMovers, declining, seasonal })
 })

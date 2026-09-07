@@ -10,6 +10,14 @@ const app = new Hono()
 app.use('*', authenticate)
 app.use('*', requireRole('manager'))
 
+// Raw db.execute rows come back snake_case; the admin UI reads camelCase. Convert keys.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ─── Platform-Specific Formatters ────────────────────────────────────────────
 
 function formatForWeedmaps(products: any[]) {
@@ -95,6 +103,107 @@ const PLATFORM_FORMATTERS: Record<string, (products: any[]) => any> = {
   dutchie_marketplace: formatForDutchieMarketplace,
 }
 
+// The MenuSync page identifies platforms by short slugs (weedmaps|leafly|jane|dutchie);
+// the DB stores the full enum (…|iheartjane|dutchie_marketplace). Translate both ways.
+const SLUG_TO_PLATFORM: Record<string, string> = {
+  weedmaps: 'weedmaps', leafly: 'leafly',
+  jane: 'iheartjane', iheartjane: 'iheartjane',
+  dutchie: 'dutchie_marketplace', dutchie_marketplace: 'dutchie_marketplace',
+}
+const PLATFORM_TO_SLUG: Record<string, string> = {
+  weedmaps: 'weedmaps', leafly: 'leafly', iheartjane: 'jane', dutchie_marketplace: 'dutchie',
+}
+const PLATFORM_NAMES: Record<string, string> = {
+  weedmaps: 'Weedmaps', leafly: 'Leafly', iheartjane: 'Jane', dutchie_marketplace: 'Dutchie Marketplace',
+}
+
+// Push the company's active menu to a marketplace and record the result. Shared by the
+// UUID-keyed POST /configs/:id/sync and the slug-keyed POST /:platformId/sync. Never throws;
+// a missing API key returns { configured: false } so callers can answer gracefully.
+async function performSync(config: any, currentUser: any, req: any) {
+  if (!config.api_key) {
+    return { configured: false, status: 'failed', productsSynced: 0, error: `${config.platform} API credentials not configured`, platform: config.platform }
+  }
+
+  const productsResult = await db.execute(sql`
+    SELECT id, name, category, brand, strain, strain_type, description,
+           price, stock_quantity, weight, weight_unit, sku, image_url,
+           thc_percent, cbd_percent, active
+    FROM products
+    WHERE company_id = ${currentUser.companyId} AND active = true
+    ORDER BY category, name
+  `)
+  const products = (productsResult as any).rows || productsResult
+
+  const formatter = PLATFORM_FORMATTERS[config.platform]
+  if (!formatter) {
+    return { status: 'failed', productsSynced: 0, error: `Unsupported platform: ${config.platform}`, platform: config.platform }
+  }
+
+  const payload = formatter(products)
+  let syncStatus = 'success'
+  let syncError: string | null = null
+  const syncedCount = products.length
+
+  try {
+    const platformEndpoints: Record<string, string> = {
+      weedmaps: `https://api-g.weedmaps.com/discovery/v2/listings/${config.store_id}/menu`,
+      leafly: `https://api.leafly.com/v2/menus/${config.store_id}`,
+      iheartjane: `https://api.iheartjane.com/v1/stores/${config.store_id}/products`,
+      dutchie_marketplace: `https://plus.dutchie.com/api/v1/stores/${config.store_id}/menu`,
+    }
+
+    const endpoint = platformEndpoints[config.platform]
+    if (endpoint && config.api_key) {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.api_key}`,
+          ...(config.api_secret ? { 'X-API-Secret': config.api_secret } : {}),
+        },
+        body: JSON.stringify(payload),
+      }).catch((err: any) => {
+        syncStatus = 'failed'
+        syncError = err.message || 'Network error'
+        return null
+      })
+
+      if (response && !response.ok) {
+        syncStatus = 'failed'
+        syncError = `API returned ${response.status}: ${await response.text().catch(() => 'Unknown error')}`
+      }
+    }
+  } catch (err: any) {
+    syncStatus = 'failed'
+    syncError = err.message || 'Sync failed'
+  }
+
+  await db.execute(sql`
+    UPDATE menu_sync_configs
+    SET last_sync_at = NOW(), last_sync_status = ${syncStatus}, last_sync_error = ${syncError}, updated_at = NOW()
+    WHERE id = ${config.id}
+  `)
+
+  await db.execute(sql`
+    INSERT INTO audit_log (id, action, entity, entity_id, company_id, user_id, metadata, created_at)
+    VALUES (gen_random_uuid(), 'menu_sync', 'menu_sync_config', ${config.id}, ${currentUser.companyId}, ${currentUser.userId},
+      ${JSON.stringify({ platform: config.platform, status: syncStatus, productsSynced: syncedCount, error: syncError, payloadPreview: { productCount: products.length, sample: payload.products?.[0] || payload.menu_items?.[0] || payload.items?.[0] } })}::jsonb,
+      NOW())
+  `)
+
+  audit.log({
+    action: audit.ACTIONS.CREATE,
+    entity: 'menu_sync',
+    entityId: config.id,
+    entityName: `${config.platform} Menu Sync`,
+    metadata: { platform: config.platform, productCount: syncedCount, status: syncStatus },
+    req,
+  })
+
+  return { status: syncStatus, productsSynced: syncedCount, error: syncError, platform: config.platform }
+}
+
 // ─── GET /configs ── List menu sync configs ──────────────────────────────────
 
 app.get('/configs', async (c) => {
@@ -102,13 +211,13 @@ app.get('/configs', async (c) => {
 
   const result = await db.execute(sql`
     SELECT id, platform, store_id, auto_sync, sync_inventory, sync_prices, sync_images,
-           last_sync_at, last_sync_status, active, created_at, updated_at
+           last_sync_at, last_sync_status, is_active, created_at, updated_at
     FROM menu_sync_configs
     WHERE company_id = ${currentUser.companyId}
     ORDER BY created_at DESC
   `)
 
-  const data = (result as any).rows || result
+  const data = ((result as any).rows || result).map(camel)
 
   return c.json({ data })
 })
@@ -142,7 +251,7 @@ app.post('/configs', async (c) => {
   // Check for existing config for this platform
   const existingResult = await db.execute(sql`
     SELECT id FROM menu_sync_configs
-    WHERE company_id = ${currentUser.companyId} AND platform = ${data.platform} AND active = true
+    WHERE company_id = ${currentUser.companyId} AND platform = ${data.platform} AND is_active = true
     LIMIT 1
   `)
   const existing = ((existingResult as any).rows || existingResult)?.[0]
@@ -152,14 +261,14 @@ app.post('/configs', async (c) => {
 
   const result = await db.execute(sql`
     INSERT INTO menu_sync_configs (id, platform, api_key, api_secret, store_id, auto_sync,
-      sync_inventory, sync_prices, sync_images, active, company_id, created_at, updated_at)
+      sync_inventory, sync_prices, sync_images, is_active, company_id, created_at, updated_at)
     VALUES (gen_random_uuid(), ${data.platform}, ${data.apiKey}, ${data.apiSecret || null},
       ${data.storeId}, ${data.autoSync}, ${data.syncInventory}, ${data.syncPrices},
       ${data.syncImages}, true, ${currentUser.companyId}, NOW(), NOW())
-    RETURNING id, platform, store_id, auto_sync, sync_inventory, sync_prices, sync_images, active, created_at
+    RETURNING id, platform, store_id, auto_sync, sync_inventory, sync_prices, sync_images, is_active, created_at
   `)
 
-  const config = ((result as any).rows || result)?.[0]
+  const config = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -209,11 +318,11 @@ app.put('/configs/:id', async (c) => {
         sync_prices = COALESCE(${data.syncPrices ?? null}, sync_prices),
         sync_images = COALESCE(${data.syncImages ?? null}, sync_images),
         updated_at = NOW()
-    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND active = true
-    RETURNING id, platform, store_id, auto_sync, sync_inventory, sync_prices, sync_images, active, updated_at
+    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND is_active = true
+    RETURNING id, platform, store_id, auto_sync, sync_inventory, sync_prices, sync_images, is_active, updated_at
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Config not found or inactive' }, 404)
 
   audit.log({
@@ -236,7 +345,7 @@ app.delete('/configs/:id', async (c) => {
 
   const result = await db.execute(sql`
     UPDATE menu_sync_configs
-    SET active = false, updated_at = NOW()
+    SET is_active = false, updated_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
@@ -264,107 +373,18 @@ app.post('/configs/:id/sync', async (c) => {
   // Fetch config
   const configResult = await db.execute(sql`
     SELECT * FROM menu_sync_configs
-    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND active = true
+    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND is_active = true
     LIMIT 1
   `)
   const config = ((configResult as any).rows || configResult)?.[0]
   if (!config) return c.json({ error: 'Config not found or inactive' }, 404)
 
-  // Fetch all active products
-  const productsResult = await db.execute(sql`
-    SELECT id, name, category, brand, strain, strain_type, description,
-           price, stock_quantity, weight, weight_unit, sku, image_url,
-           thc_percent, cbd_percent, active
-    FROM products
-    WHERE company_id = ${currentUser.companyId} AND active = true
-    ORDER BY category, name
-  `)
-  const products = (productsResult as any).rows || productsResult
-
-  // Format for the platform
-  const formatter = PLATFORM_FORMATTERS[config.platform]
-  if (!formatter) {
-    return c.json({ error: `Unsupported platform: ${config.platform}` }, 400)
+  const result = await performSync(config, currentUser, c.req)
+  // No credentials on file → graceful not-configured result rather than an unauthenticated call.
+  if ((result as any).configured === false) {
+    return c.json({ configured: false, error: result.error, productsSynced: 0 }, 400)
   }
-
-  const payload = formatter(products)
-  let syncStatus = 'success'
-  let syncError: string | null = null
-  let syncedCount = products.length
-
-  // Attempt to push to the platform API
-  // In production, this would make real API calls. For now, we log and simulate.
-  try {
-    // Platform API endpoints (placeholder URLs - real integration needs API agreements)
-    const platformEndpoints: Record<string, string> = {
-      weedmaps: `https://api-g.weedmaps.com/discovery/v2/listings/${config.store_id}/menu`,
-      leafly: `https://api.leafly.com/v2/menus/${config.store_id}`,
-      iheartjane: `https://api.iheartjane.com/v1/stores/${config.store_id}/products`,
-      dutchie_marketplace: `https://plus.dutchie.com/api/v1/stores/${config.store_id}/menu`,
-    }
-
-    const endpoint = platformEndpoints[config.platform]
-    if (endpoint && config.api_key) {
-      // Real API call (will fail without valid credentials, which is expected)
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.api_key}`,
-          ...(config.api_secret ? { 'X-API-Secret': config.api_secret } : {}),
-        },
-        body: JSON.stringify(payload),
-      }).catch((err: any) => {
-        // Network errors are expected in dev/staging
-        syncStatus = 'failed'
-        syncError = err.message || 'Network error'
-        return null
-      })
-
-      if (response && !response.ok) {
-        syncStatus = 'failed'
-        syncError = `API returned ${response.status}: ${await response.text().catch(() => 'Unknown error')}`
-      }
-    }
-  } catch (err: any) {
-    syncStatus = 'failed'
-    syncError = err.message || 'Sync failed'
-  }
-
-  // Update config with sync status
-  await db.execute(sql`
-    UPDATE menu_sync_configs
-    SET last_sync_at = NOW(),
-        last_sync_status = ${syncStatus},
-        last_sync_error = ${syncError},
-        last_sync_count = ${syncedCount},
-        updated_at = NOW()
-    WHERE id = ${id}
-  `)
-
-  // Log sync to audit_log
-  await db.execute(sql`
-    INSERT INTO audit_log (id, action, entity, entity_id, company_id, user_id, metadata, created_at)
-    VALUES (gen_random_uuid(), 'menu_sync', 'menu_sync_config', ${id}, ${currentUser.companyId}, ${currentUser.userId},
-      ${JSON.stringify({ platform: config.platform, status: syncStatus, productsSynced: syncedCount, error: syncError, payloadPreview: { productCount: products.length, sample: payload.products?.[0] || payload.menu_items?.[0] || payload.items?.[0] } })}::jsonb,
-      NOW())
-  `)
-
-  audit.log({
-    action: audit.ACTIONS.CREATE,
-    entity: 'menu_sync',
-    entityId: id,
-    entityName: `${config.platform} Menu Sync`,
-    metadata: { platform: config.platform, productCount: syncedCount, status: syncStatus },
-    req: c.req,
-  })
-
-  return c.json({
-    status: syncStatus,
-    productsSynced: syncedCount,
-    error: syncError,
-    platform: config.platform,
-  })
+  return c.json(result)
 })
 
 // ─── POST /configs/:id/test ── Test connection ──────────────────────────────
@@ -375,11 +395,15 @@ app.post('/configs/:id/test', async (c) => {
 
   const configResult = await db.execute(sql`
     SELECT * FROM menu_sync_configs
-    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND active = true
+    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND is_active = true
     LIMIT 1
   `)
   const config = ((configResult as any).rows || configResult)?.[0]
   if (!config) return c.json({ error: 'Config not found or inactive' }, 404)
+
+  if (!config.api_key) {
+    return c.json({ success: false, configured: false, error: `${config.platform} API credentials not configured` }, 400)
+  }
 
   try {
     const testEndpoints: Record<string, string> = {
@@ -452,6 +476,225 @@ app.get('/sync-log', async (c) => {
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+})
+
+// ─── Slug-keyed adapter routes for the MenuSync page ─────────────────────────
+// The page speaks platform slugs (weedmaps|leafly|jane|dutchie) and a { platformId, … }
+// shape. These wrap the same menu_sync_configs table used by the /configs routes above.
+
+// ─── GET /connections ── configs the page renders, keyed by slug ─────────────
+app.get('/connections', async (c) => {
+  const currentUser = c.get('user') as any
+
+  const result = await db.execute(sql`
+    SELECT id, platform, store_id, auto_sync, sync_inventory, sync_prices, sync_images,
+           last_sync_at, last_sync_status, created_at, updated_at
+    FROM menu_sync_configs
+    WHERE company_id = ${currentUser.companyId} AND is_active = true
+    ORDER BY created_at DESC
+  `)
+  const rows = (result as any).rows || result
+
+  const data = rows.map((r: any) => ({
+    id: r.id,
+    platformId: PLATFORM_TO_SLUG[r.platform] || r.platform,
+    platform: r.platform,
+    storeId: r.store_id,
+    autoSync: r.auto_sync,
+    syncProducts: true,
+    syncPricing: r.sync_prices,
+    syncInventory: r.sync_inventory,
+    syncImages: r.sync_images,
+    lastSync: r.last_sync_at,
+    lastSyncStatus: r.last_sync_status,
+  }))
+
+  return c.json({ data })
+})
+
+// ─── GET /logs ── sync history in the page's shape ───────────────────────────
+app.get('/logs', async (c) => {
+  const currentUser = c.get('user') as any
+  const limit = +(c.req.query('limit') || '50')
+
+  const result = await db.execute(sql`
+    SELECT id, metadata->>'platform' as platform, metadata->>'status' as status,
+           (metadata->>'productsSynced')::int as products_synced,
+           metadata->>'error' as error_message, created_at
+    FROM audit_log
+    WHERE company_id = ${currentUser.companyId} AND action = 'menu_sync'
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `)
+  const rows = (result as any).rows || result
+
+  const data = rows.map((r: any) => ({
+    id: r.id,
+    platformId: PLATFORM_TO_SLUG[r.platform] || r.platform,
+    platformName: PLATFORM_NAMES[r.platform] || r.platform,
+    status: r.status,
+    productsSynced: r.products_synced || 0,
+    errors: r.error_message ? 1 : 0,
+    duration: null,
+    createdAt: r.created_at,
+  }))
+
+  return c.json({ data })
+})
+
+// ─── GET /:platformId/preview ── normalized menu preview ─────────────────────
+app.get('/:platformId/preview', async (c) => {
+  const currentUser = c.get('user') as any
+
+  const result = await db.execute(sql`
+    SELECT id, name, category, strain, thc_percent, cbd_percent, price, image_url, description,
+           in_stock, stock_quantity
+    FROM products
+    WHERE company_id = ${currentUser.companyId} AND active = true
+    ORDER BY category, name
+    LIMIT 200
+  `)
+  const rows = (result as any).rows || result
+
+  const data = rows.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    category: r.category,
+    strain: r.strain,
+    thc: r.thc_percent,
+    cbd: r.cbd_percent,
+    price: r.price,
+    imageUrl: r.image_url,
+    description: r.description,
+    inStock: r.in_stock !== false && (r.stock_quantity == null || Number(r.stock_quantity) > 0),
+  }))
+
+  return c.json({ data })
+})
+
+// ─── POST /:platformId/sync ── trigger a sync by slug ────────────────────────
+app.post('/:platformId/sync', async (c) => {
+  const currentUser = c.get('user') as any
+  const platform = SLUG_TO_PLATFORM[c.req.param('platformId')] || c.req.param('platformId')
+
+  const configResult = await db.execute(sql`
+    SELECT * FROM menu_sync_configs
+    WHERE company_id = ${currentUser.companyId} AND platform = ${platform} AND is_active = true
+    ORDER BY created_at DESC LIMIT 1
+  `)
+  const config = ((configResult as any).rows || configResult)?.[0]
+  if (!config) return c.json({ error: 'Platform not connected' }, 404)
+
+  const result = await performSync(config, currentUser, c.req)
+  if ((result as any).configured === false) {
+    return c.json({ configured: false, error: result.error, productsSynced: 0 }, 400)
+  }
+  return c.json(result)
+})
+
+// ─── POST /connections/:platformId ── connect / update by slug (upsert) ──────
+const upsertConnSchema = z.object({
+  apiKey: z.string().optional(),
+  apiSecret: z.string().optional(),
+  storeId: z.string().optional(),
+  autoSync: z.boolean().optional(),
+  syncProducts: z.boolean().optional(),
+  syncPricing: z.boolean().optional(),
+  syncInventory: z.boolean().optional(),
+  syncImages: z.boolean().optional(),
+})
+
+app.post('/connections/:platformId', async (c) => {
+  const currentUser = c.get('user') as any
+  const slug = c.req.param('platformId')
+  const platform = SLUG_TO_PLATFORM[slug]
+  if (!platform) return c.json({ error: `Unknown platform: ${slug}` }, 400)
+
+  let data: z.infer<typeof upsertConnSchema>
+  try {
+    data = upsertConnSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const existingRes = await db.execute(sql`
+    SELECT id FROM menu_sync_configs
+    WHERE company_id = ${currentUser.companyId} AND platform = ${platform} AND is_active = true
+    LIMIT 1
+  `)
+  const existing = ((existingRes as any).rows || existingRes)?.[0]
+
+  if (existing) {
+    await db.execute(sql`
+      UPDATE menu_sync_configs SET
+        api_key = COALESCE(${data.apiKey ?? null}, api_key),
+        api_secret = COALESCE(${data.apiSecret ?? null}, api_secret),
+        store_id = COALESCE(${data.storeId ?? null}, store_id),
+        auto_sync = COALESCE(${data.autoSync ?? null}, auto_sync),
+        sync_inventory = COALESCE(${data.syncInventory ?? null}, sync_inventory),
+        sync_prices = COALESCE(${data.syncPricing ?? null}, sync_prices),
+        sync_images = COALESCE(${data.syncImages ?? null}, sync_images),
+        updated_at = NOW()
+      WHERE id = ${existing.id} AND company_id = ${currentUser.companyId}
+    `)
+
+    audit.log({
+      action: audit.ACTIONS.UPDATE,
+      entity: 'menu_sync_config',
+      entityId: existing.id,
+      entityName: `${platform} Menu Sync`,
+      req: c.req,
+    })
+
+    return c.json({ id: existing.id, platformId: slug, message: 'Connection updated' })
+  }
+
+  const insertRes = await db.execute(sql`
+    INSERT INTO menu_sync_configs (id, platform, api_key, api_secret, store_id, auto_sync,
+      sync_inventory, sync_prices, sync_images, is_active, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${platform}, ${data.apiKey || null}, ${data.apiSecret || null},
+      ${data.storeId || null}, ${data.autoSync ?? false}, ${data.syncInventory ?? true},
+      ${data.syncPricing ?? true}, ${data.syncImages ?? false}, true, ${currentUser.companyId}, NOW(), NOW())
+    RETURNING id
+  `)
+  const created = ((insertRes as any).rows || insertRes)?.[0]
+
+  audit.log({
+    action: audit.ACTIONS.CREATE,
+    entity: 'menu_sync_config',
+    entityId: created?.id,
+    entityName: `${platform} Menu Sync`,
+    metadata: { platform },
+    req: c.req,
+  })
+
+  return c.json({ id: created?.id, platformId: slug, message: 'Connection created' }, 201)
+})
+
+// ─── DELETE /connections/:platformId ── disconnect by slug ───────────────────
+app.delete('/connections/:platformId', async (c) => {
+  const currentUser = c.get('user') as any
+  const slug = c.req.param('platformId')
+  const platform = SLUG_TO_PLATFORM[slug] || slug
+
+  const result = await db.execute(sql`
+    UPDATE menu_sync_configs SET is_active = false, updated_at = NOW()
+    WHERE company_id = ${currentUser.companyId} AND platform = ${platform} AND is_active = true
+    RETURNING id
+  `)
+  const row = ((result as any).rows || result)?.[0]
+  if (!row) return c.json({ error: 'Connection not found' }, 404)
+
+  audit.log({
+    action: audit.ACTIONS.DELETE,
+    entity: 'menu_sync_config',
+    entityId: row.id,
+    entityName: `${platform} Menu Sync`,
+    req: c.req,
+  })
+
+  return c.json({ message: 'Disconnected' })
 })
 
 export default app

@@ -308,7 +308,7 @@ export default function EquivalencyPage() {
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-900 dark:text-slate-100">Purchase Limit</h3>
               <span className={`text-sm font-medium ${overLimit ? 'text-red-600' : 'text-gray-600'}`}>
-                {totalEquivalentGrams.toFixed(1)}g / {purchaseLimit}g
+                {Number(totalEquivalentGrams).toFixed(1)}g / {purchaseLimit}g
               </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
@@ -323,7 +323,7 @@ export default function EquivalencyPage() {
               <div className="flex items-center gap-2 mt-3 text-red-600">
                 <AlertTriangle className="w-4 h-4" />
                 <span className="text-sm font-medium">
-                  Over purchase limit by {(totalEquivalentGrams - purchaseLimit).toFixed(1)}g!
+                  Over purchase limit by {Number(totalEquivalentGrams - purchaseLimit).toFixed(1)}g!
                 </span>
               </div>
             )}
@@ -349,7 +349,7 @@ export default function EquivalencyPage() {
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{item.category}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.quantity}</td>
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.ruleEquivalency}g</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{item.equivalentGrams.toFixed(1)}g</td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{Number(item.equivalentGrams).toFixed(1)}g</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700">
                         <Trash2 className="w-4 h-4" />
@@ -370,7 +370,7 @@ export default function EquivalencyPage() {
                   <tr>
                     <td colSpan={4} className="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100">Total Flower Equivalent:</td>
                     <td className={`px-4 py-3 text-right font-bold ${overLimit ? 'text-red-600' : 'text-green-600'}`}>
-                      {totalEquivalentGrams.toFixed(1)}g
+                      {Number(totalEquivalentGrams).toFixed(1)}g
                     </td>
                     <td />
                   </tr>

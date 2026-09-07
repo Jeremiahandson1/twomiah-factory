@@ -11,7 +11,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
-import { ConfirmModal } from '../ui/Modal';
+import { Modal, ConfirmModal } from '../ui/Modal';
 
 export default function ContactDetailPage() {
   const { id } = useParams();
@@ -26,6 +26,9 @@ export default function ContactDetailPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loyalty, setLoyalty] = useState<any>(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsBody, setSmsBody] = useState('');
+  const [smsSending, setSmsSending] = useState(false);
 
   useEffect(() => {
     loadContact();
@@ -78,6 +81,32 @@ export default function ContactDetailPage() {
       toast.error(err.message);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Send an in-app SMS via the CRM's Twilio-backed /api/sms/send (phone is
+  // normalized server-side). The endpoint returns 200 with { status } even on a
+  // provider failure, so branch on status rather than assuming success.
+  const handleSendSms = async () => {
+    if (!smsBody.trim()) { toast.error('Message is required'); return; }
+    setSmsSending(true);
+    try {
+      const res: any = await api.post('/api/sms/send', {
+        contactId: id,
+        toPhone: contact.phone,
+        message: smsBody.trim(),
+      });
+      if (res?.status === 'sent') {
+        toast.success('Text message sent');
+        setSmsOpen(false);
+        setSmsBody('');
+      } else {
+        toast.error(res?.errorMessage || 'Message could not be sent');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send message');
+    } finally {
+      setSmsSending(false);
     }
   };
 
@@ -359,18 +388,50 @@ export default function ContactDetailPage() {
                 Adjust Loyalty Points
               </button>
               {contact.phone && (
-                <a
-                  href={`sms:${contact.phone}`}
+                <button
+                  onClick={() => { setSmsBody(''); setSmsOpen(true); }}
                   className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
                 >
                   <MessageSquare className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   Send SMS
-                </a>
+                </button>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Send SMS */}
+      <Modal isOpen={smsOpen} onClose={() => setSmsOpen(false)} title={`Text ${contact?.name || 'customer'}`}>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">To</label>
+            <p className="text-sm text-gray-600 dark:text-slate-400">{contact?.phone}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Message</label>
+            <textarea
+              value={smsBody}
+              onChange={(e) => setSmsBody(e.target.value)}
+              rows={4}
+              maxLength={480}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
+              placeholder="Type your message..."
+            />
+            <p className="mt-1 text-xs text-gray-400">{smsBody.length}/480</p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={() => setSmsOpen(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200">Cancel</button>
+          <button
+            onClick={handleSendSms}
+            disabled={smsSending}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
+          >
+            {smsSending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
+      </Modal>
 
       {/* Delete confirmation */}
       <ConfirmModal

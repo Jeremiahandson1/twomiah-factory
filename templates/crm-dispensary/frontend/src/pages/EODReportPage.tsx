@@ -83,7 +83,7 @@ export default function EODReportPage() {
   const markReviewed = async () => {
     if (!report?.id) return;
     try {
-      await api.post(`/api/eod/${report.id}/review`, { checklist });
+      await api.put(`/api/eod/${report.id}/review`, { checklist });
       toast.success('Marked as reviewed');
       setReport({ ...report, status: 'reviewed' });
     } catch (err: any) {
@@ -94,7 +94,7 @@ export default function EODReportPage() {
   const submitReport = async () => {
     if (!report?.id) return;
     try {
-      await api.post(`/api/eod/${report.id}/submit`, { checklist });
+      await api.put(`/api/eod/${report.id}/submit`, { checklist });
       toast.success('Report submitted');
       setReport({ ...report, status: 'submitted' });
     } catch (err: any) {
@@ -116,6 +116,8 @@ export default function EODReportPage() {
   };
 
   const cashVariance = report ? (report.cashActual || 0) - (report.cashExpected || 0) : 0;
+  // An open drawer hasn't been counted yet, so Actual $0 isn't a real shortfall — reframe it. (retest#13)
+  const drawerOpen = report?.cashDrawerStatus === 'open';
 
   const tabs = [
     { id: 'generate', label: 'Generate Report', icon: FileText },
@@ -196,23 +198,38 @@ export default function EODReportPage() {
 
               {/* Cash Reconciliation */}
               <div>
-                <h4 className="font-semibold flex items-center gap-2 mb-3"><DollarSign className="w-5 h-5 text-yellow-600" />Cash Reconciliation</h4>
+                <h4 className="font-semibold flex items-center gap-2 mb-3">
+                  <DollarSign className="w-5 h-5 text-yellow-600" />Cash Reconciliation
+                  {report.cashDrawerStatus === 'closed' && (
+                    <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300">Drawer closed — final at close</span>
+                  )}
+                  {report.cashDrawerStatus == null && (
+                    <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400">No drawer opened</span>
+                  )}
+                  {drawerOpen && (
+                    <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Drawer open — not yet counted</span>
+                  )}
+                </h4>
                 <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Expected</div>
-                      <div className="text-xl font-bold">${(report.cashExpected || 0).toFixed(2)}</div>
+                      <div className="text-xl font-bold">${Number(report.cashExpected || 0).toFixed(2)}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Actual Count</div>
-                      <div className="text-xl font-bold">${(report.cashActual || 0).toFixed(2)}</div>
+                      <div className="text-xl font-bold">{drawerOpen ? <span className="text-gray-400">—</span> : `$${Number(report.cashActual || 0).toFixed(2)}`}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Variance</div>
-                      <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600' : 'text-green-600'}`}>
-                        {cashVariance >= 0 ? '+' : ''}${cashVariance.toFixed(2)}
-                        {Math.abs(cashVariance) > 5 && <AlertTriangle className="w-4 h-4 inline ml-1 text-red-500" />}
-                      </div>
+                      {drawerOpen ? (
+                        <div className="text-xl font-bold text-gray-400">Pending count</div>
+                      ) : (
+                        <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600' : 'text-green-600'}`}>
+                          {cashVariance >= 0 ? '+' : ''}${Number(cashVariance).toFixed(2)}
+                          {Math.abs(cashVariance) > 5 && <AlertTriangle className="w-4 h-4 inline ml-1 text-red-500" />}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -230,7 +247,7 @@ export default function EODReportPage() {
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Shrinkage Value</div>
                       <div className={`text-xl font-bold ${(report.shrinkageValue || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        ${(report.shrinkageValue || 0).toFixed(2)}
+                        ${Number(report.shrinkageValue || 0).toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -271,11 +288,11 @@ export default function EODReportPage() {
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Total Hours</div>
-                      <div className="text-xl font-bold">{(report.totalHours || 0).toFixed(1)}h</div>
+                      <div className="text-xl font-bold">{Number(report.totalHours || 0).toFixed(1)}h</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Tips Collected</div>
-                      <div className="text-xl font-bold">${(report.tipsTotal || 0).toFixed(2)}</div>
+                      <div className="text-xl font-bold">${Number(report.tipsTotal || 0).toFixed(2)}</div>
                     </div>
                   </div>
                 </div>
@@ -361,7 +378,7 @@ export default function EODReportPage() {
                         <td className="px-4 py-3 text-sm font-medium">${(r.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                         <td className="px-4 py-3 text-sm">
                           <span className={Math.abs(variance) > 5 ? 'text-red-600 font-medium' : 'text-green-600'}>
-                            {variance >= 0 ? '+' : ''}${variance.toFixed(2)}
+                            {variance >= 0 ? '+' : ''}${Number(variance).toFixed(2)}
                             {Math.abs(variance) > 5 && <AlertTriangle className="w-3 h-3 inline ml-1" />}
                           </span>
                         </td>

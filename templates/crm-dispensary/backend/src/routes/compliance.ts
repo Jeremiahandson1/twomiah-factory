@@ -9,6 +9,16 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case, but the frontend reads camelCase — so fields
+// (license_type, expiration_date, report_data, etc.) rendered blank. Convert row keys
+// to camelCase before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // -- Zod schemas --
 
 const licenseSchema = z.object({
@@ -33,8 +43,8 @@ const reportGenerateSchema = z.object({
 })
 
 const wasteSchema = z.object({
-  productId: z.string().uuid(),
-  batchId: z.string().uuid().optional(),
+  productId: z.string().min(1),
+  batchId: z.string().min(1).optional(),
   metrcTag: z.string().optional(),
   wasteType: z.string().min(1),
   quantity: z.number().min(0),
@@ -58,7 +68,7 @@ app.get('/licenses', async (c) => {
     ORDER BY expiration_date ASC NULLS LAST
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Create license (manager+)
@@ -68,9 +78,9 @@ app.post('/licenses', requireRole('manager'), async (c) => {
 
   const result = await db.execute(sql`
     INSERT INTO licenses (
-      id, company_id, license_type, license_number, issued_by,
+      id, company_id, license_type, license_number, issuing_authority,
       issued_date, expiration_date, status, state, city,
-      category, notes, document_url, auto_renew,
+      notes, document_url,
       created_at, updated_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId},
@@ -79,8 +89,8 @@ app.post('/licenses', requireRole('manager'), async (c) => {
       ${data.issuedDate ? new Date(data.issuedDate) : null},
       ${data.expirationDate ? new Date(data.expirationDate) : null},
       ${data.status}, ${data.state || null}, ${data.city || null},
-      ${data.category || null}, ${data.notes || null},
-      ${data.documentUrl || null}, ${data.autoRenew},
+      ${data.notes || null},
+      ${data.documentUrl || null},
       NOW(), NOW()
     ) RETURNING *
   `)
@@ -95,7 +105,7 @@ app.post('/licenses', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(created, 201)
+  return c.json(camel(created), 201)
 })
 
 // Update license (manager+)
@@ -116,16 +126,14 @@ app.put('/licenses/:id', requireRole('manager'), async (c) => {
     UPDATE licenses SET
       license_type = COALESCE(${data.licenseType ?? null}, license_type),
       license_number = COALESCE(${data.licenseNumber ?? null}, license_number),
-      issued_by = COALESCE(${data.issuedBy ?? null}, issued_by),
+      issuing_authority = COALESCE(${data.issuedBy ?? null}, issuing_authority),
       issued_date = COALESCE(${data.issuedDate ? new Date(data.issuedDate) : null}, issued_date),
       expiration_date = COALESCE(${data.expirationDate ? new Date(data.expirationDate) : null}, expiration_date),
       status = COALESCE(${data.status ?? null}, status),
       state = COALESCE(${data.state ?? null}, state),
       city = COALESCE(${data.city ?? null}, city),
-      category = COALESCE(${data.category ?? null}, category),
       notes = COALESCE(${data.notes ?? null}, notes),
       document_url = COALESCE(${data.documentUrl ?? null}, document_url),
-      auto_renew = COALESCE(${data.autoRenew ?? null}, auto_renew),
       updated_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
@@ -141,7 +149,7 @@ app.put('/licenses/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Delete license (manager+)
@@ -186,7 +194,7 @@ app.get('/licenses/expiring', async (c) => {
     ORDER BY expiration_date ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // ==========================================
@@ -222,7 +230,7 @@ app.get('/reports', async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -390,7 +398,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(report, 201)
+  return c.json(camel(report), 201)
 })
 
 // Get report detail
@@ -406,7 +414,7 @@ app.get('/reports/:id', async (c) => {
   const report = ((result as any).rows || result)[0]
   if (!report) return c.json({ error: 'Report not found' }, 404)
 
-  return c.json(report)
+  return c.json(camel(report))
 })
 
 // Submit report
@@ -439,7 +447,7 @@ app.post('/reports/:id/submit', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // ==========================================
@@ -469,7 +477,7 @@ app.get('/waste', async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -512,7 +520,7 @@ app.post('/waste', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(created, 201)
+  return c.json(camel(created), 201)
 })
 
 // Mark waste as reported to Metrc
@@ -545,7 +553,7 @@ app.put('/waste/:id/metrc', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 export default app

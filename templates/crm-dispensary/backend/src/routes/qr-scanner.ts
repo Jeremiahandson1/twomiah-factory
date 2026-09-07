@@ -79,8 +79,7 @@ app.get('/trace/:productId', async (c) => {
       FROM input_applications ia
       JOIN grow_inputs gi ON gi.id = ia.grow_input_id
       JOIN plants p ON p.id = ia.plant_id
-      JOIN harvests h ON h.id = p.harvest_id
-      JOIN batches b ON (b.id = h.batch_id OR b.harvest_id = h.id)
+      JOIN batches b ON b.id = p.batch_id
       WHERE b.product_id = ${productId}
     `)
     const plantInputs = (plantInputsResult as any).rows || plantInputsResult
@@ -158,17 +157,15 @@ app.use('*', authenticate)
 
 // ── QR Code Generation ───────────────────────────────────────────────────
 
-// Generate QR code data for any entity
-app.get('/generate/:entityType/:entityId', async (c) => {
-  const currentUser = c.get('user') as any
-  const entityType = c.req.param('entityType')
-  const entityId = c.req.param('entityId')
-
+// Build the QR payload for any traceable entity. Shared by the GET (path params) and
+// POST (JSON body) generate routes. Returns { qrData } or { error, status }.
+async function buildQrData(companyId: string, entityType: string, entityId: string): Promise<{ qrData?: any; error?: string; status?: number }> {
   const validTypes = ['product', 'batch', 'plant', 'grow_input']
   if (!validTypes.includes(entityType)) {
-    return c.json({ error: `Invalid entity type. Must be one of: ${validTypes.join(', ')}` }, 400)
+    return { error: `Invalid entity type. Must be one of: ${validTypes.join(', ')}`, status: 400 }
   }
 
+  const currentUser = { companyId }
   let qrData: any = null
 
   if (entityType === 'product') {
@@ -177,7 +174,7 @@ app.get('/generate/:entityType/:entityId', async (c) => {
       WHERE p.id = ${entityId} AND p.company_id = ${currentUser.companyId}
     `)
     const product = ((productResult as any).rows || productResult)?.[0]
-    if (!product) return c.json({ error: 'Product not found' }, 404)
+    if (!product) return { error: 'Product not found', status: 404 }
 
     // Get latest batch
     const batchResult = await db.execute(sql`
@@ -206,7 +203,7 @@ app.get('/generate/:entityType/:entityId', async (c) => {
       FROM input_applications ia
       JOIN grow_inputs gi ON gi.id = ia.grow_input_id
       WHERE (ia.batch_id IN (SELECT id FROM batches WHERE product_id = ${entityId})
-             OR ia.plant_id IN (SELECT p.id FROM plants p JOIN harvests h ON h.id = p.harvest_id JOIN batches b ON (b.id = h.batch_id OR b.harvest_id = h.id) WHERE b.product_id = ${entityId}))
+             OR ia.plant_id IN (SELECT p.id FROM plants p WHERE p.batch_id IN (SELECT id FROM batches WHERE product_id = ${entityId})))
         AND ia.company_id = ${currentUser.companyId}
     `)
     const inputs = (inputsResult as any).rows || inputsResult
@@ -242,7 +239,7 @@ app.get('/generate/:entityType/:entityId', async (c) => {
       WHERE b.id = ${entityId} AND b.company_id = ${currentUser.companyId}
     `)
     const batch = ((batchResult as any).rows || batchResult)?.[0]
-    if (!batch) return c.json({ error: 'Batch not found' }, 404)
+    if (!batch) return { error: 'Batch not found', status: 404 }
 
     // Lab tested?
     const labResult = await db.execute(sql`
@@ -282,7 +279,7 @@ app.get('/generate/:entityType/:entityId', async (c) => {
       WHERE id = ${entityId} AND company_id = ${currentUser.companyId}
     `)
     const input = ((inputResult as any).rows || inputResult)?.[0]
-    if (!input) return c.json({ error: 'Grow input not found' }, 404)
+    if (!input) return { error: 'Grow input not found', status: 404 }
 
     qrData = {
       type: 'input',
@@ -299,7 +296,7 @@ app.get('/generate/:entityType/:entityId', async (c) => {
       WHERE id = ${entityId} AND company_id = ${currentUser.companyId}
     `)
     const plant = ((plantResult as any).rows || plantResult)?.[0]
-    if (!plant) return c.json({ error: 'Plant not found' }, 404)
+    if (!plant) return { error: 'Plant not found', status: 404 }
 
     // Get inputs applied to this plant
     const inputsResult = await db.execute(sql`
@@ -326,7 +323,29 @@ app.get('/generate/:entityType/:entityId', async (c) => {
     }
   }
 
-  return c.json(qrData)
+  return { qrData }
+}
+
+// Generate QR code data for any entity (path params)
+app.get('/generate/:entityType/:entityId', async (c) => {
+  const currentUser = c.get('user') as any
+  const res = await buildQrData(currentUser.companyId, c.req.param('entityType'), c.req.param('entityId'))
+  if (res.error) return c.json({ error: res.error }, (res.status as any) || 400)
+  return c.json(res.qrData)
+})
+
+// Generate QR code data from a JSON body — used by the QR Scanner "Generate" tab, which
+// wraps the payload for preview/copy/print. { entityType, entityId } → { payload, ... }.
+app.post('/generate', async (c) => {
+  const currentUser = c.get('user') as any
+  const body = await c.req.json().catch(() => ({}))
+  const entityType = (body?.entityType || '').toString()
+  const entityId = (body?.entityId || '').toString()
+  if (!entityType || !entityId) return c.json({ error: 'entityType and entityId are required' }, 400)
+
+  const res = await buildQrData(currentUser.companyId, entityType, entityId)
+  if (res.error) return c.json({ error: res.error }, (res.status as any) || 400)
+  return c.json({ entityType, entityId, payload: res.qrData })
 })
 
 // ── QR Code Scanning ─────────────────────────────────────────────────────
@@ -394,7 +413,7 @@ app.post('/scan', async (c) => {
     // Try product barcode/sku
     const productResult = await db.execute(sql`
       SELECT id FROM products
-      WHERE (barcode = ${text} OR sku = ${text} OR metrc_tag = ${text})
+      WHERE (id = ${text} OR barcode = ${text} OR sku = ${text} OR metrc_tag = ${text})
         AND company_id = ${currentUser.companyId}
       LIMIT 1
     `)
@@ -408,7 +427,7 @@ app.post('/scan', async (c) => {
     if (!entityId) {
       const batchResult = await db.execute(sql`
         SELECT id FROM batches
-        WHERE (batch_number = ${text} OR metrc_tag = ${text})
+        WHERE (id = ${text} OR batch_number = ${text} OR metrc_tag = ${text})
           AND company_id = ${currentUser.companyId}
         LIMIT 1
       `)
@@ -423,7 +442,7 @@ app.post('/scan', async (c) => {
     if (!entityId) {
       const plantResult = await db.execute(sql`
         SELECT id FROM plants
-        WHERE metrc_tag = ${text}
+        WHERE (id = ${text} OR metrc_tag = ${text})
           AND company_id = ${currentUser.companyId}
         LIMIT 1
       `)
@@ -438,7 +457,7 @@ app.post('/scan', async (c) => {
     if (!entityId) {
       const inputResult = await db.execute(sql`
         SELECT id FROM grow_inputs
-        WHERE name = ${text}
+        WHERE (id = ${text} OR name = ${text})
           AND company_id = ${currentUser.companyId}
         LIMIT 1
       `)
@@ -451,11 +470,8 @@ app.post('/scan', async (c) => {
   }
 
   if (!entityType || !entityId) {
-    // Log failed scan
-    await db.execute(sql`
-      INSERT INTO qr_scan_events(id, company_id, raw_data, context, scanner_type, entity_type, entity_id, success, scanned_by, created_at)
-      VALUES (gen_random_uuid(), ${currentUser.companyId}, ${body.data}, ${body.context}, ${body.scannerType}, NULL, NULL, false, ${currentUser.id}, NOW())
-    `)
+    // No matching entity found. qr_scan_events.entity_type / entity_id are NOT NULL,
+    // so a failed scan cannot be logged as a row — just return 404.
     return c.json({ error: 'Could not identify scanned entity', rawData: body.data }, 404)
   }
 
@@ -492,7 +508,7 @@ app.post('/scan', async (c) => {
       FROM input_applications ia
       JOIN grow_inputs gi ON gi.id = ia.grow_input_id
       WHERE (ia.batch_id IN (SELECT id FROM batches WHERE product_id = ${entityId})
-             OR ia.plant_id IN (SELECT pl.id FROM plants pl JOIN harvests h ON h.id = pl.harvest_id JOIN batches b2 ON (b2.id = h.batch_id OR b2.harvest_id = h.id) WHERE b2.product_id = ${entityId}))
+             OR ia.plant_id IN (SELECT pl.id FROM plants pl WHERE pl.batch_id IN (SELECT id FROM batches WHERE product_id = ${entityId})))
         AND ia.company_id = ${currentUser.companyId}
     `)
     const inputs = (inputsResult as any).rows || inputsResult
@@ -627,8 +643,8 @@ app.post('/scan', async (c) => {
 
   // Log successful scan event
   await db.execute(sql`
-    INSERT INTO qr_scan_events(id, company_id, raw_data, context, scanner_type, entity_type, entity_id, success, scanned_by, created_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${body.data}, ${body.context}, ${body.scannerType}, ${entityType}, ${entityId}, true, ${currentUser.id}, NOW())
+    INSERT INTO qr_scan_events(id, company_id, entity_type, entity_id, scanner_type, context, scanned_by, result_action, created_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${entityType}, ${entityId}, ${body.scannerType}, ${body.context}, ${currentUser.userId}, ${body.context === 'pos_checkout' ? 'added_to_cart' : 'identified'}, NOW())
   `)
 
   audit.log({
@@ -643,7 +659,107 @@ app.post('/scan', async (c) => {
   return c.json(responseData)
 })
 
+// ── Scan History ─────────────────────────────────────────────────────────
+
+// Recent scans for the scanner panel. The page called GET /history but no such route
+// existed → 404 → "No recent scans" forever. Return recent scan events with the entity
+// name resolved for the label. (retest#11)
+app.get('/history', async (c) => {
+  const currentUser = c.get('user') as any
+  const limit = Math.min(50, Math.max(1, +(c.req.query('limit') || '20')))
+  const result = await db.execute(sql`
+    SELECT qse.id, qse.entity_type, qse.entity_id, qse.context, qse.result_action, qse.created_at as scanned_at,
+           COALESCE(p.name, b.batch_number, gi.name, pl.metrc_tag) as label
+    FROM qr_scan_events qse
+    LEFT JOIN products p ON p.id = qse.entity_id AND qse.entity_type = 'product'
+    LEFT JOIN batches b ON b.id = qse.entity_id AND qse.entity_type = 'batch'
+    LEFT JOIN grow_inputs gi ON gi.id = qse.entity_id AND qse.entity_type = 'grow_input'
+    LEFT JOIN plants pl ON pl.id = qse.entity_id AND qse.entity_type = 'plant'
+    WHERE qse.company_id = ${currentUser.companyId}
+    ORDER BY qse.created_at DESC
+    LIMIT ${limit}
+  `)
+  const rows = (result as any).rows || result
+  const data = rows.map((r: any) => ({
+    id: r.id,
+    entityType: r.entity_type,
+    entityId: r.entity_id,
+    data: r.entity_id,          // clicking re-scans by id (the /scan route resolves ids)
+    label: r.label || r.entity_id,
+    context: r.context,
+    resultAction: r.result_action,
+    scannedAt: r.scanned_at,
+  }))
+  return c.json(data)
+})
+
 // ── Scan Analytics ───────────────────────────────────────────────────────
+
+// Analytics summary tiles for the QR Scanner "Analytics" tab.
+app.get('/analytics/stats', async (c) => {
+  const currentUser = c.get('user') as any
+  const cid = currentUser.companyId
+
+  const totalsResult = await db.execute(sql`
+    SELECT
+      COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int as today,
+      COUNT(*) FILTER (WHERE created_at >= date_trunc('week', now()))::int as this_week,
+      COUNT(*) FILTER (WHERE created_at >= date_trunc('month', now()))::int as this_month,
+      COUNT(*)::int as all_time
+    FROM qr_scan_events
+    WHERE company_id = ${cid}
+  `)
+  const t = ((totalsResult as any).rows || totalsResult)?.[0] || {}
+
+  const byTypeResult = await db.execute(sql`
+    SELECT entity_type as type, COUNT(*)::int as count
+    FROM qr_scan_events WHERE company_id = ${cid}
+    GROUP BY entity_type ORDER BY count DESC
+  `)
+  const byContextResult = await db.execute(sql`
+    SELECT context, COUNT(*)::int as count
+    FROM qr_scan_events WHERE company_id = ${cid}
+    GROUP BY context ORDER BY count DESC
+  `)
+
+  return c.json({
+    today: Number(t.today || 0),
+    thisWeek: Number(t.this_week || 0),
+    thisMonth: Number(t.this_month || 0),
+    allTime: Number(t.all_time || 0),
+    byEntityType: ((byTypeResult as any).rows || byTypeResult).map((r: any) => ({ type: r.type, count: Number(r.count || 0) })),
+    byContext: ((byContextResult as any).rows || byContextResult).map((r: any) => ({ context: r.context, count: Number(r.count || 0) })),
+  })
+})
+
+// Most-scanned products and grow inputs for the Analytics tab tables.
+app.get('/analytics/top-scanned', async (c) => {
+  const currentUser = c.get('user') as any
+  const cid = currentUser.companyId
+
+  const productsResult = await db.execute(sql`
+    SELECT qse.entity_id as id, p.name, COUNT(*)::int as scan_count
+    FROM qr_scan_events qse
+    JOIN products p ON p.id = qse.entity_id
+    WHERE qse.company_id = ${cid} AND qse.entity_type = 'product'
+    GROUP BY qse.entity_id, p.name
+    ORDER BY scan_count DESC LIMIT 10
+  `)
+  const inputsResult = await db.execute(sql`
+    SELECT qse.entity_id as id, gi.name, COUNT(*)::int as scan_count
+    FROM qr_scan_events qse
+    JOIN grow_inputs gi ON gi.id = qse.entity_id
+    WHERE qse.company_id = ${cid} AND qse.entity_type = 'grow_input'
+    GROUP BY qse.entity_id, gi.name
+    ORDER BY scan_count DESC LIMIT 10
+  `)
+
+  const shape = (rows: any[]) => rows.map((r: any) => ({ id: r.id, name: r.name, scanCount: Number(r.scan_count || 0) }))
+  return c.json({
+    products: shape((productsResult as any).rows || productsResult),
+    inputs: shape((inputsResult as any).rows || inputsResult),
+  })
+})
 
 // QR scan analytics (manager+)
 app.get('/analytics', requireRole('manager'), async (c) => {
@@ -654,7 +770,6 @@ app.get('/analytics', requireRole('manager'), async (c) => {
     SELECT entity_type, COUNT(*)::int as count
     FROM qr_scan_events
     WHERE company_id = ${currentUser.companyId}
-      AND success = true
     GROUP BY entity_type
     ORDER BY count DESC
   `)
@@ -665,7 +780,6 @@ app.get('/analytics', requireRole('manager'), async (c) => {
     SELECT context, COUNT(*)::int as count
     FROM qr_scan_events
     WHERE company_id = ${currentUser.companyId}
-      AND success = true
     GROUP BY context
     ORDER BY count DESC
   `)
@@ -676,7 +790,6 @@ app.get('/analytics', requireRole('manager'), async (c) => {
     SELECT DATE(created_at) as date, COUNT(*)::int as count
     FROM qr_scan_events
     WHERE company_id = ${currentUser.companyId}
-      AND success = true
       AND created_at >= NOW() - INTERVAL '30 days'
     GROUP BY DATE(created_at)
     ORDER BY date DESC
@@ -690,7 +803,6 @@ app.get('/analytics', requireRole('manager'), async (c) => {
     JOIN products p ON p.id = qse.entity_id
     WHERE qse.company_id = ${currentUser.companyId}
       AND qse.entity_type = 'product'
-      AND qse.success = true
     GROUP BY qse.entity_id, p.name
     ORDER BY scan_count DESC
     LIMIT 20
@@ -702,7 +814,6 @@ app.get('/analytics', requireRole('manager'), async (c) => {
     SELECT EXTRACT(HOUR FROM created_at)::int as hour, COUNT(*)::int as count
     FROM qr_scan_events
     WHERE company_id = ${currentUser.companyId}
-      AND success = true
       AND created_at >= NOW() - INTERVAL '30 days'
     GROUP BY EXTRACT(HOUR FROM created_at)
     ORDER BY hour ASC
@@ -713,8 +824,8 @@ app.get('/analytics', requireRole('manager'), async (c) => {
   const totalsResult = await db.execute(sql`
     SELECT
       COUNT(*)::int as total_scans,
-      COUNT(*) FILTER (WHERE success = true)::int as successful_scans,
-      COUNT(*) FILTER (WHERE success = false)::int as failed_scans
+      COUNT(*)::int as successful_scans,
+      0 as failed_scans
     FROM qr_scan_events
     WHERE company_id = ${currentUser.companyId}
   `)

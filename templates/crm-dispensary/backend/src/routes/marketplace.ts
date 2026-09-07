@@ -8,6 +8,16 @@ import audit from '../services/audit.ts'
 
 const app = new Hono()
 
+// Raw db.execute rows are snake_case but the Marketplace UI reads camelCase
+// (logoUrl, websiteUrl, configSchema, partnerName, ...). Convert keys before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+const camelAll = (rows: any[]): any[] => (Array.isArray(rows) ? rows.map(camel) : rows)
+
 // ─── Cannabis Integration Partners ──────────────────────────────────────────
 
 const CANNABIS_PARTNERS = [
@@ -37,15 +47,15 @@ app.get('/partners', async (c) => {
   if (search) searchFilter = sql`AND (name ILIKE ${'%' + search + '%'} OR description ILIKE ${'%' + search + '%'})`
 
   const result = await db.execute(sql`
-    SELECT id, slug, name, category, description, website, logo_url, active
+    SELECT id, slug, name, category, description, website_url, logo_url, config_schema, is_active
     FROM integration_partners
-    WHERE active = true
+    WHERE is_active = true
       ${categoryFilter}
       ${searchFilter}
     ORDER BY category ASC, name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(camelAll((result as any).rows || result))
 })
 
 // GET /partners/:slug — Partner detail with configSchema
@@ -54,11 +64,11 @@ app.get('/partners/:slug', async (c) => {
 
   const result = await db.execute(sql`
     SELECT * FROM integration_partners
-    WHERE slug = ${slug} AND active = true
+    WHERE slug = ${slug} AND is_active = true
     LIMIT 1
   `)
 
-  const partner = ((result as any).rows || result)?.[0]
+  const partner = camel(((result as any).rows || result)?.[0])
   if (!partner) return c.json({ error: 'Partner not found' }, 404)
 
   return c.json(partner)
@@ -114,7 +124,7 @@ app.get('/installed', async (c) => {
     ORDER BY ci.created_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(camelAll((result as any).rows || result))
 })
 
 // POST /install/:partnerId — Install/enable an integration
@@ -122,14 +132,17 @@ app.post('/install/:partnerId', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const partnerId = c.req.param('partnerId')
 
+  // The Marketplace UI installs first (no config) then configures on the Installed tab, so
+  // config is optional here — install lands in 'configuring' with an empty config object.
   const installSchema = z.object({
-    config: z.record(z.string(), z.any()),
+    config: z.record(z.string(), z.any()).optional().default({}),
   })
-  const data = installSchema.parse(await c.req.json())
+  const body = await c.req.json().catch(() => ({}))
+  const data = installSchema.parse(body)
 
   // Verify partner exists
   const partnerResult = await db.execute(sql`
-    SELECT * FROM integration_partners WHERE id = ${partnerId} AND active = true LIMIT 1
+    SELECT * FROM integration_partners WHERE id = ${partnerId} AND is_active = true LIMIT 1
   `)
   const partner = ((partnerResult as any).rows || partnerResult)?.[0]
   if (!partner) return c.json({ error: 'Integration partner not found' }, 404)
@@ -163,7 +176,7 @@ app.post('/install/:partnerId', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ ...integration, partnerName: partner.name }, 201)
+  return c.json({ ...camel(integration), partnerName: partner.name }, 201)
 })
 
 // PUT /installed/:id/config — Update integration config
@@ -180,7 +193,7 @@ app.put('/installed/:id/config', requireRole('manager'), async (c) => {
     RETURNING *
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Integration not found' }, 404)
 
   audit.log({
@@ -217,12 +230,12 @@ app.put('/installed/:id/activate', requireRole('manager'), async (c) => {
 
   const result = await db.execute(sql`
     UPDATE company_integrations
-    SET status = 'active', activated_at = NOW(), updated_at = NOW()
+    SET status = 'active', enabled_at = NOW(), updated_at = NOW()
     WHERE id = ${id}
     RETURNING *
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
@@ -248,7 +261,7 @@ app.put('/installed/:id/disable', requireRole('manager'), async (c) => {
     RETURNING *
   `)
 
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
   if (!updated) return c.json({ error: 'Integration not found' }, 404)
 
   audit.log({
@@ -309,10 +322,11 @@ app.post('/installed/:id/test', async (c) => {
     ? { success: true, message: `Connection to ${integration.partner_name} successful`, latencyMs: Math.floor(Math.random() * 200) + 50 }
     : { success: false, message: 'Missing API key or merchant ID in configuration' }
 
-  // Log test result
+  // company_integrations has no last_test_at/last_test_result columns (NEEDS SCHEMA to persist);
+  // record the attempt via last_sync_status so the row still reflects the check.
   await db.execute(sql`
     UPDATE company_integrations
-    SET last_test_at = NOW(), last_test_result = ${JSON.stringify(testResult)}::jsonb, updated_at = NOW()
+    SET last_sync_status = ${testResult.success ? 'test_ok' : 'test_failed'}, updated_at = NOW()
     WHERE id = ${id}
   `)
 
@@ -338,7 +352,7 @@ app.post('/installed/:id/sync', async (c) => {
   // Record sync attempt
   await db.execute(sql`
     UPDATE company_integrations
-    SET last_sync_at = NOW(), sync_status = 'syncing', updated_at = NOW()
+    SET last_sync_at = NOW(), last_sync_status = 'syncing', updated_at = NOW()
     WHERE id = ${id}
   `)
 
@@ -346,7 +360,7 @@ app.post('/installed/:id/sync', async (c) => {
   // For now, mark as completed
   await db.execute(sql`
     UPDATE company_integrations
-    SET sync_status = 'completed', updated_at = NOW()
+    SET last_sync_status = 'completed', updated_at = NOW()
     WHERE id = ${id}
   `)
 
@@ -368,19 +382,20 @@ app.post('/seed-partners', requireRole('admin'), async (c) => {
 
   for (const partner of CANNABIS_PARTNERS) {
     // Upsert by slug
+    // integration_partners columns are website_url, config_schema (json), is_active — and there
+    // is no updated_at column. (schema is source of truth)
     const result = await db.execute(sql`
-      INSERT INTO integration_partners (id, slug, name, category, description, website, config_schema, active, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${partner.slug}, ${partner.name}, ${partner.category}, ${partner.description}, ${partner.website}, ${JSON.stringify(partner.configSchema)}::jsonb, true, NOW(), NOW())
+      INSERT INTO integration_partners (id, slug, name, category, description, website_url, config_schema, is_active, created_at)
+      VALUES (gen_random_uuid(), ${partner.slug}, ${partner.name}, ${partner.category}, ${partner.description}, ${partner.website}, ${JSON.stringify(partner.configSchema)}, true, NOW())
       ON CONFLICT (slug) DO UPDATE SET
         name = EXCLUDED.name,
         category = EXCLUDED.category,
         description = EXCLUDED.description,
-        website = EXCLUDED.website,
-        config_schema = EXCLUDED.config_schema,
-        updated_at = NOW()
+        website_url = EXCLUDED.website_url,
+        config_schema = EXCLUDED.config_schema
       RETURNING *
     `)
-    const row = ((result as any).rows || result)?.[0]
+    const row = camel(((result as any).rows || result)?.[0])
     if (row) inserted.push(row)
   }
 

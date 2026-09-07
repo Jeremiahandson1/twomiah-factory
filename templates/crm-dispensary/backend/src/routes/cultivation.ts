@@ -9,6 +9,48 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case but the frontend reads camelCase, so fields
+// rendered blank. Convert row keys to camelCase before responding. (retest#5 N1)
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────
+// Cultivation dashboard tiles: live phase counts + rooms at/over capacity.
+app.get('/stats', async (c) => {
+  const currentUser = c.get('user') as any
+  const cid = currentUser.companyId
+
+  const phaseResult = await db.execute(sql`
+    SELECT
+      COUNT(*) FILTER (WHERE phase = 'clone')::int as clones,
+      COUNT(*) FILTER (WHERE phase = 'vegetative')::int as vegetative,
+      COUNT(*) FILTER (WHERE phase = 'flowering')::int as flowering
+    FROM plants
+    WHERE company_id = ${cid}
+  `)
+  const roomsResult = await db.execute(sql`
+    SELECT COUNT(*)::int as rooms_at_capacity
+    FROM grow_rooms
+    WHERE company_id = ${cid}
+      AND is_active = true
+      AND capacity IS NOT NULL AND capacity > 0
+      AND COALESCE(current_count, 0) >= capacity
+  `)
+  const p = ((phaseResult as any).rows || phaseResult)?.[0] || {}
+  const r = ((roomsResult as any).rows || roomsResult)?.[0] || {}
+
+  return c.json({
+    clones: Number(p.clones || 0),
+    vegetative: Number(p.vegetative || 0),
+    flowering: Number(p.flowering || 0),
+    roomsAtCapacity: Number(r.rooms_at_capacity || 0),
+  })
+})
+
 // ── Plants ─────────────────────────────────────────────────────────────
 
 // List plants (paginated, filterable)
@@ -50,7 +92,7 @@ app.get('/plants', async (c) => {
       ${roomFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -93,7 +135,7 @@ app.post('/plants', async (c) => {
     req: c.req,
   })
 
-  return c.json(data.quantity === 1 ? plants[0] : plants, 201)
+  return c.json(data.quantity === 1 ? camel(plants[0]) : plants.map(camel), 201)
 })
 
 // Update plant
@@ -130,7 +172,35 @@ app.put('/plants/:id', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Plant not found' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
+})
+
+// Delete plant
+app.delete('/plants/:id', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const existingResult = await db.execute(sql`
+    SELECT * FROM plants
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+  const existing = ((existingResult as any).rows || existingResult)?.[0]
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  await db.execute(sql`
+    DELETE FROM plants
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+
+  audit.log({
+    action: audit.ACTIONS.DELETE,
+    entity: 'plant',
+    entityId: id,
+    entityName: existing.strain_name,
+    req: c.req,
+  })
+
+  return c.json({ success: true })
 })
 
 // Change plant phase (with growth log entry)
@@ -162,7 +232,7 @@ app.put('/plants/:id/phase', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
 
   // Append to plants.growth_log JSON column
-  const growthEntry = JSON.stringify({ fromPhase: existing.phase, toPhase: data.phase, notes: data.notes || null, changedBy: currentUser.id, createdAt: new Date().toISOString() })
+  const growthEntry = JSON.stringify({ fromPhase: existing.phase, toPhase: data.phase, notes: data.notes || null, changedBy: currentUser.userId, createdAt: new Date().toISOString() })
   await db.execute(sql`
     UPDATE plants SET growth_log = COALESCE(growth_log, '[]'::jsonb) || ${growthEntry}::jsonb, updated_at = NOW()
     WHERE id = ${id}
@@ -177,7 +247,7 @@ app.put('/plants/:id/phase', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Harvest plant
@@ -213,7 +283,7 @@ app.post('/plants/:id/harvest', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
 
   // Append to plants.growth_log JSON column
-  const harvestLogEntry = JSON.stringify({ fromPhase: existing.phase, toPhase: 'harvested', notes: data.notes || 'Harvested', changedBy: currentUser.id, createdAt: new Date().toISOString() })
+  const harvestLogEntry = JSON.stringify({ fromPhase: existing.phase, toPhase: 'harvested', notes: data.notes || 'Harvested', changedBy: currentUser.userId, createdAt: new Date().toISOString() })
   await db.execute(sql`
     UPDATE plants SET growth_log = COALESCE(growth_log, '[]'::jsonb) || ${harvestLogEntry}::jsonb, updated_at = NOW()
     WHERE id = ${id}
@@ -228,7 +298,7 @@ app.post('/plants/:id/harvest', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Destroy plant
@@ -259,7 +329,7 @@ app.post('/plants/:id/destroy', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
 
   // Append to plants.growth_log JSON column
-  const destroyLogEntry = JSON.stringify({ fromPhase: existing.phase, toPhase: 'destroyed', notes: data.reason, changedBy: currentUser.id, createdAt: new Date().toISOString() })
+  const destroyLogEntry = JSON.stringify({ fromPhase: existing.phase, toPhase: 'destroyed', notes: data.reason, changedBy: currentUser.userId, createdAt: new Date().toISOString() })
   await db.execute(sql`
     UPDATE plants SET growth_log = COALESCE(growth_log, '[]'::jsonb) || ${destroyLogEntry}::jsonb, updated_at = NOW()
     WHERE id = ${id}
@@ -274,7 +344,7 @@ app.post('/plants/:id/destroy', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // ── Grow Rooms ─────────────────────────────────────────────────────────
@@ -293,7 +363,7 @@ app.get('/rooms', async (c) => {
     ORDER BY gr.name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Create room
@@ -330,7 +400,7 @@ app.post('/rooms', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(room, 201)
+  return c.json(camel(room), 201)
 })
 
 // Update room
@@ -370,7 +440,7 @@ app.put('/rooms/:id', requireRole('manager'), async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Room not found' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // ── Harvests ───────────────────────────────────────────────────────────
@@ -382,13 +452,11 @@ app.get('/harvests', async (c) => {
   const limit = +(c.req.query('limit') || '25')
   const offset = (page - 1) * limit
 
+  // plants has no harvest_id FK; the harvests table carries its own plant_count column.
   const dataResult = await db.execute(sql`
-    SELECT h.*,
-           COUNT(p.id)::int as plant_count
+    SELECT h.*
     FROM harvests h
-    LEFT JOIN plants p ON p.harvest_id = h.id
     WHERE h.company_id = ${currentUser.companyId}
-    GROUP BY h.id
     ORDER BY h.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
   `)
@@ -398,7 +466,7 @@ app.get('/harvests', async (c) => {
     WHERE company_id = ${currentUser.companyId}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -439,7 +507,7 @@ app.post('/harvests', async (c) => {
     req: c.req,
   })
 
-  return c.json(harvest, 201)
+  return c.json(camel(harvest), 201)
 })
 
 // Update harvest
@@ -482,7 +550,7 @@ app.put('/harvests/:id', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Harvest not found' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 export default app

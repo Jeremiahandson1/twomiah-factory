@@ -64,7 +64,7 @@ function StoreGroupsTab() {
   const [modalOpen, setModalOpen] = useState(false);
   const [addLocModalOpen, setAddLocModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({ name: '', description: '' });
+  const [formData, setFormData] = useState({ name: '', type: 'chain', description: '' });
   const [locationId, setLocationId] = useState('');
 
   const loadGroups = useCallback(async () => {
@@ -98,10 +98,14 @@ function StoreGroupsTab() {
     if (!formData.name.trim()) { toast.error('Name is required'); return; }
     setSaving(true);
     try {
-      await api.post('/api/enterprise/store-groups', formData);
+      await api.post('/api/enterprise/store-groups', {
+        name: formData.name,
+        type: formData.type,
+        settings: formData.description ? { description: formData.description } : undefined,
+      });
       toast.success('Store group created');
       setModalOpen(false);
-      setFormData({ name: '', description: '' });
+      setFormData({ name: '', type: 'chain', description: '' });
       loadGroups();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create group');
@@ -114,7 +118,7 @@ function StoreGroupsTab() {
     if (!selectedGroup || !locationId.trim()) { toast.error('Enter a location ID'); return; }
     setSaving(true);
     try {
-      await api.post(`/api/enterprise/store-groups/${selectedGroup.id}/locations`, { locationId });
+      await api.post(`/api/enterprise/store-groups/${selectedGroup.id}/members`, { locationId });
       toast.success('Location added');
       setAddLocModalOpen(false);
       setLocationId('');
@@ -134,7 +138,7 @@ function StoreGroupsTab() {
   return (
     <>
       <div className="flex justify-end mb-4">
-        <Button onClick={() => { setFormData({ name: '', description: '' }); setModalOpen(true); }}>
+        <Button onClick={() => { setFormData({ name: '', type: 'chain', description: '' }); setModalOpen(true); }}>
           <Plus className="w-4 h-4 mr-2 inline" />Create Group
         </Button>
       </div>
@@ -242,6 +246,14 @@ function StoreGroupsTab() {
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Group Name *</label>
             <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="West Coast Stores" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Type *</label>
+            <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500">
+              <option value="chain">Chain</option>
+              <option value="franchise">Franchise</option>
+              <option value="coop">Co-op</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Description</label>

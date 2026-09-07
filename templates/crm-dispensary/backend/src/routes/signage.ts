@@ -8,6 +8,15 @@ import audit from '../services/audit.ts'
 
 const app = new Hono()
 
+// Raw db.execute rows come back snake_case; the frontend reads camelCase
+// (locationId, deviceId, refreshInterval, isActive, isOnline, …). Convert row keys before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ===== PUBLIC ROUTES (no auth — device endpoints) =====
 
 // POST /screens/:id/heartbeat — Device heartbeat (uses deviceId, no auth)
@@ -154,7 +163,7 @@ app.get('/screens', async (c) => {
     ORDER BY ds.name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // POST /screens — Create sign (manager+)
@@ -165,16 +174,18 @@ app.post('/screens', requireRole('manager'), async (c) => {
     name: z.string().min(1),
     type: z.enum(['menu_board', 'promo', 'wait_time', 'welcome', 'custom']),
     locationId: z.string().optional(),
-    deviceId: z.string().min(1),
+    // Optional — the create form collects no device id; one is generated server-side when absent.
+    deviceId: z.string().min(1).optional(),
     resolution: z.string().optional(),
     orientation: z.enum(['landscape', 'portrait']).default('landscape'),
     refreshInterval: z.number().int().min(5).default(60), // seconds
   })
   const data = screenSchema.parse(await c.req.json())
+  const deviceId = data.deviceId || crypto.randomUUID()
 
   const result = await db.execute(sql`
     INSERT INTO digital_signs(id, name, type, location_id, device_id, resolution, orientation, refresh_interval, is_active, is_online, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.name}, ${data.type}, ${data.locationId || null}, ${data.deviceId}, ${data.resolution || null}, ${data.orientation}, ${data.refreshInterval}, true, false, ${currentUser.companyId}, NOW(), NOW())
+    VALUES (gen_random_uuid(), ${data.name}, ${data.type}, ${data.locationId || null}, ${deviceId}, ${data.resolution || null}, ${data.orientation}, ${data.refreshInterval}, true, false, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -185,11 +196,11 @@ app.post('/screens', requireRole('manager'), async (c) => {
     entity: 'digital_sign',
     entityId: created?.id,
     entityName: data.name,
-    metadata: { type: data.type, deviceId: data.deviceId },
+    metadata: { type: data.type, deviceId },
     req: c.req,
   })
 
-  return c.json(created, 201)
+  return c.json(camel(created), 201)
 })
 
 // PUT /screens/:id — Update sign config
@@ -239,7 +250,7 @@ app.put('/screens/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // DELETE /screens/:id — Deactivate sign
@@ -309,7 +320,63 @@ app.put('/screens/:id/content', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
+})
+
+// GET /screens/:id/preview — Admin preview of what a screen will display. Returns
+// { items } (name/price rows) for menu/promo boards, or { html } for welcome/custom.
+app.get('/screens/:id/preview', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const screenResult = await db.execute(sql`
+    SELECT ds.*, c.name as company_name, c.logo as company_logo, c.primary_color
+    FROM digital_signs ds
+    JOIN company c ON c.id = ds.company_id
+    WHERE ds.id = ${id} AND ds.company_id = ${currentUser.companyId}
+    LIMIT 1
+  `)
+  const screen = ((screenResult as any).rows || screenResult)?.[0]
+  if (!screen) return c.json({ error: 'Screen not found' }, 404)
+
+  const type = screen.type
+
+  if (type === 'menu_board' || type === 'product' || type === 'menu') {
+    const productsResult = await db.execute(sql`
+      SELECT name, price FROM products
+      WHERE company_id = ${currentUser.companyId} AND active = true AND visible = true
+      ORDER BY category ASC, menu_order ASC, name ASC
+      LIMIT 30
+    `)
+    const items = ((productsResult as any).rows || productsResult).map((r: any) => ({ name: r.name, price: r.price }))
+    return c.json({ screenId: id, type, items })
+  }
+
+  if (type === 'promo') {
+    const promosResult = await db.execute(sql`
+      SELECT name FROM loyalty_rewards
+      WHERE company_id = ${currentUser.companyId} AND active = true
+        AND (start_date IS NULL OR start_date <= NOW())
+        AND (end_date IS NULL OR end_date >= NOW())
+      ORDER BY created_at DESC
+      LIMIT 30
+    `)
+    const items = ((promosResult as any).rows || promosResult).map((r: any) => ({ name: r.name }))
+    return c.json({ screenId: id, type, items })
+  }
+
+  if (type === 'welcome') {
+    const message = screen.welcome_message || `Welcome to ${screen.company_name}`
+    const html = `<div style="text-align:center"><h2>${message}</h2></div>`
+    return c.json({ screenId: id, type, html })
+  }
+
+  // Custom / other: render stored content as HTML if it looks like markup, else empty.
+  const custom = screen.content
+  if (typeof custom === 'string' && /<[a-z]/i.test(custom)) {
+    return c.json({ screenId: id, type, html: custom })
+  }
+  return c.json({ screenId: id, type, items: [] })
 })
 
 // GET /screens/:id/menu-data — Live menu data for menu boards

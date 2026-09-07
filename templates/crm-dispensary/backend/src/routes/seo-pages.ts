@@ -8,6 +8,16 @@ import audit from '../services/audit.ts'
 
 const app = new Hono()
 
+// Raw db.execute rows are snake_case but the SEO Pages admin UI reads camelCase
+// (productName, metaTitle, metaDescription, isPublished, lastIndexedAt...). Convert keys.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+const camelAll = (rows: any[]): any[] => (Array.isArray(rows) ? rows.map(camel) : rows)
+
 // ===== PUBLIC ROUTES (no auth) =====
 
 // GET /sitemap — XML sitemap of all published product pages
@@ -16,16 +26,15 @@ app.get('/sitemap', async (c) => {
   if (!slug) return c.json({ error: 'Company slug is required' }, 400)
 
   const companyResult = await db.execute(sql`
-    SELECT id, name, custom_domain FROM company
+    SELECT id, name FROM company
     WHERE slug = ${slug}
     LIMIT 1
   `)
   const company = ((companyResult as any).rows || companyResult)?.[0]
   if (!company) return c.json({ error: 'Company not found' }, 404)
 
-  const baseUrl = company.custom_domain
-    ? `https://${company.custom_domain}`
-    : `https://${slug}.twomiah.com`
+  // company has no custom_domain column (schema.ts is source of truth). (schema fix)
+  const baseUrl = `https://${slug}.twomiah.com`
 
   const pagesResult = await db.execute(sql`
     SELECT sp.slug, sp.updated_at
@@ -51,8 +60,9 @@ app.get('/product/:slug', async (c) => {
   if (!companySlug) return c.json({ error: 'Company slug is required' }, 400)
   const productSlug = c.req.param('slug')
 
+  // company has no custom_domain column (schema.ts is source of truth). (schema fix)
   const companyResult = await db.execute(sql`
-    SELECT id, name, logo, primary_color, custom_domain FROM company
+    SELECT id, name, logo, primary_color FROM company
     WHERE slug = ${companySlug}
     LIMIT 1
   `)
@@ -126,8 +136,10 @@ app.get('/product/:slug', async (c) => {
 // ===== AUTHENTICATED ROUTES =====
 app.use('*', authenticate)
 
-// GET /products — List SEO product pages (paginated)
-app.get('/products', async (c) => {
+// List SEO product pages (paginated). Registered at both '/products' and '/' — the admin
+// SEO Pages UI calls the collection root and reads camelCase (productName, metaTitle,
+// published, lastIndexed).
+const listSeoPages = async (c: any) => {
   const currentUser = c.get('user') as any
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '25')
@@ -145,7 +157,8 @@ app.get('/products', async (c) => {
   }
 
   const dataResult = await db.execute(sql`
-    SELECT sp.*, p.name as product_name, p.category, p.brand, p.strain, p.strain_type,
+    SELECT sp.*, sp.is_published AS published, sp.last_indexed_at AS last_indexed,
+           p.name as product_name, p.category, p.brand, p.strain, p.strain_type,
            p.price, p.image_url, p.stock_quantity
     FROM seo_product_pages sp
     JOIN products p ON p.id = sp.product_id
@@ -161,26 +174,29 @@ app.get('/products', async (c) => {
     WHERE sp.company_id = ${currentUser.companyId} ${searchClause} ${publishedClause}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = camelAll((dataResult as any).rows || dataResult)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
-})
+}
+app.get('/products', listSeoPages)
+app.get('/', listSeoPages)
 
-// POST /products/generate — Auto-generate SEO pages for all products missing them
-app.post('/products/generate', requireRole('manager'), async (c) => {
+// Auto-generate SEO pages for all products missing them. Registered at both
+// '/products/generate' and '/generate-all' (the admin UI calls generate-all).
+const generateSeoPages = async (c: any) => {
   const currentUser = c.get('user') as any
 
   // Get company info for meta titles
+  // company has no custom_domain column (schema.ts is source of truth) — derive the base
+  // URL from the slug's default host. (schema fix)
   const companyResult = await db.execute(sql`
-    SELECT name, slug, custom_domain FROM company WHERE id = ${currentUser.companyId} LIMIT 1
+    SELECT name, slug FROM company WHERE id = ${currentUser.companyId} LIMIT 1
   `)
   const company = ((companyResult as any).rows || companyResult)?.[0]
   if (!company) return c.json({ error: 'Company not found' }, 404)
 
-  const baseUrl = company.custom_domain
-    ? `https://${company.custom_domain}`
-    : `https://${company.slug}.twomiah.com`
+  const baseUrl = `https://${company.slug}.twomiah.com`
 
   // Find products without SEO pages
   const productsResult = await db.execute(sql`
@@ -195,11 +211,22 @@ app.post('/products/generate', requireRole('manager'), async (c) => {
   const products = (productsResult as any).rows || productsResult
 
   let generated = 0
+  // Cannabis catalogs routinely have products whose name+strain collapse to the same
+  // slug (e.g. two "Pre-Roll" SKUs). The seo_product_pages (company_id, slug) unique
+  // index made the second INSERT throw → whole request 500'd. De-dupe slugs within the
+  // run and use ON CONFLICT DO NOTHING as a belt-and-suspenders. (retest)
+  const usedSlugs = new Set<string>()
   for (const prod of products) {
-    const slug = `${prod.name}${prod.strain ? '-' + prod.strain : ''}`
+    let slug = `${prod.name}${prod.strain ? '-' + prod.strain : ''}`
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
+      .replace(/^-|-$/g, '') || 'product'
+    if (usedSlugs.has(slug)) {
+      let n = 2
+      while (usedSlugs.has(`${slug}-${n}`)) n++
+      slug = `${slug}-${n}`
+    }
+    usedSlugs.add(slug)
 
     const strainLabel = prod.strain_type && prod.strain_type !== 'na'
       ? prod.strain_type.charAt(0).toUpperCase() + prod.strain_type.slice(1)
@@ -233,11 +260,13 @@ app.post('/products/generate', requireRole('manager'), async (c) => {
       },
     }
 
-    await db.execute(sql`
+    const insertRes = await db.execute(sql`
       INSERT INTO seo_product_pages(id, product_id, slug, meta_title, meta_description, og_image, canonical_url, structured_data, custom_content, is_published, company_id, created_at, updated_at)
       VALUES (gen_random_uuid(), ${prod.id}, ${slug}, ${metaTitle}, ${metaDescription}, ${prod.image_url || null}, ${canonicalUrl}, ${JSON.stringify(structuredData)}::jsonb, NULL, true, ${currentUser.companyId}, NOW(), NOW())
+      ON CONFLICT (company_id, slug) DO NOTHING
+      RETURNING id
     `)
-    generated++
+    if (((insertRes as any).rows || insertRes)?.length) generated++
   }
 
   audit.log({
@@ -248,10 +277,29 @@ app.post('/products/generate', requireRole('manager'), async (c) => {
   })
 
   return c.json({ generated, alreadyExisted: 0, message: `Generated ${generated} SEO pages` })
+}
+app.post('/products/generate', requireRole('manager'), generateSeoPages)
+app.post('/generate-all', requireRole('manager'), generateSeoPages)
+
+// POST /sitemap/regenerate — The sitemap at GET /sitemap is generated live from published
+// pages, so "regenerate" just reports the current published-page count. Kept for the UI's
+// explicit refresh button. (literal path, above any '/:id')
+app.post('/sitemap/regenerate', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const companyResult = await db.execute(sql`SELECT slug FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)
+  const company = ((companyResult as any).rows || companyResult)?.[0]
+  const countResult = await db.execute(sql`
+    SELECT COUNT(*)::int as total FROM seo_product_pages
+    WHERE company_id = ${currentUser.companyId} AND is_published = true
+  `)
+  const productCount = Number(((countResult as any).rows || countResult)?.[0]?.total || 0)
+  const sitemapUrl = company?.slug ? `https://${company.slug}.twomiah.com/sitemap.xml` : null
+  return c.json({ success: true, productCount, sitemapUrl, message: `Sitemap refreshed — ${productCount} published pages` })
 })
 
-// PUT /products/:id — Update SEO fields
-app.put('/products/:id', requireRole('manager'), async (c) => {
+// Update SEO fields. Registered at both '/products/:id' and '/:id' (the admin UI PUTs to
+// the collection root + id).
+const updateSeoPage = async (c: any) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -290,8 +338,10 @@ app.put('/products/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
-})
+  return c.json(camel(updated))
+}
+app.put('/products/:id', requireRole('manager'), updateSeoPage)
+app.put('/:id', requireRole('manager'), updateSeoPage)
 
 // DELETE /products/:id — Unpublish (soft delete)
 app.delete('/products/:id', requireRole('manager'), async (c) => {

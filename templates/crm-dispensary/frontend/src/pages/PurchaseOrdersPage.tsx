@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { formatDate } from '../utils/date';
 import {
   ShoppingCart, Plus, Package, Truck, Check, X, Search,
-  ChevronDown, ChevronRight, FileText, Sparkles
+  ChevronDown, ChevronRight, FileText, Sparkles, Trash2, Send
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -183,7 +183,30 @@ export default function PurchaseOrdersPage() {
     }
   };
 
-  const receivableOrders = orders.filter(o => ['submitted', 'confirmed', 'shipped', 'partial'].includes(o.status));
+  const handleDeletePO = async (id: string) => {
+    if (!window.confirm('Delete / Void this purchase order? Draft POs are deleted; received POs are voided. This cannot be undone.')) return;
+    try {
+      const r = await api.delete('/api/purchase-orders', id);
+      toast.success(r?.voided ? 'Purchase order voided' : 'Purchase order deleted');
+      loadOrders();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete purchase order');
+    }
+  };
+
+  // Submit a draft PO so it becomes receivable. Without this, app-created POs sat in draft
+  // forever and the Receive tab was always empty.
+  const handleSubmitPO = async (id: string) => {
+    try {
+      await api.put(`/api/purchase-orders/${id}/submit`);
+      toast.success('Purchase order submitted');
+      loadOrders();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit purchase order');
+    }
+  };
+
+  const receivableOrders = orders.filter(o => ['submitted', 'confirmed', 'shipped', 'partial_received'].includes(o.status));
 
   const tabs = [
     { id: 'orders', label: 'Orders', icon: FileText },
@@ -233,6 +256,7 @@ export default function PurchaseOrdersPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Status</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Expected</th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 dark:text-slate-400">Created</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 dark:text-slate-400">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -249,6 +273,18 @@ export default function PurchaseOrdersPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{po.expectedDate || '-'}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex items-center gap-3">
+                          {po.status === 'draft' && (
+                            <button onClick={() => handleSubmitPO(po.id)} className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700" title="Submit this PO so it can be received">
+                              <Send className="w-4 h-4" /> Submit
+                            </button>
+                          )}
+                          <button onClick={() => handleDeletePO(po.id)} className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700" title="Delete or void this PO">
+                            <Trash2 className="w-4 h-4" /> Delete / Void
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -273,7 +309,7 @@ export default function PurchaseOrdersPage() {
                       onClick={() => selectPOForReceive(po)}>
                       <div>
                         <div className="font-medium">{po.poNumber || po.id?.slice(0, 8)} &mdash; {po.supplierName}</div>
-                        <div className="text-sm text-gray-500 dark:text-slate-400">{po.itemCount || 0} items &middot; ${(po.total || 0).toFixed(2)}</div>
+                        <div className="text-sm text-gray-500 dark:text-slate-400">{po.itemCount || 0} items &middot; ${Number(po.total || 0).toFixed(2)}</div>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || ''}`}>{po.status}</span>
@@ -367,7 +403,7 @@ export default function PurchaseOrdersPage() {
                               <td className="py-2">
                                 <span className={`text-xs px-2 py-0.5 rounded-full ${STATUS_STYLES[po.status] || ''}`}>{po.status}</span>
                               </td>
-                              <td className="py-2">${(po.total || 0).toFixed(2)}</td>
+                              <td className="py-2">${Number(po.total || 0).toFixed(2)}</td>
                               <td className="py-2 text-gray-500 dark:text-slate-400">{po.createdAt ? formatDate(po.createdAt) : '-'}</td>
                             </tr>
                           ))}
@@ -462,7 +498,7 @@ export default function PurchaseOrdersPage() {
                   <tfoot>
                     <tr className="border-t bg-gray-50 dark:bg-slate-900">
                       <td colSpan={3} className="px-3 py-2 text-right font-medium">Total:</td>
-                      <td className="px-3 py-2 font-bold">${getLineTotal().toFixed(2)}</td>
+                      <td className="px-3 py-2 font-bold">${Number(getLineTotal()).toFixed(2)}</td>
                       <td></td>
                     </tr>
                   </tfoot>

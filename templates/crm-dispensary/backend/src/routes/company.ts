@@ -118,9 +118,16 @@ app.post('/users', requireAdmin, async (c) => {
 
     const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
     const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
+    // Fallback to the recorded plan's MAX seats (starter 10 / pro 25 / business 50 /
+    // enterprise unlimited) when no explicit SEAT_LIMIT/settings.seatLimit is set, so the
+    // sold seat cap is actually enforced. An UNKNOWN plan still means no cap (fail-open — we
+    // never refuse a paying customer whose plan we didn't record). (retest#14)
+    const PLAN_SEAT_MAX: Record<string, number | null> = { starter: 10, pro: 25, business: 50, enterprise: null }
+    const planKey = String((companyRow as any)?.subscriptionTier || (companyRow?.settings as any)?.plan || '').toLowerCase()
+    const planMax = planKey in PLAN_SEAT_MAX ? PLAN_SEAT_MAX[planKey] : undefined
     const seatLimit = Number.isInteger(envSeats) && envSeats > 0
       ? envSeats
-      : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
+      : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : (planMax !== undefined ? planMax : null))
 
     if (seatLimit) {
       // Count the seats that can actually sign in — deactivated users free a seat.
@@ -128,7 +135,7 @@ app.post('/users', requireAdmin, async (c) => {
         .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
       if (activeSeats.length >= seatLimit) {
         return { status: 403 as const, body: {
-          error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
+          error: `Your plan allows up to ${seatLimit} seat${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
           seatLimit,
           activeSeats: activeSeats.length,
         } }

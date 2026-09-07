@@ -12,7 +12,10 @@ export const FEATURE_CATEGORIES = [
       { id: 'email_marketing', name: 'Email Marketing Campaigns', description: 'Create and send targeted email campaigns to leads and customers' },
       { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox' },
       { id: 'google_business', name: 'Google Reviews', description: 'Connect your Google Business Profile - see your rating and reply to reviews from the CRM' },
-      { id: 'referral_program', name: 'Referral Program', description: 'Track and reward customer referrals with automated workflows' },
+      // Referral toggle lives in "Loyalty & Marketing" as `referrals` — the key the
+      // nav/hasFeature guard actually reads. The old `referral_program` entry here
+      // wrote a key nothing consumed, so flipping it did nothing (S16). Removed to
+      // leave a single canonical referral toggle.
       { id: 'website_builder', name: 'Website Builder', description: 'Build and host a professional website for your business' },
       { id: 'seo_tools', name: 'SEO Tools', description: 'Optimize your website for search engines to get more leads' },
       { id: 'ai_receptionist', name: 'AI Receptionist / Auto-Answering', description: 'Automatically answer calls and texts with AI' },

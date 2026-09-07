@@ -146,8 +146,9 @@ export default function LoyaltyPage() {
     try {
       const payload = {
         ...rewardForm,
-        pointsCost: parseInt(rewardForm.pointsCost) || 0,
-        discountValue: parseFloat(rewardForm.discountValue) || 0,
+        // Clamp at 0 — points cost and discount value can't be negative (S20b).
+        pointsCost: Math.max(0, parseInt(rewardForm.pointsCost) || 0),
+        discountValue: Math.max(0, parseFloat(rewardForm.discountValue) || 0),
       };
       if (editingReward) {
         await api.put(`/api/loyalty/rewards/${editingReward.id}`, payload);
@@ -445,6 +446,7 @@ export default function LoyaltyPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Points Cost</label>
             <input
               type="number"
+              min="1"
               value={rewardForm.pointsCost}
               onChange={(e) => setRewardForm({ ...rewardForm, pointsCost: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -468,6 +470,7 @@ export default function LoyaltyPage() {
               <input
                 type="number"
                 step="0.01"
+                min="0"
                 value={rewardForm.discountValue}
                 onChange={(e) => setRewardForm({ ...rewardForm, discountValue: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"

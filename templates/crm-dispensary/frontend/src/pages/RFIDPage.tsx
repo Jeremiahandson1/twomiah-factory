@@ -85,6 +85,19 @@ function TagsTab() {
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({ epc: '', tid: '', productId: '', batchId: '', location: '' });
   const [bulkData, setBulkData] = useState({ epcs: '', location: '', productId: '' });
+  // Product/batch pickers so the register form takes readable names instead of
+  // raw database keys the operator would have to hand-copy.
+  const [products, setProducts] = useState<any[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
+
+  useEffect(() => {
+    api.get('/api/products', { limit: 200 })
+      .then((data: any) => setProducts(Array.isArray(data) ? data : data?.data || []))
+      .catch(() => {});
+    api.get('/api/batches', { limit: 200 })
+      .then((data: any) => setBatches(Array.isArray(data) ? data : data?.data || []))
+      .catch(() => {});
+  }, []);
 
   const loadTags = useCallback(async () => {
     setLoading(true);
@@ -183,12 +196,18 @@ function TagsTab() {
             <input type="text" value={formData.tid} onChange={(e) => setFormData({ ...formData, tid: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Product ID</label>
-            <input type="text" value={formData.productId} onChange={(e) => setFormData({ ...formData, productId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
+            <label className="block text-sm font-medium text-slate-300 mb-1">Product</label>
+            <select value={formData.productId} onChange={(e) => setFormData({ ...formData, productId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500">
+              <option value="">Unassigned</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Batch ID</label>
-            <input type="text" value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
+            <label className="block text-sm font-medium text-slate-300 mb-1">Batch</label>
+            <select value={formData.batchId} onChange={(e) => setFormData({ ...formData, batchId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500">
+              <option value="">None</option>
+              {batches.map(b => <option key={b.id} value={b.id}>{b.batchNumber || b.batchId || b.id}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1">Location</label>
@@ -213,8 +232,11 @@ function TagsTab() {
             <input type="text" value={bulkData.location} onChange={(e) => setBulkData({ ...bulkData, location: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="Vault" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Product ID (optional)</label>
-            <input type="text" value={bulkData.productId} onChange={(e) => setBulkData({ ...bulkData, productId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" />
+            <label className="block text-sm font-medium text-slate-300 mb-1">Product (optional)</label>
+            <select value={bulkData.productId} onChange={(e) => setBulkData({ ...bulkData, productId: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500">
+              <option value="">Unassigned</option>
+              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

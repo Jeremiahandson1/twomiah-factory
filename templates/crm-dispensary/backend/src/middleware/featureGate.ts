@@ -25,10 +25,13 @@ const PLAN_FEATURES: Record<string, string[]> = {
   enterprise: ['all'],
 }
 
+// users = the plan MAX seat cap (the hard gate that blocks adding a user).
+// `included` seats are a pricing concept (base covers N, extras up to MAX bill
+// +$29/mo each — see routes/billing.ts). Once at MAX the tenant must upgrade.
 const PLAN_LIMITS: Record<string, Record<string, number | null>> = {
-  starter: { users: 2, contacts: 500, orders: 500, storage: 5 },
-  pro: { users: 5, contacts: 2500, orders: 5000, storage: 25 },
-  business: { users: 15, contacts: 10000, orders: 25000, storage: 100 },
+  starter: { users: 10, contacts: 500, orders: 500, storage: 5 },
+  pro: { users: 25, contacts: 2500, orders: 5000, storage: 25 },
+  business: { users: 50, contacts: 10000, orders: 25000, storage: 100 },
   enterprise: { users: null, contacts: null, orders: null, storage: null },
 }
 
@@ -183,13 +186,16 @@ export function checkUsageLimits(limitType: string) {
     }
 
     if (currentUsage >= limit) {
+      const message = limitType === 'users'
+        ? `You've reached your plan's maximum of ${limit} seats. Upgrade to a higher plan to add more users.`
+        : `You've reached your ${limitType} limit (${limit}). Please upgrade your plan for more.`
       return c.json({
         error: 'Limit reached',
         code: 'LIMIT_REACHED',
         limitType,
         currentUsage,
         limit,
-        message: `You've reached your ${limitType} limit (${limit}). Please upgrade your plan for more.`,
+        message,
         upgradeUrl: '/settings/billing',
       }, 403)
     }

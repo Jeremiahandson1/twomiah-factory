@@ -7,6 +7,7 @@ import {
   CreditCard, Wrench, ArrowRight, SkipForward,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { EmailAliasesStep } from '../shared';
 
@@ -151,6 +152,7 @@ const SETUP_OPTIONS = [
 export default function OnboardingWizard() {
   const navigate = useNavigate();
   const { company, updateCompany } = useAuth();
+  const toast = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
 
@@ -202,7 +204,24 @@ export default function OnboardingWizard() {
     setExpandedIntegration(null);
   };
 
+  // Step 0 must have the core company details before we let the wizard advance —
+  // the "Verify Info" step previously validated nothing and let blanks through
+  // to a raw backend validation error (S20a).
+  const validateProfile = (): string | null => {
+    if (!profile.name.trim()) return 'Please enter your company name.';
+    const email = profile.email.trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Please enter a valid email address.';
+    if (!profile.phone.trim()) return 'Please enter a phone number.';
+    if (!profile.city.trim()) return 'Please enter your city.';
+    if (!profile.state.trim()) return 'Please enter your state.';
+    return null;
+  };
+
   const handleNext = () => {
+    if (currentStep === 0) {
+      const problem = validateProfile();
+      if (problem) { toast.error(problem); return; }
+    }
     if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
   };
 
@@ -234,7 +253,13 @@ export default function OnboardingWizard() {
       updateCompany(updated);
       navigate('/crm', { replace: true });
     } catch (err) {
-      console.error('Failed to complete onboarding:', err);
+      // Map raw backend/validation output to a friendly, actionable message
+      // instead of failing silently (S20a).
+      const raw = (err as any)?.message || '';
+      const friendly = /email/i.test(raw) ? 'Please enter a valid email address.'
+        : /name/i.test(raw) ? 'Please enter your company name.'
+        : "We couldn't save your details. Please check your info and try again.";
+      toast.error(friendly);
     } finally {
       setSaving(false);
     }

@@ -95,7 +95,7 @@ export default function FraudDetectionPage() {
 
   const handleAlertAction = async (id: string, action: 'investigate' | 'resolve' | 'dismiss') => {
     try {
-      await api.post(`/api/fraud-detection/alerts/${id}/${action}`);
+      await api.put(`/api/fraud-detection/alerts/${id}/${action}`);
       toast.success(`Alert ${action}d`);
       loadAlerts();
     } catch (err: any) {

@@ -10,6 +10,16 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Frontend reads camelCase, but raw db.execute rows come back snake_case, so a purge-log
+// entry / access review / change / backup rendered with blank columns. Convert row keys to
+// camelCase before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ==========================================
 // Zod Schemas
 // ==========================================
@@ -22,7 +32,7 @@ const retentionPolicySchema = z.object({
 })
 
 const accessReviewEntrySchema = z.object({
-  userId: z.string().uuid(),
+  userId: z.string().min(1),
   decision: z.enum(['keep', 'modify', 'revoke']),
   newRole: z.string().optional(),
   notes: z.string().optional(),
@@ -38,7 +48,7 @@ const changeLogSchema = z.object({
   description: z.string().min(1),
   riskLevel: z.enum(['low', 'medium', 'high', 'critical']).default('low'),
   affectedSystems: z.array(z.string()).optional(),
-  approvedBy: z.string().uuid().optional(),
+  approvedBy: z.string().min(1).optional(),
   rollbackPlan: z.string().optional(),
   metadata: z.record(z.any()).optional(),
 })
@@ -133,18 +143,23 @@ app.put('/retention/policies/:id', requireRole('owner'), async (c) => {
   return c.json(updated)
 })
 
-// Execute purge for a policy
-app.post('/retention/purge', requireRole('owner'), async (c) => {
-  const currentUser = c.get('user') as any
-  const { policyId } = z.object({ policyId: z.string().uuid() }).parse(await c.req.json())
-
+// Shared purge executor — used by both POST /retention/purge (policyId in body) and
+// POST /retention/:id/purge (policyId in path, what the SOC2 dashboard "Run Purge" button calls).
+async function executePurgeForPolicy(
+  currentUser: any,
+  policyId: string,
+  req: any,
+): Promise<
+  | { ok: true; recordsAffected: number; cutoffDate: string }
+  | { ok: false; status: 400 | 404; error: string }
+> {
   const policyResult = await db.execute(sql`
     SELECT * FROM data_retention_policies
     WHERE id = ${policyId} AND company_id = ${currentUser.companyId}
     LIMIT 1
   `)
   const policy = ((policyResult as any).rows || policyResult)[0]
-  if (!policy) return c.json({ error: 'Retention policy not found' }, 404)
+  if (!policy) return { ok: false, status: 404, error: 'Retention policy not found' }
 
   const cutoffDate = new Date()
   cutoffDate.setDate(cutoffDate.getDate() - policy.retention_days)
@@ -165,7 +180,7 @@ app.post('/retention/purge', requireRole('owner'), async (c) => {
 
   const mapping = categoryTableMap[policy.data_category]
   if (!mapping) {
-    return c.json({ error: `Unsupported data category: ${policy.data_category}` }, 400)
+    return { ok: false, status: 400, error: `Unsupported data category: ${policy.data_category}` }
   }
 
   if (policy.action === 'delete') {
@@ -209,15 +224,17 @@ app.post('/retention/purge', requireRole('owner'), async (c) => {
     recordsAffected = (updateResult as any).rowCount || 0
   }
 
-  // Log to data_purge_log
+  // Log to data_purge_log. Schema columns: id, company_id, policy_id, data_category,
+  // action, records_affected, started_at (default now), completed_at, error — there is
+  // no cutoff_date / executed_by / created_at column (those inserts 500'd).
   await db.execute(sql`
     INSERT INTO data_purge_log (
       id, company_id, policy_id, data_category, action,
-      cutoff_date, records_affected, executed_by, created_at
+      records_affected, started_at, completed_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId}, ${policyId},
       ${policy.data_category}, ${policy.action},
-      ${cutoffDate}, ${recordsAffected}, ${currentUser.userId}, NOW()
+      ${recordsAffected}, NOW(), NOW()
     )
   `)
 
@@ -231,10 +248,30 @@ app.post('/retention/purge', requireRole('owner'), async (c) => {
       cutoffDate: cutoffDate.toISOString(),
       recordsAffected,
     },
-    req: c.req,
+    req,
   })
 
-  return c.json({ success: true, recordsAffected, cutoffDate: cutoffDate.toISOString() })
+  return { ok: true, recordsAffected, cutoffDate: cutoffDate.toISOString() }
+}
+
+// Execute purge for a policy (policyId in body)
+app.post('/retention/purge', requireRole('owner'), async (c) => {
+  const currentUser = c.get('user') as any
+  const { policyId } = z.object({ policyId: z.string().min(1) }).parse(await c.req.json())
+
+  const result = await executePurgeForPolicy(currentUser, policyId, c.req)
+  if (!result.ok) return c.json({ error: result.error }, result.status)
+  return c.json({ success: true, recordsAffected: result.recordsAffected, cutoffDate: result.cutoffDate })
+})
+
+// Execute purge for a policy (policyId in path) — what the dashboard Run Purge button calls
+app.post('/retention/:id/purge', requireRole('owner'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const result = await executePurgeForPolicy(currentUser, id, c.req)
+  if (!result.ok) return c.json({ error: result.error }, result.status)
+  return c.json({ success: true, recordsAffected: result.recordsAffected, cutoffDate: result.cutoffDate })
 })
 
 // Purge history
@@ -245,12 +282,13 @@ app.get('/retention/purge-log', requireRole('owner'), async (c) => {
   const offset = (page - 1) * limit
 
   const [dataResult, countResult] = await Promise.all([
+    // data_purge_log has no executed_by (no per-user attribution) and no created_at;
+    // order by started_at (the real timestamp column).
     db.execute(sql`
-      SELECT dpl.*, u.email as executed_by_email
+      SELECT dpl.*
       FROM data_purge_log dpl
-      LEFT JOIN "user" u ON u.id = dpl.executed_by
       WHERE dpl.company_id = ${currentUser.companyId}
-      ORDER BY dpl.created_at DESC
+      ORDER BY dpl.started_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `),
     db.execute(sql`
@@ -260,7 +298,7 @@ app.get('/retention/purge-log', requireRole('owner'), async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -274,28 +312,60 @@ app.get('/retention/purge-log', requireRole('owner'), async (c) => {
 app.get('/access-reviews', requireRole('owner'), async (c) => {
   const currentUser = c.get('user') as any
 
+  // The initiator is stored in reviewer_id (there is no initiated_by column).
   const result = await db.execute(sql`
     SELECT ar.*, u.email as initiated_by_email
     FROM access_reviews ar
-    LEFT JOIN "user" u ON u.id = ar.initiated_by
+    LEFT JOIN "user" u ON u.id = ar.reviewer_id
     WHERE ar.company_id = ${currentUser.companyId}
     ORDER BY ar.created_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
+})
+
+// List the users/entries for a single access review (populates the review detail table)
+app.get('/access-reviews/:id/users', requireRole('owner'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const result = await db.execute(sql`
+    SELECT entries FROM access_reviews
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
+    LIMIT 1
+  `)
+  const row = ((result as any).rows || result)[0]
+  if (!row) return c.json({ error: 'Access review not found' }, 404)
+
+  const entries: any[] = Array.isArray(row.entries) ? row.entries
+    : (typeof row.entries === 'string' ? JSON.parse(row.entries) : [])
+
+  // Shape entries to what the frontend review table reads (id/userId, name/email, role, decision, notes)
+  const users = entries.map((e: any) => ({
+    id: e.user_id,
+    userId: e.user_id,
+    name: e.user_email,
+    email: e.user_email,
+    role: e.current_role,
+    permissions: [],
+    decision: e.decision && e.decision !== 'pending' ? e.decision : 'keep',
+    notes: e.notes || '',
+  }))
+
+  return c.json(users)
 })
 
 // Start new access review
 app.post('/access-reviews', requireRole('owner'), async (c) => {
   const currentUser = c.get('user') as any
 
-  // Create the review
+  // Create the review. Schema columns: reviewer_id (the initiator), no updated_at.
   const reviewResult = await db.execute(sql`
     INSERT INTO access_reviews (
-      id, company_id, status, initiated_by, created_at, updated_at
+      id, company_id, status, reviewer_id, created_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId}, 'in_progress',
-      ${currentUser.userId}, NOW(), NOW()
+      ${currentUser.userId}, NOW()
     ) RETURNING *
   `)
 
@@ -325,7 +395,7 @@ app.post('/access-reviews', requireRole('owner'), async (c) => {
 
   await db.execute(sql`
     UPDATE access_reviews
-    SET entries = ${JSON.stringify(entries)}::jsonb, updated_at = NOW()
+    SET entries = ${JSON.stringify(entries)}::jsonb
     WHERE id = ${review.id}
   `)
 
@@ -337,7 +407,7 @@ app.post('/access-reviews', requireRole('owner'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ ...review, entryCount: users.length }, 201)
+  return c.json({ ...camel(review), entryCount: users.length }, 201)
 })
 
 // Update review decisions
@@ -371,7 +441,7 @@ app.put('/access-reviews/:id', requireRole('owner'), async (c) => {
 
   await db.execute(sql`
     UPDATE access_reviews
-    SET entries = ${JSON.stringify(currentEntries)}::jsonb, updated_at = NOW()
+    SET entries = ${JSON.stringify(currentEntries)}::jsonb
     WHERE id = ${id}
   `)
 
@@ -403,6 +473,34 @@ app.post('/access-reviews/:id/complete', requireRole('owner'), async (c) => {
   const entries: any[] = Array.isArray(review.entries) ? review.entries
     : (typeof review.entries === 'string' ? JSON.parse(review.entries) : [])
 
+  // The frontend edits decisions in the review table then submits them on complete.
+  // Merge any posted decisions/notes into the stored entries before applying them.
+  let bodyUsers: any[] = []
+  try {
+    const body = await c.req.json()
+    if (Array.isArray(body?.users)) bodyUsers = body.users
+    else if (Array.isArray(body?.entries)) bodyUsers = body.entries
+  } catch { /* no body — apply whatever decisions are already stored */ }
+
+  if (bodyUsers.length > 0) {
+    for (const u of bodyUsers) {
+      const uid = u.userId || u.id
+      const idx = entries.findIndex((e: any) => e.user_id === uid)
+      if (idx !== -1) {
+        if (u.decision) entries[idx].decision = u.decision
+        if (u.newRole !== undefined) entries[idx].new_role = u.newRole || null
+        if (u.notes !== undefined) entries[idx].notes = u.notes || null
+        entries[idx].decided_by = currentUser.userId
+        entries[idx].decided_at = new Date().toISOString()
+      }
+    }
+    await db.execute(sql`
+      UPDATE access_reviews
+      SET entries = ${JSON.stringify(entries)}::jsonb
+      WHERE id = ${id}
+    `)
+  }
+
   let revokeCount = 0
   let modifyCount = 0
 
@@ -416,15 +514,16 @@ app.post('/access-reviews/:id/complete', requireRole('owner'), async (c) => {
 
       // Revoke all their sessions
       await db.execute(sql`
-        UPDATE active_sessions SET revoked = true, revoked_at = NOW()
-        WHERE user_id = ${entry.user_id} AND company_id = ${currentUser.companyId} AND revoked = false
+        UPDATE active_sessions SET revoked_at = NOW()
+        WHERE user_id = ${entry.user_id} AND company_id = ${currentUser.companyId} AND revoked_at IS NULL
       `)
 
-      // Log change
+      // Log change. change_log uses changed_by + new_value (json); there is no
+      // performed_by / metadata column.
       await db.execute(sql`
         INSERT INTO change_log (
           id, company_id, change_type, category, description,
-          risk_level, performed_by, metadata, created_at
+          risk_level, changed_by, new_value, created_at
         ) VALUES (
           gen_random_uuid(), ${currentUser.companyId}, 'access_revoked', 'access_review',
           ${'User access revoked: ' + entry.user_email}, 'high',
@@ -446,7 +545,7 @@ app.post('/access-reviews/:id/complete', requireRole('owner'), async (c) => {
       await db.execute(sql`
         INSERT INTO change_log (
           id, company_id, change_type, category, description,
-          risk_level, performed_by, metadata, created_at
+          risk_level, changed_by, new_value, created_at
         ) VALUES (
           gen_random_uuid(), ${currentUser.companyId}, 'role_modified', 'access_review',
           ${'User role changed: ' + entry.user_email + ' from ' + oldRole + ' to ' + entry.new_role},
@@ -459,10 +558,10 @@ app.post('/access-reviews/:id/complete', requireRole('owner'), async (c) => {
     }
   }
 
-  // Mark review as completed
+  // Mark review as completed (no updated_at column on access_reviews)
   await db.execute(sql`
     UPDATE access_reviews
-    SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+    SET status = 'completed', completed_at = NOW()
     WHERE id = ${id}
   `)
 
@@ -505,7 +604,7 @@ app.get('/changes', requireRole('manager'), async (c) => {
     db.execute(sql`
       SELECT cl.*, u.email as performed_by_email
       FROM change_log cl
-      LEFT JOIN "user" u ON u.id = cl.performed_by
+      LEFT JOIN "user" u ON u.id = cl.changed_by
       WHERE cl.company_id = ${currentUser.companyId}
         ${typeFilter}
         ${categoryFilter}
@@ -523,7 +622,7 @@ app.get('/changes', requireRole('manager'), async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -534,19 +633,24 @@ app.post('/changes', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const data = changeLogSchema.parse(await c.req.json())
 
+  // change_log uses changed_by + new_value (json). There is no affected_systems /
+  // performed_by / metadata column, so fold affectedSystems + metadata into new_value.
+  const newValue = (data.affectedSystems || data.metadata)
+    ? JSON.stringify({ affectedSystems: data.affectedSystems, ...(data.metadata || {}) })
+    : null
+
   const result = await db.execute(sql`
     INSERT INTO change_log (
       id, company_id, change_type, category, description,
-      risk_level, affected_systems, approved_by, rollback_plan,
-      performed_by, metadata, created_at
+      risk_level, approved_by, rollback_plan,
+      changed_by, new_value, created_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId},
       ${data.changeType}, ${data.category}, ${data.description},
       ${data.riskLevel},
-      ${data.affectedSystems ? JSON.stringify(data.affectedSystems) : null}::jsonb,
       ${data.approvedBy || null}, ${data.rollbackPlan || null},
       ${currentUser.userId},
-      ${data.metadata ? JSON.stringify(data.metadata) : null}::jsonb,
+      ${newValue}::jsonb,
       NOW()
     ) RETURNING *
   `)
@@ -577,9 +681,10 @@ app.post('/changes/:id/rollback', requireRole('manager'), async (c) => {
   const found = ((existing as any).rows || existing)[0]
   if (!found) return c.json({ error: 'Change log entry not found' }, 404)
 
+  // change_log has rolled_back + rolled_back_at only (no rolled_back_by column)
   const result = await db.execute(sql`
     UPDATE change_log
-    SET rolled_back = true, rolled_back_at = NOW(), rolled_back_by = ${currentUser.userId}
+    SET rolled_back = true, rolled_back_at = NOW()
     WHERE id = ${id}
     RETURNING *
   `)
@@ -605,16 +710,17 @@ app.post('/changes/:id/rollback', requireRole('manager'), async (c) => {
 app.get('/backups', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
+  // backup_verifications timestamps the row with verified_at (no created_at column).
   const result = await db.execute(sql`
     SELECT bv.*, u.email as verified_by_email
     FROM backup_verifications bv
     LEFT JOIN "user" u ON u.id = bv.verified_by
     WHERE bv.company_id = ${currentUser.companyId}
-    ORDER BY bv.created_at DESC
+    ORDER BY bv.verified_at DESC
     LIMIT 100
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Record a backup verification — tests DB connectivity
@@ -639,19 +745,22 @@ app.post('/backups/verify', requireRole('manager'), async (c) => {
     details.responseTimeMs = Date.now() - startTime
   }
 
+  // backup_verifications stores the payload in metadata (no details/notes columns) and
+  // timestamps with verified_at (no created_at). Fold notes into the metadata json.
+  if (data.notes) details.notes = data.notes
   const result = await db.execute(sql`
     INSERT INTO backup_verifications (
-      id, company_id, backup_type, status, details,
-      verified_by, notes, created_at
+      id, company_id, backup_type, status, metadata,
+      verified_by, verified_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId},
       ${data.backupType || 'database'}, ${status},
       ${JSON.stringify(details)}::jsonb,
-      ${currentUser.userId}, ${data.notes || null}, NOW()
+      ${currentUser.userId}, NOW()
     ) RETURNING *
   `)
 
-  const created = ((result as any).rows || result)[0]
+  const created = camel(((result as any).rows || result)[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -719,8 +828,8 @@ app.post('/backups/test-restore', requireRole('owner'), async (c) => {
   // Record the test
   await db.execute(sql`
     INSERT INTO backup_verifications (
-      id, company_id, backup_type, status, details,
-      verified_by, notes, created_at
+      id, company_id, backup_type, status, metadata,
+      verified_by, restore_test_details, verified_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId},
       'restore_test', ${status},
@@ -784,9 +893,9 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
     `),
     // CC6.1 — Avg password age
     db.execute(sql`
-      SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (NOW() - COALESCE(ph.created_at, u.created_at))) / 86400), 0)::int as avg_days
+      SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (NOW() - COALESCE(ph.changed_at, u.created_at))) / 86400), 0)::int as avg_days
       FROM "user" u
-      LEFT JOIN LATERAL (SELECT created_at FROM password_history WHERE user_id = u.id ORDER BY created_at DESC LIMIT 1) ph ON true
+      LEFT JOIN LATERAL (SELECT changed_at FROM password_history WHERE user_id = u.id ORDER BY changed_at DESC LIMIT 1) ph ON true
       WHERE u.company_id = ${companyId} AND u.is_active = true
     `),
     // CC6.2 — Security events last 30d
@@ -808,7 +917,7 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
     // CC6.3 — Active sessions
     db.execute(sql`
       SELECT COUNT(*)::int as count FROM active_sessions
-      WHERE company_id = ${companyId} AND revoked = false
+      WHERE company_id = ${companyId} AND revoked_at IS NULL
         AND (expires_at IS NULL OR expires_at > NOW())
     `),
     // CC7.2 — Retention policies count
@@ -818,9 +927,9 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
     `),
     // CC7.2 — Last purge
     db.execute(sql`
-      SELECT created_at FROM data_purge_log
+      SELECT started_at AS created_at FROM data_purge_log
       WHERE company_id = ${companyId}
-      ORDER BY created_at DESC LIMIT 1
+      ORDER BY started_at DESC LIMIT 1
     `),
     // CC7.3 — Last access review
     db.execute(sql`
@@ -853,9 +962,9 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
     `),
     // A1.2 — Last backup verification
     db.execute(sql`
-      SELECT created_at, status FROM backup_verifications
+      SELECT verified_at AS created_at, status FROM backup_verifications
       WHERE company_id = ${companyId}
-      ORDER BY created_at DESC LIMIT 1
+      ORDER BY verified_at DESC LIMIT 1
     `),
     // A1.2 — Incidents last 30d
     db.execute(sql`
@@ -1003,21 +1112,22 @@ app.get('/dashboard', requireRole('manager'), async (c) => {
   }
 
   // Store the assessment
+  // soc2_compliance_status has individual *_score columns + a `controls` json +
+  // last_assessment_at/updated_at — NOT scores/details/assessed_by/created_at, which
+  // this UPSERT invented (every dashboard load 500'd on "column scores does not exist").
+  // Persist the per-control scores + details inside the real `controls` json column.
   await db.execute(sql`
     INSERT INTO soc2_compliance_status (
-      id, company_id, overall_score, scores, details,
-      assessed_by, created_at
+      id, company_id, overall_score, controls, last_assessment_at, updated_at
     ) VALUES (
       gen_random_uuid(), ${companyId}, ${overallScore},
-      ${JSON.stringify(scores)}::jsonb,
-      ${JSON.stringify(dashboard.details)}::jsonb,
-      ${currentUser.userId}, NOW()
+      ${JSON.stringify({ scores, details: dashboard.details })}::jsonb,
+      NOW(), NOW()
     ) ON CONFLICT (company_id) DO UPDATE SET
       overall_score = EXCLUDED.overall_score,
-      scores = EXCLUDED.scores,
-      details = EXCLUDED.details,
-      assessed_by = EXCLUDED.assessed_by,
-      created_at = EXCLUDED.created_at
+      controls = EXCLUDED.controls,
+      last_assessment_at = EXCLUDED.last_assessment_at,
+      updated_at = EXCLUDED.updated_at
   `)
 
   return c.json(dashboard)
@@ -1050,6 +1160,60 @@ app.post('/dashboard/assess', requireRole('manager'), async (c) => {
   })
 
   return c.json({ ...dashboard, assessmentTriggered: true })
+})
+
+// Export the current SOC 2 compliance status as a JSON report (downloaded by the dashboard)
+app.get('/dashboard/export', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const companyId = currentUser.companyId
+
+  const statusResult = await db.execute(sql`
+    SELECT * FROM soc2_compliance_status WHERE company_id = ${companyId} LIMIT 1
+  `)
+  const status = camel(((statusResult as any).rows || statusResult)[0]) || null
+
+  const companyResult = await db.execute(sql`
+    SELECT id, name FROM company WHERE id = ${companyId} LIMIT 1
+  `)
+  const company = camel(((companyResult as any).rows || companyResult)[0]) || null
+
+  // Graceful when no assessment has been stored yet — return a zeroed scaffold rather than 404/500.
+  return c.json({
+    reportType: 'soc2_compliance',
+    generatedAt: new Date().toISOString(),
+    company: { id: company?.id || companyId, name: company?.name || null },
+    overallScore: status?.overallScore ?? 0,
+    controls: status?.controls ?? {},
+    lastAssessmentAt: status?.lastAssessmentAt ?? null,
+    nextAssessmentDue: status?.nextAssessmentDue ?? null,
+  })
+})
+
+// Schedule the next SOC 2 assessment/review — persists next_assessment_due
+app.post('/dashboard/schedule', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const companyId = currentUser.companyId
+  const { date } = z.object({ date: z.string().min(1) }).parse(await c.req.json())
+
+  // Upsert onto the single soc2_compliance_status row (company_id is unique). controls has a
+  // NOT NULL default so it can be omitted on insert.
+  await db.execute(sql`
+    INSERT INTO soc2_compliance_status (id, company_id, next_assessment_due, updated_at)
+    VALUES (gen_random_uuid(), ${companyId}, ${date}::date, NOW())
+    ON CONFLICT (company_id) DO UPDATE SET
+      next_assessment_due = EXCLUDED.next_assessment_due,
+      updated_at = NOW()
+  `)
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'soc2_assessment_schedule',
+    entityId: companyId,
+    metadata: { nextAssessmentDue: date },
+    req: c.req,
+  })
+
+  return c.json({ success: true, nextAssessmentDue: date })
 })
 
 export default app

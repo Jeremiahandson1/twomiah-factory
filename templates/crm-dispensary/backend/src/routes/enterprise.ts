@@ -9,6 +9,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case but the frontend reads camelCase, so fields
+// rendered blank. Convert row keys to camelCase before responding. (retest#5 N1)
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ─── Store Groups (Franchise/Chain) ──────────────────────────────────
 
 // GET /store-groups — List store groups
@@ -19,7 +28,7 @@ app.get('/store-groups', async (c) => {
     SELECT sg.*,
            COALESCE(
              (SELECT json_agg(json_build_object('locationId', sgm.location_id, 'role', sgm.role, 'joinedAt', sgm.joined_at))
-              FROM store_group_members sgm WHERE sgm.store_group_id = sg.id),
+              FROM store_group_members sgm WHERE sgm.group_id = sg.id),
              '[]'::json
            ) as members
     FROM store_groups sg
@@ -27,7 +36,7 @@ app.get('/store-groups', async (c) => {
     ORDER BY sg.name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // POST /store-groups — Create store group
@@ -57,7 +66,7 @@ app.post('/store-groups', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(group, 201)
+  return c.json(camel(group), 201)
 })
 
 // PUT /store-groups/:id — Update group
@@ -96,7 +105,7 @@ app.put('/store-groups/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // POST /store-groups/:id/members — Add location to group
@@ -118,9 +127,9 @@ app.post('/store-groups/:id/members', requireRole('manager'), async (c) => {
   if (!group) return c.json({ error: 'Store group not found' }, 404)
 
   const result = await db.execute(sql`
-    INSERT INTO store_group_members(id, store_group_id, location_id, role, joined_at)
+    INSERT INTO store_group_members(id, group_id, location_id, role, joined_at)
     VALUES (gen_random_uuid(), ${groupId}, ${data.locationId}, ${data.role}, NOW())
-    ON CONFLICT (store_group_id, location_id) DO UPDATE SET role = ${data.role}
+    ON CONFLICT (group_id, location_id) DO UPDATE SET role = ${data.role}
     RETURNING *
   `)
 
@@ -134,7 +143,7 @@ app.post('/store-groups/:id/members', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(member, 201)
+  return c.json(camel(member), 201)
 })
 
 // DELETE /store-groups/:id/members/:locationId — Remove location from group
@@ -152,7 +161,7 @@ app.delete('/store-groups/:id/members/:locationId', requireRole('manager'), asyn
 
   const result = await db.execute(sql`
     DELETE FROM store_group_members
-    WHERE store_group_id = ${groupId} AND location_id = ${locationId}
+    WHERE group_id = ${groupId} AND location_id = ${locationId}
     RETURNING *
   `)
 
@@ -184,13 +193,13 @@ app.get('/store-groups/:id/dashboard', requireRole('manager'), async (c) => {
 
   // Get member location IDs
   const membersResult = await db.execute(sql`
-    SELECT location_id FROM store_group_members WHERE store_group_id = ${groupId}
+    SELECT location_id FROM store_group_members WHERE group_id = ${groupId}
   `)
   const memberRows = (membersResult as any).rows || membersResult
   const locationIds = memberRows.map((r: any) => r.location_id)
 
   if (locationIds.length === 0) {
-    return c.json({ group, totalRevenue: 0, totalOrders: 0, totalInventoryValue: 0, stores: [] })
+    return c.json({ group: camel(group), totalRevenue: 0, totalOrders: 0, totalInventoryValue: 0, stores: [] })
   }
 
   // Aggregate revenue and orders per location
@@ -240,7 +249,7 @@ app.get('/store-groups/:id/dashboard', requireRole('manager'), async (c) => {
     }
   })
 
-  return c.json({ group, totalRevenue, totalOrders, totalInventoryValue, stores })
+  return c.json({ group: camel(group), totalRevenue, totalOrders, totalInventoryValue, stores })
 })
 
 // ─── Multi-Store Reporting ──────────────────────────────────────────
@@ -251,11 +260,13 @@ app.get('/multi-store/sales', requireRole('manager'), async (c) => {
   const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
   const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
 
+  // orders.total is a TEXT column; SUM()/AVG() on text throws. Cast per-row to numeric
+  // (NULLIF guards empty strings). location_id is a real orders column (schema.ts). (schema fix)
   const salesResult = await db.execute(sql`
     SELECT o.location_id,
-           COALESCE(SUM(o.total), 0)::numeric as revenue,
+           COALESCE(SUM(NULLIF(o.total, '')::numeric), 0) as revenue,
            COUNT(*)::int as order_count,
-           ROUND(AVG(o.total)::numeric, 2) as avg_order_value
+           ROUND(COALESCE(AVG(NULLIF(o.total, '')::numeric), 0), 2) as avg_order_value
     FROM orders o
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status != 'cancelled'
@@ -265,9 +276,12 @@ app.get('/multi-store/sales', requireRole('manager'), async (c) => {
     ORDER BY revenue DESC
   `)
 
-  // Top products per location
+  // Top products per location.
+  // order_items has no location_id (take it from the joined order) and no `subtotal`
+  // column — the line total lives in line_total (fallback total_price). (schema fix)
   const topProductsResult = await db.execute(sql`
-    SELECT oi.location_id, p.name as product_name, SUM(oi.quantity)::int as total_qty, SUM(oi.subtotal)::numeric as total_revenue
+    SELECT o.location_id, p.name as product_name, SUM(oi.quantity)::int as total_qty,
+           SUM(COALESCE(NULLIF(oi.line_total, '')::numeric, NULLIF(oi.total_price, '')::numeric, 0)) as total_revenue
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
     JOIN products p ON p.id = oi.product_id
@@ -275,7 +289,7 @@ app.get('/multi-store/sales', requireRole('manager'), async (c) => {
       AND o.status != 'cancelled'
       AND o.created_at >= ${startDate}::date
       AND o.created_at < (${endDate}::date + INTERVAL '1 day')
-    GROUP BY oi.location_id, p.name
+    GROUP BY o.location_id, p.name
     ORDER BY total_revenue DESC
   `)
 
@@ -346,36 +360,41 @@ app.get('/multi-store/inventory', requireRole('manager'), async (c) => {
 app.get('/multi-store/compliance', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
+  // The locations table only stores license_number (no license_expiry / license_type /
+  // metrc_api_key columns). Pull expiry/type/status from the licenses table when a
+  // matching license_number exists for the company. (schema fix)
   const locationsResult = await db.execute(sql`
-    SELECT l.id, l.name, l.license_number, l.license_expiry, l.license_type,
-           l.metrc_api_key IS NOT NULL as metrc_connected
+    SELECT l.id, l.name, l.license_number,
+           lic.license_type, lic.expiration_date AS license_expiry, lic.status AS license_row_status
     FROM locations l
+    LEFT JOIN licenses lic
+      ON lic.company_id = l.company_id AND lic.license_number = l.license_number
     WHERE l.company_id = ${currentUser.companyId}
     ORDER BY l.name ASC
   `)
 
   const locations = (locationsResult as any).rows || locationsResult
 
-  // Get last Metrc sync per location
+  // metrc_sync_log is company-wide (no location_id / synced_at columns). Use the most
+  // recent completed sync and treat any sync history as "connected". (schema fix)
   const syncResult = await db.execute(sql`
-    SELECT location_id, MAX(synced_at) as last_sync
+    SELECT MAX(completed_at) AS last_sync, COUNT(*)::int AS sync_count
     FROM metrc_sync_log
     WHERE company_id = ${currentUser.companyId}
-    GROUP BY location_id
   `)
-  const syncRows = (syncResult as any).rows || syncResult
-  const syncMap = new Map(syncRows.map((r: any) => [r.location_id, r.last_sync]))
+  const syncRow = ((syncResult as any).rows || syncResult)?.[0] || {}
+  const lastMetrcSync = syncRow.last_sync || null
+  const metrcConnected = Number(syncRow.sync_count || 0) > 0
 
-  // Get pending waste reports per location
+  // waste_log has no location_id / status columns — "pending" == not yet reported to
+  // Metrc, counted company-wide. (schema fix)
   const wasteResult = await db.execute(sql`
-    SELECT location_id, COUNT(*)::int as pending_count
+    SELECT COUNT(*)::int AS pending_count
     FROM waste_log
     WHERE company_id = ${currentUser.companyId}
-      AND status = 'pending'
-    GROUP BY location_id
+      AND metrc_reported = false
   `)
-  const wasteRows = (wasteResult as any).rows || wasteResult
-  const wasteMap = new Map(wasteRows.map((r: any) => [r.location_id, r.pending_count]))
+  const pendingWaste = Number(((wasteResult as any).rows || wasteResult)?.[0]?.pending_count || 0)
 
   const compliance = locations.map((loc: any) => {
     const now = new Date()
@@ -386,18 +405,20 @@ app.get('/multi-store/compliance', requireRole('manager'), async (c) => {
       if (daysUntilExpiry < 0) licenseStatus = 'expired'
       else if (daysUntilExpiry < 30) licenseStatus = 'expiring_soon'
       else licenseStatus = 'active'
+    } else if (loc.license_row_status) {
+      licenseStatus = loc.license_row_status
     }
 
     return {
       locationId: loc.id,
       locationName: loc.name,
       licenseNumber: loc.license_number,
-      licenseExpiry: loc.license_expiry,
-      licenseType: loc.license_type,
+      licenseExpiry: loc.license_expiry || null,
+      licenseType: loc.license_type || null,
       licenseStatus,
-      metrcConnected: loc.metrc_connected,
-      lastMetrcSync: syncMap.get(loc.id) || null,
-      pendingWasteReports: wasteMap.get(loc.id) || 0,
+      metrcConnected,
+      lastMetrcSync,
+      pendingWasteReports: pendingWaste,
     }
   })
 
@@ -475,7 +496,7 @@ app.post('/ach/charge', requireRole('manager'), async (c) => {
   // Create ACH transaction record (in reality this would go through a payment processor)
   const result = await db.execute(sql`
     INSERT INTO ach_transactions(id, company_id, order_id, amount, customer_routing_last4, customer_account_last4, account_type, status, initiated_by, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.orderId}, ${data.amount}, ${data.customerBankAccount.routing.slice(-4)}, ${data.customerBankAccount.account.slice(-4)}, ${data.customerBankAccount.type}, 'pending', ${currentUser.id}, NOW(), NOW())
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.orderId}, ${data.amount}, ${data.customerBankAccount.routing.slice(-4)}, ${data.customerBankAccount.account.slice(-4)}, ${data.customerBankAccount.type}, 'pending', ${currentUser.userId}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -489,7 +510,7 @@ app.post('/ach/charge', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(transaction, 201)
+  return c.json(camel(transaction), 201)
 })
 
 // GET /ach/transactions — List ACH transactions
@@ -520,7 +541,7 @@ app.get('/ach/transactions', requireRole('manager'), async (c) => {
       ${statusFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number(((countResult as any).rows || countResult)?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })

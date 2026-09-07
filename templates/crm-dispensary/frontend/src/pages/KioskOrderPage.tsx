@@ -86,9 +86,15 @@ export default function KioskOrderPage() {
     setError('');
     try {
       const params = new URLSearchParams(window.location.search);
-      const locationId = params.get('location') || '';
-      const data = await api.post('/api/kiosk/session/start', { locationId });
-      setSessionToken(data.token || data.sessionToken || '');
+      const locationId = params.get('location') || undefined;
+      const data = await api.post('/api/kiosk/session/start', locationId ? { locationId } : {});
+      const token = data.token || data.sessionToken || '';
+      setSessionToken(token);
+      // Tapping "I am 21 or older" IS the age verification — record it on the session so the
+      // backend lets add-item / checkout through (both require age_verified).
+      if (token) {
+        await api.post(`/api/kiosk/session/${token}/verify-age`, { verified: true });
+      }
       await loadMenu();
       setStep('browse');
     } catch (err: any) {
@@ -390,7 +396,7 @@ export default function KioskOrderPage() {
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 text-lg dark:text-slate-100">{item.name}</h3>
-                    <p className="text-green-700 font-bold text-lg">${item.price.toFixed(2)}</p>
+                    <p className="text-green-700 font-bold text-lg">${Number(item.price).toFixed(2)}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -420,7 +426,7 @@ export default function KioskOrderPage() {
               <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 dark:bg-slate-900">
                 <div className="flex items-center justify-between text-2xl font-bold">
                   <span className="text-gray-900 dark:text-slate-100">Total</span>
-                  <span className="text-green-700">${cartTotal.toFixed(2)}</span>
+                  <span className="text-green-700">${Number(cartTotal).toFixed(2)}</span>
                 </div>
                 <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">Tax calculated at pickup</p>
               </div>
@@ -494,7 +500,7 @@ export default function KioskOrderPage() {
               <div className="mt-6 pt-6 border-t">
                 <div className="flex justify-between text-lg mb-2">
                   <span className="text-gray-600 dark:text-slate-400">{cartCount} item{cartCount !== 1 ? 's' : ''}</span>
-                  <span className="font-bold text-gray-900 dark:text-slate-100">${cartTotal.toFixed(2)}</span>
+                  <span className="font-bold text-gray-900 dark:text-slate-100">${Number(cartTotal).toFixed(2)}</span>
                 </div>
               </div>
 
