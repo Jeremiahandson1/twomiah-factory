@@ -80,8 +80,6 @@ if (rivetSrc) {
   if (shadow) layers.push({ input: shadow, left: 0, top: 0 })
   layers.push({ input: trimmed, left: 4, top: 3 })
   await sharp({ create: { width: W, height: W, channels: 4, background: clear } }).composite(layers).webp({ quality: 90, alphaQuality: 95 }).toFile(path.join(out, 'rivet.webp'))
-  // Spine strip: one rivet then clear space, tiled with repeat-y (96x864 → at 34px wide the rivets sit ~306px apart).
-  await sharp({ create: { width: W, height: 864, channels: 4, background: clear } }).composite([{ input: path.join(out, 'rivet.webp'), left: 0, top: 0 }]).webp({ quality: 90, alphaQuality: 95 }).toFile(path.join(out, 'rivet-strip.webp'))
   const f = await sharp(path.join(out, 'rivet.webp')).metadata()
-  console.log('rivet', f.width, 'x', f.height, '+ rivet-strip 96x864')
+  console.log('rivet', f.width, 'x', f.height)
 }

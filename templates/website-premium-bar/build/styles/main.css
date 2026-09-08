@@ -1126,10 +1126,10 @@ body { background: transparent; }
 .cover > .flourish--tl { top: 0; left: 0; transform: scaleX(-1); }
 .cover > .flourish--br { bottom: 0; right: 0; transform: scaleY(-1); }
 .cover > .flourish--bl { bottom: 0; left: 0; transform: scale(-1, -1); }
-/* Spine with brass rivets — the owner's photographed rivet head (rivet-strip.webp: one head + clear space, tiled). */
+/* Spine with brass rivets — the owner's photographed rivet head, three of them: near the top, the middle, near the bottom, clear of the corner caps. */
 @media (min-width: 900px) {
   .cover { padding-left: 64px; }
-  .cover::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 64px; background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.15) 60%, rgba(0,0,0,0)), url('/images/brand/rivet-strip.webp') 13px 150px / 38px auto repeat-y; pointer-events: none; z-index: 6; border-right: 1px solid rgba(0,0,0,.6); }
+  .cover::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 64px; background: linear-gradient(90deg, rgba(0,0,0,.55), rgba(0,0,0,.15) 60%, rgba(0,0,0,0)), url('/images/brand/rivet.webp') 13px 230px / 38px 38px no-repeat, url('/images/brand/rivet.webp') 13px 50% / 38px 38px no-repeat, url('/images/brand/rivet.webp') 13px calc(100% - 250px) / 38px 38px no-repeat; pointer-events: none; z-index: 6; border-right: 1px solid rgba(0,0,0,.6); }
 }
 .site-header, .site-footer { background: transparent; }
 .site-header { backdrop-filter: none; border-bottom: 1px solid rgba(217,178,116,.45); box-shadow: 0 1px 0 rgba(217,178,116,.18), 0 6px 0 -5px rgba(217,178,116,.35); }
