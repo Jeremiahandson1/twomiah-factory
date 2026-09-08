@@ -285,10 +285,10 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
 
   // Reject overpayment: recording more than the balance due poisons
   // amountPaid and every report built on it (collection rate, revenue).
-  // Work in whole cents so 89.999 can't bank  .00 and status can't desync. (R2-04)
+  // Work in whole cents so fractional inputs cannot desync amountPaid from status. (R2-04)
   const round2 = (n: number) => Math.round(n * 100) / 100
   const amount = round2(data.amount)
-  if (amount <= 0) return c.json({ error: 'Payment amount must be at least /usr/bin/bash.01' }, 400)
+  if (amount <= 0) return c.json({ error: 'Payment amount must be at least $0.01' }, 400)
   const balanceDue = round2(Number(foundInvoice.total) - Number(foundInvoice.amountPaid))
   if (amount > balanceDue + 0.005) {
     return c.json({ error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }, 400)
