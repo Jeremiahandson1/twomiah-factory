@@ -1,0 +1,39 @@
+{
+  "title": "Parties",
+  "metaTitle": "Private Parties — Amber Inn, Eau Claire",
+  "metaDescription": "Book the back booths at the Amber Inn for birthdays, Packer parties, rehearsal dinners and work groups. No reservation platform, no per-person fee. We call you back.",
+  "sections": [
+    {
+      "type": "parties",
+      "variant": "inquiry-form",
+      "data": {
+        "heading": "Book the back booths",
+        "intro": "Birthdays, Packer parties, rehearsal dinners, the work crew. Tell us the date and the headcount and we call you back. No platform, no per-person fee.",
+        "asHeading": true,
+        "minParty": 6,
+        "promise": "The owner gets a text the moment you hit send.",
+        "sidebar": [
+          { "num": "1881", "label": "The room you'd be renting has been a barroom since." },
+          { "num": "Zero", "label": "Booking fees. There is no platform in between." }
+        ],
+        "facts": [
+          "Burgers ground behind the bar, or a burger bar for the group",
+          "The game on the TV if there is one",
+          "Draft root beer for the kids"
+        ]
+      }
+    },
+    {
+      "type": "faq",
+      "variant": "accordion",
+      "data": {
+        "heading": "Party questions",
+        "items": [
+          { "question": "How many people fit?", "answer": "Ask — it depends on the night and whether you want the booths or the room. (Owner to confirm capacity.)" },
+          { "question": "Is there a minimum?", "answer": "The owner will tell you when they call back. There is no booking fee." },
+          { "question": "Can we bring a cake?", "answer": "Yes." }
+        ]
+      }
+    }
+  ]
+}

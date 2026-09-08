@@ -1,0 +1,231 @@
+<%
+  var seoTitle = settings.seoTitle || settings.companyName || 'Website';
+  var seoDescription = settings.seoDescription || '';
+  var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, '');
+  var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : '';
+  var ogImage = settings.logoUrl || settings.heroPhotoUrl || '';
+  // Theme: 'auto' follows prefers-color-scheme (dark-first palette in main.css);
+  // 'dark' / 'light' pin it via data-theme, which wins in both directions.
+  var theme = settings.theme === 'dark' || settings.theme === 'light' ? settings.theme : '';
+  // Typography from settings. Each family also needs a real fallback stack in
+  // CSS (main.css) — these vars only override the family name.
+  var fD = settings.fontDisplay || 'Limelight';
+  var fE = settings.fontEyebrow || 'Cinzel';
+  var fB = settings.fontBody || 'Lora';
+  var fM = settings.fontMono || 'Special Elite';
+  var spec = {
+    'Cinzel': 'Cinzel:wght@400;600',
+    'Lora': 'Lora:ital,wght@0,400;0,600;1,400',
+    'Bodoni Moda': 'Bodoni+Moda:wght@700;900',
+    'Libre Baskerville': 'Libre+Baskerville:ital,wght@0,400;0,700;1,400',
+    'Cormorant Garamond': 'Cormorant+Garamond:ital,wght@0,400;0,600;1,400',
+    'Courier Prime': 'Courier+Prime:wght@400;700',
+  };
+  var seen = {};
+  var families = [fD, fE, fB, fM].filter(function (n) { if (!n || seen[n]) return false; seen[n] = true; return true; });
+  // Self-hosted faces (build/fonts + build/styles/fonts.css, see scripts/fetch-fonts.ts).
+  // Anything else falls back to a Google Fonts request.
+  var selfHosted = { 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400' };
+  var remote = families.filter(function (n) { return !selfHosted[n]; });
+  var fontsHref = remote.length ? 'https://fonts.googleapis.com/css2?family=' + remote.map(function (n) { return spec[n] || String(n).replace(/ /g, '+'); }).join('&family=') + '&display=swap' : '';
+  var useLocal = families.some(function (n) { return !!selfHosted[n]; });
+  function q(n) { return "'" + String(n).replace(/'/g, '') + "'"; }
+  // Metric-matched local fallbacks so the swap from system font to web font
+  // doesn't shift layout (CLS). Ratios measured against the real fonts.
+  var fallback = {
+    'Limelight': { local: 'Georgia', size: '119.5%' },
+    'Cinzel': { local: 'Georgia', size: '118.6%' },
+    'Lora': { local: 'Georgia', size: '102.9%' },
+    'Special Elite': { local: 'Courier New', size: '87.7%' },
+  };
+  function stack(n, generic) { var f = fallback[n]; return q(n) + (f ? ", '" + n + " Fallback', " : ", ") + generic; }
+%><!doctype html>
+<html lang="en"<%= theme ? ' data-theme="' + theme + '"' : '' %>>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#121010" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F4F2ED" media="(prefers-color-scheme: light)">
+  <title><%= seoTitle %></title>
+  <meta name="description" content="<%= seoDescription %>">
+  <% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
+  <meta name="robots" content="index, follow">
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><meta name="twomiah-crm-url" content="<%= crmApiUrl %>"><% } %>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="<%= seoTitle %>">
+  <meta property="og:description" content="<%= seoDescription %>">
+  <% if (canonical) { %><meta property="og:url" content="<%= canonical %>"><% } %>
+  <% if (ogImage) { %><meta property="og:image" content="<%= ogImage %>"><% } %>
+  <% if (settings.companyName) { %><meta property="og:site_name" content="<%= settings.companyName %>"><% } %>
+  <meta name="twitter:card" content="<%= ogImage ? 'summary_large_image' : 'summary' %>">
+  <meta name="twitter:title" content="<%= seoTitle %>">
+  <meta name="twitter:description" content="<%= seoDescription %>">
+  <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
+  <link rel="icon" href="<%= settings.faviconUrl || '/favicon.svg' %>"<%= settings.faviconUrl ? '' : ' type="image/svg+xml"' %>>
+  <% if (settings.appleTouchIconUrl) { %><link rel="apple-touch-icon" href="<%= settings.appleTouchIconUrl %>"><% } %>
+  <% if (typeof lcpImage !== 'undefined' && lcpImage) { %>
+    <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
+  <% } %>
+  <% if (useLocal) { %>
+  <% [fD, fB].forEach(function (n) { if (selfHosted[n]) { %><link rel="preload" as="font" type="font/woff2" href="/fonts/<%= selfHosted[n] %>.woff2" crossorigin>
+  <% } }) %>
+  <link rel="stylesheet" href="/styles/fonts.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
+  <% } %>
+  <% if (fontsHref) { %>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <% } %>
+  <style>
+    <% families.forEach(function (n) { var f = fallback[n]; if (!f) return; %>@font-face { font-family: '<%= n %> Fallback'; src: local('<%= f.local %>'); size-adjust: <%= f.size %>; }
+    <% }) %>:root {
+      --font-display: <%- stack(fD, "'Georgia', serif") %>;
+      --font-eyebrow: <%- stack(fE, "'Georgia', serif") %>;
+      --font-body: <%- stack(fB, "'Georgia', 'Times New Roman', serif") %>;
+      --font-mono: <%- stack(fM, "'Courier New', ui-monospace, monospace") %>;
+    }
+  </style>
+  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
+  <%
+    // Font CSS via the media-toggle pattern so it never blocks first paint;
+    // display=swap keeps text visible while the faces download.
+  %>
+  <% if (fontsHref) { %>
+  <link rel="stylesheet" href="<%= fontsHref %>" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="<%= fontsHref %>"></noscript>
+  <% } %>
+  <% if (typeof jsonLd !== 'undefined' && jsonLd) { %>
+  <script type="application/ld+json"><%- jsonLd %></script>
+  <% } %>
+  <%/* Tracking — PLAIN standard snippets on purpose (Tag Assistant / Ads
+       verification detect these; the deferred loader is opt-in elsewhere). */%>
+  <% const _tGtm = settings.googleTagManagerId || ''; const _tGa = settings.googleAnalyticsId || ''; const _tAds = settings.googleAdsId || ''; const _tFb = settings.facebookPixelId || ''; const _tCl = settings.microsoftClarityId || ''; %>
+  <% if (_tGtm) { %>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _tGtm %>');</script>
+  <% } %>
+  <% if (_tGa || _tAds) { %>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _tGa || _tAds %>"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());<% if (_tGa) { %>gtag('config','<%= _tGa %>');<% } %><% if (_tAds) { %>gtag('config','<%= _tAds %>');<% } %></script>
+  <% } %>
+  <% if (_tFb) { %>
+  <script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','<%= _tFb %>');fbq('track','PageView');</script>
+  <% } %>
+  <% if (_tCl) { %>
+  <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","<%= _tCl %>");</script>
+  <% } %>
+</head>
+<body>
+<% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><% } %>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="<%= settings.homeHref || '/' %>">
+        <% if (settings.headerLogoUrl || settings.logoUrl) { %>
+          <img class="brand__logo" src="<%= settings.headerLogoUrl || settings.logoUrl %>" alt="<%= settings.companyName || 'Home' %>" width="200" height="44">
+        <% } else { %>
+          <%= settings.companyName || 'Your Company' %>
+        <% } %>
+      </a>
+      <nav class="primary-nav" aria-label="Primary">
+        <% (settings.nav || []).forEach(function(item) { %>
+          <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+        <% }) %>
+      </nav>
+      <a class="header-cta" href="<%= settings.contactHref || '/visit' %>"><%= settings.contactCtaLabel || 'Visit' %></a>
+      <button class="mobile-nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile primary" hidden>
+      <% (settings.nav || []).forEach(function(item) { %>
+        <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+      <% }) %>
+      <a class="mobile-nav__cta" href="<%= settings.contactHref || '/visit' %>"><%= settings.contactCtaLabel || 'Visit' %></a>
+    </nav>
+  </header>
+  <script>
+    (function(){
+      var btn = document.querySelector('.mobile-nav-toggle');
+      var nav = document.getElementById('mobile-nav');
+      if (!btn || !nav) return;
+      btn.addEventListener('click', function(){
+        var open = !nav.hasAttribute('hidden');
+        if (open) { nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); btn.setAttribute('aria-label','Open menu'); }
+        else { nav.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); btn.classList.add('is-open'); btn.setAttribute('aria-label','Close menu'); }
+      });
+      nav.querySelectorAll('a').forEach(function(a){
+        a.addEventListener('click', function(){ nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); });
+      });
+    })();
+  </script>
+
+  <main id="main">
+    <%- body %>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-brand"><%= settings.companyName || 'Your Company' %></div>
+        <% if (settings.tagline) { %><div class="footer-tagline"><%= settings.tagline %></div><% } %>
+        <% if (settings.address) { %><div class="footer-address"><%= settings.address %></div><% } %>
+        <% if (settings.established) { %><div class="footer-est">Est. <%= settings.established %></div><% } %>
+      </div>
+      <div class="footer-contact">
+        <% if (settings.phone) { %><a href="tel:<%= String(settings.phone).replace(/[^\d+]/g, '') %>"><%= settings.phone %></a><% } %>
+        <% if (settings.email) { %><a href="mailto:<%= settings.email %>"><%= settings.email %></a><% } %>
+        <% (Array.isArray(settings.sameAs) ? settings.sameAs : []).forEach(function (u) {
+             var label = /facebook/i.test(u) ? 'Facebook' : /instagram/i.test(u) ? 'Instagram' : /untappd/i.test(u) ? 'Untappd' : /yelp/i.test(u) ? 'Yelp' : 'Link'; %>
+          <a href="<%= u %>" rel="noopener" target="_blank"><%= label %></a>
+        <% }) %>
+      </div>
+    </div>
+    <% if (typeof settings !== 'undefined' && settings && Array.isArray(settings.photoCredits) && settings.photoCredits.length) { %>
+  <div class="photo-credits" style="padding:10px 16px;text-align:center;font-size:12px;line-height:1.6;opacity:.82;">
+    Photos:
+    <% settings.photoCredits.forEach(function (c, i) { %><%
+      %><% if (c.photographerUrl) { %><a href="<%= c.photographerUrl %>" rel="nofollow noopener" target="_blank" style="color:inherit;"><%= c.photographer %></a><% } else { %><%= c.photographer %><% } %><% if (c.count > 1) { %> (<%= c.count %> photos)<% } %><%
+      %> on <% if (c.sourceUrl) { %><a href="<%= c.sourceUrl %>" rel="nofollow noopener" target="_blank" style="color:inherit;"><%= c.source %></a><% } else if (c.source === 'Pexels') { %><a href="https://www.pexels.com" rel="nofollow noopener" target="_blank" style="color:inherit;">Pexels</a><% } else { %><%= c.source %><% } %><%
+      %><%= i < settings.photoCredits.length - 1 ? ', ' : '' %><%
+    %><% }) %>
+  </div>
+  <% } %>
+  </footer>
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
+  <script>
+    // ── Single-page nav: smooth scroll, URL hash sync, active highlight ──
+    (function(){
+      var anchors = document.querySelectorAll('.onepage-anchor');
+      if (anchors.length === 0) return;
+      document.querySelectorAll('a[href^="#"]').forEach(function(a){
+        a.addEventListener('click', function(e){
+          var id = a.getAttribute('href').slice(1);
+          if (!id) return;
+          var el = document.getElementById(id);
+          if (!el) return;
+          e.preventDefault();
+          history.replaceState(null, '', '#' + id);
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+      var navLinks = document.querySelectorAll('.primary-nav a[href^="#"], .mobile-nav a[href^="#"]');
+      var byId = {};
+      navLinks.forEach(function(a){
+        var id = a.getAttribute('href').slice(1);
+        if (id) (byId[id] = byId[id] || []).push(a);
+      });
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){
+          if (!en.isIntersecting) return;
+          var id = en.target.id;
+          Object.keys(byId).forEach(function(k){
+            byId[k].forEach(function(a){ a.classList.toggle('is-active', k === id); });
+          });
+          history.replaceState(null, '', '#' + id);
+        });
+      }, { rootMargin: '-30% 0px -55% 0px', threshold: 0 });
+      anchors.forEach(function(el){ io.observe(el); });
+    })();
+  </script>
+</body>
+</html>

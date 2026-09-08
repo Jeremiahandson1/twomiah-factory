@@ -1,0 +1,93 @@
+<%
+  // THE TONIGHT BOARD — replaces the hero. Answers "should I go there right
+  // now?" above the fold: kitchen, bar, taps, tonight's game, today's
+  // special, how busy. Server-rendered from `live` (lib/live.ts) so it is
+  // correct on first paint and fully readable with JavaScript disabled;
+  // build/scripts/live.js then polls /api/live every 60 s and swaps values.
+  //
+  // data: { eyebrow, title, asHeading, tapsHref, menuHref, showTaps, showRoom, intro }
+  const L = (typeof live !== 'undefined' && live) ? live : null
+  const eyebrow = data.eyebrow || 'Tonight at'
+  const title = data.title || settings.companyName || 'The bar'
+  const asHeading = data.asHeading !== false           // board is the page's h1 unless told otherwise
+  const tapsHref = data.tapsHref || '/taps'
+  const menuHref = data.menuHref || '/menu'
+  const showTaps = data.showTaps !== false
+  const showRoom = data.showRoom !== false
+  const intro = data.intro || ''
+  const H = asHeading ? 'h1' : 'h2'
+  function stamp(iso) {
+    if (!iso || !L) return ''
+    try {
+      return new Intl.DateTimeFormat('en-US', { timeZone: L.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(iso))
+    } catch (e) { return '' }
+  }
+  const tapNames = L && L.taps && Array.isArray(L.taps.featured) ? L.taps.featured.map(t => t.name).filter(Boolean) : []
+%>
+<section class="board" id="tonight" aria-label="Tonight at <%= title %>" data-live-root data-live-tz="<%= L ? L.timezone : '' %>">
+  <div class="container board__inner">
+    <header class="board__head">
+      <div class="board__eyebrow"><%= eyebrow %></div>
+      <<%= H %> class="board__title foil"><%= title %></<%= H %>>
+      <% if (intro) { %><p class="board__intro"><%= intro %></p><% } %>
+    </header>
+
+    <% if (!L) { %>
+      <p class="board__empty mono">Hours are being set up. Call <a href="tel:<%= String(settings.phone || '').replace(/[^\d+]/g, '') %>"><%= settings.phone || 'the bar' %></a>.</p>
+    <% } else { %>
+    <dl class="board__rows">
+      <div class="board__row" data-live-row="kitchen" data-state="<%= L.kitchen.isOpen ? 'open' : 'closed' %>">
+        <dt class="board__label">Kitchen</dt>
+        <dd class="board__value">
+          <span class="board__pill" data-live="kitchen.state"><%= L.kitchen.isOpen ? 'Open' : 'Closed' %></span>
+          <span class="board__text mono" data-live="kitchen.short"><%= L.kitchen.short %></span>
+          <span class="board__count mono" data-live="kitchen.countdown" data-closes-at="<%= L.kitchen.closesAt || '' %>" data-opens-at="<%= L.kitchen.opensAt || '' %>"><%= L.kitchen.countdown ? '(' + L.kitchen.countdown + ')' : '' %></span>
+        </dd>
+      </div>
+      <div class="board__row" data-live-row="bar" data-state="<%= L.bar.isOpen ? 'open' : 'closed' %>">
+        <dt class="board__label">Bar</dt>
+        <dd class="board__value">
+          <span class="board__pill" data-live="bar.state"><%= L.bar.isOpen ? 'Open' : 'Closed' %></span>
+          <span class="board__text mono" data-live="bar.short"><%= L.bar.short %></span>
+          <span class="board__count mono" data-live="bar.countdown" data-closes-at="<%= L.bar.closesAt || '' %>" data-opens-at="<%= L.bar.opensAt || '' %>"><%= L.bar.countdown ? '(' + L.bar.countdown + ')' : '' %></span>
+        </dd>
+      </div>
+      <% if (showTaps) { %>
+      <div class="board__row" data-live-row="taps"<%= L.taps.count ? '' : ' hidden' %>>
+        <dt class="board__label">On tap</dt>
+        <dd class="board__value">
+          <a class="board__text mono" href="<%= tapsHref %>"><span data-live="taps.count"><%= L.taps.count %></span> <span data-live="taps.noun"><%= L.taps.count === 1 ? 'line' : 'lines' %></span></a>
+          <span class="board__sub" data-live="taps.names"><%= tapNames.length ? '— ' + tapNames.join(', ') : '' %></span>
+        </dd>
+      </div>
+      <% } %>
+      <div class="board__row" data-live-row="game"<%= L.game ? '' : ' hidden' %>>
+        <dt class="board__label" data-live="game.label"><%= L.game && L.game.isToday ? 'Tonight' : 'Game' %></dt>
+        <dd class="board__value">
+          <span class="board__text mono" data-live="game.text"><%= L.game ? (L.game.away + ' @ ' + L.game.home + ', ' + L.game.startsAtLabel) : '' %></span>
+          <span class="board__sub" data-live="game.note"><%= L.game && L.game.note ? '— ' + L.game.note : '' %></span>
+        </dd>
+      </div>
+      <div class="board__row" data-live-row="special"<%= L.special ? '' : ' hidden' %>>
+        <dt class="board__label">Today</dt>
+        <dd class="board__value">
+          <a class="board__text mono" href="<%= menuHref %>" data-live="special.text"><%= L.special ? (L.special.title + (L.special.price ? ', ' + L.special.price : '')) : '' %></a>
+          <span class="board__sub" data-live="special.description"><%= L.special && L.special.description ? '— ' + L.special.description : '' %></span>
+        </dd>
+      </div>
+      <% if (showRoom) { %>
+      <div class="board__row" data-live-row="room" data-state="<%= L.room.status %>">
+        <dt class="board__label">Room</dt>
+        <dd class="board__value"><span class="board__text mono" data-live="room.label"><%= L.room.label %></span></dd>
+      </div>
+      <% } %>
+      <div class="board__row board__row--note" data-live-row="note"<%= L.note ? '' : ' hidden' %>>
+        <dt class="board__label">Note</dt>
+        <dd class="board__value"><span class="board__text" data-live="note"><%= L.note || '' %></span></dd>
+      </div>
+    </dl>
+    <p class="board__stamp mono"><span>Updated</span> <time data-live="generatedAt" datetime="<%= L.generatedAt %>"><%= stamp(L.generatedAt) %></time><% if (L.updatedBy) { %> <span class="board__by">· <%= L.updatedBy %></span><% } %></p>
+    <% } %>
+  </div>
+  <script src="/scripts/live.js" defer></script>
+</section>

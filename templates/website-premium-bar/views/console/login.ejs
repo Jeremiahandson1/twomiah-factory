@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#121010">
+  <title>Console — <%= companyName %></title>
+  <link rel="manifest" href="/console/manifest.webmanifest">
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="apple-touch-icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/console.css">
+</head>
+<body class="console console--login">
+  <main class="login">
+    <div class="login__brand"><%= companyName %></div>
+    <h1 class="login__title">Console</h1>
+    <% if (noPins) { %>
+      <p class="login__error">No staff PIN is set up yet. Set <code>CONSOLE_PIN</code> in the site's environment (or add one in the admin) and restart.</p>
+    <% } else { %>
+      <% if (error) { %><p class="login__error" role="alert"><%= error %></p><% } %>
+      <form method="POST" action="/console/login" class="login__form" autocomplete="off">
+        <input type="hidden" name="next" value="<%= next %>">
+        <label class="login__label" for="pin">Staff PIN</label>
+        <input class="login__pin" id="pin" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" minlength="4" maxlength="8" required autofocus>
+        <button class="btn btn--primary" type="submit">Open the console</button>
+      </form>
+      <p class="login__hint">Stays signed in on this phone for 30 days.</p>
+    <% } %>
+  </main>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('/console/sw.js', { scope: '/console/' }).catch(function(){})</script>
+</body>
+</html>

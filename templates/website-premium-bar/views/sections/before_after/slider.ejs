@@ -1,0 +1,76 @@
+<%
+  // Before/after comparison slider — drag the handle to reveal the transformation.
+  // Ideal for contractors/remodelers showing project results.
+  // data: { heading?, intro?, items: [{ beforeImage, afterImage, caption?, location?, year?, material? }] }
+  const heading = data.heading || ''
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter(i => i && (i.beforeImage || i.afterImage)) : []
+  if (items.length === 0) return
+%>
+<section class="ba-section">
+  <div class="container">
+    <% if (heading || intro) { %>
+      <div class="ba-section__head">
+        <% if (heading) { %><h2 class="ba-section__title"><%= heading %></h2><% } %>
+        <% if (intro) { %><p class="ba-section__intro"><%= intro %></p><% } %>
+      </div>
+    <% } %>
+    <div class="ba-grid <%= items.length > 1 ? 'ba-grid--multi' : '' %>">
+      <% items.forEach(function(it) { %>
+        <figure class="ba-item">
+          <div class="ba-compare" data-ba>
+            <img class="ba-img ba-img--after" src="<%= it.afterImage || it.beforeImage %>" alt="<%= (it.caption || 'Project') + ' — after' %>" loading="lazy">
+            <img class="ba-img ba-img--before" src="<%= it.beforeImage || it.afterImage %>" alt="<%= (it.caption || 'Project') + ' — before' %>" loading="lazy" style="clip-path: inset(0 50% 0 0);">
+            <span class="ba-tag ba-tag--before">Before</span>
+            <span class="ba-tag ba-tag--after">After</span>
+            <span class="ba-handle" aria-hidden="true"></span>
+            <input class="ba-range" type="range" min="0" max="100" value="50" aria-label="Reveal before and after">
+          </div>
+          <% if (it.caption || it.location || it.year || it.material) { %>
+            <figcaption class="ba-meta">
+              <% if (it.caption) { %><span class="ba-meta__caption"><%= it.caption %></span><% } %>
+              <% if (it.location || it.year) { %><span class="ba-meta__sub"><%= [it.location, it.year].filter(Boolean).join(' · ') %></span><% } %>
+              <% if (it.material) { %><span class="ba-meta__material"><%= it.material %></span><% } %>
+            </figcaption>
+          <% } %>
+        </figure>
+      <% }) %>
+    </div>
+  </div>
+</section>
+<style>
+  .ba-section { padding: 80px 0; background: var(--surface, #faf9f6); }
+  .ba-section__head { text-align: center; max-width: 640px; margin: 0 auto 44px; }
+  .ba-section__title { font-family: var(--font-display, 'Fraunces', Georgia, serif); font-size: clamp(1.9rem, 4vw, 2.8rem); line-height: 1.1; margin: 0 0 12px; }
+  .ba-section__intro { color: var(--muted, #5a5a5a); font-size: 1.1rem; margin: 0; }
+  .ba-grid { display: grid; gap: 32px; grid-template-columns: 1fr; max-width: 720px; margin: 0 auto; }
+  .ba-grid--multi { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); max-width: 1100px; }
+  .ba-item { margin: 0; }
+  .ba-compare { position: relative; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; box-shadow: 0 18px 40px rgba(0,0,0,.14); }
+  .ba-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ba-tag { position: absolute; bottom: 14px; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: #fff; background: rgba(0,0,0,.55); padding: 5px 11px; border-radius: 999px; pointer-events: none; }
+  .ba-tag--before { left: 14px; }
+  .ba-tag--after { right: 14px; }
+  .ba-handle { position: absolute; top: 0; bottom: 0; left: 50%; width: 3px; background: #fff; transform: translateX(-50%); pointer-events: none; }
+  .ba-handle::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; background: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.28); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%231a2e22' stroke-width='2.2'%3E%3Cpolyline points='15 18 9 12 15 6'/%3E%3Cpolyline points='9 18 15 12 9 6' transform='translate(6 0)'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: center; }
+  .ba-range { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
+  .ba-meta { margin-top: 16px; display: flex; flex-direction: column; gap: 3px; }
+  .ba-meta__caption { font-weight: 700; font-size: 1.08rem; }
+  .ba-meta__sub { color: var(--muted, #5a5a5a); font-size: .9rem; }
+  .ba-meta__material { color: var(--accent, #c89a4e); font-size: .85rem; font-weight: 600; }
+</style>
+<script>
+(function () {
+  document.querySelectorAll('.ba-compare[data-ba]').forEach(function (el) {
+    var range = el.querySelector('.ba-range');
+    var before = el.querySelector('.ba-img--before');
+    var handle = el.querySelector('.ba-handle');
+    if (!range || !before) return;
+    range.addEventListener('input', function () {
+      var v = range.value;
+      before.style.clipPath = 'inset(0 ' + (100 - v) + '% 0 0)';
+      if (handle) handle.style.left = v + '%';
+    });
+  });
+})();
+</script>

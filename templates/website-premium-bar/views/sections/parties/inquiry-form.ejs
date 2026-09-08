@@ -1,0 +1,56 @@
+<%
+  // Book the back booths — a private-party INQUIRY, not a reservation system.
+  // Posts to /api/parties → party_inquiries row + SMS to the owner.
+  //
+  // data: { heading, intro, asHeading, occasions: [], minParty, promise, sidebar: [{num,label}], facts: [] }
+  const H = data.asHeading ? 'h1' : 'h2'
+  const occasions = Array.isArray(data.occasions) && data.occasions.length ? data.occasions : ['Birthday', 'Packer party', 'Rehearsal dinner', 'Work group', 'Celebration of life', 'Something else']
+  const facts = Array.isArray(data.facts) ? data.facts.filter(Boolean) : []
+  const sidebar = Array.isArray(data.sidebar) ? data.sidebar.filter(x => x && x.num) : []
+  const today = new Date().toISOString().slice(0, 10)
+  const ts = Date.now()
+%>
+<section class="parties" id="parties" aria-labelledby="parties-heading">
+  <div class="container">
+    <div class="section-head section-head--left">
+      <<%= H %> class="section-title" id="parties-heading"><%= data.heading || 'Book the back booths' %></<%= H %>>
+      <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
+    </div>
+    <div class="parties__layout">
+      <form class="parties__form" method="POST" action="/api/parties" aria-label="Private party inquiry">
+        <input type="hidden" name="ts" value="<%= ts %>">
+        <div class="parties__hp" aria-hidden="true"><label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+        <div class="parties__row">
+          <div class="parties__field"><label class="parties__label" for="p-name">Your name</label><input id="p-name" type="text" name="name" required autocomplete="name"></div>
+          <div class="parties__field"><label class="parties__label" for="p-phone">Phone (we call back)</label><input id="p-phone" type="tel" name="phone" required autocomplete="tel" inputmode="tel"></div>
+        </div>
+        <div class="parties__row">
+          <div class="parties__field"><label class="parties__label" for="p-email">Email (optional)</label><input id="p-email" type="email" name="email" autocomplete="email"></div>
+          <div class="parties__field"><label class="parties__label" for="p-date">Date you have in mind</label><input id="p-date" type="date" name="requestedDate" min="<%= today %>"></div>
+        </div>
+        <div class="parties__row">
+          <div class="parties__field"><label class="parties__label" for="p-size">How many people</label><input id="p-size" type="number" name="partySize" min="<%= data.minParty || 2 %>" max="200" inputmode="numeric"></div>
+          <div class="parties__field"><label class="parties__label" for="p-occ">What's the occasion</label>
+            <select id="p-occ" name="occasion"><% for (const o of occasions) { %><option><%= o %></option><% } %></select>
+          </div>
+        </div>
+        <div class="parties__field parties__field--full"><label class="parties__label" for="p-msg">Anything else</label><textarea id="p-msg" name="message" rows="4" placeholder="Food, drinks, a cake, a game on the TV — whatever matters."></textarea></div>
+        <div class="parties__submit-row">
+          <button class="btn btn--primary btn--xl" type="submit">Ask about a party</button>
+          <span class="parties__promise"><%= data.promise || 'We text the owner the moment you hit send and call you back.' %></span>
+        </div>
+      </form>
+      <aside class="parties__sidebar">
+        <% for (const s of sidebar) { %>
+          <div class="parties__sidebar-row"><div class="parties__sidebar-num"><%= s.num %></div><div class="parties__sidebar-label"><%= s.label || '' %></div></div>
+        <% } %>
+        <% if (facts.length) { %>
+          <div class="parties__sidebar-row"><ul class="parties__sidebar-list"><% for (const f of facts) { %><li><%= f %></li><% } %></ul></div>
+        <% } %>
+        <% if (settings.phone) { %>
+          <div class="parties__sidebar-row"><div class="eyebrow">Or just call</div><a class="parties__phone mono" href="tel:<%= String(settings.phone).replace(/[^\d+]/g, '') %>"><%= settings.phone %></a></div>
+        <% } %>
+      </aside>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,52 @@
+<%
+  // Visit — address, phone, directions to BOTH Apple and Google Maps,
+  // parking, accessibility. All NAP values come from settings (one source).
+  //
+  // data: { heading, intro, asHeading, parking, accessibility: [], notes: [], showMap (embed, default false) }
+  const H = data.asHeading ? 'h1' : 'h2'
+  const addr = [settings.streetAddress, [settings.addressLocality, settings.addressRegion].filter(Boolean).join(', ') + (settings.postalCode ? ' ' + settings.postalCode : '')].filter(Boolean)
+  const full = addr.length ? addr.join(', ') : (settings.address || '')
+  const q = encodeURIComponent(((settings.companyName || '') + ', ' + full).trim())
+  const lat = settings.geoLat || (settings.geo && settings.geo.lat) || ''
+  const lng = settings.geoLng || (settings.geo && settings.geo.lng) || ''
+  const gmaps = lat && lng ? 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lng : 'https://www.google.com/maps/dir/?api=1&destination=' + q
+  const amaps = lat && lng ? 'https://maps.apple.com/?daddr=' + lat + ',' + lng + '&q=' + q : 'https://maps.apple.com/?daddr=' + q
+  const tel = String(settings.phone || '').replace(/[^\d+]/g, '')
+  const access = Array.isArray(data.accessibility) ? data.accessibility.filter(Boolean) : []
+  const notes = Array.isArray(data.notes) ? data.notes.filter(Boolean) : []
+%>
+<section class="visit" id="visit" aria-labelledby="visit-heading">
+  <div class="container visit__grid">
+    <div class="visit__copy">
+      <<%= H %> class="visit__title foil" id="visit-heading"><%= data.heading || 'Find us' %></<%= H %>>
+      <% if (data.intro) { %><p class="visit__intro"><%= data.intro %></p><% } %>
+      <address class="visit__address">
+        <div class="visit__addr-block">
+          <div class="eyebrow">Address</div>
+          <div class="visit__addr-lines"><% addr.forEach(function (l) { %><span><%= l %></span><% }) %><% if (!addr.length && settings.address) { %><span><%= settings.address %></span><% } %></div>
+        </div>
+        <% if (settings.phone) { %><div class="visit__addr-block"><div class="eyebrow">Phone</div><a class="visit__phone mono" href="tel:<%= tel %>"><%= settings.phone %></a></div><% } %>
+      </address>
+      <div class="visit__directions">
+        <a class="btn btn--primary btn--lg" href="<%= gmaps %>" rel="noopener" target="_blank">Google Maps</a>
+        <a class="btn btn--outline btn--lg" href="<%= amaps %>" rel="noopener" target="_blank">Apple Maps</a>
+      </div>
+      <% if (data.parking) { %><div class="visit__block"><div class="eyebrow">Parking</div><p><%= data.parking %></p></div><% } %>
+      <% if (access.length) { %>
+        <div class="visit__block"><div class="eyebrow">Accessibility</div>
+          <ul class="visit__list"><% for (const a of access) { %><li><%= a %></li><% } %></ul>
+        </div>
+      <% } %>
+      <% if (notes.length) { %>
+        <div class="visit__block"><div class="eyebrow">Good to know</div>
+          <ul class="visit__list"><% for (const n of notes) { %><li><%= n %></li><% } %></ul>
+        </div>
+      <% } %>
+    </div>
+    <% if (data.showMap) { %>
+      <div class="visit__map">
+        <iframe title="Map to <%= settings.companyName %>" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=<%= lat && lng ? lat + ',' + lng : q %>&output=embed" width="600" height="450" style="border:0" allowfullscreen></iframe>
+      </div>
+    <% } %>
+  </div>
+</section>

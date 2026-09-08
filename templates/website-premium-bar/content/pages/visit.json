@@ -1,0 +1,53 @@
+{
+  "title": "Visit",
+  "metaTitle": "Hours & Directions — Amber Inn, Eau Claire",
+  "metaDescription": "Bar hours, kitchen hours, address, parking and directions to the Amber Inn Bar & Grill, 840 E Madison St, Eau Claire, WI 54703.",
+  "sections": [
+    {
+      "type": "visit",
+      "variant": "details",
+      "data": {
+        "heading": "Find us",
+        "intro": "East Madison Street, a few blocks from the old Uniroyal plant. Same corner since 1881.",
+        "asHeading": true,
+        "parking": "Street parking on East Madison and the side streets. (Confirm lot details with the owner.)",
+        "accessibility": [
+          "Street-level entrance — confirm step/ramp details with the owner before publishing.",
+          "Seven stools at the bar and booths along the wall.",
+          "Call ahead and we will hold a booth for a wheelchair user."
+        ],
+        "notes": [
+          "Kids are welcome with an adult while the kitchen is open.",
+          "Cards accepted.",
+          "The bar is open later than the kitchen; both sets of hours are below."
+        ],
+        "showMap": false
+      }
+    },
+    {
+      "type": "hours",
+      "variant": "table",
+      "data": { "heading": "Hours", "intro": "Bar hours and kitchen hours are different. Both are here, and tonight's are live on the front page.", "asHeading": false, "showHolidays": true }
+    },
+    {
+      "type": "faq",
+      "variant": "accordion",
+      "data": {
+        "heading": "Before you come",
+        "items": [
+          { "question": "Where do I park?", "answer": "Street parking on East Madison Street and the side streets around it." },
+          { "question": "What time does the kitchen close?", "answer": "Kitchen hours are listed above, separately from bar hours, and tonight's close is live on the front page." },
+          { "question": "Can I bring kids?", "answer": "Yes, with an adult, while the kitchen is open." },
+          { "question": "Do you take cards?", "answer": "Yes." },
+          { "question": "Is the bar accessible?", "answer": "Call us at (715) 832-0568 and we will make it work — we can hold a booth." },
+          { "question": "Do you take reservations?", "answer": "No. Walk in. For a group, use the parties page and we will call you back." }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": { "heading": "Bringing a group?", "subtitle": "Birthdays, Packer parties, the work crew.", "primaryCta": { "label": "Ask about a party", "href": "/parties" } }
+    }
+  ]
+}

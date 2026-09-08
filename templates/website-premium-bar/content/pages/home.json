@@ -1,0 +1,57 @@
+{
+  "_note": "Amber Inn home composition. The Tonight Board replaces the hero (SPEC §3.1). Copy is dry and plain; prices are placeholders until the owner supplies the menu.",
+  "title": "Home",
+  "sections": [
+    {
+      "type": "tonight",
+      "variant": "board",
+      "data": {
+        "eyebrow": "Tonight at",
+        "title": "Amber Inn Bar & Grill",
+        "intro": "840 E Madison St, Eau Claire. Pouring since 1881.",
+        "asHeading": true,
+        "showTaps": true,
+        "showRoom": true
+      }
+    },
+    {
+      "type": "menu",
+      "variant": "cards",
+      "data": {
+        "heading": "From the grill",
+        "intro": "Half-pound patties, ground behind the bar, cooked on the grill in front of you.",
+        "items": [
+          { "name": "Peanut Butter & Bacon Burger", "price": "$—", "description": "Half-pound patty, peanut butter, bacon. One of Visit Eau Claire's ten iconic Eau Claire eats." },
+          { "name": "Olive Burger", "price": "$—", "description": "Half-pound patty with green olives. The regulars' order." },
+          { "name": "Friday Fish Fry", "price": "$—", "description": "Fridays. Ask at the bar for the day's fish." },
+          { "name": "Draft Root Beer", "price": "$—", "description": "In an iced mug. Still on the taps, the way it was in 1920 — George Berg Soft Drinks Co." }
+        ]
+      }
+    },
+    {
+      "type": "about",
+      "variant": "story",
+      "data": {
+        "eyebrow": "Since 1881",
+        "title": "A tied house that never closed",
+        "paragraphs": [
+          "Walter Brewing built this building in 1881 as a tied house: it could sell only Walter's beer. Around 1910 the brewery sold it.",
+          "In 1920 Prohibition arrived and the sign changed to George Berg Soft Drinks. Root beer went out over the bar, sometimes with something from the bottle kept underneath it. The drinking moved to the basement. The bar never closed.",
+          "The Johnson family bought it in 1981 and ran it for forty-four years. Draft root beer is still on the taps."
+        ],
+        "cta": { "label": "The whole story", "href": "/story" }
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "heading": "Book the back booths",
+        "subtitle": "Birthdays, Packer parties, rehearsal dinners, the work crew. Tell us the date and the headcount and we'll call you back.",
+        "bullets": ["No reservation platform, no per-person fee", "Kitchen menu or a burger bar for the group", "The room is yours after close on request"],
+        "primaryCta": { "label": "Ask about a party", "href": "/parties" },
+        "phone": "(715) 832-0568"
+      }
+    }
+  ]
+}

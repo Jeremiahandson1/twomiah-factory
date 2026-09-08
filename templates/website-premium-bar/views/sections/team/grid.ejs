@@ -1,0 +1,28 @@
+<%
+  // Team grid: portrait + name + role + (optional) one-line bio per member.
+  // Used on about pages. Renders 2-up on mobile, 3-up on tablet, 4-up
+  // on desktop via the CSS grid auto-fill.
+  const heading = data.heading || 'The team'
+  const intro = data.intro || ''
+  const members = Array.isArray(data.members) ? data.members : []
+%>
+<section class="team">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="team__grid">
+      <% for (const m of members) { %>
+        <article class="team__card">
+          <div class="team__portrait" style="background-image: url('<%= m.portrait || '' %>')"></div>
+          <div class="team__body">
+            <div class="team__name"><%= m.name %></div>
+            <div class="team__role"><%= m.role %></div>
+            <% if (m.bio) { %><p class="team__bio"><%= m.bio %></p><% } %>
+          </div>
+        </article>
+      <% } %>
+    </div>
+  </div>
+</section>

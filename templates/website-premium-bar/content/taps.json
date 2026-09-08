@@ -1,0 +1,18 @@
+{
+  "_note": "PLACEHOLDER tap list. Only the documented line is seeded (draft root beer, on since 1920). The bar has ten lines heavy on German imports, but no source lists them — the bartender enters the rest from the console. Do not invent beers.",
+  "taps": [
+    {
+      "lineNumber": 1,
+      "beerName": "Draft Root Beer",
+      "brewery": "George Berg Soft Drinks Co.",
+      "style": "Root beer, in an iced mug",
+      "abv": "0.0",
+      "originCountry": "Eau Claire",
+      "badge": "Est. 1920",
+      "description": "The Prohibition-era workaround that never left the taps.",
+      "status": "pouring",
+      "isActive": true,
+      "sortOrder": 99
+    }
+  ]
+}

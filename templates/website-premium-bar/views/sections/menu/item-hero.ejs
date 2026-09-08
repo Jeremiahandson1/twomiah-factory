@@ -1,0 +1,53 @@
+<%
+  // A signature item's own page (e.g. /burgers/peanut-butter-bacon): its own
+  // photo, story, price and MenuItem schema. Treat it like a product, not a
+  // line on a list.
+  //
+  // data: { slug (item slug), section (section slug, optional), eyebrow }
+  const S = (typeof site !== 'undefined' && site && Array.isArray(site.menu)) ? site.menu : []
+  let sec = null, item = null
+  for (const s of S) {
+    if (data.section && s.slug !== data.section) continue
+    const found = (s.items || []).find(i => i.slug === data.slug)
+    if (found) { sec = s; item = found; break }
+  }
+  function price(i) {
+    if (i.priceLabel) return i.priceLabel
+    if (i.priceCents === null || i.priceCents === undefined) return null
+    return i.priceCents % 100 === 0 ? '$' + (i.priceCents / 100) : '$' + (i.priceCents / 100).toFixed(2)
+  }
+  const image = item ? (item.heroImageUrl || item.imageUrl || '') : ''
+  const p = item ? price(item) : null
+%>
+<section class="item-hero<%= image ? '' : ' item-hero--noimage' %>" id="item">
+  <div class="container item-hero__grid">
+    <div class="item-hero__copy">
+      <nav class="item-hero__crumbs" aria-label="Breadcrumb">
+        <a href="/menu">Menu</a><% if (sec) { %> <span aria-hidden="true">/</span> <a href="/menu#menu-<%= sec.slug %>"><%= sec.name %></a><% } %>
+      </nav>
+      <% if (!item) { %>
+        <h1 class="item-hero__title">This one is off the board</h1>
+        <p class="item-hero__desc">Try the <a href="/menu">full menu</a>.</p>
+      <% } else { %>
+        <% if (data.eyebrow) { %><div class="eyebrow item-hero__eyebrow"><%= data.eyebrow %></div><% } %>
+        <h1 class="item-hero__title foil"><%= item.name %></h1>
+        <div class="item-hero__meta mono">
+          <% if (p) { %><span class="item-hero__price"><%= p %></span><% } %>
+          <% if (item.is86ed) { %><span class="item-hero__out">Out tonight</span><% } %>
+          <% if (Array.isArray(item.dietary) && item.dietary.length) { %><span class="item-hero__diet"><%= item.dietary.map(d => String(d).toUpperCase()).join(' · ') %></span><% } %>
+        </div>
+        <% if (item.description) { %><p class="item-hero__desc"><%= item.description %></p><% } %>
+        <% if (item.story) { %><div class="item-hero__story"><%- md(item.story) %></div><% } %>
+        <div class="item-hero__ctas">
+          <a class="btn btn--primary btn--lg" href="/visit">Come get one</a>
+          <a class="btn btn--outline btn--lg" href="/menu">Full menu</a>
+        </div>
+      <% } %>
+    </div>
+    <% if (image) { %>
+      <figure class="item-hero__figure">
+        <img src="<%= image %>" alt="<%= item ? item.name : '' %>" width="1200" height="900" loading="eager" fetchpriority="high">
+      </figure>
+    <% } %>
+  </div>
+</section>

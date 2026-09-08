@@ -1,0 +1,25 @@
+{
+  "title": "Events",
+  "metaTitle": "What's On — Amber Inn, Eau Claire",
+  "metaDescription": "Game days, the Friday fish fry and whatever else is on at the Amber Inn Bar & Grill, Eau Claire.",
+  "sections": [
+    {
+      "type": "events",
+      "variant": "list",
+      "data": {
+        "heading": "What's on",
+        "intro": "Game days, the fish fry, and whatever the bar posts.",
+        "asHeading": true,
+        "recurring": [
+          { "title": "Friday Fish Fry", "when": "Every Friday", "href": "/fish-fry", "description": "Ask at the bar for the day's fish." },
+          { "title": "The game", "when": "When there is one", "href": "/", "description": "Packers, Badgers, Brewers, Bucks. Tonight's is on the front page." }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": { "heading": "Want to host something here?", "subtitle": "Birthdays, Packer parties, the work crew.", "primaryCta": { "label": "Ask about a party", "href": "/parties" } }
+    }
+  ]
+}

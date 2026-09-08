@@ -1,0 +1,22 @@
+<%
+  // Standalone stats bar: 3-4 metric tiles between other sections.
+  // Use to anchor credibility ("17 years, 1,400+ projects, 4 trucks,
+  // owner on every job") without committing to a full hero/centered-stats
+  // page-leader.
+  const heading = data.heading || ''
+  const items = Array.isArray(data.items) ? data.items.filter(s => s && s.value) : []
+  if (items.length === 0) return
+%>
+<section class="stats-bar">
+  <div class="container">
+    <% if (heading) { %><h2 class="stats-bar__heading"><%= heading %></h2><% } %>
+    <div class="stats-bar__grid stats-bar__grid--<%= items.length %>">
+      <% items.forEach(function(it) { %>
+        <div class="stats-bar__item">
+          <div class="stats-bar__value"><%= it.value %></div>
+          <div class="stats-bar__label"><%= it.label || '' %></div>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</section>

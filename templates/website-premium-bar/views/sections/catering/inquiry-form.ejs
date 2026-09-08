@@ -1,0 +1,91 @@
+<%
+  // Catering-specific inquiry form. Collects event date, headcount, venue
+  // type, and special dietary needs — fields a generic /contact form
+  // wouldn't have. POSTs to /api/leads with source=catering so the CRM
+  // can route it to the catering pipeline.
+  const heading = data.heading || 'Book the truck'
+  const intro = data.intro || ''
+  const minHeadcount = data.minHeadcount || 25
+  const leadTimeWeeks = data.leadTimeWeeks || 4
+  const venueTypes = Array.isArray(data.venueTypes) && data.venueTypes.length
+    ? data.venueTypes
+    : ['Wedding', 'Birthday', 'Corporate', 'Community', 'Other']
+  const responsePromise = data.responsePromise || 'We reply within one business day.'
+%>
+<section id="catering" class="catering catering--inquiry">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="catering__layout">
+      <form class="catering__form" method="POST" action="/api/leads" aria-label="Catering inquiry">
+        <input type="hidden" name="source" value="catering">
+        <input type="hidden" name="honeypot" value="" style="display:none;" tabindex="-1" autocomplete="off">
+        <div class="catering__row">
+          <label class="catering__field">
+            <span class="catering__label">Your name</span>
+            <input type="text" name="name" required autocomplete="name">
+          </label>
+          <label class="catering__field">
+            <span class="catering__label">Email</span>
+            <input type="email" name="email" required autocomplete="email">
+          </label>
+        </div>
+        <div class="catering__row">
+          <label class="catering__field">
+            <span class="catering__label">Phone</span>
+            <input type="tel" name="phone" autocomplete="tel">
+          </label>
+          <label class="catering__field">
+            <span class="catering__label">Event date</span>
+            <input type="date" name="eventDate" required min="<%= new Date(Date.now() + leadTimeWeeks * 7 * 24 * 60 * 60 * 1000).toISOString().slice(0,10) %>">
+          </label>
+        </div>
+        <div class="catering__row">
+          <label class="catering__field">
+            <span class="catering__label">Headcount</span>
+            <input type="number" name="headcount" required min="<%= minHeadcount %>" placeholder="<%= minHeadcount %>+">
+          </label>
+          <label class="catering__field">
+            <span class="catering__label">Event type</span>
+            <select name="venueType" required>
+              <option value="">Choose…</option>
+              <% for (const v of venueTypes) { %><option value="<%= v %>"><%= v %></option><% } %>
+            </select>
+          </label>
+        </div>
+        <label class="catering__field catering__field--full">
+          <span class="catering__label">Address or venue (if you have it)</span>
+          <input type="text" name="venue" autocomplete="street-address">
+        </label>
+        <label class="catering__field catering__field--full">
+          <span class="catering__label">Anything else? Dietary, ceremony time, vibe, music, allergies — whatever helps us quote.</span>
+          <textarea name="notes" rows="4"></textarea>
+        </label>
+        <div class="catering__submit-row">
+          <button type="submit" class="btn btn--xl btn--primary">Send inquiry</button>
+          <span class="catering__promise"><%= responsePromise %></span>
+        </div>
+      </form>
+      <aside class="catering__sidebar">
+        <div class="catering__sidebar-row">
+          <div class="catering__sidebar-num mono"><%= minHeadcount %>+</div>
+          <div class="catering__sidebar-label">Minimum headcount</div>
+        </div>
+        <div class="catering__sidebar-row">
+          <div class="catering__sidebar-num mono"><%= leadTimeWeeks %> wk</div>
+          <div class="catering__sidebar-label">Earliest booking</div>
+        </div>
+        <% if (Array.isArray(data.includes)) { %>
+          <div class="catering__sidebar-row catering__sidebar-row--list">
+            <div class="catering__sidebar-label">Every booking includes</div>
+            <ul class="catering__sidebar-list">
+              <% for (const inc of data.includes) { %><li><%= inc %></li><% } %>
+            </ul>
+          </div>
+        <% } %>
+      </aside>
+    </div>
+  </div>
+</section>

@@ -125,6 +125,9 @@ export function pickHeroGroup(businessType: string): string {
   if (rx(['hvac', 'plumb', 'electric', 'heating', 'cooling', 'appliance'])) return 'fieldservice'
   if (rx(['cafe', 'coffee', 'bakery', 'espresso'])) return 'cafe'
   if (rx(['restaurant', 'bbq', 'pizza', 'taco', 'diner', 'grill', 'eatery', 'bistro'])) return 'restaurant'
+  // Bars / taverns / pubs share the restaurant hero set until a bar set exists.
+  // Word-bounded so 'barber' / 'nail bar' / 'juice bar' don't land here.
+  if (/\b(tavern|pub|taproom|brewpub|brewery|saloon|speakeasy|bar)\b/.test(t) && !/\b(nail|lash|brow|juice|smoothie|espresso|coffee|sushi|salad|oxygen)\b/.test(t)) return 'restaurant'
   if (rx(['salon', 'spa', 'barber', 'beauty', 'nails', 'lash', 'tattoo'])) return 'salon'
   if (rx(['gym', 'fitness', 'yoga', 'pilates', 'crossfit', 'martial'])) return 'fitness'
   if (rx(['hotel', 'inn', 'lodge', 'resort', 'bnb', 'bed and breakfast'])) return 'hotel'

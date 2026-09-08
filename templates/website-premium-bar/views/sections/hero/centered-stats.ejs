@@ -1,0 +1,32 @@
+<%
+  // Centered hero with a stat band below. The headline carries — no big
+  // photo competing for attention. Then a row of credibility metrics
+  // (years in business, projects shipped, NPS, awards).
+  // Used when the lead has multiple equally compelling proof points.
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || ''
+  const subtitle = data.subtitle || ''
+  const primaryCta = data.primaryCta || null
+  const stats = Array.isArray(data.stats) ? data.stats : []
+%>
+<section class="hero hero--centered">
+  <div class="container hero__centered-inner">
+    <% if (eyebrow) { %><div class="hero__eyebrow"><%= eyebrow %></div><% } %>
+    <h1 class="hero__title hero__title--xl"><%= title %></h1>
+    <% if (subtitle) { %><p class="hero__subtitle hero__subtitle--center"><%= subtitle %></p><% } %>
+    <% if (primaryCta) { %>
+      <div class="hero__ctas hero__ctas--center">
+        <a class="btn btn--primary btn--xl" href="<%= primaryCta.href || '#contact' %>"><%= primaryCta.label %></a>
+      </div>
+    <% } %>
+  </div>
+  <% if (stats.length) { %>
+    <div class="hero__stat-band">
+      <div class="container hero__stat-band-inner">
+        <% for (const s of stats) { %>
+          <div class="hero__stat-band-item"><div class="hero__stat-band-num"><%= s.value %></div><div class="hero__stat-band-label"><%= s.label %></div></div>
+        <% } %>
+      </div>
+    </div>
+  <% } %>
+</section>

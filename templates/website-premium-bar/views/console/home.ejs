@@ -1,0 +1,231 @@
+<%
+  // THE CONSOLE home. Server-rendered with the live state so it is right on
+  // first paint; console.js wires the buttons and repaints from each
+  // response. Giant targets (min 56px), one column, one thumb.
+  const L = live
+  function price(c) { if (c === null || c === undefined) return ''; return c % 100 === 0 ? '$' + (c / 100) : '$' + (c / 100).toFixed(2) }
+  function when(d) { try { return new Intl.DateTimeFormat('en-US', { timeZone: timezone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(d)) } catch (e) { return '' } }
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: timezone })
+  const sectionName = (id) => { const s = sections.find(x => x.id === id); return s ? s.name : '' }
+  const featuredGame = games.find(g => g.isFeatured) || null
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#121010">
+  <title>Console — <%= settings.companyName %></title>
+  <link rel="manifest" href="/console/manifest.webmanifest">
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="apple-touch-icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/console.css">
+</head>
+<body class="console">
+  <header class="con-head">
+    <div>
+      <div class="con-head__brand"><%= settings.companyName %></div>
+      <div class="con-head__who">Console · <%= staff.label %></div>
+    </div>
+    <form method="POST" action="/console/logout"><button class="btn btn--ghost btn--sm" type="submit">Sign out</button></form>
+  </header>
+
+  <main class="con" data-tz="<%= timezone %>">
+    <h1 class="visually-hidden">Console</h1>
+    <div class="con-toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+    <!-- LIVE SUMMARY -->
+    <section class="con-card con-card--board" aria-label="Right now">
+      <div class="con-board">
+        <div class="con-board__row" data-state="<%= L.kitchen.isOpen ? 'open' : 'closed' %>" id="lv-kitchen"><span class="con-board__k">Kitchen</span><span class="con-board__v" data-live="kitchen.line"><%= L.kitchen.line %></span></div>
+        <div class="con-board__row" data-state="<%= L.bar.isOpen ? 'open' : 'closed' %>" id="lv-bar"><span class="con-board__k">Bar</span><span class="con-board__v" data-live="bar.line"><%= L.bar.line %></span></div>
+        <div class="con-board__row"><span class="con-board__k">Room</span><span class="con-board__v" data-live="room.label"><%= L.room.label %></span></div>
+        <div class="con-board__row"><span class="con-board__k">Special</span><span class="con-board__v" data-live="special.text"><%= L.special ? L.special.title + (L.special.price ? ', ' + L.special.price : '') : '—' %></span></div>
+        <div class="con-board__row"><span class="con-board__k">Game</span><span class="con-board__v" data-live="game.text"><%= L.game ? L.game.away + ' @ ' + L.game.home + ', ' + L.game.startsAtLabel : '—' %></span></div>
+        <div class="con-board__row"><span class="con-board__k">Taps</span><span class="con-board__v" data-live="taps.count"><%= L.taps.count %> pouring</span></div>
+      </div>
+      <a class="con-card__link" href="/" target="_blank" rel="noopener">See the site →</a>
+    </section>
+
+    <!-- KITCHEN -->
+    <section class="con-card" aria-labelledby="h-kitchen">
+      <h2 class="con-card__title" id="h-kitchen">Kitchen</h2>
+      <div class="con-grid con-grid--2">
+        <button class="con-btn con-btn--good" data-post="/api/console/department" data-body='{"department":"kitchen","action":"open"}'>Open (follow hours)</button>
+        <button class="con-btn con-btn--bad" data-post="/api/console/department" data-body='{"department":"kitchen","action":"closed"}'>Kitchen closed</button>
+      </div>
+      <form class="con-inline" data-form="/api/console/department">
+        <input type="hidden" name="department" value="kitchen"><input type="hidden" name="action" value="closing-early">
+        <label class="con-label">Closing early at <input class="con-input con-input--time" type="time" name="time" required></label>
+        <button class="con-btn con-btn--warn" type="submit">Set</button>
+      </form>
+    </section>
+
+    <!-- BAR -->
+    <section class="con-card" aria-labelledby="h-bar">
+      <h2 class="con-card__title" id="h-bar">Bar</h2>
+      <div class="con-grid con-grid--2">
+        <button class="con-btn con-btn--good" data-post="/api/console/department" data-body='{"department":"bar","action":"open"}'>Open (follow hours)</button>
+        <button class="con-btn con-btn--bad" data-post="/api/console/department" data-body='{"department":"bar","action":"closed"}'>Bar closed</button>
+      </div>
+      <form class="con-inline" data-form="/api/console/department">
+        <input type="hidden" name="department" value="bar"><input type="hidden" name="action" value="closing-early">
+        <label class="con-label">Closing early at <input class="con-input con-input--time" type="time" name="time" required></label>
+        <button class="con-btn con-btn--warn" type="submit">Set</button>
+      </form>
+    </section>
+
+    <!-- ROOM -->
+    <section class="con-card" aria-labelledby="h-room">
+      <h2 class="con-card__title" id="h-room">How busy</h2>
+      <div class="con-grid con-grid--3" role="group" aria-label="Room status">
+        <button class="con-btn con-btn--seg<%= status.roomStatus === 'quiet' ? ' is-on' : '' %>" data-post="/api/console/room" data-body='{"room":"quiet"}' data-seg="room" data-val="quiet">Plenty of seats</button>
+        <button class="con-btn con-btn--seg<%= status.roomStatus === 'filling' ? ' is-on' : '' %>" data-post="/api/console/room" data-body='{"room":"filling"}' data-seg="room" data-val="filling">Filling up</button>
+        <button class="con-btn con-btn--seg<%= status.roomStatus === 'packed' ? ' is-on' : '' %>" data-post="/api/console/room" data-body='{"room":"packed"}' data-seg="room" data-val="packed">Packed</button>
+      </div>
+    </section>
+
+    <!-- SPECIAL -->
+    <section class="con-card" aria-labelledby="h-special">
+      <h2 class="con-card__title" id="h-special">Tonight's special</h2>
+      <form class="con-form" data-form="/api/console/special">
+        <input class="con-input" name="title" placeholder="Peanut Butter & Bacon + a Spotted Cow" maxlength="120" value="<%= L.special ? L.special.title : '' %>">
+        <div class="con-grid con-grid--2">
+          <input class="con-input" name="price" inputmode="decimal" placeholder="Price, e.g. 16" value="<%= L.special && L.special.price ? L.special.price.replace('$', '') : '' %>">
+          <input class="con-input" name="description" placeholder="One line (optional)" maxlength="240" value="<%= L.special && L.special.description ? L.special.description : '' %>">
+        </div>
+        <div class="con-grid con-grid--2">
+          <button class="con-btn con-btn--good" type="submit">Post special</button>
+          <button class="con-btn con-btn--bad" type="button" data-post="/api/console/special" data-body='{"title":""}'>Clear</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 86 -->
+    <section class="con-card" aria-labelledby="h-86">
+      <h2 class="con-card__title" id="h-86">86 an item</h2>
+      <p class="con-help">Tap to take it off tonight. Tap again when it's back.</p>
+      <ul class="con-list" id="list-86">
+        <% for (const it of items) { %>
+          <li>
+            <button class="con-btn con-btn--row<%= it.is86ed ? ' is-off' : '' %>" data-post="/api/console/86" data-body='{"id":"<%= it.id %>","on":<%= it.is86ed ? 'false' : 'true' %>}' data-toggle86="<%= it.id %>" aria-pressed="<%= it.is86ed ? 'true' : 'false' %>">
+              <span class="con-row__name"><%= it.name %></span>
+              <span class="con-row__meta"><%= sectionName(it.sectionId) %></span>
+              <span class="con-row__state"><%= it.is86ed ? 'OUT' : 'on' %></span>
+            </button>
+          </li>
+        <% } %>
+        <% if (!items.length) { %><li class="con-empty">No menu items yet.</li><% } %>
+      </ul>
+    </section>
+
+    <!-- TAPS -->
+    <section class="con-card" aria-labelledby="h-taps">
+      <h2 class="con-card__title" id="h-taps">Taps</h2>
+      <ul class="con-list" id="list-taps">
+        <% for (const t of taps) { %>
+          <li class="con-tap<%= t.status === 'blown' || !t.isActive ? ' is-blown' : '' %>" data-line="<%= t.lineNumber %>">
+            <div class="con-tap__head"><span class="con-tap__line"><%= String(t.lineNumber).padStart(2, '0') %></span><span class="con-tap__name"><%= t.beerName %></span><span class="con-tap__status"><%= t.status.replace('_', ' ') %></span></div>
+            <div class="con-grid con-grid--3">
+              <button class="con-btn con-btn--sm con-btn--warn" data-post="/api/console/tap" data-body='{"line":<%= t.lineNumber %>,"action":"last_keg"}'>Last keg</button>
+              <button class="con-btn con-btn--sm con-btn--good" data-post="/api/console/tap" data-body='{"line":<%= t.lineNumber %>,"action":"pouring"}'>Pouring</button>
+              <button class="con-btn con-btn--sm con-btn--bad" data-post="/api/console/tap" data-body='{"line":<%= t.lineNumber %>,"action":"blow"}' data-confirm="Blow line <%= t.lineNumber %> (<%= t.beerName %>)?">Blown</button>
+            </div>
+          </li>
+        <% } %>
+      </ul>
+      <details class="con-details">
+        <summary class="con-btn con-btn--good">Tap a keg</summary>
+        <form class="con-form" data-form="/api/console/tap">
+          <input type="hidden" name="action" value="tap">
+          <div class="con-grid con-grid--2">
+            <input class="con-input" name="line" type="number" inputmode="numeric" min="1" max="99" placeholder="Line #" required>
+            <input class="con-input" name="beerName" placeholder="Beer" required maxlength="120">
+          </div>
+          <div class="con-grid con-grid--2">
+            <input class="con-input" name="brewery" placeholder="Brewery" maxlength="120">
+            <input class="con-input" name="style" placeholder="Style" maxlength="80">
+          </div>
+          <div class="con-grid con-grid--3">
+            <input class="con-input" name="abv" inputmode="decimal" placeholder="ABV %">
+            <input class="con-input" name="origin" placeholder="Country" maxlength="60">
+            <input class="con-input" name="price" inputmode="decimal" placeholder="Price">
+          </div>
+          <button class="con-btn con-btn--good" type="submit">It's on</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- GAME -->
+    <section class="con-card" aria-labelledby="h-game">
+      <h2 class="con-card__title" id="h-game">Tonight's game</h2>
+      <% if (featuredGame) { %><p class="con-help">On the board: <strong><%= featuredGame.away %> @ <%= featuredGame.home %></strong>, <%= when(featuredGame.startsAt) %><%= featuredGame.note ? ' — ' + featuredGame.note : '' %></p><% } %>
+      <form class="con-form" data-form="/api/console/game">
+        <div class="con-grid con-grid--3">
+          <select class="con-input" name="league"><option>NFL</option><option>NCAAF</option><option>MLB</option><option>NBA</option><option>NHL</option><option>Other</option></select>
+          <input class="con-input" name="away" placeholder="Away (Packers)" required maxlength="60">
+          <input class="con-input" name="home" placeholder="Home (Bears)" required maxlength="60">
+        </div>
+        <div class="con-grid con-grid--3">
+          <input class="con-input" type="date" name="date" value="<%= today %>" required>
+          <input class="con-input" type="time" name="time" value="19:15" required>
+          <input class="con-input" name="note" placeholder="doors at 6" maxlength="80">
+        </div>
+        <div class="con-grid con-grid--2">
+          <button class="con-btn con-btn--good" type="submit">Put it on the board</button>
+          <button class="con-btn con-btn--bad" type="button" data-post="/api/console/game" data-body='{"action":"clear"}'>No game</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- EVENT -->
+    <section class="con-card" aria-labelledby="h-event">
+      <h2 class="con-card__title" id="h-event">Post an event</h2>
+      <form class="con-form" data-form="/api/console/event">
+        <input class="con-input" name="title" placeholder="Live music: the Wednesday Night Regulars" required maxlength="140">
+        <div class="con-grid con-grid--2">
+          <input class="con-input" type="date" name="date" value="<%= today %>" required>
+          <input class="con-input" type="time" name="time" value="19:00" required>
+        </div>
+        <textarea class="con-input" name="description" rows="2" placeholder="One or two lines (optional)"></textarea>
+        <button class="con-btn con-btn--good" type="submit">Post to /events</button>
+      </form>
+      <% if (events.length) { %><ul class="con-mini"><% for (const e of events) { %><li><span><%= when(e.startsAt) %></span> <%= e.title %></li><% } %></ul><% } %>
+    </section>
+
+    <!-- NOTE -->
+    <section class="con-card" aria-labelledby="h-note">
+      <h2 class="con-card__title" id="h-note">Note on the board</h2>
+      <form class="con-form" data-form="/api/console/note">
+        <input class="con-input" name="note" maxlength="140" placeholder="Grill's down till 7. Bar's open." value="<%= L.note || '' %>">
+        <div class="con-grid con-grid--2">
+          <button class="con-btn con-btn--good" type="submit">Post note</button>
+          <button class="con-btn con-btn--bad" type="button" data-post="/api/console/note" data-body='{"note":""}'>Clear</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- PARTY INBOX -->
+    <section class="con-card" aria-labelledby="h-parties">
+      <h2 class="con-card__title" id="h-parties">Party inquiries <span class="con-badge" id="inq-count"><%= inquiries.length %></span></h2>
+      <ul class="con-list" id="list-inq">
+        <% for (const q of inquiries) { %>
+          <li class="con-inq" data-id="<%= q.id %>">
+            <div class="con-inq__head"><strong><%= q.name %></strong><span class="con-inq__when"><%= when(q.createdAt) %></span></div>
+            <div class="con-inq__meta"><%= q.partySize ? q.partySize + ' people' : '' %><%= q.requestedDate ? ' · ' + q.requestedDate : '' %><%= q.occasion ? ' · ' + q.occasion : '' %><%= q.status === 'called' ? ' · called' : '' %></div>
+            <% if (q.message) { %><p class="con-inq__msg"><%= q.message %></p><% } %>
+            <div class="con-grid con-grid--3">
+              <a class="con-btn con-btn--good con-btn--sm" href="tel:<%= String(q.phone).replace(/[^\d+]/g, '') %>">Call <%= q.phone %></a>
+              <button class="con-btn con-btn--sm" data-post="/api/console/inquiry" data-body='{"id":"<%= q.id %>","status":"booked"}' data-inq="<%= q.id %>">Booked</button>
+              <button class="con-btn con-btn--sm con-btn--ghost" data-post="/api/console/inquiry" data-body='{"id":"<%= q.id %>","status":"closed"}' data-inq="<%= q.id %>">Done</button>
+            </div>
+          </li>
+        <% } %>
+        <% if (!inquiries.length) { %><li class="con-empty">Nothing waiting.</li><% } %>
+      </ul>
+    </section>
+  </main>
+  <script src="/scripts/console.js" defer></script>
+</body>
+</html>

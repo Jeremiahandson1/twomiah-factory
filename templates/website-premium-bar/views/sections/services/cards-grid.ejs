@@ -1,0 +1,28 @@
+<%
+  // Services as a uniform card grid. Equal visual weight per service,
+  // scannable, conventional. Used when the customer offers many similar
+  // services and we want them to read as a menu.
+  const heading = data.heading || 'What we do'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items : []
+%>
+<section id="services" class="services services--cards">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="services__grid">
+      <% for (const item of items) { %>
+        <article class="service-card">
+          <% if (item.image) { %><div class="service-card__image" style="background-image: url('<%= item.image %>')"></div><% } %>
+          <div class="service-card__body">
+            <h3 class="service-card__title"><%= item.title %></h3>
+            <p class="service-card__desc"><%= item.description || '' %></p>
+            <% if (item.href) { %><a class="service-card__link" href="<%= item.href %>">Learn more &rarr;</a><% } %>
+          </div>
+        </article>
+      <% } %>
+    </div>
+  </div>
+</section>

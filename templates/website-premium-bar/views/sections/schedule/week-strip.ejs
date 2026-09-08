@@ -1,0 +1,38 @@
+<%
+  // Horizontal strip of the next 7 days with location + hours per day.
+  // Each day is tagged Market / Private Event / Catering / Closed.
+  // Days where the truck is "out" (private event or closed) still appear
+  // so customers don't think the schedule is just incomplete.
+  const heading = data.heading || 'This week'
+  const intro = data.intro || ''
+  const days = Array.isArray(data.days) ? data.days : []
+  if (days.length === 0) return
+
+  function tagClass(tag) {
+    const t = String(tag || '').toLowerCase()
+    if (t.includes('market')) return 'schedule-strip__tag--market'
+    if (t.includes('event') || t.includes('private') || t.includes('wedding')) return 'schedule-strip__tag--private'
+    if (t.includes('catering')) return 'schedule-strip__tag--catering'
+    if (t.includes('closed') || t.includes('off')) return 'schedule-strip__tag--off'
+    return 'schedule-strip__tag--default'
+  }
+%>
+<section id="schedule" class="schedule schedule--strip">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ol class="schedule-strip" role="list">
+      <% for (let i = 0; i < days.length; i++) { const d = days[i]; %>
+        <li class="schedule-strip__day">
+          <% if (d.tag) { %><span class="schedule-strip__tag <%= tagClass(d.tag) %>"><%= d.tag %></span><% } %>
+          <div class="schedule-strip__date"><%= d.dayLabel || '' %></div>
+          <div class="schedule-strip__location"><%= d.location || '' %></div>
+          <% if (d.hours) { %><div class="schedule-strip__hours mono"><%= d.hours %></div><% } %>
+          <% if (d.note) { %><div class="schedule-strip__note"><%= d.note %></div><% } %>
+        </li>
+      <% } %>
+    </ol>
+  </div>
+</section>

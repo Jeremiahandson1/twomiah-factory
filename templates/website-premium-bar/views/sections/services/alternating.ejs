@@ -1,0 +1,32 @@
+<%
+  // Services as alternating image-and-copy rows. Slower scroll, more
+  // editorial. Used when each service deserves its own moment — when
+  // there are fewer of them and the photos are distinct.
+  const heading = data.heading || 'What we do'
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items : []
+%>
+<section id="services" class="services services--alternating">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <% items.forEach(function(item, idx) { %>
+      <div class="service-row <%= idx % 2 === 1 ? 'service-row--flip' : '' %>">
+        <div class="service-row__image" style="background-image: url('<%= item.image || '' %>')"></div>
+        <div class="service-row__copy">
+          <div class="service-row__index"><%= String(idx + 1).padStart(2, '0') %></div>
+          <h3 class="service-row__title"><%= item.title %></h3>
+          <p class="service-row__desc"><%= item.description || '' %></p>
+          <% if (Array.isArray(item.bullets) && item.bullets.length) { %>
+            <ul class="service-row__bullets">
+              <% for (const b of item.bullets) { %><li><%= b %></li><% } %>
+            </ul>
+          <% } %>
+          <% if (item.href) { %><a class="service-row__link" href="<%= item.href %>">See projects &rarr;</a><% } %>
+        </div>
+      </div>
+    <% }) %>
+  </div>
+</section>

@@ -1,0 +1,57 @@
+{
+  "_note": "PLACEHOLDER menu for the Amber Inn. Only items documented in public sources are listed (PB&B burger, olive burger, fish fry, bloody mary, draft root beer, German imports). NO price is published anywhere — priceCents is null until someone photographs the board (SPEC §14). Do not invent items. Seeded into menu_sections / menu_items by initDb; Square Catalog replaces this as the source in Phase 2.",
+  "sections": [
+    {
+      "slug": "burgers",
+      "name": "Burgers",
+      "kind": "food",
+      "description": "Half-pound patties, ground behind the bar, cooked on the grill in front of you.",
+      "items": [
+        {
+          "slug": "peanut-butter-bacon",
+          "name": "Peanut Butter & Bacon Burger",
+          "description": "Half-pound patty, peanut butter, bacon. One of Visit Eau Claire's ten iconic Eau Claire eats.",
+          "priceCents": null,
+          "isSignature": true,
+          "dietary": ["N"],
+          "story": "People hear the name and stop. Then they order it again the next time they are in.\n\nThe patty is ground behind the bar and cooked on the grill you can see from your stool. The peanut butter goes on hot so it runs into the bacon. That is the whole trick.\n\nVisit Eau Claire put it on their list of ten iconic Eau Claire eats."
+        },
+        {
+          "slug": "olive",
+          "name": "Olive Burger",
+          "description": "Half-pound patty with green olives. The regulars' order.",
+          "priceCents": null,
+          "isSignature": true,
+          "story": "Green olives on a half-pound burger. It reads like a mistake and eats like it was always supposed to be there. Ask the bar how long it has been on the menu; nobody agrees."
+        },
+        {
+          "slug": "the-rachel",
+          "name": "The Rachel",
+          "description": "Ask at the bar.",
+          "priceCents": null,
+          "isSignature": true,
+          "story": "Named for someone. Details from the owner to follow."
+        }
+      ]
+    },
+    {
+      "slug": "fish-fry",
+      "name": "Friday Fish Fry",
+      "kind": "food",
+      "description": "Fridays.",
+      "items": [
+        { "slug": "friday-fish-fry", "name": "Fish Fry", "description": "Fridays. Ask at the bar for the day's fish.", "priceCents": null }
+      ]
+    },
+    {
+      "slug": "drinks",
+      "name": "From the bar",
+      "kind": "drink",
+      "description": "Ten taps, heavy on German imports. See what is pouring on the tap wall.",
+      "items": [
+        { "slug": "draft-root-beer", "name": "Draft Root Beer", "description": "In an iced mug. On the taps since 1920 — George Berg Soft Drinks Co.", "priceCents": null, "dietary": ["V"] },
+        { "slug": "bloody-mary", "name": "Bloody Mary", "description": "One of the better ones in town, by reputation.", "priceCents": null }
+      ]
+    }
+  ]
+}

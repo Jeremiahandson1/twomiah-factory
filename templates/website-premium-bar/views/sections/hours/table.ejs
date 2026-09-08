@@ -1,0 +1,60 @@
+<%
+  // Hours — bar AND kitchen, side by side, from lib/hours config (site.hours)
+  // with today's live line from `live`. Holidays coming up are listed so the
+  // page never lies on Christmas. Never hardcode hours anywhere else.
+  //
+  // data: { heading, intro, asHeading, showHolidays }
+  const cfg = (typeof site !== 'undefined' && site && site.hours) ? site.hours : null
+  const L = (typeof live !== 'undefined' && live) ? live : null
+  const H = data.asHeading ? 'h1' : 'h2'
+  const DAYS = [['mon','Monday'],['tue','Tuesday'],['wed','Wednesday'],['thu','Thursday'],['fri','Friday'],['sat','Saturday'],['sun','Sunday']]
+  function fmt(t) { const [h, m] = String(t).split(':').map(Number); const h12 = h % 12 === 0 ? 12 : h % 12; const ap = h < 12 ? 'AM' : 'PM'; return m ? h12 + ':' + String(m).padStart(2, '0') + ' ' + ap : h12 + ' ' + ap }
+  function ranges(r) { if (!Array.isArray(r) || !r.length) return 'Closed'; return r.map(x => fmt(x.open) + ' – ' + fmt(x.close)).join(', ') }
+  const todayKey = L ? ['sun','mon','tue','wed','thu','fri','sat'][new Date(L.generatedAt).getDay()] : ''
+  const today = L ? L.localDate : ''
+  const holidays = cfg && Array.isArray(cfg.holidays) ? cfg.holidays.filter(h => h && h.date && (!today || h.date >= today)).slice(0, 6) : []
+  function dateLabel(d) { const [y, m, dd] = d.split('-').map(Number); return new Date(Date.UTC(y, m - 1, dd)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric' }) }
+%>
+<section class="hours" id="hours" aria-labelledby="hours-heading">
+  <div class="container hours__inner">
+    <div class="section-head">
+      <<%= H %> class="section-title" id="hours-heading"><%= data.heading || 'Hours' %></<%= H %>>
+      <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
+    </div>
+    <% if (L) { %>
+      <p class="hours__today mono">
+        <span class="hours__today-line" data-state="<%= L.kitchen.isOpen ? 'open' : 'closed' %>"><%= L.kitchen.line %></span>
+        <span class="hours__today-line" data-state="<%= L.bar.isOpen ? 'open' : 'closed' %>"><%= L.bar.line %></span>
+      </p>
+    <% } %>
+    <% if (!cfg) { %>
+      <p class="hours__empty">Hours are being set up. Call <a href="tel:<%= String(settings.phone || '').replace(/[^\d+]/g, '') %>"><%= settings.phone %></a>.</p>
+    <% } else { %>
+    <div class="hours__table-wrap" tabindex="0" role="region" aria-label="Weekly hours table">
+      <table class="hours__table">
+        <caption class="visually-hidden">Weekly bar and kitchen hours</caption>
+        <thead><tr><th scope="col">Day</th><th scope="col">Bar</th><th scope="col">Kitchen</th></tr></thead>
+        <tbody>
+          <% for (const [k, name] of DAYS) { %>
+            <tr<%= k === todayKey ? ' class="is-today"' : '' %>>
+              <th scope="row"><%= name %><%= k === todayKey ? ' <span class="hours__today-tag">today</span>' : '' %></th>
+              <td class="mono"><%= ranges(cfg.bar && cfg.bar[k]) %></td>
+              <td class="mono"><%= ranges(cfg.kitchen && cfg.kitchen[k]) %></td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    <% if (data.showHolidays !== false && holidays.length) { %>
+      <div class="hours__holidays">
+        <div class="eyebrow">Coming up</div>
+        <ul>
+          <% for (const h of holidays) { %>
+            <li><span class="mono"><%= dateLabel(h.date) %></span> — <%= h.label || 'Special hours' %>: bar <%= ranges(h.bar) %>, kitchen <%= ranges(h.kitchen) %></li>
+          <% } %>
+        </ul>
+      </div>
+    <% } %>
+    <% } %>
+  </div>
+</section>

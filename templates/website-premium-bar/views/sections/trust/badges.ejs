@@ -1,0 +1,44 @@
+<%
+  // Trust badges — licenses, insurance, certifications, memberships.
+  // data: { heading?, intro?, items: [{ name, image? }] }
+  // The composer's fallback images are generic stock, so we lead with a
+  // consistent shield/check icon + the credential name (a real badge logo,
+  // when present and clearly a logo, can be swapped in later).
+  const heading = data.heading || ''
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter(i => i && i.name) : []
+  if (items.length === 0) return
+%>
+<section class="trust-section">
+  <div class="container">
+    <% if (heading || intro) { %>
+      <div class="trust-section__head">
+        <% if (heading) { %><h2 class="trust-section__title"><%= heading %></h2><% } %>
+        <% if (intro) { %><p class="trust-section__intro"><%= intro %></p><% } %>
+      </div>
+    <% } %>
+    <div class="trust-grid">
+      <% items.forEach(function(it) { %>
+        <div class="trust-item">
+          <span class="trust-item__icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <polyline points="9 12 11 14 15 10"></polyline>
+            </svg>
+          </span>
+          <span class="trust-item__name"><%= it.name %></span>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+</section>
+<style>
+  .trust-section { padding: 64px 0; background: var(--brand, #1a2e22); color: #fff; }
+  .trust-section__head { text-align: center; max-width: 640px; margin: 0 auto 36px; }
+  .trust-section__title { font-family: var(--font-display, 'Fraunces', Georgia, serif); font-size: clamp(1.7rem, 3.5vw, 2.4rem); line-height: 1.15; margin: 0 0 10px; color: #fff; }
+  .trust-section__intro { color: rgba(255, 255, 255, .8); font-size: 1.05rem; margin: 0; }
+  .trust-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; max-width: 1000px; margin: 0 auto; }
+  .trust-item { display: flex; align-items: center; gap: 14px; padding: 20px 22px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .13); border-radius: 12px; }
+  .trust-item__icon { flex-shrink: 0; color: var(--accent, #c89a4e); display: grid; place-items: center; }
+  .trust-item__name { font-weight: 600; font-size: .98rem; line-height: 1.35; }
+</style>

@@ -41,6 +41,9 @@ const INDUSTRY_ALIAS: Record<string, string> = {
   cannabis: 'dispensary', cannabis_retail: 'dispensary',
   vet: 'veterinary', veterinarian: 'veterinary', vet_clinic: 'veterinary', animal_hospital: 'veterinary',
   food: 'foodtruck', food_truck: 'foodtruck', restaurant: 'foodtruck', cafe: 'foodtruck',
+  // Bars → the food set until a bar set is shot (mirrors BAR_INDUSTRIES).
+  bar: 'foodtruck', bar_and_grill: 'foodtruck', tavern: 'foodtruck', pub: 'foodtruck',
+  sports_bar: 'foodtruck', brewpub: 'foodtruck', taproom: 'foodtruck', brewery: 'foodtruck',
   rv_dealer: 'rv', powersports: 'rv', marine: 'rv',
   // E-commerce / retail → store set (mirrors STORE_INDUSTRIES in industryRouting).
   ecommerce: 'store', e_commerce: 'store', retail: 'store', online_store: 'store',

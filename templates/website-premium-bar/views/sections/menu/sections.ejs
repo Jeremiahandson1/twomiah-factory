@@ -1,0 +1,67 @@
+<%
+  // THE MENU — semantic HTML with real prices, grouped by section, from the
+  // database (site.menu) so it is the same data the Menu JSON-LD and the
+  // console's 86 button use. Never a PDF, never an image.
+  //
+  // data: { heading, intro, asHeading, kind ('food' | 'drink' | 'all'), sections (fallback when site is null), showSignatureLinks }
+  const S = (typeof site !== 'undefined' && site && Array.isArray(site.menu)) ? site.menu : (Array.isArray(data.sections) ? data.sections : [])
+  const kind = data.kind || 'all'
+  const sections = S.filter(s => s && Array.isArray(s.items) && s.items.length && (kind === 'all' || (s.kind || 'food') === kind))
+  const heading = data.heading || 'The menu'
+  const intro = data.intro || ''
+  const H = data.asHeading ? 'h1' : 'h2'
+  const showLinks = data.showSignatureLinks !== false
+  function price(i) {
+    if (i.priceLabel) return i.priceLabel
+    if (i.priceCents === null || i.priceCents === undefined) return '—'
+    return i.priceCents % 100 === 0 ? '$' + (i.priceCents / 100) : '$' + (i.priceCents / 100).toFixed(2)
+  }
+  const DIET = { GF: 'Gluten-free', V: 'Vegetarian', VG: 'Vegan', DF: 'Dairy-free', N: 'Contains nuts', SP: 'Spicy' }
+  const legend = new Set()
+  sections.forEach(s => s.items.forEach(i => (Array.isArray(i.dietary) ? i.dietary : []).forEach(d => legend.add(String(d).toUpperCase()))))
+%>
+<section class="menu-full" id="menu" aria-labelledby="menu-heading">
+  <div class="container">
+    <div class="section-head">
+      <<%= H %> class="section-title" id="menu-heading"><%= heading %></<%= H %>>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+      <% if (legend.size) { %>
+        <ul class="menu__legend" aria-label="Dietary key">
+          <% for (const code of legend) { %><li class="menu__legend-chip"><span class="menu__chip menu__chip--<%= code.toLowerCase() %>"><%= code %></span><%= DIET[code] || code %></li><% } %>
+        </ul>
+      <% } %>
+    </div>
+
+    <% if (!sections.length) { %>
+      <p class="menu-full__empty">The menu is being typed up. Call <a href="tel:<%= String(settings.phone || '').replace(/[^\d+]/g, '') %>"><%= settings.phone || 'the bar' %></a> and we'll read it to you.</p>
+    <% } %>
+
+    <% for (const s of sections) { %>
+      <section class="menu-section" id="menu-<%= s.slug %>" aria-labelledby="menu-<%= s.slug %>-h">
+        <header class="menu-section__head">
+          <h<%= data.asHeading ? 2 : 3 %> class="menu-section__title" id="menu-<%= s.slug %>-h"><%= s.name %></h<%= data.asHeading ? 2 : 3 %>>
+          <% if (s.description) { %><p class="menu-section__desc"><%= s.description %></p><% } %>
+        </header>
+        <ul class="menu-list" role="list">
+          <% for (const i of s.items) { if (i.isActive === false) continue; const link = showLinks && i.isSignature ? '/' + s.slug + '/' + i.slug : ''; %>
+            <li class="menu-line<%= i.is86ed ? ' menu-line--86' : '' %><%= i.isSignature ? ' menu-line--signature' : '' %>" id="item-<%= i.slug %>">
+              <div class="menu-line__head">
+                <span class="menu-line__name">
+                  <% if (link) { %><a href="<%= link %>"><%= i.name %></a><% } else { %><%= i.name %><% } %>
+                  <% if (i.is86ed) { %><span class="menu-line__out">out tonight</span><% } %>
+                </span>
+                <span class="menu-line__price mono"><%= price(i) %></span>
+              </div>
+              <% if (i.description) { %><p class="menu-line__desc"><%= i.description %></p><% } %>
+              <% if (Array.isArray(i.dietary) && i.dietary.length) { %>
+                <ul class="menu-item__diet" aria-label="Dietary tags">
+                  <% for (const d of i.dietary) { %><li class="menu__chip menu__chip--<%= String(d).toLowerCase() %>"><%= String(d).toUpperCase() %></li><% } %>
+                </ul>
+              <% } %>
+            </li>
+          <% } %>
+        </ul>
+      </section>
+    <% } %>
+  </div>
+</section>

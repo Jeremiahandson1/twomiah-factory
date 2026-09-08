@@ -16,6 +16,7 @@ export type PremiumTrack =
   | 'showcase'
   | 'fieldservice'
   | 'contractor'
+  | 'bar'
 
 const PREMIUM_ROOFING_INDUSTRIES = new Set([
   'roofing', 'roof', 'storm_restoration', 'siding_roofing',
@@ -36,6 +37,12 @@ const PREMIUM_SHOWCASE_INDUSTRIES = new Set([
   'fitness', 'gym', 'yoga', 'beauty', 'salon', 'spa',
   'events', 'wedding', 'catering',
 ])
+const PREMIUM_BAR_INDUSTRIES = new Set([
+  'bar', 'bar_and_grill', 'bar_grill', 'tavern', 'pub', 'public_house', 'saloon',
+  'sports_bar', 'dive_bar', 'neighborhood_bar', 'cocktail_bar', 'wine_bar', 'beer_bar',
+  'brewpub', 'brew_pub', 'taproom', 'tap_room', 'brewery', 'beer_garden', 'biergarten',
+  'lounge', 'speakeasy', 'supper_club',
+])
 const PREMIUM_CONTRACTOR_INDUSTRIES = new Set([
   'contractor', 'general_contractor', 'construction', 'remodeling',
   'siding', 'home_improvement',
@@ -53,6 +60,7 @@ const TRACK_LABEL: Record<PremiumTrack, string> = {
   showcase: 'Premium Showcase (food, hospitality, fitness, beauty, events)',
   fieldservice: 'Premium Field Service',
   contractor: 'Premium Contractor',
+  bar: 'Premium Bar & Tavern (live board, taps, menu, bartender console)',
 }
 
 // Resolve an industry to the premium track that will render it, or null when
@@ -64,6 +72,7 @@ export function pickPremiumTrack(industry: string | undefined | null): PremiumTr
   if (PREMIUM_HOMECARE_INDUSTRIES.has(i)) return 'homecare'
   if (PREMIUM_DISPENSARY_INDUSTRIES.has(i)) return 'dispensary'
   if (PREMIUM_LANDSCAPING_INDUSTRIES.has(i)) return 'landscaping'
+  if (PREMIUM_BAR_INDUSTRIES.has(i)) return 'bar'
   if (PREMIUM_SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
   if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(i)) return 'fieldservice'
   if (PREMIUM_CONTRACTOR_INDUSTRIES.has(i) || !i || i === 'other') return 'contractor'
@@ -81,6 +90,7 @@ export function allSupportedPremiumIndustries(): string[] {
     ...Array.from(PREMIUM_DISPENSARY_INDUSTRIES),
     ...Array.from(PREMIUM_LANDSCAPING_INDUSTRIES),
     ...Array.from(PREMIUM_SHOWCASE_INDUSTRIES),
+    ...Array.from(PREMIUM_BAR_INDUSTRIES),
     ...Array.from(PREMIUM_CONTRACTOR_INDUSTRIES),
     ...Array.from(PREMIUM_FIELDSERVICE_INDUSTRIES),
   ]

@@ -1,0 +1,26 @@
+{
+  "_note": "PLACEHOLDER hours for the Amber Inn, seeded into settings.hours by initDb. Bar hours copied from the NetWaiter listing (Tue–Fri 11–10, Sat 12–10, Sun 12–8, closed Monday) — five listings disagree and NONE publishes kitchen hours, so kitchen = bar here until the owner confirms both. Replace before launch; the console can edit these later.",
+  "timezone": "America/Chicago",
+  "bar": {
+    "mon": [],
+    "tue": [{ "open": "11:00", "close": "22:00" }],
+    "wed": [{ "open": "11:00", "close": "22:00" }],
+    "thu": [{ "open": "11:00", "close": "22:00" }],
+    "fri": [{ "open": "11:00", "close": "22:00" }],
+    "sat": [{ "open": "12:00", "close": "22:00" }],
+    "sun": [{ "open": "12:00", "close": "20:00" }]
+  },
+  "kitchen": {
+    "mon": [],
+    "tue": [{ "open": "11:00", "close": "22:00" }],
+    "wed": [{ "open": "11:00", "close": "22:00" }],
+    "thu": [{ "open": "11:00", "close": "22:00" }],
+    "fri": [{ "open": "11:00", "close": "22:00" }],
+    "sat": [{ "open": "12:00", "close": "22:00" }],
+    "sun": [{ "open": "12:00", "close": "20:00" }]
+  },
+  "holidays": [
+    { "date": "2026-11-26", "label": "Thanksgiving", "bar": null, "kitchen": null },
+    { "date": "2026-12-25", "label": "Christmas", "bar": null, "kitchen": null }
+  ]
+}

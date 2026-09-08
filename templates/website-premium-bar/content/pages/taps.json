@@ -1,0 +1,28 @@
+{
+  "title": "Taps",
+  "metaTitle": "What's On Tap — Amber Inn, Eau Claire",
+  "metaDescription": "Ten taps, heavy on German imports, plus draft root beer in an iced mug. What is actually pouring at the Amber Inn right now.",
+  "sections": [
+    {
+      "type": "taps",
+      "variant": "wall",
+      "data": {
+        "heading": "On tap",
+        "intro": "Ten lines, heavy on German beer you don't see a lot of places. This list is what is actually pouring.",
+        "asHeading": true,
+        "leadOrigins": ["Germany"],
+        "showPrices": true
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "heading": "Draft root beer, since 1920",
+        "subtitle": "When Prohibition came the sign said George Berg Soft Drinks. The root beer is still on the taps, in an iced mug.",
+        "primaryCta": { "label": "The whole story", "href": "/story/1920" },
+        "phone": "(715) 832-0568"
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "title": "Menu",
+  "metaTitle": "Menu — Amber Inn Bar & Grill, Eau Claire",
+  "metaDescription": "Half-pound burgers ground behind the bar, the Friday fish fry, draft root beer and ten taps. The full Amber Inn menu with prices, as text.",
+  "sections": [
+    {
+      "type": "menu",
+      "variant": "sections",
+      "data": {
+        "heading": "The menu",
+        "intro": "Everything is cooked behind the bar. Prices are on the board and here.",
+        "asHeading": true,
+        "kind": "all"
+      }
+    },
+    {
+      "type": "faq",
+      "variant": "accordion",
+      "data": {
+        "heading": "Questions people ask",
+        "items": [
+          { "question": "When does the kitchen close?", "answer": "Kitchen hours are separate from bar hours. Tonight's kitchen close is on the front page, live, and on the Visit page." },
+          { "question": "Which day is the fish fry?", "answer": "Friday. See the fish fry page for the time and price." },
+          { "question": "Do you take cards?", "answer": "Yes." },
+          { "question": "Can I bring kids?", "answer": "Yes, with an adult, while the kitchen is open." },
+          { "question": "Is there a vegetarian option?", "answer": "The kitchen will tell you what they can do that day. Draft root beer is always on." }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "Bringing a group?",
+        "subtitle": "Birthdays, Packer parties, the work crew. Tell us the date and headcount.",
+        "primaryCta": { "label": "Ask about a party", "href": "/parties" }
+      }
+    }
+  ]
+}

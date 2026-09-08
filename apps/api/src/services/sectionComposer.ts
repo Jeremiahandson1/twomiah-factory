@@ -166,12 +166,54 @@ export const SECTION_SCHEMA = {
       use_when: 'pre-empt the 5-8 most common buyer questions for this business — pricing, process, lead time, coverage area, what is included, what to expect, scheduling, payment, warranty/guarantee. Strong SEO win. PROACTIVELY GENERATE these questions from the business description even when the intake didn\'t explicitly ask for an FAQ — the questions and answers should be plausibly true given what the business said about itself.',
     },
   },
+  // ─── Bar-specific section types (website-premium-bar) ───────────────────
+  timeline: {
+    eras: { required: [], optional: ['heading', 'intro', 'asHeading'], use_when: 'bars/restaurants with real history — the whole timeline from the venue\'s Timeline database as one page (/story). Framing only.' },
+    era: { required: ['slug'], optional: ['backHref', 'backLabel'], use_when: 'one era of the timeline as its own page (/story/<slug>).' },
+  },
+  hours: {
+    table: { required: [], optional: ['heading', 'intro', 'asHeading', 'showHolidays'], use_when: 'bars/restaurants — weekly BAR and KITCHEN hours side by side from the hours engine, with tonight\'s live line. Use on the /visit page. Never type hours into copy.' },
+  },
+  visit: {
+    details: { required: ['heading'], optional: ['intro', 'asHeading', 'parking', 'accessibility', 'notes', 'showMap'], use_when: 'the /visit page lead: address + phone from settings, directions to Google AND Apple Maps, parking, accessibility list, good-to-know list.' },
+  },
+  parties: {
+    'inquiry-form': { required: ['heading'], optional: ['intro', 'asHeading', 'minParty', 'promise', 'occasions', 'sidebar', 'facts'], use_when: 'bars — private-party INQUIRY (birthday, Packer party, rehearsal dinner, work group). Not a reservation system. Texts the owner.' },
+  },
+  taps: {
+    wall: { required: [], optional: ['heading', 'intro', 'asHeading', 'leadOrigins', 'showPrices', 'emptyText'], use_when: 'bars — the live tap list from the venue\'s taps database. Framing only; never list beers here.' },
+  },
+  tonight: {
+    board: {
+      required: [],
+      optional: ['eyebrow', 'title', 'intro', 'asHeading', 'showTaps', 'showRoom', 'tapsHref', 'menuHref'],
+      use_when: 'bars and taverns ONLY — the live status board that replaces the hero: kitchen open/closed with countdown, bar hours, what is on tap, tonight\'s game, today\'s special, how busy. Its content is live from the venue\'s console, so the composer supplies only framing (eyebrow/title/intro). Always the FIRST section of a bar home page.',
+    },
+  },
+  events: {
+    list: { required: [], optional: ['heading', 'intro', 'asHeading', 'recurring', 'emptyText'], use_when: 'the /events page: upcoming events from the venue\'s events database plus the standing weekly things listed in `recurring` (title, when, href, description).' },
+    recurring: {
+      required: ['title', 'day', 'startTime'],
+      optional: ['eyebrow', 'endTime', 'timeLabel', 'price', 'priceCents', 'description', 'details', 'image', 'asHeading', 'cta'],
+      use_when: 'a weekly recurring thing that deserves its own page — a Friday fish fry, trivia night, live music night. Day + time + price + a few details; emits Event structured data with a weekly schedule. Bars, restaurants, cafes.',
+    },
+  },
   // ─── Food truck-specific section types ─────────────────────────────────
   // Available to food_truck industry. Showcase / restaurant / cafe verticals
   // can use them too where appropriate (e.g. a restaurant with a true daily
   // menu benefits from menu/cards, a beach-pop-up cafe might use
   // location/live-map).
   menu: {
+    sections: {
+      required: [],
+      optional: ['heading', 'intro', 'asHeading', 'kind', 'showSignatureLinks'],
+      use_when: 'bars and restaurants whose menu lives in the site\'s menu database — renders the WHOLE menu grouped by section as real text with prices and Menu/MenuItem structured data. Supply only framing; never list items here. Use on the /menu page; use menu/cards for a short hand-picked teaser on the home page.',
+    },
+    'item-hero': {
+      required: ['slug'],
+      optional: ['section', 'eyebrow'],
+      use_when: 'a signature item\'s own page (a famous burger). Reads the item by slug from the menu database.',
+    },
     cards: {
       required: ['items'],
       optional: ['heading', 'intro', 'dietary_legend'],
@@ -1143,6 +1185,55 @@ const DISPENSARY_PAGE_RECIPES = {
 // most important thing after location, social-following IS the marketing.
 // Override the recipes accordingly. Selected by buildSitePrompt when
 // input.businessType maps to the foodtruck vertical.
+// Bars and taverns. The one question the site must answer is "should I go
+// there right now?" — kitchen open, what's on tap, is the game on — so the
+// live board (tonight/board, once registered) leads and the story of the
+// place is a first-class page, not an About paragraph. Menu is real HTML
+// with prices; never a PDF or image. No reservations section, ever — a bar
+// is walk-in business; private parties go through an inquiry form.
+const BAR_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a bar. Answer "is the kitchen open, what\'s on tap, is the game on" above the fold, then the signature food, then the story.',
+    allowed_types: ['tonight', 'menu', 'about', 'stats', 'gallery', 'faq', 'cta'],
+    required_sequence: '1 tonight/board FIRST (it replaces the hero — never add a hero on a bar home page), 1 menu/cards (3-6 signature items with real prices), 1 about/story (the history of the building in 2-3 short paragraphs, dry and plain), optional 1 stats/bar (year established, taps, seats), close with 1 cta/split pointing to parties or visit',
+  },
+  menu: {
+    purpose: 'The full menu — every item, price, description. Real text, real prices. This is the page Google and AI assistants quote.',
+    allowed_types: ['menu', 'faq', 'cta'],
+    required_sequence: '1 menu/sections with asHeading=true (the whole menu from the database — do NOT list items), optional 1 faq/accordion (kitchen hours, fish fry day, kids, cards, vegetarian), close with 1 cta/banner',
+  },
+  story: {
+    purpose: 'The history of the bar — the reason people link to it. One era per block, plain voice, no marketing adjectives.',
+    allowed_types: ['hero', 'about', 'before_after', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/split (historic photo), 1 about/story (the founding), optional 1 before_after/slider (then-and-now), optional 1 gallery/grid (historic photos), close with 1 cta',
+  },
+  events: {
+    purpose: 'What is happening — game days, fish fry, live music, specials.',
+    allowed_types: ['events', 'cta'],
+    required_sequence: '1 events/list with asHeading=true (upcoming from the database + 1-3 standing weekly things in `recurring`), close with 1 cta/banner pointing to /parties',
+  },
+  taps: {
+    purpose: 'The live tap wall — what is actually pouring right now.',
+    allowed_types: ['taps', 'cta'],
+    required_sequence: '1 taps/wall with asHeading=true (framing only), close with 1 cta/split',
+  },
+  'fish-fry': {
+    purpose: 'The Friday fish fry (or the venue\'s signature weekly night) as its own page with Event structured data.',
+    allowed_types: ['events', 'cta'],
+    required_sequence: '1 events/recurring with asHeading=true (day, times, price if known — never invent a price), close with 1 cta/split',
+  },
+  parties: {
+    purpose: 'Convert private-party inquiries — birthdays, Packer parties, rehearsal dinners, work groups. This is where a bar\'s real revenue is.',
+    allowed_types: ['parties', 'faq', 'gallery', 'cta'],
+    required_sequence: '1 parties/inquiry-form with asHeading=true (date, headcount, occasion), optional 1 gallery/grid, 1 faq/accordion (minimums, food options, deposits), close with 1 cta',
+  },
+  visit: {
+    purpose: 'Hours (bar AND kitchen, separately), address, parking, directions, accessibility, contact.',
+    allowed_types: ['visit', 'hours', 'faq', 'cta'],
+    required_sequence: '1 visit/details with asHeading=true (parking, accessibility list, notes), 1 hours/table (the hours engine renders bar + kitchen), 1 faq/accordion (parking, kids, cards, accessibility, reservations=no), close with 1 cta/banner',
+  },
+} as const
+
 const FOODTRUCK_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a mobile food business. Answer "where are you right now" and "what do you serve" in the first three seconds.',
@@ -1205,6 +1296,9 @@ function buildSitePrompt(input: ComposerInput): string {
   const cafe = /\b(cafe|caf[eé]|coffee[_\s\-]?shop|coffeeshop|coffee[_\s\-]?house|tea[_\s\-]?room|tearoom|espresso[_\s\-]?bar|bakery[_\s\-]?caf[eé]?)\b/i.test(businessType)
   const restaurant = /\b(restaurant|bistro|gastropub|eatery|diner|pizzeria|trattoria|brasserie|taqueria|ramen[_\s\-]?shop|sushi[_\s\-]?bar)\b/i.test(businessType)
   const salon = /\b(salon|hair[_\s\-]?salon|hairdresser|barber|barbershop|nail[_\s\-]?salon|nail[_\s\-]?bar|spa|day[_\s\-]?spa|esthetician|esthetics|beauty[_\s\-]?salon|lash[_\s\-]?bar|brow[_\s\-]?bar|medspa|med[_\s\-]?spa|waxing)\b/i.test(businessType)
+  // Bars — after cafe/restaurant/salon so "espresso bar", "sushi bar", "nail bar"
+  // keep their verticals; juice/smoothie/oxygen bars are excluded explicitly.
+  const bar = /\b(tavern|pub|public[_\s\-]?house|saloon|taproom|tap[_\s\-]?room|brewpub|brew[_\s\-]?pub|brewery|beer[_\s\-]?garden|biergarten|speakeasy|supper[_\s\-]?club|(?<!juice[_\s\-])(?<!smoothie[_\s\-])(?<!oxygen[_\s\-])(?<!salad[_\s\-])bar)\b/i.test(businessType)
   const fitness = /\b(gym|fitness|fitness[_\s\-]?studio|yoga|yoga[_\s\-]?studio|pilates|pilates[_\s\-]?studio|crossfit|cross[_\s\-]?fit|boxing|boxing[_\s\-]?gym|martial[_\s\-]?arts|mma|personal[_\s\-]?training|personal[_\s\-]?trainer|spin[_\s\-]?studio|cycling[_\s\-]?studio|barre|dance[_\s\-]?studio)\b/i.test(businessType)
   const hotel = /\b(hotel|boutique[_\s\-]?hotel|b[_\s\-]?and[_\s\-]?b|b&b|bandb|bnb|bed[_\s\-]?and[_\s\-]?breakfast|inn|lodge|motel|vacation[_\s\-]?rental|short[_\s\-]?term[_\s\-]?rental|airbnb|guest[_\s\-]?house|cabin[_\s\-]?rental)\b/i.test(businessType)
   const events = /\b(event[_\s\-]?venue|wedding[_\s\-]?venue|banquet[_\s\-]?hall|banquet|venue|party[_\s\-]?venue|corporate[_\s\-]?venue|reception[_\s\-]?hall|barn[_\s\-]?venue|events)\b/i.test(businessType)
@@ -1238,6 +1332,8 @@ function buildSitePrompt(input: ComposerInput): string {
                   ? RESTAURANT_PAGE_RECIPES
                   : salon
                     ? SALON_PAGE_RECIPES
+                    : bar
+                      ? BAR_PAGE_RECIPES
                     : fitness
                       ? FITNESS_PAGE_RECIPES
                       : hotel
@@ -2136,6 +2232,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isCafe = /\b(cafe|caf[eé]|coffee[_\s\-]?shop|coffeeshop|coffee[_\s\-]?house|tea[_\s\-]?room|tearoom|espresso[_\s\-]?bar|bakery[_\s\-]?caf[eé]?)\b/i.test(businessTypeIn)
   const isRestaurant = /\b(restaurant|bistro|gastropub|eatery|diner|pizzeria|trattoria|brasserie|taqueria|ramen[_\s\-]?shop|sushi[_\s\-]?bar)\b/i.test(businessTypeIn)
   const isSalon = /\b(salon|hair[_\s\-]?salon|hairdresser|barber|barbershop|nail[_\s\-]?salon|nail[_\s\-]?bar|spa|day[_\s\-]?spa|esthetician|esthetics|beauty[_\s\-]?salon|lash[_\s\-]?bar|brow[_\s\-]?bar|medspa|med[_\s\-]?spa|waxing)\b/i.test(businessTypeIn)
+  const isBar = /\b(tavern|pub|public[_\s\-]?house|saloon|taproom|tap[_\s\-]?room|brewpub|brew[_\s\-]?pub|brewery|beer[_\s\-]?garden|biergarten|speakeasy|supper[_\s\-]?club|(?<!juice[_\s\-])(?<!smoothie[_\s\-])(?<!oxygen[_\s\-])(?<!salad[_\s\-])bar)\b/i.test(businessTypeIn)
   const isFitness = /\b(gym|fitness|fitness[_\s\-]?studio|yoga|yoga[_\s\-]?studio|pilates|pilates[_\s\-]?studio|crossfit|cross[_\s\-]?fit|boxing|boxing[_\s\-]?gym|martial[_\s\-]?arts|mma|personal[_\s\-]?training|personal[_\s\-]?trainer|spin[_\s\-]?studio|cycling[_\s\-]?studio|barre|dance[_\s\-]?studio)\b/i.test(businessTypeIn)
   const isHotel = /\b(hotel|boutique[_\s\-]?hotel|b[_\s\-]?and[_\s\-]?b|b&b|bandb|bnb|bed[_\s\-]?and[_\s\-]?breakfast|inn|lodge|motel|vacation[_\s\-]?rental|short[_\s\-]?term[_\s\-]?rental|airbnb|guest[_\s\-]?house|cabin[_\s\-]?rental)\b/i.test(businessTypeIn)
   const isEvents = /\b(event[_\s\-]?venue|wedding[_\s\-]?venue|banquet[_\s\-]?hall|banquet|venue|party[_\s\-]?venue|corporate[_\s\-]?venue|reception[_\s\-]?hall|barn[_\s\-]?venue|events)\b/i.test(businessTypeIn)
@@ -2163,6 +2260,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
                   ? Object.keys(RESTAURANT_PAGE_RECIPES)
                   : isSalon
                     ? Object.keys(SALON_PAGE_RECIPES)
+                    : isBar
+                      ? Object.keys(BAR_PAGE_RECIPES)
                     : isFitness
                       ? Object.keys(FITNESS_PAGE_RECIPES)
                       : isHotel

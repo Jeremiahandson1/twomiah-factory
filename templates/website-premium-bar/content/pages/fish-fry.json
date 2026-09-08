@@ -1,0 +1,39 @@
+{
+  "title": "Friday Fish Fry",
+  "metaTitle": "Friday Fish Fry — Amber Inn, Eau Claire",
+  "metaDescription": "The Amber Inn's Friday fish fry at 840 E Madison St, Eau Claire. Day, time and price for one of the oldest bars in Wisconsin.",
+  "sections": [
+    {
+      "type": "events",
+      "variant": "recurring",
+      "data": {
+        "eyebrow": "Every Friday",
+        "title": "Fish Fry",
+        "day": "Friday",
+        "startTime": "11:00",
+        "endTime": "22:00",
+        "timeLabel": "while the kitchen is open",
+        "price": null,
+        "priceCents": null,
+        "where": "840 E Madison St, Eau Claire",
+        "description": "Fridays at the Amber Inn. Ask at the bar for the day's fish. Time and price will be confirmed by the kitchen.",
+        "details": [
+          "Walk in. No reservations, no platform, no fee.",
+          "The bar is open later than the kitchen; the fish fry runs while the kitchen does."
+        ],
+        "asHeading": true,
+        "cta": { "label": "Hours and directions", "href": "/visit" }
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "heading": "Make it a Friday",
+        "subtitle": "Ten taps, heavy on German imports, and draft root beer in an iced mug for the kids.",
+        "primaryCta": { "label": "What's on tap", "href": "/taps" },
+        "phone": "(715) 832-0568"
+      }
+    }
+  ]
+}

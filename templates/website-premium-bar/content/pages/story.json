@@ -1,0 +1,36 @@
+{
+  "_note": "THE ARCHIVE — /story. Eras come from content/timeline/*.json (timeline_entries on Render); this page only frames them. Facts limited to DISCOVERY_2026-09-07 §3.",
+  "title": "The story",
+  "metaTitle": "The story of the Amber Inn, Eau Claire, since 1881",
+  "metaDescription": "145 years on East Madison Street: built by Walter Brewing in 1881, George Berg Soft Drinks through Prohibition, family-run since 1981. It never closed.",
+  "sections": [
+    {
+      "type": "timeline",
+      "variant": "eras",
+      "data": {
+        "asHeading": true,
+        "heading": "145 years on East Madison Street",
+        "intro": "One building, one bar, from a brewery tied house in 1881 to the root beer still on the taps today."
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "id": "visit",
+        "heading": "See it for yourself",
+        "subtitle": "The room is the same one Walter Brewing built. Come sit in it.",
+        "bullets": [
+          "840 E Madison St, Eau Claire",
+          "Draft root beer in an iced mug, since 1920",
+          "Burgers ground behind the bar"
+        ],
+        "primaryCta": {
+          "label": "Plan a visit",
+          "href": "/visit"
+        },
+        "phone": "(715) 832-0568"
+      }
+    }
+  ]
+}
