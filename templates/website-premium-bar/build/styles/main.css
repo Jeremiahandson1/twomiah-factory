@@ -1111,7 +1111,7 @@ body { background: transparent; }
   position: relative; min-height: 100vh;
   background-color: var(--leather);
   background-image:
-    radial-gradient(ellipse 70% 45% at 50% 18%, rgba(160,110,50,.22), rgba(0,0,0,0) 70%),
+    radial-gradient(ellipse 60% 40% at 50% 16%, rgba(200,150,70,.14), rgba(0,0,0,0) 70%),
     radial-gradient(ellipse 120% 80% at 50% 100%, rgba(0,0,0,.55), rgba(0,0,0,0) 60%),
     url('/images/brand/leather.webp');
   background-size: auto, auto, 1400px auto;

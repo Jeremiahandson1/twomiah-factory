@@ -35,9 +35,20 @@ if (leatherSrc) {
   }
   const overlay = await sharp(base).joinChannel(mask, { raw: { width: W, height: H, channels: 1 } }).png().toBuffer()
   const seamless = await sharp(rolled).composite([{ input: overlay, left: 0, top: 0 }]).toBuffer()
-  const dark = sharp(seamless).tint({ r: 150, g: 122, b: 88 }).modulate({ brightness: 0.17, saturation: 0.55 }).linear(1.7, -4)
-  await dark.clone().webp({ quality: 66 }).toFile(path.join(out, 'leather.webp'))
-  await dark.clone().jpeg({ quality: 70, mozjpeg: true }).toFile(path.join(out, 'leather.jpg'))
+  // Duotone like the cover: shadows to near-black, only the crease highlights pick up gold.
+  // t = luminance^gamma keeps the mids dark; highlights lerp from black to brass.
+  const gray = await sharp(seamless).grayscale().raw().toBuffer()
+  const rgb = Buffer.alloc(W * H * 3)
+  const black = [7, 6, 4], gold = [214, 172, 104], GAMMA = 3.2, GAIN = 1.45
+  for (let i = 0; i < W * H; i++) {
+    const t = Math.min(1, Math.pow(gray[i] / 255, GAMMA) * GAIN)
+    rgb[i * 3] = Math.round(black[0] + (gold[0] - black[0]) * t)
+    rgb[i * 3 + 1] = Math.round(black[1] + (gold[1] - black[1]) * t)
+    rgb[i * 3 + 2] = Math.round(black[2] + (gold[2] - black[2]) * t)
+  }
+  const dark = sharp(rgb, { raw: { width: W, height: H, channels: 3 } })
+  await dark.clone().webp({ quality: 68 }).toFile(path.join(out, 'leather.webp'))
+  await dark.clone().jpeg({ quality: 72, mozjpeg: true }).toFile(path.join(out, 'leather.jpg'))
   const st = await sharp(path.join(out, 'leather.webp')).stats()
   console.log('leather tile', W, 'x', H, 'mean', st.channels.map(c => c.mean.toFixed(0)).join(','))
 }
