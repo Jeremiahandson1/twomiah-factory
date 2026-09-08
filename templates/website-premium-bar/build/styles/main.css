@@ -1206,12 +1206,34 @@ body { background: transparent; }
 .book--js .book__spread.is-turning-out { visibility: visible; z-index: 2; animation: page-out .6s cubic-bezier(.45,0,.55,1) both; pointer-events: none; }
 .book--js .book__spread.is-turning-in { animation: page-in .6s cubic-bezier(.2,.7,.2,1) both; }
 .book--js .book__spread.is-turning-back { visibility: visible; z-index: 2; animation: page-in .6s cubic-bezier(.45,0,.55,1) reverse both; pointer-events: none; }
-.book--js .spread { height: 100%; }
-/* The text page is a column: body at the top, permalink + folio pinned to the foot like a printed page. */
-.page--recto { display: flex; flex-direction: column; }
-.page--recto .page__body { flex: 0 0 auto; }
-.page--recto .page__foot { margin-top: auto; }
-.plate img { max-height: 100%; object-fit: contain; }
+/* ── Fixed page size + text flow (book.js) ─────────────────────────────
+ * With JS every spread is exactly --book-h tall. A chapter's text that does
+ * not fit its first page flows onto continuation spreads (two text pages
+ * each), so pages are uniform and none is padded out or left half blank. */
+.book { --book-h: clamp(560px, calc(100vh - 230px), 720px); }
+.book--js .spread { height: var(--book-h); }
+.book--js .page { min-height: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.book--js .page { padding-bottom: 26px; }
+.book--js .page__running { margin-bottom: 12px; }
+.book--js .page__foot { padding-top: 10px; margin-top: auto; }
+.book--js .page__title { margin-bottom: 12px; }
+.book--js .page__plate { flex: 1 1 auto; min-height: 0; height: auto; display: flex; align-items: center; justify-content: center; }
+.book--js .plate { height: 100%; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
+.book--js .plate img { width: auto; max-width: 100%; max-height: 100%; height: auto; object-fit: contain; flex: 0 1 auto; min-height: 0; }
+.book--js .plate figcaption { flex: 0 0 auto; }
+.book--js .plate--year { aspect-ratio: auto; height: 100%; width: 100%; }
+.book--js .page__body { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.book--js .page__foot { margin-top: auto; flex: 0 0 auto; }
+.book--js .page--verso .page__folio { position: static; margin-top: 14px; flex: 0 0 auto; }
+.book--js .page--verso.page--text .page__folio { text-align: left; }
+.page__body.page__body--cont p:first-of-type::first-letter { font-family: inherit; font-size: inherit; float: none; line-height: inherit; padding: 0; color: inherit; }
+.page__body--cont > :first-child { margin-top: 0; }
+/* While book.js measures a spread it must be laid out, whatever its turn state. */
+.book--js .book__spread.is-measuring { visibility: hidden; }
+@media (max-width: 860px) {
+  .book--js .spread { height: auto; }
+  .book--js .page { height: clamp(400px, 62vh, 560px); }
+}
 .book--js .book__spread.is-turning-in-back { animation: page-out .6s cubic-bezier(.2,.7,.2,1) reverse both; }
 @keyframes page-out { from { transform: rotateY(0); filter: brightness(1); } to { transform: rotateY(-95deg); filter: brightness(.5); } }
 @keyframes page-in { from { transform: rotateY(25deg); filter: brightness(.75); } to { transform: rotateY(0); filter: brightness(1); } }
@@ -1233,10 +1255,14 @@ body { background: transparent; }
 .plate--year { display: grid; place-items: center; gap: 10px; aspect-ratio: 4 / 5; border: 1px solid rgba(120,90,40,.45); padding: 6px; }
 .plate__year { font-family: var(--font-display); font-size: clamp(56px, 9vw, 120px); line-height: 1; color: #8C6B2A; background-image: linear-gradient(178deg, #7D582F, #C79D67 40%, #8C6B2A); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .plate__rule { width: 90px; height: 5px; border-top: 1px solid #8C6B2A; border-bottom: 1px solid #8C6B2A; }
+.plate__quote { font-family: var(--font-body); font-style: italic; font-size: clamp(18px, 1.7vw, 24px); line-height: 1.45; color: #5A4222; text-align: center; padding: 0 8%; }
+.page__runover { text-indent: 0; }
 .plate__chapter { font-family: var(--font-eyebrow); font-size: 12px; letter-spacing: .24em; text-transform: uppercase; color: #7A5A2E; }
-.page__title { font-family: var(--font-display); font-size: clamp(24px, 2.6vw, 34px); color: #2A1F12; margin: 0 0 18px; line-height: 1.15; text-transform: uppercase; letter-spacing: .03em; }
-.page__body { font-family: var(--font-body); font-size: 17px; line-height: 1.7; color: #2A2219; }
-.page__body p { margin: 0 0 14px; }
+.page__title { font-family: var(--font-display); font-size: clamp(22px, 2.3vw, 30px); color: #2A1F12; margin: 0 0 14px; line-height: 1.15; text-transform: uppercase; letter-spacing: .03em; }
+.page__body { font-family: var(--font-body); font-size: 16px; line-height: 1.6; color: #2A2219; }
+.page__body p { margin: 0 0 12px; }
+.page__body ul, .page__body ol { margin: 0 0 12px; padding-left: 22px; }
+.page__body li { margin: 0 0 4px; }
 .page__body p:first-of-type::first-letter { font-family: var(--font-display); font-size: 3.4em; float: left; line-height: .82; padding: 6px 10px 0 0; color: #8C6B2A; }
 .page__body blockquote { margin: 14px 0; padding: 8px 0 8px 16px; border-left: 2px solid #C79D67; color: #4A3A26; font-style: italic; }
 .page__foot { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 18px; padding-top: 12px; border-top: 1px solid rgba(120,90,40,.25); }
