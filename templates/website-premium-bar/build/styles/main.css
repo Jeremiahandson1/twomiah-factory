@@ -1162,12 +1162,23 @@ body { background: transparent; }
  * prefers-reduced-motion. The header is pinned so only the page turns. */
 @view-transition { navigation: auto; }
 .site-header { view-transition-name: site-header; }
-::view-transition { perspective: 1800px; }
-::view-transition-group(root) { animation-duration: .55s; }
-::view-transition-old(root) { transform-origin: left center; animation: leaf-out .55s cubic-bezier(.4,0,.6,1) both; }
-::view-transition-new(root) { transform-origin: left center; animation: leaf-in .55s cubic-bezier(.2,.7,.2,1) both; }
-@keyframes leaf-out { from { transform: rotateY(0); filter: brightness(1); } to { transform: rotateY(-70deg); filter: brightness(.35); } }
-@keyframes leaf-in  { from { transform: rotateY(18deg); opacity: .6; filter: brightness(.6); } to { transform: rotateY(0); opacity: 1; filter: brightness(1); } }
+/* The old page is a leaf: it lifts on its left edge and folds over, with a
+ * shadow falling across the page underneath. The new page sits still under
+ * it. Perspective must be on the image pair or the fold flattens to a fade. */
+::view-transition-group(root) { animation-duration: .7s; }
+::view-transition-image-pair(root) { perspective: 1600px; transform-style: preserve-3d; isolation: auto; }
+::view-transition-old(root) { z-index: 2; mix-blend-mode: normal; transform-origin: left center; backface-visibility: hidden; animation: leaf-fold .7s cubic-bezier(.55,.05,.45,.95) both; }
+::view-transition-new(root) { z-index: 1; mix-blend-mode: normal; animation: leaf-under .7s ease-out both; }
+@keyframes leaf-fold {
+  0%   { transform: rotateY(0deg); opacity: 1; filter: brightness(1); }
+  55%  { opacity: 1; filter: brightness(.55); }
+  100% { transform: rotateY(-125deg); opacity: 0; filter: brightness(.3); }
+}
+@keyframes leaf-under {
+  0%   { filter: brightness(.55); }
+  60%  { filter: brightness(.8); }
+  100% { filter: brightness(1); }
+}
 ::view-transition-old(site-header), ::view-transition-new(site-header) { animation: none; mix-blend-mode: normal; }
 @media (prefers-reduced-motion: reduce) {
   @view-transition { navigation: none; }
