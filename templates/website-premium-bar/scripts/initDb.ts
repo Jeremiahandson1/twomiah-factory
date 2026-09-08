@@ -228,7 +228,8 @@ async function main() {
       geoLng: str(s.geoLng ?? s.geo?.lng),
       sameAs: Array.isArray(s.sameAs) ? s.sameAs : [],
       schemaType: s.schemaType || 'BarOrPub',
-      siteOrigin: str(s.siteOrigin),
+      // Falls back to Render's SITE_URL so JSON-LD / canonical URLs are absolute on the very first boot.
+      siteOrigin: str(s.siteOrigin) || str(process.env.SITE_URL) || null,
       servesCuisine: str(s.servesCuisine),
       priceRange: str(s.priceRange),
       established: typeof s.established === 'number' ? s.established : (Number(s.established) || null),
