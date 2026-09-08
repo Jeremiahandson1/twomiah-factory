@@ -200,10 +200,14 @@ async function main() {
   }
 
   // ── Settings ───────────────────────────────────────────────────────────
+  // SEED_OVERWRITE=1: content/ (or the factory payload) is the source of truth —
+  // re-apply settings + page compositions on every boot. Used for the reference
+  // tenant while the site is being built; turn off once the admin owns content.
+  const OVERWRITE = process.env.SEED_OVERWRITE === '1'
   const existingSettings = await db.select().from(settings).limit(1)
-  if (existingSettings.length === 0) {
+  if (existingSettings.length === 0 || OVERWRITE) {
     const s = payload.settings
-    await db.insert(settings).values({
+    const values = {
       companyName: s.companyName,
       tagline: str(s.tagline),
       phone: str(s.phone),
@@ -240,8 +244,14 @@ async function main() {
       fontMono: str(s.fontMono),
       theme: s.theme === 'dark' || s.theme === 'light' ? s.theme : 'auto',
       hours: s.hours ?? null,
-    })
-    console.log('[initDb] Created initial settings row.')
+    }
+    if (existingSettings.length === 0) {
+      await db.insert(settings).values(values)
+      console.log('[initDb] Created initial settings row.')
+    } else {
+      await db.update(settings).set({ ...values, updatedAt: new Date() }).where(eq(settings.id, existingSettings[0].id))
+      console.log('[initDb] SEED_OVERWRITE: settings row re-applied from content.')
+    }
   } else {
     console.log('[initDb] Settings row already exists — skipping settings seed.')
   }
@@ -329,6 +339,9 @@ async function main() {
         metaDescription: p.metaDescription || null,
       })
       console.log('[initDb] Created page: ' + p.slug + ' (' + (p.sections?.length || 0) + ' sections)')
+    } else if (OVERWRITE) {
+      await db.update(pages).set({ title: p.title, sections: p.sections, navOrder: p.navOrder, isPublished: p.isPublished, metaTitle: p.metaTitle || null, metaDescription: p.metaDescription || null, updatedAt: new Date() }).where(eq(pages.slug, p.slug))
+      console.log('[initDb] SEED_OVERWRITE: page re-applied: ' + p.slug)
     } else {
       console.log('[initDb] Page already exists: ' + p.slug + ' — skipping.')
     }
