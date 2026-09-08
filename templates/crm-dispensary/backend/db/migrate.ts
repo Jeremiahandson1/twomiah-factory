@@ -28,21 +28,27 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 // return 500 "relation/column does not exist". schema.ts is a strict superset of the
 // DB, so `push` is purely additive here — it creates the missing tables/columns and
 // never drops anything. This also stops the drift recurring as the schema evolves.
-for (let attempt = 1; attempt <= 3; attempt++) {
-  try {
-    console.log(`[migrate] Reconciling schema (push) attempt ${attempt}/3...`)
-    execSync('bun x drizzle-kit push --force', { stdio: 'inherit' })
-    console.log('[migrate] Schema reconciled')
-    break
-  } catch (err: any) {
-    if (attempt === 3) {
-      // Non-fatal: let the app boot (working modules still serve) and surface the
-      // failure loudly rather than bricking the entire deploy on a push hiccup.
-      console.error('[migrate] Schema reconcile (push) failed — some modules may 500 until this succeeds')
-    } else {
-      await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
-    }
-  }
+// drizzle-kit push can stall indefinitely: it hangs on "Pulling schema from database"
+// against a busy free-tier Postgres and, despite --force, can block on an interactive
+// rename prompt. Plain execSync has no timeout, so a stuck push froze the ENTIRE boot —
+// the &&-chained server never started and Render failed the deploy with "no open ports".
+// Bound each attempt with `timeout` (the start-command push already uses this pattern):
+// -k 10 60 sends SIGTERM at 60s and SIGKILL 10s later, so a hung push is killed, its DB
+// connection released, and we fall through to the authoritative, idempotent ENSURE net
+// below. Reconciliation is guaranteed by ENSURE + the prune-legacy-protected push in the
+// start command — this step is belt-and-suspenders, so timing out is non-fatal.
+// ONE tightly-bounded, non-fatal push. drizzle-kit push stalls intermittently on this
+// tenant (see above), and each stalled attempt burns ~its full timeout against the
+// deploy's port-bind window. Retrying it here only compounds that delay, so we make a
+// single bounded attempt and let the authoritative, idempotent ENSURE net below — plus
+// the start command's own bounded push — reconcile the schema. -k 10 45: SIGTERM at 45s,
+// SIGKILL 10s later, so a hung push is killed and its DB connection freed.
+try {
+  console.log('[migrate] Reconciling schema (push, single bounded attempt)...')
+  execSync('timeout -k 10 25 bun x drizzle-kit push --force', { stdio: 'inherit' })
+  console.log('[migrate] Schema reconciled')
+} catch (err: any) {
+  console.error('[migrate] Schema reconcile (push) skipped/timed out — the idempotent ENSURE net below reconciles the known schema; boot continues')
 }
 
 // Safety net: ensure all schema columns exist even if a migration was recorded
