@@ -354,12 +354,15 @@ app.get('/api/live/fresh', async (c) => {
   return c.json(await buildLiveState(db))
 })
 
-app.get('/:slug', async (c) => {
+app.get('/:slug', async (c, next) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog'].includes(slug)) return c.notFound()
+  // Reserved names and unknown pages fall THROUGH (next()) so the routes
+  // registered after this one — /sitemap.xml, /robots.txt, the console,
+  // nested pages — still get their turn instead of a premature 404.
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'parties', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
   const html = await renderPage(slug, '/' + slug)
-  if (html) countView('/' + slug)
-  if (!html) return c.notFound()
+  if (!html) return next()
+  countView('/' + slug)
   return c.html(html)
 })
 
