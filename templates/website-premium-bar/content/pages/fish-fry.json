@@ -22,7 +22,10 @@
           "The bar is open later than the kitchen; the fish fry runs while the kitchen does."
         ],
         "asHeading": true,
-        "cta": { "label": "Hours and directions", "href": "/visit" }
+        "cta": {
+          "label": "Hours and directions",
+          "href": "/visit"
+        }
       }
     },
     {
@@ -31,8 +34,13 @@
       "data": {
         "heading": "Make it a Friday",
         "subtitle": "Ten taps, heavy on German imports, and draft root beer in an iced mug for the kids.",
-        "primaryCta": { "label": "What's on tap", "href": "/taps" },
-        "phone": "(715) 832-0568"
+        "primaryCta": {
+          "label": "What's on tap",
+          "href": "/taps"
+        },
+        "phone": "(715) 832-0568",
+        "image": "/images/brand/exterior-700.jpg",
+        "imageAlt": "The Amber Inn at dusk"
       }
     }
   ]

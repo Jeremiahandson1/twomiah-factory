@@ -19,7 +19,7 @@ fs.mkdirSync(fontsDir, { recursive: true })
 
 const FAMILIES: Array<{ family: string; spec: string }> = [
   { family: 'Limelight', spec: 'Limelight' },
-  { family: 'Cinzel', spec: 'Cinzel:wght@400;600' },
+  { family: 'Cinzel', spec: 'Cinzel:wght@400;600;700;900' },
   { family: 'Lora', spec: 'Lora:ital,wght@0,400;0,600;1,400' },
   { family: 'Special Elite', spec: 'Special+Elite' },
 ]

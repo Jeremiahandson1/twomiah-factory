@@ -76,6 +76,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <% } %>
+  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
   <style>
     <% families.forEach(function (n) { var f = fallback[n]; if (!f) return; %>@font-face { font-family: '<%= n %> Fallback'; src: local('<%= f.local %>'); size-adjust: <%= f.size %>; }
     <% }) %>:root {
@@ -85,7 +86,6 @@
       --font-mono: <%- stack(fM, "'Courier New', ui-monospace, monospace") %>;
     }
   </style>
-  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
   <%
     // Font CSS via the media-toggle pattern so it never blocks first paint;
     // display=swap keeps text visible while the faces download.

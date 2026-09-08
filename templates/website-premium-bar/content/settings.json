@@ -9,8 +9,13 @@
   "addressLocality": "Eau Claire",
   "addressRegion": "WI",
   "postalCode": "54703",
-  "geo": { "lat": 44.8172, "lng": -91.4879 },
-  "sameAs": ["https://www.facebook.com/AmberInnEauClaire/"],
+  "geo": {
+    "lat": 44.8172,
+    "lng": -91.4879
+  },
+  "sameAs": [
+    "https://www.facebook.com/AmberInnEauClaire/"
+  ],
   "schemaType": "BarOrPub",
   "seoTitle": "Amber Inn Bar & Grill — Eau Claire's oldest tavern, est. 1881",
   "seoDescription": "Half-pound burgers ground behind the bar, Friday fish fry, ten taps heavy on German imports, and a barroom that has poured since 1881. 840 E Madison St, Eau Claire.",
@@ -19,20 +24,41 @@
   "contactHref": "/visit",
   "contactCtaLabel": "Visit",
   "nav": [
-    { "label": "Menu", "href": "/menu" },
-    { "label": "Taps", "href": "/taps" },
-    { "label": "Story", "href": "/story" },
-    { "label": "Events", "href": "/events" },
-    { "label": "Parties", "href": "/parties" },
-    { "label": "Visit", "href": "/visit" }
+    {
+      "label": "Menu",
+      "href": "/menu"
+    },
+    {
+      "label": "Taps",
+      "href": "/taps"
+    },
+    {
+      "label": "Story",
+      "href": "/story"
+    },
+    {
+      "label": "Events",
+      "href": "/events"
+    },
+    {
+      "label": "Parties",
+      "href": "/parties"
+    },
+    {
+      "label": "Visit",
+      "href": "/visit"
+    }
   ],
-  "primaryColor": "#C9A24E",
-  "secondaryColor": "#1F3A2E",
+  "primaryColor": "#C79D67",
+  "secondaryColor": "#4C6582",
   "accentColor": "#EFE6D2",
-  "fontDisplay": "Limelight",
+  "fontDisplay": "Cinzel",
   "fontEyebrow": "Cinzel",
   "fontBody": "Lora",
   "fontMono": "Special Elite",
   "established": 1881,
-  "timezone": "America/Chicago"
+  "timezone": "America/Chicago",
+  "headerLogoUrl": "/images/brand/wordmark-400.png",
+  "logoUrl": "/images/brand/cover-full-600.jpg",
+  "_palette_note": "Measured from the owner's three concept images 2026-09-07 (scripts/palette-from-images.ts): near-black leather #0E0D08/#13100A, leather browns #211913/#2B2419/#362414/#583F2A, gold #A8763C/#C79D67, dusk-sky blue #4C6582, foliage olive #2A2E1A."
 }

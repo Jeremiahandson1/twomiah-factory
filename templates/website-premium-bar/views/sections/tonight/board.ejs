@@ -23,15 +23,21 @@
     } catch (e) { return '' }
   }
   const tapNames = L && L.taps && Array.isArray(L.taps.featured) ? L.taps.featured.map(t => t.name).filter(Boolean) : []
+  const art = data.art || ''
+  const artAlt = data.artAlt || ''
+  const artCaption = data.artCaption || ''
 %>
 <section class="board" id="tonight" aria-label="Tonight at <%= title %>" data-live-root data-live-tz="<%= L ? L.timezone : '' %>">
   <div class="container board__inner">
+   <div class="board__panel frame-ornate"><span class="corner-bl"></span><span class="corner-br"></span>
     <header class="board__head">
       <div class="board__eyebrow"><%= eyebrow %></div>
       <<%= H %> class="board__title foil"><%= title %></<%= H %>>
       <% if (intro) { %><p class="board__intro"><%= intro %></p><% } %>
     </header>
 
+    <div class="board__layout<%= art ? '' : ' board__layout--noart' %>">
+    <div class="board__main">
     <% if (!L) { %>
       <p class="board__empty mono">Hours are being set up. Call <a href="tel:<%= String(settings.phone || '').replace(/[^\d+]/g, '') %>"><%= settings.phone || 'the bar' %></a>.</p>
     <% } else { %>
@@ -88,6 +94,10 @@
     </dl>
     <p class="board__stamp mono"><span>Updated</span> <time data-live="generatedAt" datetime="<%= L.generatedAt %>"><%= stamp(L.generatedAt) %></time><% if (L.updatedBy) { %> <span class="board__by">· <%= L.updatedBy %></span><% } %></p>
     <% } %>
+    </div>
+    <% if (art) { %><figure class="board__art"><img src="<%= art %>" alt="<%= artAlt %>" width="520" height="780" loading="eager" fetchpriority="high"><% if (artCaption) { %><figcaption><%= artCaption %></figcaption><% } %></figure><% } %>
+    </div>
+   </div>
   </div>
   <script src="/scripts/live.js" defer></script>
 </section>

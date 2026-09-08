@@ -37,8 +37,8 @@ Bun.serve({
     if (u.pathname === '/styles/main.css' && fs.existsSync(path.join(dir, 'main.css'))) return gz(req, fs.readFileSync(path.join(dir, 'main.css')), { 'Content-Type': 'text/css', 'Cache-Control': 'public, max-age=31536000, immutable' })
     if (u.pathname === '/favicon.svg') return new Response(fs.readFileSync(path.join(ROOT, 'build', 'favicon.svg')), { headers: { 'Content-Type': 'image/svg+xml' } })
     const asset = path.join(ROOT, 'build', u.pathname)
-    if (u.pathname.startsWith('/styles/') || u.pathname.startsWith('/scripts/') || u.pathname.startsWith('/fonts/')) {
-      if (fs.existsSync(asset)) { const h = { 'Content-Type': u.pathname.endsWith('.css') ? 'text/css' : u.pathname.endsWith('.woff2') ? 'font/woff2' : 'application/javascript', 'Cache-Control': 'public, max-age=31536000, immutable' }; return u.pathname.endsWith('.woff2') ? new Response(fs.readFileSync(asset), { headers: h }) : gz(req, fs.readFileSync(asset), h) }
+    if (u.pathname.startsWith('/styles/') || u.pathname.startsWith('/scripts/') || u.pathname.startsWith('/fonts/') || u.pathname.startsWith('/images/')) {
+      if (fs.existsSync(asset)) { const h = { 'Content-Type': u.pathname.endsWith('.css') ? 'text/css' : u.pathname.endsWith('.woff2') ? 'font/woff2' : u.pathname.endsWith('.png') ? 'image/png' : u.pathname.endsWith('.jpg') ? 'image/jpeg' : u.pathname.endsWith('.svg') ? 'image/svg+xml' : 'application/javascript', 'Cache-Control': 'public, max-age=31536000, immutable' }; return /\.(woff2|png|jpg|jpeg)$/.test(u.pathname) ? new Response(fs.readFileSync(asset), { headers: h }) : gz(req, fs.readFileSync(asset), h) }
     }
     return new Response('Not found', { status: 404 })
   },

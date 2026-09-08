@@ -29,7 +29,9 @@
           "label": "Plan a visit",
           "href": "/visit"
         },
-        "phone": "(715) 832-0568"
+        "phone": "(715) 832-0568",
+        "image": "/images/brand/exterior-700.jpg",
+        "imageAlt": "The Amber Inn at dusk"
       }
     }
   ]
