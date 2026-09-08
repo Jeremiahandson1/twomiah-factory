@@ -90,7 +90,7 @@ consolePages.get('/manifest.webmanifest', async (c) => {
   const [s] = await db.select({ name: settingsTbl.companyName }).from(settingsTbl).limit(1)
   c.header('Content-Type', 'application/manifest+json')
   return c.body(JSON.stringify({
-    name: (s?.name || 'Bar') + ' Console', short_name: 'Console', start_url: '/console/', scope: '/console/',
+    name: (s?.name || 'Bar') + ' Console', short_name: 'Console', start_url: '/console', scope: '/console/',
     display: 'standalone', background_color: '#121010', theme_color: '#121010', orientation: 'portrait',
     icons: [{ src: '/console/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
   }))
@@ -122,7 +122,7 @@ consolePages.use('/login', loginRateLimit())
 consolePages.post('/login', async (c) => {
   const body = await bodyOf(c)
   const pin = String(body.pin || '').replace(/\D/g, '')
-  const next = String(body.next || '/console/').startsWith('/console') ? String(body.next) : '/console/'
+  const next = String(body.next || '/console').startsWith('/console') ? String(body.next) : '/console'
   if (pin.length < 4) return c.redirect('/console/login?error=' + encodeURIComponent('Enter your PIN.'))
   const rows = await db.select().from(staffPins).where(eq(staffPins.isActive, true))
   let match: typeof rows[number] | null = null

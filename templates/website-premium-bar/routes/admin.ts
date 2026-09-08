@@ -820,7 +820,7 @@ app.patch('/settings', authMiddleware, async (c) => {
 /** Returns a human message when an hours payload is malformed, else null. Shape: lib/hours HoursConfig. */
 function hoursProblem(v: unknown): string | null {
   if (!isHoursConfig(v)) return 'needs bar and kitchen'
-  const HHMM = /^([01]d|2[0-3]):[0-5]d$/
+  const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
   const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
   for (const dept of ['bar', 'kitchen'] as const) {
     const week = (v as any)[dept]
@@ -834,7 +834,7 @@ function hoursProblem(v: unknown): string | null {
     }
   }
   for (const h of ((v as any).holidays || []) as any[]) {
-    if (!h || !/^d{4}-d{2}-d{2}$/.test(h.date)) return 'holiday needs a YYYY-MM-DD date'
+    if (!h || !/^\d{4}-\d{2}-\d{2}$/.test(h.date)) return 'holiday needs a YYYY-MM-DD date'
     for (const dept of ['bar', 'kitchen'] as const) {
       const r = h[dept]
       if (r === undefined || r === null) continue

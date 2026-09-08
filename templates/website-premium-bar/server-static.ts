@@ -921,6 +921,7 @@ app.use('/api/admin/login', loginRateLimit())
 app.route('/api/admin', adminRoutes)
 
 // ── THE CONSOLE (staff PWA) ────────────────────────────────────────────────
+app.get('/console/', (c) => c.redirect('/console'))   // strict routing: the PWA scope is /console/, the app lives at /console
 app.route('/console', consolePages)
 app.route('/api/console', consoleApi)
 
@@ -954,18 +955,18 @@ async function renderItemPage(sectionSlug: string, itemSlug: string): Promise<st
 // the nested URL. Falls back to a signature item page. These MUST come after
 // every /api/* and /admin/* route: Hono dispatches the first-registered match.
 const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'parties', '.well-known']
-app.get('/:a/:b', async (c) => {
+app.get('/:a/:b', async (c, next) => {
   const { a, b } = c.req.param()
-  if (NESTED_RESERVED.includes(a)) return c.notFound()
+  if (NESTED_RESERVED.includes(a)) return next()   // fall through to /admin/*, /console/*, /media/* etc. registered later
   const slug = a + '/' + b
   const html = (await renderPage(slug, '/' + slug)) || (await renderItemPage(a, b))
   if (!html) return c.notFound()
   countView('/' + slug)
   return c.html(html)
 })
-app.get('/:a/:b/:cc', async (c) => {
+app.get('/:a/:b/:cc', async (c, next) => {
   const { a, b, cc } = c.req.param()
-  if (NESTED_RESERVED.includes(a)) return c.notFound()
+  if (NESTED_RESERVED.includes(a)) return next()
   const slug = a + '/' + b + '/' + cc
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
