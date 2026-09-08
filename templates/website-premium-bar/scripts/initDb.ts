@@ -1,6 +1,12 @@
 /**
- * First-boot seed. Runs after Drizzle pushes the schema. Idempotent —
- * skips any row that already exists, so safe to re-run on every boot.
+ * Boot seed. Runs after Drizzle pushes the schema. Idempotent — safe on every boot.
+ *
+ * Settings and page compositions follow "seed-if-untouched": the seed records
+ * a hash of what it wrote (seed_marks). When the content files change in a
+ * later deploy, a row is re-applied only if nobody has edited it in the admin
+ * since the seed last wrote it (row.updated_at <= mark.applied_at). Admin edits
+ * therefore always win; content/ still flows through for anything untouched.
+ * SEED_OVERWRITE=1 forces every row back to content/ regardless.
  *
  * Three sources, in order:
  *
@@ -24,7 +30,7 @@ import path from 'path'
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { users, settings, pages, serviceStatus, menuSections, menuItems, taps, staffPins } from '../db/schema'
+import { users, settings, pages, serviceStatus, menuSections, menuItems, taps, staffPins, seedMarks } from '../db/schema'
 
 interface BootstrapSettings {
   photoCredits?: Array<{ photographer: string; photographerUrl?: string; sourceUrl?: string; source: string }>
@@ -200,12 +206,34 @@ async function main() {
   }
 
   // ── Settings ───────────────────────────────────────────────────────────
-  // SEED_OVERWRITE=1: content/ (or the factory payload) is the source of truth —
-  // re-apply settings + page compositions on every boot. Used for the reference
-  // tenant while the site is being built; turn off once the admin owns content.
-  const OVERWRITE = process.env.SEED_OVERWRITE === '1'
+  const FORCE = process.env.SEED_OVERWRITE === '1'
+  // Canonical JSON (sorted keys) — jsonb comes back from Postgres with its own key order.
+  const canon = (v: any): any => v === undefined ? null : Array.isArray(v) ? v.map(canon) : (v && typeof v === 'object' && !(v instanceof Date)) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v
+  const hashOf = (v: unknown) => new Bun.CryptoHasher('sha256').update(JSON.stringify(canon(v))).digest('hex')
+  const sameAs = (row: Record<string, any>, values: Record<string, any>) =>
+    Object.keys(values).every(k => JSON.stringify(canon(row[k] ?? null)) === JSON.stringify(canon(values[k] ?? null)))
+  /** Decide what to do with one seeded row. Returns 'apply' | 'skip' and keeps seed_marks current. */
+  async function seedDecision(key: string, values: Record<string, any>, row: Record<string, any> | undefined): Promise<'apply' | 'skip'> {
+    const hash = hashOf(values)
+    const mark = (await db.select().from(seedMarks).where(eq(seedMarks.key, key)).limit(1))[0]
+    const setMark = async () => {
+      if (mark) await db.update(seedMarks).set({ hash, appliedAt: new Date() }).where(eq(seedMarks.key, key))
+      else await db.insert(seedMarks).values({ key, hash })
+    }
+    if (!row || FORCE) { await setMark(); return 'apply' }
+    if (!mark) {
+      // Legacy row from before marks existed: adopt it if it still equals the seed, else it is the admin's.
+      if (sameAs(row, values)) { await setMark(); return 'skip' }
+      console.log('[initDb] ' + key + ': differs from content and has no seed mark — leaving the admin version alone (SEED_OVERWRITE=1 to force).')
+      return 'skip'
+    }
+    if (mark.hash === hash) return 'skip'                       // seed unchanged since last applied
+    const edited = row.updatedAt && new Date(row.updatedAt).getTime() > new Date(mark.appliedAt).getTime() + 2000
+    if (edited) { console.log('[initDb] ' + key + ': content changed but the row was edited in the admin since the seed — keeping the admin version.'); return 'skip' }
+    await setMark(); return 'apply'
+  }
   const existingSettings = await db.select().from(settings).limit(1)
-  if (existingSettings.length === 0 || OVERWRITE) {
+  {
     const s = payload.settings
     const values = {
       companyName: s.companyName,
@@ -245,15 +273,16 @@ async function main() {
       theme: s.theme === 'dark' || s.theme === 'light' ? s.theme : 'auto',
       hours: s.hours ?? null,
     }
+    const decision = await seedDecision('settings', values, existingSettings[0])
     if (existingSettings.length === 0) {
       await db.insert(settings).values(values)
       console.log('[initDb] Created initial settings row.')
-    } else {
+    } else if (decision === 'apply') {
       await db.update(settings).set({ ...values, updatedAt: new Date() }).where(eq(settings.id, existingSettings[0].id))
-      console.log('[initDb] SEED_OVERWRITE: settings row re-applied from content.')
+      console.log('[initDb] Settings row re-applied from content.')
+    } else {
+      console.log('[initDb] Settings row up to date — skipping.')
     }
-  } else {
-    console.log('[initDb] Settings row already exists — skipping settings seed.')
   }
 
   // ── Service status singleton (the console writes here) ────────────────
@@ -328,22 +357,16 @@ async function main() {
   // ── Pages ──────────────────────────────────────────────────────────────
   for (const p of payload.pages) {
     const existing = await db.select().from(pages).where(eq(pages.slug, p.slug)).limit(1)
+    const values = { title: p.title, sections: p.sections, navOrder: p.navOrder, isPublished: p.isPublished, metaTitle: p.metaTitle || null, metaDescription: p.metaDescription || null }
+    const decision = await seedDecision('page:' + p.slug, values, existing[0])
     if (existing.length === 0) {
-      await db.insert(pages).values({
-        slug: p.slug,
-        title: p.title,
-        sections: p.sections,
-        navOrder: p.navOrder,
-        isPublished: p.isPublished,
-        metaTitle: p.metaTitle || null,
-        metaDescription: p.metaDescription || null,
-      })
+      await db.insert(pages).values({ slug: p.slug, ...values })
       console.log('[initDb] Created page: ' + p.slug + ' (' + (p.sections?.length || 0) + ' sections)')
-    } else if (OVERWRITE) {
-      await db.update(pages).set({ title: p.title, sections: p.sections, navOrder: p.navOrder, isPublished: p.isPublished, metaTitle: p.metaTitle || null, metaDescription: p.metaDescription || null, updatedAt: new Date() }).where(eq(pages.slug, p.slug))
-      console.log('[initDb] SEED_OVERWRITE: page re-applied: ' + p.slug)
+    } else if (decision === 'apply') {
+      await db.update(pages).set({ ...values, updatedAt: new Date() }).where(eq(pages.slug, p.slug))
+      console.log('[initDb] Page re-applied from content: ' + p.slug)
     } else {
-      console.log('[initDb] Page already exists: ' + p.slug + ' — skipping.')
+      console.log('[initDb] Page up to date: ' + p.slug + ' — skipping.')
     }
   }
 

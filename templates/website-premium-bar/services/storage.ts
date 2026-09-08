@@ -4,7 +4,9 @@
  * R2_* prefixed so it's clear we're not using AWS S3.
  *
  * Switches by env:
- *   STORAGE_BACKEND=s3  → R2 client (requires R2_* env vars + bucket)
+ *   STORAGE_BACKEND=s3  → R2 client (requires R2_* env vars + bucket).
+ *     R2_KEY_PREFIX=<site> namespaces keys ("<site>/photos/…") so several
+ *     sites can share one bucket; the /media proxy serves the full key.
  *   STORAGE_BACKEND=local (or unset) → writes to ./uploads/ on disk
  *
  * Local uploads are served by server-static.ts at /uploads/*. In R2 mode,
@@ -46,7 +48,8 @@ export async function uploadImage(buffer: Buffer, opts: {
   contentType: string
 }): Promise<UploadResult> {
   const ext = path.extname(opts.filename).toLowerCase() || '.jpg'
-  const key = `photos/${crypto.randomUUID()}${ext}`
+  const prefix = (process.env.R2_KEY_PREFIX || '').replace(/^\/+|\/+$/g, '')
+  const key = `${prefix ? prefix + '/' : ''}photos/${crypto.randomUUID()}${ext}`
 
   if (BACKEND === 's3') {
     const bucket = process.env.R2_BUCKET_NAME

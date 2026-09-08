@@ -83,6 +83,16 @@ export const settings = pgTable('settings', {
 // pages the admin adds later). sections is the JSON array consumed by
 // home.ejs / page.ejs — the entire page composition lives here so the
 // AI composer can write a whole site by inserting/updating these rows.
+// What the content seed last applied, per row ("settings", "page:<slug>"): a
+// hash of the seed values and when it was written. initDb re-applies a row
+// whose seed changed ONLY if the row's updated_at is not newer than applied_at
+// (i.e. nobody edited it in the admin since). See scripts/initDb.ts.
+export const seedMarks = pgTable('seed_marks', {
+  key: text('key').primaryKey(),
+  hash: text('hash').notNull(),
+  appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const pages = pgTable('pages', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').notNull().unique(),  // 'home', 'about', 'services', 'contact', or custom
