@@ -1,0 +1,68 @@
+<%
+  // THE BOOK — the 145-year story as an old book. Each era is a chapter on
+  // a cream paper spread: plate on the left, text on the right, page numbers,
+  // running head, drop cap. Without JavaScript every spread is on the page,
+  // stacked (nothing hidden at rest). With build/scripts/book.js one spread
+  // shows at a time and the arrows / keys / chapter ribbon turn the page.
+  // Every chapter also has its own URL (/story/<slug>) via the era pages.
+  //
+  // data: { heading, intro, asHeading, plates: { <slug>: url }, closing }
+  const all = (typeof site !== 'undefined' && site && Array.isArray(site.timeline)) ? site.timeline : (Array.isArray(data.entries) ? data.entries : [])
+  const chapters = all.filter(e => e && e.isPublished !== false).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || (a.yearStart || 9999) - (b.yearStart || 9999))
+  const plates = data.plates && typeof data.plates === 'object' ? data.plates : {}
+  const H = data.asHeading ? 'h1' : 'h2'
+  const bookTitle = data.heading || (settings.companyName || 'The story')
+  function yearLabel(e) { if (!e.yearStart) return ''; return e.yearEnd && e.yearEnd !== e.yearStart ? e.yearStart + '–' + e.yearEnd : String(e.yearStart) }
+  const roman = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII']
+%>
+<section class="book" id="story" aria-labelledby="book-heading" data-book>
+  <div class="container book__inner">
+    <header class="book__head">
+      <% if (data.eyebrow) { %><div class="eyebrow"><%= data.eyebrow %></div><% } %>
+      <<%= H %> class="section-title book__title" id="book-heading"><%= bookTitle %></<%= H %>>
+      <% if (data.intro) { %><p class="section-intro"><%= data.intro %></p><% } %>
+    </header>
+
+    <nav class="book__ribbon" aria-label="Chapters">
+      <% chapters.forEach(function (e, i) { %>
+        <a class="book__tab" href="#<%= e.slug %>" data-book-go="<%= i %>"><span class="book__tab-num"><%= roman[i] || i + 1 %></span><span class="book__tab-label"><%= yearLabel(e) || e.title %></span></a>
+      <% }) %>
+    </nav>
+
+    <div class="book__stage">
+      <button class="book__arrow book__arrow--prev" type="button" data-book-prev aria-label="Previous chapter" hidden>&larr;</button>
+      <ol class="book__spreads" role="list">
+        <% chapters.forEach(function (e, i) { const plate = plates[e.slug] || e.imageUrl || ''; const y = yearLabel(e); %>
+          <li class="book__spread" id="<%= e.slug %>" data-book-spread="<%= i %>">
+            <article class="spread" aria-labelledby="ch-<%= e.slug %>">
+              <div class="page page--verso">
+                <div class="page__running"><%= settings.companyName || '' %></div>
+                <div class="page__plate">
+                  <% if (plate) { %>
+                    <figure class="plate"><img src="<%= plate %>" alt="<%= e.imageCredit ? '' : (e.title || '') %>" width="600" height="450" loading="<%= i === 0 ? 'eager' : 'lazy' %>"><% if (e.imageCredit || e.imageYear) { %><figcaption><%= [e.imageCredit, e.imageYear].filter(Boolean).join(', ') %></figcaption><% } %></figure>
+                  <% } else { %>
+                    <div class="plate plate--year"><span class="plate__year"><%= y || '—' %></span><span class="plate__rule"></span><span class="plate__chapter">Chapter <%= roman[i] || i + 1 %></span></div>
+                  <% } %>
+                </div>
+                <div class="page__folio"><%= i * 2 + 1 %></div>
+              </div>
+              <div class="page page--recto">
+                <div class="page__running">Chapter <%= roman[i] || i + 1 %><% if (y) { %> · <%= y %><% } %></div>
+                <h3 class="page__title" id="ch-<%= e.slug %>"><%= e.title %></h3>
+                <div class="page__body"><%- md(e.bodyMd || '') %></div>
+                <div class="page__foot">
+                  <a class="page__permalink" href="/story/<%= e.slug %>">&sect; This chapter on its own page</a>
+                  <span class="page__folio"><%= i * 2 + 2 %></span>
+                </div>
+              </div>
+            </article>
+          </li>
+        <% }) %>
+      </ol>
+      <button class="book__arrow book__arrow--next" type="button" data-book-next aria-label="Next chapter" hidden>&rarr;</button>
+    </div>
+    <p class="book__hint mono" data-book-hint hidden>Turn the page with the arrows, the keys, or the chapter ribbon.</p>
+    <% if (data.closing) { %><p class="book__closing"><%= data.closing %></p><% } %>
+  </div>
+  <script src="/scripts/book.js" defer></script>
+</section>

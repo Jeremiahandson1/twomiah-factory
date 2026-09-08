@@ -118,6 +118,7 @@
 <body>
 <% if (settings.googleTagManagerId) { %><noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= settings.googleTagManagerId %>" height="0" width="0" style="display:none;visibility:hidden" title="Google Tag Manager"></iframe></noscript><% } %>
   <a class="skip-link" href="#main">Skip to content</a>
+  <div class="cover"><span class="cap cap--tl" aria-hidden="true"></span><span class="cap cap--tr" aria-hidden="true"></span><span class="cap cap--bl" aria-hidden="true"></span><span class="cap cap--br" aria-hidden="true"></span><span class="flourish flourish--tl" aria-hidden="true"></span><span class="flourish flourish--tr" aria-hidden="true"></span><span class="flourish flourish--bl" aria-hidden="true"></span><span class="flourish flourish--br" aria-hidden="true"></span>
   <header class="site-header">
     <div class="container header-inner">
       <a class="brand" href="<%= settings.homeHref || '/' %>">
@@ -192,6 +193,7 @@
   </div>
   <% } %>
   </footer>
+  </div>
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
   <script>
     // ── Single-page nav: smooth scroll, URL hash sync, active highlight ──

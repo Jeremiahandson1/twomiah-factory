@@ -168,6 +168,7 @@ export const SECTION_SCHEMA = {
   },
   // ─── Bar-specific section types (website-premium-bar) ───────────────────
   timeline: {
+    book: { required: [], optional: ['eyebrow', 'heading', 'intro', 'asHeading', 'plates', 'closing'], use_when: 'the /story page as an old book - chapters on cream spreads you turn through. Preferred over timeline/eras for bars with real history. Framing only.' },
     eras: { required: [], optional: ['heading', 'intro', 'asHeading'], use_when: 'bars/restaurants with real history — the whole timeline from the venue\'s Timeline database as one page (/story). Framing only.' },
     era: { required: ['slug'], optional: ['backHref', 'backLabel'], use_when: 'one era of the timeline as its own page (/story/<slug>).' },
   },

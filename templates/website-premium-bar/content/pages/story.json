@@ -6,11 +6,18 @@
   "sections": [
     {
       "type": "timeline",
-      "variant": "eras",
+      "variant": "book",
       "data": {
         "asHeading": true,
-        "heading": "145 years on East Madison Street",
-        "intro": "One building, one bar, from a brewery tied house in 1881 to the root beer still on the taps today."
+        "heading": "The story",
+        "intro": "One building, one bar. Turn the pages.",
+        "eyebrow": "Est. 1881 · East Madison Street",
+        "plates": {
+          "1881": "/images/brand/engraving.jpg",
+          "2026": "/images/brand/exterior-700.jpg",
+          "oldest-bar-in-wisconsin": "/images/brand/cover-520.jpg"
+        },
+        "closing": "Thank you for being part of our story."
       }
     },
     {

@@ -50,6 +50,7 @@ export function SectionFormDispatcher({ type, variant, data, onChange }: Props) 
     case 'menu/item-hero':        return <MenuItemHeroForm data={data} onChange={onChange} />
     case 'events/recurring':      return <EventsRecurringForm data={data} onChange={onChange} />
     case 'timeline/eras':         return <TimelineErasForm data={data} onChange={onChange} />
+    case 'timeline/book':         return <TimelineErasForm data={data} onChange={onChange} />
     case 'timeline/era':          return <TimelineEraForm data={data} onChange={onChange} />
     case 'hours/table':           return <FramingForm data={data} onChange={onChange} note="Hours themselves live under Settings → Hours." extra={{ showHolidays: 'Show upcoming holiday hours' }} />
     case 'visit/details':         return <VisitDetailsForm data={data} onChange={onChange} />
