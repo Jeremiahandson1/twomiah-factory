@@ -28,21 +28,27 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 // return 500 "relation/column does not exist". schema.ts is a strict superset of the
 // DB, so `push` is purely additive here — it creates the missing tables/columns and
 // never drops anything. This also stops the drift recurring as the schema evolves.
-for (let attempt = 1; attempt <= 3; attempt++) {
-  try {
-    console.log(`[migrate] Reconciling schema (push) attempt ${attempt}/3...`)
-    execSync('bun x drizzle-kit push --force', { stdio: 'inherit' })
-    console.log('[migrate] Schema reconciled')
-    break
-  } catch (err: any) {
-    if (attempt === 3) {
-      // Non-fatal: let the app boot (working modules still serve) and surface the
-      // failure loudly rather than bricking the entire deploy on a push hiccup.
-      console.error('[migrate] Schema reconcile (push) failed — some modules may 500 until this succeeds')
-    } else {
-      await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
-    }
-  }
+// drizzle-kit push can stall indefinitely: it hangs on "Pulling schema from database"
+// against a busy free-tier Postgres and, despite --force, can block on an interactive
+// rename prompt. Plain execSync has no timeout, so a stuck push froze the ENTIRE boot —
+// the &&-chained server never started and Render failed the deploy with "no open ports".
+// Bound each attempt with `timeout` (the start-command push already uses this pattern):
+// -k 10 60 sends SIGTERM at 60s and SIGKILL 10s later, so a hung push is killed, its DB
+// connection released, and we fall through to the authoritative, idempotent ENSURE net
+// below. Reconciliation is guaranteed by ENSURE + the prune-legacy-protected push in the
+// start command — this step is belt-and-suspenders, so timing out is non-fatal.
+// ONE tightly-bounded, non-fatal push. drizzle-kit push stalls intermittently on this
+// tenant (see above), and each stalled attempt burns ~its full timeout against the
+// deploy's port-bind window. Retrying it here only compounds that delay, so we make a
+// single bounded attempt and let the authoritative, idempotent ENSURE net below — plus
+// the start command's own bounded push — reconcile the schema. -k 10 45: SIGTERM at 45s,
+// SIGKILL 10s later, so a hung push is killed and its DB connection freed.
+try {
+  console.log('[migrate] Reconciling schema (push, single bounded attempt)...')
+  execSync('timeout -k 10 25 bun x drizzle-kit push --force', { stdio: 'inherit' })
+  console.log('[migrate] Schema reconciled')
+} catch (err: any) {
+  console.error('[migrate] Schema reconcile (push) skipped/timed out — the idempotent ENSURE net below reconciles the known schema; boot continues')
 }
 
 // Safety net: ensure all schema columns exist even if a migration was recorded
@@ -200,6 +206,29 @@ const ENSURE_COLUMNS_SQL = `
   ALTER TABLE "reorder_suggestions" ADD COLUMN IF NOT EXISTS "updated_at" TIMESTAMP DEFAULT now();
   CREATE UNIQUE INDEX IF NOT EXISTS "reorder_suggestion_product_company_pending_unique"
     ON "reorder_suggestions" ("product_id", "company_id", "status") WHERE "status" = 'pending';
+
+  -- F-34: at most ONE open cash drawer per company. The /sessions/open handler did a
+  -- SELECT-for-open then a separate INSERT — a read-decide-write that raced: under
+  -- concurrent opens, several requests passed the SELECT before any INSERT landed and
+  -- multiple drawers opened (EOD then reconciled only the latest). A partial unique
+  -- index makes a second open row physically impossible; the handler catches the
+  -- resulting 23505 and returns the same friendly 400. First retire any pre-existing
+  -- extra open drawers (keep the earliest per company) so the index can build.
+  UPDATE "cash_sessions" SET "status" = 'closed', "closed_at" = COALESCE("closed_at", now())
+    WHERE "status" = 'open' AND "id" NOT IN (
+      SELECT DISTINCT ON ("company_id") "id" FROM "cash_sessions"
+      WHERE "status" = 'open' ORDER BY "company_id", "opened_at" ASC
+    );
+  CREATE UNIQUE INDEX IF NOT EXISTS "cash_session_one_open_per_company"
+    ON "cash_sessions" ("company_id") WHERE "status" = 'open';
+
+  -- Loyalty: total_points_earned is the authoritative lifetime-earned counter (it drives
+  -- every tier threshold). lifetime_points is the outward "Lifetime Points" alias shown in
+  -- the UI/export/API; it had drifted low because member-create + gamified/referral/POS
+  -- award paths bumped only total_points_earned. Those paths now write both in lockstep;
+  -- reconcile existing rows so the two agree. (F-34 retest#19)
+  UPDATE "loyalty_members" SET "lifetime_points" = COALESCE("total_points_earned", 0)
+    WHERE COALESCE("lifetime_points", 0) <> COALESCE("total_points_earned", 0);
 
   -- New tables -----------------------------------------------------------------
   CREATE TABLE IF NOT EXISTS "sms_conversations" (

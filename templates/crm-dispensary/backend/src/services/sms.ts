@@ -9,7 +9,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { reportSmsUsage, walletSufficient } from './messagingUsage'
+import { reportSmsUsage, walletSufficient } from './messagingUsage.ts'
 import { contact, company } from '../../db/schema.ts'
 import { eq, and, or, ilike, sql } from 'drizzle-orm'
 import twilio from 'twilio'

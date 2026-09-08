@@ -329,6 +329,7 @@ app.post('/:id/reward', requireRole('manager'), async (c) => {
       UPDATE loyalty_members
       SET points_balance = points_balance + ${config.referrer_reward_value},
           total_points_earned = total_points_earned + ${config.referrer_reward_value},
+          lifetime_points = COALESCE(lifetime_points, 0) + ${config.referrer_reward_value},
           updated_at = NOW()
       WHERE contact_id = ${referral.referrer_id} AND company_id = ${currentUser.companyId}
     `)
@@ -350,6 +351,7 @@ app.post('/:id/reward', requireRole('manager'), async (c) => {
       UPDATE loyalty_members
       SET points_balance = points_balance + ${config.referred_reward_value},
           total_points_earned = total_points_earned + ${config.referred_reward_value},
+          lifetime_points = COALESCE(lifetime_points, 0) + ${config.referred_reward_value},
           updated_at = NOW()
       WHERE contact_id = ${referral.referred_id} AND company_id = ${currentUser.companyId}
     `)
