@@ -19,7 +19,7 @@ const meta = async (p: string) => { const m = await sharp(p).metadata(); return 
 // 1. Gold "AMBER INN" wordmark from the lantern cover → header logo (keeps the leather behind it; header is black anyway).
 {
   const { w, h } = await meta(lantern)
-  const box = { left: Math.round(w * 0.185), top: Math.round(h * 0.195), width: Math.round(w * 0.69), height: Math.round(h * 0.245) }
+  const box = { left: Math.round(w * 0.163), top: Math.round(h * 0.205), width: Math.round(w * 0.689), height: Math.round(h * 0.235) }   // inside the frame lines, above OLDEST TAVERN, below EST. 1881
   await sharp(lantern).extract(box).resize({ width: 900 }).webp({ quality: 84 }).toFile(path.join(out, 'wordmark.webp'))
   await sharp(lantern).extract(box).resize({ width: 400 }).webp({ quality: 84 }).toFile(path.join(out, 'wordmark-400.webp'))
   // Full cover for the story / parties art panels
