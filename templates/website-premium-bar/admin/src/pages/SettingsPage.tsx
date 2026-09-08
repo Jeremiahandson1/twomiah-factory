@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Save, Plus, X } from 'lucide-react'
 import { api } from '../api/client'
-import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Field'
+import { Label, TextField, TextAreaField, ImageUrlField, StringListField } from '../components/Field'
+import { HoursEditor, type HoursConfig } from '../components/HoursEditor'
+import { StaffPinsCard } from '../components/StaffPinsCard'
 
 interface NavItem { label: string; href: string }
 
@@ -25,7 +27,21 @@ interface Settings {
   accentColor?: string | null
   logoUrl?: string | null
   faviconUrl?: string | null
+  headerLogoUrl?: string | null
   nav?: NavItem[]
+  // Bar / listing fields
+  streetAddress?: string | null
+  addressLocality?: string | null
+  addressRegion?: string | null
+  postalCode?: string | null
+  geoLat?: string | null
+  geoLng?: string | null
+  sameAs?: string[]
+  servesCuisine?: string | null
+  priceRange?: string | null
+  established?: number | null
+  timezone?: string | null
+  hours?: HoursConfig | null
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -117,7 +133,7 @@ export function SettingsPage() {
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl text-ink">Settings</h1>
-          <p className="text-muted text-sm mt-1">Company info, brand colors, navigation, SEO defaults.</p>
+          <p className="text-muted text-sm mt-1">Hours, company info, listing details, brand, navigation, SEO defaults, console PINs.</p>
         </div>
         <button onClick={save} disabled={saving || !isDirty} className="btn-primary btn-lg inline-flex items-center gap-1.5 disabled:opacity-40">
           <Save className="w-4 h-4" />
@@ -139,6 +155,33 @@ export function SettingsPage() {
           </div>
           <TextAreaField label="Address" rows={2} value={settings.address || ''} onChange={(e) => update({ address: e.target.value })} />
           <TextField label="Contact CTA button label" value={settings.contactCtaLabel || ''} onChange={(e) => update({ contactCtaLabel: e.target.value })} />
+        </div>
+      </section>
+
+      {/* Hours */}
+      <section className="card card-padding mb-6">
+        <h2 className="text-lg text-ink mb-1">Hours</h2>
+        <p className="text-muted text-sm mb-4">These drive the Tonight Board ("open now · kitchen closes at 9"), the hours page, and what Google shows. Bar and kitchen are separate. Closing early tonight? Use the console on the bar phone instead — it overrides these until morning.</p>
+        <HoursEditor value={settings.hours} onChange={(hours) => update({ hours })} />
+      </section>
+
+      {/* Listing / location */}
+      <section className="card card-padding mb-6">
+        <h2 className="text-lg text-ink mb-1">Location &amp; listing</h2>
+        <p className="text-muted text-sm mb-4">Structured address and details for Google, Apple Maps and the AI assistants. Keep these identical to your Google Business Profile.</p>
+        <div className="space-y-4">
+          <TextField label="Street address" value={settings.streetAddress || ''} onChange={(e) => update({ streetAddress: e.target.value })} placeholder="840 E Madison St" />
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_100px_120px] gap-4">
+            <TextField label="City" value={settings.addressLocality || ''} onChange={(e) => update({ addressLocality: e.target.value })} />
+            <TextField label="State" value={settings.addressRegion || ''} onChange={(e) => update({ addressRegion: e.target.value })} placeholder="WI" />
+            <TextField label="ZIP" value={settings.postalCode || ''} onChange={(e) => update({ postalCode: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <TextField label="Established (year)" inputMode="numeric" value={settings.established ?? ''} onChange={(e) => update({ established: e.target.value ? Number(e.target.value) : null })} />
+            <TextField label="Price range" value={settings.priceRange || ''} onChange={(e) => update({ priceRange: e.target.value })} placeholder="$" hint="$, $ or $$" />
+            <TextField label="Cuisine" value={settings.servesCuisine || ''} onChange={(e) => update({ servesCuisine: e.target.value })} placeholder="American" />
+          </div>
+          <StringListField label="Your other pages (Facebook, Google Maps, Yelp…)" hint="Full URLs. Tells search engines these are all the same business." values={settings.sameAs || []} onChange={(sameAs) => update({ sameAs })} placeholder="https://www.facebook.com/…" addLabel="Add link" />
         </div>
       </section>
 
@@ -189,6 +232,7 @@ export function SettingsPage() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <ImageUrlField label="Logo" value={settings.logoUrl || ''} onChange={(v) => update({ logoUrl: v })} uploadTag="misc" />
+          <ImageUrlField label="Header logo (wide)" value={settings.headerLogoUrl || ''} onChange={(v) => update({ headerLogoUrl: v })} uploadTag="misc" hint="Used in the site header instead of the name. Transparent background works best." />
           <ImageUrlField label="Favicon" value={settings.faviconUrl || ''} onChange={(v) => update({ faviconUrl: v })} uploadTag="misc" hint="Square. Ideally an SVG." />
         </div>
       </section>
@@ -237,6 +281,8 @@ export function SettingsPage() {
           <TextAreaField label="Default meta description" rows={3} value={settings.seoDescription || ''} onChange={(e) => update({ seoDescription: e.target.value })} />
         </div>
       </section>
+
+      <StaffPinsCard />
     </div>
   )
 }

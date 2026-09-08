@@ -35,7 +35,10 @@ import {
   sessions as sessionsTbl,
   pageViews,
   emailAlias,
+  staffPins as staffPinsTbl, staffSessions as staffSessionsTbl,
 } from '../db/schema'
+import { isHoursConfig } from '../lib/hours'
+import { bustSiteData } from '../lib/site-data'
 import { isNull } from 'drizzle-orm'
 import { uploadImage, deleteImage } from '../services/storage'
 import { validatePasswordStrength } from '../lib/security'
@@ -776,7 +779,10 @@ const SETTINGS_FIELDS = [
   'seoTitle', 'seoDescription', 'contactCtaLabel',
   'primaryColor', 'secondaryColor', 'accentColor',
   'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId',
-  'logoUrl', 'faviconUrl', 'nav',
+  'logoUrl', 'faviconUrl', 'headerLogoUrl', 'nav',
+  // Bar / LocalBusiness fields (lib/schema-org + lib/hours)
+  'streetAddress', 'addressLocality', 'addressRegion', 'postalCode', 'geoLat', 'geoLng', 'sameAs',
+  'servesCuisine', 'priceRange', 'established', 'timezone', 'siteOrigin', 'hours',
 ] as const
 
 app.get('/settings', authMiddleware, async (c) => {
@@ -791,9 +797,16 @@ app.patch('/settings', authMiddleware, async (c) => {
     if (f in body) patch[f] = body[f]
   }
   if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields in patch' }, 400)
+  if ('hours' in patch && patch.hours !== null) {
+    const bad = hoursProblem(patch.hours)
+    if (bad) return c.json({ error: 'Hours: ' + bad }, 400)
+  }
+  if ('established' in patch) patch.established = patch.established === null || patch.established === '' ? null : Number(patch.established) || null
+  if ('sameAs' in patch) patch.sameAs = Array.isArray(patch.sameAs) ? patch.sameAs.map(String).filter(Boolean) : []
 
   const existing = await db.select().from(settingsTbl).limit(1)
   patch.updatedAt = new Date()
+  bustSiteData()   // public pages read settings through the 20 s site-data cache
   if (existing[0]) {
     const [updated] = await db.update(settingsTbl).set(patch).where(eq(settingsTbl.id, existing[0].id)).returning()
     return c.json({ settings: updated })
@@ -802,6 +815,66 @@ app.patch('/settings', authMiddleware, async (c) => {
   if (!patch.companyName) return c.json({ error: 'companyName is required on first save' }, 400)
   const [created] = await db.insert(settingsTbl).values(patch).returning()
   return c.json({ settings: created })
+})
+
+/** Returns a human message when an hours payload is malformed, else null. Shape: lib/hours HoursConfig. */
+function hoursProblem(v: unknown): string | null {
+  if (!isHoursConfig(v)) return 'needs bar and kitchen'
+  const HHMM = /^([01]d|2[0-3]):[0-5]d$/
+  const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+  for (const dept of ['bar', 'kitchen'] as const) {
+    const week = (v as any)[dept]
+    if (!week || typeof week !== 'object') return dept + ' must be an object of days'
+    for (const [day, ranges] of Object.entries(week)) {
+      if (!days.includes(day)) return 'unknown day ' + day
+      if (!Array.isArray(ranges)) return dept + ' ' + day + ' must be a list'
+      for (const r of ranges as any[]) {
+        if (!r || !HHMM.test(r.open) || !HHMM.test(r.close)) return dept + ' ' + day + ' needs HH:MM open and close'
+      }
+    }
+  }
+  for (const h of ((v as any).holidays || []) as any[]) {
+    if (!h || !/^d{4}-d{2}-d{2}$/.test(h.date)) return 'holiday needs a YYYY-MM-DD date'
+    for (const dept of ['bar', 'kitchen'] as const) {
+      const r = h[dept]
+      if (r === undefined || r === null) continue
+      if (!Array.isArray(r) || r.some((x: any) => !x || !HHMM.test(x.open) || !HHMM.test(x.close))) return 'holiday ' + h.date + ' ' + dept + ' needs HH:MM ranges or closed'
+    }
+  }
+  return null
+}
+
+// ─── Staff console PINs (/console login) ───────────────────────────────────
+// PINs are bcrypt-hashed; only the label, status and last use are ever shown.
+
+app.get('/staff-pins', authMiddleware, async (c) => {
+  const rows = await db.select({ id: staffPinsTbl.id, label: staffPinsTbl.label, isActive: staffPinsTbl.isActive, createdAt: staffPinsTbl.createdAt, lastUsedAt: staffPinsTbl.lastUsedAt })
+    .from(staffPinsTbl).orderBy(desc(staffPinsTbl.isActive), asc(staffPinsTbl.createdAt))
+  return c.json({ pins: rows })
+})
+
+app.post('/staff-pins', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const label = String(body.label || '').trim().slice(0, 60)
+  const pin = String(body.pin || '').replace(/\D/g, '')
+  if (!label) return c.json({ error: 'Give the PIN a label (who or which phone uses it).' }, 400)
+  if (pin.length < 4 || pin.length > 8) return c.json({ error: 'PIN must be 4 to 8 digits.' }, 400)
+  if (/^(\d)\1+$/.test(pin) || '01234567890'.includes(pin) || '09876543210'.includes(pin)) return c.json({ error: 'That PIN is too easy to guess.' }, 400)
+  const active = await db.select().from(staffPinsTbl).where(eq(staffPinsTbl.isActive, true))
+  for (const r of active) if (await bcrypt.compare(pin, r.pinHash)) return c.json({ error: 'That PIN is already in use.' }, 409)
+  const [row] = await db.insert(staffPinsTbl).values({ label, pinHash: await bcrypt.hash(pin, 10) }).returning({ id: staffPinsTbl.id, label: staffPinsTbl.label, isActive: staffPinsTbl.isActive, createdAt: staffPinsTbl.createdAt, lastUsedAt: staffPinsTbl.lastUsedAt })
+  await writeAudit(c, { userId: c.get('userId') || null, action: 'staff_pin.create', target: row.id, meta: { label } }).catch(() => {})
+  return c.json({ pin: row }, 201)
+})
+
+app.delete('/staff-pins/:id', authMiddleware, async (c) => {
+  const id = String(c.req.param('id') || '')
+  const [row] = await db.update(staffPinsTbl).set({ isActive: false }).where(eq(staffPinsTbl.id, id)).returning({ id: staffPinsTbl.id })
+  if (!row) return c.json({ error: 'PIN not found' }, 404)
+  // Log out every phone that used it.
+  await db.update(staffSessionsTbl).set({ revokedAt: new Date() }).where(and(eq(staffSessionsTbl.pinId, id), isNull(staffSessionsTbl.revokedAt)))
+  await writeAudit(c, { userId: c.get('userId') || null, action: 'staff_pin.deactivate', target: id }).catch(() => {})
+  return c.json({ ok: true })
 })
 
 // ─── Leads ────────────────────────────────────────────────────────────────
