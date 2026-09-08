@@ -302,6 +302,8 @@ async function main() {
     const mark = (await db.select().from(seedMarks).where(eq(seedMarks.key, 'menu')).limit(1))[0]
     const existingSections = await db.select().from(menuSections).limit(1)
     if (existingSections.length === 0 || FORCE || !mark || mark.hash !== menuHash) {
+      // One transaction: a bad item (e.g. a duplicate slug) must not leave half a menu behind or stop the seeds after this one.
+      try { await db.transaction(async (db) => {
       await db.delete(menuItems)
       await db.delete(menuSections)
       let sIdx = 0, count = 0
@@ -325,6 +327,7 @@ async function main() {
       if (mark) await db.update(seedMarks).set({ hash: menuHash, appliedAt: new Date() }).where(eq(seedMarks.key, 'menu'))
       else await db.insert(seedMarks).values({ key: 'menu', hash: menuHash })
       console.log('[initDb] Menu (re)built from content: ' + count + ' items in ' + sIdx + ' sections.')
+      }) } catch (e: any) { console.error('[initDb] Menu rebuild FAILED, previous menu kept: ' + (e?.message || e)) }
     } else {
       console.log('[initDb] Menu up to date — skipping.')
     }

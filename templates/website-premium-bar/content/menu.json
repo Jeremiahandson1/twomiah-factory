@@ -34,7 +34,7 @@
         { "slug": "tuesday-peanut-butter-burger", "name": "Tuesday · Peanut Butter Burger", "description": "Bacon on top and bottom, a thin layer of peanut butter on the burger.", "priceCents": 749, "priceLabel": "$7.49 / $9.09" },
         { "slug": "wednesday-wings", "name": "Wednesday · Wings", "description": "Choice of sauces. 15 for $7.99, 20 for $10.39.", "priceCents": 799, "priceLabel": "15 / $7.99 · 20 / $10.39" },
         { "slug": "thursday-hawaiian-burger", "name": "Thursday · Hawaiian Burger", "description": "1000 Island dressing, cheddar cheese, two slices of pineapple.", "priceCents": 759, "priceLabel": "$7.59 / $9.19" },
-        { "slug": "friday-fish-fry", "name": "Friday · Fish Fry", "description": "Two pieces of hand-breaded cod with two sides and a breadstick. 11 AM until sold out.", "priceCents": 949, "priceLabel": "$9.49" }
+        { "slug": "friday-fish-fry-special", "name": "Friday · Fish Fry", "description": "Two pieces of hand-breaded cod with two sides and a breadstick. 11 AM until sold out.", "priceCents": 949, "priceLabel": "$9.49" }
       ]
     },
     {
