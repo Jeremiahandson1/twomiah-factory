@@ -9,17 +9,82 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Frontend reads camelCase (requesterName, reviewerName, orderNumber, createdAt, ...) but
+// raw db.execute rows come back snake_case; convert keys before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
+// Bare list endpoint the frontend calls: ?status=pending returns the pending queue,
+// otherwise returns the paginated history (mirrors /pending and /all).
+app.get('/', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const status = c.req.query('status')
+
+  if (status === 'pending') {
+    const r = await db.execute(sql`
+      SELECT ar.*,
+             u.first_name || ' ' || u.last_name as requester_name,
+             o.number as order_number,
+             o.total as order_total
+      FROM approval_requests ar
+      LEFT JOIN "user" u ON u.id = ar.requested_by
+      LEFT JOIN orders o ON o.id = ar.order_id
+      WHERE ar.company_id = ${currentUser.companyId}
+        AND ar.status = 'pending'
+        AND (ar.expires_at IS NULL OR ar.expires_at > NOW())
+      ORDER BY ar.created_at ASC
+    `)
+    return c.json({ data: ((r as any).rows || r).map(camel) })
+  }
+
+  const page = +(c.req.query('page') || '1')
+  const limit = +(c.req.query('limit') || '25')
+  const offset = (page - 1) * limit
+  const type = c.req.query('type')
+  const typeFilter = type ? sql`AND ar.type = ${type}` : sql``
+  const statusFilter = status ? sql`AND ar.status = ${status}` : sql``
+
+  const dataResult = await db.execute(sql`
+    SELECT ar.*,
+           ru.first_name || ' ' || ru.last_name as requester_name,
+           au.first_name || ' ' || au.last_name as reviewer_name,
+           o.number as order_number,
+           o.total as order_total
+    FROM approval_requests ar
+    LEFT JOIN "user" ru ON ru.id = ar.requested_by
+    LEFT JOIN "user" au ON au.id = ar.approved_by
+    LEFT JOIN orders o ON o.id = ar.order_id
+    WHERE ar.company_id = ${currentUser.companyId}
+      ${typeFilter} ${statusFilter}
+    ORDER BY ar.created_at DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `)
+  const countResult = await db.execute(sql`
+    SELECT COUNT(*)::int as total FROM approval_requests ar
+    WHERE ar.company_id = ${currentUser.companyId}
+      ${typeFilter} ${statusFilter}
+  `)
+  const data = ((dataResult as any).rows || dataResult).map(camel)
+  const total = Number((countResult as any).rows?.[0]?.total || 0)
+  return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+})
+
 // List pending approval requests for current user's role
 app.get('/pending', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
+  // The requester column is requested_by (there is no requested_by_id).
   const dataResult = await db.execute(sql`
     SELECT ar.*,
            u.first_name || ' ' || u.last_name as requester_name,
            o.number as order_number,
            o.total as order_total
     FROM approval_requests ar
-    LEFT JOIN "user" u ON u.id = ar.requested_by_id
+    LEFT JOIN "user" u ON u.id = ar.requested_by
     LEFT JOIN orders o ON o.id = ar.order_id
     WHERE ar.company_id = ${currentUser.companyId}
       AND ar.status = 'pending'
@@ -27,7 +92,7 @@ app.get('/pending', requireRole('manager'), async (c) => {
     ORDER BY ar.created_at ASC
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   return c.json({ data })
 })
 
@@ -45,15 +110,16 @@ app.get('/all', requireRole('manager'), async (c) => {
   if (type) typeFilter = sql`AND ar.type = ${type}`
   if (status) statusFilter = sql`AND ar.status = ${status}`
 
+  // Columns are requested_by / approved_by; expose the approver as reviewer_name.
   const dataResult = await db.execute(sql`
     SELECT ar.*,
            ru.first_name || ' ' || ru.last_name as requester_name,
-           au.first_name || ' ' || au.last_name as approver_name,
+           au.first_name || ' ' || au.last_name as reviewer_name,
            o.number as order_number,
            o.total as order_total
     FROM approval_requests ar
-    LEFT JOIN "user" ru ON ru.id = ar.requested_by_id
-    LEFT JOIN "user" au ON au.id = ar.approved_by_id
+    LEFT JOIN "user" ru ON ru.id = ar.requested_by
+    LEFT JOIN "user" au ON au.id = ar.approved_by
     LEFT JOIN orders o ON o.id = ar.order_id
     WHERE ar.company_id = ${currentUser.companyId}
       ${typeFilter} ${statusFilter}
@@ -67,7 +133,7 @@ app.get('/all', requireRole('manager'), async (c) => {
       ${typeFilter} ${statusFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -79,7 +145,7 @@ app.post('/request', async (c) => {
 
   const requestSchema = z.object({
     type: z.enum(['void', 'discount', 'refund', 'price_override', 'time_adjustment']),
-    orderId: z.string().uuid().optional(),
+    orderId: z.string().min(1).optional(),
     amount: z.number().optional(),
     reason: z.string().min(1),
     details: z.record(z.any()).optional(),
@@ -92,13 +158,14 @@ app.post('/request', async (c) => {
     ? sql`NOW() + INTERVAL '15 minutes'`
     : sql`NULL`
 
+  // amount is a text column; requester column is requested_by.
   const result = await db.execute(sql`
-    INSERT INTO approval_requests(id, type, order_id, amount, reason, details, status, requested_by_id, expires_at, company_id, created_at)
+    INSERT INTO approval_requests(id, type, order_id, amount, reason, details, status, requested_by, expires_at, company_id, created_at)
     VALUES (
       gen_random_uuid(),
       ${data.type},
       ${data.orderId || null},
-      ${data.amount ?? null},
+      ${data.amount != null ? String(data.amount) : null},
       ${data.reason},
       ${data.details ? JSON.stringify(data.details) : null}::jsonb,
       'pending',
@@ -109,7 +176,7 @@ app.post('/request', async (c) => {
     )
     RETURNING *
   `)
-  const request = ((result as any).rows || result)?.[0]
+  const request = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -141,7 +208,7 @@ app.put('/:id/approve', requireRole('manager'), async (c) => {
   // Check expiry
   if (request.expires_at && new Date(request.expires_at) < new Date()) {
     await db.execute(sql`
-      UPDATE approval_requests SET status = 'expired', updated_at = NOW()
+      UPDATE approval_requests SET status = 'expired'
       WHERE id = ${id}
     `)
     return c.json({ error: 'Approval request has expired' }, 400)
@@ -205,8 +272,7 @@ app.put('/:id/approve', requireRole('manager'), async (c) => {
         const itemResult = await db.execute(sql`
           UPDATE order_items SET
             unit_price = ${request.amount}::text,
-            line_total = (${request.amount} * quantity)::text,
-            updated_at = NOW()
+            line_total = (${request.amount} * quantity)::text
           WHERE id = ${details.orderItemId} AND order_id = ${request.order_id}
           RETURNING *
         `)
@@ -237,17 +303,16 @@ app.put('/:id/approve', requireRole('manager'), async (c) => {
     }
   }
 
-  // Mark request as approved
+  // Mark request as approved. Columns: approved_by / approved_at (no approved_by_id, no updated_at).
   const updatedResult = await db.execute(sql`
     UPDATE approval_requests SET
       status = 'approved',
-      approved_by_id = ${currentUser.userId},
-      approved_at = NOW(),
-      updated_at = NOW()
+      approved_by = ${currentUser.userId},
+      approved_at = NOW()
     WHERE id = ${id}
     RETURNING *
   `)
-  const updated = ((updatedResult as any).rows || updatedResult)?.[0]
+  const updated = camel(((updatedResult as any).rows || updatedResult)?.[0])
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
@@ -283,13 +348,12 @@ app.put('/:id/reject', requireRole('manager'), async (c) => {
     UPDATE approval_requests SET
       status = 'rejected',
       rejected_reason = ${data.rejectedReason},
-      approved_by_id = ${currentUser.userId},
-      approved_at = NOW(),
-      updated_at = NOW()
+      approved_by = ${currentUser.userId},
+      approved_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
-  const updated = ((result as any).rows || result)?.[0]
+  const updated = camel(((result as any).rows || result)?.[0])
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,

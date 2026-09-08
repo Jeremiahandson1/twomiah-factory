@@ -9,6 +9,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute rows come back snake_case; the frontend reads camelCase
+// (employeeName, clockIn, clockOut, …). Convert row keys before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ─── Shifts ─────────────────────────────────────────────────────────────────
 
 // List shifts
@@ -52,7 +61,7 @@ app.get('/shifts', async (c) => {
       ${userFilter} ${locationFilter} ${startFilter} ${endFilter} ${statusFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -63,8 +72,9 @@ app.post('/shifts', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const shiftSchema = z.object({
-    userId: z.string().uuid(),
-    locationId: z.string().uuid().optional(),
+    userId: z.string().min(1),
+    // Dialog sends locationId as '' when no location is chosen; accept it (stored as NULL below).
+    locationId: z.string().optional(),
     role: z.string().default('budtender'),
     date: z.string(), // YYYY-MM-DD
     startTime: z.string(), // HH:MM
@@ -95,7 +105,7 @@ app.post('/shifts', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(created.length === 1 ? created[0] : created, 201)
+  return c.json(created.length === 1 ? camel(created[0]) : created.map(camel), 201)
 })
 
 // Update shift
@@ -104,8 +114,8 @@ app.put('/shifts/:id', requireRole('manager'), async (c) => {
   const id = c.req.param('id')
 
   const updateSchema = z.object({
-    userId: z.string().uuid().optional(),
-    locationId: z.string().uuid().optional(),
+    userId: z.string().min(1).optional(),
+    locationId: z.string().min(1).optional(),
     role: z.string().optional(),
     date: z.string().optional(),
     startTime: z.string().optional(),
@@ -145,7 +155,7 @@ app.put('/shifts/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Cancel shift
@@ -169,7 +179,7 @@ app.delete('/shifts/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Clock in
@@ -202,7 +212,7 @@ app.post('/shifts/:id/clock-in', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Clock out
@@ -246,7 +256,7 @@ app.post('/shifts/:id/clock-out', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Request shift swap
@@ -255,7 +265,7 @@ app.post('/shifts/:id/swap-request', async (c) => {
   const id = c.req.param('id')
 
   const swapSchema = z.object({
-    swapWithUserId: z.string().uuid(),
+    swapWithUserId: z.string().min(1),
   })
   const data = swapSchema.parse(await c.req.json())
 
@@ -284,7 +294,7 @@ app.post('/shifts/:id/swap-request', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Approve shift swap (manager+)
@@ -343,6 +353,83 @@ app.put('/shifts/:id/swap-approve', requireRole('manager'), async (c) => {
   return c.json({ message: 'Swap approved', shiftId: id, targetShiftId: targetShift?.id || null })
 })
 
+// Approve/reject a swap request (manager+). The Scheduling page lists swap requests as shifts
+// with swap_requested = true and posts /swap-requests/:id/:action where :id is the SHIFT id.
+// approve reassigns the shift (reusing the swap-approve logic); reject clears the pending request.
+app.post('/swap-requests/:id/:action', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const action = c.req.param('action')
+
+  if (action !== 'approve' && action !== 'reject') {
+    return c.json({ error: `Unknown swap action: ${action}` }, 400)
+  }
+
+  const shiftResult = await db.execute(sql`
+    SELECT * FROM shifts WHERE id = ${id} AND company_id = ${currentUser.companyId} AND swap_requested = true LIMIT 1
+  `)
+  const shift = ((shiftResult as any).rows || shiftResult)?.[0]
+  if (!shift) return c.json({ error: 'Shift not found or no swap requested' }, 404)
+
+  if (action === 'reject') {
+    await db.execute(sql`
+      UPDATE shifts SET swap_requested = false, swap_with_user_id = NULL, updated_at = NOW()
+      WHERE id = ${id} AND company_id = ${currentUser.companyId}
+    `)
+    audit.log({
+      action: audit.ACTIONS.UPDATE,
+      entity: 'shift',
+      entityId: id,
+      entityName: 'Swap rejected',
+      req: c.req,
+    })
+    return c.json({ message: 'Swap rejected', shiftId: id })
+  }
+
+  // approve
+  if (!shift.swap_with_user_id) return c.json({ error: 'No swap target specified' }, 400)
+
+  const targetShiftResult = await db.execute(sql`
+    SELECT * FROM shifts
+    WHERE company_id = ${currentUser.companyId}
+      AND user_id = ${shift.swap_with_user_id}
+      AND date = ${shift.date}
+      AND status = 'scheduled'
+    LIMIT 1
+  `)
+  const targetShift = ((targetShiftResult as any).rows || targetShiftResult)?.[0]
+
+  const originalUserId = shift.user_id
+  const swapUserId = shift.swap_with_user_id
+
+  if (targetShift) {
+    await db.execute(sql`
+      UPDATE shifts SET user_id = ${swapUserId}, swap_requested = false, swap_with_user_id = NULL, updated_at = NOW()
+      WHERE id = ${id}
+    `)
+    await db.execute(sql`
+      UPDATE shifts SET user_id = ${originalUserId}, updated_at = NOW()
+      WHERE id = ${targetShift.id}
+    `)
+  } else {
+    await db.execute(sql`
+      UPDATE shifts SET user_id = ${swapUserId}, swap_requested = false, swap_with_user_id = NULL, updated_at = NOW()
+      WHERE id = ${id}
+    `)
+  }
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'shift',
+    entityId: id,
+    entityName: 'Swap approved',
+    metadata: { originalUserId, swapUserId, targetShiftId: targetShift?.id || null },
+    req: c.req,
+  })
+
+  return c.json({ message: 'Swap approved', shiftId: id, targetShiftId: targetShift?.id || null })
+})
+
 // ─── Schedule Templates ─────────────────────────────────────────────────────
 
 // List templates
@@ -355,7 +442,7 @@ app.get('/templates', async (c) => {
     ORDER BY name ASC
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   return c.json({ data })
 })
 
@@ -368,7 +455,7 @@ app.post('/templates', requireRole('manager'), async (c) => {
     description: z.string().optional(),
     pattern: z.array(z.object({
       dayOfWeek: z.number().int().min(0).max(6), // 0=Sunday
-      userId: z.string().uuid().optional(),
+      userId: z.string().min(1).optional(),
       role: z.string().default('budtender'),
       startTime: z.string(),
       endTime: z.string(),
@@ -392,7 +479,7 @@ app.post('/templates', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(template, 201)
+  return c.json(camel(template), 201)
 })
 
 // Apply template to date range
@@ -403,7 +490,7 @@ app.post('/templates/:id/apply', requireRole('manager'), async (c) => {
   const applySchema = z.object({
     startDate: z.string(), // YYYY-MM-DD
     endDate: z.string(),
-    locationId: z.string().uuid().optional(),
+    locationId: z.string().min(1).optional(),
   })
   const data = applySchema.parse(await c.req.json())
 
@@ -446,7 +533,7 @@ app.post('/templates/:id/apply', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ message: 'Template applied', shiftsCreated: createdShifts.length, shifts: createdShifts }, 201)
+  return c.json({ message: 'Template applied', shiftsCreated: createdShifts.length, shifts: createdShifts.map(camel) }, 201)
 })
 
 // ─── Time Entries ───────────────────────────────────────────────────────────
@@ -466,19 +553,24 @@ app.get('/time-entries', async (c) => {
   let startFilter = sql``
   let endFilter = sql``
   let approvedFilter = sql``
+  // time_entries has no `date` or boolean `approved` column; the work date is derived
+  // from clock_in and approval is represented by approved_at being set. (schema.ts is truth)
   if (userId) userFilter = sql`AND te.user_id = ${userId}`
-  if (startDate) startFilter = sql`AND te.date >= ${startDate}`
-  if (endDate) endFilter = sql`AND te.date <= ${endDate}`
-  if (approved !== undefined) approvedFilter = sql`AND te.approved = ${approved === 'true'}`
+  if (startDate) startFilter = sql`AND te.clock_in::date >= ${startDate}::date`
+  if (endDate) endFilter = sql`AND te.clock_in::date <= ${endDate}::date`
+  if (approved !== undefined) approvedFilter = approved === 'true' ? sql`AND te.approved_at IS NOT NULL` : sql`AND te.approved_at IS NULL`
 
   const dataResult = await db.execute(sql`
     SELECT te.*,
-           u.first_name || ' ' || u.last_name as user_name
+           u.first_name || ' ' || u.last_name as employee_name,
+           te.clock_in::date as date,
+           ROUND(COALESCE(te.total_minutes, 0) / 60.0, 2) as hours,
+           (te.approved_at IS NOT NULL) as approved
     FROM time_entries te
     LEFT JOIN "user" u ON u.id = te.user_id
     WHERE te.company_id = ${currentUser.companyId}
       ${userFilter} ${startFilter} ${endFilter} ${approvedFilter}
-    ORDER BY te.date DESC
+    ORDER BY te.clock_in DESC
     LIMIT ${limit} OFFSET ${offset}
   `)
 
@@ -488,7 +580,7 @@ app.get('/time-entries', async (c) => {
       ${userFilter} ${startFilter} ${endFilter} ${approvedFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -499,12 +591,12 @@ app.put('/time-entries/:id/approve', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // time_entries has no boolean `approved` / `approved_by_id` / `updated_at` columns;
+  // approval is recorded via approved_by + approved_at. (schema.ts is truth)
   const result = await db.execute(sql`
     UPDATE time_entries SET
-      approved = true,
-      approved_by_id = ${currentUser.userId},
-      approved_at = NOW(),
-      updated_at = NOW()
+      approved_by = ${currentUser.userId},
+      approved_at = NOW()
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
@@ -519,7 +611,7 @@ app.put('/time-entries/:id/approve', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json({ ...camel(updated), approved: true })
 })
 
 // Payroll export

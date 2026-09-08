@@ -15,15 +15,16 @@ interface CartItem {
   strainType?: string;
 }
 
+// Values MUST match the backend product category enum (singular).
 const categories = [
   { value: '', label: 'All' },
   { value: 'flower', label: 'Flower' },
-  { value: 'edibles', label: 'Edibles' },
-  { value: 'concentrates', label: 'Concentrates' },
-  { value: 'vapes', label: 'Vapes' },
-  { value: 'pre-rolls', label: 'Pre-Rolls' },
-  { value: 'topicals', label: 'Topicals' },
-  { value: 'merch', label: 'Merch' },
+  { value: 'edible', label: 'Edibles' },
+  { value: 'concentrate', label: 'Concentrates' },
+  { value: 'vape', label: 'Vapes' },
+  { value: 'pre_roll', label: 'Pre-Rolls' },
+  { value: 'topical', label: 'Topicals' },
+  { value: 'accessory', label: 'Merch' },
 ];
 
 const WEIGHT_LIMIT_OZ = 2.5;
@@ -51,11 +52,22 @@ export default function POSPage() {
   const [loyaltyDiscount, setLoyaltyDiscount] = useState(0);
   const [processing, setProcessing] = useState(false);
 
-  const TAX_RATE = 0.15; // Cannabis tax rate placeholder
+  // Sales-tax rate from company Settings, so the register quotes what the operator
+  // configured — not a hardcoded 15% that disagreed with both Settings and the
+  // recorded order (the backend computes tax from company.taxRate too). (B3)
+  const [taxRate, setTaxRate] = useState(0);
 
   useEffect(() => {
     loadProducts();
   }, [activeCategory]);
+
+  useEffect(() => {
+    api.get('/api/company').then((c: any) => {
+      const co = c?.data || c;
+      const r = Number(co?.taxRate);
+      if (Number.isFinite(r)) setTaxRate(r / 100);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -103,6 +115,10 @@ export default function POSPage() {
   };
 
   const addToCart = (product: any) => {
+    const existingQty = cart.find(i => i.productId === product.id)?.quantity ?? 0;
+    if (typeof product.stockQuantity === 'number' && existingQty + 1 > product.stockQuantity) {
+      toast.error(`Only ${product.stockQuantity} of ${product.name} in stock`);
+    }
     setCart(prev => {
       const existing = prev.find(i => i.productId === product.id);
       if (existing) {
@@ -118,7 +134,16 @@ export default function POSPage() {
           name: product.name,
           price: Number(product.price),
           quantity: 1,
-          weight: product.weightOz || product.weight || 0,
+          // Per-unit weight in GRAMS. Seeded products carry weightGrams; older rows use
+          // weight + weightUnit. Reading only weightOz/weight left this 0, so the limit
+          // meter never moved. (retest#7)
+          weight: Number(
+            product.weightGrams != null && String(product.weightGrams) !== ''
+              ? product.weightGrams
+              : product.weight
+                ? (product.weightUnit === 'oz' ? Number(product.weight) * 28.3495 : Number(product.weight))
+                : 0
+          ) || 0,
           category: product.category,
           strainType: product.strainType,
         },
@@ -127,6 +152,13 @@ export default function POSPage() {
   };
 
   const updateQuantity = (itemId: string, delta: number) => {
+    if (delta > 0) {
+      const item = cart.find(i => i.id === itemId);
+      const stock = item ? products.find(p => p.id === item.productId)?.stockQuantity : undefined;
+      if (item && typeof stock === 'number' && item.quantity + delta > stock) {
+        toast.error(`Only ${stock} of ${item.name} in stock`);
+      }
+    }
     setCart(prev =>
       prev
         .map(i => (i.id === itemId ? { ...i, quantity: Math.max(0, i.quantity + delta) } : i))
@@ -139,19 +171,29 @@ export default function POSPage() {
   };
 
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const taxAmount = subtotal * TAX_RATE;
+  const taxAmount = subtotal * taxRate;
   const discountAmount = loyaltyApplied ? loyaltyDiscount : 0;
   const total = subtotal + taxAmount - discountAmount;
   const changeDue = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0;
 
+  // i.weight is per-unit GRAMS; the limit meter is in oz. Convert (g / 28.3495).
+  // Categories must match the backend cannabis list or the meter under-counts.
   const totalWeightOz = cart.reduce((sum, i) => {
-    if (['flower', 'pre-rolls'].includes(i.category)) {
-      return sum + (i.weight || 0) * i.quantity;
+    if (['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture'].includes(i.category)) {
+      return sum + ((Number(i.weight) || 0) * i.quantity) / 28.3495;
     }
     return sum;
   }, 0);
   const weightPercent = Math.min((totalWeightOz / WEIGHT_LIMIT_OZ) * 100, 100);
   const overWeight = totalWeightOz > WEIGHT_LIMIT_OZ;
+
+  // Any cart line whose quantity exceeds the loaded product's stock. Blocks
+  // Complete Sale so the cashier can't fire an order the server will reject
+  // with a 400 "Insufficient stock" (the inline per-line warning shows which).
+  const overStock = cart.some(i => {
+    const stock = products.find(p => p.id === i.productId)?.stockQuantity;
+    return typeof stock === 'number' && i.quantity > stock;
+  });
 
   const applyLoyalty = async () => {
     if (!customer) {
@@ -170,7 +212,7 @@ export default function POSPage() {
       const discount = Math.min(pointsDiscount, maxDiscount);
       setLoyaltyDiscount(discount);
       setLoyaltyApplied(true);
-      toast.success(`Loyalty discount applied: $${discount.toFixed(2)} (${data.points_balance} pts)`);
+      toast.success(`Loyalty discount applied: $${Number(discount).toFixed(2)} (${data.points_balance} pts)`);
     } catch (err: any) {
       toast.error(err.message || 'No rewards available');
     }
@@ -196,7 +238,7 @@ export default function POSPage() {
 
     setProcessing(true);
     try {
-      await api.post('/api/orders', {
+      const created: any = await api.post('/api/orders', {
         contactId: customer?.id || null,
         items: cart.map(i => ({
           productId: i.productId,
@@ -204,10 +246,22 @@ export default function POSPage() {
           priceOverride: i.price,
         })),
         type: 'walk_in',
+        paymentMethod,
+        idVerified,
         discountAmount: discountAmount,
         loyaltyPointsRedeemed: loyaltyApplied ? Math.round(discountAmount * 100) : 0,
-        notes: paymentMethod === 'cash' ? `Cash tendered: $${parseFloat(cashTendered).toFixed(2)}` : undefined,
       });
+      // Settle the sale immediately. Creating the order alone left it 'pending':
+      // stock never decremented (B2), paymentStatus stayed pending (B6), the tender
+      // lived only in a note (N2) and no loyalty was awarded (M5). /complete does all
+      // four in one transaction.
+      const orderId = created?.id || created?.data?.id;
+      if (orderId) {
+        await api.post(`/api/orders/${orderId}/complete`, {
+          paymentMethod,
+          cashTendered: paymentMethod === 'cash' ? parseFloat(cashTendered || '0') : undefined,
+        });
+      }
       toast.success('Order completed!');
       // Reset
       setCart([]);
@@ -275,13 +329,13 @@ export default function POSPage() {
                   disabled={product.stockQuantity <= 0}
                   className={`p-3 rounded-lg text-left transition-all ${
                     product.stockQuantity <= 0
-                      ? 'bg-gray-100 opacity-50 cursor-not-allowed'
-                      : 'bg-white hover:shadow-md hover:border-green-300 border border-gray-200'
+                      ? 'bg-gray-100 opacity-50 cursor-not-allowed dark:bg-slate-800'
+                      : 'bg-white hover:shadow-md hover:border-green-300 border border-gray-200 dark:bg-slate-800 dark:border-slate-700'
                   }`}
                 >
                   <p className="font-medium text-gray-900 text-sm truncate dark:text-slate-100">{product.name}</p>
                   <div className="flex items-center gap-1 mt-1">
-                    {product.strainType && product.strainType !== 'n/a' && (
+                    {product.strainType && product.strainType !== 'na' && (
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
                         product.strainType === 'sativa' ? 'bg-orange-100 text-orange-700' :
                         product.strainType === 'indica' ? 'bg-purple-100 text-purple-700' :
@@ -373,7 +427,7 @@ export default function POSPage() {
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-gray-500 dark:text-slate-400">Weight Limit</span>
             <span className={`text-xs font-medium ${overWeight ? 'text-red-600' : 'text-gray-700'}`}>
-              {totalWeightOz.toFixed(1)} / {WEIGHT_LIMIT_OZ} oz
+              {Number(totalWeightOz).toFixed(1)} / {WEIGHT_LIMIT_OZ} oz
             </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
@@ -391,11 +445,18 @@ export default function POSPage() {
           {cart.length === 0 ? (
             <p className="text-center text-gray-400 py-8 text-sm">Cart is empty</p>
           ) : (
-            cart.map(item => (
-              <div key={item.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50 dark:bg-slate-900">
+            cart.map(item => {
+              // Available stock for this line's product (looked up from the loaded
+              // catalog — CartItem doesn't carry stock). When the cart quantity
+              // exceeds it, flag the line so the cashier isn't blindsided by the
+              // server rejecting the whole order at Complete Sale.
+              const stock = products.find(p => p.id === item.productId)?.stockQuantity;
+              const overStock = typeof stock === 'number' && item.quantity > stock;
+              return (
+              <div key={item.id} className="flex flex-wrap items-center gap-3 p-2 rounded-lg bg-gray-50 dark:bg-slate-900">
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900 text-sm truncate dark:text-slate-100">{item.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-slate-400">${item.price.toFixed(2)} ea</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">${Number(item.price).toFixed(2)} ea</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -413,13 +474,19 @@ export default function POSPage() {
                   </button>
                 </div>
                 <span className="font-medium text-gray-900 text-sm w-16 text-right dark:text-slate-100">
-                  ${(item.price * item.quantity).toFixed(2)}
+                  ${Number(item.price * item.quantity).toFixed(2)}
                 </span>
                 <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500">
                   <Trash2 className="w-4 h-4" />
                 </button>
+                {overStock && (
+                  <p className="w-full text-xs font-medium text-red-600">
+                    Only {stock} in stock — exceeds available
+                  </p>
+                )}
               </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -428,21 +495,21 @@ export default function POSPage() {
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-gray-600 dark:text-slate-400">
               <span>Subtotal</span>
-              <span>${subtotal.toFixed(2)}</span>
+              <span>${Number(subtotal).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-gray-600 dark:text-slate-400">
-              <span>Tax ({(TAX_RATE * 100).toFixed(0)}%)</span>
-              <span>${taxAmount.toFixed(2)}</span>
+              <span>Tax ({Number(taxRate * 100).toFixed(0)}%)</span>
+              <span>${Number(taxAmount).toFixed(2)}</span>
             </div>
             {loyaltyApplied && discountAmount > 0 && (
               <div className="flex justify-between text-green-600">
                 <span>Loyalty Discount</span>
-                <span>-${discountAmount.toFixed(2)}</span>
+                <span>-${Number(discountAmount).toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-lg text-gray-900 pt-1 border-t dark:text-slate-100">
               <span>Total</span>
-              <span>${total.toFixed(2)}</span>
+              <span>${Number(total).toFixed(2)}</span>
             </div>
           </div>
 
@@ -494,7 +561,7 @@ export default function POSPage() {
               />
               {parseFloat(cashTendered || '0') >= total && total > 0 && (
                 <p className="text-sm text-green-600 mt-1 font-medium">
-                  Change: ${changeDue.toFixed(2)}
+                  Change: ${Number(changeDue).toFixed(2)}
                 </p>
               )}
             </div>
@@ -515,9 +582,9 @@ export default function POSPage() {
           {/* Complete */}
           <button
             onClick={completeOrder}
-            disabled={processing || cart.length === 0 || !idVerified || overWeight}
+            disabled={processing || cart.length === 0 || !idVerified || overWeight || overStock}
             className={`w-full py-3 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-colors ${
-              processing || cart.length === 0 || !idVerified || overWeight
+              processing || cart.length === 0 || !idVerified || overWeight || overStock
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-green-600 text-white hover:bg-green-700'
             }`}

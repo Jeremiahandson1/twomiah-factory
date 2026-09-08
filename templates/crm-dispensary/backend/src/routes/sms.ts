@@ -91,8 +91,17 @@ app.post('/conversations/:id/archive', async (c) => {
 app.post('/conversations/:id/link', async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
-  const { contactId } = await c.req.json()
-  await sms.linkToContact(id, user.companyId, contactId)
+  const body = await c.req.json().catch(() => ({}))
+  const contactId = body?.contactId
+  if (!contactId || typeof contactId !== 'string') {
+    return c.json({ error: 'contactId is required' }, 400)
+  }
+  try {
+    await sms.linkToContact(id, user.companyId, contactId)
+  } catch (e: any) {
+    if (/not found/i.test(e?.message || '')) return c.json({ error: 'Contact not found' }, 404)
+    throw e
+  }
   return c.json({ success: true })
 })
 
@@ -203,7 +212,13 @@ app.get('/templates', async (c) => {
 // Create template
 app.post('/templates', async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
+  const body = await c.req.json().catch(() => ({}))
+  if (!body?.name || typeof body.name !== 'string') {
+    return c.json({ error: 'name is required' }, 400)
+  }
+  if (!body?.body || typeof body.body !== 'string') {
+    return c.json({ error: 'body is required' }, 400)
+  }
   const template = await sms.createTemplate(user.companyId, body)
   return c.json(template, 201)
 })
@@ -239,7 +254,19 @@ app.get('/auto-responders', async (c) => {
 // Create auto-responder
 app.post('/auto-responders', async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
+  const body = await c.req.json().catch(() => ({}))
+  if (!body?.name || typeof body.name !== 'string') {
+    return c.json({ error: 'name is required' }, 400)
+  }
+  if (!body?.triggerType || !['any', 'keyword', 'exact'].includes(body.triggerType)) {
+    return c.json({ error: 'triggerType must be one of: any, keyword, exact' }, 400)
+  }
+  if (!body?.responseMessage || typeof body.responseMessage !== 'string') {
+    return c.json({ error: 'responseMessage is required' }, 400)
+  }
+  if ((body.triggerType === 'keyword' || body.triggerType === 'exact') && !body.triggerKeyword) {
+    return c.json({ error: 'triggerKeyword is required for keyword/exact triggers' }, 400)
+  }
   const responder = await sms.createAutoResponder(user.companyId, body)
   return c.json(responder, 201)
 })

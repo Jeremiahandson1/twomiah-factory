@@ -76,7 +76,13 @@ app.get('/:id/thumbnail', requirePermission('documents:read'), async (c) => {
 // Upload single photo
 app.post('/', requirePermission('documents:create'), async (c) => {
   const user = c.get('user') as any
-  const formData = await c.req.formData()
+  // A non-multipart / empty body makes formData() throw — return 400, not 500.
+  let formData: FormData
+  try {
+    formData = await c.req.formData()
+  } catch {
+    return c.json({ error: 'Multipart form-data with a photo file is required' }, 400)
+  }
   const photoFile = formData.get('photo') as File | null
 
   if (!photoFile) {
@@ -120,7 +126,13 @@ app.post('/', requirePermission('documents:create'), async (c) => {
 // Upload multiple photos
 app.post('/bulk', requirePermission('documents:create'), async (c) => {
   const user = c.get('user') as any
-  const formData = await c.req.formData()
+  // A non-multipart / empty body makes formData() throw — return 400, not 500.
+  let formData: FormData
+  try {
+    formData = await c.req.formData()
+  } catch {
+    return c.json({ error: 'Multipart form-data with photo files is required' }, 400)
+  }
   const photoFiles = formData.getAll('photos') as File[]
 
   if (!photoFiles || photoFiles.length === 0) {

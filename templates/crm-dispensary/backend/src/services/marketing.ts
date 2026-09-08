@@ -7,8 +7,15 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, loyaltyMember } from '../../db/schema.ts'
-import { eq, and, gte, sql } from 'drizzle-orm'
+import {
+  contact,
+  loyaltyMember,
+  marketingTemplate,
+  marketingCampaign,
+  marketingSequence,
+  marketingSequenceEnrollment,
+} from '../../db/schema.ts'
+import { eq, and, gte, sql, desc } from 'drizzle-orm'
 import sgMail from '@sendgrid/mail'
 
 // Initialize SendGrid
@@ -231,7 +238,180 @@ export async function getMarketingStats(companyId: string) {
 }
 
 export async function deleteCampaign(id: string, companyId: string) {
-  return db.delete(campaign).where(and(eq(campaign.id, id), eq(campaign.companyId, companyId)))
+  return db.delete(marketingCampaign).where(and(eq(marketingCampaign.id, id), eq(marketingCampaign.companyId, companyId)))
+}
+
+// ============================================
+// TEMPLATES
+// ============================================
+
+/**
+ * List marketing templates for a company, optionally filtered by category and active state.
+ * `active`: true = active only, false = inactive only, null = all.
+ */
+export async function getTemplates(
+  companyId: string,
+  { category, active }: { category?: string | null; active?: boolean | null } = {}
+) {
+  const conditions = [eq(marketingTemplate.companyId, companyId)]
+  if (category) conditions.push(eq(marketingTemplate.category, category))
+  if (active === true || active === false) conditions.push(eq(marketingTemplate.isActive, active))
+
+  return db.select()
+    .from(marketingTemplate)
+    .where(and(...conditions))
+    .orderBy(desc(marketingTemplate.createdAt))
+}
+
+export async function createTemplate(companyId: string, body: any) {
+  const [row] = await db.insert(marketingTemplate).values({
+    companyId,
+    name: body.name ?? null,
+    subject: body.subject ?? null,
+    content: body.content ?? null,
+    type: body.type ?? 'email',
+    category: body.category ?? null,
+    variables: body.variables ?? [],
+    isActive: body.isActive ?? true,
+  }).returning()
+  return row
+}
+
+export async function updateTemplate(id: string, companyId: string, body: any) {
+  const updates: Record<string, any> = { updatedAt: new Date() }
+  if (body.name !== undefined) updates.name = body.name
+  if (body.subject !== undefined) updates.subject = body.subject
+  if (body.content !== undefined) updates.content = body.content
+  if (body.type !== undefined) updates.type = body.type
+  if (body.category !== undefined) updates.category = body.category
+  if (body.variables !== undefined) updates.variables = body.variables
+  if (body.isActive !== undefined) updates.isActive = body.isActive
+
+  const [row] = await db.update(marketingTemplate)
+    .set(updates)
+    .where(and(eq(marketingTemplate.id, id), eq(marketingTemplate.companyId, companyId)))
+    .returning()
+  return row
+}
+
+export async function duplicateTemplate(id: string, companyId: string) {
+  const [existing] = await db.select()
+    .from(marketingTemplate)
+    .where(and(eq(marketingTemplate.id, id), eq(marketingTemplate.companyId, companyId)))
+  if (!existing) return null  // route maps null → 404 (don't throw → 500)
+
+  const [row] = await db.insert(marketingTemplate).values({
+    companyId,
+    name: `${existing.name ?? 'Untitled'} (Copy)`,
+    subject: existing.subject,
+    content: existing.content,
+    type: existing.type,
+    category: existing.category,
+    variables: existing.variables ?? [],
+    isActive: existing.isActive ?? true,
+  }).returning()
+  return row
+}
+
+// ============================================
+// CAMPAIGNS
+// ============================================
+
+export async function getCampaigns(
+  companyId: string,
+  { status, page = 1, limit = 50 }: { status?: string | null; page?: number; limit?: number } = {}
+) {
+  const conditions = [eq(marketingCampaign.companyId, companyId)]
+  if (status) conditions.push(eq(marketingCampaign.status, status))
+
+  const safeLimit = Math.max(1, limit)
+  const safePage = Math.max(1, page)
+
+  return db.select()
+    .from(marketingCampaign)
+    .where(and(...conditions))
+    .orderBy(desc(marketingCampaign.createdAt))
+    .limit(safeLimit)
+    .offset((safePage - 1) * safeLimit)
+}
+
+export async function getCampaign(id: string, companyId: string) {
+  const [row] = await db.select()
+    .from(marketingCampaign)
+    .where(and(eq(marketingCampaign.id, id), eq(marketingCampaign.companyId, companyId)))
+  return row ?? null
+}
+
+export async function createCampaign(companyId: string, body: any) {
+  const [row] = await db.insert(marketingCampaign).values({
+    companyId,
+    name: body.name ?? null,
+    type: body.type ?? 'email',
+    subject: body.subject ?? null,
+    content: body.content ?? null,
+    audienceFilter: body.audienceFilter ?? body.filter ?? {},
+    status: body.status ?? 'draft',
+  }).returning()
+  return row
+}
+
+export async function updateCampaign(id: string, companyId: string, body: any) {
+  const updates: Record<string, any> = { updatedAt: new Date() }
+  if (body.name !== undefined) updates.name = body.name
+  if (body.type !== undefined) updates.type = body.type
+  if (body.subject !== undefined) updates.subject = body.subject
+  if (body.content !== undefined) updates.content = body.content
+  if (body.audienceFilter !== undefined) updates.audienceFilter = body.audienceFilter
+  else if (body.filter !== undefined) updates.audienceFilter = body.filter
+  if (body.status !== undefined) updates.status = body.status
+
+  const [row] = await db.update(marketingCampaign)
+    .set(updates)
+    .where(and(eq(marketingCampaign.id, id), eq(marketingCampaign.companyId, companyId)))
+    .returning()
+  return row
+}
+
+export async function scheduleCampaign(id: string, companyId: string, scheduledFor: string | Date) {
+  const scheduledAt = scheduledFor ? new Date(scheduledFor) : null
+  const [row] = await db.update(marketingCampaign)
+    .set({ status: 'scheduled', scheduledAt, updatedAt: new Date() })
+    .where(and(eq(marketingCampaign.id, id), eq(marketingCampaign.companyId, companyId)))
+    .returning()
+  return row
+}
+
+// ============================================
+// DRIP SEQUENCES
+// ============================================
+
+export async function getSequences(companyId: string) {
+  return db.select()
+    .from(marketingSequence)
+    .where(eq(marketingSequence.companyId, companyId))
+    .orderBy(desc(marketingSequence.createdAt))
+}
+
+export async function createSequence(companyId: string, body: any) {
+  const [row] = await db.insert(marketingSequence).values({
+    companyId,
+    name: body.name ?? null,
+    triggerType: body.triggerType ?? body.trigger_type ?? null,
+    steps: body.steps ?? [],
+    isActive: body.isActive ?? true,
+  }).returning()
+  return row
+}
+
+export async function enrollInSequence(sequenceId: string, contactId: string, companyId: string) {
+  const [row] = await db.insert(marketingSequenceEnrollment).values({
+    companyId,
+    sequenceId,
+    contactId,
+    currentStep: 0,
+    status: 'active',
+  }).returning()
+  return row
 }
 
 export default {
@@ -242,4 +422,19 @@ export default {
   getEmailOptedInMembers,
   handleUnsubscribe,
   getMarketingStats,
+  // Templates
+  getTemplates,
+  createTemplate,
+  updateTemplate,
+  duplicateTemplate,
+  // Campaigns
+  getCampaigns,
+  getCampaign,
+  createCampaign,
+  updateCampaign,
+  scheduleCampaign,
+  // Sequences
+  getSequences,
+  createSequence,
+  enrollInSequence,
 }

@@ -10,6 +10,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case (company_id, points_balance); the client reads camelCase.
+// Normalise so /members isn't the one module still on the old convention. (retest#9)
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // List loyalty members
 app.get('/members', async (c) => {
   const currentUser = c.get('user') as any
@@ -38,7 +47,7 @@ app.get('/members', async (c) => {
     WHERE lm.company_id = ${currentUser.companyId} ${searchClause}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -65,9 +74,9 @@ app.get('/members/:id', async (c) => {
     ORDER BY created_at DESC
     LIMIT 50
   `)
-  const transactions = (transactionsResult as any).rows || transactionsResult
+  const transactions = ((transactionsResult as any).rows || transactionsResult).map(camel)
 
-  return c.json({ ...member, transactions })
+  return c.json({ ...camel(member), transactions })
 })
 
 // Enroll customer as loyalty member
@@ -143,7 +152,20 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
     UPDATE loyalty_members
     SET points_balance = ${newBalance},
         total_points_earned = CASE WHEN ${data.points} > 0 THEN total_points_earned + ${data.points} ELSE total_points_earned END,
+        lifetime_points = CASE WHEN ${data.points} > 0 THEN COALESCE(lifetime_points,0) + ${data.points} ELSE COALESCE(lifetime_points,0) END,
         updated_at = NOW()
+    WHERE id = ${id}
+  `)
+
+  // Re-evaluate tier so a manual adjustment can move the customer up or down, same as
+  // award/refund — every point-changing path recomputes tier consistently. (retest#13)
+  await db.execute(sql`
+    UPDATE loyalty_members SET tier = CASE
+        WHEN COALESCE(total_points_earned::numeric, 0) >= 5000 THEN 'platinum'
+        WHEN COALESCE(total_points_earned::numeric, 0) >= 1500 THEN 'gold'
+        WHEN COALESCE(total_points_earned::numeric, 0) >= 500 THEN 'silver'
+        ELSE 'bronze' END,
+      updated_at = NOW()
     WHERE id = ${id}
   `)
 
@@ -167,13 +189,24 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
 })
 
 // List rewards
+// Return camelCase aliases matching the frontend (LoyaltyPage reads pointsCost,
+// discountType, discountValue, isActive). Selecting the real columns
+// (points_cost/discount_type/discount_value/active) fixes the $NaN display.
 app.get('/rewards', async (c) => {
   const currentUser = c.get('user') as any
 
   const result = await db.execute(sql`
-    SELECT * FROM loyalty_rewards
+    SELECT id, name, description,
+           points_cost AS "pointsCost",
+           discount_type AS "discountType",
+           discount_value AS "discountValue",
+           product_id AS "productId",
+           active AS "isActive",
+           created_at AS "createdAt",
+           updated_at AS "updatedAt"
+    FROM loyalty_rewards
     WHERE company_id = ${currentUser.companyId}
-    ORDER BY points_required ASC
+    ORDER BY points_cost ASC
   `)
 
   return c.json((result as any).rows || result)
@@ -183,23 +216,25 @@ app.get('/rewards', async (c) => {
 app.post('/rewards', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
+  // Accept the frontend's camelCase fields and write to the REAL columns
+  // (points_cost is NOT NULL; discount_type/discount_value/active). The old
+  // schema inserted into type/value/limit_per_customer/expires_at, which don't
+  // exist on loyalty_rewards, and omitted points_cost → every create 500'd.
   const rewardSchema = z.object({
     name: z.string().min(1),
     description: z.string().optional(),
-    pointsRequired: z.number().int().min(1),
-    type: z.enum(['discount_percent', 'discount_fixed', 'free_item', 'other']),
-    value: z.number().min(0), // percent or dollar amount
+    pointsCost: z.number().int().min(1),
+    discountType: z.enum(['fixed', 'percent', 'free_item']),
+    discountValue: z.number().min(0), // percent or dollar amount (stored as text)
     productId: z.string().optional(), // for free_item type
-    active: z.boolean().default(true),
-    limitPerCustomer: z.number().int().optional(),
-    expiresAt: z.string().optional(),
+    isActive: z.boolean().default(true),
   })
   const data = rewardSchema.parse(await c.req.json())
 
   const result = await db.execute(sql`
-    INSERT INTO loyalty_rewards(id, name, description, points_required, type, value, product_id, active, limit_per_customer, expires_at, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.name}, ${data.description || null}, ${data.pointsRequired}, ${data.type}, ${data.value}, ${data.productId || null}, ${data.active}, ${data.limitPerCustomer || null}, ${data.expiresAt ? new Date(data.expiresAt) : null}, ${currentUser.companyId}, NOW(), NOW())
-    RETURNING *
+    INSERT INTO loyalty_rewards(id, name, description, points_cost, discount_type, discount_value, product_id, active, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.name}, ${data.description || null}, ${data.pointsCost}, ${data.discountType}, ${String(data.discountValue)}, ${data.productId || null}, ${data.isActive}, ${currentUser.companyId}, NOW(), NOW())
+    RETURNING id, name, description, points_cost AS "pointsCost", discount_type AS "discountType", discount_value AS "discountValue", product_id AS "productId", active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
   `)
 
   return c.json(((result as any).rows || result)?.[0], 201)
@@ -213,34 +248,30 @@ app.put('/rewards/:id', requireRole('manager'), async (c) => {
   const rewardSchema = z.object({
     name: z.string().min(1).optional(),
     description: z.string().optional(),
-    pointsRequired: z.number().int().min(1).optional(),
-    type: z.enum(['discount_percent', 'discount_fixed', 'free_item', 'other']).optional(),
-    value: z.number().min(0).optional(),
+    pointsCost: z.number().int().min(1).optional(),
+    discountType: z.enum(['fixed', 'percent', 'free_item']).optional(),
+    discountValue: z.number().min(0).optional(),
     productId: z.string().optional(),
-    active: z.boolean().optional(),
-    limitPerCustomer: z.number().int().optional(),
-    expiresAt: z.string().optional(),
+    isActive: z.boolean().optional(),
   })
   const data = rewardSchema.parse(await c.req.json())
 
-  // Build SET clause dynamically
+  // Build SET clause dynamically — real columns only.
   const sets: any[] = [sql`updated_at = NOW()`]
   if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
   if (data.description !== undefined) sets.push(sql`description = ${data.description}`)
-  if (data.pointsRequired !== undefined) sets.push(sql`points_required = ${data.pointsRequired}`)
-  if (data.type !== undefined) sets.push(sql`type = ${data.type}`)
-  if (data.value !== undefined) sets.push(sql`value = ${data.value}`)
+  if (data.pointsCost !== undefined) sets.push(sql`points_cost = ${data.pointsCost}`)
+  if (data.discountType !== undefined) sets.push(sql`discount_type = ${data.discountType}`)
+  if (data.discountValue !== undefined) sets.push(sql`discount_value = ${String(data.discountValue)}`)
   if (data.productId !== undefined) sets.push(sql`product_id = ${data.productId}`)
-  if (data.active !== undefined) sets.push(sql`active = ${data.active}`)
-  if (data.limitPerCustomer !== undefined) sets.push(sql`limit_per_customer = ${data.limitPerCustomer}`)
-  if (data.expiresAt !== undefined) sets.push(sql`expires_at = ${new Date(data.expiresAt)}`)
+  if (data.isActive !== undefined) sets.push(sql`active = ${data.isActive}`)
 
   const setClause = sets.reduce((acc, s, i) => i === 0 ? s : sql`${acc}, ${s}`)
 
   const result = await db.execute(sql`
     UPDATE loyalty_rewards SET ${setClause}
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
-    RETURNING *
+    RETURNING id, name, description, points_cost AS "pointsCost", discount_type AS "discountType", discount_value AS "discountValue", product_id AS "productId", active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
   `)
 
   const updated = ((result as any).rows || result)?.[0]

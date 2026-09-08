@@ -31,6 +31,7 @@ export default function OrdersPage() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -49,8 +50,13 @@ export default function OrdersPage() {
       const data = await api.get('/api/orders', params);
       setOrders(Array.isArray(data) ? data : data?.data || []);
       setPagination(data?.pagination || null);
+      setError(null);
     } catch (err) {
-      toast.error('Failed to load orders');
+      // Surface the failure in the table (with a Retry) instead of a transient
+      // toast that leaves a "No orders found" empty state behind (S11).
+      const e = err as any;
+      setOrders([]);
+      setError(e?.message || 'Failed to load orders. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -190,6 +196,8 @@ export default function OrdersPage() {
         onRowClick={(row: any) => navigate(`/crm/orders/${row.id}`)}
         actions={actions}
         emptyMessage="No orders found"
+        error={error}
+        onRetry={loadOrders}
       />
     </div>
   );

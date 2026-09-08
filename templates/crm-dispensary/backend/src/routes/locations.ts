@@ -9,6 +9,19 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Thrown inside a transfer transaction when an atomic conditional write touches 0 rows (a
+// concurrent caller moved the stock / received the line first) — caught to return 400 not 500.
+class TransferConflict extends Error {}
+
+// Raw db.execute(sql`...`) rows come back snake_case, but the frontend reads
+// camelCase. Convert row keys to camelCase before responding. (matches cash.ts et al.)
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // List locations for company
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
@@ -19,7 +32,7 @@ app.get('/', async (c) => {
     ORDER BY is_default DESC, name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Create location (manager+)
@@ -66,7 +79,7 @@ app.post('/', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(location, 201)
+  return c.json(camel(location), 201)
 })
 
 // Update location (manager+)
@@ -123,7 +136,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Location not found' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Soft delete location
@@ -157,14 +170,14 @@ app.get('/:id/inventory', async (c) => {
   const id = c.req.param('id')
 
   const result = await db.execute(sql`
-    SELECT pl.*, p.name as product_name, p.sku, p.category, p.brand, p.thc_percent, p.cbd_percent, p.unit_price, p.image_url
+    SELECT pl.*, p.name as product_name, p.sku, p.category, p.brand, p.thc_percent, p.cbd_percent, p.price as unit_price, p.image_url
     FROM product_locations pl
     JOIN products p ON p.id = pl.product_id
     WHERE pl.location_id = ${id} AND p.company_id = ${currentUser.companyId}
     ORDER BY p.name ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Submit inventory count for a location
@@ -182,40 +195,44 @@ app.post('/:id/count', requireRole('manager'), async (c) => {
 
   const adjustments: any[] = []
 
-  for (const item of data.items) {
-    // Get current quantity
-    const currentResult = await db.execute(sql`
-      SELECT quantity FROM product_locations
-      WHERE product_id = ${item.productId} AND location_id = ${locationId}
-    `)
-    const current = ((currentResult as any).rows || currentResult)?.[0]
-    const previousQuantity = current?.quantity ?? 0
-    const discrepancy = item.counted - previousQuantity
-
-    // Update quantity
-    if (current) {
-      await db.execute(sql`
-        UPDATE product_locations SET quantity = ${item.counted}, updated_at = NOW()
+  // Apply the count and its adjustment records atomically. Previously the product_locations write
+  // committed and the inventory_adjustments INSERT then 500'd — it targeted columns that don't
+  // exist (location_id/previous_quantity/new_quantity/adjustment/adjusted_by) and omitted NOT-NULL
+  // adjustment_type — so a cycle count adjusted stock while reporting failure (F-31). The real
+  // columns are user_id / adjustment_type / quantity_change / quantity_before / quantity_after.
+  await db.transaction(async (tx) => {
+    for (const item of data.items) {
+      const currentResult = await tx.execute(sql`
+        SELECT quantity FROM product_locations
         WHERE product_id = ${item.productId} AND location_id = ${locationId}
       `)
-    } else {
-      await db.execute(sql`
-        INSERT INTO product_locations(id, product_id, location_id, quantity, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${item.productId}, ${locationId}, ${item.counted}, NOW(), NOW())
-      `)
-    }
+      const current = ((currentResult as any).rows || currentResult)?.[0]
+      const previousQuantity = Number(current?.quantity ?? 0)
+      const discrepancy = item.counted - previousQuantity
 
-    // Create adjustment record if discrepancy
-    if (discrepancy !== 0) {
-      const adjResult = await db.execute(sql`
-        INSERT INTO inventory_adjustments(id, product_id, location_id, previous_quantity, new_quantity, adjustment, reason, adjusted_by, company_id, created_at)
-        VALUES (gen_random_uuid(), ${item.productId}, ${locationId}, ${previousQuantity}, ${item.counted}, ${discrepancy}, 'inventory_count', ${currentUser.id}, ${currentUser.companyId}, NOW())
-        RETURNING *
-      `)
-      const adj = ((adjResult as any).rows || adjResult)?.[0]
-      if (adj) adjustments.push(adj)
+      if (current) {
+        await tx.execute(sql`
+          UPDATE product_locations SET quantity = ${item.counted}, updated_at = NOW()
+          WHERE product_id = ${item.productId} AND location_id = ${locationId}
+        `)
+      } else {
+        await tx.execute(sql`
+          INSERT INTO product_locations(id, product_id, location_id, company_id, quantity, created_at, updated_at)
+          VALUES (gen_random_uuid(), ${item.productId}, ${locationId}, ${currentUser.companyId}, ${item.counted}, NOW(), NOW())
+        `)
+      }
+
+      if (discrepancy !== 0) {
+        const adjResult = await tx.execute(sql`
+          INSERT INTO inventory_adjustments(id, company_id, product_id, user_id, adjustment_type, quantity_change, quantity_before, quantity_after, reason, created_at)
+          VALUES (gen_random_uuid(), ${currentUser.companyId}, ${item.productId}, ${currentUser.userId}, 'count_correction', ${discrepancy}, ${previousQuantity}, ${item.counted}, 'inventory_count', NOW())
+          RETURNING *
+        `)
+        const adj = ((adjResult as any).rows || adjResult)?.[0]
+        if (adj) adjustments.push(adj)
+      }
     }
-  }
+  })
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -225,7 +242,7 @@ app.post('/:id/count', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ counted: data.items.length, discrepancies: adjustments.length, adjustments })
+  return c.json({ counted: data.items.length, discrepancies: adjustments.length, adjustments: adjustments.map(camel) })
 })
 
 // ── Transfers ──────────────────────────────────────────────
@@ -249,7 +266,7 @@ app.get('/transfers', async (c) => {
     FROM inventory_transfers it
     LEFT JOIN locations fl ON fl.id = it.from_location_id
     LEFT JOIN locations tl ON tl.id = it.to_location_id
-    LEFT JOIN "user" u ON u.id = it.created_by
+    LEFT JOIN "user" u ON u.id = it.initiated_by
     WHERE it.company_id = ${currentUser.companyId}
       ${statusFilter}
     ORDER BY it.created_at DESC
@@ -265,7 +282,24 @@ app.get('/transfers', async (c) => {
   const data = (dataResult as any).rows || dataResult
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
-  return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+  // Attach each transfer's line items (with their ids) — /transfers/:id/receive requires itemId,
+  // and without the items in the read model the client can never learn those ids (F-22).
+  const ids = data.map((t: any) => t.id)
+  let itemsByTransfer: Record<string, any[]> = {}
+  if (ids.length) {
+    const idList = sql.join(ids.map((i: string) => sql`${i}`), sql`, `)
+    const itemsResult = await db.execute(sql`
+      SELECT ti.*, p.name as product_name
+      FROM inventory_transfer_items ti
+      LEFT JOIN products p ON p.id = ti.product_id
+      WHERE ti.transfer_id IN (${idList})
+    `)
+    for (const row of ((itemsResult as any).rows || itemsResult)) {
+      (itemsByTransfer[row.transfer_id] ||= []).push(camel(row))
+    }
+  }
+
+  return c.json({ data: data.map((t: any) => ({ ...camel(t), items: itemsByTransfer[t.id] || [] })), pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
 })
 
 // Create transfer
@@ -289,19 +323,24 @@ app.post('/transfers', requireRole('manager'), async (c) => {
 
   // Create transfer record
   const transferResult = await db.execute(sql`
-    INSERT INTO inventory_transfers(id, from_location_id, to_location_id, status, notes, created_by, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.fromLocationId}, ${data.toLocationId}, 'pending', ${data.notes || null}, ${currentUser.id}, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO inventory_transfers(id, from_location_id, to_location_id, status, notes, initiated_by, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.fromLocationId}, ${data.toLocationId}, 'pending', ${data.notes || null}, ${currentUser.userId}, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
 
   const transfer = ((transferResult as any).rows || transferResult)?.[0]
 
-  // Create transfer items
+  // Create transfer items and collect them (with their generated ids) for the response, so the
+  // client immediately has the itemIds that /transfers/:id/receive requires (F-22).
+  const createdItems: any[] = []
   for (const item of data.items) {
-    await db.execute(sql`
-      INSERT INTO inventory_transfer_items(id, transfer_id, product_id, quantity, received_quantity, created_at)
-      VALUES (gen_random_uuid(), ${transfer.id}, ${item.productId}, ${item.quantity}, 0, NOW())
+    const itemResult = await db.execute(sql`
+      INSERT INTO inventory_transfer_items(id, transfer_id, product_id, quantity, received_quantity)
+      VALUES (gen_random_uuid(), ${transfer.id}, ${item.productId}, ${item.quantity}, 0)
+      RETURNING *
     `)
+    const row = ((itemResult as any).rows || itemResult)?.[0]
+    if (row) createdItems.push(camel(row))
   }
 
   audit.log({
@@ -312,7 +351,7 @@ app.post('/transfers', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(transfer, 201)
+  return c.json({ ...camel(transfer), items: createdItems }, 201)
 })
 
 // Ship transfer (mark as in_transit)
@@ -320,28 +359,63 @@ app.put('/transfers/:id/ship', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const result = await db.execute(sql`
-    UPDATE inventory_transfers
-    SET status = 'in_transit', shipped_at = NOW(), updated_at = NOW()
+  // Load the pending transfer + its items first (no writes yet).
+  const tres = await db.execute(sql`
+    SELECT * FROM inventory_transfers
     WHERE id = ${id} AND company_id = ${currentUser.companyId} AND status = 'pending'
-    RETURNING *
+    LIMIT 1
   `)
+  const transfer = ((tres as any).rows || tres)?.[0]
+  if (!transfer) return c.json({ error: 'Transfer not found or not in pending status' }, 404)
 
-  const updated = ((result as any).rows || result)?.[0]
-  if (!updated) return c.json({ error: 'Transfer not found or not in pending status' }, 404)
+  const itemsRes = await db.execute(sql`SELECT * FROM inventory_transfer_items WHERE transfer_id = ${id}`)
+  const transferItems = (itemsRes as any).rows || itemsRes
 
-  // Deduct quantities from source location
-  const items = await db.execute(sql`
-    SELECT * FROM inventory_transfer_items WHERE transfer_id = ${id}
-  `)
-  const transferItems = (items as any).rows || items
-
+  // Validate source stock AT SHIP TIME (stock can change between create and ship) and REFUSE the
+  // shipment if any line exceeds what the source holds — never clamp to zero, which silently
+  // created phantom units (F-26: shipping 99 from a source of 3 left source 0 + dest 99).
   for (const item of transferItems) {
-    await db.execute(sql`
-      UPDATE product_locations
-      SET quantity = GREATEST(quantity - ${item.quantity}, 0), updated_at = NOW()
-      WHERE product_id = ${item.product_id} AND location_id = ${updated.from_location_id}
+    const locRes = await db.execute(sql`
+      SELECT quantity FROM product_locations
+      WHERE product_id = ${item.product_id} AND location_id = ${transfer.from_location_id}
     `)
+    const available = Number(((locRes as any).rows || locRes)?.[0]?.quantity || 0)
+    if (Number(item.quantity) > available) {
+      return c.json({ error: `Insufficient stock at source location: need ${item.quantity}, have ${available}. Adjust the transfer or restock before shipping.` }, 400)
+    }
+  }
+
+  // All lines fit — set status and deduct source inventory atomically. Each deduction is a single
+  // conditional statement (WHERE quantity >= qty); under concurrency two shipments drawing the same
+  // source can't both succeed — the loser touches 0 rows and the whole shipment aborts. The status
+  // flip is likewise guarded by WHERE status='pending' so only one ship wins. (concurrency sweep)
+  let updated: any
+  try {
+    await db.transaction(async (tx) => {
+      const result = await tx.execute(sql`
+        UPDATE inventory_transfers
+        SET status = 'in_transit', transferred_at = NOW(), updated_at = NOW()
+        WHERE id = ${id} AND company_id = ${currentUser.companyId} AND status = 'pending'
+        RETURNING *
+      `)
+      updated = ((result as any).rows || result)?.[0]
+      if (!updated) throw new TransferConflict('Transfer was already shipped.')
+      for (const item of transferItems) {
+        const dec = await tx.execute(sql`
+          UPDATE product_locations
+          SET quantity = quantity - ${item.quantity}, updated_at = NOW()
+          WHERE product_id = ${item.product_id} AND location_id = ${transfer.from_location_id}
+            AND quantity >= ${item.quantity}
+          RETURNING id
+        `)
+        if (!(((dec as any).rows || dec)?.length > 0)) {
+          throw new TransferConflict('Source stock changed — no longer enough to ship. Nothing was moved.')
+        }
+      }
+    })
+  } catch (e) {
+    if (e instanceof TransferConflict) return c.json({ error: (e as Error).message }, 400)
+    throw e
   }
 
   audit.log({
@@ -352,7 +426,7 @@ app.put('/transfers/:id/ship', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Receive transfer
@@ -368,66 +442,122 @@ app.put('/transfers/:id/receive', requireRole('manager'), async (c) => {
   })
   const data = receiveSchema.parse(await c.req.json())
 
-  // Verify transfer exists and is in_transit
+  // Receivable while in transit or already partially received.
   const transferResult = await db.execute(sql`
     SELECT * FROM inventory_transfers
-    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND status = 'in_transit'
+    WHERE id = ${id} AND company_id = ${currentUser.companyId} AND status IN ('in_transit', 'partial_received')
   `)
   const transfer = ((transferResult as any).rows || transferResult)?.[0]
-  if (!transfer) return c.json({ error: 'Transfer not found or not in transit' }, 404)
+  if (!transfer) return c.json({ error: 'Transfer not found or not receivable (must be in transit)' }, 404)
 
-  // Update each item's received quantity and destination inventory
+  // Load the shipped lines so we can bound each receipt.
+  const lineRes = await db.execute(sql`SELECT * FROM inventory_transfer_items WHERE transfer_id = ${id}`)
+  const lines: any[] = (lineRes as any).rows || lineRes
+  const lineById = new Map(lines.map((l: any) => [l.id, l]))
+
+  // F-29: a receipt cannot exceed what is still outstanding on that line (shipped − already
+  // received). Mirror of the ship guard — refuse, don't clamp; a 3-unit shipment received as 99
+  // previously created phantom stock from the opposite door.
   for (const item of data.items) {
-    // Update transfer item received quantity
-    const itemResult = await db.execute(sql`
-      UPDATE inventory_transfer_items
-      SET received_quantity = ${item.receivedQuantity}
-      WHERE id = ${item.itemId} AND transfer_id = ${id}
-      RETURNING *
-    `)
-    const transferItem = ((itemResult as any).rows || itemResult)?.[0]
-    if (!transferItem) continue
-
-    // Add to destination location inventory
-    const existing = await db.execute(sql`
-      SELECT id FROM product_locations
-      WHERE product_id = ${transferItem.product_id} AND location_id = ${transfer.to_location_id}
-    `)
-    const existingRow = ((existing as any).rows || existing)?.[0]
-
-    if (existingRow) {
-      await db.execute(sql`
-        UPDATE product_locations
-        SET quantity = quantity + ${item.receivedQuantity}, updated_at = NOW()
-        WHERE product_id = ${transferItem.product_id} AND location_id = ${transfer.to_location_id}
-      `)
-    } else {
-      await db.execute(sql`
-        INSERT INTO product_locations(id, product_id, location_id, quantity, created_at, updated_at)
-        VALUES (gen_random_uuid(), ${transferItem.product_id}, ${transfer.to_location_id}, ${item.receivedQuantity}, NOW(), NOW())
-      `)
+    const line = lineById.get(item.itemId)
+    if (!line) return c.json({ error: `Line item ${item.itemId} is not part of this transfer` }, 400)
+    const outstanding = Number(line.quantity) - Number(line.received_quantity || 0)
+    if (item.receivedQuantity > outstanding) {
+      return c.json({ error: `Received quantity ${item.receivedQuantity} exceeds the outstanding shipped quantity of ${outstanding}.` }, 400)
     }
   }
 
-  // Mark transfer as received
-  const result = await db.execute(sql`
-    UPDATE inventory_transfers
-    SET status = 'received', received_at = NOW(), received_by = ${currentUser.id}, updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `)
+  // Apply the whole receipt atomically (per-item accumulation, destination inventory, status).
+  let updated: any
+  try {
+  await db.transaction(async (tx) => {
+    for (const item of data.items) {
+      if (item.receivedQuantity <= 0) continue
+      // Accumulate rather than overwrite (F-30), and bound the accumulation against the line's own
+      // CURRENT received_quantity in the same statement (WHERE quantity - received >= qty). Under
+      // concurrency two receipts on one line can't both slip past the outstanding amount — the
+      // loser updates 0 rows and the receipt aborts. (concurrency sweep)
+      const itemResult = await tx.execute(sql`
+        UPDATE inventory_transfer_items
+        SET received_quantity = COALESCE(received_quantity, 0) + ${item.receivedQuantity}
+        WHERE id = ${item.itemId} AND transfer_id = ${id}
+          AND (quantity - COALESCE(received_quantity, 0)) >= ${item.receivedQuantity}
+        RETURNING *
+      `)
+      const transferItem = ((itemResult as any).rows || itemResult)?.[0]
+      if (!transferItem) throw new TransferConflict('Received quantity exceeds what is still outstanding (another receipt may have just posted).')
 
-  const updated = ((result as any).rows || result)?.[0]
+      const existing = await tx.execute(sql`
+        SELECT id FROM product_locations
+        WHERE product_id = ${transferItem.product_id} AND location_id = ${transfer.to_location_id}
+      `)
+      const existingRow = ((existing as any).rows || existing)?.[0]
+
+      if (existingRow) {
+        await tx.execute(sql`
+          UPDATE product_locations
+          SET quantity = quantity + ${item.receivedQuantity}, updated_at = NOW()
+          WHERE product_id = ${transferItem.product_id} AND location_id = ${transfer.to_location_id}
+        `)
+      } else {
+        await tx.execute(sql`
+          INSERT INTO product_locations(id, product_id, location_id, company_id, quantity, created_at, updated_at)
+          VALUES (gen_random_uuid(), ${transferItem.product_id}, ${transfer.to_location_id}, ${transfer.company_id}, ${item.receivedQuantity}, NOW(), NOW())
+        `)
+      }
+    }
+
+    // F-30: only close the transfer when every line is fully received; otherwise it stays
+    // 'partial_received' so the outstanding units remain visible and receivable, not lost.
+    const afterRes = await tx.execute(sql`SELECT quantity, received_quantity FROM inventory_transfer_items WHERE transfer_id = ${id}`)
+    const afterLines: any[] = (afterRes as any).rows || afterRes
+    const fullyReceived = afterLines.every((l: any) => Number(l.received_quantity || 0) >= Number(l.quantity))
+    const newStatus = fullyReceived ? 'received' : 'partial_received'
+
+    const result = await tx.execute(sql`
+      UPDATE inventory_transfers
+      SET status = ${newStatus},
+          received_at = ${fullyReceived ? sql`NOW()` : sql`received_at`},
+          received_by = ${currentUser.userId}, updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING *
+    `)
+    updated = ((result as any).rows || result)?.[0]
+  })
+  } catch (e) {
+    if (e instanceof TransferConflict) return c.json({ error: (e as Error).message }, 400)
+    throw e
+  }
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
     entity: 'inventory_transfer',
     entityId: id,
-    changes: { status: { old: 'in_transit', new: 'received' } },
+    changes: { status: { old: 'in_transit', new: updated?.status } },
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
+})
+
+// Delete a transfer (and its items). Closes the create-only gap so erroneous/test transfers can
+// be removed. Only pending/cancelled transfers delete cleanly (an in_transit/received one has
+// already moved stock).
+app.delete('/transfers/:id', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const found = await db.execute(sql`
+    SELECT status FROM inventory_transfers WHERE id = ${id} AND company_id = ${currentUser.companyId} LIMIT 1
+  `)
+  const row = ((found as any).rows || found)?.[0]
+  if (!row) return c.json({ error: 'Transfer not found' }, 404)
+  if (!['pending', 'cancelled'].includes(row.status)) {
+    return c.json({ error: `Cannot delete a transfer that is '${row.status}' — it has already moved stock` }, 400)
+  }
+  await db.execute(sql`DELETE FROM inventory_transfer_items WHERE transfer_id = ${id}`)
+  await db.execute(sql`DELETE FROM inventory_transfers WHERE id = ${id} AND company_id = ${currentUser.companyId}`)
+  audit.log({ action: audit.ACTIONS.DELETE, entity: 'inventory_transfer', entityId: id, req: c.req })
+  return c.json({ success: true })
 })
 
 export default app

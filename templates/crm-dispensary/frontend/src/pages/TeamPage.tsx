@@ -50,7 +50,12 @@ export default function TeamPage() {
     { key: 'department', label: 'Department' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },
-    { key: 'hourlyRate', label: 'Rate', render: (v) => v ? `$${Number(v)}/hr` : '-' },
+    { key: 'hourlyRate', label: 'Rate', render: (v) => {
+      const n = Number(v);
+      return (v != null && v !== '' && Number.isFinite(n))
+        ? `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/hr`
+        : '-';
+    } },
   ];
 
   return (

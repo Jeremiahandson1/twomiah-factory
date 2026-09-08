@@ -99,7 +99,7 @@ export default function ReferralsPage() {
 
   const awardReward = async (referralId: string) => {
     try {
-      await api.post(`/api/referrals/${referralId}/award`);
+      await api.post(`/api/referrals/${referralId}/reward`);
       toast.success('Reward awarded successfully');
       loadReferrals();
     } catch (err: any) {

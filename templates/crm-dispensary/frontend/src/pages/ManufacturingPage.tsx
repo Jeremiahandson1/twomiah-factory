@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
-import { Plus, Search, Factory, Play, CheckCircle, XCircle, Clock, FlaskConical, BarChart3 } from 'lucide-react';
+import { Plus, Search, Factory, Play, CheckCircle, XCircle, Clock, FlaskConical, BarChart3, Trash2 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -10,8 +10,10 @@ const jobTypes = [
   { value: '', label: 'All Types' },
   { value: 'extraction', label: 'Extraction' },
   { value: 'infusion', label: 'Infusion' },
-  { value: 'distillation', label: 'Distillation' },
-  { value: 'pressing', label: 'Pressing' },
+  { value: 'edible', label: 'Edible' },
+  { value: 'concentrate', label: 'Concentrate' },
+  { value: 'topical', label: 'Topical' },
+  { value: 'pre_roll', label: 'Pre-Roll' },
   { value: 'packaging', label: 'Packaging' },
   { value: 'other', label: 'Other' },
 ];
@@ -58,8 +60,14 @@ export default function ManufacturingPage() {
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    type: 'extraction', inputBatches: '', method: '', equipment: '', operator: '', notes: '',
+    type: 'extraction', method: '', equipment: '', operator: '', notes: '', inputWeight: '',
   });
+  const [batches, setBatches] = useState<any[]>([]);
+  const [batchRows, setBatchRows] = useState<any[]>([{ batchId: '', quantity: '' }]);
+  const batchLabel = (id: string) => {
+    const b = batches.find((x: any) => x.id === id);
+    return b ? (b.batchNumber || b.metrcTag || b.id) : id;
+  };
   const [completeData, setCompleteData] = useState({
     outputBatch: '', outputWeight: '', outputNotes: '',
   });
@@ -85,15 +93,21 @@ export default function ManufacturingPage() {
   useEffect(() => { setPage(1); }, [search, typeFilter, statusFilter]);
   useEffect(() => {
     api.get('/api/manufacturing/stats').then(setStats).catch(() => {});
+    api.get('/api/batches', { limit: 200 }).then((d: any) => setBatches(Array.isArray(d) ? d : d?.data || [])).catch(() => {});
   }, []);
 
   const handleCreate = async () => {
+    // Real batch ids from the picker (not a typed string written straight into batchId — F-21).
+    const inputBatches = batchRows
+      .filter(r => r.batchId)
+      .map(r => ({ batchId: r.batchId, quantity: Number(r.quantity) || 0 }));
+    if (inputBatches.length === 0) { toast.error('Select at least one input batch'); return; }
     setSaving(true);
     try {
-      const batches = formData.inputBatches.split(',').map(b => b.trim()).filter(Boolean);
       await api.post('/api/manufacturing/jobs', {
         type: formData.type,
-        inputBatches: batches,
+        inputBatches,
+        inputWeight: formData.inputWeight ? Number(formData.inputWeight) : undefined,
         method: formData.method || undefined,
         equipment: formData.equipment || undefined,
         operator: formData.operator || undefined,
@@ -101,7 +115,8 @@ export default function ManufacturingPage() {
       });
       toast.success('Manufacturing job created');
       setCreateModalOpen(false);
-      setFormData({ type: 'extraction', inputBatches: '', method: '', equipment: '', operator: '', notes: '' });
+      setFormData({ type: 'extraction', method: '', equipment: '', operator: '', notes: '', inputWeight: '' });
+      setBatchRows([{ batchId: '', quantity: '' }]);
       loadJobs();
     } catch (err: any) {
       toast.error(err.message || 'Failed to create job');
@@ -112,7 +127,7 @@ export default function ManufacturingPage() {
 
   const handleStartJob = async (job: any) => {
     try {
-      await api.post(`/api/manufacturing/jobs/${job.id}/start`);
+      await api.put(`/api/manufacturing/jobs/${job.id}/start`);
       toast.success('Job started');
       loadJobs();
     } catch (err: any) {
@@ -130,7 +145,7 @@ export default function ManufacturingPage() {
     if (!selectedJob) return;
     setSaving(true);
     try {
-      await api.post(`/api/manufacturing/jobs/${selectedJob.id}/complete`, {
+      await api.put(`/api/manufacturing/jobs/${selectedJob.id}/complete`, {
         outputBatch: completeData.outputBatch || undefined,
         outputWeight: completeData.outputWeight ? parseFloat(completeData.outputWeight) : undefined,
         notes: completeData.outputNotes || undefined,
@@ -147,7 +162,7 @@ export default function ManufacturingPage() {
 
   const handleFail = async (job: any) => {
     try {
-      await api.post(`/api/manufacturing/jobs/${job.id}/fail`);
+      await api.put(`/api/manufacturing/jobs/${job.id}/fail`);
       toast.success('Job marked as failed');
       loadJobs();
     } catch (err: any) {
@@ -160,20 +175,41 @@ export default function ManufacturingPage() {
     setDetailModalOpen(true);
   };
 
+  const handleDelete = async (job: any) => {
+    if (!window.confirm('Delete this manufacturing job? This cannot be undone.')) return;
+    try {
+      await api.delete('/api/manufacturing/jobs', job.id);
+      toast.success('Job deleted');
+      loadJobs();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete job');
+    }
+  };
+
   const columns = [
     { key: 'jobNumber', label: 'Job #', render: (val: string) => <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{val || '--'}</span> },
     { key: 'type', label: 'Type', render: (val: string) => <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${typeColors[val] || 'bg-gray-100 text-gray-700'}`}>{val}</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={statusColors} /> },
     { key: 'inputBatches', label: 'Input Batches', render: (val: any) => {
       const batches = Array.isArray(val) ? val : [];
-      return batches.length > 0 ? <span className="text-sm text-gray-700 dark:text-slate-200">{batches.join(', ')}</span> : <span className="text-gray-400">--</span>;
+      // Each entry is { batchId, quantity, unit } (or a bare string on older records); rendering the
+      // array directly printed "[object Object]" (F-18). Format each into a readable label.
+      const label = (b: any): string => {
+        if (b == null) return '';
+        if (typeof b === 'string') return batchLabel(b);
+        const id = b.batchNumber || batchLabel(b.batchId) || b.id || '';
+        const qty = b.quantity != null ? ` (${b.quantity}${b.unit || ''})` : '';
+        return `${id}${qty}`.trim();
+      };
+      const parts = batches.map(label).filter(Boolean);
+      return parts.length > 0 ? <span className="text-sm text-gray-700 dark:text-slate-200">{parts.join(', ')}</span> : <span className="text-gray-400">--</span>;
     }},
     { key: 'method', label: 'Method', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'operator', label: 'Operator', render: (val: string) => val || <span className="text-gray-400">--</span> },
     { key: 'startedAt', label: 'Started', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
     { key: 'yield', label: 'Yield', render: (val: number, row: any) => {
       if (row.outputWeight && row.inputWeight) {
-        const yieldPct = ((row.outputWeight / row.inputWeight) * 100).toFixed(1);
+        const yieldPct = Number((row.outputWeight / row.inputWeight) * 100).toFixed(1);
         return <span className="font-medium text-gray-900 dark:text-slate-100">{yieldPct}%</span>;
       }
       return <span className="text-gray-400">--</span>;
@@ -185,6 +221,7 @@ export default function ManufacturingPage() {
     { label: 'Start Job', icon: Play, onClick: handleStartJob },
     { label: 'Complete', icon: CheckCircle, onClick: openCompleteModal },
     { label: 'Mark Failed', icon: XCircle, onClick: handleFail, className: 'text-red-600' },
+    { label: 'Delete', icon: Trash2, onClick: handleDelete, className: 'text-red-600' },
   ];
 
   return (
@@ -193,7 +230,7 @@ export default function ManufacturingPage() {
         title="Manufacturing"
         subtitle="Processing and extraction jobs"
         action={
-          <Button onClick={() => { setFormData({ type: 'extraction', inputBatches: '', method: '', equipment: '', operator: '', notes: '' }); setCreateModalOpen(true); }}>
+          <Button onClick={() => { setFormData({ type: 'extraction', method: '', equipment: '', operator: '', notes: '', inputWeight: '' }); setBatchRows([{ batchId: '', quantity: '' }]); setCreateModalOpen(true); }}>
             <Plus className="w-4 h-4 mr-2 inline" />Create Job
           </Button>
         }
@@ -243,8 +280,28 @@ export default function ManufacturingPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Input Batches (comma-separated)</label>
-            <input type="text" value={formData.inputBatches} onChange={(e) => setFormData({ ...formData, inputBatches: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="BATCH-001, BATCH-002" />
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm font-medium text-slate-300">Input Batches *</label>
+              <button type="button" onClick={() => setBatchRows([...batchRows, { batchId: '', quantity: '' }])} className="text-sm text-orange-400 hover:text-orange-300">+ Add Batch</button>
+            </div>
+            <div className="space-y-2">
+              {batchRows.map((row, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                  <select value={row.batchId} onChange={(e) => { const u = [...batchRows]; u[idx] = { ...u[idx], batchId: e.target.value }; setBatchRows(u); }} className="col-span-7 px-2 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-orange-500">
+                    <option value="">{batches.length ? 'Select batch…' : 'No batches available'}</option>
+                    {batches.map((b: any) => (
+                      <option key={b.id} value={b.id}>{b.batchNumber || b.metrcTag || b.id}{b.productName ? ` — ${b.productName}` : ''}</option>
+                    ))}
+                  </select>
+                  <input type="number" value={row.quantity} onChange={(e) => { const u = [...batchRows]; u[idx] = { ...u[idx], quantity: e.target.value }; setBatchRows(u); }} className="col-span-4 px-2 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:ring-2 focus:ring-orange-500" placeholder="Qty" />
+                  <button type="button" onClick={() => batchRows.length > 1 && setBatchRows(batchRows.filter((_, i) => i !== idx))} className="col-span-1 px-2 py-2 text-red-400 hover:text-red-300 disabled:opacity-40" disabled={batchRows.length <= 1}>x</button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-1">Input Weight (for yield %)</label>
+            <input type="number" step="0.01" value={formData.inputWeight} onChange={(e) => setFormData({ ...formData, inputWeight: e.target.value })} className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-orange-500" placeholder="Total input weight (defaults to summed batch qty)" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -298,15 +355,17 @@ export default function ManufacturingPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-400">Yield</p>
-                <p className="text-white">{selectedJob.outputWeight && selectedJob.inputWeight ? `${((selectedJob.outputWeight / selectedJob.inputWeight) * 100).toFixed(1)}%` : '--'}</p>
+                <p className="text-white">{selectedJob.outputWeight && selectedJob.inputWeight ? `${Number((selectedJob.outputWeight / selectedJob.inputWeight) * 100).toFixed(1)}%` : '--'}</p>
               </div>
             </div>
 
             <div>
               <p className="text-sm text-slate-400 mb-2">Input Batches</p>
               <div className="flex flex-wrap gap-2">
-                {(Array.isArray(selectedJob.inputBatches) ? selectedJob.inputBatches : []).map((b: string, i: number) => (
-                  <span key={i} className="px-2 py-1 bg-slate-800 rounded text-sm text-slate-300 font-mono">{b}</span>
+                {(Array.isArray(selectedJob.inputBatches) ? selectedJob.inputBatches : []).map((b: any, i: number) => (
+                  <span key={i} className="px-2 py-1 bg-slate-800 rounded text-sm text-slate-300 font-mono">
+                    {typeof b === 'string' ? batchLabel(b) : `${b.batchNumber || batchLabel(b.batchId) || b.id || ''}${b.quantity != null ? ` (${b.quantity}${b.unit || ''})` : ''}`.trim()}
+                  </span>
                 ))}
                 {(!selectedJob.inputBatches || selectedJob.inputBatches.length === 0) && <span className="text-slate-500">No input batches</span>}
               </div>

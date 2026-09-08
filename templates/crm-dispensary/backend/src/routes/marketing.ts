@@ -82,6 +82,7 @@ app.post('/templates/:id/duplicate', requirePermission('marketing:create'), asyn
   const user = c.get('user') as any
   const id = c.req.param('id')
   const template = await marketing.duplicateTemplate(id, user.companyId)
+  if (!template) return c.json({ error: 'Template not found' }, 404)
   return c.json(template, 201)
 })
 

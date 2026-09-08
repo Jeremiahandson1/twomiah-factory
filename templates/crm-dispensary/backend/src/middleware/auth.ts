@@ -26,7 +26,12 @@ export const authenticate = async (c: Context, next: Next) => {
       return c.json({ error: 'User not found or inactive' }, 401)
     }
 
-    c.set('user', { userId: found.id, companyId: found.companyId, email: found.email, role: found.role })
+    const authedUser = { userId: found.id, companyId: found.companyId, email: found.email, role: found.role }
+    c.set('user', authedUser)
+    // audit.log() receives c.req (not the context) and reads req.user.companyId; without
+    // this every audit insert had a null company_id and failed the NOT NULL constraint,
+    // so the audit log recorded nothing. Stash the user on the request too. (M2)
+    ;(c.req as any).user = authedUser
     await next()
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {

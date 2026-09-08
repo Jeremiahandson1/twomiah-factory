@@ -141,7 +141,7 @@ export default function CashPage() {
               </div>
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <p className="text-sm text-green-700">Expected in Drawer</p>
-                <p className="text-xl font-bold text-green-700">${expectedClosing.toFixed(2)}</p>
+                <p className="text-xl font-bold text-green-700">${Number(expectedClosing).toFixed(2)}</p>
               </div>
             </div>
 
@@ -267,7 +267,7 @@ export default function CashPage() {
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{session.openedByName || '—'}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(session.openingAmount || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-green-600">${Number(session.cashSales || 0).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${expected.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(expected).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium dark:text-slate-100">
                       {session.closingAmount != null ? `$${Number(session.closingAmount).toFixed(2)}` : '—'}
                     </td>
@@ -277,7 +277,7 @@ export default function CashPage() {
                           Math.abs(variance) < 0.01 ? 'text-green-600' :
                           variance > 0 ? 'text-blue-600' : 'text-red-600'
                         }`}>
-                          {variance > 0 ? '+' : ''}{variance.toFixed(2)}
+                          {variance > 0 ? '+' : ''}{Number(variance).toFixed(2)}
                         </span>
                       ) : '—'}
                     </td>

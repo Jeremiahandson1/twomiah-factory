@@ -47,7 +47,7 @@ export default function MarketplacePage() {
   const loadIntegrations = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/marketplace/integrations');
+      const data = await api.get('/api/marketplace/partners');
       setIntegrations(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       toast.error('Failed to load integrations');
@@ -71,7 +71,7 @@ export default function MarketplacePage() {
   const handleInstall = async (integrationId: string) => {
     setInstalling(integrationId);
     try {
-      await api.post(`/api/marketplace/integrations/${integrationId}/install`);
+      await api.post(`/api/marketplace/install/${integrationId}`, {});
       toast.success('Integration installed');
       loadIntegrations();
     } catch (err: any) {

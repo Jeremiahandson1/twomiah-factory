@@ -21,7 +21,7 @@ export default function ReportsPage() {
   const [widgetForm, setWidgetForm] = useState({
     title: '',
     type: 'kpi',
-    dataSource: '',
+    dataSource: 'sales',
     config: '',
   });
   const [savingWidget, setSavingWidget] = useState(false);
@@ -106,17 +106,28 @@ export default function ReportsPage() {
       toast.error('Widget title is required');
       return;
     }
+    // Parse the optional config first so an invalid-JSON error surfaces a friendly
+    // message instead of the raw engine text (e.g. "Unexpected token 'o'").
+    let parsedConfig: any = {};
+    if (widgetForm.config.trim()) {
+      try {
+        parsedConfig = JSON.parse(widgetForm.config);
+      } catch {
+        toast.error('Config must be valid JSON');
+        return;
+      }
+    }
     setSavingWidget(true);
     try {
       await api.post('/api/reports/widgets', {
         title: widgetForm.title,
-        type: widgetForm.type,
+        widgetType: widgetForm.type,
         dataSource: widgetForm.dataSource,
-        config: widgetForm.config ? JSON.parse(widgetForm.config) : {},
+        config: parsedConfig,
       });
       toast.success('Widget added');
       setWidgetModal(false);
-      setWidgetForm({ title: '', type: 'kpi', dataSource: '', config: '' });
+      setWidgetForm({ title: '', type: 'kpi', dataSource: 'sales', config: '' });
       loadWidgets();
     } catch (err: any) {
       toast.error(err.message || 'Failed to add widget');
@@ -201,9 +212,10 @@ export default function ReportsPage() {
 
   const widgetTypeIcons: Record<string, any> = {
     kpi: DollarSign,
-    chart: BarChart3,
+    bar_chart: BarChart3,
+    line_chart: BarChart3,
     table: Table,
-    pie: PieChart,
+    pie_chart: PieChart,
   };
 
   const tabs = [
@@ -261,7 +273,7 @@ export default function ReportsPage() {
       {tab === 'dashboard' && (
         <div>
           <div className="flex justify-end mb-4">
-            <Button onClick={() => { setWidgetForm({ title: '', type: 'kpi', dataSource: '', config: '' }); setWidgetModal(true); }}>
+            <Button onClick={() => { setWidgetForm({ title: '', type: 'kpi', dataSource: 'sales', config: '' }); setWidgetModal(true); }}>
               <Plus className="w-4 h-4 mr-2 inline" />
               Add Widget
             </Button>
@@ -274,7 +286,7 @@ export default function ReportsPage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {widgets.map(widget => {
-                const Icon = widgetTypeIcons[widget.type] || BarChart3;
+                const Icon = widgetTypeIcons[widget.widget_type] || BarChart3;
                 return (
                   <div key={widget.id} className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden dark:bg-slate-900">
                     <div className="px-5 py-3 border-b flex items-center justify-between bg-gray-50 dark:bg-slate-900">
@@ -290,7 +302,7 @@ export default function ReportsPage() {
                       </button>
                     </div>
                     <div className="p-5">
-                      {widget.type === 'kpi' ? (
+                      {widget.widget_type === 'kpi' ? (
                         <div>
                           <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{widget.value ?? '--'}</p>
                           {widget.change != null && (
@@ -301,7 +313,7 @@ export default function ReportsPage() {
                         </div>
                       ) : (
                         <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 h-32 flex items-center justify-center dark:bg-slate-900 dark:border-slate-700">
-                          <p className="text-sm text-gray-400 capitalize">{widget.type} chart area</p>
+                          <p className="text-sm text-gray-400 capitalize">{(widget.widget_type || '').replace('_', ' ')} chart area</p>
                         </div>
                       )}
                     </div>
@@ -339,20 +351,26 @@ export default function ReportsPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900"
                 >
                   <option value="kpi">KPI (Single Value)</option>
-                  <option value="chart">Bar/Line Chart</option>
-                  <option value="pie">Pie Chart</option>
+                  <option value="bar_chart">Bar Chart</option>
+                  <option value="line_chart">Line Chart</option>
+                  <option value="pie_chart">Pie Chart</option>
                   <option value="table">Table</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Data Source</label>
-                <input
-                  type="text"
+                <select
                   value={widgetForm.dataSource}
                   onChange={e => setWidgetForm({ ...widgetForm, dataSource: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
-                  placeholder="e.g., orders, revenue, products"
-                />
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 bg-white dark:border-slate-700 dark:text-slate-100 dark:bg-slate-900"
+                >
+                  <option value="sales">Sales</option>
+                  <option value="orders">Orders</option>
+                  <option value="inventory">Inventory</option>
+                  <option value="loyalty">Loyalty</option>
+                  <option value="budtenders">Budtenders</option>
+                  <option value="compliance">Compliance</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Config (JSON, optional)</label>

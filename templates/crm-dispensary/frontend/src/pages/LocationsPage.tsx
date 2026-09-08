@@ -249,7 +249,7 @@ export default function LocationsPage() {
     if (!receivingTransfer) return;
     setSavingReceive(true);
     try {
-      await api.post(`/api/locations/transfers/${receivingTransfer.id}/receive`, {
+      await api.put(`/api/locations/transfers/${receivingTransfer.id}/receive`, {
         items: receiveItems,
       });
       toast.success('Transfer received');

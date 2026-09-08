@@ -6,15 +6,16 @@ import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
 
+// Values MUST match the backend productSchema category enum (singular).
 const categories = [
   { value: '', label: 'All' },
   { value: 'flower', label: 'Flower' },
-  { value: 'edibles', label: 'Edibles' },
-  { value: 'concentrates', label: 'Concentrates' },
-  { value: 'vapes', label: 'Vapes' },
-  { value: 'pre-rolls', label: 'Pre-Rolls' },
-  { value: 'topicals', label: 'Topicals' },
-  { value: 'merch', label: 'Merch' },
+  { value: 'edible', label: 'Edibles' },
+  { value: 'concentrate', label: 'Concentrates' },
+  { value: 'vape', label: 'Vapes' },
+  { value: 'pre_roll', label: 'Pre-Rolls' },
+  { value: 'topical', label: 'Topicals' },
+  { value: 'accessory', label: 'Merch' },
 ];
 
 const strainTypes = [
@@ -22,7 +23,7 @@ const strainTypes = [
   { value: 'indica', label: 'Indica', color: 'bg-purple-100 text-purple-700' },
   { value: 'hybrid', label: 'Hybrid', color: 'bg-green-100 text-green-700' },
   { value: 'cbd', label: 'CBD', color: 'bg-blue-100 text-blue-700' },
-  { value: 'n/a', label: 'N/A', color: 'bg-gray-100 text-gray-600' },
+  { value: 'na', label: 'N/A', color: 'bg-gray-100 text-gray-600' },
 ];
 
 const initialFormData = {
@@ -48,6 +49,7 @@ export default function ProductsPage() {
   const navigate = useNavigate();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -80,8 +82,13 @@ export default function ProductsPage() {
       const data = await api.get('/api/products', params);
       setProducts(Array.isArray(data) ? data : data?.data || []);
       setPagination(data?.pagination || null);
+      setError(null);
     } catch (err) {
-      toast.error('Failed to load products');
+      // Show a real error + Retry in the table rather than a transient toast that
+      // leaves a misleading "No products found" empty state (S11).
+      const e = err as any;
+      setProducts([]);
+      setError(e?.message || 'Failed to load products. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -102,13 +109,15 @@ export default function ProductsPage() {
     }
     setSaving(true);
     try {
+      // Clamp at 0 — price/cost/stock/percentages can never be negative, and the
+      // number inputs also carry min="0" so the negatives never get entered (S20b).
       await api.post('/api/products', {
         ...formData,
-        thcPercent: formData.thcPercent ? parseFloat(formData.thcPercent) : null,
-        cbdPercent: formData.cbdPercent ? parseFloat(formData.cbdPercent) : null,
-        price: formData.price ? parseFloat(formData.price) : 0,
-        costPrice: formData.costPrice ? parseFloat(formData.costPrice) : null,
-        stockQuantity: formData.stock ? parseInt(formData.stock) : 0,
+        thcPercent: formData.thcPercent ? Math.max(0, parseFloat(formData.thcPercent)) : null,
+        cbdPercent: formData.cbdPercent ? Math.max(0, parseFloat(formData.cbdPercent)) : null,
+        price: formData.price ? Math.max(0, parseFloat(formData.price)) : 0,
+        costPrice: formData.costPrice ? Math.max(0, parseFloat(formData.costPrice)) : null,
+        stockQuantity: formData.stock ? Math.max(0, parseInt(formData.stock)) : 0,
       });
       toast.success('Product created');
       setModalOpen(false);
@@ -161,7 +170,7 @@ export default function ProductsPage() {
       key: 'category',
       label: 'Category',
       render: (val: string) => (
-        <span className="capitalize text-gray-700 dark:text-slate-200">{val?.replace('-', ' ') || '—'}</span>
+        <span className="capitalize text-gray-700 dark:text-slate-200">{val?.replace(/[_-]/g, ' ') || '—'}</span>
       ),
     },
     {
@@ -242,6 +251,8 @@ export default function ProductsPage() {
         onPageChange={setPage}
         onRowClick={(row: any) => navigate(`/crm/products/${row.id}`)}
         emptyMessage="No products found"
+        error={error}
+        onRetry={loadProducts}
       />
 
       {/* Add Product Modal */}
@@ -310,6 +321,8 @@ export default function ProductsPage() {
             <input
               type="number"
               step="0.1"
+              min="0"
+              max="100"
               value={formData.thcPercent}
               onChange={(e) => setFormData({ ...formData, thcPercent: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -321,6 +334,8 @@ export default function ProductsPage() {
             <input
               type="number"
               step="0.1"
+              min="0"
+              max="100"
               value={formData.cbdPercent}
               onChange={(e) => setFormData({ ...formData, cbdPercent: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -332,6 +347,7 @@ export default function ProductsPage() {
             <input
               type="number"
               step="0.01"
+              min="0"
               value={formData.price}
               onChange={(e) => setFormData({ ...formData, price: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -343,6 +359,7 @@ export default function ProductsPage() {
             <input
               type="number"
               step="0.01"
+              min="0"
               value={formData.costPrice}
               onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
@@ -353,6 +370,7 @@ export default function ProductsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stock Quantity</label>
             <input
               type="number"
+              min="0"
               value={formData.stock}
               onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"

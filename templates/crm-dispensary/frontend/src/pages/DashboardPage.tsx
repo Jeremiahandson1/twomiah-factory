@@ -76,7 +76,7 @@ export default function DashboardPage() {
     },
     {
       label: 'Avg Order Value',
-      value: `$${(stats?.avgOrderValue || 0).toFixed(2)}`,
+      value: `$${Number(stats?.avgOrderValue || 0).toFixed(2)}`,
       icon: TrendingUp,
       color: 'purple',
       link: '/crm/analytics',

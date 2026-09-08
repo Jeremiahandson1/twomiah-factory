@@ -9,6 +9,15 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute rows come back snake_case; the frontend reads camelCase
+// (equivalencyFactor, unitOfMeasure, purchaseLimitGrams, …). Convert row keys before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // Standard equivalency factors by state (used for seeding)
 const DEFAULT_RULES: Record<string, Array<{ category: string; equivalencyFactor: number; unitOfMeasure: string; description: string }>> = {
   MI: [
@@ -46,12 +55,12 @@ app.get('/rules', async (c) => {
   const result = await db.execute(sql`
     SELECT * FROM equivalency_rules
     WHERE company_id = ${currentUser.companyId}
-      AND active = true
+      AND is_active = true
       ${stateFilter}
     ORDER BY state ASC, category ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // POST /rules — Create equivalency rule (manager+)
@@ -59,18 +68,25 @@ app.post('/rules', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const ruleSchema = z.object({
-    state: z.string().length(2).transform(v => v.toUpperCase()),
+    // Blank = applies to all states. The state column is NOT NULL, so a blank value is stored as ''
+    // (the UI renders an empty state as "All"). No length requirement so "leave blank" works.
+    state: z.string().optional().default('').transform(v => (v || '').trim().toUpperCase()),
     category: z.string().min(1),
-    equivalencyFactor: z.number().min(0),
-    unitOfMeasure: z.string().min(1),
+    // The dialog sends `equivalencyGrams`; older callers may send `equivalencyFactor`. Accept either.
+    equivalencyFactor: z.coerce.number().min(0).optional(),
+    equivalencyGrams: z.coerce.number().min(0).optional(),
+    // The dialog is grams-based and collects no unit; default to grams.
+    unitOfMeasure: z.string().min(1).optional().default('g'),
+    purchaseLimitGrams: z.coerce.number().optional(),
     description: z.string().optional(),
     effectiveDate: z.string().optional(),
   })
   const data = ruleSchema.parse(await c.req.json())
+  const factor = data.equivalencyFactor ?? data.equivalencyGrams ?? 0
 
   const result = await db.execute(sql`
-    INSERT INTO equivalency_rules (id, state, category, equivalency_factor, unit_of_measure, description, effective_date, active, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.state}, ${data.category}, ${data.equivalencyFactor}, ${data.unitOfMeasure}, ${data.description || null}, ${data.effectiveDate ? new Date(data.effectiveDate) : null}, true, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO equivalency_rules (id, state, category, equivalency_factor, unit_of_measure, purchase_limit_grams, description, effective_date, is_active, company_id, created_at)
+    VALUES (gen_random_uuid(), ${data.state}, ${data.category}, ${String(factor)}, ${data.unitOfMeasure}, ${data.purchaseLimitGrams != null ? String(data.purchaseLimitGrams) : null}, ${data.description || null}, ${data.effectiveDate ? new Date(data.effectiveDate) : null}, true, ${currentUser.companyId}, NOW())
     RETURNING *
   `)
 
@@ -80,12 +96,12 @@ app.post('/rules', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'equivalency_rule',
     entityId: rule?.id,
-    entityName: `${data.state} - ${data.category}`,
-    metadata: { state: data.state, category: data.category, factor: data.equivalencyFactor },
+    entityName: `${data.state || 'All'} - ${data.category}`,
+    metadata: { state: data.state, category: data.category, factor },
     req: c.req,
   })
 
-  return c.json(rule, 201)
+  return c.json(camel(rule), 201)
 })
 
 // PUT /rules/:id — Update equivalency rule
@@ -103,13 +119,15 @@ app.put('/rules/:id', requireRole('manager'), async (c) => {
   })
   const data = ruleSchema.parse(await c.req.json())
 
-  const sets: any[] = [sql`updated_at = NOW()`]
+  const sets: any[] = []
   if (data.state !== undefined) sets.push(sql`state = ${data.state}`)
   if (data.category !== undefined) sets.push(sql`category = ${data.category}`)
   if (data.equivalencyFactor !== undefined) sets.push(sql`equivalency_factor = ${data.equivalencyFactor}`)
   if (data.unitOfMeasure !== undefined) sets.push(sql`unit_of_measure = ${data.unitOfMeasure}`)
   if (data.description !== undefined) sets.push(sql`description = ${data.description}`)
   if (data.effectiveDate !== undefined) sets.push(sql`effective_date = ${new Date(data.effectiveDate)}`)
+
+  if (sets.length === 0) return c.json({ error: 'No fields to update' }, 400)
 
   const setClause = sets.reduce((acc, s, i) => i === 0 ? s : sql`${acc}, ${s}`)
 
@@ -129,7 +147,7 @@ app.put('/rules/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // DELETE /rules/:id — Deactivate rule
@@ -138,7 +156,7 @@ app.delete('/rules/:id', requireRole('manager'), async (c) => {
   const id = c.req.param('id')
 
   const result = await db.execute(sql`
-    UPDATE equivalency_rules SET active = false, updated_at = NOW()
+    UPDATE equivalency_rules SET is_active = false
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
     RETURNING id
   `)
@@ -170,7 +188,7 @@ app.post('/rules/seed', requireRole('manager'), async (c) => {
   // Check if rules already exist for this state
   const existingResult = await db.execute(sql`
     SELECT COUNT(*)::int as count FROM equivalency_rules
-    WHERE company_id = ${currentUser.companyId} AND state = ${state} AND active = true
+    WHERE company_id = ${currentUser.companyId} AND state = ${state} AND is_active = true
   `)
   const existingCount = ((existingResult as any).rows || existingResult)?.[0]?.count || 0
   if (existingCount > 0) {
@@ -180,8 +198,8 @@ app.post('/rules/seed', requireRole('manager'), async (c) => {
   const inserted: any[] = []
   for (const rule of defaults) {
     const result = await db.execute(sql`
-      INSERT INTO equivalency_rules (id, state, category, equivalency_factor, unit_of_measure, description, active, company_id, created_at, updated_at)
-      VALUES (gen_random_uuid(), ${state}, ${rule.category}, ${rule.equivalencyFactor}, ${rule.unitOfMeasure}, ${rule.description}, true, ${currentUser.companyId}, NOW(), NOW())
+      INSERT INTO equivalency_rules (id, state, category, equivalency_factor, unit_of_measure, description, is_active, company_id, created_at)
+      VALUES (gen_random_uuid(), ${state}, ${rule.category}, ${rule.equivalencyFactor}, ${rule.unitOfMeasure}, ${rule.description}, true, ${currentUser.companyId}, NOW())
       RETURNING *
     `)
     const row = ((result as any).rows || result)?.[0]
@@ -196,7 +214,45 @@ app.post('/rules/seed', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ message: `Seeded ${inserted.length} equivalency rules for ${state}`, rules: inserted }, 201)
+  return c.json({ message: `Seeded ${inserted.length} equivalency rules for ${state}`, rules: inserted.map(camel) }, 201)
+})
+
+// POST /rules/seed-defaults — Seed a company-wide default set of equivalency rules.
+// The UI's "Seed Defaults" button sends no state, so these are stored state-agnostic (state = '',
+// which the list renders as "All"). Idempotent: categories that already have an active rule are
+// skipped so re-clicking doesn't duplicate. equivalency_factor is a text column (schema.ts).
+app.post('/rules/seed-defaults', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+
+  const defaults = DEFAULT_RULES.MI // standard flower-equivalency factors
+
+  const existingResult = await db.execute(sql`
+    SELECT category FROM equivalency_rules
+    WHERE company_id = ${currentUser.companyId} AND state = '' AND is_active = true
+  `)
+  const existing = new Set(((existingResult as any).rows || existingResult).map((r: any) => r.category))
+
+  const inserted: any[] = []
+  for (const rule of defaults) {
+    if (existing.has(rule.category)) continue
+    const result = await db.execute(sql`
+      INSERT INTO equivalency_rules (id, state, category, equivalency_factor, unit_of_measure, description, is_active, company_id, created_at)
+      VALUES (gen_random_uuid(), '', ${rule.category}, ${String(rule.equivalencyFactor)}, ${rule.unitOfMeasure}, ${rule.description}, true, ${currentUser.companyId}, NOW())
+      RETURNING *
+    `)
+    const row = ((result as any).rows || result)?.[0]
+    if (row) inserted.push(row)
+  }
+
+  audit.log({
+    action: audit.ACTIONS.CREATE,
+    entity: 'equivalency_rule',
+    entityName: 'Seed default rules',
+    metadata: { rulesCreated: inserted.length },
+    req: c.req,
+  })
+
+  return c.json({ message: `Seeded ${inserted.length} default equivalency rules`, rules: inserted.map(camel) }, 201)
 })
 
 // POST /calculate — Calculate total flower-equivalent weight for a cart
@@ -205,7 +261,7 @@ app.post('/calculate', async (c) => {
 
   const calcSchema = z.object({
     items: z.array(z.object({
-      productId: z.string().uuid(),
+      productId: z.string().min(1),
       quantity: z.number().min(1),
     })).min(1),
     state: z.string().length(2).transform(v => v.toUpperCase()).optional(),
@@ -218,7 +274,7 @@ app.post('/calculate', async (c) => {
   // Fetch equivalency rules for this state
   const rulesResult = await db.execute(sql`
     SELECT category, equivalency_factor, unit_of_measure FROM equivalency_rules
-    WHERE company_id = ${currentUser.companyId} AND state = ${state} AND active = true
+    WHERE company_id = ${currentUser.companyId} AND state = ${state} AND is_active = true
   `)
   const rules = (rulesResult as any).rows || rulesResult
   const ruleMap = new Map(rules.map((r: any) => [r.category, r]))

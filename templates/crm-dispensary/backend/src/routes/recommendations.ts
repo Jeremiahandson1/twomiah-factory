@@ -14,30 +14,36 @@ app.get('/for-customer/:contactId', async (c) => {
   const currentUser = c.get('user') as any
   const contactId = c.req.param('contactId')
 
-  // 1. Fetch customer's last 20 orders with items
+  // 1. Fetch line items from the customer's last 20 orders (line items live in order_items)
   const ordersResult = await db.execute(sql`
-    SELECT o.id, o.items, o.created_at
-    FROM orders o
-    WHERE o.contact_id = ${contactId}
-      AND o.company_id = ${currentUser.companyId}
-      AND o.status NOT IN ('cancelled', 'refunded')
-    ORDER BY o.created_at DESC
-    LIMIT 20
+    SELECT
+      oi.product_id,
+      oi.quantity,
+      COALESCE(oi.category, oi.product_category) as category,
+      p.strain_name
+    FROM order_items oi
+    JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN products p ON p.id = oi.product_id
+    WHERE o.id IN (
+      SELECT id FROM orders
+      WHERE contact_id = ${contactId}
+        AND company_id = ${currentUser.companyId}
+        AND status NOT IN ('cancelled', 'refunded')
+      ORDER BY created_at DESC
+      LIMIT 20
+    )
   `)
-  const orders = (ordersResult as any).rows || ordersResult
+  const lineItems = (ordersResult as any).rows || ordersResult
 
   // 2. Extract most purchased categories and strains
   const categoryCount: Record<string, number> = {}
   const strainCount: Record<string, number> = {}
   const purchasedProductIds = new Set<string>()
 
-  for (const order of orders) {
-    const items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || [])
-    for (const item of items) {
-      if (item.productId) purchasedProductIds.add(item.productId)
-      if (item.category) categoryCount[item.category] = (categoryCount[item.category] || 0) + (item.quantity || 1)
-      if (item.strainName) strainCount[item.strainName] = (strainCount[item.strainName] || 0) + (item.quantity || 1)
-    }
+  for (const item of lineItems) {
+    if (item.product_id) purchasedProductIds.add(item.product_id)
+    if (item.category) categoryCount[item.category] = (categoryCount[item.category] || 0) + (Number(item.quantity) || 1)
+    if (item.strain_name) strainCount[item.strain_name] = (strainCount[item.strain_name] || 0) + (Number(item.quantity) || 1)
   }
 
   const topCategories = Object.entries(categoryCount).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0])
@@ -69,7 +75,7 @@ app.get('/for-customer/:contactId', async (c) => {
         p.category = ANY(${topCategories}::text[])
         OR p.strain_name = ANY(${topStrains}::text[])
       )
-      ${purchasedArray.length > 0 ? sql`AND p.id != ALL(${purchasedArray}::uuid[])` : sql``}
+      ${purchasedArray.length > 0 ? sql`AND p.id != ALL(${purchasedArray}::text[])` : sql``}
     LIMIT 100
   `)
   const candidates = (candidatesResult as any).rows || candidatesResult
@@ -145,24 +151,21 @@ app.get('/trending', async (c) => {
   const currentUser = c.get('user') as any
 
   const result = await db.execute(sql`
-    WITH recent_orders AS (
-      SELECT o.items
-      FROM orders o
+    WITH item_counts AS (
+      SELECT
+        oi.product_id as product_id,
+        SUM(COALESCE(oi.quantity, 1)) as order_count
+      FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id
       WHERE o.company_id = ${currentUser.companyId}
         AND o.created_at >= NOW() - INTERVAL '7 days'
         AND o.status NOT IN ('cancelled', 'refunded')
-    ),
-    item_counts AS (
-      SELECT
-        (item->>'productId') as product_id,
-        SUM((item->>'quantity')::int) as order_count
-      FROM recent_orders, jsonb_array_elements(items::jsonb) as item
-      WHERE item->>'productId' IS NOT NULL
-      GROUP BY item->>'productId'
+        AND oi.product_id IS NOT NULL
+      GROUP BY oi.product_id
     )
     SELECT p.*, ic.order_count
     FROM item_counts ic
-    JOIN products p ON p.id = ic.product_id::uuid
+    JOIN products p ON p.id = ic.product_id
     WHERE p.active = true
     ORDER BY ic.order_count DESC
     LIMIT 20
@@ -225,11 +228,20 @@ app.post('/track', async (c) => {
   })
   const data = trackSchema.parse(await c.req.json())
 
-  const column = data.action === 'shown' ? 'shown_at' : data.action === 'clicked' ? 'clicked_at' : 'purchased_at'
+  // action enum values ('shown'|'clicked'|'purchased') map 1:1 to the real boolean columns
+  const column = data.action
+
+  // Ensure the recommendation exists for this company, then flip the relevant boolean flag.
+  const existingResult = await db.execute(sql`
+    SELECT * FROM product_recommendations
+    WHERE id = ${data.recommendationId} AND company_id = ${currentUser.companyId}
+  `)
+  const existing = ((existingResult as any).rows || existingResult)?.[0]
+  if (!existing) return c.json({ error: 'Recommendation not found' }, 404)
 
   const result = await db.execute(sql`
     UPDATE product_recommendations
-    SET ${sql.raw(column)} = NOW(), updated_at = NOW()
+    SET ${sql.raw(column)} = true
     WHERE id = ${data.recommendationId} AND company_id = ${currentUser.companyId}
     RETURNING *
   `)
@@ -248,15 +260,15 @@ app.get('/performance', requireRole('manager'), async (c) => {
   const result = await db.execute(sql`
     SELECT
       COUNT(*)::int as total_recommendations,
-      COUNT(shown_at)::int as total_shown,
-      COUNT(clicked_at)::int as total_clicked,
-      COUNT(purchased_at)::int as total_purchased,
-      CASE WHEN COUNT(shown_at) > 0
-        THEN ROUND(COUNT(clicked_at)::numeric / COUNT(shown_at) * 100, 2)
+      COUNT(*) FILTER (WHERE shown)::int as total_shown,
+      COUNT(*) FILTER (WHERE clicked)::int as total_clicked,
+      COUNT(*) FILTER (WHERE purchased)::int as total_purchased,
+      CASE WHEN COUNT(*) FILTER (WHERE shown) > 0
+        THEN ROUND(COUNT(*) FILTER (WHERE clicked)::numeric / COUNT(*) FILTER (WHERE shown) * 100, 2)
         ELSE 0
       END as click_rate,
-      CASE WHEN COUNT(shown_at) > 0
-        THEN ROUND(COUNT(purchased_at)::numeric / COUNT(shown_at) * 100, 2)
+      CASE WHEN COUNT(*) FILTER (WHERE shown) > 0
+        THEN ROUND(COUNT(*) FILTER (WHERE purchased)::numeric / COUNT(*) FILTER (WHERE shown) * 100, 2)
         ELSE 0
       END as purchase_rate
     FROM product_recommendations
@@ -268,11 +280,11 @@ app.get('/performance', requireRole('manager'), async (c) => {
 
   // Revenue attributed to recommendations
   const revenueResult = await db.execute(sql`
-    SELECT COALESCE(SUM(p.price), 0)::numeric as attributed_revenue
+    SELECT COALESCE(SUM(COALESCE(p.price::numeric, 0)), 0)::numeric as attributed_revenue
     FROM product_recommendations pr
     JOIN products p ON p.id = pr.product_id
     WHERE pr.company_id = ${currentUser.companyId}
-      AND pr.purchased_at IS NOT NULL
+      AND pr.purchased
       AND pr.created_at >= NOW() - INTERVAL '1 day' * ${days}
   `)
 

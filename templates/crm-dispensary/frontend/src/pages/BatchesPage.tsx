@@ -156,6 +156,10 @@ export default function BatchesPage() {
       const payload = {
         ...batchForm,
         quantity: parseFloat(batchForm.quantity) || 0,
+        // The API requires initialQuantity + unitOfMeasure; the form only tracked
+        // quantity/unit, so Create silently 400'd "initialQuantity: Required". (M10)
+        initialQuantity: parseFloat(batchForm.quantity) || 0,
+        unitOfMeasure: batchForm.unit || 'grams',
         thcPercent: batchForm.thcPercent ? parseFloat(batchForm.thcPercent) : null,
         cbdPercent: batchForm.cbdPercent ? parseFloat(batchForm.cbdPercent) : null,
       };
@@ -211,6 +215,18 @@ export default function BatchesPage() {
       toast.error(err.message || `Failed to ${pendingAction.label.toLowerCase()} batch`);
     } finally {
       setPerformingAction(false);
+    }
+  };
+
+  const handleDeleteBatch = async (id: string) => {
+    if (!window.confirm('Delete this batch? This cannot be undone.')) return;
+    try {
+      await api.delete('/api/batches', id);
+      toast.success('Batch deleted');
+      loadBatches();
+      loadExpiringBatches();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete batch');
     }
   };
 
@@ -538,6 +554,11 @@ export default function BatchesPage() {
                       )}
                       {batch.status === 'quarantine' && (
                         <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-600 hover:text-green-700">Release</button>
+                      )}
+                      {isManager && (
+                        <button onClick={() => handleDeleteBatch(batch.id)} className="text-xs text-red-600 hover:text-red-700 inline-flex items-center gap-1" title="Delete batch">
+                          <Trash2 className="w-3.5 h-3.5" /> Delete
+                        </button>
                       )}
                     </div>
                   </td>

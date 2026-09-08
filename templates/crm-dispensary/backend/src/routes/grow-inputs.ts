@@ -9,6 +9,91 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case but the frontend reads camelCase, so tables
+// rendered blank. Convert row keys to camelCase before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
+// Evaluate a single grow input against the company's active policies. Shared by the
+// POST /policies/check route and GET /:id/check-compliance. Returns null when the input
+// does not exist (so callers can 404). active_ingredients may hold {name,...} objects or
+// bare strings — normalize to names so .toLowerCase() never throws.
+async function checkInputCompliance(companyId: string, growInputId: string) {
+  const inputResult = await db.execute(sql`
+    SELECT * FROM grow_inputs
+    WHERE id = ${growInputId} AND company_id = ${companyId}
+  `)
+  const input = ((inputResult as any).rows || inputResult)?.[0]
+  if (!input) return null
+
+  const policiesResult = await db.execute(sql`
+    SELECT * FROM input_policies
+    WHERE company_id = ${companyId} AND is_active = true
+  `)
+  const policies = (policiesResult as any).rows || policiesResult
+
+  const violations: { rule: string; description: string }[] = []
+  const rawIngredients = Array.isArray(input.active_ingredients)
+    ? input.active_ingredients
+    : (typeof input.active_ingredients === 'string' ? (() => { try { return JSON.parse(input.active_ingredients) } catch { return [] } })() : [])
+  const inputIngredients: string[] = rawIngredients
+    .map((i: any) => (typeof i === 'string' ? i : i?.name))
+    .filter(Boolean)
+  const inputCerts: string[] = Array.isArray(input.certifications) ? input.certifications : []
+
+  for (const policy of policies) {
+    const banned = Array.isArray(policy.banned_ingredients)
+      ? policy.banned_ingredients
+      : (typeof policy.banned_ingredients === 'string' ? JSON.parse(policy.banned_ingredients) : [])
+    for (const ingredient of inputIngredients) {
+      if (banned.map((b: string) => String(b).toLowerCase()).includes(ingredient.toLowerCase())) {
+        violations.push({
+          rule: `${policy.name}: Banned Ingredient`,
+          description: `Active ingredient "${ingredient}" is on the banned list`,
+        })
+      }
+    }
+
+    const rules = Array.isArray(policy.rules)
+      ? policy.rules
+      : (typeof policy.rules === 'string' ? JSON.parse(policy.rules) : [])
+    for (const rule of rules) {
+      if ((rule.type === 'organic_only' || rule.ruleType === 'require_organic') && !input.is_organic) {
+        violations.push({
+          rule: `${policy.name}: Organic Only`,
+          description: `Input "${input.name}" is not organic`,
+        })
+      }
+      if (rule.type === 'required_certification' && rule.value) {
+        if (!inputCerts.map((x: string) => x.toLowerCase()).includes(String(rule.value).toLowerCase())) {
+          violations.push({
+            rule: `${policy.name}: Required Certification`,
+            description: `Input "${input.name}" lacks required certification: ${rule.value}`,
+          })
+        }
+      }
+    }
+
+    const requiredCerts = Array.isArray(policy.required_certifications)
+      ? policy.required_certifications
+      : (typeof policy.required_certifications === 'string' ? JSON.parse(policy.required_certifications) : [])
+    for (const cert of requiredCerts) {
+      if (!inputCerts.map((x: string) => x.toLowerCase()).includes(String(cert).toLowerCase())) {
+        violations.push({
+          rule: `${policy.name}: Required Certification`,
+          description: `Input "${input.name}" lacks required certification: ${cert}`,
+        })
+      }
+    }
+  }
+
+  return { compliant: violations.length === 0, violations }
+}
+
 // ── Input Inventory ──────────────────────────────────────────────────────
 
 // List grow inputs (paginated, filterable)
@@ -55,7 +140,7 @@ app.get('/', async (c) => {
       ${searchFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -65,16 +150,17 @@ app.get('/', async (c) => {
 app.get('/low-stock', async (c) => {
   const currentUser = c.get('user') as any
 
+  // current_stock and min_stock are stored as text — cast to numeric for comparison.
   const result = await db.execute(sql`
     SELECT gi.*
     FROM grow_inputs gi
     WHERE gi.company_id = ${currentUser.companyId}
-      AND gi.current_stock <= gi.min_stock
-      AND gi.min_stock > 0
-    ORDER BY (gi.current_stock::float / NULLIF(gi.min_stock, 0)::float) ASC
+      AND gi.current_stock::numeric <= gi.min_stock::numeric
+      AND gi.min_stock::numeric > 0
+    ORDER BY (gi.current_stock::numeric / NULLIF(gi.min_stock::numeric, 0)) ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Inputs expiring within N days
@@ -92,37 +178,172 @@ app.get('/expiring', async (c) => {
     ORDER BY gi.expiration_date ASC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
-// Get input detail with application history
-app.get('/:id', async (c) => {
+// Dashboard stats — aggregate counts for the header cards
+app.get('/stats', async (c) => {
   const currentUser = c.get('user') as any
-  const id = c.req.param('id')
-
-  const inputResult = await db.execute(sql`
-    SELECT gi.*
-    FROM grow_inputs gi
-    WHERE gi.id = ${id} AND gi.company_id = ${currentUser.companyId}
+  const result = await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*)::int FROM grow_inputs
+        WHERE company_id = ${currentUser.companyId}) as total_inputs,
+      (SELECT COUNT(*)::int FROM grow_inputs
+        WHERE company_id = ${currentUser.companyId}
+          AND current_stock::numeric <= min_stock::numeric AND min_stock::numeric > 0) as low_stock,
+      (SELECT COUNT(*)::int FROM input_applications
+        WHERE company_id = ${currentUser.companyId}
+          AND applied_at >= NOW() - INTERVAL '7 days') as applications_this_week,
+      (SELECT COUNT(*)::int FROM input_policies
+        WHERE company_id = ${currentUser.companyId} AND is_active = true) as active_policies
   `)
-  const input = ((inputResult as any).rows || inputResult)?.[0]
-  if (!input) return c.json({ error: 'Grow input not found' }, 404)
+  const row = ((result as any).rows || result)?.[0] || {}
+  return c.json({
+    totalInputs: Number(row.total_inputs || 0),
+    lowStock: Number(row.low_stock || 0),
+    applicationsThisWeek: Number(row.applications_this_week || 0),
+    activePolicies: Number(row.active_policies || 0),
+  })
+})
 
-  const applicationsResult = await db.execute(sql`
-    SELECT ia.*,
-           p.strain_name as plant_strain,
-           b.batch_number
-    FROM input_applications ia
-    LEFT JOIN plants p ON p.id = ia.plant_id
-    LEFT JOIN batches b ON b.id = ia.batch_id
-    WHERE ia.grow_input_id = ${id}
-      AND ia.company_id = ${currentUser.companyId}
-    ORDER BY ia.created_at DESC
-    LIMIT 20
+// Alert counts — low-stock + expiring-soon (for the inventory banners)
+app.get('/alerts', async (c) => {
+  const currentUser = c.get('user') as any
+  const result = await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*)::int FROM grow_inputs
+        WHERE company_id = ${currentUser.companyId}
+          AND current_stock::numeric <= min_stock::numeric AND min_stock::numeric > 0) as low_stock,
+      (SELECT COUNT(*)::int FROM grow_inputs
+        WHERE company_id = ${currentUser.companyId}
+          AND expiration_date IS NOT NULL
+          AND expiration_date <= NOW() + INTERVAL '30 days'
+          AND expiration_date >= NOW()) as expiring_soon
   `)
-  const applications = (applicationsResult as any).rows || applicationsResult
+  const row = ((result as any).rows || result)?.[0] || {}
+  return c.json({ lowStock: Number(row.low_stock || 0), expiringSoon: Number(row.expiring_soon || 0) })
+})
 
-  return c.json({ ...input, applications })
+// Full traceability chain, searched by product name or batch number.
+// Returns { product, batch, labResults, inputs[], room, plant } — graceful {} when nothing matches.
+app.get('/traceability', async (c) => {
+  const currentUser = c.get('user') as any
+  const query = (c.req.query('query') || c.req.query('search') || '').trim()
+  if (!query) return c.json({})
+  const like = '%' + query + '%'
+
+  // Resolve a batch by number, else a product by name → its most recent batch.
+  const batchRes = await db.execute(sql`
+    SELECT * FROM batches
+    WHERE company_id = ${currentUser.companyId} AND batch_number ILIKE ${like}
+    ORDER BY created_at DESC LIMIT 1
+  `)
+  let batch = ((batchRes as any).rows || batchRes)?.[0]
+
+  let product: any = null
+  if (batch?.product_id) {
+    const pr = await db.execute(sql`
+      SELECT * FROM products WHERE id = ${batch.product_id} AND company_id = ${currentUser.companyId} LIMIT 1
+    `)
+    product = ((pr as any).rows || pr)?.[0]
+  }
+  if (!batch) {
+    const pr = await db.execute(sql`
+      SELECT * FROM products WHERE company_id = ${currentUser.companyId} AND name ILIKE ${like}
+      ORDER BY created_at DESC LIMIT 1
+    `)
+    product = ((pr as any).rows || pr)?.[0]
+    if (product) {
+      const br = await db.execute(sql`
+        SELECT * FROM batches WHERE company_id = ${currentUser.companyId} AND product_id = ${product.id}
+        ORDER BY created_at DESC LIMIT 1
+      `)
+      batch = ((br as any).rows || br)?.[0]
+    }
+  }
+
+  if (!batch && !product) return c.json({})
+
+  // Lab test — prefer the batch's, fall back to the product's.
+  let lab: any = null
+  if (batch?.id) {
+    const lr = await db.execute(sql`
+      SELECT * FROM lab_tests WHERE company_id = ${currentUser.companyId} AND batch_id = ${batch.id}
+      ORDER BY created_at DESC LIMIT 1
+    `)
+    lab = ((lr as any).rows || lr)?.[0]
+  }
+  if (!lab && product?.id) {
+    const lr = await db.execute(sql`
+      SELECT * FROM lab_tests WHERE company_id = ${currentUser.companyId} AND product_id = ${product.id}
+      ORDER BY created_at DESC LIMIT 1
+    `)
+    lab = ((lr as any).rows || lr)?.[0]
+  }
+
+  // Inputs applied to the batch or to plants belonging to it.
+  let inputs: any[] = []
+  if (batch?.id) {
+    const ir = await db.execute(sql`
+      SELECT gi.name, gi.brand, gi.is_organic,
+             ia.quantity, ia.unit_of_measure, ia.application_method, ia.applied_at
+      FROM input_applications ia
+      JOIN grow_inputs gi ON gi.id = ia.grow_input_id
+      WHERE ia.company_id = ${currentUser.companyId}
+        AND (ia.batch_id = ${batch.id}
+             OR ia.plant_id IN (SELECT id FROM plants WHERE batch_id = ${batch.id} AND company_id = ${currentUser.companyId}))
+      ORDER BY ia.applied_at DESC
+    `)
+    inputs = ((ir as any).rows || ir).map((r: any) => ({
+      name: r.name, brand: r.brand, isOrganic: r.is_organic,
+      quantity: r.quantity, unit: r.unit_of_measure, method: r.application_method, date: r.applied_at,
+    }))
+  }
+
+  // First plant on the batch, plus its grow room.
+  let plant: any = null
+  let room: any = null
+  if (batch?.id) {
+    const plr = await db.execute(sql`
+      SELECT * FROM plants WHERE company_id = ${currentUser.companyId} AND batch_id = ${batch.id}
+      ORDER BY created_at DESC LIMIT 1
+    `)
+    plant = ((plr as any).rows || plr)?.[0]
+    if (plant?.room_id) {
+      const rr = await db.execute(sql`SELECT name FROM grow_rooms WHERE id = ${plant.room_id} LIMIT 1`)
+      room = ((rr as any).rows || rr)?.[0]
+    }
+  }
+
+  const contaminants: { name: string; passed: boolean }[] = []
+  if (lab) {
+    const checks: [string, any][] = [
+      ['Pesticides', lab.pesticides], ['Heavy Metals', lab.heavy_metals],
+      ['Microbials', lab.microbials], ['Mycotoxins', lab.mycotoxins],
+      ['Residual Solvents', lab.residual_solvents], ['Foreign Matter', lab.foreign_matter],
+    ]
+    for (const [name, val] of checks) if (val != null) contaminants.push({ name, passed: val === 'pass' })
+  }
+
+  return c.json({
+    product: product ? {
+      id: product.id, name: product.name,
+      strain: product.strain || product.strain_name, category: product.category, imageUrl: product.image_url,
+    } : null,
+    batch: batch ? {
+      batchNumber: batch.batch_number, receivedDate: batch.received_date, supplier: batch.supplier,
+      grower: null, harvestDate: plant?.harvest_date || batch.manufacturing_date || null,
+    } : null,
+    labResults: lab ? {
+      thcPercent: lab.total_thc, cbdPercent: lab.total_cbd,
+      terpenes: lab.terpenes, totalTerpenes: lab.total_terpenes, contaminants,
+      passed: (lab.overall_result === 'pass' || lab.status === 'passed'),
+      testDate: lab.tested_at,
+    } : null,
+    inputs,
+    room: room ? { name: room.name } : null,
+    plant: plant ? { metrcTag: plant.metrc_tag, strainName: plant.strain_name, phase: plant.phase } : null,
+  })
 })
 
 // Create grow input (manager+)
@@ -177,8 +398,8 @@ app.post('/', requireRole('manager'), async (c) => {
   }
 
   const result = await db.execute(sql`
-    INSERT INTO grow_inputs(id, company_id, name, brand, type, category, description, active_ingredients, is_organic, certifications, epa_registration, sds_url, manufacturer, unit_of_measure, current_stock, min_stock, cost_per_unit, expiration_date, storage_requirements, pre_harvest_interval, reentry_interval, notes, flagged, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.name}, ${data.brand || null}, ${data.type}, ${data.category || null}, ${data.description || null}, ${data.activeIngredients ? JSON.stringify(data.activeIngredients) : '[]'}::jsonb, ${data.isOrganic}, ${data.certifications ? JSON.stringify(data.certifications) : '[]'}::jsonb, ${data.epaRegistration || null}, ${data.sdsUrl || null}, ${data.manufacturer || null}, ${data.unitOfMeasure || null}, ${data.currentStock}, ${data.minStock}, ${data.costPerUnit || null}, ${data.expirationDate || null}, ${data.storageRequirements || null}, ${data.preHarvestInterval || null}, ${data.reentryInterval || null}, ${data.notes || null}, ${bannedWarnings.length > 0}, NOW(), NOW())
+    INSERT INTO grow_inputs(id, company_id, name, brand, type, category, active_ingredients, is_organic, epa_registration, safety_data_sheet_url, manufacturer, unit_of_measure, current_stock, min_stock, cost_per_unit, expiration_date, storage_requirements, notes, is_banned_substance, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.name}, ${data.brand || null}, ${data.type}, ${data.category || null}, ${data.activeIngredients ? JSON.stringify(data.activeIngredients) : '[]'}::jsonb, ${data.isOrganic}, ${data.epaRegistration || null}, ${data.sdsUrl || null}, ${data.manufacturer || null}, ${data.unitOfMeasure || null}, ${data.currentStock}, ${data.minStock}, ${data.costPerUnit || null}, ${data.expirationDate || null}, ${data.storageRequirements || null}, ${data.notes || null}, ${bannedWarnings.length > 0}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -193,7 +414,7 @@ app.post('/', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json({ ...input, warnings: bannedWarnings.length > 0 ? bannedWarnings : undefined }, 201)
+  return c.json({ ...camel(input), warnings: bannedWarnings.length > 0 ? bannedWarnings : undefined }, 201)
 })
 
 // Update grow input
@@ -264,7 +485,43 @@ app.put('/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
+})
+
+// Delete grow input (manager+). Blocks (never 500s) when application history exists,
+// since input_applications.grow_input_id is a RESTRICT foreign key.
+app.delete('/:id', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const existingResult = await db.execute(sql`
+    SELECT name FROM grow_inputs WHERE id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+  const existing = ((existingResult as any).rows || existingResult)?.[0]
+  if (!existing) return c.json({ error: 'Grow input not found' }, 404)
+
+  const appCountResult = await db.execute(sql`
+    SELECT COUNT(*)::int as total FROM input_applications
+    WHERE grow_input_id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+  const appCount = Number(((appCountResult as any).rows || appCountResult)?.[0]?.total || 0)
+  if (appCount > 0) {
+    return c.json({ error: 'Cannot delete: this input has application history. Adjust its stock to zero instead.' }, 400)
+  }
+
+  await db.execute(sql`
+    DELETE FROM grow_inputs WHERE id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+
+  audit.log({
+    action: audit.ACTIONS.DELETE,
+    entity: 'grow_input',
+    entityId: id,
+    entityName: existing.name,
+    req: c.req,
+  })
+
+  return c.json({ message: 'Grow input deleted' })
 })
 
 // Adjust stock
@@ -307,7 +564,24 @@ app.post('/:id/adjust-stock', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
+})
+
+// Check a specific input against active policies (used by the application + policies tabs).
+// Two-segment path, so it does not shadow the static routes or GET /:id.
+app.get('/:id/check-compliance', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const result = await checkInputCompliance(currentUser.companyId, id)
+  if (!result) return c.json({ error: 'Grow input not found' }, 404)
+
+  return c.json({
+    compliant: result.compliant,
+    violations: result.violations,
+    // PoliciesTab renders `results` with per-rule pass/message.
+    results: result.violations.map((v) => ({ passed: false, rule: v.rule, message: v.description })),
+  })
 })
 
 // ── Application Logging ──────────────────────────────────────────────────
@@ -380,7 +654,7 @@ app.get('/applications', async (c) => {
       ${dateEndFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -477,7 +751,7 @@ app.post('/applications', async (c) => {
   // Create application record
   const result = await db.execute(sql`
     INSERT INTO input_applications(id, company_id, grow_input_id, plant_id, batch_id, room_id, quantity, unit_of_measure, dilution_ratio, application_method, target_area, grow_phase, reason, pre_harvest_interval, notes, policy_warnings, applied_by, created_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.growInputId}, ${data.plantId || null}, ${data.batchId || null}, ${data.roomId || null}, ${data.quantity}, ${data.unitOfMeasure || input.unit_of_measure || null}, ${data.dilutionRatio || null}, ${data.applicationMethod || null}, ${data.targetArea || null}, ${data.growPhase || null}, ${data.reason || null}, ${data.preHarvestInterval || input.pre_harvest_interval || null}, ${data.notes || null}, ${warnings.length > 0 ? JSON.stringify(warnings) : null}::jsonb, ${currentUser.id}, NOW())
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${data.growInputId}, ${data.plantId || null}, ${data.batchId || null}, ${data.roomId || null}, ${data.quantity}, ${data.unitOfMeasure || input.unit_of_measure || null}, ${data.dilutionRatio || null}, ${data.applicationMethod || null}, ${data.targetArea || null}, ${data.growPhase || null}, ${data.reason || null}, ${data.preHarvestInterval || input.pre_harvest_interval || null}, ${data.notes || null}, ${warnings.length > 0 ? JSON.stringify(warnings) : null}::jsonb, ${currentUser.userId}, NOW())
     RETURNING *
   `)
 
@@ -496,7 +770,7 @@ app.post('/applications', async (c) => {
     req: c.req,
   })
 
-  return c.json({ ...application, warnings: warnings.length > 0 ? warnings : undefined }, 201)
+  return c.json({ ...camel(application), warnings: warnings.length > 0 ? warnings : undefined }, 201)
 })
 
 // Full input history for a plant
@@ -515,7 +789,7 @@ app.get('/applications/by-plant/:plantId', async (c) => {
     ORDER BY ia.created_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Full input history for a batch
@@ -534,7 +808,7 @@ app.get('/applications/by-batch/:batchId', async (c) => {
     ORDER BY ia.created_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Full traceability chain for a product (product -> batch -> plant applications + batch applications)
@@ -548,7 +822,7 @@ app.get('/applications/by-product/:productId', async (c) => {
     WHERE b.product_id = ${productId}
       AND b.company_id = ${currentUser.companyId}
   `)
-  const batches = (batchResult as any).rows || batchResult
+  const batches = ((batchResult as any).rows || batchResult).map(camel)
 
   if (batches.length === 0) {
     return c.json({ productId, batches: [], applications: [] })
@@ -568,7 +842,7 @@ app.get('/applications/by-product/:productId', async (c) => {
       AND ia.company_id = ${currentUser.companyId}
     ORDER BY ia.created_at DESC
   `)
-  const batchApps = (batchAppsResult as any).rows || batchAppsResult
+  const batchApps = ((batchAppsResult as any).rows || batchAppsResult).map(camel)
 
   // Get all plant applications for plants linked to these batches via harvest
   const plantAppsResult = await db.execute(sql`
@@ -585,7 +859,7 @@ app.get('/applications/by-product/:productId', async (c) => {
       AND ia.company_id = ${currentUser.companyId}
     ORDER BY ia.created_at DESC
   `)
-  const plantApps = (plantAppsResult as any).rows || plantAppsResult
+  const plantApps = ((plantAppsResult as any).rows || plantAppsResult).map(camel)
 
   return c.json({
     productId,
@@ -606,7 +880,7 @@ app.get('/policies', async (c) => {
     ORDER BY created_at DESC
   `)
 
-  return c.json((result as any).rows || result)
+  return c.json(((result as any).rows || result).map(camel))
 })
 
 // Create input policy (manager+)
@@ -642,7 +916,7 @@ app.post('/policies', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(policy, 201)
+  return c.json(camel(policy), 201)
 })
 
 // Update input policy (manager+)
@@ -689,7 +963,7 @@ app.put('/policies/:id', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Check an input against all policies
@@ -701,79 +975,42 @@ app.post('/policies/check', async (c) => {
   })
   const data = checkSchema.parse(await c.req.json())
 
-  // Get input
+  const result = await checkInputCompliance(currentUser.companyId, data.growInputId)
+  if (!result) return c.json({ error: 'Grow input not found' }, 404)
+
+  return c.json(result)
+})
+
+// ── Input Detail ─────────────────────────────────────────────────────────
+// Registered AFTER the static routes above (/low-stock, /expiring, /applications,
+// /policies) so the `/:id` param does not shadow them.
+app.get('/:id', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
   const inputResult = await db.execute(sql`
-    SELECT * FROM grow_inputs
-    WHERE id = ${data.growInputId} AND company_id = ${currentUser.companyId}
+    SELECT gi.*
+    FROM grow_inputs gi
+    WHERE gi.id = ${id} AND gi.company_id = ${currentUser.companyId}
   `)
   const input = ((inputResult as any).rows || inputResult)?.[0]
   if (!input) return c.json({ error: 'Grow input not found' }, 404)
 
-  // Get all policies
-  const policiesResult = await db.execute(sql`
-    SELECT * FROM input_policies
-    WHERE company_id = ${currentUser.companyId}
+  const applicationsResult = await db.execute(sql`
+    SELECT ia.*,
+           p.strain_name as plant_strain,
+           b.batch_number
+    FROM input_applications ia
+    LEFT JOIN plants p ON p.id = ia.plant_id
+    LEFT JOIN batches b ON b.id = ia.batch_id
+    WHERE ia.grow_input_id = ${id}
+      AND ia.company_id = ${currentUser.companyId}
+    ORDER BY ia.created_at DESC
+    LIMIT 20
   `)
-  const policies = (policiesResult as any).rows || policiesResult
+  const applications = ((applicationsResult as any).rows || applicationsResult).map(camel)
 
-  const violations: { rule: string; description: string }[] = []
-  const inputIngredients: string[] = Array.isArray(input.active_ingredients) ? input.active_ingredients : []
-
-  for (const policy of policies) {
-    // Check banned ingredients
-    const banned = Array.isArray(policy.banned_ingredients)
-      ? policy.banned_ingredients
-      : (typeof policy.banned_ingredients === 'string' ? JSON.parse(policy.banned_ingredients) : [])
-    for (const ingredient of inputIngredients) {
-      if (banned.map((b: string) => b.toLowerCase()).includes(ingredient.toLowerCase())) {
-        violations.push({
-          rule: `${policy.name}: Banned Ingredient`,
-          description: `Active ingredient "${ingredient}" is on the banned list`,
-        })
-      }
-    }
-
-    // Check rules
-    const rules = Array.isArray(policy.rules)
-      ? policy.rules
-      : (typeof policy.rules === 'string' ? JSON.parse(policy.rules) : [])
-    for (const rule of rules) {
-      if (rule.type === 'organic_only' && !input.is_organic) {
-        violations.push({
-          rule: `${policy.name}: Organic Only`,
-          description: `Input "${input.name}" is not organic`,
-        })
-      }
-      if (rule.type === 'required_certification') {
-        const inputCerts: string[] = Array.isArray(input.certifications) ? input.certifications : []
-        if (!inputCerts.includes(rule.value)) {
-          violations.push({
-            rule: `${policy.name}: Required Certification`,
-            description: `Input "${input.name}" lacks required certification: ${rule.value}`,
-          })
-        }
-      }
-    }
-
-    // Check required certifications from policy
-    const requiredCerts = Array.isArray(policy.required_certifications)
-      ? policy.required_certifications
-      : (typeof policy.required_certifications === 'string' ? JSON.parse(policy.required_certifications) : [])
-    const inputCerts: string[] = Array.isArray(input.certifications) ? input.certifications : []
-    for (const cert of requiredCerts) {
-      if (!inputCerts.map((c: string) => c.toLowerCase()).includes(cert.toLowerCase())) {
-        violations.push({
-          rule: `${policy.name}: Required Certification`,
-          description: `Input "${input.name}" lacks required certification: ${cert}`,
-        })
-      }
-    }
-  }
-
-  return c.json({
-    compliant: violations.length === 0,
-    violations,
-  })
+  return c.json({ ...camel(input), applications })
 })
 
 export default app

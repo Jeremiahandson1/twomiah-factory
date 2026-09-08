@@ -63,7 +63,7 @@ export default function RecommendationsPage() {
     if (!customerSearch.trim()) return;
     setSearchingCustomers(true);
     try {
-      const data = await api.get('/api/customers', { search: customerSearch.trim(), limit: 10 });
+      const data = await api.get('/api/contacts', { search: customerSearch.trim(), limit: 10 });
       setCustomerResults(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       toast.error('Failed to search customers');
@@ -308,7 +308,7 @@ export default function RecommendationsPage() {
                     {rec.relevanceScore != null && (
                       <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400">
                         <Star className="w-3 h-3 text-yellow-500" />
-                        {(rec.relevanceScore * 100).toFixed(0)}% match
+                        {Number(rec.relevanceScore * 100).toFixed(0)}% match
                       </div>
                     )}
                   </div>
@@ -410,7 +410,7 @@ export default function RecommendationsPage() {
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-green-700">${Number(product.price || 0).toFixed(2)}</span>
                     {product.similarityScore != null && (
-                      <span className="text-sm text-gray-500 dark:text-slate-400">{(product.similarityScore * 100).toFixed(0)}% similar</span>
+                      <span className="text-sm text-gray-500 dark:text-slate-400">{Number(product.similarityScore * 100).toFixed(0)}% similar</span>
                     )}
                   </div>
                 </div>

@@ -9,6 +9,39 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw-SQL rows come back snake_case, but the frontend reads camelCase — so fields
+// (job_number, operator_name, output_weight, yield_percentage, etc.) rendered blank.
+// Convert row keys to camelCase before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
+// Stats tiles: active jobs, average yield of completed runs, throughput this week.
+app.get('/stats', async (c) => {
+  const currentUser = c.get('user') as any
+  const cid = currentUser.companyId
+
+  const result = await db.execute(sql`
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'in_progress')::int as in_progress,
+      ROUND(AVG(NULLIF(regexp_replace(COALESCE(yield, ''), '[^0-9.]', '', 'g'), '')::numeric)
+        FILTER (WHERE status = 'completed'), 1) as avg_yield,
+      COUNT(*) FILTER (WHERE status = 'completed' AND completed_at >= now() - interval '7 days')::int as completed_this_week
+    FROM manufacturing_jobs
+    WHERE company_id = ${cid}
+  `)
+  const row = ((result as any).rows || result)?.[0] || {}
+
+  return c.json({
+    inProgress: Number(row.in_progress || 0),
+    avgYield: row.avg_yield != null ? Number(row.avg_yield) : null,
+    completedThisWeek: Number(row.completed_this_week || 0),
+  })
+})
+
 // List manufacturing jobs (paginated, filterable)
 app.get('/jobs', async (c) => {
   const currentUser = c.get('user') as any
@@ -42,7 +75,7 @@ app.get('/jobs', async (c) => {
       ${typeFilter}
   `)
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -63,7 +96,7 @@ app.get('/jobs/:id', async (c) => {
   const job = ((result as any).rows || result)?.[0]
   if (!job) return c.json({ error: 'Manufacturing job not found' }, 404)
 
-  return c.json(job)
+  return c.json(camel(job))
 })
 
 // Create manufacturing job
@@ -78,6 +111,7 @@ app.post('/jobs', async (c) => {
       quantity: z.number().min(0),
       unit: z.string().optional(),
     })),
+    inputWeight: z.coerce.number().min(0).optional(),
     method: z.string().optional(),
     equipment: z.string().optional(),
     operatorId: z.string().optional(),
@@ -88,9 +122,14 @@ app.post('/jobs', async (c) => {
   // Auto-generate job number if empty
   const jobNumber = data.jobNumber || `MFG-${Date.now().toString(36).toUpperCase()}`
 
+  // input_weight is the real denominator for yield% (F-20). If the dialog omits it, fall back to
+  // the summed input-batch quantities so yield is at least computed against the same basis.
+  const totalInputQty = (data.inputBatches || []).reduce((s: number, b: any) => s + (b.quantity || 0), 0)
+  const inputWeight = data.inputWeight != null ? data.inputWeight : totalInputQty
+
   const result = await db.execute(sql`
-    INSERT INTO manufacturing_jobs(id, company_id, job_number, type, input_batches, method, equipment, operator_id, notes, status, created_by, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${jobNumber}, ${data.type}, ${JSON.stringify(data.inputBatches)}::jsonb, ${data.method || null}, ${data.equipment || null}, ${data.operatorId || null}, ${data.notes || null}, 'pending', ${currentUser.id}, NOW(), NOW())
+    INSERT INTO manufacturing_jobs(id, company_id, job_number, type, input_batches, input_weight, method, equipment, operator_id, notes, status, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${currentUser.companyId}, ${jobNumber}, ${data.type}, ${JSON.stringify(data.inputBatches)}::jsonb, ${String(inputWeight)}, ${data.method || null}, ${data.equipment || null}, ${data.operatorId || null}, ${data.notes || null}, 'pending', NOW(), NOW())
     RETURNING *
   `)
 
@@ -104,7 +143,7 @@ app.post('/jobs', async (c) => {
     req: c.req,
   })
 
-  return c.json(job, 201)
+  return c.json(camel(job), 201)
 })
 
 // Update manufacturing job
@@ -145,7 +184,7 @@ app.put('/jobs/:id', async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Job not found or already started' }, 404)
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Start job
@@ -179,7 +218,7 @@ app.put('/jobs/:id/start', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Complete job
@@ -208,17 +247,21 @@ app.put('/jobs/:id/complete', async (c) => {
   if (!existing) return c.json({ error: 'Job not found' }, 404)
   if (existing.status !== 'in_progress') return c.json({ error: `Cannot complete job with status '${existing.status}'` }, 400)
 
-  // Calculate yield percentage from input vs output weight
+  // Yield% is output weight / INPUT WEIGHT, not / input batch count (F-20: a 4-batch job read
+  // 20/4 = 500%). Use the stored input_weight; only fall back to summed batch quantities if unset.
   const inputBatches = typeof existing.input_batches === 'string' ? JSON.parse(existing.input_batches) : existing.input_batches
-  const totalInput = (inputBatches || []).reduce((sum: number, b: any) => sum + (b.quantity || 0), 0)
-  const yieldPercentage = totalInput > 0 ? ((data.outputWeight / totalInput) * 100) : null
+  const totalInputQty = (inputBatches || []).reduce((sum: number, b: any) => sum + (b.quantity || 0), 0)
+  const inputWeight = Number(existing.input_weight) > 0 ? Number(existing.input_weight) : totalInputQty
+  const yieldPercentage = inputWeight > 0 ? ((data.outputWeight / inputWeight) * 100) : null
 
+  // schema.ts columns: yield (NOT yield_percentage); output_weight is TEXT. Match them or the
+  // UPDATE 500s (F-15). There is no failure_reason/failed_at pair here — see the fail handler.
   const result = await db.execute(sql`
     UPDATE manufacturing_jobs
     SET status = 'completed',
         output_batches = ${JSON.stringify(data.outputBatches)}::jsonb,
-        output_weight = ${data.outputWeight},
-        yield_percentage = ${yieldPercentage},
+        output_weight = ${String(data.outputWeight)},
+        yield = ${yieldPercentage != null ? yieldPercentage.toFixed(2) : null},
         quality_notes = ${data.qualityNotes || null},
         completed_at = NOW(),
         updated_at = NOW()
@@ -237,7 +280,7 @@ app.put('/jobs/:id/complete', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
 })
 
 // Mark job as failed
@@ -278,7 +321,35 @@ app.put('/jobs/:id/fail', async (c) => {
     req: c.req,
   })
 
-  return c.json(updated)
+  return c.json(camel(updated))
+})
+
+// Delete manufacturing job
+app.delete('/jobs/:id', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const existingResult = await db.execute(sql`
+    SELECT * FROM manufacturing_jobs
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+  const existing = ((existingResult as any).rows || existingResult)?.[0]
+  if (!existing) return c.json({ error: 'Not found' }, 404)
+
+  await db.execute(sql`
+    DELETE FROM manufacturing_jobs
+    WHERE id = ${id} AND company_id = ${currentUser.companyId}
+  `)
+
+  audit.log({
+    action: audit.ACTIONS.DELETE,
+    entity: 'manufacturing_jobs',
+    entityId: id,
+    entityName: existing.job_number,
+    req: c.req,
+  })
+
+  return c.json({ success: true })
 })
 
 export default app

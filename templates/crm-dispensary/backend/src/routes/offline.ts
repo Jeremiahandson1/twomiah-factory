@@ -9,6 +9,14 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Raw db.execute rows come back snake_case; convert row keys to camelCase before responding.
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+
 // ─── POST /sync ── Receive batch of offline transactions ─────────────────────
 
 const offlineTransactionSchema = z.object({
@@ -16,7 +24,7 @@ const offlineTransactionSchema = z.object({
   payload: z.record(z.any()),
   createdOfflineAt: z.string().datetime(),
   deviceId: z.string().min(1),
-  locationId: z.string().uuid(),
+  locationId: z.string().min(1),
 })
 
 const syncBatchSchema = z.object({
@@ -141,26 +149,28 @@ app.post('/sync', async (c) => {
         replayResult = ((insertResult as any).rows || insertResult)?.[0]
       }
 
-      // Log the synced transaction
+      // Log the synced transaction. offline_transactions has no replay_result / synced_by
+      // columns (schema.ts is truth); record success via status + synced_at. replayResult is
+      // still returned to the caller in results but not persisted as a column.
+      void replayResult
       await db.execute(sql`
         INSERT INTO offline_transactions (id, transaction_type, payload, device_id, location_id,
-          created_offline_at, status, replay_result, synced_by, company_id, created_at)
+          created_offline_at, status, synced_at, company_id, created_at)
         VALUES (gen_random_uuid(), ${txn.transactionType}, ${JSON.stringify(txn.payload)}::jsonb,
           ${txn.deviceId}, ${txn.locationId}, ${txn.createdOfflineAt}::timestamptz,
-          'synced', ${JSON.stringify(replayResult)}::jsonb, ${currentUser.userId},
-          ${currentUser.companyId}, NOW())
+          'synced', NOW(), ${currentUser.companyId}, NOW())
       `)
 
       results.synced++
 
     } catch (err: any) {
-      // Log the failed transaction
+      // Log the failed transaction (no synced_by column in schema)
       await db.execute(sql`
         INSERT INTO offline_transactions (id, transaction_type, payload, device_id, location_id,
-          created_offline_at, status, sync_error, synced_by, company_id, created_at)
+          created_offline_at, status, sync_error, company_id, created_at)
         VALUES (gen_random_uuid(), ${txn.transactionType}, ${JSON.stringify(txn.payload)}::jsonb,
           ${txn.deviceId}, ${txn.locationId}, ${txn.createdOfflineAt}::timestamptz,
-          'failed', ${err.message || 'Unknown error'}, ${currentUser.userId},
+          'failed', ${err.message || 'Unknown error'},
           ${currentUser.companyId}, NOW())
       `)
       results.failed++
@@ -190,7 +200,7 @@ app.get('/pending', async (c) => {
   const [dataResult, countResult] = await Promise.all([
     db.execute(sql`
       SELECT id, transaction_type, payload, device_id, location_id,
-             created_offline_at, status, sync_error, replay_result, created_at
+             created_offline_at, status, sync_error, synced_at, created_at
       FROM offline_transactions
       WHERE company_id = ${currentUser.companyId}
         AND status = ${status}
@@ -205,7 +215,7 @@ app.get('/pending', async (c) => {
     `),
   ])
 
-  const data = (dataResult as any).rows || dataResult
+  const data = ((dataResult as any).rows || dataResult).map(camel)
   const total = Number((countResult as any).rows?.[0]?.total || 0)
 
   return c.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
@@ -241,24 +251,25 @@ app.put('/:id/resolve', requireRole('manager'), async (c) => {
   const txn = ((txnResult as any).rows || txnResult)?.[0]
   if (!txn) return c.json({ error: 'Offline transaction not found' }, 404)
 
+  // offline_transactions has no updated_at column (schema.ts is truth).
   if (data.resolution === 'skip') {
     // Mark as resolved/skipped
     await db.execute(sql`
       UPDATE offline_transactions
-      SET status = 'resolved', sync_error = ${'Skipped: ' + (data.manualNotes || 'Manual skip')}, updated_at = NOW()
+      SET status = 'resolved', sync_error = ${'Skipped: ' + (data.manualNotes || 'Manual skip')}
       WHERE id = ${id}
     `)
   } else if (data.resolution === 'manual') {
     await db.execute(sql`
       UPDATE offline_transactions
-      SET status = 'resolved', sync_error = ${'Manual resolution: ' + (data.manualNotes || '')}, updated_at = NOW()
+      SET status = 'resolved', sync_error = ${'Manual resolution: ' + (data.manualNotes || '')}
       WHERE id = ${id}
     `)
   } else if (data.resolution === 'retry') {
     // Reset to pending so the next sync picks it up, or replay immediately
     await db.execute(sql`
       UPDATE offline_transactions
-      SET status = 'pending', sync_error = NULL, updated_at = NOW()
+      SET status = 'pending', sync_error = NULL
       WHERE id = ${id}
     `)
   }
@@ -294,32 +305,95 @@ app.get('/status', async (c) => {
   const stats = ((result as any).rows || result)?.[0] || {}
 
   return c.json({
+    // `lastSync` is what the page reads; keep `lastSyncAt` for any other caller.
+    lastSync: stats.last_sync_at || null,
     lastSyncAt: stats.last_sync_at || null,
     pendingCount: stats.pending_count || 0,
     failedCount: stats.failed_count || 0,
     syncedCount: stats.synced_count || 0,
     totalCount: stats.total_count || 0,
+    syncInProgress: false,
   })
 })
 
 // ─── GET /config ── Offline mode configuration ──────────────────────────────
 
-app.get('/config', async (c) => {
-  const currentUser = c.get('user') as any
-
+// The company table has no offline columns; config lives in the settings JSON under
+// `offlineConfig` (schema.ts is truth). Reading a missing column previously 500'd.
+async function readOfflineConfig(companyId: string) {
   const result = await db.execute(sql`
-    SELECT offline_mode_enabled FROM company
-    WHERE id = ${currentUser.companyId}
-    LIMIT 1
+    SELECT settings FROM company WHERE id = ${companyId} LIMIT 1
   `)
   const company = ((result as any).rows || result)?.[0]
+  const settings = typeof company?.settings === 'string' ? JSON.parse(company.settings) : (company?.settings || {})
+  const cfg = settings?.offlineConfig || {}
+  return { settings, cfg }
+}
 
-  return c.json({
-    enabled: company?.offline_mode_enabled ?? true,
-    maxQueueSize: 500,
-    syncRetryInterval: 30000, // 30 seconds
+function shapeOfflineConfig(settings: any, cfg: any) {
+  const enabled = cfg.offlineEnabled ?? settings?.offlineModeEnabled ?? true
+  return {
+    offlineEnabled: enabled,
+    enabled, // legacy alias
+    maxQueueSize: cfg.maxQueueSize ?? 500,
+    syncRetrySeconds: cfg.syncRetrySeconds ?? 30,
+    offlinePOS: cfg.offlinePOS ?? true,
+    offlineCheckin: cfg.offlineCheckin ?? true,
+    offlineInventoryCount: cfg.offlineInventoryCount ?? true,
     offlineCapabilities: ['pos', 'checkin', 'inventory_count'],
+  }
+}
+
+app.get('/config', async (c) => {
+  const currentUser = c.get('user') as any
+  const { settings, cfg } = await readOfflineConfig(currentUser.companyId)
+  return c.json(shapeOfflineConfig(settings, cfg))
+})
+
+// ─── PUT /config ── Update offline mode configuration (manager+) ─────────────
+
+const offlineConfigSchema = z.object({
+  offlineEnabled: z.boolean().optional(),
+  maxQueueSize: z.number().int().min(1).max(10000).optional(),
+  syncRetrySeconds: z.number().int().min(5).max(3600).optional(),
+  offlinePOS: z.boolean().optional(),
+  offlineCheckin: z.boolean().optional(),
+  offlineInventoryCount: z.boolean().optional(),
+})
+
+app.put('/config', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+
+  let data: z.infer<typeof offlineConfigSchema>
+  try {
+    data = offlineConfigSchema.parse(await c.req.json())
+  } catch (err) {
+    if (err instanceof z.ZodError) return c.json({ error: 'Invalid request', details: err.errors }, 400)
+    return c.json({ error: 'Invalid JSON body' }, 400)
+  }
+
+  const { settings, cfg } = await readOfflineConfig(currentUser.companyId)
+  const merged = { ...cfg, ...data }
+  const newSettings = {
+    ...settings,
+    offlineConfig: merged,
+    offlineModeEnabled: merged.offlineEnabled ?? settings?.offlineModeEnabled ?? true,
+  }
+
+  // company.settings is a json column — cast the serialized object to ::json.
+  await db.execute(sql`
+    UPDATE company SET settings = ${JSON.stringify(newSettings)}::json WHERE id = ${currentUser.companyId}
+  `)
+
+  audit.log({
+    action: audit.ACTIONS.UPDATE,
+    entity: 'offline_config',
+    entityName: 'Offline Configuration',
+    metadata: data,
+    req: c.req,
   })
+
+  return c.json(shapeOfflineConfig(newSettings, merged))
 })
 
 export default app

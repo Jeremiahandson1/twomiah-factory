@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { SocketProvider } from './contexts/SocketContext';
@@ -93,6 +93,19 @@ import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 import ContactSupportPage from './pages/support/ContactSupportPage';
 
+
+/** Catch-all shown for unknown /crm/* URLs so a bad address renders an honest 404
+ *  inside the app shell instead of silently landing on a real page (S14). */
+function CrmNotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <p className="text-6xl font-bold text-gray-300 dark:text-slate-700">404</p>
+      <h1 className="mt-4 text-xl font-semibold text-gray-900 dark:text-slate-100">Page not found</h1>
+      <p className="mt-2 text-gray-500 dark:text-slate-400">This page doesn’t exist. Check the address or head back to your dashboard.</p>
+      <Link to="/crm" className="mt-6 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg">Back to Dashboard</Link>
+    </div>
+  );
+}
 
 /** Redirects to onboarding wizard if the company hasn't completed it yet. */
 function OnboardingGate({ children }: { children: React.ReactNode }) {
@@ -202,13 +215,15 @@ function App() {
                     <Route path="eod" element={<EODReportPage />} />
                     <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
                     <Route path="menu-sync" element={<MenuSyncPage />} />
+                    {/* Unknown /crm/* URLs render an in-app 404, not a real page (S14). */}
+                    <Route path="*" element={<CrmNotFound />} />
                   </Route>
 
                   {/* Kiosk mode — standalone fullscreen interface (no auth) */}
                   <Route path="/kiosk" element={<KioskOrderPage />} />
 
                   {/* Catch all */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<CrmNotFound />} />
                 </Routes>
               </SocketProvider>
             </ToastProvider>

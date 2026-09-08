@@ -84,7 +84,7 @@ app.post('/track', async (c) => {
   const parsed = parseUserAgent(ua)
 
   await db.execute(sql`
-    INSERT INTO page_views(id, company_id, page, referrer, user_agent, session_id, ip_address, device, browser, os, utm_source, utm_medium, utm_campaign, created_at)
+    INSERT INTO page_views(id, company_id, page, referrer, user_agent, session_id, ip, device, browser, os, utm_source, utm_medium, utm_campaign, created_at)
     VALUES (gen_random_uuid(), ${data.companyId}, ${data.page}, ${data.referrer || null}, ${ua}, ${data.sessionId}, ${ip}, ${parsed.device}, ${parsed.browser}, ${parsed.os}, ${data.utm_source || null}, ${data.utm_medium || null}, ${data.utm_campaign || null}, NOW())
   `)
 
@@ -182,6 +182,32 @@ app.get('/overview', requireRole('manager'), async (c) => {
 })
 
 // GET /pages — Per-page analytics (paginated)
+// GET /devices — device type / browser / OS breakdown for the Devices tab.
+app.get('/devices', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0]
+
+  const q = (col: 'device' | 'browser' | 'os') => db.execute(sql`
+    SELECT COALESCE(NULLIF(${sql.raw(col)}, ''), 'Unknown') as name, COUNT(*)::int as count
+    FROM page_views
+    WHERE company_id = ${currentUser.companyId}
+      AND created_at >= ${startDate}::date
+      AND created_at < (${endDate}::date + INTERVAL '1 day')
+    GROUP BY 1
+    ORDER BY count DESC
+  `)
+
+  const [deviceRes, browserRes, osRes] = await Promise.all([q('device'), q('browser'), q('os')])
+  const shape = (r: any) => ((r as any).rows || r).map((row: any) => ({ name: row.name, count: Number(row.count || 0) }))
+
+  return c.json({
+    deviceTypes: shape(deviceRes),
+    browsers: shape(browserRes),
+    operatingSystems: shape(osRes),
+  })
+})
+
 app.get('/pages', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
@@ -192,7 +218,7 @@ app.get('/pages', requireRole('manager'), async (c) => {
 
   const dataResult = await db.execute(sql`
     SELECT page as path, COUNT(*)::int as views, COUNT(DISTINCT session_id)::int as unique_sessions,
-           ROUND(AVG(time_on_page)::numeric, 1) as avg_time_on_page
+           0 as avg_time_on_page
     FROM page_views
     WHERE company_id = ${currentUser.companyId}
       AND created_at >= ${startDate}::date

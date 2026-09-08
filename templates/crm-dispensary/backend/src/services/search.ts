@@ -67,7 +67,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.company || item.email || '',
-            url: `/crm/contacts/${item.id}`,
+            url: `/crm/customers/${item.id}`,
             icon: 'user',
           }))
         )
@@ -248,7 +248,7 @@ export async function getRecentItems(companyId: string, limit = 10) {
   ])
 
   return [
-    ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
+    ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/customers/${c.id}` })),
     ...products.map((p) => ({ type: 'product', id: p.id, name: p.name, url: `/crm/products/${p.id}` })),
     ...orders.map((o) => ({ type: 'order', id: o.id, name: `Order #${o.orderNumber || o.number || o.id.slice(0, 8)}`, url: `/crm/orders/${o.id}` })),
   ].slice(0, limit)

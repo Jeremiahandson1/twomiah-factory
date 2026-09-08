@@ -103,7 +103,7 @@ export default function OfflinePage() {
   const loadQueue = async () => {
     setLoading(true);
     try {
-      const data = await api.get('/api/offline/queue');
+      const data = await api.get('/api/offline/pending');
       setQueue(Array.isArray(data) ? data : data?.data || []);
     } catch (err) {
       toast.error('Failed to load queue');
@@ -141,7 +141,7 @@ export default function OfflinePage() {
 
   const retryItem = async (id: string) => {
     try {
-      await api.post(`/api/offline/queue/${id}/retry`);
+      await api.put(`/api/offline/${id}/resolve`, { resolution: 'retry' });
       toast.success('Retrying...');
       loadQueue();
     } catch (err: any) {
@@ -151,7 +151,7 @@ export default function OfflinePage() {
 
   const skipItem = async (id: string) => {
     try {
-      await api.post(`/api/offline/queue/${id}/skip`);
+      await api.put(`/api/offline/${id}/resolve`, { resolution: 'skip' });
       toast.success('Skipped');
       loadQueue();
     } catch (err: any) {
@@ -316,7 +316,7 @@ export default function OfflinePage() {
                 <tbody>
                   {queue.map(item => (
                     <tr key={item.id} className="border-t">
-                      <td className="px-4 py-3 text-sm font-medium">{item.type}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{item.transactionType}</td>
                       <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-0.5 rounded-full ${SYNC_STATUS_STYLES[item.status] || 'bg-gray-100 text-gray-700'}`}>
@@ -324,7 +324,7 @@ export default function OfflinePage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">{item.retries || 0}</td>
-                      <td className="px-4 py-3 text-sm text-red-500 max-w-xs truncate">{item.error || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-red-500 max-w-xs truncate">{item.syncError || '-'}</td>
                       <td className="px-4 py-3">
                         {item.status === 'failed' && (
                           <div className="flex gap-2">

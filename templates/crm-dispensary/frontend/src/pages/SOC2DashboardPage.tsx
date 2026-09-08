@@ -171,8 +171,14 @@ export default function SOC2DashboardPage() {
   const loadRetention = useCallback(async () => {
     setLoadingRetention(true);
     try {
-      const data = await api.get('/api/compliance-controls/retention');
-      setRetentionPolicies(Array.isArray(data) ? data : data?.data || []);
+      const data = await api.get('/api/compliance-controls/retention/policies');
+      const rows = Array.isArray(data) ? data : data?.data || [];
+      // Backend returns raw snake_case rows; normalize the fields this table reads.
+      setRetentionPolicies(rows.map((r: any) => ({
+        ...r,
+        category: r.category ?? r.dataCategory ?? r.data_category,
+        retentionDays: r.retentionDays ?? r.retention_days,
+      })));
     } catch {
       toast.error('Failed to load retention policies');
     } finally {
@@ -199,8 +205,8 @@ export default function SOC2DashboardPage() {
     try {
       const params: any = { page: changeLogPage, limit: 50 };
       if (changeTypeFilter) params.type = changeTypeFilter;
-      if (riskFilter) params.riskLevel = riskFilter;
-      const data = await api.get('/api/compliance-controls/changelog', params);
+      if (riskFilter) params.risk = riskFilter;
+      const data = await api.get('/api/compliance-controls/changes', params);
       setChangeLogs(Array.isArray(data) ? data : data?.data || []);
     } catch {
       toast.error('Failed to load change log');
@@ -283,11 +289,18 @@ export default function SOC2DashboardPage() {
   const saveRetention = async () => {
     setSavingRetention(true);
     try {
+      // Backend schema uses dataCategory, not category.
+      const payload = {
+        dataCategory: retentionForm.category,
+        retentionDays: retentionForm.retentionDays,
+        action: retentionForm.action,
+        description: retentionForm.description,
+      };
       if (editingRetention) {
-        await api.update('/api/compliance-controls/retention', editingRetention.id, retentionForm);
+        await api.update('/api/compliance-controls/retention/policies', editingRetention.id, payload);
         toast.success('Retention policy updated');
       } else {
-        await api.create('/api/compliance-controls/retention', retentionForm);
+        await api.create('/api/compliance-controls/retention/policies', payload);
         toast.success('Retention policy created');
       }
       setRetentionModal(false);
@@ -928,13 +941,13 @@ export default function SOC2DashboardPage() {
                   {changeLogs.map((change: any) => (
                     <tr key={change.id} className="hover:bg-slate-700/30">
                       <td className="px-4 py-3">
-                        <Badge variant="default">{change.type || '—'}</Badge>
+                        <Badge variant="default">{change.changeType || change.type || '—'}</Badge>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-300 max-w-md truncate">
                         {change.description || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-400">
-                        {change.changedBy || change.userName || '—'}
+                        {change.performedByEmail || change.changedBy || change.userName || '—'}
                       </td>
                       <td className="px-4 py-3">{riskBadge(change.riskLevel || 'low')}</td>
                       <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">

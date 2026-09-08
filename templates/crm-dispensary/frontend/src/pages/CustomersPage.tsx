@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Search, Star, DollarSign } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Star } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -36,6 +36,7 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<any>(null);
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('');
@@ -65,8 +66,13 @@ export default function CustomersPage() {
       setCustomers(Array.isArray(customersData) ? customersData : customersData?.data || []);
       setPagination(customersData?.pagination || null);
       setStats(statsData);
+      setError(null);
     } catch (err) {
-      toast.error('Failed to load customers');
+      // Real error + Retry in the table, not a transient toast + misleading
+      // "No customers found" empty state (S11).
+      const e = err as any;
+      setCustomers([]);
+      setError(e?.message || 'Failed to load customers. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -180,8 +186,7 @@ export default function CustomersPage() {
       label: 'Total Spent',
       render: (val: number) => (
         <span className="font-medium text-gray-900 dark:text-slate-100">
-          <DollarSign className="w-3 h-3 inline text-gray-400" />
-          {Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       ),
     },
@@ -275,6 +280,8 @@ export default function CustomersPage() {
         onRowClick={(row: any) => navigate(`/crm/customers/${row.id}`)}
         actions={actions}
         emptyMessage="No customers found"
+        error={error}
+        onRetry={loadCustomers}
       />
 
       {/* Create/Edit Modal */}
