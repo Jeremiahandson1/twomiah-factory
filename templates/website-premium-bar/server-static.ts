@@ -406,10 +406,14 @@ app.get('/:slug', async (c, next) => {
 // request when nothing's been explicitly set.
 
 function getSiteOrigin(c: any): string {
-  const explicit = process.env.SITE_ORIGIN
+  // SITE_ORIGIN / SITE_URL (Render sets SITE_URL at deploy) beat the request,
+  // and behind Render's proxy the request protocol is http — honor
+  // X-Forwarded-Proto so the sitemap never advertises http:// URLs.
+  const explicit = process.env.SITE_ORIGIN || process.env.SITE_URL
   if (explicit) return explicit.replace(/\/+$/, '')
   const url = new URL(c.req.url)
-  return `${url.protocol}//${url.host}`
+  const proto = (c.req.header('x-forwarded-proto') || url.protocol.replace(':', '')).split(',')[0].trim()
+  return `${proto}://${url.host}`
 }
 
 app.get('/sitemap.xml', async (c) => {
