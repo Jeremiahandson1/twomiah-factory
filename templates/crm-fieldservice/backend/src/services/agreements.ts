@@ -202,7 +202,10 @@ export async function updateAgreement(agreementId: string, companyId: string, da
  * Cancel agreement
  */
 export async function cancelAgreement(agreementId: string, companyId: string, _reason?: string) {
-  // TODO: Cancel Stripe subscription if exists
+  // Agreements bill via internal autopay (paymentMethodId + nextBillDate), not a
+  // Stripe subscription, so there is nothing external to cancel. Setting status to
+  // 'cancelled' removes the agreement from getAgreementsDueForBilling() (which
+  // only selects status = 'active'), stopping all future charges.
 
   return db.update(serviceAgreement)
     .set({
