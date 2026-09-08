@@ -64,7 +64,7 @@ export function decrypt(ciphertext: string | null | undefined): string | null {
     const authTag = Buffer.from(authTagHex, 'hex')
     const enc = Buffer.from(encHex, 'hex')
 
-    const decipher = createDecipheriv(ALGORITHM, key, iv)
+    const decipher = createDecipheriv(ALGORITHM, key, iv, { authTagLength: 16 })
     decipher.setAuthTag(authTag)
 
     return Buffer.concat([
