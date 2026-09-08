@@ -11,6 +11,7 @@
   const chapters = all.filter(e => e && e.isPublished !== false).slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || (a.yearStart || 9999) - (b.yearStart || 9999))
   const plates = data.plates && typeof data.plates === 'object' ? data.plates : {}
   const H = data.asHeading ? 'h1' : 'h2'
+  const CH = data.asHeading ? 'h2' : 'h3'   // chapter titles sit one level under the page heading
   const bookTitle = data.heading || (settings.companyName || 'The story')
   function yearLabel(e) { if (!e.yearStart) return ''; return e.yearEnd && e.yearEnd !== e.yearStart ? e.yearStart + '–' + e.yearEnd : String(e.yearStart) }
   const roman = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII']
@@ -48,7 +49,7 @@
               </div>
               <div class="page page--recto">
                 <div class="page__running">Chapter <%= roman[i] || i + 1 %><% if (y) { %> · <%= y %><% } %></div>
-                <h3 class="page__title" id="ch-<%= e.slug %>"><%= e.title %></h3>
+                <<%= CH %> class="page__title" id="ch-<%= e.slug %>"><%= e.title %></<%= CH %>>
                 <div class="page__body"><%- md(e.bodyMd || '') %></div>
                 <div class="page__foot">
                   <a class="page__permalink" href="/story/<%= e.slug %>">&sect; This chapter on its own page</a>

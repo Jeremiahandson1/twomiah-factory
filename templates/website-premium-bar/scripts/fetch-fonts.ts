@@ -23,6 +23,7 @@ const FAMILIES: Array<{ family: string; spec: string }> = [
   { family: 'Cinzel Decorative', spec: 'Cinzel+Decorative:wght@400;700;900' },
   { family: 'Lora', spec: 'Lora:wght@400;600' },   // italics are synthesized — the italic face was the last CLS culprit
   { family: 'Special Elite', spec: 'Special+Elite' },
+  { family: 'Great Vibes', spec: 'Great+Vibes' },   // the script line on the cover
 ]
 // A modern Chrome UA gets woff2 + unicode-range subsets.
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36'

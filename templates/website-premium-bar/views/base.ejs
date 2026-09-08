@@ -22,10 +22,10 @@
     'Courier Prime': 'Courier+Prime:wght@400;700',
   };
   var seen = {};
-  var families = [fD, fE, fB, fM].filter(function (n) { if (!n || seen[n]) return false; seen[n] = true; return true; });
+  var families = [fD, fE, fB, fM, 'Great Vibes'].filter(function (n) { if (!n || seen[n]) return false; seen[n] = true; return true; });
   // Self-hosted faces (build/fonts + build/styles/fonts.css, see scripts/fetch-fonts.ts).
   // Anything else falls back to a Google Fonts request.
-  var selfHosted = { 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Cinzel Decorative': 'CinzelDecorative-700', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400' };
+  var selfHosted = { 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Cinzel Decorative': 'CinzelDecorative-700', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400', 'Great Vibes': 'GreatVibes-400' };
   var remote = families.filter(function (n) { return !selfHosted[n]; });
   var fontsHref = remote.length ? 'https://fonts.googleapis.com/css2?family=' + remote.map(function (n) { return spec[n] || String(n).replace(/ /g, '+'); }).join('&family=') + '&display=swap' : '';
   var useLocal = families.some(function (n) { return !!selfHosted[n]; });

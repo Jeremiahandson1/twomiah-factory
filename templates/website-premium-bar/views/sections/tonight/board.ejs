@@ -35,11 +35,20 @@
    <div class="board__panel frame-ornate"><span class="corner-bl"></span><span class="corner-br"></span>
     <header class="board__head">
       <div class="board__eyebrow"><%= eyebrow %></div>
+      <% if (data.lantern) { %>
+      <div class="cover-est" aria-hidden="true">
+        <span class="cover-est__side cover-est__side--l"><%= data.estLabel || 'Est.' %></span>
+        <img class="cover-est__lantern" src="<%= data.lantern %>" alt="" width="160" height="176">
+        <span class="cover-est__side cover-est__side--r"><%= data.estYear || (settings.established || '') %></span>
+      </div>
+      <% } %>
       <% if (titleImage) { %>
       <<%= H %> class="board__title board__title--image"><img src="<%= titleImageSmall || titleImage %>"<% if (titleImageSmall) { %> srcset="<%= titleImageSmall %> 400w, <%= titleImage %> 900w" sizes="(max-width: 640px) 300px, 460px"<% } %> alt="<%= title %>" width="900" height="360" fetchpriority="high"><% if (titleSub) { %><span class="board__title-sub"><%= titleSub %></span><% } %></<%= H %>>
       <% } else { %>
       <<%= H %> class="board__title foil"><%= title %></<%= H %>>
       <% } %>
+      <% if (data.line1) { %><span class="cover-line"><%= data.line1 %></span><% } %>
+      <% if (data.line2) { %><span class="cover-line cover-line--sub"><%= data.line2 %></span><% } %>
       <% if (intro) { %><p class="board__intro"><%= intro %></p><% } %>
     </header>
 
@@ -102,8 +111,15 @@
     <p class="board__stamp mono"><span>Updated</span> <time data-live="generatedAt" datetime="<%= L.generatedAt %>"><%= stamp(L.generatedAt) %></time><% if (L.updatedBy) { %> <span class="board__by">· <%= L.updatedBy %></span><% } %></p>
     <% } %>
     </div>
-    <% if (art) { %><figure class="board__art"><img src="<%= art %>" alt="<%= artAlt %>" width="520" height="780" loading="eager" fetchpriority="high"><% if (artCaption) { %><figcaption><%= artCaption %></figcaption><% } %></figure><% } %>
+    <% if (art) { %><figure class="board__art"><img src="<%= art %>" alt="<%= artAlt %>" width="<%= data.artWidth || 1400 %>" height="<%= data.artHeight || 2100 %>" loading="lazy"><% if (artCaption) { %><figcaption><%= artCaption %></figcaption><% } %></figure><% } %>
     </div>
+    <% if (data.tailLine || data.tailScript) { %>
+    <div class="cover-tail">
+      <% if (data.tailLine) { %><div class="cover-tail__line foil"><%= data.tailLine %></div><% } %>
+      <% if (data.tailSmall) { %><div class="cover-tail__small"><%= data.tailSmall %></div><% } %>
+      <% if (data.tailScript) { %><div class="script"><%= data.tailScript %></div><% } %>
+    </div>
+    <% } %>
    </div>
   </div>
   <script src="/scripts/live.js" defer></script>

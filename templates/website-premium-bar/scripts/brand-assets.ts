@@ -40,3 +40,22 @@ const meta = async (p: string) => { const m = await sharp(p).metadata(); return 
   await sharp(exterior).resize({ width: 700 }).jpeg({ quality: 80, mozjpeg: true }).toFile(path.join(out, 'exterior-700.jpg'))
 }
 for (const f of fs.readdirSync(out)) console.log(f.padEnd(22), (fs.statSync(path.join(out, f)).size / 1024).toFixed(0) + ' KB')
+
+// 4. Leather tile sampled from the menu cover (plain area beside the engraving), mirrored 2x2 so it repeats without seams.
+{
+  const { w, h } = await meta(menuCover)
+  // Plain leather sits to the right of the engraving, inside the frame.
+  const box = { left: Math.round(w * 0.79), top: Math.round(h * 0.29), width: Math.round(w * 0.065), height: Math.round(w * 0.065) }
+  const tile = await sharp(menuCover).extract(box).resize({ width: 220, height: 220 }).toBuffer()
+  const flipH = await sharp(tile).flop().toBuffer(), flipV = await sharp(tile).flip().toBuffer(), flipHV = await sharp(tile).flop().flip().toBuffer()
+  await sharp({ create: { width: 440, height: 440, channels: 3, background: '#0b0906' } })
+    .composite([{ input: tile, left: 0, top: 0 }, { input: flipH, left: 220, top: 0 }, { input: flipV, left: 0, top: 220 }, { input: flipHV, left: 220, top: 220 }])
+    .jpeg({ quality: 80, mozjpeg: true }).toFile(path.join(out, 'leather-tile.jpg'))
+}
+// 5. The lantern from the lantern cover.
+{
+  const { w, h } = await meta(lantern)
+  const box = { left: Math.round(w * 0.478), top: Math.round(h * 0.128), width: Math.round(w * 0.095), height: Math.round(h * 0.085) }
+  await sharp(lantern).extract(box).resize({ width: 160 }).webp({ quality: 86 }).toFile(path.join(out, 'lantern.webp'))
+}
+console.log('leather tile + lantern written')
