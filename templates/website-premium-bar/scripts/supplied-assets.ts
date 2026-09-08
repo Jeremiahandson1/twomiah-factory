@@ -2,10 +2,11 @@
  *  bun scripts/supplied-assets.ts <leather.jpg> <lettering-transparent.png> [lantern-transparent.png]
  *  Writes build/images/brand/: leather.{webp,jpg} (seamless roll-and-blend, darkened, warmed),
  *  lettering.webp / lettering-400.webp / lettering-header.webp (transparent gold AMBER INN),
- *  lantern.webp (transparent), corner.webp (top-right corner cap + filigree, flipped in CSS for the others). */
+ *  lantern.webp (transparent), corner.webp (top-right corner cap + filigree, flipped in CSS for the others),
+ *  rivet.webp (brass rivet head, transparent, 96px). */
 import path from 'path'
 import sharp from 'sharp'
-const [leatherSrc, letteringSrc, lanternSrc, cornerSrc] = process.argv.slice(2)
+const [leatherSrc, letteringSrc, lanternSrc, cornerSrc, rivetSrc] = process.argv.slice(2)
 const out = path.resolve(import.meta.dir, '..', 'build', 'images', 'brand')
 const clear = { r: 0, g: 0, b: 0, alpha: 0 }
 
@@ -66,4 +67,21 @@ if (cornerSrc) {
   await sharp(await sharp(cornerSrc).trim().toBuffer()).webp({ quality: 88, alphaQuality: 92 }).toFile(path.join(out, 'corner.webp'))
   const f = await sharp(path.join(out, 'corner.webp')).metadata()
   console.log('corner', f.width, 'x', f.height)
+}
+
+if (rivetSrc) {
+  // Trim, shave 1px of edge fringe with a soft circular alpha, add a tiny drop shadow, 96px.
+  const trimmed = await sharp(rivetSrc).trim().resize({ width: 88, height: 88, fit: 'contain', background: clear }).png().toBuffer()
+  const W = 96
+  const shadow = await sharp({ create: { width: W, height: W, channels: 4, background: clear } })
+    .composite([{ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${W}"><ellipse cx="48" cy="52" rx="42" ry="42" fill="rgba(0,0,0,0.6)"/></svg>`), left: 0, top: 0 }])
+    .blur(3).png().toBuffer().catch(() => null)
+  const layers: sharp.OverlayOptions[] = []
+  if (shadow) layers.push({ input: shadow, left: 0, top: 0 })
+  layers.push({ input: trimmed, left: 4, top: 3 })
+  await sharp({ create: { width: W, height: W, channels: 4, background: clear } }).composite(layers).webp({ quality: 90, alphaQuality: 95 }).toFile(path.join(out, 'rivet.webp'))
+  // Spine strip: one rivet then clear space, tiled with repeat-y (96x864 → at 34px wide the rivets sit ~306px apart).
+  await sharp({ create: { width: W, height: 864, channels: 4, background: clear } }).composite([{ input: path.join(out, 'rivet.webp'), left: 0, top: 0 }]).webp({ quality: 90, alphaQuality: 95 }).toFile(path.join(out, 'rivet-strip.webp'))
+  const f = await sharp(path.join(out, 'rivet.webp')).metadata()
+  console.log('rivet', f.width, 'x', f.height, '+ rivet-strip 96x864')
 }

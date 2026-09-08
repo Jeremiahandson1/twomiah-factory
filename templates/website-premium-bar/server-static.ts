@@ -385,7 +385,7 @@ app.get('/:slug', async (c, next) => {
   // Reserved names and unknown pages fall THROUGH (next()) so the routes
   // registered after this one — /sitemap.xml, /robots.txt, the console,
   // nested pages — still get their turn instead of a premature 404.
-  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'parties', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return next()
   countView('/' + slug)
