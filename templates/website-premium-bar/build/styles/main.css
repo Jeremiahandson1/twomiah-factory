@@ -1198,12 +1198,20 @@ body { background: transparent; }
 .book__stage { position: relative; perspective: 2200px; }
 .book__spreads { list-style: none; margin: 0; padding: 0; display: grid; gap: 40px; }
 .book__spread { transform-origin: left center; backface-visibility: hidden; }
-.book--js .book__spreads { display: block; position: relative; }
-.book--js .book__spread { display: none; }
-.book--js .book__spread.is-active { display: block; }
-.book--js .book__spread.is-turning-out { display: block; position: absolute; inset: 0; z-index: 2; animation: page-out .6s cubic-bezier(.45,0,.55,1) both; pointer-events: none; }
+/* Every spread is stacked in the same grid cell, so the book is always as tall as its tallest chapter:
+   every page is the same size, and turning never changes the height of the book. */
+.book--js .book__spreads { display: grid; position: relative; }
+.book--js .book__spread { grid-area: 1 / 1; display: grid; visibility: hidden; }
+.book--js .book__spread.is-active { visibility: visible; }
+.book--js .book__spread.is-turning-out { visibility: visible; z-index: 2; animation: page-out .6s cubic-bezier(.45,0,.55,1) both; pointer-events: none; }
 .book--js .book__spread.is-turning-in { animation: page-in .6s cubic-bezier(.2,.7,.2,1) both; }
-.book--js .book__spread.is-turning-back { display: block; position: absolute; inset: 0; z-index: 2; animation: page-in .6s cubic-bezier(.45,0,.55,1) reverse both; pointer-events: none; }
+.book--js .book__spread.is-turning-back { visibility: visible; z-index: 2; animation: page-in .6s cubic-bezier(.45,0,.55,1) reverse both; pointer-events: none; }
+.book--js .spread { height: 100%; }
+/* The text page is a column: body at the top, permalink + folio pinned to the foot like a printed page. */
+.page--recto { display: flex; flex-direction: column; }
+.page--recto .page__body { flex: 0 0 auto; }
+.page--recto .page__foot { margin-top: auto; }
+.plate img { max-height: 100%; object-fit: contain; }
 .book--js .book__spread.is-turning-in-back { animation: page-out .6s cubic-bezier(.2,.7,.2,1) reverse both; }
 @keyframes page-out { from { transform: rotateY(0); filter: brightness(1); } to { transform: rotateY(-95deg); filter: brightness(.5); } }
 @keyframes page-in { from { transform: rotateY(25deg); filter: brightness(.75); } to { transform: rotateY(0); filter: brightness(1); } }
