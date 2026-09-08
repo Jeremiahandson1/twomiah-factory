@@ -30,7 +30,7 @@ import path from 'path'
 import bcrypt from 'bcryptjs'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { users, settings, pages, serviceStatus, menuSections, menuItems, taps, staffPins, seedMarks } from '../db/schema'
+import { users, settings, pages, serviceStatus, menuSections, menuItems, taps, staffPins, seedMarks, timelineEntries } from '../db/schema'
 
 interface BootstrapSettings {
   photoCredits?: Array<{ photographer: string; photographerUrl?: string; sourceUrl?: string; source: string }>
@@ -340,6 +340,29 @@ async function main() {
       }
       console.log('[initDb] Seeded taps: ' + n)
     }
+  }
+
+  // ── Timeline chapters (content/timeline/*.json) — seed-if-untouched, keyed by slug ──
+  // The story page and /story/<slug> read these from the DB; without this seed the
+  // live book was empty even though the static QA render (which reads the files) was full.
+  const timelineDir = path.join(CONTENT_DIR, 'timeline')
+  if (fs.existsSync(timelineDir)) {
+    let written = 0
+    for (const f of fs.readdirSync(timelineDir).filter(x => x.endsWith('.json')).sort()) {
+      const e = readJson<any>(path.join(timelineDir, f))
+      if (!e || !e.slug || !e.title) continue
+      const int = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? v : null
+      const values = {
+        yearStart: int(e.yearStart), yearEnd: int(e.yearEnd), title: String(e.title), bodyMd: typeof e.bodyMd === 'string' ? e.bodyMd : '',
+        imageUrl: str(e.imageUrl), imageCredit: str(e.imageCredit), imageYear: int(e.imageYear), thenImageUrl: str(e.thenImageUrl), nowImageUrl: str(e.nowImageUrl),
+        sortOrder: int(e.sortOrder) ?? 0, isPublished: e.isPublished !== false,
+      }
+      const [row] = await db.select().from(timelineEntries).where(eq(timelineEntries.slug, e.slug)).limit(1)
+      const decision = await seedDecision('timeline:' + e.slug, values, row)
+      if (!row) { await db.insert(timelineEntries).values({ slug: e.slug, ...values }); written++ }
+      else if (decision === 'apply') { await db.update(timelineEntries).set({ ...values, updatedAt: new Date() }).where(eq(timelineEntries.slug, e.slug)); written++ }
+    }
+    console.log('[initDb] Timeline: ' + written + ' chapter(s) written from content/timeline.')
   }
 
   // ── Console PIN (CONSOLE_PIN env → first staff pin, label "Bar phone") ──
