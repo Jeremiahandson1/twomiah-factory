@@ -1262,3 +1262,13 @@ body { background: transparent; }
 .cover-est__lantern { -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 90%, transparent 100%); mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 90%, transparent 100%); }
 .board__title--image img { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%), linear-gradient(180deg, transparent 0, #000 8%, #000 92%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 5%, #000 95%, transparent 100%), linear-gradient(180deg, transparent 0, #000 8%, #000 92%, transparent 100%); }
 .board__title--image img { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 3.5%, #000 96.5%, transparent 100%), linear-gradient(180deg, transparent 0, #000 8%, #000 92%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 3.5%, #000 96.5%, transparent 100%), linear-gradient(180deg, transparent 0, #000 8%, #000 92%, transparent 100%); }
+
+/* ── His cover, exactly, as the masthead — the book lying on the leather, the live board beside it ── */
+.board__panel--cover { padding: 0; }
+.cover-hero { display: grid; grid-template-columns: minmax(0, 480px) 1fr; gap: clamp(24px, 4vw, 56px); align-items: center; }
+.cover-hero__book { margin: 0; }
+.cover-hero__img { width: 100%; height: auto; display: block; border-radius: 6px; box-shadow: 0 40px 80px -30px rgba(0,0,0,.95), 0 0 0 1px rgba(0,0,0,.7), 0 0 60px rgba(199,157,103,.10); }
+.cover-hero__live .board__main { max-width: none; margin: 0; padding: 0 clamp(8px, 2vw, 24px); border-top: 0; border-bottom: 0; box-shadow: none; }
+.cover-hero__live .board__rows { border-top: 1px solid rgba(217,178,116,.5); box-shadow: 0 -5px 0 -4px rgba(217,178,116,.28); }
+.cover-hero__live .board__row:last-child { border-bottom: 1px solid rgba(217,178,116,.5); }
+@media (max-width: 900px) { .cover-hero { grid-template-columns: 1fr; } .cover-hero__book { max-width: 440px; margin: 0 auto; } }

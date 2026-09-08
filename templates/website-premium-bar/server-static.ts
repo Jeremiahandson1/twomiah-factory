@@ -219,7 +219,7 @@ async function renderPage(slug: string, currentPath: string): Promise<string | n
   // discover the <img>. Mobile LCP typically improves 400-800ms.
   const firstHero = (homepage.sections as any[]).find(s => s && (s.type === 'hero' || s.type === 'tonight'))
   const lcpImage = firstHero?.type === 'tonight'
-    ? (typeof firstHero.data?.titleImageSmall === 'string' ? firstHero.data.titleImageSmall : typeof firstHero.data?.titleImage === 'string' ? firstHero.data.titleImage : (typeof firstHero.data?.art === 'string' ? firstHero.data.art : ''))
+    ? (typeof firstHero.data?.coverImageSmall === 'string' ? firstHero.data.coverImageSmall : typeof firstHero.data?.coverImage === 'string' ? firstHero.data.coverImage : typeof firstHero.data?.titleImageSmall === 'string' ? firstHero.data.titleImageSmall : typeof firstHero.data?.titleImage === 'string' ? firstHero.data.titleImage : (typeof firstHero.data?.art === 'string' ? firstHero.data.art : ''))
     : (firstHero?.data?.image && typeof firstHero.data.image === 'string' ? firstHero.data.image : '')
 
   // Everything a section might need beyond its own JSON: the live state,

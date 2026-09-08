@@ -129,7 +129,7 @@ for (const { slug, page, item } of renderables) {
   const jsonLd = pageJsonLd({ slug, title: page.title, sections: page.sections || [], settings: effectiveSettings, hoursSchema: site.hoursSchema, menu, events: eventsData, item: item || null })
   const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage: page, settings: effectiveSettings, site, live, md: markdownToHtml, currentPath }) as string
   const first = (page.sections || [])[0]
-  const lcpImage = first?.type === 'tonight' ? (first.data?.titleImageSmall || first.data?.titleImage || first.data?.art || '') : (first?.data?.image || '')
+  const lcpImage = first?.type === 'tonight' ? (first.data?.coverImageSmall || first.data?.coverImage || first.data?.titleImageSmall || first.data?.titleImage || first.data?.art || '') : (first?.data?.image || '')
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, site, live, currentPath, assetV: 'static', jsonLd, lcpImage }) as string
   const out = path.join(outDir, slug.replace(/\//g, '__') + '.html')
   fs.writeFileSync(out, finish(html))

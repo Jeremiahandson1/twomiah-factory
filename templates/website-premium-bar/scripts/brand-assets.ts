@@ -59,3 +59,17 @@ for (const f of fs.readdirSync(out)) console.log(f.padEnd(22), (fs.statSync(path
   await sharp(lantern).extract(box).resize({ width: 160 }).webp({ quality: 86 }).toFile(path.join(out, 'lantern.webp'))
 }
 console.log('leather tile + lantern written')
+
+// 6. A wide plain-leather strip from the lantern cover (between the frame and the first line), mirrored vertically into a tall tile.
+{
+  const { w, h } = await meta(lantern)
+  const strip = await sharp(lantern).extract({ left: Math.round(w * 0.17), top: Math.round(h * 0.045), width: Math.round(w * 0.66), height: Math.round(h * 0.05) }).resize({ width: 1200 }).toBuffer()
+  const sh = (await sharp(strip).metadata()).height!
+  const flipV = await sharp(strip).flip().toBuffer()
+  const flipH = await sharp(strip).flop().toBuffer()
+  const flipHV = await sharp(strip).flop().flip().toBuffer()
+  await sharp({ create: { width: 1200, height: sh * 4, channels: 3, background: '#0b0906' } })
+    .composite([{ input: strip, left: 0, top: 0 }, { input: flipV, left: 0, top: sh }, { input: flipH, left: 0, top: sh * 2 }, { input: flipHV, left: 0, top: sh * 3 }])
+    .jpeg({ quality: 82, mozjpeg: true }).toFile(path.join(out, 'leather-wide.jpg'))
+  console.log('leather-wide.jpg', 1200, 'x', sh * 4)
+}

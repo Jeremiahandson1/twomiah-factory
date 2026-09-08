@@ -29,10 +29,21 @@
   const titleImage = data.titleImage || ''
   const titleSub = data.titleSub || ''
   const titleImageSmall = data.titleImageSmall || ''
+  const coverImage = data.coverImage || ''
+  const coverImageSmall = data.coverImageSmall || coverImage
 %>
 <section class="board" id="tonight" aria-label="Tonight at <%= title %>" data-live-root data-live-tz="<%= L ? L.timezone : '' %>">
   <div class="container board__inner">
-   <div class="board__panel frame-ornate"><span class="corner-bl"></span><span class="corner-br"></span>
+   <div class="board__panel frame-ornate<%= coverImage ? ' board__panel--cover' : '' %>"><span class="corner-bl"></span><span class="corner-br"></span>
+    <% if (coverImage) { %>
+    <div class="cover-hero">
+      <figure class="cover-hero__book">
+        <<%= H %> class="visually-hidden"><%= title %></<%= H %>>
+        <img class="cover-hero__img" src="<%= coverImageSmall %>" srcset="<%= coverImageSmall %> 600w, <%= coverImage %> 1200w" sizes="(max-width: 900px) 92vw, 480px" alt="<%= data.coverAlt || title %>" width="600" height="800" fetchpriority="high">
+      </figure>
+      <div class="cover-hero__live">
+    <% } %>
+    <% if (!coverImage) { %>
     <header class="board__head">
       <div class="board__eyebrow"><%= eyebrow %></div>
       <% if (data.lantern) { %>
@@ -51,8 +62,9 @@
       <% if (data.line2) { %><span class="cover-line cover-line--sub"><%= data.line2 %></span><% } %>
       <% if (intro) { %><p class="board__intro"><%= intro %></p><% } %>
     </header>
+    <% } %>
 
-    <div class="board__layout<%= art ? '' : ' board__layout--noart' %>">
+    <div class="board__layout<%= (art && !coverImage) ? '' : ' board__layout--noart' %>">
     <div class="board__main">
     <% if (!L) { %>
       <p class="board__empty mono">Hours are being set up. Call <a href="tel:<%= String(settings.phone || '').replace(/[^\d+]/g, '') %>"><%= settings.phone || 'the bar' %></a>.</p>
@@ -111,9 +123,10 @@
     <p class="board__stamp mono"><span>Updated</span> <time data-live="generatedAt" datetime="<%= L.generatedAt %>"><%= stamp(L.generatedAt) %></time><% if (L.updatedBy) { %> <span class="board__by">· <%= L.updatedBy %></span><% } %></p>
     <% } %>
     </div>
-    <% if (art) { %><figure class="board__art"><img src="<%= art %>" alt="<%= artAlt %>" width="<%= data.artWidth || 1400 %>" height="<%= data.artHeight || 2100 %>" loading="lazy"><% if (artCaption) { %><figcaption><%= artCaption %></figcaption><% } %></figure><% } %>
+    <% if (art && !coverImage) { %><figure class="board__art"><img src="<%= art %>" alt="<%= artAlt %>" width="<%= data.artWidth || 1400 %>" height="<%= data.artHeight || 2100 %>" loading="lazy"><% if (artCaption) { %><figcaption><%= artCaption %></figcaption><% } %></figure><% } %>
     </div>
-    <% if (data.tailLine || data.tailScript) { %>
+    <% if (coverImage) { %></div></div><% } %>
+    <% if ((data.tailLine || data.tailScript) && !coverImage) { %>
     <div class="cover-tail">
       <% if (data.tailLine) { %><div class="cover-tail__line foil"><%= data.tailLine %></div><% } %>
       <% if (data.tailSmall) { %><div class="cover-tail__small"><%= data.tailSmall %></div><% } %>
