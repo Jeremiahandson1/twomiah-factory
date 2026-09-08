@@ -140,6 +140,30 @@ app.get('/.well-known/security.txt', (c) => {
 })
 
 // ── Asset serving (CSS, JS, uploads) ──────────────────────────────────────
+// Brand tokens. The factory generator substitutes {{PRIMARY_COLOR}} /
+// {{SECONDARY_COLOR}} / {{ACCENT_COLOR}} into main.css at generation time;
+// when this template is deployed straight from the repo (reference tenant)
+// they must be filled at runtime from the settings row. Cached until the
+// settings row changes. Defaults are the speakeasy palette.
+let brandCssCache: { key: string; body: string } | null = null
+app.get('/styles/main.css', async (c) => {
+  const s: any = await loadSettings().catch(() => null)
+  const key = String(s?.updatedAt instanceof Date ? s.updatedAt.getTime() : s?.updatedAt || 0)
+  if (!brandCssCache || brandCssCache.key !== key) {
+    const safe = (v: unknown, fb: string) => (/^#[0-9a-f]{3,8}$/i.test(String(v || '')) ? String(v) : fb)
+    const raw = fs.readFileSync(path.join(__dirname, 'build', 'styles', 'main.css'), 'utf8')
+    brandCssCache = {
+      key,
+      body: raw
+        .replace(/\{\{PRIMARY_COLOR\}\}/g, safe(s?.primaryColor, '#C9A24E'))
+        .replace(/\{\{SECONDARY_COLOR\}\}/g, safe(s?.secondaryColor, '#1F3A2E'))
+        .replace(/\{\{ACCENT_COLOR\}\}/g, safe(s?.accentColor, '#EFE6D2')),
+    }
+  }
+  c.header('Content-Type', 'text/css; charset=utf-8')
+  c.header('Cache-Control', 'public, max-age=31536000, immutable')
+  return c.body(brandCssCache.body)
+})
 app.use('/styles/*', serveStatic({ root: './build' }))
 app.use('/fonts/*', serveStatic({ root: './build' }))
 app.use('/scripts/*', serveStatic({ root: './build' }))
