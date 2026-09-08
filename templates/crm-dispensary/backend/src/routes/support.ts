@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { reportAiUsage } from '../services/aiUsage'
+import { reportAiUsage } from '../services/aiUsage.ts'
 import { authenticate } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy, contact, user } from '../../db/schema.ts';
