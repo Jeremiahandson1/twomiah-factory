@@ -20,8 +20,8 @@ const meta = async (p: string) => { const m = await sharp(p).metadata(); return 
 {
   const { w, h } = await meta(lantern)
   const box = { left: Math.round(w * 0.185), top: Math.round(h * 0.195), width: Math.round(w * 0.69), height: Math.round(h * 0.245) }
-  await sharp(lantern).extract(box).resize({ width: 900 }).png({ quality: 90 }).toFile(path.join(out, 'wordmark.png'))
-  await sharp(lantern).extract(box).resize({ width: 400 }).png().toFile(path.join(out, 'wordmark-400.png'))
+  await sharp(lantern).extract(box).resize({ width: 900 }).webp({ quality: 84 }).toFile(path.join(out, 'wordmark.webp'))
+  await sharp(lantern).extract(box).resize({ width: 400 }).webp({ quality: 84 }).toFile(path.join(out, 'wordmark-400.webp'))
   // Full cover for the story / parties art panels
   await sharp(lantern).resize({ width: 1200 }).jpeg({ quality: 82, mozjpeg: true }).toFile(path.join(out, 'cover-full.jpg'))
   await sharp(lantern).resize({ width: 600 }).jpeg({ quality: 80, mozjpeg: true }).toFile(path.join(out, 'cover-full-600.jpg'))

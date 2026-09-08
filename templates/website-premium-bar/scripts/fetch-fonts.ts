@@ -20,7 +20,8 @@ fs.mkdirSync(fontsDir, { recursive: true })
 const FAMILIES: Array<{ family: string; spec: string }> = [
   { family: 'Limelight', spec: 'Limelight' },
   { family: 'Cinzel', spec: 'Cinzel:wght@400;600;700;900' },
-  { family: 'Lora', spec: 'Lora:ital,wght@0,400;0,600;1,400' },
+  { family: 'Cinzel Decorative', spec: 'Cinzel+Decorative:wght@400;700;900' },
+  { family: 'Lora', spec: 'Lora:wght@400;600' },   // italics are synthesized — the italic face was the last CLS culprit
   { family: 'Special Elite', spec: 'Special+Elite' },
 ]
 // A modern Chrome UA gets woff2 + unicode-range subsets.

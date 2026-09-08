@@ -14,7 +14,10 @@
         "showRoom": true,
         "art": "/images/brand/cover-520.jpg",
         "artAlt": "Amber Inn menu cover: an engraving of the corner building in gold on black leather",
-        "artCaption": "Eau Claire's oldest tavern · Est. 1881"
+        "artCaption": "Eau Claire's oldest tavern · Est. 1881",
+        "titleImage": "/images/brand/wordmark.webp",
+        "titleSub": "Bar & Grill",
+        "titleImageSmall": "/images/brand/wordmark-400.webp"
       }
     },
     {

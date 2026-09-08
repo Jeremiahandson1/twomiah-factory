@@ -217,8 +217,10 @@ async function renderPage(slug: string, currentPath: string): Promise<string | n
   // as="image" fetchpriority="high"> lets the browser kick off the fetch
   // during HTML parse instead of waiting for the EJS section render to
   // discover the <img>. Mobile LCP typically improves 400-800ms.
-  const firstHero = (homepage.sections as any[]).find(s => s && s.type === 'hero')
-  const lcpImage = firstHero?.data?.image && typeof firstHero.data.image === 'string' ? firstHero.data.image : ''
+  const firstHero = (homepage.sections as any[]).find(s => s && (s.type === 'hero' || s.type === 'tonight'))
+  const lcpImage = firstHero?.type === 'tonight'
+    ? (typeof firstHero.data?.titleImageSmall === 'string' ? firstHero.data.titleImageSmall : typeof firstHero.data?.titleImage === 'string' ? firstHero.data.titleImage : (typeof firstHero.data?.art === 'string' ? firstHero.data.art : ''))
+    : (firstHero?.data?.image && typeof firstHero.data.image === 'string' ? firstHero.data.image : '')
 
   // Everything a section might need beyond its own JSON: the live state,
   // the menu, the taps, the timeline, upcoming events. One cached bundle

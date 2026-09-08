@@ -25,7 +25,7 @@
   var families = [fD, fE, fB, fM].filter(function (n) { if (!n || seen[n]) return false; seen[n] = true; return true; });
   // Self-hosted faces (build/fonts + build/styles/fonts.css, see scripts/fetch-fonts.ts).
   // Anything else falls back to a Google Fonts request.
-  var selfHosted = { 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400' };
+  var selfHosted = { 'Limelight': 'Limelight-400', 'Cinzel': 'Cinzel-400', 'Cinzel Decorative': 'CinzelDecorative-700', 'Lora': 'Lora-400', 'Special Elite': 'SpecialElite-400' };
   var remote = families.filter(function (n) { return !selfHosted[n]; });
   var fontsHref = remote.length ? 'https://fonts.googleapis.com/css2?family=' + remote.map(function (n) { return spec[n] || String(n).replace(/ /g, '+'); }).join('&family=') + '&display=swap' : '';
   var useLocal = families.some(function (n) { return !!selfHosted[n]; });
@@ -35,6 +35,7 @@
   var fallback = {
     'Limelight': { local: 'Georgia', size: '119.5%' },
     'Cinzel': { local: 'Georgia', size: '118.6%' },
+    'Cinzel Decorative': { local: 'Georgia', size: '132.5%' },
     'Lora': { local: 'Georgia', size: '102.9%' },
     'Special Elite': { local: 'Courier New', size: '87.7%' },
   };
@@ -68,7 +69,7 @@
     <link rel="preload" as="image" href="<%= lcpImage %>" fetchpriority="high">
   <% } %>
   <% if (useLocal) { %>
-  <% [fD, fB].forEach(function (n) { if (selfHosted[n]) { %><link rel="preload" as="font" type="font/woff2" href="/fonts/<%= selfHosted[n] %>.woff2" crossorigin>
+  <% [fD, fB, fM].forEach(function (n) { if (selfHosted[n]) { %><link rel="preload" as="font" type="font/woff2" href="/fonts/<%= selfHosted[n] %>.woff2" crossorigin>
   <% } }) %>
   <link rel="stylesheet" href="/styles/fonts.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
   <% } %>

@@ -52,13 +52,13 @@
   "primaryColor": "#C79D67",
   "secondaryColor": "#4C6582",
   "accentColor": "#EFE6D2",
-  "fontDisplay": "Cinzel",
+  "fontDisplay": "Cinzel Decorative",
   "fontEyebrow": "Cinzel",
   "fontBody": "Lora",
   "fontMono": "Special Elite",
   "established": 1881,
   "timezone": "America/Chicago",
-  "headerLogoUrl": "/images/brand/wordmark-400.png",
+  "headerLogoUrl": "/images/brand/wordmark-400.webp",
   "logoUrl": "/images/brand/cover-full-600.jpg",
   "_palette_note": "Measured from the owner's three concept images 2026-09-07 (scripts/palette-from-images.ts): near-black leather #0E0D08/#13100A, leather browns #211913/#2B2419/#362414/#583F2A, gold #A8763C/#C79D67, dusk-sky blue #4C6582, foliage olive #2A2E1A."
 }

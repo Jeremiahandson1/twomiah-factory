@@ -26,13 +26,20 @@
   const art = data.art || ''
   const artAlt = data.artAlt || ''
   const artCaption = data.artCaption || ''
+  const titleImage = data.titleImage || ''
+  const titleSub = data.titleSub || ''
+  const titleImageSmall = data.titleImageSmall || ''
 %>
 <section class="board" id="tonight" aria-label="Tonight at <%= title %>" data-live-root data-live-tz="<%= L ? L.timezone : '' %>">
   <div class="container board__inner">
    <div class="board__panel frame-ornate"><span class="corner-bl"></span><span class="corner-br"></span>
     <header class="board__head">
       <div class="board__eyebrow"><%= eyebrow %></div>
+      <% if (titleImage) { %>
+      <<%= H %> class="board__title board__title--image"><img src="<%= titleImageSmall || titleImage %>"<% if (titleImageSmall) { %> srcset="<%= titleImageSmall %> 400w, <%= titleImage %> 900w" sizes="(max-width: 640px) 300px, 460px"<% } %> alt="<%= title %>" width="900" height="360" fetchpriority="high"><% if (titleSub) { %><span class="board__title-sub"><%= titleSub %></span><% } %></<%= H %>>
+      <% } else { %>
       <<%= H %> class="board__title foil"><%= title %></<%= H %>>
+      <% } %>
       <% if (intro) { %><p class="board__intro"><%= intro %></p><% } %>
     </header>
 

@@ -1084,3 +1084,16 @@ body { background-color: var(--paper); background-image: radial-gradient(ellipse
 @media (max-width: 900px) { .board__layout { grid-template-columns: 1fr; } .board__art { max-width: 420px; margin: 0 auto; } }
 .site-header { background: color-mix(in srgb, #0E0D08 94%, transparent); }
 .footer-est::before { content: '\2014  '; color: var(--brand); }
+/* Contrast: the dusk-blue band carries cream headings, not gold (gold on blue fails 4.5:1). Deepen the band. */
+.cta--banner, .hero__stat-band, .contact-section__promise { background: color-mix(in srgb, var(--band) 55%, #0E0D08); }
+.cta--banner .cta__heading, .hero__stat-band-num { color: var(--accent); }
+.cta--banner .cta__subtitle { color: color-mix(in srgb, var(--accent) 88%, transparent); }
+
+/* Board title as the owner's gold lettering (his cover art), with a Cinzel subline. */
+.board__title--image { display: grid; justify-items: center; gap: 6px; margin: 0; }
+.board__title--image img { width: min(100%, 460px); height: auto; filter: drop-shadow(0 6px 18px rgba(0,0,0,.6)); }
+.board__title-sub { font-family: var(--font-eyebrow); font-weight: 700; font-size: clamp(14px, 1.8vw, 20px); letter-spacing: .34em; text-transform: uppercase; color: var(--brand); padding-left: .34em; }
+@media (max-width: 640px) { .board__title--image img { width: min(100%, 300px); } }
+/* Fade the cropped lettering into the leather so no rectangle shows. */
+.board__title--image img, .brand__logo { -webkit-mask-image: radial-gradient(ellipse 70% 62% at 50% 50%, #000 58%, transparent 100%); mask-image: radial-gradient(ellipse 70% 62% at 50% 50%, #000 58%, transparent 100%); }
+.brand__logo { -webkit-mask-image: radial-gradient(ellipse 74% 66% at 50% 50%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 74% 66% at 50% 50%, #000 62%, transparent 100%); }
