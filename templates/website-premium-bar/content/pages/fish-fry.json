@@ -1,7 +1,7 @@
 {
   "title": "Friday Fish Fry",
   "metaTitle": "Friday Fish Fry — Amber Inn, Eau Claire",
-  "metaDescription": "The Amber Inn's Friday fish fry at 840 E Madison St, Eau Claire. Day, time and price at Wisconsin's oldest tavern.",
+  "metaDescription": "The Amber Inn's Friday fish fry at 840 E Madison St, Eau Claire: two pieces of hand-breaded cod, two sides and a breadstick, $9.49, 11 AM until sold out. Wisconsin's oldest tavern.",
   "sections": [
     {
       "type": "events",
@@ -11,15 +11,16 @@
         "title": "Fish Fry",
         "day": "Friday",
         "startTime": "11:00",
-        "endTime": "22:00",
-        "timeLabel": "while the kitchen is open",
-        "price": null,
-        "priceCents": null,
+        "endTime": null,
+        "timeLabel": "11 AM until sold out",
+        "price": "$9.49",
+        "priceCents": 949,
         "where": "840 E Madison St, Eau Claire",
-        "description": "Fridays at the Amber Inn. Ask at the bar for the day's fish. Time and price will be confirmed by the kitchen.",
+        "description": "Two pieces of hand-breaded cod with two sides and a breadstick. Starts at 11 in the morning and runs until it is gone.",
         "details": [
           "Walk in. No reservations, no platform, no fee.",
-          "The bar is open later than the kitchen; the fish fry runs while the kitchen does."
+          "$9.49. Two pieces of hand-breaded cod, two sides, a breadstick.",
+          "Until sold out — on a good Friday that is before the supper crowd."
         ],
         "asHeading": true,
         "cta": {

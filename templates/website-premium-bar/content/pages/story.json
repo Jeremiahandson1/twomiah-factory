@@ -13,9 +13,10 @@
         "intro": "One building, one bar. Turn the pages.",
         "eyebrow": "Est. 1881 · East Madison Street",
         "plates": {
-          "1881": "/images/brand/engraving.jpg",
+          "1881": "/images/brand/saloon-1880s.jpg",
+          "1981": "/images/brand/exterior-orv-pat.jpg",
           "2026": "/images/brand/exterior-700.jpg",
-          "oldest-bar-in-wisconsin": "/images/brand/cover-520.jpg"
+          "oldest-bar-in-wisconsin": "/images/brand/engraving.jpg"
         },
         "closing": "Thank you for being part of our story."
       }

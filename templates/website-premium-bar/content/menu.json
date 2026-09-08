@@ -1,56 +1,105 @@
 {
-  "_note": "PLACEHOLDER menu for the Amber Inn. Only items documented in public sources are listed (PB&B burger, olive burger, fish fry, bloody mary, draft root beer, German imports). NO price is published anywhere — priceCents is null until someone photographs the board (SPEC §14). Do not invent items. Seeded into menu_sections / menu_items by initDb; Square Catalog replaces this as the source in Phase 2.",
+  "_note": "Transcribed 2026-09-08 from the owner's photographed menu (Orv & Pat era pages: Ambergers, Sandwiches / Amber Inn Creations / Platters / Dinner / Beverages, daily specials). Prices are as printed on those pages; where a price could not be read from the photo it is left null and the site shows no price. Sections/items seed into menu_sections / menu_items by initDb (re-applied whenever this file changes — there is no admin menu editor yet). Square Catalog replaces this as the source in Phase 2.",
   "sections": [
     {
       "slug": "burgers",
-      "name": "Burgers",
+      "name": "Our Famous ½ lb. Ambergers",
       "kind": "food",
-      "description": "Half-pound patties, ground behind the bar, cooked on the grill in front of you.",
+      "description": "All of our burgers are charbroiled. Half-pound beef, on your choice of a white or wheat toasted bun. Platters include a choice of one side item. Onions are no charge. Cheese: real cheddar, real Swiss, real pepper jack. Sandwich / platter.",
       "items": [
-        {
-          "slug": "peanut-butter-bacon",
-          "name": "Peanut Butter & Bacon Burger",
-          "description": "Half-pound patty, peanut butter, bacon. One of Visit Eau Claire's ten iconic Eau Claire eats.",
-          "priceCents": null,
-          "isSignature": true,
-          "dietary": ["N"],
-          "story": "People hear the name and stop. Then they order it again the next time they are in.\n\nThe patty is ground behind the bar and cooked on the grill you can see from your stool. The peanut butter goes on hot so it runs into the bacon. That is the whole trick.\n\nVisit Eau Claire put it on their list of ten iconic Eau Claire eats."
-        },
-        {
-          "slug": "olive",
-          "name": "Olive Burger",
-          "description": "Half-pound patty with green olives. The regulars' order.",
-          "priceCents": null,
-          "isSignature": true,
-          "story": "Green olives on a half-pound burger. It reads like a mistake and eats like it was always supposed to be there. Ask the bar how long it has been on the menu; nobody agrees."
-        },
-        {
-          "slug": "the-rachel",
-          "name": "The Rachel",
-          "description": "Ask at the bar.",
-          "priceCents": null,
-          "isSignature": true,
-          "story": "Named for someone. Details from the owner to follow."
-        }
+        { "slug": "hamburger", "name": "Hamburger", "description": "The half-pound, charbroiled, on a toasted bun.", "priceCents": 579, "priceLabel": "$5.79 / $7.29" },
+        { "slug": "cheddarburger", "name": "Cheddarburger", "description": "Real cheddar cheese.", "priceCents": 699, "priceLabel": "$6.99 / $8.49" },
+        { "slug": "olive", "name": "Swiss Olive Burger", "description": "Black or green olives and real Swiss cheese. The regulars' order.", "priceCents": 769, "priceLabel": "$7.69 / $9.19", "isSignature": true,
+          "story": "Olives on a half-pound burger. It reads like a mistake and eats like it was always supposed to be there. Black or green, your call, under real Swiss. Ask the bar how long it has been on the menu; nobody agrees." },
+        { "slug": "california", "name": "California Burger", "description": "Lettuce, tomato and mayo.", "priceCents": 769, "priceLabel": "$7.69 / $9.19" },
+        { "slug": "reuben", "name": "Reuben Burger", "description": "Marble rye toast, 1000 Island dressing, real Swiss cheese and sauerkraut.", "priceCents": 789, "priceLabel": "$7.89 / $9.39" },
+        { "slug": "sicilian", "name": "Sicilian Burger", "description": "Real Swiss cheese, lean salami and marinara sauce.", "priceCents": 779, "priceLabel": "$7.79 / $9.29" },
+        { "slug": "bacon-cheddar", "name": "Bacon Cheddarburger", "description": "Real cheddar cheese and bacon.", "priceCents": 779, "priceLabel": "$7.79 / $9.29" },
+        { "slug": "bbq-bacon-cheddar", "name": "BBQ Bacon Cheddarburger", "description": "Real cheddar cheese and bacon, with BBQ sauce on the side.", "priceCents": 799, "priceLabel": "$7.99 / $9.49" },
+        { "slug": "mushroom-swiss", "name": "Mushroom Swiss Burger", "description": "Real Swiss cheese and mushrooms.", "priceCents": 769, "priceLabel": "$7.69 / $9.19" },
+        { "slug": "breakfast", "name": "Breakfast Burger", "description": "Bacon cheddarburger with an egg.", "priceCents": 849, "priceLabel": "$8.49 / $9.99" },
+        { "slug": "black-and-bleu", "name": "Black & Bleu Burger", "description": "Blue cheese dressing and bacon.", "priceCents": 779, "priceLabel": "$7.79 / $9.19" },
+        { "slug": "thousand-island", "name": "1000 Island Burger", "description": "1000 Island dressing, lettuce and real cheddar cheese.", "priceCents": 769, "priceLabel": "$7.69 / $9.19" },
+        { "slug": "peanut-butter-bacon", "name": "Peanut Butter Burger", "description": "Bacon on top and bottom, a thin layer of peanut butter on the burger. Tuesday special. One of Visit Eau Claire's ten iconic Eau Claire eats.", "priceCents": 749, "priceLabel": "Tuesdays · $7.49 / $9.09", "isSignature": true, "dietary": ["N"],
+          "story": "People hear the name and stop. Then they order it again the next time they are in.\n\nBacon on top and bottom, a thin layer of peanut butter on the half-pound patty, so it runs into the bacon while it is hot. That is the whole trick.\n\nIt is the Tuesday special, and Visit Eau Claire put it on their list of ten iconic Eau Claire eats." }
+      ]
+    },
+    {
+      "slug": "daily-specials",
+      "name": "Daily Specials",
+      "kind": "food",
+      "description": "Burger / platter with a choice of one side. Happy hour Monday through Friday, 4 to 6 PM.",
+      "items": [
+        { "slug": "monday-jalapeno-burger", "name": "Monday · Jalapeño Burger", "description": "Pepper jack cheese, jalapeños, side of ranch.", "priceCents": 749, "priceLabel": "$7.49 / $9.09" },
+        { "slug": "tuesday-peanut-butter-burger", "name": "Tuesday · Peanut Butter Burger", "description": "Bacon on top and bottom, a thin layer of peanut butter on the burger.", "priceCents": 749, "priceLabel": "$7.49 / $9.09" },
+        { "slug": "wednesday-wings", "name": "Wednesday · Wings", "description": "Choice of sauces. 15 for $7.99, 20 for $10.39.", "priceCents": 799, "priceLabel": "15 / $7.99 · 20 / $10.39" },
+        { "slug": "thursday-hawaiian-burger", "name": "Thursday · Hawaiian Burger", "description": "1000 Island dressing, cheddar cheese, two slices of pineapple.", "priceCents": 759, "priceLabel": "$7.59 / $9.19" },
+        { "slug": "friday-fish-fry", "name": "Friday · Fish Fry", "description": "Two pieces of hand-breaded cod with two sides and a breadstick. 11 AM until sold out.", "priceCents": 949, "priceLabel": "$9.49" }
+      ]
+    },
+    {
+      "slug": "sandwiches",
+      "name": "Sandwiches",
+      "kind": "food",
+      "description": "Platters include a choice of one side item. Sandwich / platter.",
+      "items": [
+        { "slug": "club", "name": "Club Sandwich", "description": "Turkey, ham, bacon, lettuce, tomato and mayo on toasted white or wheat.", "priceCents": null },
+        { "slug": "blt", "name": "BLT Sandwich", "description": "Crisp bacon, lettuce, tomato and mayo on toasted white or wheat, three slices.", "priceCents": null },
+        { "slug": "dagwood", "name": "Dagwood Sandwich", "description": "Ham, turkey, roast beef, bacon and cheese, stacked on toasted white or wheat.", "priceCents": null },
+        { "slug": "crispy-chicken", "name": "Crispy Chicken Sandwich", "description": "Breaded chicken breast, lettuce, tomato and mayo on a toasted bun.", "priceCents": null },
+        { "slug": "fish-sandwich", "name": "Fish Sandwich", "description": "Battered cod, lettuce and tartar sauce on a toasted bun.", "priceCents": null },
+        { "slug": "classic-oven-baked", "name": "Classic Sandwich (oven baked)", "description": "Ham or turkey with Swiss or cheddar, baked on a bun with lettuce and tomato.", "priceCents": null },
+        { "slug": "deluxe-oven-baked", "name": "Deluxe Sandwich (oven baked)", "description": "Choice of ham, turkey or roast beef with bacon, Swiss and cheddar, baked on a bun with lettuce and tomato.", "priceCents": null }
+      ]
+    },
+    {
+      "slug": "creations",
+      "name": "Amber Inn Creations",
+      "kind": "food",
+      "description": "Our oven-baked pita creations are from our own original kitchen recipes. All creations are served with two sides of sour cream.",
+      "items": [
+        { "slug": "taco-quesadilla", "name": "Taco Quesadilla", "description": "Taco meat and cheddar-jack cheese baked between two pita shells, with sides of salsa.", "priceCents": null },
+        { "slug": "chicken-quesadilla", "name": "Chicken Quesadilla", "description": "Grilled fajita chicken and cheddar-jack cheese baked between two pita shells, with sides of salsa.", "priceCents": null },
+        { "slug": "cheese-quesadilla", "name": "Cheese Quesadilla", "description": "Cheddar-jack cheese baked between two pita shells, with sides of salsa.", "priceCents": null },
+        { "slug": "fajita-chicken-pizza", "name": "Fajita Chicken Pizza", "description": "Fajita chicken, cheddar-jack cheese and salsa baked on a pita shell, topped with lettuce.", "priceCents": null },
+        { "slug": "taco-pizza", "name": "Taco Pizza", "description": "Taco meat and cheddar-jack cheese baked on a pita shell, topped with lettuce, black olives, tomatoes and onion, with sides of salsa.", "priceCents": null },
+        { "slug": "loaded-quesadilla", "name": "Loaded Quesadilla", "description": "Taco meat or fajita chicken, cheddar-jack cheese, black olives, onion and tomato baked between two pita shells, with sides of salsa.", "priceCents": null }
+      ]
+    },
+    {
+      "slug": "platters",
+      "name": "Platters & Dinner",
+      "kind": "food",
+      "description": "Platters include a choice of one side. Dinner includes a choice of two side items. Dipping sauces: blue cheese, honey mustard, ranch, hot sauce, BBQ.",
+      "items": [
+        { "slug": "chicken-nugget-platter", "name": "Chicken Nugget Platter", "description": "Breaded chicken nuggets with a side.", "priceCents": null },
+        { "slug": "chicken-platter", "name": "Chicken Platter", "description": "Chicken pieces with a breadstick and a side.", "priceCents": null },
+        { "slug": "cod-platter", "name": "Cod Platter", "description": "Battered cod with a breadstick and a side.", "priceCents": null },
+        { "slug": "cod-dinner", "name": "Cod Dinner", "description": "Battered cod with a breadstick and two sides.", "priceCents": null }
       ]
     },
     {
       "slug": "fish-fry",
       "name": "Friday Fish Fry",
       "kind": "food",
-      "description": "Fridays.",
+      "description": "Fridays, 11 AM until sold out.",
       "items": [
-        { "slug": "friday-fish-fry", "name": "Fish Fry", "description": "Fridays. Ask at the bar for the day's fish.", "priceCents": null }
+        { "slug": "friday-fish-fry", "name": "Fish Fry", "description": "Two pieces of hand-breaded cod with two sides and a breadstick.", "priceCents": 949, "priceLabel": "$9.49", "isSignature": true,
+          "story": "Two pieces of cod, hand-breaded in the kitchen, with two sides and a breadstick. It starts at 11 in the morning and runs until it is gone, which on a good Friday is before the supper crowd thinks to call ahead." }
       ]
     },
     {
       "slug": "drinks",
-      "name": "From the bar",
+      "name": "Beverages",
       "kind": "drink",
-      "description": "Ten taps, heavy on German imports. See what is pouring on the tap wall.",
+      "description": "Domestic and import beer on tap and in bottles, in mugs, pints and pitchers. Happy hour Monday through Friday, 4 to 6 PM. See what is pouring on the tap wall.",
       "items": [
-        { "slug": "draft-root-beer", "name": "Draft Root Beer", "description": "In an iced mug. On the taps since 1920 — George Berg Soft Drinks Co.", "priceCents": null, "dietary": ["V"] },
-        { "slug": "bloody-mary", "name": "Bloody Mary", "description": "One of the better ones in town, by reputation.", "priceCents": null }
+        { "slug": "draft-root-beer", "name": "Draft Root Beer", "description": "Sprecher root beer on tap, in a frosted mug. Still on the taps, the way it was in 1920 — George Berg Soft Drinks Co.", "priceCents": null, "isSignature": true,
+          "story": "Root beer has poured in this room since 1920, when Prohibition turned the bar into George Berg Soft Drinks. A century later it is still on tap, in a frosted mug, for the kids and for anyone who remembers." },
+        { "slug": "fountain-soda", "name": "Fountain Soda", "description": "Coke, Diet Coke, Sprite, Mello Yello, iced tea. Free refills.", "priceCents": null },
+        { "slug": "coffee", "name": "Coffee", "description": "Bottomless cup.", "priceCents": null },
+        { "slug": "juice", "name": "Juice", "description": "Orange, cranberry, Clamato, pineapple. Small or large.", "priceCents": null },
+        { "slug": "bloody-mary", "name": "Bloody Mary", "description": "Ask at the bar.", "priceCents": null }
       ]
     }
   ]

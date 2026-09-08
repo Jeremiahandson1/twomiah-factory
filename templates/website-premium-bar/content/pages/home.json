@@ -35,27 +35,55 @@
       "variant": "cards",
       "data": {
         "heading": "From the grill",
-        "intro": "Half-pound patties, ground behind the bar, cooked on the grill in front of you.",
+        "intro": "Half-pound charbroiled Ambergers, sandwich or platter. Happy hour Monday–Friday, 4–6.",
         "items": [
           {
-            "name": "Peanut Butter & Bacon Burger",
-            "price": "$—",
-            "description": "Half-pound patty, peanut butter, bacon. One of Visit Eau Claire's ten iconic Eau Claire eats."
+            "name": "Swiss Olive Burger",
+            "price": "$7.69",
+            "description": "Black or green olives and real Swiss cheese. The regulars' order. Platter $9.19.",
+            "href": "/burgers/olive"
           },
           {
-            "name": "Olive Burger",
-            "price": "$—",
-            "description": "Half-pound patty with green olives. The regulars' order."
+            "name": "Peanut Butter Burger",
+            "price": "$7.49",
+            "description": "Bacon top and bottom, a thin layer of peanut butter. Tuesdays. One of Visit Eau Claire's ten iconic eats.",
+            "href": "/burgers/peanut-butter-bacon"
           },
           {
             "name": "Friday Fish Fry",
-            "price": "$—",
-            "description": "Fridays. Ask at the bar for the day's fish."
+            "price": "$9.49",
+            "description": "Two pieces of hand-breaded cod, two sides and a breadstick. 11 AM until sold out.",
+            "href": "/fish-fry"
           },
           {
             "name": "Draft Root Beer",
-            "price": "$—",
-            "description": "In an iced mug. Still on the taps, the way it was in 1920 — George Berg Soft Drinks Co."
+            "price": "",
+            "description": "Sprecher on tap in a frosted mug. On the taps since 1920 — George Berg Soft Drinks Co."
+          }
+        ]
+      }
+    },
+    {
+      "type": "gallery",
+      "variant": "grid",
+      "data": {
+        "heading": "Same corner since 1881",
+        "intro": "The saloon Walter Brewing built, the Amber Inn as Orv and Pat ran it, and the room tonight.",
+        "photos": [
+          {
+            "url": "/images/brand/saloon-1880s.jpg",
+            "alt": "The saloon at 840 East Madison Street with its crew out front, late 1800s",
+            "caption": "The saloon, late 1800s"
+          },
+          {
+            "url": "/images/brand/exterior-orv-pat.jpg",
+            "alt": "Orv and Pat's Amber Inn Bar & Grill, fieldstone front and the Amber Inn sign",
+            "caption": "Orv and Pat's Amber Inn"
+          },
+          {
+            "url": "/images/brand/exterior-700.jpg",
+            "alt": "The Amber Inn at dusk",
+            "caption": "Tonight"
           }
         ]
       }

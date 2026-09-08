@@ -1,15 +1,54 @@
 {
   "_note": "Sample live extras for the no-database renderer (scripts/render-static.ts) so the Tonight Board can be previewed. Kitchen/bar status is computed from content/hours.json at render time; these fields layer on top. Not seeded into the database.",
-  "room": { "status": "filling", "label": "Filling up" },
-  "special": { "title": "Peanut Butter & Bacon Burger + a Spotted Cow", "description": "Tonight's special", "price": "$16" },
-  "game": { "league": "NFL", "home": "Bears", "away": "Packers", "startsAt": "2026-09-13T00:15:00.000Z", "startsAtLabel": "Tonight 7:15 PM", "note": "doors at 6", "isToday": true },
+  "room": {
+    "status": "filling",
+    "label": "Filling up"
+  },
+  "special": {
+    "title": "Peanut Butter Burger",
+    "description": "Tuesday special — bacon top and bottom, peanut butter on the patty",
+    "price": "$7.49"
+  },
+  "game": {
+    "league": "NFL",
+    "home": "Bears",
+    "away": "Packers",
+    "startsAt": "2026-09-13T00:15:00.000Z",
+    "startsAtLabel": "Tonight 7:15 PM",
+    "note": "doors at 6",
+    "isToday": true
+  },
   "taps": {
     "count": 10,
     "featured": [
-      { "name": "Spaten Optimator", "brewery": "Spaten", "style": "Doppelbock", "status": "pouring", "badge": null },
-      { "name": "Weihenstephaner Hefeweissbier", "brewery": "Weihenstephan", "style": "Hefeweizen", "status": "just_tapped", "badge": null },
-      { "name": "Spotted Cow", "brewery": "New Glarus", "style": "Farmhouse ale", "status": "pouring", "badge": null },
-      { "name": "Draft Root Beer", "brewery": "George Berg Soft Drinks Co.", "style": "Root beer", "status": "pouring", "badge": "Est. 1920" }
+      {
+        "name": "Spaten Optimator",
+        "brewery": "Spaten",
+        "style": "Doppelbock",
+        "status": "pouring",
+        "badge": null
+      },
+      {
+        "name": "Weihenstephaner Hefeweissbier",
+        "brewery": "Weihenstephan",
+        "style": "Hefeweizen",
+        "status": "just_tapped",
+        "badge": null
+      },
+      {
+        "name": "Spotted Cow",
+        "brewery": "New Glarus",
+        "style": "Farmhouse ale",
+        "status": "pouring",
+        "badge": null
+      },
+      {
+        "name": "Draft Root Beer",
+        "brewery": "George Berg Soft Drinks Co.",
+        "style": "Root beer",
+        "status": "pouring",
+        "badge": "Est. 1920"
+      }
     ],
     "updatedAt": null
   },

@@ -293,10 +293,17 @@ async function main() {
   }
 
   // ── Menu (content/menu.json → menu_sections + menu_items; Square takes over in Phase 2) ──
+  // There is no admin menu editor yet, so the file is the only source: when its hash
+  // changes (seed_marks "menu"), the sections/items are rebuilt from it. The console's
+  // 86 flags live on the items and are lost on rebuild — acceptable until Square.
   const menuFile = readJson<any>(path.join(CONTENT_DIR, 'menu.json'))
   if (menuFile && Array.isArray(menuFile.sections)) {
+    const menuHash = hashOf(menuFile.sections)
+    const mark = (await db.select().from(seedMarks).where(eq(seedMarks.key, 'menu')).limit(1))[0]
     const existingSections = await db.select().from(menuSections).limit(1)
-    if (existingSections.length === 0) {
+    if (existingSections.length === 0 || FORCE || !mark || mark.hash !== menuHash) {
+      await db.delete(menuItems)
+      await db.delete(menuSections)
       let sIdx = 0, count = 0
       for (const sec of menuFile.sections) {
         if (!sec || !sec.slug || !sec.name) continue
@@ -315,9 +322,11 @@ async function main() {
           count++
         }
       }
-      console.log('[initDb] Seeded menu: ' + count + ' items in ' + sIdx + ' sections.')
+      if (mark) await db.update(seedMarks).set({ hash: menuHash, appliedAt: new Date() }).where(eq(seedMarks.key, 'menu'))
+      else await db.insert(seedMarks).values({ key: 'menu', hash: menuHash })
+      console.log('[initDb] Menu (re)built from content: ' + count + ' items in ' + sIdx + ' sections.')
     } else {
-      console.log('[initDb] Menu already seeded — skipping.')
+      console.log('[initDb] Menu up to date — skipping.')
     }
   }
 
