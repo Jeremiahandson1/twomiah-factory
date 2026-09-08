@@ -14,6 +14,13 @@
     "mobile:build:ios": "cd apps/mobile && eas build --platform ios --profile preview"
   },
   "devDependencies": {
-    "turbo": "^2.8.12"
+    "turbo": "^2.10.12"
+  },
+  "//overrides": "Security: force patched versions of transitive production deps flagged by `bun audit --prod` (ws via supabase-realtime; fast-xml-parser/builder via aws-sdk-s3).",
+  "overrides": {
+    "ws": "^8.21.3",
+    "fast-xml-parser": "^5.11.1",
+    "fast-xml-builder": "^1.3.1",
+    "sharp": "^0.35.4"
   }
 }

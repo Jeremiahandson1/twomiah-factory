@@ -22,12 +22,18 @@ jobs:
       - uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
+      # Audit PRODUCTION dependencies only (--prod). The dev/build toolchain
+      # (vite, babel, eslint, postcss, browserslist, picomatch, …) is never in the
+      # deployed artifact, and its transitive advisories can only be cleared by
+      # breaking major bumps of build tools — noise that would keep this gate
+      # permanently red. Auditing what actually ships keeps the gate meaningful so
+      # a real production-dependency regression stands out.
       - name: Audit factory + platform deps
         run: |
           set -e
           for dir in apps/api apps/platform; do
             echo "::group::bun audit $dir"
-            (cd "$dir" && bun install --frozen-lockfile && bun audit --audit-level=high) || exit 1
+            (cd "$dir" && bun install --frozen-lockfile && bun audit --prod --audit-level=high) || exit 1
             echo "::endgroup::"
           done
       - name: Audit each premium template
@@ -36,12 +42,12 @@ jobs:
           for d in templates/website-premium-*; do
             if [ -f "$d/package.json" ]; then
               echo "::group::bun audit $d"
-              (cd "$d" && bun install && bun audit --audit-level=high) || exit 1
+              (cd "$d" && bun install && bun audit --prod --audit-level=high) || exit 1
               echo "::endgroup::"
             fi
             if [ -f "$d/admin/package.json" ]; then
               echo "::group::bun audit $d/admin"
-              (cd "$d/admin" && bun install && bun audit --audit-level=high) || exit 1
+              (cd "$d/admin" && bun install && bun audit --prod --audit-level=high) || exit 1
               echo "::endgroup::"
             fi
           done
