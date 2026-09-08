@@ -95,7 +95,6 @@ import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import estimatorRoutes from './routes/estimator.ts'
-import roofReportsRoutes from './routes/roofReports.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
@@ -256,7 +255,6 @@ app.route('/api/leads', leadsRoutes)
 // [vet-scope] app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 // [vet-scope] app.route('/api/estimator', estimatorRoutes)
-// [vet-scope] app.route('/api/roof-reports', roofReportsRoutes)
 
 // ─── Veterinary (Twomiah Vet) — client-relationship + preventive-care record ──
 try { app.route('/api/patients', (await import('./routes/patients.ts')).default) } catch (e) { console.error('[vet] patients route failed to mount', e) }
