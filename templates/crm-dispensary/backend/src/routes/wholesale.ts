@@ -391,7 +391,10 @@ app.put('/orders/:id/confirm', requireRole('manager'), async (c) => {
   return c.json(camel(updated))
 })
 
-// Ship order
+// Thrown when a ship would drive a product's stock negative — mapped to 400.
+class ShipStockError extends Error {}
+
+// Ship order — moves physical product OUT of inventory.
 app.put('/orders/:id/ship', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
@@ -409,14 +412,44 @@ app.put('/orders/:id/ship', async (c) => {
   if (!existing) return c.json({ error: 'Order not found' }, 404)
   if (existing.status !== 'confirmed') return c.json({ error: `Cannot ship order with status '${existing.status}'` }, 400)
 
-  const result = await db.execute(sql`
-    UPDATE wholesale_orders
-    SET status = 'shipped', manifest_number = ${data.manifestNumber}, shipped_at = NOW(), updated_at = NOW()
-    WHERE id = ${id}
-    RETURNING *
-  `)
+  // F-39: shipping a wholesale order sends physical product out of the facility, so it must
+  // DECREMENT inventory exactly like a retail sale. Retail decremented; wholesale never did,
+  // so shipped units still read as on-hand and sellable at retail (records disagreed with the
+  // state's about where the cannabis was). Decrement each line atomically with an oversell
+  // guard and flip status in ONE transaction, so stock and fulfillment can't diverge.
+  const items = Array.isArray(existing.items)
+    ? existing.items
+    : (typeof existing.items === 'string' ? JSON.parse(existing.items || '[]') : [])
 
-  const updated = ((result as any).rows || result)?.[0]
+  let updated: any
+  try {
+    updated = await db.transaction(async (tx) => {
+      for (const item of items) {
+        const qty = Number(item?.quantity) || 0
+        if (!item?.productId || qty <= 0) continue
+        const decr = await tx.execute(sql`
+          UPDATE products
+          SET stock_quantity = stock_quantity - ${qty}, updated_at = NOW()
+          WHERE id = ${item.productId} AND company_id = ${currentUser.companyId}
+            AND (track_inventory = false OR stock_quantity >= ${qty})
+          RETURNING id
+        `)
+        if (!((decr as any).rows || decr)?.[0]) {
+          throw new ShipStockError(`Insufficient stock to ship ${qty} of ${item.productName || item.productId}`)
+        }
+      }
+      const r = await tx.execute(sql`
+        UPDATE wholesale_orders
+        SET status = 'shipped', manifest_number = ${data.manifestNumber}, shipped_at = NOW(), updated_at = NOW()
+        WHERE id = ${id}
+        RETURNING *
+      `)
+      return ((r as any).rows || r)?.[0]
+    })
+  } catch (e: any) {
+    if (e instanceof ShipStockError) return c.json({ error: e.message }, 400)
+    throw e
+  }
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
@@ -424,6 +457,7 @@ app.put('/orders/:id/ship', async (c) => {
     entityId: id,
     entityName: existing.order_number,
     changes: { status: { old: 'confirmed', new: 'shipped' }, manifestNumber: data.manifestNumber },
+    metadata: { inventoryDecremented: true, lines: items.length },
     req: c.req,
   })
 
@@ -597,13 +631,29 @@ app.put('/orders/:id/payment', requireRole('manager'), async (c) => {
 app.delete('/orders/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const result = await db.execute(sql`
+
+  const existingResult = await db.execute(sql`
+    SELECT * FROM wholesale_orders WHERE id = ${id} AND company_id = ${currentUser.companyId} LIMIT 1
+  `)
+  const existing = ((existingResult as any).rows || existingResult)?.[0]
+  if (!existing) return c.json({ error: 'Order not found' }, 404)
+
+  // F-40: a wholesale order that has shipped (inventory moved out), been invoiced, or taken any
+  // payment is part of the financial + compliance trail and must not be hard-deleted (a paid,
+  // delivered order was deletable together with its payment record). Only early-stage orders with
+  // no manifest and no money attached can be removed.
+  const shipped = ['shipped', 'delivered'].includes(existing.status)
+  const invoiced = !!existing.invoice_number
+  const paid = ['partial', 'paid'].includes(existing.payment_status) || Number(existing.amount_paid || 0) > 0
+  if (shipped || invoiced || paid) {
+    return c.json({ error: 'Cannot delete a wholesale order that has shipped, been invoiced, or taken payment — cancel it instead.' }, 409)
+  }
+
+  await db.execute(sql`
     DELETE FROM wholesale_orders
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
-    RETURNING id
   `)
-  if (!((result as any).rows || result)?.[0]) return c.json({ error: 'Order not found' }, 404)
-  audit.log({ action: audit.ACTIONS.DELETE, entity: 'wholesale_orders', entityId: id, req: c.req })
+  audit.log({ action: audit.ACTIONS.DELETE, entity: 'wholesale_orders', entityId: id, entityName: existing.order_number, req: c.req })
   return c.json({ success: true })
 })
 

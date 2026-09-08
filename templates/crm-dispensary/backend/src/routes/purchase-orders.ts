@@ -663,13 +663,35 @@ app.delete('/:id', requireRole('manager'), async (c) => {
   }
   const voidNote = reason ? `[VOIDED] ${reason}` : '[VOIDED]'
 
-  await db.execute(sql`
-    UPDATE purchase_orders
-    SET status = 'voided',
-        notes = COALESCE(notes || ' ', '') || ${voidNote},
-        updated_at = NOW()
-    WHERE id = ${id} AND company_id = ${currentUser.companyId}
-  `)
+  // F-38: voiding a RECEIVED PO must UNDO the stock its receipt added — the void says the goods
+  // were never accepted, so those units can't remain on hand with no source. Reverse each line's
+  // received quantity (decrement stock, floored at 0 in case some were already sold) and log a
+  // reversing inventory_adjustment, then flip status — all in one transaction. Unreceived POs
+  // hard-delete above and never reach here, so there is nothing to reverse for them.
+  const voidItems = typeof existing.items === 'string' ? JSON.parse(existing.items || '[]') : (existing.items || [])
+  await db.transaction(async (tx) => {
+    for (const item of voidItems) {
+      const rec = Number(item?.receivedQty) || 0
+      if (!item?.productId || rec <= 0) continue
+      await tx.execute(sql`
+        UPDATE products
+        SET stock_quantity = GREATEST(0, stock_quantity - ${rec}), updated_at = NOW()
+        WHERE id = ${item.productId} AND company_id = ${currentUser.companyId}
+      `)
+      await tx.execute(sql`
+        INSERT INTO inventory_adjustments (id, company_id, product_id, user_id, adjustment_type, quantity_change, reason, created_at)
+        VALUES (gen_random_uuid(), ${currentUser.companyId}, ${item.productId}, ${currentUser.userId},
+          'void', ${-rec}, ${'PO Voided: ' + (existing.po_number || '')}, NOW())
+      `)
+    }
+    await tx.execute(sql`
+      UPDATE purchase_orders
+      SET status = 'voided',
+          notes = COALESCE(notes || ' ', '') || ${voidNote},
+          updated_at = NOW()
+      WHERE id = ${id} AND company_id = ${currentUser.companyId}
+    `)
+  })
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,

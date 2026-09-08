@@ -336,6 +336,13 @@ app.delete('/jobs/:id', async (c) => {
   const existing = ((existingResult as any).rows || existingResult)?.[0]
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
+  // F-40: only a not-yet-started (pending) job may be deleted. Once a job is in_progress or
+  // completed it has consumed its input batches and (if completed) produced output/yield —
+  // deleting it corrupts the production record. Refuse anything past pending.
+  if (existing.status !== 'pending') {
+    return c.json({ error: `Cannot delete a '${existing.status}' manufacturing job — it is part of the production record.` }, 409)
+  }
+
   await db.execute(sql`
     DELETE FROM manufacturing_jobs
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
