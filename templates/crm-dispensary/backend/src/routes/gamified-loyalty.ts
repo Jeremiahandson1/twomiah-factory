@@ -403,6 +403,7 @@ app.post('/challenges/:challengeId/claim', async (c) => {
       UPDATE loyalty_members
       SET points_balance = points_balance + ${progress.reward_value},
           total_points_earned = total_points_earned + ${progress.reward_value},
+          lifetime_points = COALESCE(lifetime_points, 0) + ${progress.reward_value},
           updated_at = NOW()
       WHERE id = ${data.memberId}
     `)

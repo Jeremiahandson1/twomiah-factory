@@ -107,8 +107,8 @@ app.post('/members', async (c) => {
   if (existing) return c.json({ error: 'Customer is already a loyalty member' }, 409)
 
   const result = await db.execute(sql`
-    INSERT INTO loyalty_members(id, contact_id, tier, points_balance, total_points_earned, total_visits, total_spent, notes, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.contactId}, ${data.tier}, ${data.initialPoints}, ${data.initialPoints}, 0, 0, ${data.notes || null}, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO loyalty_members(id, contact_id, tier, points_balance, total_points_earned, lifetime_points, total_visits, total_spent, notes, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.contactId}, ${data.tier}, ${data.initialPoints}, ${data.initialPoints}, ${data.initialPoints}, 0, 0, ${data.notes || null}, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
   const member = ((result as any).rows || result)?.[0]

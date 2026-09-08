@@ -186,6 +186,7 @@ app.post('/sale', requireIntegrationKey, async (c) => {
         UPDATE loyalty_members
         SET points_balance = points_balance + ${pointsEarned},
             total_points_earned = total_points_earned + ${pointsEarned},
+            lifetime_points = COALESCE(lifetime_points, 0) + ${pointsEarned},
             total_visits = total_visits + 1,
             total_spent = total_spent + ${data.total},
             last_activity_at = NOW(),

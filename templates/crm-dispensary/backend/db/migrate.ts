@@ -201,6 +201,29 @@ const ENSURE_COLUMNS_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS "reorder_suggestion_product_company_pending_unique"
     ON "reorder_suggestions" ("product_id", "company_id", "status") WHERE "status" = 'pending';
 
+  -- F-34: at most ONE open cash drawer per company. The /sessions/open handler did a
+  -- SELECT-for-open then a separate INSERT — a read-decide-write that raced: under
+  -- concurrent opens, several requests passed the SELECT before any INSERT landed and
+  -- multiple drawers opened (EOD then reconciled only the latest). A partial unique
+  -- index makes a second open row physically impossible; the handler catches the
+  -- resulting 23505 and returns the same friendly 400. First retire any pre-existing
+  -- extra open drawers (keep the earliest per company) so the index can build.
+  UPDATE "cash_sessions" SET "status" = 'closed', "closed_at" = COALESCE("closed_at", now())
+    WHERE "status" = 'open' AND "id" NOT IN (
+      SELECT DISTINCT ON ("company_id") "id" FROM "cash_sessions"
+      WHERE "status" = 'open' ORDER BY "company_id", "opened_at" ASC
+    );
+  CREATE UNIQUE INDEX IF NOT EXISTS "cash_session_one_open_per_company"
+    ON "cash_sessions" ("company_id") WHERE "status" = 'open';
+
+  -- Loyalty: total_points_earned is the authoritative lifetime-earned counter (it drives
+  -- every tier threshold). lifetime_points is the outward "Lifetime Points" alias shown in
+  -- the UI/export/API; it had drifted low because member-create + gamified/referral/POS
+  -- award paths bumped only total_points_earned. Those paths now write both in lockstep;
+  -- reconcile existing rows so the two agree. (F-34 retest#19)
+  UPDATE "loyalty_members" SET "lifetime_points" = COALESCE("total_points_earned", 0)
+    WHERE COALESCE("lifetime_points", 0) <> COALESCE("total_points_earned", 0);
+
   -- New tables -----------------------------------------------------------------
   CREATE TABLE IF NOT EXISTS "sms_conversations" (
     "id" TEXT PRIMARY KEY,

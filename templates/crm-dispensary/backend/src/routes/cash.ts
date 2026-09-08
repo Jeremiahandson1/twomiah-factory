@@ -161,11 +161,25 @@ app.post('/sessions/open', async (c) => {
     return c.json({ error: `A cash drawer is already open${existing.register ? ` on register "${existing.register}"` : ''}. Close it before opening another.` }, 400)
   }
 
-  const result = await db.execute(sql`
-    INSERT INTO cash_sessions(id, user_id, register, opening_amount, opening_balance, status, opened_by_id, opened_at, notes, company_id, created_at)
-    VALUES (gen_random_uuid(), ${currentUser.userId}, ${data.register}, ${data.openingAmount}, ${String(data.openingAmount)}, 'open', ${currentUser.userId}, NOW(), ${data.notes || null}, ${currentUser.companyId}, NOW())
-    RETURNING *
-  `)
+  // The SELECT above is a courtesy that yields a friendly message for the common
+  // sequential case. It is NOT the real guard: two simultaneous opens can both pass
+  // it before either INSERT lands (F-34). The atomic guard is the partial unique
+  // index cash_session_one_open_per_company (one open row per company); the loser of
+  // a race hits a 23505 unique violation here and gets the same 400 as the pre-check.
+  let result: any
+  try {
+    result = await db.execute(sql`
+      INSERT INTO cash_sessions(id, user_id, register, opening_amount, opening_balance, status, opened_by_id, opened_at, notes, company_id, created_at)
+      VALUES (gen_random_uuid(), ${currentUser.userId}, ${data.register}, ${data.openingAmount}, ${String(data.openingAmount)}, 'open', ${currentUser.userId}, NOW(), ${data.notes || null}, ${currentUser.companyId}, NOW())
+      RETURNING *
+    `)
+  } catch (e: any) {
+    const code = e?.code || e?.cause?.code
+    if (code === '23505' || /duplicate key|unique constraint/i.test(e?.message || '')) {
+      return c.json({ error: 'A cash drawer is already open. Close it before opening another.' }, 400)
+    }
+    throw e
+  }
 
   const session = ((result as any).rows || result)?.[0]
 
