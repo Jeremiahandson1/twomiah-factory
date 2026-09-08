@@ -383,6 +383,20 @@ app.delete('/:id', requireRole('manager'), async (c) => {
   const existing = ((existingResult as any).rows || existingResult)?.[0]
   if (!existing) return c.json({ error: 'Not found' }, 404)
 
+  // F-40: a batch that feeds a manufacturing job is part of the production trail. Deleting it
+  // leaves every one of those jobs referencing a record that no longer exists. Refuse if any
+  // manufacturing job lists this batch among its inputs. (input_batches is a JSONB array of
+  // { batchId, quantity }; @> tests containment.)
+  const refResult = await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM manufacturing_jobs
+    WHERE company_id = ${currentUser.companyId}
+      AND input_batches::jsonb @> ${JSON.stringify([{ batchId: id }])}::jsonb
+  `)
+  const refCount = Number(((refResult as any).rows || refResult)?.[0]?.n || 0)
+  if (refCount > 0) {
+    return c.json({ error: `Cannot delete this batch — it is the input to ${refCount} manufacturing job(s). Remove or void those jobs first.` }, 409)
+  }
+
   await db.execute(sql`
     DELETE FROM batches
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
