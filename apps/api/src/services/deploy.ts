@@ -41,22 +41,25 @@ function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETC
 // rootDir where drizzle.config.ts lives. Non-fatal: if push never verifies the app
 // still boots (working modules stay up) rather than bricking the whole deploy.
 function dbReconcileStep(): string {
-  // `timeout 45` bounds each push so a HANG can never block boot. drizzle-kit 0.28
+  // `timeout -k 10 60` bounds each push so a HANG can never block boot. drizzle-kit 0.28
   // renders an interactive "Is X created or renamed?" prompt on any rename
   // ambiguity (e.g. contractor's ads_experiment vs the dropped quickbooks_connection)
   // and, in Render's non-TTY, spins on "Pulling schema…" forever — `--force` and
-  // piped stdin do NOT answer it. With the timeout, a hung push is killed, the loop
-  // retries, and boot proceeds to seed+start on the migrated schema. Where push has
+  // piped stdin do NOT answer it. -k 10 SIGKILLs a push still alive 10s after SIGTERM so
+  // its DB connection is freed. Capped at 3 attempts (≈3 min worst case) so a persistently
+  // stalling push can't exceed Render's port-bind window and fail the deploy on "no open
+  // ports" — the killed push falls through to seed+start on the migrated schema. Where push
+  // has
   // no ambiguity (most verticals) it completes in seconds and reconciles as before.
   return (
     // Drop known-removed legacy tables first so drizzle-kit push has no rename
     // ambiguity to prompt on (which used to hang push and leave the schema only
     // partially reconciled — e.g. review_request.job_id never added).
     'bun run db/prune-legacy.ts 2>&1 | head -20 || echo "[boot] prune-legacy skipped"; ' +
-    'for i in 1 2 3 4 5; do ' +
-      'OUT=$(timeout 180 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
+    'for i in 1 2 3; do ' +
+      'OUT=$(timeout -k 10 60 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
       'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +
-      'echo "[boot] drizzle push not verified (attempt $i), retrying in 8s"; sleep 8; ' +
+      'echo "[boot] drizzle push not verified (attempt $i), retrying in 6s"; sleep 6; ' +
     'done'
   )
 }

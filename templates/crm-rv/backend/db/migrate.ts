@@ -26,21 +26,19 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
 // does not exist". schema.ts is a strict superset of the DB, so push is purely
 // additive here (creates missing tables/columns, drops nothing) and keeps the
 // schema and DB from drifting again.
-for (let attempt = 1; attempt <= 3; attempt++) {
-  try {
-    console.log(`[migrate] Reconciling schema (push) attempt ${attempt}/3...`)
-    execSync('bun x drizzle-kit push --force', { stdio: 'inherit' })
-    console.log('[migrate] Schema reconciled')
-    break
-  } catch (err: any) {
-    if (attempt === 3) {
-      // Non-fatal: let the app boot and surface the failure rather than bricking
-      // the whole deploy on a push hiccup.
-      console.error('[migrate] Schema reconcile (push) failed — some endpoints may 500 until this succeeds')
-    } else {
-      await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
-    }
-  }
+// ONE tightly-bounded, non-fatal push. drizzle-kit push can stall indefinitely — it hangs
+// on "Pulling schema from database" against a busy free-tier Postgres, or blocks on a
+// rename prompt despite --force. Plain execSync has no timeout, so a stuck push froze the
+// whole boot: the &&-chained server never started and Render failed the deploy with "no
+// open ports". Bound it with `timeout -k 10 25` (SIGTERM at 25s, SIGKILL 10s later, freeing
+// the DB connection) and continue non-fatally — the start command runs its own bounded
+// push (dbReconcileStep) which reconciles the schema.
+try {
+  console.log('[migrate] Reconciling schema (push, single bounded attempt)...')
+  execSync('timeout -k 10 25 bun x drizzle-kit push --force', { stdio: 'inherit' })
+  console.log('[migrate] Schema reconciled')
+} catch (err: any) {
+  console.error('[migrate] Schema reconcile (push) skipped/timed out — the start command runs its own bounded push; boot continues')
 }
 
 process.exit(0)
