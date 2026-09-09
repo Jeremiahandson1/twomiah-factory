@@ -1248,6 +1248,31 @@ export const fuelLog = pgTable('fuel_log', {
   index('fuel_log_vehicle_id_idx').on(t.vehicleId),
 ])
 
+// Vehicle trips. A trip is bracketed by start/end; the distance is computed
+// from the assigned driver's location_log pings within the trip window (the
+// same phone-based location feed geofencing uses). No separate GPS device.
+export const vehicleTrip = pgTable('vehicle_trip', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  status: text('status').default('active').notNull(), // active | completed
+  startTime: timestamp('start_time').defaultNow().notNull(),
+  endTime: timestamp('end_time'),
+  startLat: real('start_lat'),
+  startLng: real('start_lng'),
+  endLat: real('end_lat'),
+  endLng: real('end_lng'),
+  distanceMiles: real('distance_miles'),
+  purpose: text('purpose'),
+
+  vehicleId: text('vehicle_id').notNull().references(() => vehicle.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('vehicle_trip_company_id_status_idx').on(t.companyId, t.status),
+  index('vehicle_trip_vehicle_id_idx').on(t.vehicleId),
+])
+
 // ==================== EMAIL MARKETING ====================
 
 export const emailTemplate = pgTable('email_template', {
