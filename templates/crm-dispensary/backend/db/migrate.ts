@@ -136,10 +136,11 @@ const ENSURE_COLUMNS_SQL = `
   -- Wave-2: persist equivalency per-transaction limit + contact store credit.
   ALTER TABLE "equivalency_rules" ADD COLUMN IF NOT EXISTS "purchase_limit_grams" TEXT;
   ALTER TABLE "contact" ADD COLUMN IF NOT EXISTS "store_credit" TEXT DEFAULT '0';
-  -- NOTE: the user table's active flag is `is_active` (schema column), NOT `active`. The old
-  -- ENSURE line here added a phantom `active` column that the reconcile push (schema has only
-  -- is_active) dropped every boot; the two training queries that filtered `active` now use
-  -- is_active, so no phantom column is needed. (deep-QA push-drop fix)
+  -- NOTE: the user table active flag is is_active (schema column), NOT active. The old ENSURE
+  -- line here added a phantom active column that the reconcile push (schema declares only
+  -- is_active) dropped every boot; the training queries that filtered active now use is_active,
+  -- so no phantom column is needed. (deep-QA fix) [no backticks here: this whole block is a JS
+  -- template literal, so a backtick would terminate the string early and break migrate.ts]
   -- Manufacturing job fail path (retest#14 F-15): the /fail handler records these but the columns
   -- were never created, so completing OR failing a job 500'd.
   ALTER TABLE "manufacturing_jobs" ADD COLUMN IF NOT EXISTS "failed_at" TIMESTAMP;
@@ -384,14 +385,38 @@ const ENSURE_COLUMNS_SQL = `
   ALTER TABLE "training_enrollments" ADD COLUMN IF NOT EXISTS "completed_at" TIMESTAMP;
 `
 
-try {
+// Apply the safety net one statement at a time so a single failing statement can't
+// discard the whole batch. Sending the entire multi-statement SQL through one
+// pool.query() runs it in an implicit transaction: if ANY statement errored (e.g. a
+// CREATE UNIQUE INDEX blocked by pre-existing duplicate rows, or an UPDATE on a table
+// that hadn't been created yet), Postgres rolled back ALL of it — including the
+// cash_sessions/loyalty_members created_at ADDs — so the drawer + loyalty routes 500'd
+// with "column created_at does not exist". migrate.ts then exit(1)'d, but the deployed
+// start command (… && bun db/migrate.ts && … ; for … push … ; … && bun src/index.ts)
+// continues past a migrate failure, so the server still booted with the columns missing.
+// Running each statement independently and non-fatally makes every IF-NOT-EXISTS column
+// land regardless of an unrelated statement failing. (deep-QA root cause)
+{
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-  await pool.query(ENSURE_COLUMNS_SQL)
+  // Strip -- line comments from the WHOLE net first, THEN split on ';'. Doing it in this
+  // order means comment prose can contain ';' (or anything) without corrupting the split.
+  // (No -- appears inside any string literal in this SQL, so global stripping is safe.)
+  const statements = ENSURE_COLUMNS_SQL
+    .replace(/--[^\n]*/g, '')
+    .split(';')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+  let failed = 0
+  for (const stmt of statements) {
+    try {
+      await pool.query(stmt)
+    } catch (err: any) {
+      failed++
+      console.error('[migrate] ENSURE stmt failed (continuing):', err.message, '::', stmt.replace(/\s+/g, ' ').slice(0, 90))
+    }
+  }
   await pool.end()
-  console.log('[migrate] Verified required columns exist')
-} catch (err: any) {
-  console.error('[migrate] Column safety check failed:', err.message)
-  process.exit(1)
+  console.log(`[migrate] Column safety net applied — ${statements.length - failed}/${statements.length} statements ok${failed ? ` (${failed} skipped, non-fatal)` : ''}`)
 }
 
 process.exit(0)
