@@ -799,7 +799,7 @@ app.post('/assign', requireRole('manager'), async (c) => {
   } else if (data.role) {
     const usersResult = await db.execute(sql`
       SELECT id FROM "user"
-      WHERE company_id = ${currentUser.companyId} AND role = ${data.role} AND active = true
+      WHERE company_id = ${currentUser.companyId} AND role = ${data.role} AND is_active = true
     `)
     targetIds = ((usersResult as any).rows || usersResult).map((u: any) => u.id)
   } else {
