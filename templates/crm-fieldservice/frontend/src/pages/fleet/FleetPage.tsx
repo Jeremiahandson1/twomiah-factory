@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
-import { 
+import { useState, useEffect, useRef } from 'react';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import {
   Truck, Plus, MapPin, Navigation, Fuel, Wrench,
   Clock, User, AlertTriangle, Loader2, Calendar,
   TrendingUp, DollarSign, MoreVertical, RefreshCw
@@ -284,22 +286,64 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
 }
 
 function FleetMap({ vehicles }) {
-  // Simple placeholder - in production would use Google Maps or Mapbox
+  const mapEl = useRef(null);
+  const mapRef = useRef(null);
+  const layerRef = useRef(null);
+
+  const located = vehicles.filter(
+    (v) => v.currentLocation && Number.isFinite(v.currentLocation.lat) && Number.isFinite(v.currentLocation.lng)
+  );
+
+  // Init the Leaflet map once. Tiles come from OpenStreetMap (no API key).
+  useEffect(() => {
+    if (!mapEl.current || mapRef.current) return;
+    const map = L.map(mapEl.current, { zoomControl: true }).setView([39.5, -98.35], 4); // US center
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+    layerRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    // The tab is hidden on first mount; recalc size once it's visible.
+    setTimeout(() => map.invalidateSize(), 0);
+    return () => { map.remove(); mapRef.current = null; };
+  }, []);
+
+  // Re-draw markers whenever vehicle positions change (30s refresh upstream).
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = layerRef.current;
+    if (!map || !layer) return;
+    setTimeout(() => map.invalidateSize(), 0);
+    layer.clearLayers();
+    const pts = [];
+    for (const v of located) {
+      const { lat, lng } = v.currentLocation;
+      const seen = v.currentLocation.timestamp ? new Date(v.currentLocation.timestamp).toLocaleString() : 'unknown';
+      L.circleMarker([lat, lng], { radius: 8, color: '#ea580c', fillColor: '#f97316', fillOpacity: 0.9, weight: 2 })
+        .bindPopup(`<strong>${v.name}</strong><br/>${lat.toFixed(5)}, ${lng.toFixed(5)}<br/><span style="color:#64748b">Last seen: ${seen}</span>`)
+        .addTo(layer);
+      pts.push([lat, lng]);
+    }
+    if (pts.length === 1) map.setView(pts[0], 13);
+    else if (pts.length > 1) map.fitBounds(pts, { padding: [40, 40] });
+  }, [vehicles]);
+
   return (
     <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
-      <div className="p-4 border-b">
+      <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-medium">Live Vehicle Locations</h3>
+        <span className="text-sm text-gray-500 dark:text-slate-400">{located.length} of {vehicles.length} reporting</span>
       </div>
-      <div className="h-96 bg-gray-100 flex items-center justify-center dark:bg-slate-800">
-        <div className="text-center text-gray-500 dark:text-slate-400">
-          <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>Map integration requires Google Maps API key</p>
-          <p className="text-sm mt-2">{vehicles.filter(v => v.currentLocation).length} vehicles with locations</p>
+      <div ref={mapEl} className="h-96 w-full bg-gray-100 dark:bg-slate-800" />
+      {located.length === 0 && (
+        <div className="p-4 text-center text-sm text-gray-500 dark:text-slate-400">
+          <MapPin className="w-8 h-8 mx-auto mb-2 opacity-40" />
+          No vehicles are reporting a location yet. Assign a driver to each vehicle and have them share location from the mobile app.
         </div>
-      </div>
-      {/* Vehicle list with locations */}
+      )}
       <div className="divide-y max-h-64 overflow-y-auto">
-        {vehicles.filter(v => v.currentLocation).map(v => (
+        {located.map((v) => (
           <div key={v.id} className="p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Truck className="w-5 h-5 text-gray-400" />
@@ -307,12 +351,12 @@ function FleetMap({ vehicles }) {
                 <p className="font-medium">{v.name}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">
                   {v.currentLocation.lat.toFixed(4)}, {v.currentLocation.lng.toFixed(4)}
+                  {v.currentLocation.timestamp && (
+                    <span className="ml-2 opacity-70">· {new Date(v.currentLocation.timestamp).toLocaleTimeString()}</span>
+                  )}
                 </p>
               </div>
             </div>
-            {v.currentLocation.speed > 0 && (
-              <span className="text-sm text-green-600">{Math.round(v.currentLocation.speed)} mph</span>
-            )}
           </div>
         ))}
       </div>

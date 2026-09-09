@@ -15,6 +15,7 @@ import { SocketProvider } from '../src/socket/SocketContext'
 import { OfflineProvider } from '../src/offline/OfflineContext'
 import { OfflineBanner } from '../src/components/OfflineBanner'
 import { WrongAppGate } from '../src/vertical/WrongAppGate'
+import { useLocationReporter } from '../src/hooks/useLocationReporter'
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -22,6 +23,9 @@ function AuthGate() {
   const segments = useSegments()
   const router = useRouter()
   const t = useTheme()
+
+  // While signed in, report this technician's location to the CRM (foreground).
+  useLocationReporter()
 
   React.useEffect(() => {
     if (isLoading) return
