@@ -9,8 +9,8 @@
  */
 
 import { db } from '../../db/index.ts'
-import { purchaseOrder, purchaseOrderItem } from '../../db/schema.ts'
-import { eq, sql } from 'drizzle-orm'
+import { purchaseOrder, purchaseOrderItem, inventoryLocation } from '../../db/schema.ts'
+import { eq, and, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
@@ -447,6 +447,19 @@ export async function exportToPurchaseOrder(sheetId: string, companyId: string, 
     SELECT ts.*, p.name as project_name FROM takeoff_sheet ts LEFT JOIN project p ON p.id = ts.project_id WHERE ts.id = ${sheetId} AND ts.company_id = ${companyId}
   `))
 
+  // purchase_order.location_id is a NOT-NULL FK to inventory_location, so the PO must
+  // post to a real location — not the vendor id (that stuffed a bad FK into the column).
+  // Use the company's first active location; create a default warehouse if none exists.
+  let locationRow = (await db.select({ id: inventoryLocation.id })
+    .from(inventoryLocation)
+    .where(and(eq(inventoryLocation.companyId, companyId), eq(inventoryLocation.active, true)))
+    .limit(1))[0]
+  if (!locationRow) {
+    locationRow = (await db.insert(inventoryLocation)
+      .values({ companyId, name: 'Main Warehouse', type: 'warehouse' })
+      .returning({ id: inventoryLocation.id }))[0]
+  }
+
   // Create purchase order - schema requires locationId and vendor as string
   const [po] = await db
     .insert(purchaseOrder)
@@ -457,7 +470,7 @@ export async function exportToPurchaseOrder(sheetId: string, companyId: string, 
       status: 'draft',
       notes: `Generated from takeoff: ${sheet.name}`,
       total: String(totals.totalCost),
-      locationId: vendorId, // placeholder - should be a location ID
+      locationId: locationRow.id,
     })
     .returning()
 
