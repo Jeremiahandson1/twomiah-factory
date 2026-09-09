@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import appPaths from '../config/paths.ts';
 import { createBackup, listBackups, backupsDir } from '../services/autoBackup.ts';
 import { uploadFile, deleteFile, listFiles, getImageUrl, USE_R2 } from '../services/storage.ts';
+import { generateSecret, verifyTOTP } from '../services/totp.ts';
 import { runImport } from '../services/inventoryImport.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -520,6 +521,10 @@ app.post('/login', async (c) => {
       if (!totpCode) {
         return c.json({ requires2FA: true });
       }
+      if (!verifyTOTP(settings.twoFactorSecret, String(totpCode))) {
+        logActivity('login', { success: false, reason: 'bad_2fa' });
+        return c.json({ error: 'Invalid authentication code' }, 401);
+      }
     }
 
     const token = jwt.sign({ admin: true }, jwtSecret, { expiresIn: '7d' });
@@ -557,9 +562,12 @@ app.post('/change-password', authMiddleware, async (c) => {
 
 app.post('/2fa/setup', authMiddleware, (c) => {
   try {
-    const secret = crypto.randomBytes(20).toString('hex');
+    // base32 secret so authenticator apps (Google Authenticator/Authy) accept it.
+    const secret = generateSecret();
     const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
     settings.twoFactorSecret = secret;
+    // Not enabled until a valid code is confirmed via /2fa/enable.
+    settings.twoFactorEnabled = false;
     fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
 
     const otpauthUrl = `otpauth://totp/{{COMPANY_NAME_SLUG}}Admin?secret=${secret}&issuer={{COMPANY_NAME_SLUG}}`;
@@ -569,9 +577,15 @@ app.post('/2fa/setup', authMiddleware, (c) => {
   }
 });
 
-app.post('/2fa/enable', authMiddleware, (c) => {
+app.post('/2fa/enable', authMiddleware, async (c) => {
   try {
+    const { code } = await c.req.json().catch(() => ({} as any));
     const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+    if (!settings.twoFactorSecret) return c.json({ error: 'Run 2FA setup first' }, 400);
+    // Require a valid current code — proves the user actually configured the app.
+    if (!verifyTOTP(settings.twoFactorSecret, String(code || ''))) {
+      return c.json({ error: 'Invalid authentication code' }, 401);
+    }
     settings.twoFactorEnabled = true;
     fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2));
     logActivity('2fa_enabled');
