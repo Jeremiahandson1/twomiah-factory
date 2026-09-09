@@ -223,16 +223,20 @@ export async function getApplicationsFor(
  * Process webhook from Wisetack
  */
 export async function processWebhook(payload: any, signature: string) {
-  // Verify webhook signature
-  if (WISETACK_WEBHOOK_SECRET) {
-    const expectedSignature = crypto
-      .createHmac('sha256', WISETACK_WEBHOOK_SECRET)
-      .update(JSON.stringify(payload))
-      .digest('hex');
-
-    if (signature !== expectedSignature) {
-      throw new Error('Invalid webhook signature');
-    }
+  // Verify webhook signature. A financing webhook can only be legitimate once the
+  // integration (and its signing secret) is configured, so REJECT when the secret is
+  // unset rather than accepting an unverified payload (was: skipped verification).
+  if (!WISETACK_WEBHOOK_SECRET) {
+    throw new Error('Webhook secret not configured');
+  }
+  const expectedSignature = crypto
+    .createHmac('sha256', WISETACK_WEBHOOK_SECRET)
+    .update(JSON.stringify(payload))
+    .digest('hex');
+  const sigBuf = Buffer.from(String(signature || ''));
+  const expBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    throw new Error('Invalid webhook signature');
   }
 
   const { event, data } = payload;

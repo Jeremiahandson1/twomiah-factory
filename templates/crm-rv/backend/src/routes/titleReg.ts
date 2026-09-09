@@ -9,23 +9,21 @@ const app = new Hono()
 app.use('*', authenticate)
 
 interface TitleProvider { name: string; live: boolean; submit(deal: any): Promise<any> }
-let seq = 7700
-const mockProvider: TitleProvider = {
-  name: 'mock', live: false,
+// No DMV title/registration rail is connected, so we do NOT fabricate a "submitted"
+// filing (fake ref number / made-up fees / ETA). Return honest not_submitted with the
+// real required-document checklist; swap in vituProvider (Vitu National, 50-state) when live.
+const notConfiguredProvider: TitleProvider = {
+  name: 'not_configured', live: false,
   async submit(d) {
     const state = String(d.state || 'WI').toUpperCase()
-    const fees = { title: 164.5, registration: 85, plate: 30 }
     return {
-      refNumber: 'TR-' + (++seq), state, status: 'submitted',
-      fees: { ...fees, total: fees.title + fees.registration + fees.plate },
+      status: 'not_submitted', refNumber: null, state,
       checklist: ['Signed title / MSO', 'Bill of sale', 'Proof of insurance', 'Odometer / HIN disclosure', 'Buyer ID'],
-      eta: '5–10 business days',
-      submittedAt: new Date().toISOString(),
+      reason: 'Title & registration is not connected. Connect a DMV rail (e.g. Vitu) to submit.',
     }
   },
 }
-// ↓ swap when live: const provider = vituProvider
-const provider: TitleProvider = mockProvider
+const provider: TitleProvider = notConfiguredProvider
 
 const SUBMISSIONS: any[] = []
 app.post('/submit', async (c) => {
