@@ -136,9 +136,10 @@ const ENSURE_COLUMNS_SQL = `
   -- Wave-2: persist equivalency per-transaction limit + contact store credit.
   ALTER TABLE "equivalency_rules" ADD COLUMN IF NOT EXISTS "purchase_limit_grams" TEXT;
   ALTER TABLE "contact" ADD COLUMN IF NOT EXISTS "store_credit" TEXT DEFAULT '0';
-  -- schema.ts declares user.active but drizzle-kit push never added it on older tenants,
-  -- so raw active-flag filters (training /compliance + /assign, etc.) 500'd on the user table.
-  ALTER TABLE "user" ADD COLUMN IF NOT EXISTS "active" BOOLEAN DEFAULT true;
+  -- NOTE: the user table's active flag is `is_active` (schema column), NOT `active`. The old
+  -- ENSURE line here added a phantom `active` column that the reconcile push (schema has only
+  -- is_active) dropped every boot; the two training queries that filtered `active` now use
+  -- is_active, so no phantom column is needed. (deep-QA push-drop fix)
   -- Manufacturing job fail path (retest#14 F-15): the /fail handler records these but the columns
   -- were never created, so completing OR failing a job 500'd.
   ALTER TABLE "manufacturing_jobs" ADD COLUMN IF NOT EXISTS "failed_at" TIMESTAMP;
