@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { orders, orderItems, storeSettings } from '../../db/schema.ts'
-import { eq, desc, sql } from 'drizzle-orm'
+import { orders, orderItems, storeSettings, productVariants } from '../../db/schema.ts'
+import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { sendOrderShipped } from '../services/email.ts'
 
@@ -84,10 +84,29 @@ admin.patch('/:id/status', async (c) => {
   if (!parsed.success) return c.json({ error: 'Invalid status' }, 400)
   const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
   if (!prev) return c.json({ error: 'Not found' }, 404)
-  const patch: Record<string, unknown> = { status: parsed.data.status, updatedAt: new Date() }
-  if (parsed.data.status === 'fulfilled' || parsed.data.status === 'shipped') patch.fulfilledAt = new Date()
+  const next = parsed.data.status
+  const patch: Record<string, unknown> = { status: next, updatedAt: new Date() }
+  if (next === 'fulfilled' || next === 'shipped') patch.fulfilledAt = new Date()
   const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
-  if (parsed.data.status === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
+
+  // Restock when a previously-paid order is cancelled/refunded. Payment
+  // (finalizeOrder) decremented inventoryQty for tracked variants, so reversing
+  // to cancelled/refunded must add the units back — exactly once, and only from a
+  // state that actually decremented: a still-'pending' order never counted, and an
+  // order already cancelled/refunded must not double-restock. Untracked variants
+  // (inventoryQty IS NULL = unlimited) are skipped by the WHERE guard.
+  const COUNTED = ['paid', 'fulfilled', 'shipped', 'delivered']
+  if ((next === 'cancelled' || next === 'refunded') && COUNTED.includes(prev.status)) {
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, prev.id))
+    for (const it of items) {
+      if (!it.variantId) continue
+      await db.update(productVariants)
+        .set({ inventoryQty: sql`${productVariants.inventoryQty} + ${it.quantity}`, updatedAt: new Date() })
+        .where(and(eq(productVariants.id, it.variantId), sql`${productVariants.inventoryQty} is not null`))
+    }
+  }
+
+  if (next === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: updated })
 })
 
