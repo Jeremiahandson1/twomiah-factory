@@ -1517,7 +1517,9 @@ export async function deployCustomer(
           'PUSH_OK=false; ' +
           'for i in $(seq 1 60); do ' +
             // timeout bounds a hung push (drizzle rename prompt) — see dbReconcileStep.
-            'OUT=$(timeout 180 bunx drizzle-kit push --force 2>&1); ' +
+            // `-k 10` sends SIGKILL 10s after SIGTERM so a push that ignores SIGTERM
+            // can't hang boot past the bound (matches the CRM dbReconcileStep pattern).
+            'OUT=$(timeout -k 10 180 bunx drizzle-kit push --force 2>&1); ' +
             'echo "$OUT"; ' +
             'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] push verified on attempt $i"; PUSH_OK=true; break; fi; ' +
             'echo "[boot] push attempt $i did not verify (likely DB not ready), retrying in 10s"; ' +
