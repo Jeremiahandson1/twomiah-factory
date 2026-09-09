@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { createId } from '@paralleldrive/cuid2';
 import { db } from '../../db/index';
 import { quote, financingLender } from '../../db/schema';
@@ -102,25 +103,15 @@ app.post('/apply', authenticate, async (c) => {
       }
     }
 
-    // Fallback: mock response for development
-    logger.info('Financing application created (mock)', { applicationId, quoteId: body.quoteId });
-
-    await db
-      .update(quote)
-      .set({
-        financingApplicationId: applicationId,
-        financingStatus: 'pending',
-        financingAmount: String(body.amount),
-        updatedAt: new Date(),
-      })
-      .where(eq(quote.id, body.quoteId));
-
+    // No real financing rail is connected (WISETACK_API_KEY unset; the lender
+    // records are display-only, not live integrations). Do NOT fabricate a
+    // submission — marking the quote 'pending' and telling the customer they'll
+    // get a link when nothing was submitted is misleading. Return honestly.
+    logger.info('Financing apply attempted but no provider is configured', { quoteId: body.quoteId });
     return c.json({
-      applicationId,
-      status: 'pending',
-      lender: lenders.length > 0 ? (lenders[0] as any).name : 'default',
-      message: 'Application submitted. Customer will receive a link to complete.',
-    });
+      status: 'not_configured',
+      error: 'Financing is not connected. Add a WISETACK_API_KEY (or a live lender integration) to submit applications.',
+    }, 503);
   } catch (err) {
     logger.error('Financing application failed', { error: (err as Error).message });
     return c.json({ error: 'Financing application failed' }, 500);
@@ -180,8 +171,29 @@ app.get('/status/:applicationId', authenticate, async (c) => {
 
 // POST /wisetack/webhook
 app.post('/wisetack/webhook', async (c) => {
-  // In production, verify webhook signature
-  const body = await c.req.json();
+  const raw = await c.req.text();
+
+  // Verify the signature before trusting the payload — an unverified webhook lets
+  // anyone spoof a financing status (e.g. mark an application "approved"). Requires
+  // WISETACK_WEBHOOK_SECRET. The scheme below is HMAC-SHA256 over the raw body in the
+  // `x-wisetack-signature` header — confirm it matches Wisetack's documented signing
+  // when you connect the integration.
+  const secret = process.env.WISETACK_WEBHOOK_SECRET || '';
+  if (!secret) {
+    logger.warn('Wisetack webhook rejected: WISETACK_WEBHOOK_SECRET not configured');
+    return c.json({ error: 'Webhook not configured' }, 401);
+  }
+  const provided = c.req.header('x-wisetack-signature') || '';
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expected);
+  if (providedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(providedBuf, expectedBuf)) {
+    logger.warn('Wisetack webhook rejected: invalid signature');
+    return c.json({ error: 'Invalid signature' }, 401);
+  }
+
+  let body: any;
+  try { body = JSON.parse(raw); } catch { return c.json({ error: 'Invalid webhook payload' }, 400); }
 
   const transactionId = (body as any).transactionId || (body as any).id;
   const status = (body as any).status;

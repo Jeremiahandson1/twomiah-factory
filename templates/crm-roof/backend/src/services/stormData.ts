@@ -69,58 +69,50 @@ export async function generateStormLeads(companyId: string, stormEventId: string
     .where(and(eq(job.companyId, companyId), inArray(job.zip, zipCodes)))
   const existingAddresses = new Set(existingJobs.map(j => `${j.address}|${j.zip}`))
 
-  // Get company settings for max leads per zip
-  const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
-  const settings = (comp?.settings as any) || {}
-  const maxPerZip = settings.stormMaxLeadsPerZip || 200
+  // Real leads only. We do NOT fabricate addresses — sourcing net-new property
+  // owners in a ZIP needs a parcel/address data provider (not configured). Instead
+  // we surface the company's OWN contacts located in the storm-affected ZIPs, so the
+  // roofer can re-engage real people. Damage is left null (unknown until inspection).
+  const contactsInZips = await db.select({
+    id: contact.id, address: contact.address, city: contact.city, state: contact.state, zip: contact.zip,
+  }).from(contact)
+    .where(and(eq(contact.companyId, companyId), inArray(contact.zip, zipCodes)))
 
-  let totalCreated = 0
+  // Skip contacts we've already turned into a lead for this same storm event.
+  const priorLeads = await db.select({ contactId: stormLead.contactId })
+    .from(stormLead)
+    .where(and(eq(stormLead.companyId, companyId), eq(stormLead.stormEventId, stormEventId)))
+  const alreadyLeaded = new Set(priorLeads.map(l => l.contactId).filter(Boolean))
 
-  for (const zip of zipCodes) {
-    // Generate addresses using a grid approach within the zip code
-    // In production this would use Google Places API or property data
-    // For now, generate plausible addresses
-    const streetNames = ['Oak', 'Elm', 'Maple', 'Pine', 'Cedar', 'Birch', 'Walnut', 'Cherry', 'Ash', 'Willow']
-    const streetTypes = ['St', 'Dr', 'Ave', 'Ln', 'Ct', 'Way', 'Blvd', 'Rd']
-    const leads: any[] = []
-
-    for (let i = 0; i < Math.min(maxPerZip, 500); i++) {
-      const num = 100 + Math.floor(Math.random() * 9900)
-      const street = streetNames[Math.floor(Math.random() * streetNames.length)]
-      const type = streetTypes[Math.floor(Math.random() * streetTypes.length)]
-      const address = `${num} ${street} ${type}`
-
-      if (existingAddresses.has(`${address}|${zip}`)) continue
-
-      const damages = ['minor', 'moderate', 'severe']
-      leads.push({
-        companyId,
-        stormEventId,
-        address,
-        city: comp?.city || '',
-        state: comp?.state || '',
-        zip,
-        status: 'new',
-        estimatedDamage: damages[Math.floor(Math.random() * damages.length)],
-      })
-    }
-
-    if (leads.length > 0) {
-      // Batch insert
-      for (let i = 0; i < leads.length; i += 100) {
-        await db.insert(stormLead).values(leads.slice(i, i + 100))
-      }
-      totalCreated += leads.length
-    }
+  const leads: any[] = []
+  for (const ct of contactsInZips) {
+    if (!ct.address || !ct.zip) continue
+    if (alreadyLeaded.has(ct.id)) continue
+    if (existingAddresses.has(`${ct.address}|${ct.zip}`)) continue // already has a job
+    leads.push({
+      companyId,
+      stormEventId,
+      contactId: ct.id,
+      address: ct.address,
+      city: ct.city || '',
+      state: ct.state || '',
+      zip: ct.zip,
+      status: 'new',
+      estimatedDamage: null,
+      notes: 'Existing contact in a storm-affected ZIP — confirm damage on inspection.',
+    })
   }
 
-  // Update storm event lead count
+  for (let i = 0; i < leads.length; i += 100) {
+    await db.insert(stormLead).values(leads.slice(i, i + 100))
+  }
+
   await db.update(stormEvent).set({
-    leadCount: totalCreated,
+    leadCount: leads.length,
     status: 'leads_generated',
   }).where(eq(stormEvent.id, stormEventId))
 
-  return totalCreated
+  return leads.length
 }
 
 export async function checkExistingCustomers(companyId: string, stormEventId: string) {
