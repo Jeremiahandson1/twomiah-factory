@@ -109,9 +109,9 @@ app.post('/transcribe/:callId', async (c) => {
   const user = c.get('user') as any
   const callId = c.req.param('callId')
 
-  // This would look up the call's recording URL and run transcription
-  // For now, return a message indicating the feature
-  return c.json({ message: 'Transcription queued', callId })
+  const result = await aiReceptionist.transcribeExistingCall(user.companyId, callId)
+  if (!result.ok) return c.json({ error: result.error }, result.error === 'Call not found' ? 404 : 400)
+  return c.json({ message: 'Transcription complete', callId, transcription: result.transcription, summary: result.summary })
 })
 
 export default app
