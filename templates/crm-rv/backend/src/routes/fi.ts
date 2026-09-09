@@ -20,29 +20,27 @@ const PRODUCTS = [
 ]
 app.get('/products', (c) => c.json({ products: PRODUCTS }))
 
-// Lender submission — provider-agnostic. Mock now; swap to RouteOne / DealerTrack.
+// Lender submission — provider-agnostic. NO real credit rail is connected, and we
+// must NOT fabricate an approval/APR (a fake "Approved 7.99% via Octane" is a
+// liability). Until routeOneProvider / dealerTrackProvider is wired, submit records
+// the attempt and returns an honest not-submitted result. The deal-jacket workflow
+// is unchanged — only the fake decision is removed.
 interface LenderProvider { name: string; live: boolean; submit(app: any): Promise<any> }
-const mockLender: LenderProvider = {
-  name: 'mock', live: false,
-  async submit(a) {
-    const amt = Number(a.amountFinanced) || 0
-    const strong = amt < 45000
-    const ok = amt < 85000
-    if (!ok) return { decision: 'declined', lender: 'RouteOne network', reason: 'Amount exceeds program limits for this profile', stipulations: [] }
+const notConfiguredLender: LenderProvider = {
+  name: 'not_configured', live: false,
+  async submit(_a) {
     return {
-      decision: strong ? 'approved' : 'conditional',
-      lender: strong ? 'Octane (via RouteOne)' : 'Synchrony (via RouteOne)',
-      apr: strong ? 7.99 : 12.49,
-      termMonths: strong ? 60 : 48,
-      approvedAmount: strong ? amt : Math.round(amt * 0.9),
-      stipulations: strong ? ['Proof of income', 'Proof of insurance'] : ['Larger down payment', 'Proof of income', 'Proof of residence'],
+      decision: 'not_submitted',
+      lender: null,
+      reason: 'Lender integration not connected. Connect RouteOne or DealerTrack to submit credit applications.',
+      stipulations: [],
     }
   },
 }
 // ↓ swap when the credit-app integration is live:
 //   const lender = routeOneProvider   // RouteOne On-Demand
 //   const lender = dealerTrackProvider // DealerTrack credit
-const lender: LenderProvider = mockLender
+const lender: LenderProvider = notConfiguredLender
 
 app.post('/submit', async (c) => {
   const body = await c.req.json().catch(() => ({}))
