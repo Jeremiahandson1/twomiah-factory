@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import crypto from 'crypto'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
@@ -8,6 +9,19 @@ import audit from '../services/audit.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// AES-256-GCM encryption for sensitive data at rest (e.g. ACH bank details). The
+// key derives from ACH_ENCRYPTION_KEY if set, else JWT_SECRET (always present) —
+// so banking data is never stored reversibly. Output: base64(iv).base64(tag).base64(ct).
+function encryptSensitive(plaintext: string): string {
+  const keyMaterial = process.env.ACH_ENCRYPTION_KEY || process.env.JWT_SECRET || ''
+  const key = crypto.createHash('sha256').update(keyMaterial).digest() // 32 bytes
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
+  const ct = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  return `${iv.toString('base64')}.${tag.toString('base64')}.${ct.toString('base64')}`
+}
 
 // Raw-SQL rows come back snake_case but the frontend reads camelCase, so fields
 // rendered blank. Convert row keys to camelCase before responding. (retest#5 N1)
@@ -441,7 +455,6 @@ app.post('/ach/setup', requireRole('admin'), async (c) => {
   const data = achSchema.parse(await c.req.json())
 
   // Store as encrypted JSON in company.integrations
-  // In production, use proper encryption — here we base64 encode as a placeholder
   const achData = {
     bankName: data.bankName,
     routingNumber: data.routingNumber,
@@ -450,7 +463,7 @@ app.post('/ach/setup', requireRole('admin'), async (c) => {
     accountHolderName: data.accountHolderName,
     setupAt: new Date().toISOString(),
   }
-  const encrypted = Buffer.from(JSON.stringify(achData)).toString('base64')
+  const encrypted = encryptSensitive(JSON.stringify(achData))
 
   await db.execute(sql`
     UPDATE company

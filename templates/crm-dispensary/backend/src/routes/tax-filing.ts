@@ -142,6 +142,12 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
 
   const filingNumber = `TAX-${filingType.toUpperCase().replace(/_/g, '')}-${state || 'NA'}-${startStr.slice(0, 7)}-${Date.now().toString(36).toUpperCase()}`
 
+  // Local tax uses the rate configured in Settings (company.local_tax_rate, a
+  // percent). Default 0 — never fabricate a rate. Excise/sales come from the real
+  // per-order tax columns summed above.
+  const localRateResult: any = await db.execute(sql`SELECT COALESCE(NULLIF(local_tax_rate, ''), '0') AS local_tax_rate FROM company WHERE id = ${currentUser.companyId}`)
+  const localRatePct = Number(((localRateResult.rows || localRateResult)[0] || {}).local_tax_rate) || 0
+
   // Determine tax amounts based on filing type
   let exciseTaxDue = Number(orderStats.total_excise_tax) || 0
   let salesTaxDue = Number(orderStats.total_sales_tax) || 0
@@ -154,7 +160,7 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   } else if (filingType === 'local_tax') {
     exciseTaxDue = 0
     salesTaxDue = 0
-    localTaxDue = (Number(orderStats.total_subtotal) || 0) * 0.03 // placeholder 3% local
+    localTaxDue = (Number(orderStats.total_subtotal) || 0) * (localRatePct / 100)
   }
 
   const totalTaxDue = exciseTaxDue + salesTaxDue + localTaxDue

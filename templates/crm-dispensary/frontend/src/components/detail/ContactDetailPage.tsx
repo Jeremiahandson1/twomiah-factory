@@ -378,9 +378,21 @@ export default function ContactDetailPage() {
                 Create Order
               </Link>
               <button
-                onClick={() => {
-                  // Could open a modal for loyalty point adjustment
-                  toast.info('Loyalty point adjustment coming soon');
+                onClick={async () => {
+                  if (!loyalty?.id) { toast.info('This contact is not enrolled in loyalty yet.'); return; }
+                  const raw = window.prompt('Adjust loyalty points (use a negative number to deduct):');
+                  if (raw === null) return;
+                  const points = parseInt(raw, 10);
+                  if (!Number.isInteger(points) || points === 0) { toast.error('Enter a non-zero whole number of points.'); return; }
+                  const reason = window.prompt('Reason for this adjustment:');
+                  if (!reason || !reason.trim()) { toast.error('A reason is required.'); return; }
+                  try {
+                    await api.post(`/api/loyalty/members/${loyalty.id}/adjust`, { points, reason: reason.trim() });
+                    toast.success(`Adjusted ${points > 0 ? '+' : ''}${points} pts`);
+                    loadLoyalty();
+                  } catch (err: any) {
+                    toast.error(err?.message || 'Failed to adjust points (manager role required).');
+                  }
                 }}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >

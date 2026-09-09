@@ -191,7 +191,7 @@ app.post('/order', async (c) => {
   }
 
   // Resolve company
-  const [foundCompany] = await db.select({ id: company.id, name: company.name })
+  const [foundCompany] = await db.select({ id: company.id, name: company.name, taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate })
     .from(company).where(eq(company.slug, slug)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
@@ -257,8 +257,12 @@ app.post('/order', async (c) => {
     .filter(i => i.taxCategory === 'cannabis')
     .reduce((sum: number, i: any) => sum + Number(i.lineTotal), 0)
 
-  const exciseTax = cannabisSubtotal * CANNABIS_TAX_RATE
-  const salesTax = subtotal * SALES_TAX_RATE
+  // Use the rates configured in Settings so the public menu's totals match what the
+  // in-store register charges (orders.ts). Fall back to the defaults only when unset.
+  const exciseRate = foundCompany.exciseTaxRate != null && foundCompany.exciseTaxRate !== '' ? Number(foundCompany.exciseTaxRate) / 100 : CANNABIS_TAX_RATE
+  const salesRate = foundCompany.taxRate != null && foundCompany.taxRate !== '' ? Number(foundCompany.taxRate) / 100 : SALES_TAX_RATE
+  const exciseTax = cannabisSubtotal * (Number.isFinite(exciseRate) ? exciseRate : CANNABIS_TAX_RATE)
+  const salesTax = subtotal * (Number.isFinite(salesRate) ? salesRate : SALES_TAX_RATE)
   const totalTax = exciseTax + salesTax
   const grandTotal = subtotal + totalTax
 

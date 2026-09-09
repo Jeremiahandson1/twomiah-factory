@@ -25,6 +25,8 @@ export const company = pgTable('company', {
   // Dispensary-specific
   storeHours: json('store_hours'),
   taxRate: text('tax_rate').default('10'),
+  localTaxRate: text('local_tax_rate').default('0'),
+  exciseTaxRate: text('excise_tax_rate').default('15'),
   loyaltyPointsPerDollar: integer('loyalty_points_per_dollar').default(1),
   loyaltyEnabled: boolean('loyalty_enabled').default(true),
   deliveryEnabled: boolean('delivery_enabled').default(false),
