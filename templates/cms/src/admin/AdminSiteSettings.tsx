@@ -760,24 +760,29 @@ function AdminSiteSettings() {
                           method: 'POST',
                           headers: { 'Authorization': `Bearer ${token}` }
                         });
-                        if (response.ok) {
-                          const data = await response.json();
-                          // In a real implementation, show QR code here
-                          alert(`Setup 2FA with this secret: ${data.secret}\n\nNote: In production, this would show a QR code.`);
-                          
-                          // Enable 2FA
-                          await fetch(`${API_BASE}/admin/2fa/enable`, {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json',
-                              'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify({ code: '000000' })
-                          });
-                          
-                          toast.success('2FA enabled');
-                          loadSettings();
+                        if (!response.ok) { toast.error('Failed to start 2FA setup'); return; }
+                        const data = await response.json();
+                        // Show the secret and require the real code from the authenticator
+                        // app — the server verifies it before enabling (no more 000000 bypass).
+                        const code = window.prompt(
+                          `Add this secret to your authenticator app (Google Authenticator, Authy, etc.):\n\n${data.secret}\n\nThen enter the 6-digit code it shows to finish enabling 2FA:`
+                        );
+                        if (!code || !code.trim()) { toast.info('2FA setup cancelled — not enabled.'); return; }
+                        const enableRes = await fetch(`${API_BASE}/admin/2fa/enable`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                          },
+                          body: JSON.stringify({ code: code.trim() })
+                        });
+                        if (!enableRes.ok) {
+                          const e = await enableRes.json().catch(() => ({}));
+                          toast.error(e.error || 'Invalid code — 2FA not enabled.');
+                          return;
                         }
+                        toast.success('2FA enabled');
+                        loadSettings();
                       } catch (err) {
                         toast.error('Failed to setup 2FA');
                       }
