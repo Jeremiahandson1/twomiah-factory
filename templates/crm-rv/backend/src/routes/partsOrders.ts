@@ -10,18 +10,20 @@ const app = new Hono()
 app.use('*', authenticate)
 
 interface OrderProvider { name: string; live: boolean; place(items: any[]): Promise<any> }
-let seq = 4400
-const mockProvider: OrderProvider = {
-  name: 'mock', live: false,
+// No supplier ordering rail is connected, so we do NOT fabricate a "submitted" order
+// (fake PO number / "PartsTech network" / ETA). Return an honest not_submitted result;
+// swap in partsTechProvider / dealerSpikeProvider when the integration closes.
+const notConfiguredProvider: OrderProvider = {
+  name: 'not_configured', live: false,
   async place(items) {
     const total = items.reduce((s, i) => s + (Number(i.price) || 0) * (Number(i.qty) || 1), 0)
-    return { poNumber: 'PO-' + (++seq), supplier: 'PartsTech network', status: 'submitted', eta: '3–5 business days', total, items, placedAt: new Date().toISOString() }
+    return {
+      status: 'not_submitted', poNumber: null, supplier: null, total, items,
+      reason: 'Parts ordering is not connected. Connect a supplier rail (PartsTech / DealerSpike / OEM-direct) to place orders.',
+    }
   },
 }
-// ↓ swap when the ordering integration is live:
-//   const provider = partsTechProvider
-//   const provider = dealerSpikeProvider
-const provider: OrderProvider = mockProvider
+const provider: OrderProvider = notConfiguredProvider
 
 const ORDERS: any[] = []
 

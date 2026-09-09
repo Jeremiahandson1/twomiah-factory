@@ -458,7 +458,7 @@ async function sendReviewEmail(
     </div>
   `
 
-  return email.sendEmail({ to: emailAddress, subject, html })
+  return email.sendRaw({ to: emailAddress, subject, html })
 }
 
 /**
