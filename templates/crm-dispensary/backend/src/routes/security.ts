@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { sendSMS } from '../services/sms.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -96,6 +97,7 @@ function verifyTOTP(secret: string, code: string): boolean {
 
 const mfaSetupSchema = z.object({
   type: z.enum(['totp', 'sms', 'email']),
+  phoneNumber: z.string().min(7).max(20).optional(),
 })
 
 const mfaVerifySchema = z.object({
@@ -173,18 +175,18 @@ app.post('/mfa/setup', async (c) => {
 
   const result = await db.execute(sql`
     INSERT INTO mfa_devices (
-      id, company_id, user_id, type, secret,
+      id, company_id, user_id, type, secret, phone_number,
       is_verified, created_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId}, ${currentUser.userId},
-      ${data.type}, ${secretToStore},
+      ${data.type}, ${secretToStore}, ${data.type === 'sms' ? (data.phoneNumber || null) : null},
       false, NOW()
     ) RETURNING id, type, is_verified, created_at
   `)
 
   const device = ((result as any).rows || result)[0]
 
-  // For SMS, send verification code (placeholder — actual SMS handled by SMS service)
+  // For SMS, store a challenge and text the verification code to the number.
   if (data.type === 'sms' && verificationCode) {
     await db.execute(sql`
       INSERT INTO mfa_challenges (
@@ -196,6 +198,11 @@ app.post('/mfa/setup', async (c) => {
         NOW() + INTERVAL '5 minutes', false, NOW()
       )
     `)
+    if (data.phoneNumber) {
+      try {
+        await sendSMS(currentUser.companyId, { toPhone: data.phoneNumber, message: `Your verification code is ${verificationCode}` })
+      } catch { /* delivery failure must not fail enrollment — user can resend */ }
+    }
   }
 
   audit.log({
@@ -322,10 +329,13 @@ app.post('/mfa/challenge', async (c) => {
 
   const challenge = ((result as any).rows || result)[0]
 
-  // For SMS devices, send the code
+  // For SMS devices, text the code to the enrolled number, then log the event.
   if (device.type === 'sms') {
-    // SMS sending would be handled by the SMS service
-    // This is a placeholder — the actual implementation would call smsService.send()
+    if (device.phone_number) {
+      try {
+        await sendSMS(currentUser.companyId, { toPhone: device.phone_number, message: `Your verification code is ${code}` })
+      } catch { /* delivery failure must not block the challenge — user can resend */ }
+    }
     await db.execute(sql`
       INSERT INTO security_events (
         id, company_id, event_type, severity, description,

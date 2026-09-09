@@ -156,6 +156,25 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     text: `Hi ${data.firstName}, your password reset code is: ${data.resetCode}\n\nOr visit: ${APP_URL}/reset-password?token=${data.resetToken}\n\nExpires in 1 hour.`,
   }),
 
+  purchaseOrder: (data) => ({
+    subject: `Purchase Order ${data.poNumber}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">{{COMPANY_NAME}}</h1></div>
+        <div class="content">
+          <h2>Purchase Order ${data.poNumber}</h2>
+          <p>Hello${data.supplierName ? ' ' + data.supplierName : ''},</p>
+          <p>{{COMPANY_NAME}} has submitted purchase order <strong>${data.poNumber}</strong>${data.total ? ` for a total of <strong>$${data.total}</strong>` : ''}.</p>
+          ${data.notes ? `<p>${data.notes}</p>` : ''}
+          <p>Please confirm receipt and expected fulfillment date.</p>
+        </div>
+        <div class="footer">&copy; ${new Date().getFullYear()} {{COMPANY_NAME}}</div>
+      </div></body></html>
+    `,
+    text: `Purchase Order ${data.poNumber} from {{COMPANY_NAME}}${data.total ? ` — total $${data.total}` : ''}.${data.notes ? '\n\n' + data.notes : ''}\n\nPlease confirm receipt and expected fulfillment date.`,
+  }),
+
   welcome: (data) => ({
     subject: 'Welcome to {{COMPANY_NAME}}!',
     html: `

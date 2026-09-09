@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { send } from '../services/email.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -434,12 +435,19 @@ app.put('/:id/submit', requireRole('manager'), async (c) => {
   const updated = ((result as any).rows || result)?.[0]
   if (!updated) return c.json({ error: 'Purchase order not found or not in draft status' }, 404)
 
-  // TODO: Send email to supplier if supplier_email is set
-  // For now, just log it
-  const emailSent = false
+  // Email the submitted PO to the supplier when they have an address on file.
+  // Delivery failure must not fail submission — the PO is already saved.
+  let emailSent = false
   if (updated.supplier_email) {
-    // Would integrate with email service here
-    // await emailService.send({ to: updated.supplier_email, subject: `Purchase Order ${updated.po_number}`, ... })
+    try {
+      const res = await send(updated.supplier_email, 'purchaseOrder', {
+        poNumber: updated.po_number,
+        supplierName: updated.supplier_name || null,
+        total: updated.total != null ? Number(updated.total).toFixed(2) : null,
+        notes: updated.notes || null,
+      })
+      emailSent = !!res?.success
+    } catch { /* logged inside send(); PO submission still succeeds */ }
   }
 
   audit.log({

@@ -50,7 +50,7 @@ export default function SettingsPage() {
 
   // General
   const [generalForm, setGeneralForm] = useState({
-    name: '', address: '', phone: '', email: '', taxRate: '0',
+    name: '', address: '', phone: '', email: '', taxRate: '0', localTaxRate: '0', exciseTaxRate: '15',
   });
   const [storeHours, setStoreHours] = useState<StoreHours>(defaultHours());
 
@@ -94,6 +94,8 @@ export default function SettingsPage() {
         phone: company.phone || '',
         email: company.email || '',
         taxRate: settings.taxRate?.toString() || '0',
+        localTaxRate: settings.localTaxRate?.toString() || '0',
+        exciseTaxRate: settings.exciseTaxRate?.toString() || '15',
       });
       if (settings.storeHours) setStoreHours({ ...defaultHours(), ...settings.storeHours });
       if (settings.loyalty) setLoyaltyForm({ ...loyaltyForm, ...settings.loyalty, enabled: !!settings.loyalty?.enabled });
@@ -157,6 +159,8 @@ export default function SettingsPage() {
         payload.settings = {
           ...(company?.settings || {}),
           taxRate: parseFloat(generalForm.taxRate) || 0,
+          localTaxRate: parseFloat(generalForm.localTaxRate) || 0,
+          exciseTaxRate: parseFloat(generalForm.exciseTaxRate) || 0,
           storeHours,
         };
       } else if (section === 'loyalty') {
@@ -291,13 +295,39 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="w-48">
-                  <FieldLabel>Tax Rate (%)</FieldLabel>
+                  <FieldLabel>Sales Tax Rate (%)</FieldLabel>
                   <div className="relative">
                     <Input
                       value={generalForm.taxRate}
                       onChange={v => setGeneralForm({ ...generalForm, taxRate: v })}
                       type="number"
                       placeholder="0.00"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                  </div>
+                </div>
+
+                <div className="w-48">
+                  <FieldLabel>Local Tax Rate (%)</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      value={generalForm.localTaxRate}
+                      onChange={v => setGeneralForm({ ...generalForm, localTaxRate: v })}
+                      type="number"
+                      placeholder="0.00"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                  </div>
+                </div>
+
+                <div className="w-48">
+                  <FieldLabel>Cannabis Excise Tax (%)</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      value={generalForm.exciseTaxRate}
+                      onChange={v => setGeneralForm({ ...generalForm, exciseTaxRate: v })}
+                      type="number"
+                      placeholder="15.00"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
                   </div>

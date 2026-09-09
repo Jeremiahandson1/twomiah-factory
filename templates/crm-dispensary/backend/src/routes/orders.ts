@@ -179,17 +179,23 @@ app.post('/', async (c) => {
   // Sales tax uses the rate configured in Settings (company.taxRate, a percent
   // like "8.5") so the register charges what the operator set — not a hardcoded
   // constant that disagreed with Settings. Excise stays a cannabis-specific rate.
-  const [companyRow] = await db.select({ taxRate: company.taxRate }).from(company)
+  const [companyRow] = await db.select({ taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate }).from(company)
     .where(eq(company.id, currentUser.companyId)).limit(1)
   const configuredSalesRate = companyRow?.taxRate != null && companyRow.taxRate !== ''
     ? Number(companyRow.taxRate) / 100
     : SALES_TAX_RATE
   const salesRate = Number.isFinite(configuredSalesRate) ? configuredSalesRate : SALES_TAX_RATE
+  // Excise is a cannabis-specific rate that varies by state — read it from Settings
+  // too, falling back to the 15% default only when unconfigured.
+  const configuredExciseRate = companyRow?.exciseTaxRate != null && companyRow.exciseTaxRate !== ''
+    ? Number(companyRow.exciseTaxRate) / 100
+    : CANNABIS_TAX_RATE
+  const exciseRate = Number.isFinite(configuredExciseRate) ? configuredExciseRate : CANNABIS_TAX_RATE
 
   // Round tax to cents. Raw floats like 2.8000000000000003 rendered badly and broke
   // exact-match reconciliation/exports. (retest#5 tax)
   const round2 = (n: number) => Math.round(n * 100) / 100
-  const exciseTax = round2(cannabisSubtotal * CANNABIS_TAX_RATE)
+  const exciseTax = round2(cannabisSubtotal * exciseRate)
   const salesTax = round2(subtotal * salesRate)
   const totalTax = round2(exciseTax + salesTax)
 
