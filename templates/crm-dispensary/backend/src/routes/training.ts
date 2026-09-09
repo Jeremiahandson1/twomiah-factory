@@ -275,7 +275,7 @@ app.post('/courses/:id/assign-role', requireRole('manager'), async (c) => {
 
   // Get all users with the specified role
   const usersResult = await db.execute(sql`
-    SELECT id FROM "user" WHERE company_id = ${currentUser.companyId} AND role = ${data.role} AND active = true
+    SELECT id FROM "user" WHERE company_id = ${currentUser.companyId} AND role = ${data.role} AND is_active = true
   `)
   const users = (usersResult as any).rows || usersResult
 
@@ -662,7 +662,7 @@ app.get('/compliance', async (c) => {
   const usersResult = await db.execute(sql`
     SELECT id, first_name || ' ' || last_name AS name, role
     FROM "user"
-    WHERE company_id = ${currentUser.companyId} AND active = true
+    WHERE company_id = ${currentUser.companyId} AND is_active = true
     ORDER BY first_name ASC
   `)
   const users = (usersResult as any).rows || usersResult
@@ -799,7 +799,7 @@ app.post('/assign', requireRole('manager'), async (c) => {
   } else if (data.role) {
     const usersResult = await db.execute(sql`
       SELECT id FROM "user"
-      WHERE company_id = ${currentUser.companyId} AND role = ${data.role} AND active = true
+      WHERE company_id = ${currentUser.companyId} AND role = ${data.role} AND is_active = true
     `)
     targetIds = ((usersResult as any).rows || usersResult).map((u: any) => u.id)
   } else {

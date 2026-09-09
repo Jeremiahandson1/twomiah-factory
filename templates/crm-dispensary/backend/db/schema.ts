@@ -336,6 +336,10 @@ export const loyaltyMember = pgTable('loyalty_members', {
   totalVisits: integer('total_visits').default(0),
   totalSpent: text('total_spent').default('0'),
   notes: text('notes'),
+  // The enroll handler INSERTs created_at and the Members tab ORDERs BY created_at; the
+  // reconcile push reconciles the DB to this schema, so created_at MUST be declared here
+  // or `drizzle-kit push --force` drops it, 500ing enroll + the members list. (deep-QA)
+  createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (t) => [
   index('loyalty_member_company_id_idx').on(t.companyId),
@@ -438,6 +442,10 @@ export const cashSession = pgTable('cash_sessions', {
   closingAmount: text('closing_amount'),
   expectedAmount: text('expected_amount'),
   denominations: json('denominations'),
+  // The open-drawer handler INSERTs created_at and the reconcile push reconciles the DB
+  // to this schema — so created_at MUST be declared here or `drizzle-kit push --force`
+  // drops the column the ENSURE net added on boot, 500ing /cash/sessions/open. (deep-QA)
+  createdAt: timestamp('created_at').defaultNow(),
 }, (t) => [
   index('cash_session_company_id_idx').on(t.companyId),
   index('cash_session_user_id_idx').on(t.userId),
