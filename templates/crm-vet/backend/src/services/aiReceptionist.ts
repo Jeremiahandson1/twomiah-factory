@@ -501,6 +501,32 @@ export async function processRecordingWebhook(companyId: string, payload: {
   })
 }
 
+// Manual re-transcribe of an existing call (admin-triggered from the UI). Looks up
+// the call's stored recording_url and runs the same Whisper + summary pipeline as
+// the recording webhook, keyed on the call_log id instead of the Twilio CallSid.
+export async function transcribeExistingCall(companyId: string, callId: string) {
+  const rows = await db.execute(sql`
+    SELECT id, recording_url, caller_name FROM call_log
+    WHERE id = ${callId} AND company_id = ${companyId} LIMIT 1
+  `)
+  const callRow = (Array.isArray(rows) ? rows : (rows as any)?.rows)?.[0] as any
+  if (!callRow) return { ok: false as const, error: 'Call not found' }
+  if (!callRow.recording_url) return { ok: false as const, error: 'No recording on file for this call' }
+
+  const transcription = await transcribeRecording(callRow.recording_url)
+  if (!transcription) return { ok: false as const, error: 'Transcription unavailable (recording unreadable or OpenAI not configured)' }
+  await db.execute(sql`UPDATE call_log SET transcription = ${transcription} WHERE id = ${callRow.id}`)
+
+  let summary: string | null = null
+  const [comp] = await db.select({ name: company.name }).from(company).where(eq(company.id, companyId)).limit(1)
+  const result = await summarizeAndGenerateReply(transcription, comp?.name || 'our company', 'service', callRow.caller_name || undefined)
+  if (result?.summary) {
+    summary = result.summary
+    await db.execute(sql`UPDATE call_log SET ai_summary = ${summary} WHERE id = ${callRow.id}`)
+  }
+  return { ok: true as const, transcription, summary }
+}
+
 export default {
   getRules,
   createRule,
@@ -509,6 +535,7 @@ export default {
   getSettings,
   upsertSettings,
   transcribeRecording,
+  transcribeExistingCall,
   summarizeAndGenerateReply,
   evaluateRules,
   processRecordingWebhook,
