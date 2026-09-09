@@ -190,12 +190,12 @@ app.post('/mfa/setup', async (c) => {
   if (data.type === 'sms' && verificationCode) {
     await db.execute(sql`
       INSERT INTO mfa_challenges (
-        id, company_id, device_id, user_id, code_hash,
-        expires_at, used, created_at
+        id, device_id, user_id, type, code,
+        status, expires_at, created_at
       ) VALUES (
-        gen_random_uuid(), ${currentUser.companyId}, ${device.id}, ${currentUser.userId},
+        gen_random_uuid(), ${device.id}, ${currentUser.userId}, ${data.type},
         ${crypto.createHash('sha256').update(verificationCode).digest('hex')},
-        NOW() + INTERVAL '5 minutes', false, NOW()
+        'pending', NOW() + INTERVAL '5 minutes', NOW()
       )
     `)
     if (data.phoneNumber) {
@@ -251,9 +251,9 @@ app.post('/mfa/verify', async (c) => {
       SELECT * FROM mfa_challenges
       WHERE device_id = ${data.deviceId}
         AND user_id = ${currentUser.userId}
-        AND code_hash = ${codeHash}
+        AND code = ${codeHash}
         AND expires_at > NOW()
-        AND used = false
+        AND status = 'pending'
       ORDER BY created_at DESC
       LIMIT 1
     `)
@@ -261,7 +261,7 @@ app.post('/mfa/verify', async (c) => {
     if (challenge) {
       valid = true
       await db.execute(sql`
-        UPDATE mfa_challenges SET used = true WHERE id = ${challenge.id}
+        UPDATE mfa_challenges SET status = 'verified', verified_at = NOW() WHERE id = ${challenge.id}
       `)
     }
   }
@@ -318,12 +318,12 @@ app.post('/mfa/challenge', async (c) => {
 
   const result = await db.execute(sql`
     INSERT INTO mfa_challenges (
-      id, company_id, device_id, user_id, code_hash,
-      expires_at, used, created_at
+      id, device_id, user_id, type, code,
+      status, expires_at, created_at
     ) VALUES (
-      gen_random_uuid(), ${currentUser.companyId}, ${data.deviceId}, ${data.userId},
+      gen_random_uuid(), ${data.deviceId}, ${data.userId}, ${device.type},
       ${codeHash},
-      NOW() + INTERVAL '5 minutes', false, NOW()
+      'pending', NOW() + INTERVAL '5 minutes', NOW()
     ) RETURNING id, expires_at
   `)
 
@@ -363,8 +363,8 @@ app.post('/mfa/challenge/verify', async (c) => {
     FROM mfa_challenges mc
     JOIN mfa_devices md ON md.id = mc.device_id
     WHERE mc.id = ${data.challengeId}
-      AND mc.company_id = ${currentUser.companyId}
-      AND mc.used = false
+      AND mc.user_id = ${currentUser.userId}
+      AND mc.status = 'pending'
     LIMIT 1
   `)
   const challenge = ((challengeResult as any).rows || challengeResult)[0]
@@ -395,7 +395,7 @@ app.post('/mfa/challenge/verify', async (c) => {
   } else {
     // SMS/email — compare code hash
     const codeHash = crypto.createHash('sha256').update(data.code).digest('hex')
-    valid = codeHash === challenge.code_hash
+    valid = codeHash === challenge.code
   }
 
   if (!valid) {
@@ -414,7 +414,7 @@ app.post('/mfa/challenge/verify', async (c) => {
 
   // Mark challenge as used
   await db.execute(sql`
-    UPDATE mfa_challenges SET used = true WHERE id = ${data.challengeId}
+    UPDATE mfa_challenges SET status = 'verified', verified_at = NOW() WHERE id = ${data.challengeId}
   `)
 
   // Log success event
