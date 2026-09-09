@@ -206,6 +206,20 @@
       </form>
     </section>
 
+    <!-- SPEAKEASY -->
+    <section class="con-card" aria-labelledby="h-speak">
+      <h2 class="con-card__title" id="h-speak">Back Room password</h2>
+      <p class="con-help">The door on the website's home page. Whoever knocks, answers, and gets through the cellar sees this. Change it whenever you like; leave it blank to turn the reward off.</p>
+      <form class="con-form" data-form="/api/console/speakeasy">
+        <input class="con-input" name="password" maxlength="40" placeholder="SWORDFISH" value="<%= status.speakeasyPassword || '' %>" autocapitalize="characters">
+        <input class="con-input" name="note" maxlength="120" placeholder="Say it at the bar for a dollar off a root beer." value="<%= status.speakeasyNote || '' %>">
+        <div class="con-grid con-grid--2">
+          <button class="con-btn con-btn--good" type="submit">Set password</button>
+          <button class="con-btn con-btn--bad" type="button" data-post="/api/console/speakeasy" data-body='{"password":"","note":""}'>Clear</button>
+        </div>
+      </form>
+    </section>
+
     <!-- PARTY INBOX -->
     <section class="con-card" aria-labelledby="h-parties">
       <h2 class="con-card__title" id="h-parties">Party inquiries <span class="con-badge" id="inq-count"><%= inquiries.length %></span></h2>

@@ -36,7 +36,7 @@ import { loadSiteData, bustSiteData } from './lib/site-data'
 import { buildLiveState } from './lib/live'
 import { markdownToHtml } from './lib/markdown'
 import { alertOwner } from './lib/sms/twilio'
-import { partyInquiries as partyInquiriesTbl } from './db/schema'
+import { partyInquiries as partyInquiriesTbl, serviceStatus } from './db/schema'
 
 // Cache-busting version for local stylesheets: changes every deploy (Render
 // sets RENDER_GIT_COMMIT) so browsers can keep long max-age but never serve
@@ -372,6 +372,12 @@ app.get('/api/live', async (c) => {
   c.header('Cache-Control', 'no-store')
   c.header('Access-Control-Allow-Origin', '*')
   return c.json(site.live)
+})
+// The Back Room: what the speakeasy game shows at the end. Set from the console.
+app.get('/api/speakeasy', async (c) => {
+  const [row] = await db.select({ password: serviceStatus.speakeasyPassword, note: serviceStatus.speakeasyNote }).from(serviceStatus).limit(1)
+  c.header('Cache-Control', 'public, max-age=60')
+  return c.json({ password: row?.password || null, note: row?.note || null })
 })
 // Fresh (uncached) variant for the console right after a write.
 app.get('/api/live/fresh', async (c) => {

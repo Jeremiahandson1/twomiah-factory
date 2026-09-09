@@ -287,6 +287,8 @@ export const serviceStatus = pgTable('service_status', {
   overrideUntil: timestamp('override_until', { withTimezone: true }),         // all of the above lapse here
   roomStatus: text('room_status').notNull().default('quiet'),                 // 'quiet' | 'filling' | 'packed'
   note: text('note'),                                                          // free-text line on the board
+  speakeasyPassword: text('speakeasy_password'),                               // the Back Room reward (home-page door game)
+  speakeasyNote: text('speakeasy_note'),                                       // what it is good for ("$1 off a root beer")
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text('updated_by'),                                               // staff pin label
 })

@@ -222,6 +222,14 @@ consoleApi.post('/note', async (c) => {
   return done(c)
 })
 
+// The Back Room password (home-page speakeasy game). Empty clears it; the game then falls back to its own line.
+consoleApi.post('/speakeasy', async (c) => {
+  const b = await bodyOf(c)
+  const row = await statusRow()
+  await db.update(serviceStatus).set({ speakeasyPassword: str(b.password, 40), speakeasyNote: str(b.note, 120), updatedAt: new Date(), updatedBy: c.get('staff').label }).where(eq(serviceStatus.id, row.id))
+  return done(c)
+})
+
 // Tonight's special: one active row until end of business day. Empty title clears it.
 consoleApi.post('/special', async (c) => {
   const b = await bodyOf(c)

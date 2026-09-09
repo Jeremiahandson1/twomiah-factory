@@ -249,6 +249,22 @@ export const SECTION_DEFS: SectionDef[] = [
       items: [{ question: '', answer: '' }],
     },
   },
+
+  // ── Speakeasy (bar) ─────────────────────────────────────────────────
+  {
+    type: 'speakeasy', variant: 'door',
+    label: 'Speakeasy — The door in the leather',
+    description: 'Easter egg: a brass door on the cover. Knock, give the password (a riddle from the story), find the Back Room through a cellar of riddles. The reward is the password the bar sets from the console.',
+    defaultData: {
+      eyebrow: 'The underground',
+      heading: 'There is a door in the leather.',
+      intro: '',
+      doorNumber: '840',
+      password: { question: '', answers: [], hint: '' },
+      riddles: [{ question: '', doors: ['', '', ''], answer: 0 }],
+      reward: { title: 'The Back Room', fallback: 'Say it at the bar.' },
+    },
+  },
 ]
 
 export function findSectionDef(type: string, variant: string): SectionDef | undefined {

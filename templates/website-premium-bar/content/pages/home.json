@@ -126,6 +126,85 @@
         "image": "/images/brand/exterior-700.jpg",
         "imageAlt": "The Amber Inn at dusk"
       }
+    },
+    {
+      "type": "speakeasy",
+      "variant": "door",
+      "data": {
+        "eyebrow": "The underground",
+        "heading": "There is a door in the leather.",
+        "intro": "In 1920 the sign out front said soft drinks and the drinking moved to the basement. The basement is still down there. So is the door.",
+        "doorNumber": "840",
+        "password": {
+          "question": "In 1920 the sign changed and George Berg sold something over the counter. What?",
+          "answers": [
+            "root beer",
+            "rootbeer",
+            "draft root beer",
+            "soft drinks",
+            "soda",
+            "pop",
+            "soda pop"
+          ],
+          "hint": "It is still on the taps, in a frosted mug."
+        },
+        "riddles": [
+          {
+            "question": "Who put up this building in 1881 and poured the first beer in it?",
+            "doors": [
+              "Walter Brewing",
+              "Leinenkugel",
+              "Pabst"
+            ],
+            "answer": 0,
+            "right": "The brewery that built the room. The lock turns."
+          },
+          {
+            "question": "The brewery owned the room, and the room could pour only its beer. The arrangement was called a…",
+            "doors": [
+              "Free house",
+              "Tied house",
+              "Road house"
+            ],
+            "answer": 1,
+            "right": "Tied house. Through you go."
+          },
+          {
+            "question": "When nobody was watching, what sometimes went into the root beer mug?",
+            "doors": [
+              "Maple syrup",
+              "Holy water",
+              "Corn whisky"
+            ],
+            "answer": 2,
+            "right": "Kept in a bottle under the bar. Keep moving."
+          },
+          {
+            "question": "When the sign said soft drinks, where did the drinking go?",
+            "doors": [
+              "The roof",
+              "The basement",
+              "The church"
+            ],
+            "answer": 1,
+            "right": "Down here. You are standing in it."
+          },
+          {
+            "question": "Sixty years later Orv and Pat ground half-pound burgers behind the bar and called them…",
+            "doors": [
+              "Ambergers",
+              "Whoppers",
+              "Sliders"
+            ],
+            "answer": 0,
+            "right": "Ambergers. Last door."
+          }
+        ],
+        "reward": {
+          "title": "The Back Room",
+          "fallback": "Say it at the bar. Quietly."
+        }
+      }
     }
   ]
 }

@@ -1,0 +1,77 @@
+<%
+  // THE DOOR IN THE LEATHER — a speakeasy easter egg. A brass-framed door sits
+  // on the cover; tap it, knock, give the password at the slot, then find the
+  // Back Room through a cellar of riddles drawn from the bar's real story. The
+  // reward is a password of the week the bar sets from the console
+  // (/api/speakeasy). Everything past the door loads on first tap
+  // (build/scripts/speakeasy.js + build/styles/speakeasy.css), so the page
+  // pays nothing for it until someone plays.
+  //
+  // data: { eyebrow, heading, intro, doorNumber, password: { question, answers[], hint },
+  //         riddles: [{ question, doors: [labels], answer: index, hint? }], reward: { title, fallback } }
+  const d = data || {}
+  const riddles = Array.isArray(d.riddles) ? d.riddles : []
+  const cfg = { password: d.password || {}, riddles, reward: d.reward || {}, companyName: settings.companyName || 'the bar' }
+  const doorSvg = `        <!-- frame -->
+        <rect x="6" y="6" width="228" height="328" rx="6" fill="url(#spk-brass)"/>
+        <rect x="14" y="14" width="212" height="320" rx="4" fill="#120B05"/>
+        <!-- leaf -->
+        <g class="spk-leaf">
+          <rect x="18" y="18" width="204" height="316" fill="url(#spk-wood)"/>
+          <!-- plank seams -->
+          <g stroke="#0E0803" stroke-width="1.2" opacity=".8"><line x1="60" y1="18" x2="60" y2="334"/><line x1="102" y1="18" x2="102" y2="334"/><line x1="144" y1="18" x2="144" y2="334"/><line x1="186" y1="18" x2="186" y2="334"/></g>
+          <!-- straps -->
+          <g fill="url(#spk-brass-v)"><rect x="18" y="52" width="204" height="10" rx="2"/><rect x="18" y="266" width="204" height="10" rx="2"/></g>
+          <g fill="#F1D9A3" opacity=".9"><circle cx="34" cy="57" r="2.2"/><circle cx="72" cy="57" r="2.2"/><circle cx="120" cy="57" r="2.2"/><circle cx="168" cy="57" r="2.2"/><circle cx="206" cy="57" r="2.2"/><circle cx="34" cy="271" r="2.2"/><circle cx="72" cy="271" r="2.2"/><circle cx="120" cy="271" r="2.2"/><circle cx="168" cy="271" r="2.2"/><circle cx="206" cy="271" r="2.2"/></g>
+          <!-- number plate -->
+          <rect x="88" y="78" width="64" height="26" rx="3" fill="url(#spk-brass)"/>
+          <text x="120" y="97" text-anchor="middle" font-family="Cinzel, Georgia, serif" font-size="15" font-weight="700" fill="#2A1A0E" letter-spacing="2">${(d.doorNumber || '840')}</text>
+          <!-- peephole slot: light behind, then the sliding cover -->
+          <rect class="spk-slot-light" x="66" y="140" width="108" height="22" rx="2" fill="#FFD98A"/>
+          <g class="spk-eyes" opacity="0"><circle cx="102" cy="151" r="3.2" fill="#FFF3D0"/><circle cx="138" cy="151" r="3.2" fill="#FFF3D0"/><circle cx="103" cy="151" r="1.4" fill="#1a1006"/><circle cx="139" cy="151" r="1.4" fill="#1a1006"/></g>
+          <rect x="62" y="136" width="116" height="30" rx="3" fill="none" stroke="url(#spk-brass)" stroke-width="3"/>
+          <rect class="spk-slot-cover" x="64" y="138" width="112" height="26" rx="2" fill="url(#spk-brass-v)"/>
+          <!-- knocker -->
+          <circle cx="120" cy="215" r="9" fill="url(#spk-brass)"/>
+          <path class="spk-knocker" d="M120 215 m-16 4 a16 16 0 0 0 32 0" fill="none" stroke="url(#spk-brass-v)" stroke-width="6" stroke-linecap="round"/>
+          <!-- handle -->
+          <rect x="196" y="176" width="12" height="34" rx="4" fill="url(#spk-brass-v)"/>
+          <!-- light under the door -->
+          <rect class="spk-under" x="18" y="330" width="204" height="4" fill="#FFD98A" opacity=".55"/>
+        </g>`
+%>
+<section class="speak" id="speakeasy" aria-labelledby="speak-heading">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="spk-wood" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#2A1A0E"/><stop offset=".18" stop-color="#3B2717"/><stop offset=".35" stop-color="#241408"/><stop offset=".5" stop-color="#3A2515"/><stop offset=".68" stop-color="#22130A"/><stop offset=".85" stop-color="#382415"/><stop offset="1" stop-color="#1E1007"/>
+      </linearGradient>
+      <linearGradient id="spk-brass" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#F1D9A3"/><stop offset=".45" stop-color="#C79D67"/><stop offset="1" stop-color="#7D582F"/>
+      </linearGradient>
+      <linearGradient id="spk-brass-v" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#F1D9A3"/><stop offset=".5" stop-color="#A8763C"/><stop offset="1" stop-color="#6B4A22"/>
+      </linearGradient>
+      <radialGradient id="spk-glow" cx=".5" cy=".5" r=".5">
+        <stop offset="0" stop-color="#FFD98A" stop-opacity=".95"/><stop offset=".6" stop-color="#F1B85A" stop-opacity=".35"/><stop offset="1" stop-color="#F1B85A" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+  </svg>
+
+  <div class="container speak__inner">
+    <div class="speak__copy">
+      <% if (d.eyebrow) { %><div class="eyebrow"><%= d.eyebrow %></div><% } %>
+      <h2 class="section-title speak__title" id="speak-heading"><%= d.heading || 'There is a door in the leather.' %></h2>
+      <% if (d.intro) { %><p class="section-intro speak__intro"><%= d.intro %></p><% } %>
+      <p class="speak__hint mono" data-speak-status>Knock. If you know, you know.</p>
+    </div>
+    <button class="speak__door" type="button" data-speak-open aria-label="Knock on the door" aria-haspopup="dialog">
+      <span class="speak__glow" aria-hidden="true"></span>
+      <svg class="speak__svg" viewBox="0 0 240 340" aria-hidden="true"><%- doorSvg %></svg>
+    </button>
+  </div>
+
+  <template id="spk-door-tpl"><svg viewBox="0 0 240 340" aria-hidden="true" style="width:100%;height:auto;display:block"><%- doorSvg %></svg></template>
+  <script type="application/json" id="speak-config"><%- JSON.stringify(cfg).replace(/</g, '\\u003c') %></script>
+  <script src="/scripts/speakeasy.js" defer></script>
+</section>
