@@ -67,7 +67,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/tech', icon: Wrench, label: 'Crew View', section: 'Operations', features: ['tech_mobile_view'] },
   { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Operations', features: ['dispatch_board'] },
   { to: '/crm/maintenance', icon: FileSignature, label: 'Service Agreements', section: 'Operations', features: ['maintenance_contracts'] },
-  { to: '/crm/parts', icon: Box, label: 'Materials Inventory', section: 'Operations', features: ['parts_inventory'] },
+  { to: '/crm/parts', icon: Box, label: 'Materials Inventory', section: 'Operations', features: ['parts_tracking'] },
   { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Service Pricebook', section: 'Operations', features: ['flat_rate_pricebook'] },
   { to: '/crm/recurring-routes', icon: Route, label: 'Route Board', section: 'Operations', features: ['recurring_routes'] },
   { to: '/crm/area-pricing', icon: Ruler, label: 'Area Pricing', section: 'Operations', features: ['area_pricing'] },

@@ -56,7 +56,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/fleet', icon: Truck, label: 'Fleet', features: ['fleet'] },
   { to: '/crm/inventory', icon: Warehouse, label: 'Inventory', features: ['inventory'] },
   { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
-  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'] },
+  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'] },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
   { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'] },

@@ -2,7 +2,10 @@
   "name": "twomiah-factory",
   "private": true,
   "packageManager": "bun@1.2.4",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
@@ -11,7 +14,8 @@
     "mobile:android": "cd apps/mobile && expo run:android",
     "mobile:ios": "cd apps/mobile && expo run:ios",
     "mobile:build:apk": "cd apps/mobile && eas build --platform android --profile preview",
-    "mobile:build:ios": "cd apps/mobile && eas build --platform ios --profile preview"
+    "mobile:build:ios": "cd apps/mobile && eas build --platform ios --profile preview",
+    "check:features": "bun run scripts/check-feature-vocabulary.ts"
   },
   "devDependencies": {
     "turbo": "^2.10.12"

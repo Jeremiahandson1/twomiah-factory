@@ -44,7 +44,6 @@ import dashboardRoutes from './routes/dashboard.ts'
 import documentsRoutes from './routes/documents.ts'
 import billingRoutes from './routes/billing.ts'
 import integrationsRoutes from './routes/integrations.ts'
-import agencyAdminRoutes from './routes/agencyAdmin.ts'
 import agreementsRoutes from './routes/agreements.ts'
 import auditRoutes from './routes/audit.ts'
 import bookingRoutes from './routes/booking.ts'
@@ -219,7 +218,6 @@ app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/documents', documentsRoutes)
 app.route('/api/billing', billingRoutes)
 app.route('/api/integrations', integrationsRoutes)
-app.route('/api/agency', agencyAdminRoutes)
 app.route('/api/agreements', agreementsRoutes)
 app.route('/api/maintenance-contracts', agreementsRoutes)
 app.route('/api/audit', auditRoutes)

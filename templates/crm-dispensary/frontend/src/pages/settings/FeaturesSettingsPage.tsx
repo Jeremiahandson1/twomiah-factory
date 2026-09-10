@@ -1,24 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Lock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import api from '../../services/api';
-import { FEATURE_CATEGORIES } from '../../data/features';
 
-// Internal deployment / sales SKUs — these are never features a tenant toggles for
-// themselves ("Source Code Access $9,997" appeared as a switch). Hide them. (VET-06)
-const INTERNAL_FEATURE_IDS = new Set(['self_hosted', 'white_label', 'source_code']);
-import { ArrowLeft } from 'lucide-react';
+type CatalogFeature = { id: string; name: string; description: string; category: string; core: boolean };
 
-// Self-serve feature toggles — the "every feature free, switch on what you want"
-// promise. Reads the company's enabledFeatures, lets an admin flip any feature,
-// saves via PUT /api/company/features, then re-runs checkAuth() so hasFeature()
-// (and therefore the gated nav) updates immediately without a full reload.
+// Self-serve feature toggles. The list comes from the feature registry through the API
+// (GET /api/company/features/catalog) — the same registry the Factory seeds enabledFeatures from,
+// the sidebar gates on and PUT /api/company/features validates against — so a switch here is the
+// switch the app actually reads. Core features are always on and shown as included.
 export default function FeaturesSettingsPage() {
   const navigate = useNavigate();
-  const { isAdmin, company, checkAuth } = useAuth();
+  const auth = useAuth() as any;
   const toast = useToast();
+  const isAdmin: boolean = typeof auth.isAdmin === 'boolean' ? auth.isAdmin : ['admin', 'owner'].includes(auth.user?.role);
 
+  const [catalog, setCatalog] = useState<CatalogFeature[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [initial, setInitial] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -27,16 +26,16 @@ export default function FeaturesSettingsPage() {
   useEffect(() => {
     (async () => {
       try {
-        // Fetch fresh — the AuthContext copy can be stale if another admin
-        // changed features since login.
-        const fresh = (await api.company.get()) as { enabledFeatures?: string[] } | null;
-        const enabled = fresh?.enabledFeatures ?? company?.enabledFeatures ?? [];
-        setSelected(new Set(enabled));
+        const [cat, fresh] = await Promise.all([
+          api.company.featureCatalog() as Promise<{ features?: CatalogFeature[] }>,
+          (api.company.get() as Promise<{ enabledFeatures?: string[] } | null>).catch(() => null),
+        ]);
+        const enabled = new Set<string>(fresh?.enabledFeatures ?? auth.company?.enabledFeatures ?? []);
+        setCatalog(cat?.features ?? []);
+        setSelected(enabled);
         setInitial(new Set(enabled));
-      } catch {
-        const enabled = company?.enabledFeatures ?? [];
-        setSelected(new Set(enabled));
-        setInitial(new Set(enabled));
+      } catch (err) {
+        toast.error((err as Error).message || 'Failed to load features');
       } finally {
         setLoading(false);
       }
@@ -52,18 +51,14 @@ export default function FeaturesSettingsPage() {
     });
   };
 
-  const changedCount = (() => {
-    let n = 0;
-    selected.forEach((id) => { if (!initial.has(id)) n++; });
-    initial.forEach((id) => { if (!selected.has(id)) n++; });
-    return n;
-  })();
+  const changedCount = Array.from(selected).filter((id) => !initial.has(id)).length + Array.from(initial).filter((id) => !selected.has(id)).length;
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await api.company.updateFeatures(Array.from(selected));
-      await checkAuth(); // refresh company so nav gating reflects the change instantly
+      // Refresh the session's company so hasFeature()-gated nav updates immediately.
+      if (typeof auth.checkAuth === 'function') await auth.checkAuth(); else window.location.reload();
       setInitial(new Set(selected));
       toast.success('Features updated — your menu now shows what you switched on');
     } catch (err) {
@@ -72,6 +67,12 @@ export default function FeaturesSettingsPage() {
       setSaving(false);
     }
   };
+
+  const categories = catalog.reduce<Array<{ name: string; features: CatalogFeature[] }>>((acc, f) => {
+    const cat = acc.find((c) => c.name === f.category);
+    if (cat) cat.features.push(f); else acc.push({ name: f.category, features: [f] });
+    return acc;
+  }, []);
 
   if (loading) return <div className="p-8 text-gray-500 dark:text-slate-400">Loading features…</div>;
 
@@ -86,40 +87,40 @@ export default function FeaturesSettingsPage() {
         {!isAdmin && <span className="block mt-1 text-amber-600 font-medium">Only admins can change features.</span>}
       </p>
 
+      {categories.length === 0 && <div className="text-gray-500 dark:text-slate-400">No optional features are available for this product.</div>}
+
       <div className="space-y-6">
-        {FEATURE_CATEGORIES
-          .map((cat) => ({ ...cat, features: cat.features.filter((f) => !INTERNAL_FEATURE_IDS.has(f.id)) }))
-          .filter((cat) => cat.features.length > 0)
-          .map((cat) => {
-          const onCount = cat.features.filter((f) => selected.has(f.id)).length;
+        {categories.map((cat) => {
+          const onCount = cat.features.filter((f) => f.core || selected.has(f.id)).length;
           return (
-            <div key={cat.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
+            <div key={cat.name} className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="font-semibold text-gray-900 dark:text-slate-100">{cat.name}</h2>
-                  <p className="text-sm text-gray-500 dark:text-slate-400">{cat.description}</p>
-                </div>
+                <h2 className="font-semibold text-gray-900 dark:text-slate-100">{cat.name}</h2>
                 <span className="text-xs font-semibold text-gray-400 whitespace-nowrap">{onCount}/{cat.features.length} on</span>
               </div>
               <div className="divide-y divide-gray-50">
                 {cat.features.map((f) => {
-                  const on = selected.has(f.id);
+                  const on = f.core || selected.has(f.id);
                   return (
                     <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-4">
                       <div className="min-w-0">
                         <div className="font-medium text-gray-900 text-sm dark:text-slate-100">{f.name}</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{f.description}</div>
                       </div>
-                      <button
-                        role="switch"
-                        aria-checked={on}
-                        aria-label={`${f.name} — ${on ? 'on' : 'off'}`}
-                        disabled={!isAdmin}
-                        onClick={() => toggle(f.id)}
-                        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-green-600' : 'bg-gray-300'}`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
-                      </button>
+                      {f.core ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-slate-400" title="Core feature — always on"><Lock className="w-3 h-3" /> Included</span>
+                      ) : (
+                        <button
+                          role="switch"
+                          aria-checked={on}
+                          aria-label={`${f.name} — ${on ? 'on' : 'off'}`}
+                          disabled={!isAdmin}
+                          onClick={() => toggle(f.id)}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-40 ${on ? 'bg-green-600' : 'bg-gray-300'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      )}
                     </div>
                   );
                 })}

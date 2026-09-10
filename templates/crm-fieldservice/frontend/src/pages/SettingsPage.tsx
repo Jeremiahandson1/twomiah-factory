@@ -11,7 +11,7 @@ export default function SettingsPage() {
   const { user, company, updateCompany } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('company');
-  const [companyForm, setCompanyForm] = useState({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '' });
+  const [companyForm, setCompanyForm] = useState({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30' });
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -25,7 +25,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (company) {
-      setCompanyForm({ name: company.name || '', email: company.email || '', phone: company.phone || '', address: company.address || '', city: company.city || '', state: company.state || '', zip: company.zip || '', website: company.website || '', licenseNumber: company.licenseNumber || '' });
+      setCompanyForm({ name: company.name || '', email: company.email || '', phone: company.phone || '', address: company.address || '', city: company.city || '', state: company.state || '', zip: company.zip || '', website: company.website || '', licenseNumber: company.licenseNumber || '', defaultTaxRate: (company as any).settings?.defaultTaxRate != null ? String((company as any).settings.defaultTaxRate) : '', paymentTermsDays: String((company as any).settings?.paymentTermsDays ?? 30) });
     }
     loadUsers();
   }, [company]);
@@ -71,7 +71,11 @@ export default function SettingsPage() {
 
   const handleSaveCompany = async () => {
     setSaving(true);
-    try { const updated = await api.company.update(companyForm); updateCompany(updated); toast.success('Company updated'); }
+    try {
+      // Billing defaults live in company.settings (used by quotes/invoices). (W-5 / W-8)
+      const { defaultTaxRate, paymentTermsDays, ...fields } = companyForm as any;
+      const settings = { ...((company as any)?.settings || {}), defaultTaxRate: Math.min(100, Math.max(0, Number(defaultTaxRate) || 0)), paymentTermsDays: Math.max(0, Math.floor(Number(paymentTermsDays))) || 30 };
+      const updated = await api.company.update({ ...fields, settings }); updateCompany(updated); toast.success('Company updated'); }
     catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
   };
@@ -151,6 +155,11 @@ export default function SettingsPage() {
                 <div><label className="block text-sm font-medium mb-1">Website</label><input value={companyForm.website} onChange={(e) => setCompanyForm({...companyForm, website: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
                 <div><label className="block text-sm font-medium mb-1">License #</label><input value={companyForm.licenseNumber} onChange={(e) => setCompanyForm({...companyForm, licenseNumber: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
               </div>
+              <h3 className="text-md font-semibold pt-2">Billing Defaults</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium mb-1">Default Sales Tax Rate (%)</label><input type="number" step="0.01" min="0" max="100" value={companyForm.defaultTaxRate} onChange={(e) => setCompanyForm({...companyForm, defaultTaxRate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="e.g. 7.5" /><p className="text-xs text-gray-400 mt-1">Applied to new quotes and invoices; you can change it per quote. Confirm your state and local rate — many states tax materials and some tax labor.</p></div>
+                <div><label className="block text-sm font-medium mb-1">Invoice Payment Terms (days)</label><input type="number" min="0" value={companyForm.paymentTermsDays} onChange={(e) => setCompanyForm({...companyForm, paymentTermsDays: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="30" /><p className="text-xs text-gray-400 mt-1">Sets the due date when a quote is converted to an invoice (net-30 by default).</p></div>
+              </div>
               <Button onClick={handleSaveCompany} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
             </div>
           )}
@@ -205,7 +214,7 @@ export default function SettingsPage() {
                         <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
                       </div>
                       <div>
-                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
+                        <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Access Role</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
                           <option value="field">Staff — day-to-day work: view jobs, log time, expenses and notes</option>
                           <option value="manager">Manager — full access to work and invoicing, but not company settings</option>
@@ -222,7 +231,7 @@ export default function SettingsPage() {
               )}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th><th className="px-4 py-2 text-right text-xs font-medium">Access</th></tr></thead>
+                  <thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Access Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th><th className="px-4 py-2 text-right text-xs font-medium">Access</th></tr></thead>
                   <tbody className="divide-y">{users.map(u => (
                     <tr key={u.id}><td className="px-4 py-3">{u.firstName} {u.lastName}</td><td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 capitalize">{u.role}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) === (user as Record<string, unknown> | null)?.id
                       ? <span className="text-xs text-gray-400">You</span>

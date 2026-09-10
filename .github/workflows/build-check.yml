@@ -43,3 +43,14 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bun run build
+
+  feature-vocabulary:
+    name: feature registry — one vocabulary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Every feature id a template gates on must exist in packages/tenant-backend/src/featureRegistry.ts
+        run: bun run scripts/check-feature-vocabulary.ts

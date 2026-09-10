@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { cleanText } from '../utils/sanitize.ts'
 import { db } from '../../db/index.ts'
 import { job, project, contact, user, timeEntry, company } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, asc, desc, or, ilike } from 'drizzle-orm'
@@ -11,8 +12,8 @@ const app = new Hono()
 app.use('*', authenticate)
 
 const jobSchema = z.object({
-  title: z.string().min(1),
-  description: z.string().optional(),
+  title: cleanText(1),
+  description: cleanText().optional(),
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   assignedToId: z.string().optional().transform(v => v === '' ? undefined : v),
@@ -26,11 +27,11 @@ const jobSchema = z.object({
     v => (v === '' || v === null || v === undefined ? undefined : v),
     z.coerce.number().min(0).optional()
   ),
-  address: z.string().optional(),
+  address: cleanText().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   zip: z.string().optional(),
-  notes: z.string().optional(),
+  notes: cleanText().optional(),
 })
 
 app.get('/', async (c) => {
@@ -82,6 +83,9 @@ app.get('/', async (c) => {
     project: j.projectId ? projectMap[j.projectId] || null : null,
     contact: j.contactId ? contactMap[j.contactId] || null : null,
     assignedTo: j.assignedToId ? userMap[j.assignedToId] || null : null,
+    // A job still 'scheduled' after its date has passed is overdue — surface it instead of
+    // leaving it looking current for months. (Wrench QA W-4)
+    isOverdue: !!(j.scheduledDate && ['scheduled', 'pending', 'confirmed'].includes(String(j.status)) && new Date(j.scheduledDate).getTime() < Date.now() - 86400000),
   }))
 
   return c.json({ data: dataWithRelations, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { cleanText } from '../utils/sanitize.ts'
 import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzle-orm'
@@ -71,7 +72,7 @@ const jobSchema = z.object({
   totalSquares: z.coerce.number().optional(),
   source: z.string().optional(),
   priority: z.string().optional(),
-  notes: z.string().optional(),
+  notes: cleanText().optional(),
 })
 
 // List jobs with filters

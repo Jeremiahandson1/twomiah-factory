@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import { getFeaturesForPlan } from '../shared/featureRegistry.ts'
+import { CRM_TEMPLATE } from '../config/template.ts'
 
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
@@ -42,55 +44,6 @@ async function revokeRefreshToken(userId: string, token: string | null | undefin
   const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
   const next = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
   await db.update(user).set({ refreshToken: next.length ? JSON.stringify(next) : null, updatedAt: new Date() }).where(eq(user.id, userId))
-}
-
-// Feature sets for each plan tier — $299/$499/$799/$1,299 per month
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    // $299/mo — Compliant POS, more than Cova at $200-500/mo
-    'customers', 'products', 'orders', 'pos', 'inventory', 'dashboard',
-    'cash_management', 'audit_log', 'documents', 'support', 'team_management',
-    'pin_login', 'id_verification', 'purchase_limits', 'checkin_queue',
-    'tip_management', 'equivalency', 'eod_reports', 'receipt_templates',
-    'id_scanning', 'qr_scanner', 'offline_mode',
-  ],
-  pro: [
-    // $499/mo — Same price as Dutchie with 3x the features
-    'customers', 'products', 'orders', 'pos', 'inventory', 'dashboard',
-    'cash_management', 'audit_log', 'documents', 'support', 'team_management',
-    'pin_login', 'id_verification', 'purchase_limits', 'checkin_queue',
-    'tip_management', 'equivalency', 'eod_reports', 'receipt_templates',
-    'id_scanning', 'qr_scanner', 'offline_mode',
-    // Pro additions
-    'loyalty', 'referrals', 'analytics', 'sms', 'sms_templates',
-    'email_marketing', 'email_campaigns', 'marketing', 'leads',
-    'customer_portal', 'order_ahead', 'reports', 'labels',
-    'metrc', 'biotrack', 'leaf_data', 'compliance', 'license_management',
-    'waste_tracking', 'batches', 'delivery', 'delivery_tracking',
-    'driver_app', 'website_analytics', 'seo_pages', 'menu_sync',
-    'scheduling', 'training', 'approvals', 'purchase_orders',
-    'grow_inputs', 'merch',
-  ],
-  business: [
-    // $799/mo — Replaces BLAZE + KayaPush + Alpine IQ, saves $1,000+/mo
-    'all_pro_features',
-    'multi_location', 'rfid', 'kiosk', 'ai_budtender', 'ai_recommendations',
-    'bi_dashboard', 'custom_reports', 'budtender_performance',
-    'predictive_inventory', 'gamified_loyalty', 'digital_signage',
-    'curbside', 'pay_by_bank', 'wallet_passes',
-    'fraud_detection', 'soc2_controls',
-    'advanced_reporting', 'api_access', 'marketplace',
-  ],
-  enterprise: [
-    // $1,299/mo — Replaces Treez + Canix + Distru, one platform for everything
-    'all',
-  ],
-}
-
-// Resolve 'all_pro_features' at runtime
-const resolvedFeatures = { ...PLAN_FEATURES }
-if (resolvedFeatures.business[0] === 'all_pro_features') {
-  resolvedFeatures.business = [...PLAN_FEATURES.pro, ...PLAN_FEATURES.business.slice(1)]
 }
 
 // Plan limits
@@ -144,7 +97,7 @@ app.post('/signup', async (c) => {
   const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
 
   // Get features for the selected plan
-  const enabledFeatures = PLAN_FEATURES[data.plan] || PLAN_FEATURES.starter
+  const enabledFeatures = getFeaturesForPlan(CRM_TEMPLATE, data.plan)
   const limits = PLAN_LIMITS[data.plan] || PLAN_LIMITS.starter
 
   // Calculate trial end date (30 days)
@@ -247,55 +200,6 @@ app.post('/register', async (c) => {
   // with NO auth, invite, or rate limit. Users are added by an admin via
   // Settings -> Users. Kept as a 403 stub for any old caller.
   return c.json({ error: 'Public registration is disabled' }, 403)
-  // eslint-disable-next-line no-unreachable
-  const registerSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(8),
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    companyName: z.string().min(1),
-    phone: z.string().optional(),
-  })
-  const regBody = await c.req.json()
-  if (regBody.email && typeof regBody.email === 'string') regBody.email = regBody.email.toLowerCase().trim()
-  const data = registerSchema.parse(regBody)
-
-  const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
-  if (existing) return c.json({ error: 'Email already registered' }, 409)
-
-  const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + uuidv4().substring(0, 6)
-  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
-
-  const result = await db.transaction(async (tx) => {
-    const [newCompany] = await tx.insert(company).values({
-      name: data.companyName,
-      slug,
-      email: data.email,
-      phone: data.phone,
-      enabledFeatures: ['customers', 'products', 'orders', 'pos', 'inventory', 'dashboard', 'cash_management', 'audit_log'],
-    }).returning()
-
-    const [newUser] = await tx.insert(user).values({
-      email: data.email,
-      passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone,
-      role: 'owner',
-      companyId: newCompany.id,
-    }).returning()
-
-    return { company: newCompany, user: newUser }
-  })
-
-  const tokens = generateTokens(result.user.id, result.company.id, result.user.email, result.user.role)
-  await storeRefreshToken(result.user.id, tokens.refreshToken)
-
-  return c.json({
-    user: { id: result.user.id, email: result.user.email, firstName: result.user.firstName, lastName: result.user.lastName, role: result.user.role },
-    company: { id: result.company.id, name: result.company.name, slug: result.company.slug, enabledFeatures: result.company.enabledFeatures, phone: result.company.phone, email: result.company.email, address: result.company.address, city: result.company.city, state: result.company.state, zip: result.company.zip, website: result.company.website, settings: result.company.settings },
-    ...tokens,
-  }, 201)
 })
 
 // Login

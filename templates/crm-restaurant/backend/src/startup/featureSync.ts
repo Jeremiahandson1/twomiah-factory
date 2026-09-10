@@ -1,40 +1,28 @@
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
-import { PLAN_FEATURES } from '../shared/plans.ts'
+import { getFeaturesForPlan, getFeaturesForTemplate } from '../shared/featureRegistry.ts'
+import { CRM_TEMPLATE } from '../config/template.ts'
 
+// Boot-time fill for a company whose enabledFeatures is EMPTY (tenants provisioned before the Factory
+// seeded features, or a wiped column). Resolves the plan through the shared registry — the same
+// function the Factory uses — so only registry ids ever land in the column. A populated list is never
+// touched here: the Factory sync and Settings → Features own it from then on.
 export async function syncFeatures() {
   try {
     const [comp] = await db.select().from(company).limit(1)
     if (!comp) return
-
     const current = (comp.enabledFeatures || []) as string[]
-
-    // If features are already populated, nothing to do
     if (current.length > 0) {
       console.log(`[featureSync] Company has ${current.length} features — skipping`)
       return
     }
-
-    // Features are empty — resolve from plan tier
-    // Priority: FEATURE_PACKAGE env var → company.subscriptionTier → default to starter
-    const plan = process.env.FEATURE_PACKAGE || comp.subscriptionTier || 'starter'
-    const planFeatures = PLAN_FEATURES[plan]
-
-    if (!planFeatures) {
-      // Enterprise or unknown plan — enable everything
-      const allFeatures = Object.values(PLAN_FEATURES).flat()
-      const desired = [...new Set(allFeatures)]
-      await db.update(company).set({ enabledFeatures: desired }).where(eq(company.id, comp.id))
-      console.log(`[featureSync] Enabled ${desired.length} features for ${plan} plan (all features)`)
-      return
-    }
-
-    // crm-restaurant is not eligible for the Exterior Visualizer add-on.
-    const desired = [...new Set(planFeatures)]
-
-    await db.update(company).set({ enabledFeatures: desired, subscriptionTier: plan }).where(eq(company.id, comp.id))
-    console.log(`[featureSync] Enabled ${desired.length} features for ${plan} plan`)
+    const plan = process.env.FEATURE_PACKAGE || (comp as any).subscriptionTier || 'starter'
+    const desired = new Set(getFeaturesForPlan(CRM_TEMPLATE, plan))
+    // The Exterior Visualizer is a paid add-on switched on by the Factory setting VISION_URL.
+    if (process.env.VISION_URL && getFeaturesForTemplate(CRM_TEMPLATE).some(f => f.id === 'visualizer')) desired.add('visualizer')
+    await db.update(company).set({ enabledFeatures: [...desired], subscriptionTier: plan } as any).where(eq(company.id, comp.id))
+    console.log(`[featureSync] Enabled ${desired.size} features for ${plan} plan`)
   } catch (err: any) {
     console.error('[featureSync] Failed to sync features:', err.message)
   }

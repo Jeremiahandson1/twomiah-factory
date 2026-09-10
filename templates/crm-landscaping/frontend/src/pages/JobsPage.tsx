@@ -128,7 +128,7 @@ export default function JobsPage() {
   const columns = [
     { key: 'number', label: 'Number', render: (v) => <span className="font-mono text-sm">{v}</span> },
     { key: 'title', label: 'Title', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500 dark:text-slate-400">{r.contact.name}</p>}</div> },
-    { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
+    { key: 'status', label: 'Status', render: (v, row) => <span className="inline-flex items-center gap-1"><StatusBadge status={v} />{row?.isOverdue && <StatusBadge status="overdue" />}</span> },
     { key: 'priority', label: 'Priority', render: (v) => <StatusBadge status={v} statusColors={{ low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' }} /> },
     { key: 'scheduledDate', label: 'Scheduled', render: (v) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
     { key: 'assignedTo', label: 'Assigned To', render: (v) => v ? `${v.firstName} ${v.lastName}` : '-' },
