@@ -43,7 +43,7 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
 
       // Create payment intent
       const endpoint = portalToken ? '/stripe/portal/payment-intent' : '/stripe/payment-intent';
-      const payload = { invoiceId, amount };
+      const payload: any = { invoiceId, amount };
       if (portalToken) payload.portalToken = portalToken;
 
       const { clientSecret } = await api.post(endpoint, payload);
@@ -78,7 +78,7 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
     return null;
   }
 
-  const options = {
+  const options: any = {
     clientSecret,
     appearance: {
       theme: 'stripe',

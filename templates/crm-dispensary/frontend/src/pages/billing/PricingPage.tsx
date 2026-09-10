@@ -221,7 +221,7 @@ export default function PricingPage() {
             <div>
               <h3 className="text-2xl font-bold mb-2">Prefer a One-Time Purchase?</h3>
               <p className="text-green-100">
-                Own {{COMPANY_NAME}} forever with our lifetime license. Self-host on your own infrastructure for full control.
+                Own {'{{COMPANY_NAME}}'} forever with our lifetime license. Self-host on your own infrastructure for full control.
               </p>
             </div>
             <div className="text-right">
@@ -300,7 +300,7 @@ export default function PricingPage() {
 function PricingCard({
   name, description, icon: Icon, price, billingCycle, yearlyTotal,
   users, userLabel, features, cta, popular, dark
-}) {
+}: any) {
   return (
     <div className={`relative rounded-2xl p-6 ${
       dark

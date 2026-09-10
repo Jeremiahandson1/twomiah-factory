@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Globe, Link, Unlink, RefreshCw, Settings, Eye, Clock, Check,
-  X, AlertTriangle, ExternalLink, Zap, List
+  X, AlertTriangle, ExternalLink, Zap, List, Package
 } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';

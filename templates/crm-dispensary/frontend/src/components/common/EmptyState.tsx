@@ -19,6 +19,17 @@ const icons = {
   error: AlertCircle,
 };
 
+export interface EmptyStateProps {
+  icon?: any;
+  iconType?: keyof typeof icons | string;
+  title?: any;
+  description?: any;
+  action?: any;
+  actionLabel?: string;
+  onAction?: () => void;
+  className?: string;
+}
+
 export function EmptyState({
   icon: Icon,
   iconType = 'default',
@@ -28,7 +39,7 @@ export function EmptyState({
   actionLabel = 'Create New',
   onAction,
   className = '',
-}) {
+}: EmptyStateProps) {
   const IconComponent = Icon || icons[iconType] || icons.default;
 
   return (

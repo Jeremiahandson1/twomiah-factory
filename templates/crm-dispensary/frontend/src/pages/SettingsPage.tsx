@@ -46,11 +46,11 @@ export default function SettingsPage() {
   const canManageUsers = (user as any)?.role === 'admin' || (user as any)?.role === 'owner';
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'field' });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'user' });
 
   // General
   const [generalForm, setGeneralForm] = useState({
-    name: '', address: '', phone: '', email: '', taxRate: '0', localTaxRate: '0', exciseTaxRate: '15',
+    name: '', address: '', phone: '', email: '', taxRate: '0', localTaxRate: '0', exciseTaxRate: '15', purchaseLimitOz: '2.5',
   });
   const [storeHours, setStoreHours] = useState<StoreHours>(defaultHours());
 
@@ -88,15 +88,34 @@ export default function SettingsPage() {
   useEffect(() => {
     if (company) {
       const settings = company.settings || {};
+      // Tax rates live in real company columns (taxRate / localTaxRate / exciseTaxRate) — that is
+      // what the register charges. This form used to read them from company.settings, so it
+      // showed "Sales Tax 0%" while the POS charged 10% (go-live QA M-1). Prefer the column;
+      // fall back to settings for tenants that only ever saved there.
+      const pick = (col: any, legacy: any, dflt: string) =>
+        col != null && col !== '' ? String(col) : (legacy != null && legacy !== '' ? String(legacy) : dflt);
       setGeneralForm({
         name: company.name || '',
         address: company.address || '',
         phone: company.phone || '',
         email: company.email || '',
-        taxRate: settings.taxRate?.toString() || '0',
-        localTaxRate: settings.localTaxRate?.toString() || '0',
-        exciseTaxRate: settings.exciseTaxRate?.toString() || '15',
+        taxRate: pick(company.taxRate, settings.taxRate, '0'),
+        localTaxRate: pick(company.localTaxRate, settings.localTaxRate, '0'),
+        exciseTaxRate: pick(company.exciseTaxRate, settings.exciseTaxRate, '15'),
+        purchaseLimitOz: pick(company.purchaseLimitOz, settings.purchaseLimitOz, '2.5'),
       });
+      // /auth/me returns a trimmed company; fetch the full row so the column values win.
+      api.get('/api/company').then((full: any) => {
+        const co = full?.data || full;
+        if (!co) return;
+        setGeneralForm(prev => ({
+          ...prev,
+          taxRate: pick(co.taxRate, prev.taxRate, '0'),
+          localTaxRate: pick(co.localTaxRate, prev.localTaxRate, '0'),
+          exciseTaxRate: pick(co.exciseTaxRate, prev.exciseTaxRate, '15'),
+          purchaseLimitOz: pick(co.purchaseLimitOz, prev.purchaseLimitOz, '2.5'),
+        }));
+      }).catch(() => {});
       if (settings.storeHours) setStoreHours({ ...defaultHours(), ...settings.storeHours });
       if (settings.loyalty) setLoyaltyForm({ ...loyaltyForm, ...settings.loyalty, enabled: !!settings.loyalty?.enabled });
       if (settings.delivery) setDeliveryForm({ ...deliveryForm, ...settings.delivery, enabled: !!settings.delivery?.enabled });
@@ -156,11 +175,18 @@ export default function SettingsPage() {
         payload.address = generalForm.address;
         payload.phone = generalForm.phone;
         payload.email = generalForm.email;
+        // Write the rates to the columns the register reads (M-1); mirror into settings for
+        // anything still reading the old location.
+        payload.taxRate = parseFloat(generalForm.taxRate) || 0;
+        payload.localTaxRate = parseFloat(generalForm.localTaxRate) || 0;
+        payload.exciseTaxRate = parseFloat(generalForm.exciseTaxRate) || 0;
+        payload.purchaseLimitOz = parseFloat(generalForm.purchaseLimitOz) || 0;
         payload.settings = {
           ...(company?.settings || {}),
-          taxRate: parseFloat(generalForm.taxRate) || 0,
-          localTaxRate: parseFloat(generalForm.localTaxRate) || 0,
-          exciseTaxRate: parseFloat(generalForm.exciseTaxRate) || 0,
+          taxRate: payload.taxRate,
+          localTaxRate: payload.localTaxRate,
+          exciseTaxRate: payload.exciseTaxRate,
+          purchaseLimitOz: payload.purchaseLimitOz,
           storeHours,
         };
       } else if (section === 'loyalty') {
@@ -331,6 +357,20 @@ export default function SettingsPage() {
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
                   </div>
+                </div>
+
+                <div className="w-64">
+                  <FieldLabel>Purchase Limit (oz flower-equivalent per transaction)</FieldLabel>
+                  <div className="relative">
+                    <Input
+                      value={generalForm.purchaseLimitOz}
+                      onChange={v => setGeneralForm({ ...generalForm, purchaseLimitOz: v })}
+                      type="number"
+                      placeholder="2.5"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">oz</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Enforced at the register and online menu. Set to your state's adult-use limit (e.g. CO 2 oz, CA/WA/IL/MA 1 oz, MI 2.5 oz).</p>
                 </div>
               </div>
 
@@ -642,9 +682,9 @@ export default function SettingsPage() {
                       <div>
                         <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
-                          <option value="field">Staff — day-to-day work: view jobs, log time, expenses and notes</option>
-                          <option value="manager">Manager — full access to work and invoicing, but not company settings</option>
-                          <option value="admin">Admin — full access, including company settings and team</option>
+                          <option value="user">Budtender — register sales, customers, ID checks, cash drawer; needs a manager for discounts, voids and refunds</option>
+                          <option value="manager">Manager — everything a budtender does plus approvals, inventory, batches, compliance and reports; not company settings or billing</option>
+                          <option value="admin">Admin — full access, including company settings, billing and team</option>
                         </select>
                       </div>
                     </div>

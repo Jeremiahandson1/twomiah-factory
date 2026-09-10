@@ -17,15 +17,26 @@ const LICENSE_TYPES = [
   'Delivery',
 ];
 
+// Values are the API's canonical report types (POST /api/compliance/reports/generate). The old
+// list sent names the API rejected with a 400, so "Generate" silently did nothing (go-live H-1).
 const REPORT_TYPES = [
+  { value: 'tax', label: 'Tax Report (excise + sales + local)' },
+  { value: 'daily_sales', label: 'Daily Sales Report' },
+  { value: 'inventory_snapshot', label: 'Inventory Snapshot' },
+  { value: 'waste', label: 'Waste Disposal Report' },
+  { value: 'transfer', label: 'Track & Trace (Transfers)' },
+  { value: 'metrc_reconciliation', label: 'Metrc Reconciliation' },
+  { value: 'patient_count', label: 'Patient Count Report' },
+  { value: 'diversion', label: 'Diversion Prevention' },
+  // legacy names still resolve on the server; keep labels for old rows
   { value: 'sales_tax', label: 'Sales Tax Report' },
   { value: 'excise_tax', label: 'Excise Tax Report' },
   { value: 'inventory_summary', label: 'Inventory Summary' },
   { value: 'waste_disposal', label: 'Waste Disposal Report' },
   { value: 'track_trace', label: 'Track & Trace Report' },
-  { value: 'patient_count', label: 'Patient Count Report' },
   { value: 'diversion_prevention', label: 'Diversion Prevention' },
 ];
+const REPORT_TYPE_OPTIONS = REPORT_TYPES.slice(0, 8);
 
 const WASTE_TYPES = ['Plant Material', 'Trim', 'Stems', 'Expired Product', 'Contaminated', 'Damaged', 'Other'];
 const WASTE_METHODS = ['Composting', 'Incineration', 'Rendering', 'Landfill', 'Other'];
@@ -73,7 +84,7 @@ export default function CompliancePage() {
   // Reports
   const [reports, setReports] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
-  const [reportType, setReportType] = useState('sales_tax');
+  const [reportType, setReportType] = useState('tax');
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
   const [generatingReport, setGeneratingReport] = useState(false);
@@ -249,9 +260,12 @@ export default function CompliancePage() {
     }
     setSavingWaste(true);
     try {
+      // API contract: unitOfMeasure / witnessedBy (it also accepts unit / witness now).
       await api.post('/api/compliance/waste', {
         ...wasteForm,
         quantity: parseFloat(wasteForm.quantity) || 0,
+        unitOfMeasure: wasteForm.unit,
+        witnessedBy: wasteForm.witness,
       });
       toast.success('Waste entry recorded');
       setWasteModal(false);
@@ -436,7 +450,7 @@ export default function CompliancePage() {
                   onChange={(e) => setReportType(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 >
-                  {REPORT_TYPES.map(r => (
+                  {REPORT_TYPE_OPTIONS.map(r => (
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
                 </select>
@@ -493,7 +507,7 @@ export default function CompliancePage() {
                       {report.createdAt ? formatDate(report.createdAt) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
-                      {REPORT_TYPES.find(r => r.value === report.type)?.label || report.type}
+                      {REPORT_TYPES.find(r => r.value === (report.reportType || report.type))?.label || report.reportType || report.type}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
                       {report.startDate ? formatDate(report.startDate) : '—'} - {report.endDate ? formatDate(report.endDate) : '—'}

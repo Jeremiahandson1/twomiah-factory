@@ -36,7 +36,7 @@ export async function initDB() {
     };
 
     request.onupgradeneeded = (event) => {
-      const database = event.target.result;
+      const database = (event.target as IDBOpenDBRequest).result;
 
       // Cache store for API responses
       if (!database.objectStoreNames.contains(STORES.CACHE)) {
@@ -342,8 +342,8 @@ export async function getUserData(key) {
  * Process pending actions when online
  */
 export async function syncPendingActions(apiClient) {
-  const actions = await getPendingActions();
-  const results = { success: 0, failed: 0, errors: [] };
+  const actions = (await getPendingActions()) as any[];
+  const results = { success: 0, failed: 0, errors: [] as any[] };
 
   for (const action of actions) {
     try {

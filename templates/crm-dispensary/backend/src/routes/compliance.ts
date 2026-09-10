@@ -36,23 +36,58 @@ const licenseSchema = z.object({
   autoRenew: z.boolean().default(false),
 })
 
+// Canonical report types. The Compliance page (and older clients) send friendlier names —
+// sales_tax / excise_tax / inventory_summary / waste_disposal / track_trace / patient_count /
+// diversion_prevention — which used to fail the enum with a 400 the UI swallowed, so
+// "Generate" did nothing (go-live QA H-1). Accept the aliases and map them here.
+const REPORT_TYPES = ['daily_sales', 'inventory_snapshot', 'waste', 'transfer', 'metrc_reconciliation', 'tax', 'patient_count', 'diversion'] as const
+type ReportType = typeof REPORT_TYPES[number]
+const REPORT_TYPE_ALIASES: Record<string, ReportType> = {
+  sales_tax: 'tax', excise_tax: 'tax', tax_report: 'tax', taxes: 'tax',
+  inventory_summary: 'inventory_snapshot', inventory: 'inventory_snapshot',
+  waste_disposal: 'waste', waste_log: 'waste',
+  track_trace: 'transfer', track_and_trace: 'transfer', transfers: 'transfer',
+  metrc: 'metrc_reconciliation', metrc_reconcile: 'metrc_reconciliation',
+  patients: 'patient_count', patient_counts: 'patient_count',
+  diversion_prevention: 'diversion', diversion_report: 'diversion',
+  sales: 'daily_sales', daily: 'daily_sales',
+}
 const reportGenerateSchema = z.object({
-  reportType: z.enum(['daily_sales', 'inventory_snapshot', 'waste', 'transfer', 'metrc_reconciliation', 'tax']),
-  startDate: z.string(),
-  endDate: z.string(),
+  reportType: z.string().min(1).transform((v, ctx) => {
+    const key = v.trim().toLowerCase()
+    const canonical = (REPORT_TYPES as readonly string[]).includes(key) ? (key as ReportType) : REPORT_TYPE_ALIASES[key]
+    if (!canonical) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unknown reportType "${v}". Allowed: ${REPORT_TYPES.join(', ')} (aliases: ${Object.keys(REPORT_TYPE_ALIASES).join(', ')})` })
+      return z.NEVER
+    }
+    return canonical
+  }),
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
 })
 
+// Waste entries: the Compliance form sends { unit, witness, batchNumber, notes } while the
+// API wanted { unitOfMeasure, witnessedBy, batchId } — a 400 the modal swallowed, so nothing
+// was ever saved (go-live QA H-2). Accept both spellings.
 const wasteSchema = z.object({
   productId: z.string().min(1),
   batchId: z.string().min(1).optional(),
+  batchNumber: z.string().optional(),
   metrcTag: z.string().optional(),
   wasteType: z.string().min(1),
-  quantity: z.number().min(0),
-  unitOfMeasure: z.string().min(1),
+  quantity: z.coerce.number().min(0),
+  unitOfMeasure: z.string().min(1).optional(),
+  unit: z.string().min(1).optional(),
   reason: z.string().min(1),
   method: z.string().optional(),
   witnessedBy: z.string().optional(),
-})
+  witness: z.string().optional(),
+  notes: z.string().optional(),
+}).transform(d => ({
+  ...d,
+  unitOfMeasure: d.unitOfMeasure || d.unit || 'grams',
+  witnessedBy: d.witnessedBy || d.witness || undefined,
+}))
 
 // ==========================================
 // Licenses
@@ -295,10 +330,10 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           wl.waste_type,
           wl.reason,
           COUNT(*)::int as log_count,
-          SUM(wl.quantity) as total_quantity,
+          COALESCE(SUM(NULLIF(wl.quantity, '')::numeric), 0) as total_quantity,
           wl.unit_of_measure,
-          COUNT(CASE WHEN wl.reported_to_metrc = true THEN 1 END)::int as reported_count,
-          COUNT(CASE WHEN wl.reported_to_metrc = false OR wl.reported_to_metrc IS NULL THEN 1 END)::int as unreported_count
+          COUNT(CASE WHEN wl.metrc_reported = true THEN 1 END)::int as reported_count,
+          COUNT(CASE WHEN wl.metrc_reported = false OR wl.metrc_reported IS NULL THEN 1 END)::int as unreported_count
         FROM waste_log wl
         WHERE wl.company_id = ${currentUser.companyId}
           AND wl.created_at >= ${startDate}
@@ -311,20 +346,29 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
     }
 
     case 'transfer': {
+      // inventory_transfers has no transfer_type / total_items / metrc_manifest_id columns —
+      // the old query 500'd. Summarise by route (from → to) and status, with item units from
+      // the transfer lines, plus Metrc-tagged products moved.
       const result = await db.execute(sql`
         SELECT
-          t.transfer_type,
+          COALESCE(lf.name, 'external') as from_location,
+          COALESCE(lt.name, 'external') as to_location,
           t.status,
-          COUNT(*)::int as transfer_count,
-          COALESCE(SUM(t.total_items)::int, 0) as total_items,
-          COUNT(CASE WHEN t.metrc_manifest_id IS NOT NULL THEN 1 END)::int as with_manifest,
-          COUNT(CASE WHEN t.metrc_manifest_id IS NULL THEN 1 END)::int as without_manifest
+          COUNT(DISTINCT t.id)::int as transfer_count,
+          COALESCE(SUM(ti.quantity), 0)::int as total_units,
+          COALESCE(SUM(ti.received_quantity), 0)::int as received_units,
+          COUNT(DISTINCT ti.product_id) FILTER (WHERE p.metrc_tag IS NOT NULL AND p.metrc_tag <> '')::int as metrc_tagged_products,
+          COUNT(DISTINCT ti.product_id) FILTER (WHERE p.metrc_tag IS NULL OR p.metrc_tag = '')::int as untagged_products
         FROM inventory_transfers t
+        LEFT JOIN locations lf ON lf.id = t.from_location_id
+        LEFT JOIN locations lt ON lt.id = t.to_location_id
+        LEFT JOIN inventory_transfer_items ti ON ti.transfer_id = t.id
+        LEFT JOIN products p ON p.id = ti.product_id
         WHERE t.company_id = ${currentUser.companyId}
-          AND t.created_at >= ${startDate}
-          AND t.created_at <= ${endDate}
-        GROUP BY t.transfer_type, t.status
-        ORDER BY t.transfer_type, t.status
+          AND COALESCE(t.transferred_at, t.created_at) >= ${startDate}
+          AND COALESCE(t.transferred_at, t.created_at) <= ${endDate}
+        GROUP BY lf.name, lt.name, t.status
+        ORDER BY lf.name, lt.name, t.status
       `)
       reportData = (result as any).rows || result
       break
@@ -358,33 +402,118 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           COUNT(*)::int as order_count,
           COALESCE(SUM(o.subtotal::numeric), 0) as subtotal,
           COALESCE(SUM(o.total_tax::numeric), 0) as total_tax,
-          COALESCE(SUM(o.excise_tax::numeric), 0) as excise_tax,
-          COALESCE(SUM(o.sales_tax::numeric), 0) as sales_tax,
-          COALESCE(SUM(o.city_tax::numeric), 0) as city_tax,
+          COALESCE(SUM(NULLIF(o.excise_tax, '')::numeric), 0) as excise_tax,
+          COALESCE(SUM(NULLIF(o.sales_tax, '')::numeric), 0) as sales_tax,
+          -- orders has no city_tax column (that reference 500'd every tax report); local tax
+          -- is whatever total tax isn't excise or sales.
+          GREATEST(0, COALESCE(SUM(NULLIF(o.total_tax, '')::numeric), 0) - COALESCE(SUM(NULLIF(o.excise_tax, '')::numeric), 0) - COALESCE(SUM(NULLIF(o.sales_tax, '')::numeric), 0)) as local_tax,
           COALESCE(SUM(o.total::numeric), 0) as total_collected
         FROM orders o
         WHERE o.company_id = ${currentUser.companyId}
-          AND o.status = 'completed'
+          AND o.status IN ('completed', 'partially_refunded')
           AND o.completed_at >= ${startDate}
           AND o.completed_at <= ${endDate}
         GROUP BY 1
         ORDER BY 1 ASC
       `)
-      reportData = (result as any).rows || result
+      const rows = (result as any).rows || result
+      const sum = (k: string) => rows.reduce((s: number, r: any) => s + Number(r[k] || 0), 0)
+      reportData = {
+        byDay: rows,
+        totals: { orderCount: sum('order_count'), subtotal: sum('subtotal'), exciseTax: sum('excise_tax'), salesTax: sum('sales_tax'), localTax: sum('local_tax'), totalTax: sum('total_tax'), totalCollected: sum('total_collected') },
+      }
+      break
+    }
+
+    // Medical patient activity in the period (patient-count filings).
+    case 'patient_count': {
+      const result = await db.execute(sql`
+        SELECT
+          COUNT(DISTINCT o.contact_id) FILTER (WHERE o.is_medical = true)::int as unique_medical_patients,
+          COUNT(*) FILTER (WHERE o.is_medical = true)::int as medical_orders,
+          COUNT(DISTINCT o.contact_id) FILTER (WHERE o.is_medical = false OR o.is_medical IS NULL)::int as unique_adult_use_customers,
+          COUNT(*) FILTER (WHERE o.is_medical = false OR o.is_medical IS NULL)::int as adult_use_orders,
+          COUNT(DISTINCT o.medical_card_number) FILTER (WHERE o.medical_card_number IS NOT NULL AND o.medical_card_number <> '')::int as distinct_medical_cards
+        FROM orders o
+        WHERE o.company_id = ${currentUser.companyId}
+          AND o.status IN ('completed', 'partially_refunded', 'refunded')
+          AND o.completed_at >= ${startDate}
+          AND o.completed_at <= ${endDate}
+      `)
+      const patientsOnFile = await db.execute(sql`
+        SELECT COUNT(*)::int as patients_on_file,
+               COUNT(*) FILTER (WHERE medical_card_expiry IS NOT NULL AND medical_card_expiry < CURRENT_DATE)::int as expired_cards
+        FROM contact
+        WHERE company_id = ${currentUser.companyId} AND medical_card_number IS NOT NULL AND medical_card_number <> ''
+      `)
+      reportData = { ...(((result as any).rows || result)[0] || {}), ...(((patientsOnFile as any).rows || patientsOnFile)[0] || {}) }
+      break
+    }
+
+    // Diversion-prevention indicators: purchase-limit pressure, repeat same-day buyers,
+    // unverified-ID completions, and voids/refunds in the period.
+    case 'diversion': {
+      const result = await db.execute(sql`
+        SELECT
+          COUNT(*)::int as completed_orders,
+          COUNT(*) FILTER (WHERE COALESCE(NULLIF(o.total_cannabis_weight_oz, ''), '0')::numeric >= 0.8 * COALESCE(NULLIF(co.purchase_limit_oz, ''), '2.5')::numeric)::int as near_limit_orders,
+          COUNT(*) FILTER (WHERE o.id_verified IS NOT TRUE)::int as unverified_id_orders,
+          COUNT(*) FILTER (WHERE o.type = 'delivery')::int as delivery_orders,
+          COALESCE(SUM(NULLIF(o.total_cannabis_weight_oz, '')::numeric), 0) as total_cannabis_oz_sold
+        FROM orders o
+        JOIN company co ON co.id = o.company_id
+        WHERE o.company_id = ${currentUser.companyId}
+          AND o.status IN ('completed', 'partially_refunded', 'refunded')
+          AND o.completed_at >= ${startDate}
+          AND o.completed_at <= ${endDate}
+      `)
+      const repeat = await db.execute(sql`
+        SELECT o.contact_id, c.name as customer_name, o.completed_at::date as sale_date, COUNT(*)::int as orders_that_day,
+               COALESCE(SUM(NULLIF(o.total_cannabis_weight_oz, '')::numeric), 0) as cannabis_oz_that_day
+        FROM orders o LEFT JOIN contact c ON c.id = o.contact_id
+        WHERE o.company_id = ${currentUser.companyId}
+          AND o.status IN ('completed', 'partially_refunded', 'refunded')
+          AND o.contact_id IS NOT NULL
+          AND o.completed_at >= ${startDate}
+          AND o.completed_at <= ${endDate}
+        GROUP BY o.contact_id, c.name, o.completed_at::date
+        HAVING COUNT(*) > 1
+        ORDER BY cannabis_oz_that_day DESC
+        LIMIT 100
+      `)
+      const voids = await db.execute(sql`
+        SELECT COUNT(*) FILTER (WHERE status = 'cancelled')::int as voided_orders,
+               COUNT(*) FILTER (WHERE status IN ('refunded', 'partially_refunded'))::int as refunded_orders
+        FROM orders
+        WHERE company_id = ${currentUser.companyId}
+          AND COALESCE(refunded_at, updated_at, created_at) >= ${startDate}
+          AND COALESCE(refunded_at, updated_at, created_at) <= ${endDate}
+      `)
+      reportData = {
+        ...(((result as any).rows || result)[0] || {}),
+        ...(((voids as any).rows || voids)[0] || {}),
+        repeatSameDayBuyers: (repeat as any).rows || repeat,
+      }
       break
     }
   }
 
-  // Store report
+  // Store report. Columns per schema.ts: the JSON lives in `data` (there is no report_data
+  // column and no updated_at) — the old INSERT named both, which is why every generate 500'd.
+  const period = Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 1 ? 'daily'
+    : Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 7 ? 'weekly'
+    : Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 31 ? 'monthly'
+    : Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 92 ? 'quarterly' : 'annual'
+  const [companyRow] = ((await db.execute(sql`SELECT state FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)) as any).rows || []
   const reportResult = await db.execute(sql`
     INSERT INTO compliance_reports (
-      id, company_id, report_type, start_date, end_date,
-      report_data, status, generated_by, created_at, updated_at
+      id, company_id, report_type, period, start_date, end_date, state,
+      data, status, generated_by, created_at
     ) VALUES (
-      gen_random_uuid(), ${currentUser.companyId}, ${data.reportType},
-      ${startDate}, ${endDate},
-      ${JSON.stringify(reportData)}::jsonb, 'generated',
-      ${currentUser.userId}, NOW(), NOW()
+      gen_random_uuid(), ${currentUser.companyId}, ${data.reportType}, ${period},
+      ${startDate}, ${endDate}, ${companyRow?.state || null},
+      ${JSON.stringify({ reportType: data.reportType, generatedAt: new Date().toISOString(), rows: reportData })}::json, 'generated',
+      ${currentUser.userId}, NOW()
     ) RETURNING *
   `)
 
@@ -430,9 +559,11 @@ app.post('/reports/:id/submit', requireRole('manager'), async (c) => {
   const found = ((existing as any).rows || existing)[0]
   if (!found) return c.json({ error: 'Report not found' }, 404)
 
+  // compliance_reports has submitted_at but no submitted_by/updated_at; record who submitted in notes.
   const result = await db.execute(sql`
     UPDATE compliance_reports
-    SET status = 'submitted', submitted_at = NOW(), submitted_by = ${currentUser.userId}, updated_at = NOW()
+    SET status = 'submitted', submitted_at = NOW(),
+        notes = COALESCE(notes, '') || ${`Submitted by ${currentUser.email || currentUser.userId} at ${new Date().toISOString()}. `}
     WHERE id = ${id}
     RETURNING *
   `)
@@ -463,9 +594,12 @@ app.get('/waste', async (c) => {
 
   const [dataResult, countResult] = await Promise.all([
     db.execute(sql`
-      SELECT wl.*, p.name as product_name, p.sku as product_sku
+      SELECT wl.*, p.name as product_name, p.sku as product_sku, b.batch_number,
+             wl.witnessed_by as witness, wl.unit_of_measure as unit,
+             wl.metrc_reported as reported_to_metrc
       FROM waste_log wl
       LEFT JOIN products p ON p.id = wl.product_id
+      LEFT JOIN batches b ON b.id = wl.batch_id
       WHERE wl.company_id = ${currentUser.companyId}
       ORDER BY wl.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -488,20 +622,30 @@ app.post('/waste', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const data = wasteSchema.parse(await c.req.json())
 
+  // Resolve a typed batch number to the batch row (the form collects a number, not an id).
+  let batchId: string | null = data.batchId || null
+  if (!batchId && data.batchNumber) {
+    const b = await db.execute(sql`SELECT id FROM batches WHERE company_id = ${currentUser.companyId} AND batch_number = ${data.batchNumber.trim()} LIMIT 1`)
+    batchId = (((b as any).rows || b)[0]?.id as string) || null
+  }
+  // waste_log has no notes column; keep the operator's note with the reason so it is not lost.
+  const reason = data.notes ? `${data.reason} — ${data.notes}` : data.reason
+
+  // Columns per schema.ts: metrc_reported (not reported_to_metrc), no updated_at, quantity is
+  // TEXT. The old INSERT named two non-existent columns, so every waste entry 500'd.
   const result = await db.execute(sql`
     INSERT INTO waste_log (
       id, company_id, product_id, batch_id, metrc_tag,
       waste_type, quantity, unit_of_measure, reason, method,
-      witnessed_by, reported_to_metrc, logged_by,
-      created_at, updated_at
+      witnessed_by, metrc_reported, logged_by, created_at
     ) VALUES (
       gen_random_uuid(), ${currentUser.companyId},
-      ${data.productId}, ${data.batchId || null}, ${data.metrcTag || null},
-      ${data.wasteType}, ${data.quantity}, ${data.unitOfMeasure},
-      ${data.reason}, ${data.method || null},
+      ${data.productId}, ${batchId}, ${data.metrcTag || null},
+      ${data.wasteType}, ${String(data.quantity)}, ${data.unitOfMeasure},
+      ${reason}, ${data.method || null},
       ${data.witnessedBy || null}, false, ${currentUser.userId},
-      NOW(), NOW()
-    ) RETURNING *
+      NOW()
+    ) RETURNING *, witnessed_by as witness, unit_of_measure as unit, metrc_reported as reported_to_metrc
   `)
 
   const created = ((result as any).rows || result)[0]
@@ -538,9 +682,9 @@ app.put('/waste/:id/metrc', requireRole('manager'), async (c) => {
 
   const result = await db.execute(sql`
     UPDATE waste_log
-    SET reported_to_metrc = true, metrc_reported_at = NOW(), updated_at = NOW()
+    SET metrc_reported = true, metrc_reported_at = NOW()
     WHERE id = ${id}
-    RETURNING *
+    RETURNING *, witnessed_by as witness, unit_of_measure as unit, metrc_reported as reported_to_metrc
   `)
 
   const updated = ((result as any).rows || result)[0]
@@ -549,7 +693,7 @@ app.put('/waste/:id/metrc', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.UPDATE,
     entity: 'waste_log',
     entityId: id,
-    changes: { reported_to_metrc: { from: false, to: true } },
+    changes: { metrc_reported: { from: false, to: true } },
     req: c.req,
   })
 

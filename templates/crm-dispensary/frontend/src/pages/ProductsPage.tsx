@@ -107,17 +107,32 @@ export default function ProductsPage() {
       toast.error('Product name is required');
       return;
     }
+    // Reject negatives with a message instead of silently clamping to 0 — a typo'd "-50" used
+    // to become a product sellable at $0.00 with no warning (go-live QA L-1). The server's
+    // schema also refuses negatives (min 0).
+    const numericChecks: Array<[string, string]> = [
+      ['Price', formData.price], ['Cost', formData.costPrice], ['Stock', formData.stock],
+      ['THC %', formData.thcPercent], ['CBD %', formData.cbdPercent],
+    ];
+    for (const [label, raw] of numericChecks) {
+      if (raw !== '' && raw != null && Number(raw) < 0) {
+        toast.error(`${label} cannot be negative`);
+        return;
+      }
+    }
+    if (formData.price === '' || !Number.isFinite(parseFloat(formData.price))) {
+      toast.error('Price is required');
+      return;
+    }
     setSaving(true);
     try {
-      // Clamp at 0 — price/cost/stock/percentages can never be negative, and the
-      // number inputs also carry min="0" so the negatives never get entered (S20b).
       await api.post('/api/products', {
         ...formData,
-        thcPercent: formData.thcPercent ? Math.max(0, parseFloat(formData.thcPercent)) : null,
-        cbdPercent: formData.cbdPercent ? Math.max(0, parseFloat(formData.cbdPercent)) : null,
-        price: formData.price ? Math.max(0, parseFloat(formData.price)) : 0,
-        costPrice: formData.costPrice ? Math.max(0, parseFloat(formData.costPrice)) : null,
-        stockQuantity: formData.stock ? Math.max(0, parseInt(formData.stock)) : 0,
+        thcPercent: formData.thcPercent ? parseFloat(formData.thcPercent) : null,
+        cbdPercent: formData.cbdPercent ? parseFloat(formData.cbdPercent) : null,
+        price: parseFloat(formData.price),
+        costPrice: formData.costPrice ? parseFloat(formData.costPrice) : null,
+        stockQuantity: formData.stock ? parseInt(formData.stock) : 0,
       });
       toast.success('Product created');
       setModalOpen(false);

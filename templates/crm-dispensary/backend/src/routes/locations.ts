@@ -26,13 +26,44 @@ const camel = (row: any): any => {
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
 
+  // Per-location product count + retail inventory value. Stock is tracked per location in
+  // product_locations; a location with no per-location rows (single-store tenants never
+  // create any) falls back to the whole catalog when it is the default store, so "Main Store"
+  // no longer shows 0 products / $0 (go-live QA L-4).
   const result = await db.execute(sql`
-    SELECT * FROM locations
-    WHERE company_id = ${currentUser.companyId} AND is_active = true
-    ORDER BY is_default DESC, name ASC
+    SELECT l.*,
+           COALESCE(pl.product_count, 0)::int AS product_count,
+           COALESCE(pl.inventory_value, 0) AS inventory_value,
+           COALESCE(pl.units, 0)::int AS units_on_hand,
+           -- Fall back to the whole catalog for the default store, or when it is the only
+           -- store (single-location tenants never create per-location stock rows).
+           (pl.product_count IS NULL OR pl.product_count = 0)
+             AND (l.is_default = true OR (SELECT COUNT(*) FROM locations l2 WHERE l2.company_id = l.company_id AND l2.is_active = true) = 1) AS uses_catalog_fallback
+    FROM locations l
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*) FILTER (WHERE COALESCE(x.quantity, 0) > 0) AS product_count,
+             COALESCE(SUM(COALESCE(x.quantity, 0) * COALESCE(NULLIF(p.price, '')::numeric, 0)), 0) AS inventory_value,
+             COALESCE(SUM(COALESCE(x.quantity, 0)), 0) AS units
+      FROM product_locations x JOIN products p ON p.id = x.product_id
+      WHERE x.location_id = l.id AND x.company_id = l.company_id AND p.active = true
+    ) pl ON true
+    WHERE l.company_id = ${currentUser.companyId} AND l.is_active = true
+    ORDER BY l.is_default DESC, l.name ASC
   `)
+  const rows = ((result as any).rows || result).map(camel)
+  if (rows.some((r: any) => r.usesCatalogFallback)) {
+    const cat = await db.execute(sql`
+      SELECT COUNT(*)::int AS product_count,
+             COALESCE(SUM(COALESCE(stock_quantity, 0) * COALESCE(NULLIF(price, '')::numeric, 0)), 0) AS inventory_value,
+             COALESCE(SUM(COALESCE(stock_quantity, 0)), 0)::int AS units
+      FROM products WHERE company_id = ${currentUser.companyId} AND active = true
+    `)
+    const c0 = ((cat as any).rows || cat)?.[0] || {}
+    for (const r of rows) if (r.usesCatalogFallback) { r.productCount = Number(c0.product_count || 0); r.inventoryValue = Number(c0.inventory_value || 0); r.unitsOnHand = Number(c0.units || 0) }
+  }
+  for (const r of rows) { r.inventoryValue = Number(r.inventoryValue || 0); delete r.usesCatalogFallback }
 
-  return c.json(((result as any).rows || result).map(camel))
+  return c.json(rows)
 })
 
 // Create location (manager+)

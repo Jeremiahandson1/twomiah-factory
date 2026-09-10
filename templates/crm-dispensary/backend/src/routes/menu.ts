@@ -3,10 +3,9 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { product, company, order, orderItem, contact } from '../../db/schema.ts'
 import { eq, and, asc, sql } from 'drizzle-orm'
-import { isCannabisLine } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ } from '../utils/cannabis.ts'
 
-// Cannabis purchase limit: 2.5 oz = 70.87g
-const PURCHASE_LIMIT_GRAMS = 70.87
+// Cannabis purchase limit: the company's configured/state limit (utils/cannabis.ts) — was a hardcoded 2.5 oz.
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax
 const SALES_TAX_RATE = 0.0875 // state + local sales tax
 
@@ -192,7 +191,7 @@ app.post('/order', async (c) => {
   }
 
   // Resolve company
-  const [foundCompany] = await db.select({ id: company.id, name: company.name, taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate })
+  const [foundCompany] = await db.select({ id: company.id, name: company.name, taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate, purchaseLimitOz: company.purchaseLimitOz, state: company.state })
     .from(company).where(eq(company.slug, slug)).limit(1)
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
@@ -245,12 +244,13 @@ app.post('/order', async (c) => {
     })
   }
 
-  // Purchase limit validation (2.5 oz)
-  if (totalWeightGrams > PURCHASE_LIMIT_GRAMS) {
+  // Purchase limit validation — configured/state limit (V-1)
+  const limitOz = resolvePurchaseLimitOz(foundCompany)
+  if (totalWeightGrams > limitOz * GRAMS_PER_OZ + 1e-6) {
     return c.json({
-      error: `Purchase exceeds the 2.5oz cannabis limit (${(totalWeightGrams / 28.3495).toFixed(2)}oz requested)`,
-      totalWeightOz: (totalWeightGrams / 28.3495).toFixed(2),
-      limitOz: '2.5',
+      error: `Purchase exceeds the ${limitOz}oz cannabis limit (${(totalWeightGrams / GRAMS_PER_OZ).toFixed(2)}oz requested)`,
+      totalWeightOz: (totalWeightGrams / GRAMS_PER_OZ).toFixed(2),
+      limitOz: String(limitOz),
     }, 400)
   }
 

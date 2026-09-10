@@ -13,7 +13,8 @@
     "jsx": "react-jsx",
     "strict": false,
     "noImplicitAny": false,
-    "allowJs": true
+    "allowJs": true,
+    "types": ["vite/client", "vitest/globals"]
   },
   "include": ["src"]
 }

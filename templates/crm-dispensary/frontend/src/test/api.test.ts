@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 describe('API Client', () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
-    global.localStorage = {
+    (globalThis as any).fetch = vi.fn();
+    (globalThis as any).localStorage = {
       getItem: vi.fn(),
       setItem: vi.fn(),
       removeItem: vi.fn(),
@@ -27,20 +27,20 @@ describe('API Client', () => {
   describe('Request building', () => {
     it('builds query string from params', () => {
       const params = { page: 1, limit: 25, status: 'active' };
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(params as any).toString();
       expect(query).toBe('page=1&limit=25&status=active');
     });
 
     it('handles empty params', () => {
       const params = {};
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(params as any).toString();
       expect(query).toBe('');
     });
 
     it('filters out undefined values', () => {
       const params = { page: 1, search: undefined };
       Object.keys(params).forEach(k => params[k] === undefined && delete params[k]);
-      const query = new URLSearchParams(params).toString();
+      const query = new URLSearchParams(params as any).toString();
       expect(query).toBe('page=1');
     });
   });
@@ -48,7 +48,7 @@ describe('API Client', () => {
   describe('Response handling', () => {
     it('parses JSON response', async () => {
       const mockData = { id: '1', name: 'Test' };
-      global.fetch.mockResolvedValueOnce({
+      (globalThis as any).fetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockData),
       });
@@ -60,7 +60,7 @@ describe('API Client', () => {
     });
 
     it('handles error response', async () => {
-      global.fetch.mockResolvedValueOnce({
+      (globalThis as any).fetch.mockResolvedValueOnce({
         ok: false,
         status: 404,
         json: () => Promise.resolve({ error: 'Not found' }),

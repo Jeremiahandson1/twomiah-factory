@@ -42,14 +42,15 @@ app.post('/generate', requireRole('manager'), async (c) => {
   // Cash $0.00. Refunds/voids are reported on their own lines. (retest#7)
   const ordersResult = await db.execute(sql`
     SELECT
-      COUNT(*) FILTER (WHERE status = 'completed')::int as order_count,
-      COALESCE(SUM(total::numeric) FILTER (WHERE status = 'completed'), 0) as total_revenue,
-      COALESCE(SUM(excise_tax::numeric) FILTER (WHERE status = 'completed'), 0) as total_excise_tax,
-      COALESCE(SUM(sales_tax::numeric) FILTER (WHERE status = 'completed'), 0) as total_sales_tax,
-      COALESCE(SUM(total_tax::numeric) FILTER (WHERE status = 'completed'), 0) as total_tax,
-      COALESCE(SUM(discount_amount::numeric) FILTER (WHERE status = 'completed'), 0) as total_discounts,
-      COUNT(*) FILTER (WHERE status = 'refunded')::int as refund_count,
-      COALESCE(SUM(total::numeric) FILTER (WHERE status = 'refunded'), 0) as refund_total,
+      COUNT(*) FILTER (WHERE status IN ('completed', 'partially_refunded'))::int as order_count,
+      -- NET revenue: partial refunds subtract what was returned; full refunds count $0 (QA V-3).
+      COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_revenue,
+      COALESCE(SUM(excise_tax::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_excise_tax,
+      COALESCE(SUM(sales_tax::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_sales_tax,
+      COALESCE(SUM(total_tax::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_tax,
+      COALESCE(SUM(discount_amount::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_discounts,
+      COUNT(*) FILTER (WHERE status IN ('refunded', 'partially_refunded'))::int as refund_count,
+      COALESCE(SUM(COALESCE(NULLIF(refunded_amount, '')::numeric, total::numeric)) FILTER (WHERE status IN ('refunded', 'partially_refunded')), 0) as refund_total,
       COUNT(*) FILTER (WHERE status = 'cancelled')::int as void_count
     FROM orders
     WHERE company_id = ${currentUser.companyId}
@@ -87,16 +88,16 @@ app.post('/generate', requireRole('manager'), async (c) => {
       cs.status as session_status,
       cs.opened_at,
       cs.closed_at,
+      -- Same attribution as cash.ts (go-live QA M-3): cash IN = cash sales settled in the window
+      -- regardless of later refund status; cash OUT = refunds PAID in the window (refunded_at / refunded_amount).
       COALESCE((SELECT SUM(o.total::numeric) FROM orders o
-        WHERE o.company_id = cs.company_id AND o.status = 'completed' AND o.payment_method = 'cash'
-          AND COALESCE(o.payment_status, '') <> 'refunded'
+        WHERE o.company_id = cs.company_id AND o.status IN ('completed', 'refunded', 'partially_refunded') AND o.payment_method = 'cash'
           AND o.completed_at >= cs.opened_at
           AND (cs.closed_at IS NULL OR o.completed_at <= cs.closed_at)), 0) as cash_sales,
-      COALESCE((SELECT SUM(o.total::numeric) FROM orders o
-        WHERE o.company_id = cs.company_id AND o.status = 'completed' AND o.payment_method = 'cash'
-          AND o.payment_status = 'refunded'
-          AND o.completed_at >= cs.opened_at
-          AND (cs.closed_at IS NULL OR o.completed_at <= cs.closed_at)), 0) as cash_refunds
+      COALESCE((SELECT SUM(NULLIF(o.refunded_amount, '')::numeric) FROM orders o
+        WHERE o.company_id = cs.company_id AND o.status IN ('refunded', 'partially_refunded') AND o.payment_method = 'cash'
+          AND o.refunded_at >= cs.opened_at
+          AND (cs.closed_at IS NULL OR o.refunded_at <= cs.closed_at)), 0) as cash_refunds
     FROM cash_sessions cs
     WHERE cs.company_id = ${currentUser.companyId}
       AND DATE(cs.opened_at) = ${reportDate}::date
@@ -136,13 +137,15 @@ app.post('/generate', requireRole('manager'), async (c) => {
   // ── Compliance ──
   const complianceResult = await db.execute(sql`
     SELECT
-      COALESCE(SUM(total_weight_grams::numeric), 0) as total_cannabis_weight_sold,
-      COUNT(*) FILTER (WHERE total_weight_grams::numeric > 70.87)::int as purchase_limit_violations,
-      COUNT(DISTINCT customer_id) FILTER (WHERE customer_id IS NOT NULL)::int as id_verifications
-    FROM orders
-    WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = ${reportDate}::date
-      AND status = 'completed'
+      COALESCE(SUM(o.total_weight_grams::numeric), 0) as total_cannabis_weight_sold,
+      -- Violations are judged against the tenant's configured limit (Settings), not a hardcoded 2.5 oz. (V-1)
+      COUNT(*) FILTER (WHERE o.total_weight_grams::numeric > COALESCE(NULLIF(co.purchase_limit_oz, ''), '2.5')::numeric * 28.3495)::int as purchase_limit_violations,
+      COUNT(*) FILTER (WHERE o.id_verified = true)::int as id_verifications
+    FROM orders o
+    JOIN company co ON co.id = o.company_id
+    WHERE o.company_id = ${currentUser.companyId}
+      AND DATE(o.created_at) = ${reportDate}::date
+      AND o.status = 'completed'
   `)
   const complianceStats = ((complianceResult as any).rows || complianceResult)?.[0] || {}
 
@@ -308,6 +311,9 @@ app.post('/generate', requireRole('manager'), async (c) => {
     locationId: locId,
     totalOrders: report.orders.count,
     totalRevenue: report.orders.totalRevenue,
+    refundCount: report.orders.refundCount,
+    refundTotal: report.orders.refundTotal,
+    voidCount: report.orders.voidCount,
     cashTotal: cashRevenue,
     debitTotal: debitRevenue + achRevenue,
     cashExpected: report.cash.expectedCash || 0,

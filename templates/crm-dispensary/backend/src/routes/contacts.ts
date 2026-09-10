@@ -158,6 +158,23 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (cBody.email && typeof cBody.email === 'string') cBody.email = cBody.email.toLowerCase().trim()
   const data = contactSchema.parse(cBody)
 
+  // Age at creation (go-live QA L-2). A customer record with a 2012 DOB used to be created
+  // silently; the register would refuse the sale later, but the record itself should not slip
+  // in unnoticed. Under 18 is refused outright (no legal cannabis customer is a minor); 18–20
+  // is allowed (medical patients) but the response carries a warning the UI surfaces.
+  const warnings: string[] = []
+  if (data.dateOfBirth && data.type !== 'vendor') {
+    const dob = new Date(data.dateOfBirth)
+    if (Number.isNaN(dob.getTime())) return c.json({ error: 'dateOfBirth is not a valid date' }, 400)
+    const today = new Date()
+    let age = today.getFullYear() - dob.getFullYear()
+    const m = today.getMonth() - dob.getMonth()
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--
+    if (dob > today) return c.json({ error: 'dateOfBirth cannot be in the future' }, 400)
+    if (age < 18) return c.json({ error: `Customer would be ${age} years old — cannabis customers must be at least 18 (medical) or 21 (adult use)`, code: 'underage', age }, 400)
+    if (age < 21) warnings.push(`Customer is ${age} — adult-use sales require 21+. Only medical sales with a valid card are permitted.`)
+  }
+
   // Block duplicate customers within the company on email or phone (S22). Only
   // check the identifiers actually supplied so blank fields never collide.
   const dupeChecks = []
@@ -176,8 +193,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
   const [newContact] = await db.insert(contact).values({ ...data, companyId: currentUser.companyId }).returning()
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, newContact)
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, req: c.req })
-  return c.json(newContact, 201)
+  audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, metadata: warnings.length ? { warnings } : undefined, req: c.req })
+  return c.json(warnings.length ? { ...newContact, warnings } : newContact, 201)
 })
 
 app.put('/:id', requirePermission('contacts:update'), async (c) => {

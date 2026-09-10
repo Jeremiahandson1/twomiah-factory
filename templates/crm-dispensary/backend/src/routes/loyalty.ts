@@ -198,10 +198,15 @@ app.get('/rewards', async (c) => {
   const result = await db.execute(sql`
     SELECT id, name, description,
            points_cost AS "pointsCost",
+           points_required AS "pointsRequired",
            discount_type AS "discountType",
            discount_value AS "discountValue",
+           applicable_categories AS "applicableCategories",
            product_id AS "productId",
+           min_tier AS "minTier",
+           usage_count AS "usageCount",
            active AS "isActive",
+           active AS "active",
            created_at AS "createdAt",
            updated_at AS "updatedAt"
     FROM loyalty_rewards

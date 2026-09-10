@@ -293,6 +293,7 @@ app.delete('/rules/:id', requireRole('admin'), async (c) => {
 
 app.post('/scan', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
+  const scanStartedAt = Date.now()
 
   // Load all active rules (is_active, not enabled)
   const rulesResult = await db.execute(sql`
@@ -475,9 +476,21 @@ app.post('/scan', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
+  // The page reports "N transactions scanned" from transactionsScanned, which this never
+  // returned — so every scan read "0 transactions scanned" (go-live QA L-8). Report the size
+  // of the window the rules ran over (last 30 days of orders) and the elapsed time.
+  const scanned = await db.execute(sql`
+    SELECT COUNT(*)::int as n FROM orders
+    WHERE company_id = ${currentUser.companyId} AND created_at >= NOW() - INTERVAL '30 days'
+  `)
+  const transactionsScanned = Number(((scanned as any).rows || scanned)?.[0]?.n || 0)
+
   return c.json({
-    message: `Scan complete: ${alertsGenerated.length} alert(s) generated`,
+    message: `Scan complete: ${alertsGenerated.length} alert(s) generated from ${transactionsScanned} transaction(s)`,
     rulesChecked: rules.length,
+    transactionsScanned,
+    windowDays: 30,
+    duration: `${((Date.now() - scanStartedAt) / 1000).toFixed(1)}s`,
     alertsGenerated,
   })
 })
