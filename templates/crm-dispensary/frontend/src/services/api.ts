@@ -4,13 +4,26 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 // error). Abort after this long so the UI surfaces a real, retryable error.
 // Generous enough to survive a Render cold start, short enough to not hang.
 const DEFAULT_TIMEOUT_MS = 45000;
-function makeTransientError(message) {
-  const err = new Error(message);
+
+// Errors thrown by the client carry the HTTP status and parsed body.
+export interface ApiError extends Error {
+  status?: number;
+  data?: any;
+  isTransient?: boolean;
+}
+export type ApiRequestOptions = Omit<RequestInit, 'headers' | 'body'> & {
+  headers?: Record<string, string>;
+  body?: BodyInit | null;
+};
+type QueryParams = Record<string, any> | URLSearchParams | string | string[][] | undefined;
+
+function makeTransientError(message: string): ApiError {
+  const err: ApiError = new Error(message);
   err.status = 0;
   err.isTransient = true;
   return err;
 }
-async function fetchWithTimeout(url, init, timeoutMs = DEFAULT_TIMEOUT_MS) {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -24,13 +37,18 @@ async function fetchWithTimeout(url, init, timeoutMs = DEFAULT_TIMEOUT_MS) {
 }
 
 class ApiClient {
+  baseUrl: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+  refreshPromise: Promise<boolean> | null = null;
+
   constructor() {
     this.baseUrl = API_URL;
     this.accessToken = localStorage.getItem('accessToken');
     this.refreshToken = localStorage.getItem('refreshToken');
   }
 
-  setTokens(accessToken, refreshToken) {
+  setTokens(accessToken: string, refreshToken: string) {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
     localStorage.setItem('accessToken', accessToken);
@@ -44,9 +62,9 @@ class ApiClient {
     localStorage.removeItem('refreshToken');
   }
 
-  async request(endpoint, options = {}) {
+  async request(endpoint: string, options: ApiRequestOptions = {}): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
-    const headers = {
+    const headers: Record<string, string> = {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
       ...options.headers,
@@ -75,13 +93,13 @@ class ApiClient {
     }
   }
 
-  async handleResponse(response) {
+  async handleResponse(response: Response): Promise<any> {
     if (response.status === 204) return null;
-    
+
     const data = await response.json().catch(() => null);
-    
+
     if (!response.ok) {
-      const error = new Error(data?.error || 'Request failed');
+      const error: ApiError = new Error(data?.error || 'Request failed');
       error.status = response.status;
       error.data = data;
       throw error;
@@ -90,7 +108,7 @@ class ApiClient {
     return data;
   }
 
-  async refreshAccessToken() {
+  async refreshAccessToken(): Promise<boolean> {
     // Single-flight: a page that fires several requests at once produces several
     // 401s, each calling this. The server ROTATES the refresh token on use, so the
     // second call presents a token the first already invalidated, fails, and logs
@@ -117,13 +135,13 @@ class ApiClient {
   }
 
   // Auth
-  async register(data) {
+  async register(data: any) {
     const result = await this.request('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
     this.setTokens(result.accessToken, result.refreshToken);
     return result;
   }
 
-  async login(email, password) {
+  async login(email: string, password: string) {
     const result = await this.request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
     this.setTokens(result.accessToken, result.refreshToken);
     return result;
@@ -139,54 +157,58 @@ class ApiClient {
     return this.request('/api/auth/me');
   }
 
-  async forgotPassword(email) {
+  async forgotPassword(email: string) {
     return this.request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
   }
 
-  async resetPassword(token, password) {
+  async resetPassword(token: string, password: string) {
     return this.request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) });
   }
 
   // Generic CRUD
-  async get(endpoint, params = {}) {
-    const query = new URLSearchParams(params).toString();
+  async get(endpoint: string, params: QueryParams = {}): Promise<any> {
+    // Drop undefined/null params so they don't serialise as the string "undefined".
+    const clean = params && !(params instanceof URLSearchParams) && typeof params === 'object' && !Array.isArray(params)
+      ? Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, String(v)]))
+      : (params as any);
+    const query = new URLSearchParams(clean).toString();
     return this.request(`${endpoint}${query ? '?' + query : ''}`);
   }
 
-  async getOne(endpoint, id) {
+  async getOne(endpoint: string, id: string | number): Promise<any> {
     return this.request(`${endpoint}/${id}`);
   }
 
-  async post(endpoint, data = {}) {
+  async post(endpoint: string, data: any = {}): Promise<any> {
     return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
   }
 
-  async put(endpoint, data = {}) {
+  async put(endpoint: string, data: any = {}): Promise<any> {
     return this.request(endpoint, { method: 'PUT', body: JSON.stringify(data) });
   }
 
-  async create(endpoint, data) {
+  async create(endpoint: string, data: any): Promise<any> {
     return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
   }
 
-  async update(endpoint, id, data) {
+  async update(endpoint: string, id: string | number, data: any): Promise<any> {
     return this.request(`${endpoint}/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
-  async delete(endpoint, id?) {
+  async delete(endpoint: string, id?: string | number): Promise<any> {
     const url = id ? `${endpoint}/${id}` : endpoint;
     return this.request(url, { method: 'DELETE' });
   }
 
   // Multipart upload (the browser sets the multipart boundary; request() skips
   // the JSON content-type for FormData bodies). Returns the parsed JSON response.
-  async uploadImage(endpoint, file) {
+  async uploadImage(endpoint: string, file: File | Blob): Promise<any> {
     const fd = new FormData();
     fd.append('file', file);
     return this.request(endpoint, { method: 'POST', body: fd });
   }
 
-  async action(endpoint, id, action, data = {}) {
+  async action(endpoint: string, id: string | number, action: string, data: any = {}): Promise<any> {
     return this.request(`${endpoint}/${id}/${action}`, { method: 'POST', body: JSON.stringify(data) });
   }
 

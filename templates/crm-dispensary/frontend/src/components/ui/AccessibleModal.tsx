@@ -2,6 +2,20 @@ import { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
+export interface AccessibleModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: any;
+  description?: any;
+  children?: any;
+  size?: string;
+  closeOnOverlayClick?: boolean;
+  closeOnEscape?: boolean;
+  showCloseButton?: boolean;
+  initialFocusRef?: any;
+  finalFocusRef?: any;
+}
+
 export function AccessibleModal({
   isOpen,
   onClose,
@@ -14,7 +28,7 @@ export function AccessibleModal({
   showCloseButton = true,
   initialFocusRef,
   finalFocusRef,
-}) {
+}: AccessibleModalProps) {
   const modalRef = useRef(null);
   const previousActiveElement = useRef(null);
 
@@ -167,7 +181,7 @@ export function ConfirmDialog({
   cancelText = 'Cancel',
   variant = 'danger',
   loading = false,
-}) {
+}: { isOpen: boolean; onClose: () => void; onConfirm: () => void | Promise<void>; title?: any; message?: any; confirmText?: string; cancelText?: string; variant?: string; loading?: boolean }) {
   const cancelRef = useRef(null);
 
   const variants = {

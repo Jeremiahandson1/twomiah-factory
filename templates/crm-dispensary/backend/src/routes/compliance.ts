@@ -346,20 +346,29 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
     }
 
     case 'transfer': {
+      // inventory_transfers has no transfer_type / total_items / metrc_manifest_id columns —
+      // the old query 500'd. Summarise by route (from → to) and status, with item units from
+      // the transfer lines, plus Metrc-tagged products moved.
       const result = await db.execute(sql`
         SELECT
-          t.transfer_type,
+          COALESCE(lf.name, 'external') as from_location,
+          COALESCE(lt.name, 'external') as to_location,
           t.status,
-          COUNT(*)::int as transfer_count,
-          COALESCE(SUM(t.total_items)::int, 0) as total_items,
-          COUNT(CASE WHEN t.metrc_manifest_id IS NOT NULL THEN 1 END)::int as with_manifest,
-          COUNT(CASE WHEN t.metrc_manifest_id IS NULL THEN 1 END)::int as without_manifest
+          COUNT(DISTINCT t.id)::int as transfer_count,
+          COALESCE(SUM(ti.quantity), 0)::int as total_units,
+          COALESCE(SUM(ti.received_quantity), 0)::int as received_units,
+          COUNT(DISTINCT ti.product_id) FILTER (WHERE p.metrc_tag IS NOT NULL AND p.metrc_tag <> '')::int as metrc_tagged_products,
+          COUNT(DISTINCT ti.product_id) FILTER (WHERE p.metrc_tag IS NULL OR p.metrc_tag = '')::int as untagged_products
         FROM inventory_transfers t
+        LEFT JOIN locations lf ON lf.id = t.from_location_id
+        LEFT JOIN locations lt ON lt.id = t.to_location_id
+        LEFT JOIN inventory_transfer_items ti ON ti.transfer_id = t.id
+        LEFT JOIN products p ON p.id = ti.product_id
         WHERE t.company_id = ${currentUser.companyId}
-          AND t.created_at >= ${startDate}
-          AND t.created_at <= ${endDate}
-        GROUP BY t.transfer_type, t.status
-        ORDER BY t.transfer_type, t.status
+          AND COALESCE(t.transferred_at, t.created_at) >= ${startDate}
+          AND COALESCE(t.transferred_at, t.created_at) <= ${endDate}
+        GROUP BY lf.name, lt.name, t.status
+        ORDER BY lf.name, lt.name, t.status
       `)
       reportData = (result as any).rows || result
       break

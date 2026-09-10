@@ -86,7 +86,7 @@ export function RouteAnnouncer() {
 }
 
 // Live region for dynamic updates
-export function LiveRegion({ message, type = 'polite' }) {
+export function LiveRegion({ message, type = 'polite' }: { message: any; type?: 'polite' | 'assertive' | 'off' }) {
   return (
     <div
       role="status"
@@ -100,7 +100,7 @@ export function LiveRegion({ message, type = 'polite' }) {
 }
 
 // Visually hidden but accessible
-export function VisuallyHidden({ children, as: Component = 'span' }) {
+export function VisuallyHidden({ children, as: Component = 'span' }: { children?: any; as?: any }) {
   return (
     <Component className="sr-only">
       {children}

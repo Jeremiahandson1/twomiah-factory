@@ -1,7 +1,46 @@
 import { useState } from 'react';
+import type { ReactNode, ComponentType, ButtonHTMLAttributes } from 'react';
 import { ChevronLeft, ChevronRight, Search, Filter, MoreVertical, Edit, Trash2, Eye } from 'lucide-react';
 
-export function DataTable({
+// Prop types for the shared table/header/button. These were untyped destructured params,
+// which TypeScript reads as "every prop is required" — so every <DataTable> / <PageHeader> /
+// <Button> call site that omitted an optional prop was a type error (~100 across the app).
+export interface DataTableColumn<Row = any> {
+  key: string;
+  label?: ReactNode;
+  className?: string;
+  cellClassName?: string;
+  render?: (value: any, row: Row) => ReactNode;
+}
+export interface DataTableAction<Row = any> {
+  label: ReactNode;
+  onClick: (row: Row) => void;
+  icon?: ComponentType<{ className?: string }>;
+  className?: string;
+}
+export interface DataTablePagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+export interface DataTableProps<Row = any> {
+  data?: Row[];
+  columns?: DataTableColumn<Row>[];
+  loading?: boolean;
+  pagination?: DataTablePagination | null;
+  onPageChange?: (page: number) => void;
+  onRowClick?: (row: Row) => void;
+  actions?: DataTableAction<Row>[];
+  emptyMessage?: ReactNode;
+  searchPlaceholder?: string;
+  onSearch?: (value: string) => void;
+  searchValue?: string;
+  error?: string | boolean | null;
+  onRetry?: () => void;
+}
+
+export function DataTable<Row extends { id?: any } = any>({
   data = [],
   columns = [],
   loading = false,
@@ -15,8 +54,8 @@ export function DataTable({
   searchValue = '',
   error = null,
   onRetry,
-}) {
-  const [openMenu, setOpenMenu] = useState(null);
+}: DataTableProps<Row>) {
+  const [openMenu, setOpenMenu] = useState<any>(null);
   // Anchor the row action menu with fixed positioning so it escapes the card's
   // overflow-hidden / overflow-x-auto clipping (S21).
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -180,8 +219,8 @@ export function DataTable({
   );
 }
 
-export function StatusBadge({ status, statusColors }) {
-  const colors = statusColors || {
+export function StatusBadge({ status, statusColors }: { status: string; statusColors?: Record<string, string> }) {
+  const colors: Record<string, string> = statusColors || {
     draft: 'bg-gray-100 text-gray-700',
     pending: 'bg-yellow-100 text-yellow-700',
     active: 'bg-blue-100 text-blue-700',
@@ -208,7 +247,7 @@ export function StatusBadge({ status, statusColors }) {
   );
 }
 
-export function PageHeader({ title, subtitle, action }) {
+export function PageHeader({ title, subtitle, action }: { title: ReactNode; subtitle?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-6">
       <div>
@@ -220,8 +259,12 @@ export function PageHeader({ title, subtitle, action }) {
   );
 }
 
-export function Button({ children, variant = 'primary', size = 'md', className = '', ...props }) {
-  const variants = {
+export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | string;
+  size?: 'sm' | 'md' | 'lg' | string;
+}
+export function Button({ children, variant = 'primary', size = 'md', className = '', ...props }: ButtonProps) {
+  const variants: Record<string, string> = {
     primary: 'bg-orange-500 hover:bg-orange-600 text-white',
     secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700',
     danger: 'bg-red-500 hover:bg-red-600 text-white',

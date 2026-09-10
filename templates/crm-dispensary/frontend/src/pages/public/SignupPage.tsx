@@ -357,7 +357,7 @@ export default function SignupPage() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{{COMPANY_NAME}}</span>
+              <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{'{{COMPANY_NAME}}'}</span>
             </Link>
             <Link to="/login" className="text-gray-600 hover:text-gray-900 dark:text-slate-400">
               Already have an account? Log in
@@ -510,7 +510,7 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
                 isSelected ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
               }`}
             >
-              {plan.popular && (
+              {(plan as any).popular && (
                 <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-semibold px-3 py-0.5 rounded-full">Most Popular</span>
               )}
               <h3 className="text-lg font-bold text-gray-900 mt-1 dark:text-slate-100">{plan.name}</h3>
@@ -812,7 +812,7 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Start Your Free Trial</h2>
-      <p className="text-gray-600 mb-6 dark:text-slate-400">Try {{COMPANY_NAME}} free for 30 days. No credit card required.</p>
+      <p className="text-gray-600 mb-6 dark:text-slate-400">Try {'{{COMPANY_NAME}}'} free for 30 days. No credit card required.</p>
 
       <div className="bg-gray-50 rounded-lg p-6 mb-8 dark:bg-slate-900">
         <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Order Summary</h3>

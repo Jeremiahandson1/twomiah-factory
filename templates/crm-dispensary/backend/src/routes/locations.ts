@@ -35,7 +35,10 @@ app.get('/', async (c) => {
            COALESCE(pl.product_count, 0)::int AS product_count,
            COALESCE(pl.inventory_value, 0) AS inventory_value,
            COALESCE(pl.units, 0)::int AS units_on_hand,
-           (pl.product_count IS NULL OR pl.product_count = 0) AND l.is_default = true AS uses_catalog_fallback
+           -- Fall back to the whole catalog for the default store, or when it is the only
+           -- store (single-location tenants never create per-location stock rows).
+           (pl.product_count IS NULL OR pl.product_count = 0)
+             AND (l.is_default = true OR (SELECT COUNT(*) FROM locations l2 WHERE l2.company_id = l.company_id AND l2.is_active = true) = 1) AS uses_catalog_fallback
     FROM locations l
     LEFT JOIN LATERAL (
       SELECT COUNT(*) FILTER (WHERE COALESCE(x.quantity, 0) > 0) AS product_count,

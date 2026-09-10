@@ -14,17 +14,25 @@ const sizes = {
   lg: 'px-6 py-3 text-base',
 };
 
-export function Button({ 
-  children, 
-  variant = 'primary', 
-  size = 'md', 
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: keyof typeof variants | string;
+  size?: keyof typeof sizes | string;
+  icon?: React.ComponentType<{ className?: string }>;
+  iconRight?: React.ComponentType<{ className?: string }>;
+  loading?: boolean;
+}
+
+export function Button({
+  children,
+  variant = 'primary',
+  size = 'md',
   className,
   icon: Icon,
   iconRight,
   loading,
   disabled,
-  ...props 
-}) {
+  ...props
+}: ButtonProps) {
   return (
     <button
       className={clsx(

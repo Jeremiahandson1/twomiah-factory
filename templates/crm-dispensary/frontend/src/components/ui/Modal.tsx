@@ -2,14 +2,23 @@ import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
-export function Modal({ 
-  isOpen, 
-  onClose, 
-  title, 
-  children, 
+export interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+  size?: 'sm' | 'md' | 'lg' | 'xl' | string;
+  showClose?: boolean;
+}
+
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
   size = 'md',
-  showClose = true 
-}) {
+  showClose = true
+}: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -67,6 +76,18 @@ export function Modal({
   );
 }
 
+export interface ConfirmDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void | Promise<void>;
+  title?: React.ReactNode;
+  message?: React.ReactNode;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: 'danger' | 'primary' | 'warning' | string;
+  loading?: boolean;
+}
+
 export function ConfirmDialog({
   isOpen,
   onClose,
@@ -77,7 +98,7 @@ export function ConfirmDialog({
   cancelText = 'Cancel',
   variant = 'danger',
   loading = false,
-}) {
+}: ConfirmDialogProps) {
   const handleConfirm = async () => {
     await onConfirm();
     if (!loading) onClose();

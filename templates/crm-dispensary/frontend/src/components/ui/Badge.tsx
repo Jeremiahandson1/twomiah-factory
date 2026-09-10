@@ -9,7 +9,7 @@ const variants = {
   default: 'bg-slate-700 text-slate-300',
 };
 
-export function Badge({ children, variant = 'default', className, dot }) {
+export function Badge({ children, variant = 'default', className, dot }: { children?: any; variant?: string; className?: string; dot?: boolean }) {
   return (
     <span className={clsx('badge', variants[variant], className)}>
       {dot && (
@@ -60,7 +60,7 @@ const statusMap = {
   lead: { label: 'Lead', variant: 'success' },
 };
 
-export function StatusBadge({ status, className }) {
+export function StatusBadge({ status, className }: { status: string; className?: string }) {
   const config = statusMap[status] || { label: status, variant: 'default' };
   return (
     <Badge variant={config.variant} className={className} dot>
