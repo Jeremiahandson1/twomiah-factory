@@ -178,20 +178,26 @@ app.post('/scan', async (c) => {
   const flagReason = [isUnderage ? `underage (${age})` : null, isExpired ? `expired ${parsed.expiration}` : null].filter(Boolean).join('; ') || null
   const status = isUnderage ? 'underage' : isExpired ? 'expired' : 'verified'
 
-  // Try to match existing contact by name + dob
+  // Try to match an existing customer by name + DOB. The contact table stores a single
+  // `name` column (no first_name/last_name) — the old query referenced columns that don't
+  // exist and 500'd the FIRST time a scan actually carried a parsed name. Matching is a
+  // convenience: it must never block logging the scan, so failures are swallowed.
   let matchedContactId: string | null = null
-  if (parsed.firstName && parsed.lastName && parsed.dob) {
-    const contactResult = await db.execute(sql`
-      SELECT id FROM contact
-      WHERE company_id = ${currentUser.companyId}
-        AND LOWER(first_name) = LOWER(${parsed.firstName})
-        AND LOWER(last_name) = LOWER(${parsed.lastName})
-        AND date_of_birth = ${parsed.dob}::date
-      LIMIT 1
-    `)
-    const contactRows = (contactResult as any).rows || contactResult
-    if (contactRows.length) {
-      matchedContactId = contactRows[0].id
+  if (parsed.firstName && parsed.dob) {
+    try {
+      const fullName = [parsed.firstName, parsed.lastName].filter(Boolean).join(' ')
+      const contactResult = await db.execute(sql`
+        SELECT id FROM contact
+        WHERE company_id = ${currentUser.companyId}
+          AND date_of_birth = ${parsed.dob}::date
+          AND (LOWER(TRIM(name)) = LOWER(${fullName}) OR LOWER(name) LIKE LOWER(${'%' + parsed.firstName + '%'}))
+        ORDER BY (LOWER(TRIM(name)) = LOWER(${fullName})) DESC
+        LIMIT 1
+      `)
+      const contactRows = (contactResult as any).rows || contactResult
+      if (contactRows.length) matchedContactId = contactRows[0].id
+    } catch (err) {
+      console.error('[id-scanner] contact match failed (non-fatal):', (err as any)?.message)
     }
   }
 

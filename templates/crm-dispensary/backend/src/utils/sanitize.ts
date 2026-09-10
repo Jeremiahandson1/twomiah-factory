@@ -6,6 +6,9 @@
 /** Remove HTML tags/comments and collapse whitespace. Keeps plain apostrophes/ampersands. */
 export function stripHtml(value: string): string {
   return String(value)
+    // script/style blocks go WITH their contents — `<script>alert(1)</script>` must not
+    // survive as the name "alert(1)".
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<\/?[a-zA-Z][^>]*>/g, '')
     .replace(/<\/?[^>]*>/g, '')
