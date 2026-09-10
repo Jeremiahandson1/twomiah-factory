@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { users, storeSettings } from '../../db/schema.ts'
@@ -11,8 +12,33 @@ const auth = new Hono()
 
 const generateTokens = (userId: string, email: string, role: string) => ({
   accessToken: jwt.sign({ userId, email, role }, process.env.JWT_SECRET!, { expiresIn: '15m' }),
-  refreshToken: jwt.sign({ userId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' }),
+  refreshToken: jwt.sign({ userId, type: 'refresh', jti: crypto.randomUUID() }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' }),
 })
+
+// Multi-device sessions. user.refresh_token used to hold ONE token, overwritten on every login —
+// so signing in on a second device (or an admin/API login as the same account) silently
+// invalidated the first device's refresh token, and 15 minutes later that device was thrown
+// to the login screen mid-shift. The column now holds a JSON array of the user's live refresh
+// tokens (newest last, capped), and logout revokes only the device that logged out.
+// (Propagated from crm-dispensary go-live QA M-4.)
+const MAX_SESSIONS_PER_USER = 10
+const parseTokenList = (raw: string | null | undefined): string[] => {
+  if (!raw) return []
+  try { const v = JSON.parse(raw); return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : [raw] } catch { return [raw] }
+}
+const stillValid = (token: string) => { try { jwt.verify(token, process.env.JWT_REFRESH_SECRET!); return true } catch { return false } }
+async function storeRefreshToken(userId: string, token: string, extra: Record<string, any> = {}) {
+  const [row] = await db.select({ refreshToken: users.refreshToken }).from(users).where(eq(users.id, userId)).limit(1)
+  const live = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
+  const next = [...live, token].slice(-MAX_SESSIONS_PER_USER)
+  await db.update(users).set({ refreshToken: JSON.stringify(next), ...extra } as any).where(eq(users.id, userId))
+}
+async function revokeRefreshToken(userId: string, token: string | null | undefined) {
+  if (!token) { await db.update(users).set({ refreshToken: null } as any).where(eq(users.id, userId)); return }
+  const [row] = await db.select({ refreshToken: users.refreshToken }).from(users).where(eq(users.id, userId)).limit(1)
+  const next = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
+  await db.update(users).set({ refreshToken: next.length ? JSON.stringify(next) : null } as any).where(eq(users.id, userId))
+}
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -31,7 +57,7 @@ auth.post('/login', async (c) => {
   if (!valid) return c.json({ error: 'Invalid email or password' }, 401)
 
   const tokens = generateTokens(u.id, u.email, u.role)
-  await db.update(users).set({ refreshToken: tokens.refreshToken }).where(eq(users.id, u.id))
+  await storeRefreshToken(u.id, tokens.refreshToken)
 
   return c.json({
     ...tokens,
@@ -52,7 +78,7 @@ auth.post('/refresh', async (c) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as any
     const [u] = await db.select().from(users).where(eq(users.id, decoded.userId)).limit(1)
-    if (!u || !u.isActive || u.refreshToken !== token) {
+    if (!u || !u.isActive || !parseTokenList(u.refreshToken).includes(token)) {
       return c.json({ error: 'Invalid refresh token' }, 401)
     }
     const tokens = generateTokens(u.id, u.email, u.role)
@@ -62,9 +88,11 @@ auth.post('/refresh', async (c) => {
   }
 })
 
+// Logout — revokes THIS device's refresh token when the client sends it; no token = all sessions.
 auth.post('/logout', authenticate, async (c) => {
   const u = c.get('user')
-  await db.update(users).set({ refreshToken: null }).where(eq(users.id, u.userId))
+  const body = await c.req.json().catch(() => ({} as any))
+  await revokeRefreshToken(u.userId, typeof body?.refreshToken === 'string' ? body.refreshToken : null)
   return c.json({ ok: true })
 })
 

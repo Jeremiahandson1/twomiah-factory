@@ -27,8 +27,9 @@ app.get('/:itemId', async (c) => {
     return c.html('<html><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui"><h1>Item not found</h1></body></html>', 404)
   }
 
-  const item = result.pricebook_item
-  const category = result.pricebook_category
+  // Public page — every string that came from the pricebook is escaped before it lands in HTML.
+  const item = escapeRow(result.pricebook_item as any)
+  const category = result.pricebook_category ? escapeRow(result.pricebook_category as any) : result.pricebook_category
 
   // Fetch company info for logo
   const [comp] = await db.select({
@@ -49,7 +50,7 @@ app.get('/:itemId', async (c) => {
         ELSE 4
       END
   `)
-  const tiers = (gbbResult.rows ?? gbbResult) as any[]
+  const tiers = ((gbbResult.rows ?? gbbResult) as any[]).map((t: any) => escapeRow(t, ['features']))
 
   // Fetch financing options for this company
   const bestTierPrice = tiers.find(t => t.tier === 'best')?.price || item.price
@@ -89,7 +90,7 @@ app.get('/:itemId', async (c) => {
   const tierCardsHtml = tiers.map(tier => {
     const isRec = recommended && tier.id === recommended.id
     const colors = tierColors[tier.tier] || tierColors.better
-    const features = parseFeatures(tier.features)
+    const features = parseFeatures(tier.features).map((f: any) => (typeof f === 'string' ? escapeHtml(f) : f))
     const label = tier.name || tierLabels[tier.tier] || tier.tier
 
     return `
@@ -128,8 +129,8 @@ app.get('/:itemId', async (c) => {
     </div>
   ` : ''
 
-  const logoUrl = comp?.logo || ''
-  const companyName = comp?.name || ''
+  const logoUrl = escapeHtml(comp?.logo || '')
+  const companyName = escapeHtml(comp?.name || '')
 
   const html = `<!DOCTYPE html>
 <html lang="en">
