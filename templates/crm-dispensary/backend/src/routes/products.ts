@@ -7,9 +7,16 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { putObject } from '../services/fileUpload.ts'
+import { stripHtml } from '../utils/sanitize.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// Free-text fields are stored with markup stripped (QA F-09): a product named
+// `<img src=x onerror=alert(1)>` was persisted verbatim. React escapes it in the SPA, but
+// receipts, labels, signage, emails and CSV exports are not React. Strip on input so no
+// output path can ever execute it; a name that is ONLY markup fails min(1).
+const cleanText = (min = 0) => z.string().transform(stripHtml).pipe(min > 0 ? z.string().min(min) : z.string())
 
 // Upload a product image → private R2 (public key under products/), served back
 // publicly via the /media proxy. Returns the URL to store in product.imageUrl.
@@ -34,21 +41,21 @@ app.post('/upload-image', requireRole('manager'), async (c) => {
 })
 
 const productSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
+  name: cleanText(1),
+  description: cleanText().optional(),
+  sku: cleanText().optional(),
+  barcode: cleanText().optional(),
   category: z.enum([
     'flower', 'pre_roll', 'edible', 'concentrate', 'vape',
     'tincture', 'topical', 'accessory', 'apparel', 'other',
   ]),
-  subcategory: z.string().optional(),
-  brand: z.string().optional(),
-  strain: z.string().optional(),
+  subcategory: cleanText().optional(),
+  brand: cleanText().optional(),
+  strain: cleanText().optional(),
   // Frontend form sends strainName/unit/isMerch — real columns are
   // strain_name/unit_type/is_merch, so accept them here instead of stripping.
   // `unit` is remapped to the unitType column on write below.
-  strainName: z.string().optional(),
+  strainName: cleanText().optional(),
   unit: z.string().optional(),
   isMerch: z.boolean().optional(),
   strainType: z.enum(['sativa', 'indica', 'hybrid', 'cbd', 'na']).optional(),
@@ -82,8 +89,8 @@ const productSchema = z.object({
     contaminants: z.boolean().optional(),
     passed: z.boolean().optional(),
   }).optional(),
-  metrcTag: z.string().optional(),
-  notes: z.string().optional(),
+  metrcTag: cleanText().optional(),
+  notes: cleanText().optional(),
   active: z.boolean().default(true),
 })
 
@@ -105,8 +112,10 @@ app.get('/', async (c) => {
   const search = c.req.query('search')
   const active = c.req.query('active')
   const lowStock = c.req.query('lowStock')
-  const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '50')
+  // Clamped paging (negative page → negative OFFSET; unbounded limit). Invalid values are
+  // rejected app-wide by the paging guard in index.ts; this keeps the handler safe regardless. (F-10)
+  const page = Math.max(1, Math.floor(+(c.req.query('page') || '1') || 1))
+  const limit = Math.min(500, Math.max(1, Math.floor(+(c.req.query('limit') || '50') || 50)))
 
   const conditions: any[] = [eq(product.companyId, currentUser.companyId)]
   if (category) conditions.push(eq(product.category, category))

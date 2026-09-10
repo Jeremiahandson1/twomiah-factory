@@ -6,6 +6,9 @@ import { eq, and, gte, lte, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
+import { escapeHtml } from '../utils/sanitize.ts'
+import { isCannabisLine } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -20,6 +23,51 @@ class OversellError extends Error {}
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax (varies by state)
 const SALES_TAX_RATE = 0.0875 // state + local sales tax (varies)
 
+// Cannabis classification lives in utils/cannabis.ts (shared with the online menu). (QA F-01)
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+// Age from an ISO/YYYY-MM-DD date string; null when unparseable.
+function ageFromDob(dob: unknown): number | null {
+  if (!dob) return null
+  const birth = new Date(String(dob))
+  if (Number.isNaN(birth.getTime())) return null
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  return age
+}
+
+// Server-side age/ID gate (QA F-02). The POS disabled "Complete Sale" until the ID box was
+// ticked, but the API completed orders with idVerified=false — including one for a customer
+// with a 2010 date of birth. Client-side-only enforcement is not a compliance control, so
+// every path that settles a sale with cannabis on it runs this: the order must carry
+// idVerified=true and, when a date of birth is known (linked contact or customerDob), the
+// customer must be 21+ (18+ for a medical sale with a card on file).
+// Returns null when OK, else { status, body } for the caller to return.
+async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promise<{ status: 403; body: any } | null> {
+  const hasCannabis = items.some(i => isCannabisLine(i))
+  if (!hasCannabis) return null
+  let dob: string | null = ord.customerDob || null
+  if (!dob && ord.contactId) {
+    const [ct] = await db.select({ dob: contact.dateOfBirth }).from(contact).where(eq(contact.id, ord.contactId)).limit(1)
+    dob = (ct?.dob as any) || null
+  }
+  const age = ageFromDob(dob)
+  const minAge = ord.isMedical && ord.medicalCardNumber ? 18 : 21
+  if (age != null && age < minAge) {
+    return { status: 403, body: { error: `Customer is ${age} — cannabis sales require ${minAge}+`, code: 'underage', age, minAge } }
+  }
+  if (!idVerified) {
+    return { status: 403, body: { error: 'ID verification (21+) is required before a cannabis sale can be completed', code: 'id_verification_required' } }
+  }
+  return null
+}
+
+// Hono has no typed 403 helper for our error class — convert to a response.
+const approvalDenied = (c: any, err: ApprovalRequiredError) => c.json(err.toJSON(), 403)
+
 // List orders
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
@@ -28,8 +76,10 @@ app.get('/', async (c) => {
   const contactId = c.req.query('contactId') || c.req.query('customerId')
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
-  const page = +(c.req.query('page') || '1')
-  const limit = +(c.req.query('limit') || '25')
+  // Clamp paging (negative page → negative OFFSET → 500; unbounded limit). Invalid values are
+  // rejected app-wide by the paging guard in index.ts; this keeps the handler safe regardless.
+  const page = Math.max(1, Math.floor(+(c.req.query('page') || '1') || 1))
+  const limit = Math.min(500, Math.max(1, Math.floor(+(c.req.query('limit') || '25') || 25)))
 
   const conditions: any[] = [eq(order.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(order.status, status))
@@ -102,9 +152,14 @@ app.post('/', async (c) => {
     discountAmount: z.number().min(0).default(0),
     discountReason: z.string().optional(),
     notes: z.string().optional(),
+    // Approval credentials for a discount over the threshold / a price override (F-04):
+    // a manager's POS PIN, or the id of a request a manager approved on the Approvals page.
+    managerPin: z.union([z.string(), z.number()]).optional(),
+    approvalRequestId: z.string().optional(),
   })
 
-  const data = orderSchema.parse(await c.req.json())
+  const body = await c.req.json()
+  const data = orderSchema.parse(body)
 
   // Fetch all products for the order
   const productIds = data.items.map(i => i.productId)
@@ -117,6 +172,8 @@ app.post('/', async (c) => {
   let totalWeightGrams = 0
   let subtotal = 0
   const resolvedItems: any[] = []
+  // Largest per-unit price override below the catalog price (drives the price-override approval).
+  let maxOverrideDelta = 0
 
   for (const item of data.items) {
     const prod = productMap.get(item.productId)
@@ -132,7 +189,7 @@ app.post('/', async (c) => {
     // in weight_grams (grams); older rows use weight + weight_unit. Reading only `weight`
     // meant every seeded flower rang up as 0g, so a 3.09oz cart passed the 2.5oz limit and
     // the order stored weight 0 — breaking EOD/Metrc/audit reconstruction. (retest#7)
-    const isCannabis = ['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture'].includes(prod.category as string)
+    const isCannabis = isCannabisLine(prod)
     if (isCannabis) {
       const unitGrams = prod.weightGrams != null && String(prod.weightGrams) !== ''
         ? Number(prod.weightGrams)
@@ -140,7 +197,11 @@ app.post('/', async (c) => {
       if (unitGrams > 0) totalWeightGrams += unitGrams * item.quantity
     }
 
-    const unitPrice = item.priceOverride ?? Number(prod.price)
+    const catalogPrice = Number(prod.price)
+    const unitPrice = item.priceOverride ?? catalogPrice
+    if (item.priceOverride != null && unitPrice < catalogPrice - 0.005) {
+      maxOverrideDelta = Math.max(maxOverrideDelta, round2((catalogPrice - unitPrice) * item.quantity))
+    }
     const lineTotal = unitPrice * item.quantity
     subtotal += lineTotal
 
@@ -157,8 +218,21 @@ app.post('/', async (c) => {
       totalPrice: String(lineTotal),
       weight: prod.weight,
       weightUnit: prod.weightUnit,
-      taxCategory: prod.taxCategory,
+      // Persist the RESOLVED tax category so reports, refunds and the age gate read the same
+      // answer the tax math used (seeded products have tax_category NULL).
+      taxCategory: isCannabis ? 'cannabis' : 'non_cannabis',
     })
+  }
+
+  // Age gate at create time too: a known-underage customer is refused before an order even
+  // exists (completion re-checks, since the contact/DOB can change). (F-02)
+  {
+    const gate = await checkAgeGate(
+      { contactId: data.contactId, customerDob: data.customerDob, isMedical: data.isMedical, medicalCardNumber: data.medicalCardNumber },
+      resolvedItems,
+      true, // idVerified is only required at completion; a pending order may be built before the ID check
+    )
+    if (gate) return c.json(gate.body, gate.status)
   }
 
   // Purchase limit validation (2.5 oz)
@@ -170,11 +244,10 @@ app.post('/', async (c) => {
     }, 400)
   }
 
-  // Calculate taxes
+  // Merchandise split for tax: excise applies to cannabis lines only, sales tax to everything.
   const cannabisSubtotal = resolvedItems
     .filter(i => i.taxCategory === 'cannabis')
     .reduce((sum, i) => sum + Number(i.lineTotal), 0)
-  const nonCannabisSubtotal = subtotal - cannabisSubtotal
 
   // Sales tax uses the rate configured in Settings (company.taxRate, a percent
   // like "8.5") so the register charges what the operator set — not a hardcoded
@@ -192,19 +265,10 @@ app.post('/', async (c) => {
     : CANNABIS_TAX_RATE
   const exciseRate = Number.isFinite(configuredExciseRate) ? configuredExciseRate : CANNABIS_TAX_RATE
 
-  // Round tax to cents. Raw floats like 2.8000000000000003 rendered badly and broke
-  // exact-match reconciliation/exports. (retest#5 tax)
-  const round2 = (n: number) => Math.round(n * 100) / 100
-  const exciseTax = round2(cannabisSubtotal * exciseRate)
-  const salesTax = round2(subtotal * salesRate)
-  const totalTax = round2(exciseTax + salesTax)
-
-  // Apply discounts and loyalty. Cap the combined discount at the merchandise
-  // subtotal so a client-supplied discountAmount/loyalty redemption can never
-  // exceed the goods' value or drive the order total negative. Tax is charged on
-  // the pre-discount base (cannabis excise/sales tax is assessed on retail price).
-  // Guard loyalty redemption against the member's actual balance — redeeming points the customer
-  // does not have would hand out a discount for free. (quantity/amount sweep)
+  // Discounts. Cap the combined discount at the merchandise subtotal so a client-supplied
+  // discountAmount/loyalty redemption can never exceed the goods' value or drive the total
+  // negative. Guard loyalty redemption against the member's actual balance — redeeming points
+  // the customer does not have would hand out a discount for free. (quantity/amount sweep)
   if (data.loyaltyPointsRedeemed > 0) {
     if (!data.contactId) return c.json({ error: 'Cannot redeem loyalty points on a walk-in with no customer.' }, 400)
     const memRes = await db.execute(sql`SELECT points_balance FROM loyalty_members WHERE contact_id = ${data.contactId} AND company_id = ${currentUser.companyId} LIMIT 1`)
@@ -220,6 +284,44 @@ app.post('/', async (c) => {
   const loyaltyApplied = round2(Math.min(data.loyaltyPointsRedeemed * 0.01, subtotal))
   const managerApplied = round2(Math.min(data.discountAmount, subtotal - loyaltyApplied))
   const totalDiscount = round2(loyaltyApplied + managerApplied)
+
+  // Manager-approval enforcement (F-04). The thresholds on Settings → Approvals were stored but
+  // never consulted here, so a $60 discount on a $70 order (threshold $10) sailed through. A
+  // discount above the threshold, or a below-catalog price override, now needs an approver:
+  // manager+ caller, a manager's PIN, or an approved Approvals request. The approver is recorded.
+  const approvalCfg = await getApprovalConfig(currentUser.companyId)
+  const approvals: { type: string; approvedBy: string; via: string; requestId?: string }[] = []
+  try {
+    if (managerApplied > approvalCfg.discountApprovalThreshold + 0.005) {
+      const g = await requireApproval({
+        companyId: currentUser.companyId, caller: currentUser, type: 'discount',
+        amount: managerApplied, threshold: approvalCfg.discountApprovalThreshold, body, reason: data.discountReason,
+      })
+      approvals.push({ type: 'discount', ...g })
+    }
+    if (approvalCfg.priceOverrideApprovalRequired && maxOverrideDelta > 0) {
+      const g = await requireApproval({
+        companyId: currentUser.companyId, caller: currentUser, type: 'price_override',
+        amount: maxOverrideDelta, threshold: null, body, reason: data.discountReason || 'Price override at register',
+      })
+      approvals.push({ type: 'price_override', ...g })
+    }
+  } catch (err) {
+    if (err instanceof ApprovalRequiredError) return approvalDenied(c, err)
+    throw err
+  }
+
+  // Tax is assessed on the DISCOUNTED price (F-07). Charging tax on the gross made a customer
+  // with a 100% discount pay $7 tax on a $0 purchase. The discount is spread across cannabis
+  // and non-cannabis merchandise pro rata so excise (cannabis only) and sales tax (everything)
+  // each apply to their own net base. Round to cents: raw floats like 2.8000000000000003
+  // rendered badly and broke exact-match reconciliation/exports. (retest#5 tax)
+  const cannabisShare = subtotal > 0 ? cannabisSubtotal / subtotal : 0
+  const taxableCannabis = Math.max(0, cannabisSubtotal - totalDiscount * cannabisShare)
+  const taxableAll = Math.max(0, subtotal - totalDiscount)
+  const exciseTax = round2(taxableCannabis * exciseRate)
+  const salesTax = round2(taxableAll * salesRate)
+  const totalTax = round2(exciseTax + salesTax)
   const grandTotal = round2(subtotal + totalTax - totalDiscount)
 
   // Generate order number
@@ -260,7 +362,9 @@ app.post('/', async (c) => {
       taxAmount: String(totalTax),
       discountAmount: String(managerApplied),
       loyaltyDiscount: String(loyaltyApplied),
-      discountReason: data.discountReason,
+      discountReason: approvals.length
+        ? `${data.discountReason || ''}${data.discountReason ? ' | ' : ''}Approved by ${approvals.map(a => `${a.approvedBy} (${a.type}, ${a.via})`).join(', ')}`
+        : data.discountReason,
       loyaltyPointsRedeemed: data.loyaltyPointsRedeemed,
       total: String(grandTotal),
       totalWeightGrams: String(totalWeightGrams),
@@ -283,6 +387,8 @@ app.post('/', async (c) => {
     return newOrder
   })
 
+  for (const a of approvals) await linkApprovalToOrder(a.requestId, result.id)
+
   audit.log({
     action: audit.ACTIONS.CREATE,
     entity: 'order',
@@ -293,18 +399,23 @@ app.post('/', async (c) => {
       itemCount: data.items.length,
       total: grandTotal,
       totalWeightGrams,
+      exciseTax,
+      salesTax,
+      discount: totalDiscount,
+      ...(approvals.length ? { approvals } : {}),
     },
     req: c.req,
   })
 
-  return c.json({ ...result, items: resolvedItems }, 201)
+  return c.json({ ...result, items: resolvedItems, ...(approvals.length ? { approvals } : {}) }, 201)
 })
 
 // Update order status
 app.put('/:id/status', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const { status } = z.object({ status: z.enum(['pending', 'processing', 'ready', 'completed', 'cancelled']) }).parse(await c.req.json())
+  const statusBody = await c.req.json()
+  const { status } = z.object({ status: z.enum(['pending', 'processing', 'ready', 'completed', 'cancelled']) }).parse(statusBody)
 
   const [existing] = await db.select().from(order)
     .where(and(eq(order.id, id), eq(order.companyId, currentUser.companyId)))
@@ -317,6 +428,30 @@ app.put('/:id/status', async (c) => {
   // Guard on completedAt so an order already settled via /complete is never
   // decremented twice, which keeps refund restore (also completedAt-gated) balanced.
   const nowCompleting = status === 'completed' && !existing.completedAt
+
+  // Same age/ID gate as /complete — this is the other way a cannabis sale gets settled. (F-02)
+  if (nowCompleting) {
+    const lines = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
+    const gate = await checkAgeGate(existing, lines, !!existing.idVerified)
+    if (gate) return c.json(gate.body, gate.status)
+  }
+
+  // Voiding a sale needs manager approval when Settings → Approvals says so. (F-04)
+  let voidApproval: { approvedBy: string; via: string } | null = null
+  if (status === 'cancelled' && existing.status !== 'cancelled') {
+    const cfg = await getApprovalConfig(currentUser.companyId)
+    if (cfg.voidApprovalRequired) {
+      try {
+        voidApproval = await requireApproval({
+          companyId: currentUser.companyId, caller: currentUser, type: 'void',
+          amount: Number(existing.total) || null, orderId: id, body: statusBody, reason: statusBody?.reason || `Void ${existing.number}`,
+        })
+      } catch (err) {
+        if (err instanceof ApprovalRequiredError) return approvalDenied(c, err)
+        throw err
+      }
+    }
+  }
 
   const updated = await db.transaction(async (tx) => {
     const [u] = await tx.update(order)
@@ -341,6 +476,7 @@ app.put('/:id/status', async (c) => {
     entityId: id,
     entityName: existing.number,
     changes: { status: { old: existing.status, new: status } },
+    metadata: voidApproval ? { approvedBy: voidApproval.approvedBy, approvalVia: voidApproval.via } : undefined,
     req: c.req,
   })
 
@@ -364,6 +500,8 @@ app.post('/:id/complete', async (c) => {
     })).optional(),
     // Send SMS notification to customer
     sendSmsNotification: z.boolean().default(false),
+    // The ID check can happen at the register right before settling — accept it here too.
+    idVerified: z.boolean().optional(),
   })
   const data = completeSchema.parse(await c.req.json())
 
@@ -376,6 +514,13 @@ app.post('/:id/complete', async (c) => {
 
   const items = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
 
+  // Age/ID gate — server-side, on every completion (F-02).
+  const idVerifiedNow = data.idVerified === true || !!existing.idVerified
+  {
+    const gate = await checkAgeGate(existing, items, idVerifiedNow)
+    if (gate) return c.json(gate.body, gate.status)
+  }
+
   // Re-verify stock at completion. The create-time oversell check can go stale if the same units
   // sold on another register in between; a blind decrement here would drive stock negative. Refuse
   // rather than oversell. (quantity/amount sweep)
@@ -387,8 +532,28 @@ app.post('/:id/complete', async (c) => {
     }
   }
 
-  const changeDue = data.paymentMethod === 'cash' && data.cashTendered
-    ? Math.round((data.cashTendered - Number(existing.total)) * 100) / 100  // round to cents (retest#6 N6)
+  // Tender must cover the total (F-08). A $1 tender on a $38.50 order used to complete with
+  // changeDue -37.50 — a silent drawer shortage at reconciliation. Reject under-payment for cash
+  // and for split tenders; never emit negative change.
+  const orderTotal = round2(Number(existing.total) || 0)
+  if (data.paymentMethod === 'cash') {
+    // No tender given = exact amount (integrations that don't track change). Under-tender is rejected.
+    if (data.cashTendered == null) data.cashTendered = orderTotal
+    if (round2(data.cashTendered) + 0.005 < orderTotal) {
+      return c.json({
+        error: `Cash tendered $${data.cashTendered.toFixed(2)} is less than the order total $${orderTotal.toFixed(2)}`,
+        code: 'insufficient_tender', total: orderTotal, tendered: data.cashTendered, shortBy: round2(orderTotal - data.cashTendered),
+      }, 400)
+    }
+  } else if (data.paymentMethod === 'split') {
+    const paid = round2((data.splitPayments || []).reduce((s, p) => s + p.amount, 0))
+    if (paid + 0.005 < orderTotal) {
+      return c.json({ error: `Split payments total $${paid.toFixed(2)}, order total is $${orderTotal.toFixed(2)}`, code: 'insufficient_tender', total: orderTotal, tendered: paid }, 400)
+    }
+  }
+
+  const changeDue = data.paymentMethod === 'cash' && data.cashTendered != null
+    ? Math.max(0, round2(data.cashTendered - orderTotal))  // round to cents (retest#6 N6); never negative (F-08)
     : 0
 
   try {
@@ -399,6 +564,8 @@ app.post('/:id/complete', async (c) => {
       // A completed sale is paid — the record stayed "pending" on paid cash/debit
       // orders, so revenue/AR reporting never saw them as settled. (B6)
       paymentStatus: 'paid',
+      idVerified: idVerifiedNow,
+      ...(data.idVerified === true && !existing.idVerified ? { idVerifiedBy: currentUser.userId } : {}),
       paymentMethod: data.paymentMethod,
       cashTendered: data.cashTendered != null ? String(data.cashTendered) : null,
       changeDue: String(changeDue),
@@ -555,8 +722,15 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       orderItemId: z.string(),
       quantity: z.number().int().min(1),
     })).optional(), // If empty, full refund
+    // Dollar-amount partial refund (F-06). `amount`/`refundAmount` used to be silently ignored —
+    // the schema stripped it and the order was fully refunded. Either name is honoured now.
+    amount: z.number().positive().optional(),
+    refundAmount: z.number().positive().optional(),
+  }).refine(d => !(d.amount != null && d.partialItems?.length), {
+    message: 'Send either partialItems (return specific units) or amount (dollar refund), not both',
   })
   const data = refundSchema.parse(await c.req.json())
+  const requestedAmount = data.amount ?? data.refundAmount
 
   const [existing] = await db.select().from(order)
     .where(and(eq(order.id, id), eq(order.companyId, currentUser.companyId)))
@@ -569,41 +743,85 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
   }
 
   const items = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
-  const round2 = (n: number) => Math.round(n * 100) / 100
+  const orderTotal = round2(Number(existing.total) || 0)
+  const alreadyRefunded = round2(Number(existing.refundedAmount) || 0)
+  const remainingRefundable = round2(Math.max(0, orderTotal - alreadyRefunded))
 
   // Build the units to refund. A partial refund names lines + quantities; a full refund (no
-  // partialItems) refunds whatever remains un-refunded on every line — so it also finishes a
-  // prior partial. Each line is bounded by sold − already-refunded, so repeated partials can
-  // never return more than was sold. (F-33 real partial refunds)
+  // partialItems, no amount) refunds whatever remains un-refunded on every line — so it also
+  // finishes a prior partial. Each line is bounded by sold − already-refunded, so repeated
+  // partials can never return more than was sold. (F-33 real partial refunds)
+  // An AMOUNT refund returns money, not units: no lines are marked returned and no stock is
+  // restocked (nothing physical came back); loyalty/spend reverse in proportion to the amount.
   const refundPlan: { line: any; qty: number }[] = []
-  if (data.partialItems && data.partialItems.length) {
-    for (const pi of data.partialItems) {
-      const line = items.find(i => i.id === pi.orderItemId)
-      if (!line) return c.json({ error: `Refund line ${pi.orderItemId} is not part of this order` }, 400)
-      const outstanding = Number(line.quantity) - Number(line.refundedQuantity || 0)
-      if (pi.quantity > outstanding) {
-        return c.json({ error: `Cannot refund ${pi.quantity} of ${line.productName || 'item'} — only ${outstanding} remain un-refunded (of ${line.quantity} sold).` }, 400)
-      }
-      if (pi.quantity > 0) refundPlan.push({ line, qty: pi.quantity })
+  let refundFraction: number
+  let refundAmount: number
+  let fullyRefunded: boolean
+  if (requestedAmount != null) {
+    if (remainingRefundable <= 0) return c.json({ error: 'Nothing left to refund on this order' }, 400)
+    if (requestedAmount > remainingRefundable + 0.005) {
+      return c.json({
+        error: `Cannot refund $${requestedAmount.toFixed(2)} — only $${remainingRefundable.toFixed(2)} of the $${orderTotal.toFixed(2)} total remains refundable`,
+        remainingRefundable, alreadyRefunded, orderTotal,
+      }, 400)
     }
+    refundAmount = round2(Math.min(requestedAmount, remainingRefundable))
+    refundFraction = orderTotal > 0 ? Math.min(1, refundAmount / orderTotal) : 1
+    fullyRefunded = round2(alreadyRefunded + refundAmount) + 0.005 >= orderTotal
   } else {
-    for (const line of items) {
-      const remaining = Number(line.quantity) - Number(line.refundedQuantity || 0)
-      if (remaining > 0) refundPlan.push({ line, qty: remaining })
+    if (data.partialItems && data.partialItems.length) {
+      for (const pi of data.partialItems) {
+        const line = items.find(i => i.id === pi.orderItemId)
+        if (!line) return c.json({ error: `Refund line ${pi.orderItemId} is not part of this order` }, 400)
+        const outstanding = Number(line.quantity) - Number(line.refundedQuantity || 0)
+        if (pi.quantity > outstanding) {
+          return c.json({ error: `Cannot refund ${pi.quantity} of ${line.productName || 'item'} — only ${outstanding} remain un-refunded (of ${line.quantity} sold).` }, 400)
+        }
+        if (pi.quantity > 0) refundPlan.push({ line, qty: pi.quantity })
+      }
+    } else {
+      for (const line of items) {
+        const remaining = Number(line.quantity) - Number(line.refundedQuantity || 0)
+        if (remaining > 0) refundPlan.push({ line, qty: remaining })
+      }
+    }
+    if (refundPlan.length === 0) {
+      // Every unit is back but money may still be outstanding after an amount refund — finish it.
+      if (remainingRefundable > 0) {
+        refundAmount = remainingRefundable; refundFraction = orderTotal > 0 ? refundAmount / orderTotal : 1; fullyRefunded = true
+      } else {
+        return c.json({ error: 'Nothing left to refund on this order' }, 400)
+      }
+    } else {
+      // Refund the returned units' proportional share of the order total (carries their tax and
+      // discount share); loyalty reverses on the same fraction below. Never exceed what is left.
+      const orderSubtotal = Number(existing.subtotal) || 0
+      const refundMerch = refundPlan.reduce((s, r) => s + Number(r.line.unitPrice) * r.qty, 0)
+      refundFraction = orderSubtotal > 0 ? Math.min(1, refundMerch / orderSubtotal) : 1
+      refundAmount = round2(Math.min(orderTotal * refundFraction, remainingRefundable))
+      const unitsAllBack = items.every(i => {
+        const planned = refundPlan.find(r => r.line.id === i.id)?.qty || 0
+        return Number(i.refundedQuantity || 0) + planned >= Number(i.quantity)
+      })
+      fullyRefunded = unitsAllBack || round2(alreadyRefunded + refundAmount) + 0.005 >= orderTotal
     }
   }
-  if (refundPlan.length === 0) return c.json({ error: 'Nothing left to refund on this order' }, 400)
 
-  // Refund the returned units' proportional share of the order total (carries their tax and
-  // discount share); loyalty reverses on the same fraction below.
-  const orderSubtotal = Number(existing.subtotal) || 0
-  const refundMerch = refundPlan.reduce((s, r) => s + Number(r.line.unitPrice) * r.qty, 0)
-  const refundFraction = orderSubtotal > 0 ? Math.min(1, refundMerch / orderSubtotal) : 1
-  const refundAmount = round2(Number(existing.total) * refundFraction)
-  const fullyRefunded = items.every(i => {
-    const planned = refundPlan.find(r => r.line.id === i.id)?.qty || 0
-    return Number(i.refundedQuantity || 0) + planned >= Number(i.quantity)
-  })
+  // Refund approval (F-04): the route is already manager+ only, so the caller IS the approver;
+  // record who approved in the Approvals history/audit when the control is on.
+  const refundCfg = await getApprovalConfig(currentUser.companyId)
+  let refundApproval: { approvedBy: string; via: string } | null = null
+  if (refundCfg.refundApprovalRequired) {
+    try {
+      refundApproval = await requireApproval({
+        companyId: currentUser.companyId, caller: currentUser, type: 'refund',
+        amount: refundAmount, orderId: id, body: data, reason: data.reason,
+      })
+    } catch (err) {
+      if (err instanceof ApprovalRequiredError) return approvalDenied(c, err)
+      throw err
+    }
+  }
 
   await db.transaction(async (tx) => {
     // Record returned units per line
@@ -692,6 +910,9 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       refundAmount,
       fullyRefunded,
       restoreInventory: data.restoreInventory,
+      mode: requestedAmount != null ? 'amount' : (data.partialItems?.length ? 'items' : 'full'),
+      unitsReturned: refundPlan.map(r => ({ orderItemId: r.line.id, productId: r.line.productId, quantity: r.qty })),
+      ...(refundApproval ? { approvedBy: refundApproval.approvedBy, approvalVia: refundApproval.via } : {}),
     },
     req: c.req,
   })
@@ -700,7 +921,11 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     message: fullyRefunded ? 'Order refunded' : 'Partial refund processed',
     fullyRefunded,
     refundAmount,
+    totalRefunded: round2(alreadyRefunded + refundAmount),
+    remainingRefundable: round2(Math.max(0, orderTotal - alreadyRefunded - refundAmount)),
+    unitsReturned: refundPlan.map(r => ({ orderItemId: r.line.id, quantity: r.qty })),
     status: fullyRefunded ? 'refunded' : 'partially_refunded',
+    ...(refundApproval ? { approvedBy: refundApproval.approvedBy } : {}),
   })
 })
 
@@ -716,17 +941,19 @@ app.get('/:id/receipt', async (c) => {
 
   const items = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
 
+  // Receipt is server-rendered HTML, not React — escape everything user-controlled. A product
+  // named `<img src=x onerror=…>` would otherwise execute on the receipt window. (F-09)
   const itemRows = items.map((item: any) => `
     <tr>
-      <td>${item.productName}</td>
-      <td style="text-align:center">${item.quantity}</td>
+      <td>${escapeHtml(item.productName)}</td>
+      <td style="text-align:center">${escapeHtml(item.quantity)}</td>
       <td style="text-align:right">$${Number(item.unitPrice).toFixed(2)}</td>
       <td style="text-align:right">$${Number(item.lineTotal).toFixed(2)}</td>
     </tr>
   `).join('')
 
   const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Receipt ${foundOrder.number}</title>
+<html><head><meta charset="utf-8"><title>Receipt ${escapeHtml(foundOrder.number)}</title>
 <style>
   body { font-family: monospace; max-width: 320px; margin: 0 auto; padding: 20px; font-size: 12px; }
   h2 { text-align: center; margin-bottom: 4px; }
@@ -742,9 +969,9 @@ app.get('/:id/receipt', async (c) => {
 <body>
   <h2>Receipt</h2>
   <div class="info">
-    Order: ${foundOrder.number}<br>
+    Order: ${escapeHtml(foundOrder.number)}<br>
     Date: ${new Date(foundOrder.createdAt).toLocaleString()}<br>
-    Type: ${foundOrder.type}${(foundOrder as any).isMedical ? ' (Medical)' : ''}
+    Type: ${escapeHtml(foundOrder.type)}${(foundOrder as any).isMedical ? ' (Medical)' : ''}
   </div>
   <table>
     <thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
@@ -762,7 +989,7 @@ app.get('/:id/receipt', async (c) => {
     ` : ''}
   </table>
   <div class="footer">
-    Payment: ${(foundOrder as any).paymentMethod || 'N/A'}<br>
+    Payment: ${escapeHtml((foundOrder as any).paymentMethod || 'N/A')}<br>
     Thank you for your visit!<br>
     This receipt is for your records.
   </div>

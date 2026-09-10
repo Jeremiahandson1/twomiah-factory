@@ -72,20 +72,56 @@ function calculateAge(dob: string): number {
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
+// Normalise a date the register might type or an integration might send (YYYY-MM-DD,
+// MM/DD/YYYY, MMDDYYYY, ISO) to YYYY-MM-DD; null when it isn't a real date.
+function normalizeDate(raw: unknown): string | null {
+  if (raw == null || raw === '') return null
+  const s = String(raw).trim()
+  let m: RegExpMatchArray | null
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+  if ((m = s.match(/^(\d{2})(\d{2})(\d{4})$/))) return `${m[3]}-${m[1]}-${m[2]}`
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+}
+
+const METHOD_ALIASES: Record<string, string> = { magnetic: 'magnetic_stripe', mag: 'magnetic_stripe', swipe: 'magnetic_stripe', pdf417: 'barcode', scan: 'barcode' }
+
 // POST /scan — Process an ID scan
 app.post('/scan', async (c) => {
   const currentUser = c.get('user') as any
 
+  // Accepts the barcode payload ({scanMethod|method, rawData}) AND manual entry
+  // ({scanMethod:'manual', name|firstName/lastName, dob|dateOfBirth, expiry|expirationDate,
+  // idNumber, state}). The old schema demanded rawData + locationId and ran manual entries
+  // through the AAMVA barcode parser, so a typed-in DOB/expiry came back null: age_at_scan
+  // null, is_underage false, is_expired false — a 14-year-old and a 2020-expired ID both
+  // "passed" and the stats dashboard showed 0/0. (QA F-03) The UI's own payload
+  // ({method, ...manualForm}, no locationId) also 400'd against the old schema.
   const scanSchema = z.object({
-    scanMethod: z.enum(['barcode', 'magnetic_stripe', 'ocr', 'manual', 'digital_id']),
-    rawData: z.string().min(1),
+    scanMethod: z.string().optional(),
+    method: z.string().optional(),
+    rawData: z.string().optional(),
     deviceId: z.string().optional(),
-    locationId: z.string().min(1),
-  })
+    locationId: z.string().optional().nullable(),
+    // manual-entry fields (any of these names)
+    name: z.string().optional(),
+    firstName: z.string().optional(),
+    lastName: z.string().optional(),
+    dob: z.string().optional(),
+    dateOfBirth: z.string().optional(),
+    expiry: z.string().optional(),
+    expiration: z.string().optional(),
+    expirationDate: z.string().optional(),
+    idNumber: z.string().optional(),
+    state: z.string().optional(),
+    idState: z.string().optional(),
+    idType: z.string().optional(),
+  }).passthrough()
 
-  let data: z.infer<typeof scanSchema>
+  let raw: z.infer<typeof scanSchema>
   try {
-    data = scanSchema.parse(await c.req.json())
+    raw = scanSchema.parse(await c.req.json())
   } catch (err) {
     if (err instanceof z.ZodError) {
       return c.json({ error: 'Invalid request', details: err.errors }, 400)
@@ -93,10 +129,39 @@ app.post('/scan', async (c) => {
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
-  // Parse the raw data
-  const parsed = parseDriverLicenseBarcode(data.rawData)
+  const methodIn = String(raw.scanMethod || raw.method || (raw.rawData ? 'barcode' : 'manual')).toLowerCase()
+  const scanMethod = METHOD_ALIASES[methodIn] || methodIn
+  if (!['barcode', 'magnetic_stripe', 'ocr', 'manual', 'digital_id'].includes(scanMethod)) {
+    return c.json({ error: `Unknown scanMethod "${methodIn}"`, allowed: ['barcode', 'magnetic_stripe', 'ocr', 'manual', 'digital_id'] }, 400)
+  }
 
-  // Calculate age and check flags
+  // Manual/typed fields win when present (an integration may send both the raw track and the
+  // decoded fields); otherwise decode the AAMVA barcode.
+  const fromBarcode = raw.rawData ? parseDriverLicenseBarcode(raw.rawData) : null
+  let firstName = raw.firstName ?? null, lastName = raw.lastName ?? null
+  if (!firstName && !lastName && raw.name) {
+    const parts = String(raw.name).trim().split(/\s+/)
+    firstName = parts.shift() || null
+    lastName = parts.length ? parts.join(' ') : null
+  }
+  const parsed = {
+    firstName: firstName ?? fromBarcode?.firstName ?? null,
+    lastName: lastName ?? fromBarcode?.lastName ?? null,
+    dob: normalizeDate(raw.dob ?? raw.dateOfBirth) ?? fromBarcode?.dob ?? null,
+    expiration: normalizeDate(raw.expiry ?? raw.expiration ?? raw.expirationDate) ?? fromBarcode?.expiration ?? null,
+    state: raw.state ?? raw.idState ?? fromBarcode?.state ?? null,
+    idNumber: raw.idNumber ?? fromBarcode?.idNumber ?? null,
+    idType: raw.idType || fromBarcode?.idType || 'drivers_license',
+  }
+  if (scanMethod === 'manual' && !parsed.dob) {
+    return c.json({ error: 'Manual entry requires a date of birth (dob / dateOfBirth)' }, 400)
+  }
+  if (scanMethod !== 'manual' && !raw.rawData && !parsed.dob) {
+    return c.json({ error: 'rawData is required for a barcode/stripe/OCR scan' }, 400)
+  }
+  const data = { scanMethod, rawData: raw.rawData ?? null, deviceId: raw.deviceId, locationId: raw.locationId || null }
+
+  // Calculate age and check flags — ALWAYS from whatever DOB/expiry we have.
   let age: number | null = null
   let isUnderage = false
   let isExpired = false
@@ -110,28 +175,36 @@ app.post('/scan', async (c) => {
     const expirationDate = new Date(parsed.expiration)
     isExpired = expirationDate < new Date()
   }
+  const flagReason = [isUnderage ? `underage (${age})` : null, isExpired ? `expired ${parsed.expiration}` : null].filter(Boolean).join('; ') || null
+  const status = isUnderage ? 'underage' : isExpired ? 'expired' : 'verified'
 
-  // Try to match existing contact by name + dob
+  // Try to match an existing customer by name + DOB. The contact table stores a single
+  // `name` column (no first_name/last_name) — the old query referenced columns that don't
+  // exist and 500'd the FIRST time a scan actually carried a parsed name. Matching is a
+  // convenience: it must never block logging the scan, so failures are swallowed.
   let matchedContactId: string | null = null
-  if (parsed.firstName && parsed.lastName && parsed.dob) {
-    const contactResult = await db.execute(sql`
-      SELECT id FROM contact
-      WHERE company_id = ${currentUser.companyId}
-        AND LOWER(first_name) = LOWER(${parsed.firstName})
-        AND LOWER(last_name) = LOWER(${parsed.lastName})
-        AND date_of_birth = ${parsed.dob}::date
-      LIMIT 1
-    `)
-    const contactRows = (contactResult as any).rows || contactResult
-    if (contactRows.length) {
-      matchedContactId = contactRows[0].id
+  if (parsed.firstName && parsed.dob) {
+    try {
+      const fullName = [parsed.firstName, parsed.lastName].filter(Boolean).join(' ')
+      const contactResult = await db.execute(sql`
+        SELECT id FROM contact
+        WHERE company_id = ${currentUser.companyId}
+          AND date_of_birth = ${parsed.dob}::date
+          AND (LOWER(TRIM(name)) = LOWER(${fullName}) OR LOWER(name) LIKE LOWER(${'%' + parsed.firstName + '%'}))
+        ORDER BY (LOWER(TRIM(name)) = LOWER(${fullName})) DESC
+        LIMIT 1
+      `)
+      const contactRows = (contactResult as any).rows || contactResult
+      if (contactRows.length) matchedContactId = contactRows[0].id
+    } catch (err) {
+      console.error('[id-scanner] contact match failed (non-fatal):', (err as any)?.message)
     }
   }
 
-  // Log to id_scans table
+  // Log to id_scans table (flag_reason names WHY it was flagged so the Flagged tab is actionable)
   const result = await db.execute(sql`
-    INSERT INTO id_scans (id, scan_method, raw_data, device_id, location_id, first_name, last_name, date_of_birth, expiration_date, id_state, id_number, id_type, age_at_scan, is_underage, is_expired, contact_id, is_flagged, company_id, scanned_by, created_at)
-    VALUES (gen_random_uuid(), ${data.scanMethod}, ${JSON.stringify(data.rawData)}::jsonb, ${data.deviceId || null}, ${data.locationId}, ${parsed.firstName}, ${parsed.lastName}, ${parsed.dob}, ${parsed.expiration}, ${parsed.state}, ${parsed.idNumber}, ${parsed.idType}, ${age}, ${isUnderage}, ${isExpired}, ${matchedContactId}, ${isUnderage || isExpired}, ${currentUser.companyId}, ${currentUser.userId}, NOW())
+    INSERT INTO id_scans (id, scan_method, raw_data, device_id, location_id, first_name, last_name, date_of_birth, expiration_date, id_state, id_number, id_type, age_at_scan, is_underage, is_expired, contact_id, is_flagged, flag_reason, company_id, scanned_by, created_at)
+    VALUES (gen_random_uuid(), ${data.scanMethod}, ${JSON.stringify(data.rawData ?? { manual: true })}::jsonb, ${data.deviceId || null}, ${data.locationId}, ${parsed.firstName}, ${parsed.lastName}, ${parsed.dob}, ${parsed.expiration}, ${parsed.state}, ${parsed.idNumber}, ${parsed.idType}, ${age}, ${isUnderage}, ${isExpired}, ${matchedContactId}, ${isUnderage || isExpired}, ${flagReason}, ${currentUser.companyId}, ${currentUser.userId}, NOW())
     RETURNING *
   `)
 
@@ -142,17 +215,28 @@ app.post('/scan', async (c) => {
     entity: 'id_scans',
     entityId: scan?.id,
     entityName: `${parsed.firstName || 'Unknown'} ${parsed.lastName || ''}`.trim(),
-    metadata: { scanMethod: data.scanMethod, isUnderage, isExpired, age, matchedContactId },
+    metadata: { scanMethod: data.scanMethod, isUnderage, isExpired, age, matchedContactId, status },
     req: c.req,
   })
 
+  // Shape covers both consumers: the IDScannerPage result card reads status/name/dob/expiry/
+  // idNumber/state/age/customerId; API clients read scan/parsed/age/isExpired/isUnderage.
   return c.json({
-    scan,
+    scan: camelScan(scan),
     parsed,
+    status,
+    verified: status === 'verified',
+    name: [parsed.firstName, parsed.lastName].filter(Boolean).join(' ') || null,
+    dob: parsed.dob,
+    expiry: parsed.expiration,
+    idNumber: parsed.idNumber,
+    state: parsed.state,
     age,
     isExpired,
     isUnderage,
+    flagReason,
     matchedContactId,
+    customerId: matchedContactId,
   }, 201)
 })
 

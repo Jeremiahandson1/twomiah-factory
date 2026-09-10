@@ -107,9 +107,11 @@ export default function IDScannerPage() {
     setScanning(true);
     setScanResult(null);
     try {
+      // Backend contract: scanMethod ('barcode' | 'magnetic_stripe' | 'manual'), rawData for a
+      // scan, or the typed fields for manual entry (it computes age/expiry from dob/expiry).
       const payload = scanMethod === 'manual'
-        ? { method: 'manual', ...manualForm }
-        : { method: scanMethod, rawData };
+        ? { scanMethod: 'manual', ...manualForm }
+        : { scanMethod: scanMethod === 'magnetic' ? 'magnetic_stripe' : scanMethod, rawData };
       const result = await api.post('/api/id-scanner/scan', payload);
       setScanResult(result);
       toast.success('ID scanned successfully');

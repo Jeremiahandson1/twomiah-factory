@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { product, company, order, orderItem, contact } from '../../db/schema.ts'
 import { eq, and, asc, sql } from 'drizzle-orm'
+import { isCannabisLine } from '../utils/cannabis.ts'
 
 // Cannabis purchase limit: 2.5 oz = 70.87g
 const PURCHASE_LIMIT_GRAMS = 70.87
@@ -218,8 +219,8 @@ app.post('/order', async (c) => {
       return c.json({ error: `Insufficient stock for ${prod.name}` }, 400)
     }
 
-    // Track cannabis weight for purchase limit
-    const isCannabis = ['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture'].includes(prod.category as string)
+    // Track cannabis weight for purchase limit (shared classification — QA F-01)
+    const isCannabis = isCannabisLine(prod)
     if (isCannabis && prod.weight) {
       const weightInGrams = prod.weightUnit === 'oz' ? Number(prod.weight) * 28.3495 : Number(prod.weight)
       totalWeightGrams += weightInGrams * item.quantity
@@ -239,7 +240,8 @@ app.post('/order', async (c) => {
       lineTotal: String(lineTotal),
       weight: prod.weight,
       weightUnit: prod.weightUnit,
-      taxCategory: prod.taxCategory,
+      // Persist the RESOLVED tax category (seeded products have tax_category NULL).
+      taxCategory: isCannabis ? 'cannabis' : 'non_cannabis',
     })
   }
 
