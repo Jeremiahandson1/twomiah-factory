@@ -16,7 +16,7 @@ const quoteSchema = z.object({
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
   expiryDate: z.string().optional(),
-  taxRate: z.number().min(0).max(100).default(0),
+  taxRate: z.number().min(0).max(100).optional(),
   discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   terms: z.string().optional(),
@@ -25,6 +25,16 @@ const quoteSchema = z.object({
   // from PUT bodies — a quote could never leave 'draft' through the app.
   status: z.enum(['draft', 'sent', 'approved', 'rejected', 'expired']).optional(),
 })
+
+
+// Company default sales-tax rate (Settings → Company → "Default sales tax rate"). Quotes and
+// invoices used to default to 0% with no tax line at all (Wrench QA W-8); an explicit taxRate on
+// the request still wins.
+async function defaultTaxRate(companyId: string): Promise<number> {
+  const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  const r = Number((co?.settings as any)?.defaultTaxRate)
+  return Number.isFinite(r) && r >= 0 && r <= 100 ? r : 0
+}
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 // Tax the post-discount amount (US convention for an order-level discount) and
@@ -112,13 +122,14 @@ app.post('/', requirePermission('quotes:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = quoteSchema.parse(await c.req.json())
   const { lineItems, ...quoteData } = data
-  const totals = calcTotals(lineItems, data.taxRate, data.discount)
+  const taxRate = data.taxRate ?? await defaultTaxRate(currentUser.companyId)
+  const totals = calcTotals(lineItems, taxRate, data.discount)
 
   const [{ value: cnt }] = await db.select({ value: count() }).from(quote).where(eq(quote.companyId, currentUser.companyId))
 
   const [newQuote] = await db.insert(quote).values({
     ...quoteData,
-    ...{ subtotal: totals.subtotal.toString(), taxAmount: totals.taxAmount.toString(), total: totals.total.toString(), taxRate: quoteData.taxRate.toString(), discount: quoteData.discount.toString() },
+    ...{ subtotal: totals.subtotal.toString(), taxAmount: totals.taxAmount.toString(), total: totals.total.toString(), taxRate: String(taxRate), discount: quoteData.discount.toString() },
     number: `QTE-${String(Number(cnt) + 1).padStart(5, '0')}`,
     expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
     companyId: currentUser.companyId,
@@ -224,6 +235,8 @@ app.post('/:id/convert-to-invoice', requirePermission('invoices:create'), async 
   if (!foundQuote) return c.json({ error: 'Quote not found' }, 404)
 
   const quoteItems = await db.select().from(quoteLineItem).where(eq(quoteLineItem.quoteId, id))
+  const [coRow] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const termsDays = Math.max(0, Number((coRow?.settings as any)?.paymentTermsDays) || 30)
   const [{ value: cnt }] = await db.select({ value: count() }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
 
   const [newInvoice] = await db.insert(invoice).values({
@@ -239,6 +252,9 @@ app.post('/:id/convert-to-invoice', requirePermission('invoices:create'), async 
     amountPaid: '0',
     notes: foundQuote.notes,
     terms: foundQuote.terms,
+    // Due date from the company's payment terms (Settings → Company, default net-30) — the
+    // converted invoice used to have no due date at all. (Wrench QA W-5)
+    dueDate: new Date(Date.now() + termsDays * 86400000),
     companyId: currentUser.companyId,
   }).returning()
 

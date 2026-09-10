@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Send, DollarSign } from 'lucide-react';
@@ -41,6 +42,8 @@ interface PaginationData {
 const statuses = ['draft', 'sent', 'viewed', 'partial', 'paid', 'overdue'];
 
 export default function InvoicesPage() {
+  // New quotes/invoices start from the company's default sales-tax rate (Settings → Company). (W-8)
+  const defaultTaxRate = Number((useAuth().company as any)?.settings?.defaultTaxRate) || 0;
   const toast = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -67,7 +70,7 @@ export default function InvoicesPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<InvoiceForm>({ contactId: '', projectId: '', dueDate: '', taxRate: 0, discount: 0, notes: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] });
+  const [form, setForm] = useState<InvoiceForm>({ contactId: '', projectId: '', dueDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] });
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
@@ -119,7 +122,7 @@ export default function InvoicesPage() {
   const updateLineItem = (idx: number, field: string, val: string | number) => { const items = [...form.lineItems]; (items[idx] as Record<string, unknown>)[field] = val; setForm({ ...form, lineItems: items }); };
   const removeLineItem = (idx: number) => setForm({ ...form, lineItems: form.lineItems.filter((_: LineItem, i: number) => i !== idx) });
 
-  const openCreate = () => { setEditing(null); setForm({ contactId: '', projectId: '', dueDate: '', taxRate: 0, discount: 0, notes: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ contactId: '', projectId: '', dueDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ contactId: (item.contactId as string) || '', projectId: (item.projectId as string) || '', dueDate: (item.dueDate as string)?.split('T')[0] || '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: (item.notes as string) || '', lineItems: (item.lineItems as LineItem[])?.length ? (item.lineItems as LineItem[]).map((li: LineItem) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
 
   const columns = [

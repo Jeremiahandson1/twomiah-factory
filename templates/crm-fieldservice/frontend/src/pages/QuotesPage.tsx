@@ -1,4 +1,5 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Send, Check, X, FileText, Wrench, MapPinned, Briefcase } from 'lucide-react';
@@ -10,6 +11,8 @@ import { Modal, ConfirmModal } from '../components/ui/Modal';
 const statuses = ['draft', 'sent', 'viewed', 'approved', 'declined', 'rejected', 'expired'];
 
 export default function QuotesPage() {
+  // New quotes/invoices start from the company's default sales-tax rate (Settings → Company). (W-8)
+  const defaultTaxRate = Number((useAuth().company as any)?.settings?.defaultTaxRate) || 0;
   const toast = useToast();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,7 +40,7 @@ export default function QuotesPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', contactId: '', projectId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: 0, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] });
+  const [form, setForm] = useState({ name: '', contactId: '', projectId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] });
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
@@ -74,7 +77,7 @@ export default function QuotesPage() {
     } catch { setCustomerSites([]); }
   };
 
-  const openCreate = () => { setEditing(null); setForm({ name: '', contactId: '', projectId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: 0, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] }); setCustomerEquipment([]); setCustomerSites([]); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ name: '', contactId: '', projectId: '', siteId: '', equipmentId: '', expiryDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', customerMessage: '', terms: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] }); setCustomerEquipment([]); setCustomerSites([]); setModalOpen(true); };
   const openEdit = (item) => {
     setEditing(item);
     setForm({ name: item.name, contactId: item.contactId || '', projectId: item.projectId || '', siteId: item.siteId || '', equipmentId: item.equipmentId || '', expiryDate: item.expiryDate?.split('T')[0] || '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: item.notes || '', customerMessage: item.customerMessage || '', terms: item.terms || '', lineItems: item.lineItems?.length ? item.lineItems.map(li => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [{ description: '', quantity: 1, unitPrice: 0 }] });

@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq, and, or, gt, desc, sql } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import billing from '../services/billing.ts'
 import { SAAS_TIERS, WEBSITE_TIERS, FEATURE_BUNDLES } from '../config/pricing.ts'
 import Stripe from 'stripe'
@@ -107,7 +107,7 @@ app.get('/pricing', (c) => {
 // AUTHENTICATED - Trial & Checkout
 // ============================================
 
-app.post('/start-trial', authenticate, async (c) => {
+app.post('/start-trial', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { plan } = await c.req.json()
 
@@ -157,7 +157,7 @@ app.post('/start-trial', authenticate, async (c) => {
   })
 })
 
-app.post('/create-checkout', authenticate, async (c) => {
+app.post('/create-checkout', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { plan, billingCycle, successUrl, cancelUrl } = await c.req.json()
 
@@ -212,7 +212,7 @@ app.post('/create-checkout', authenticate, async (c) => {
   return c.json({ checkoutUrl: session.url, sessionId: session.id })
 })
 
-app.get('/checkout/success', authenticate, async (c) => {
+app.get('/checkout/success', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const session_id = c.req.query('session_id')
 
@@ -254,21 +254,21 @@ app.get('/checkout/success', authenticate, async (c) => {
 // AUTHENTICATED - Subscription Management
 // ============================================
 
-app.get('/subscription', authenticate, async (c) => {
+app.get('/subscription', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const result = await db.execute(sql`SELECT * FROM subscription WHERE company_id = ${user.companyId} ORDER BY created_at DESC LIMIT 1`)
   const subscription = (result as any).rows?.[0] || null
   return c.json({ subscription })
 })
 
-app.post('/subscription', authenticate, async (c) => {
+app.post('/subscription', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { packageId, billingCycle, userCount, addons, paymentMethodId } = await c.req.json()
   const result = await billing.createSubscription(user.companyId, { packageId, billingCycle, userCount, addons, paymentMethodId })
   return c.json(result, 201)
 })
 
-app.post('/subscription/cancel', authenticate, async (c) => {
+app.post('/subscription/cancel', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { immediate } = await c.req.json()
 
@@ -298,7 +298,7 @@ app.post('/subscription/cancel', authenticate, async (c) => {
   })
 })
 
-app.post('/subscription/reactivate', authenticate, async (c) => {
+app.post('/subscription/reactivate', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const subResult = await db.execute(sql`SELECT * FROM subscription WHERE company_id = ${user.companyId} ORDER BY created_at DESC LIMIT 1`)
   const subscription = (subResult as any).rows?.[0]
@@ -312,7 +312,7 @@ app.post('/subscription/reactivate', authenticate, async (c) => {
   return c.json({ success: true, message: 'Subscription reactivated' })
 })
 
-app.post('/subscription/change-plan', authenticate, async (c) => {
+app.post('/subscription/change-plan', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { plan, immediate = true } = await c.req.json()
 
@@ -390,7 +390,7 @@ app.post('/subscription/change-plan', authenticate, async (c) => {
 // ADD-ON PURCHASING
 // ============================================
 
-app.get('/addons', authenticate, async (c) => {
+app.get('/addons', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const purchasedResult = await db.execute(sql`SELECT * FROM addon_purchase WHERE company_id = ${user.companyId} AND (expires_at IS NULL OR expires_at > NOW())`)
   const purchased = (purchasedResult as any).rows || []
@@ -406,7 +406,7 @@ app.get('/addons', authenticate, async (c) => {
   return c.json({ addons: available, purchased })
 })
 
-app.post('/addons/purchase', authenticate, async (c) => {
+app.post('/addons/purchase', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { addonId } = await c.req.json()
 
@@ -453,7 +453,7 @@ app.post('/addons/purchase', authenticate, async (c) => {
   return c.json({ checkoutUrl: session.url, sessionId: session.id })
 })
 
-app.post('/addons/:addonId/cancel', authenticate, async (c) => {
+app.post('/addons/:addonId/cancel', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const addonId = c.req.param('addonId')
 
@@ -631,14 +631,14 @@ function generateLicenseKey() {
   return parts.join('-')
 }
 
-app.post('/subscription/change-package', authenticate, async (c) => {
+app.post('/subscription/change-package', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { packageId, immediate } = await c.req.json()
   const result = await billing.changePackage(user.companyId, packageId, { immediate })
   return c.json(result)
 })
 
-app.post('/subscription/users', authenticate, async (c) => {
+app.post('/subscription/users', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { userCount } = await c.req.json()
   const result = await billing.updateUserCount(user.companyId, userCount)
@@ -649,14 +649,14 @@ app.post('/subscription/users', authenticate, async (c) => {
 // ONE-TIME PURCHASE
 // ============================================
 
-app.post('/purchase', authenticate, async (c) => {
+app.post('/purchase', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { packageId, features, paymentMethodId } = await c.req.json()
   const result = await billing.processOneTimePurchase(user.companyId, { packageId, features, paymentMethodId })
   return c.json(result, 201)
 })
 
-app.post('/purchase/addon', authenticate, async (c) => {
+app.post('/purchase/addon', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const { addonId, quantity, paymentMethodId } = await c.req.json()
   const result = await billing.purchaseAddon(user.companyId, addonId, { quantity, paymentMethodId })
@@ -667,7 +667,7 @@ app.post('/purchase/addon', authenticate, async (c) => {
 // USAGE & INVOICES
 // ============================================
 
-app.get('/usage', authenticate, async (c) => {
+app.get('/usage', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const companyId = user.companyId
   // The meters read the real entity counts, not the SaaS subscription usage (which
@@ -690,13 +690,13 @@ app.get('/usage', authenticate, async (c) => {
   })
 })
 
-app.get('/invoices', authenticate, async (c) => {
+app.get('/invoices', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const result = await db.execute(sql`SELECT * FROM billing_invoice WHERE company_id = ${user.companyId} ORDER BY created_at DESC`)
   return c.json((result as any).rows || [])
 })
 
-app.get('/invoices/:id', authenticate, async (c) => {
+app.get('/invoices/:id', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const result = await db.execute(sql`SELECT * FROM billing_invoice WHERE id = ${id} AND company_id = ${user.companyId} LIMIT 1`)
@@ -709,7 +709,7 @@ app.get('/invoices/:id', authenticate, async (c) => {
 // PAYMENT METHODS
 // ============================================
 
-app.get('/payment-methods', authenticate, async (c) => {
+app.get('/payment-methods', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const [comp] = await db.select().from(company).where(eq(company.id, user.companyId)).limit(1)
   if (!comp?.stripeCustomerId) return c.json({ paymentMethods: [] })
@@ -721,7 +721,7 @@ app.get('/payment-methods', authenticate, async (c) => {
   return c.json({ paymentMethods: paymentMethods.data })
 })
 
-app.post('/payment-methods/setup', authenticate, async (c) => {
+app.post('/payment-methods/setup', authenticate, requireAdmin, async (c) => {
   const user = c.get('user') as any
   const [comp] = await db.select().from(company).where(eq(company.id, user.companyId)).limit(1)
 
@@ -744,7 +744,7 @@ app.post('/payment-methods/setup', authenticate, async (c) => {
   return c.json({ clientSecret: setupIntent.client_secret })
 })
 
-app.delete('/payment-methods/:id', authenticate, async (c) => {
+app.delete('/payment-methods/:id', authenticate, requireAdmin, async (c) => {
   const id = c.req.param('id')
   await stripe!.paymentMethods.detach(id)
   return c.json({ success: true })

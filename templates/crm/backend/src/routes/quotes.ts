@@ -16,7 +16,7 @@ const quoteSchema = z.object({
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
   expiryDate: z.string().optional(),
-  taxRate: z.number().min(0).max(100).default(0),
+  taxRate: z.number().min(0).max(100).optional(),
   discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   terms: z.string().optional(),
@@ -28,6 +28,16 @@ const quoteSchema = z.object({
 
 // Round to whole cents to avoid $330.949-style totals, and tax the
 // post-discount amount (the common US convention for an order-level discount).
+
+// Company default sales-tax rate (Settings → Company → "Default sales tax rate"). Quotes and
+// invoices used to default to 0% with no tax line at all (Wrench QA W-8); an explicit taxRate on
+// the request still wins.
+async function defaultTaxRate(companyId: string): Promise<number> {
+  const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  const r = Number((co?.settings as any)?.defaultTaxRate)
+  return Number.isFinite(r) && r >= 0 && r <= 100 ? r : 0
+}
+
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
   const subtotal = round2(items.reduce((s, i) => s + Math.max(0, i.quantity) * Math.max(0, i.unitPrice), 0))
@@ -113,13 +123,14 @@ app.post('/', requirePermission('quotes:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = quoteSchema.parse(await c.req.json())
   const { lineItems, ...quoteData } = data
-  const totals = calcTotals(lineItems, data.taxRate, data.discount)
+  const taxRate = data.taxRate ?? await defaultTaxRate(currentUser.companyId)
+  const totals = calcTotals(lineItems, taxRate, data.discount)
 
   const [{ value: cnt }] = await db.select({ value: count() }).from(quote).where(eq(quote.companyId, currentUser.companyId))
 
   const [newQuote] = await db.insert(quote).values({
     ...quoteData,
-    ...{ subtotal: totals.subtotal.toString(), taxAmount: totals.taxAmount.toString(), total: totals.total.toString(), taxRate: quoteData.taxRate.toString(), discount: quoteData.discount.toString() },
+    ...{ subtotal: totals.subtotal.toString(), taxAmount: totals.taxAmount.toString(), total: totals.total.toString(), taxRate: String(taxRate), discount: quoteData.discount.toString() },
     number: `QTE-${String(Number(cnt) + 1).padStart(5, '0')}`,
     expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
     companyId: currentUser.companyId,

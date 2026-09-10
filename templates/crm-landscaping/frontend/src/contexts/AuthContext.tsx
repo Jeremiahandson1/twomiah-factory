@@ -1,4 +1,5 @@
 import React from 'react';
+import { featureEnabled } from '../data/featureAliases';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isManager = ['owner', 'admin', 'manager'].includes(user?.role);
 
   const hasFeature = (featureId) => {
-    return company?.enabledFeatures?.includes(featureId) ?? false;
+    return featureEnabled(featureId, company?.enabledFeatures);
   };
 
   return (

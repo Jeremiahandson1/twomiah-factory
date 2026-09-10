@@ -12,12 +12,13 @@ export default function ExpensesPage() {
   const toast = useToast();
   const [data, setData] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState(null);
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], category: 'materials', vendor: '', description: '', amount: '', billable: false, projectId: '' });
+  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], category: 'materials', vendor: '', description: '', amount: '', billable: false, projectId: '', jobId: '' });
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState(null);
@@ -25,20 +26,23 @@ export default function ExpensesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, projRes] = await Promise.all([api.expenses.list({ page, limit: 25 }), api.projects.list({ limit: 100 })]);
-      setData(res.data); setPagination(res.pagination); setProjects(projRes.data);
+      const [res, projRes, jobRes] = await Promise.all([api.expenses.list({ page, limit: 25 }), api.projects.list({ limit: 100 }).catch(() => ({ data: [] })), api.get('/api/jobs', { limit: 100 }).catch(() => ({ data: [] }))]);
+      setJobs(jobRes?.data || []);
+      setData(res.data); setPagination(res.pagination); setProjects(projRes.data || []);
     } catch (err) { toast.error('Failed to load expenses'); }
     finally { setLoading(false); }
   }, [page]);
 
   useEffect(() => { load(); }, [load]);
 
+  // Unselected pickers post '' which the API treats as a (non-existent) FK → 409. (W-2)
+  const stripEmpty = (o: any) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v !== null && v !== undefined));
   const handleSave = async () => {
     if (!form.description || !form.amount) { toast.error('Description and amount required'); return; }
     setSaving(true);
     try {
-      if (editing) { await api.expenses.update(editing.id, { ...form, amount: Number(form.amount) }); toast.success('Updated'); }
-      else { await api.expenses.create({ ...form, amount: Number(form.amount) }); toast.success('Created'); }
+      if (editing) { await api.expenses.update(editing.id, stripEmpty({ ...form, amount: Number(form.amount) })); toast.success('Updated'); }
+      else { await api.expenses.create(stripEmpty({ ...form, amount: Number(form.amount) })); toast.success('Created'); }
       setModalOpen(false); load();
     } catch (err) { toast.error(err.message); }
     finally { setSaving(false); }
@@ -46,8 +50,8 @@ export default function ExpensesPage() {
 
   const handleDelete = async () => { try { await api.expenses.delete(toDelete.id); toast.success('Deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error(err.message); } };
 
-  const openCreate = () => { setEditing(null); setForm({ date: new Date().toISOString().split('T')[0], category: 'materials', vendor: '', description: '', amount: '', billable: false, projectId: '' }); setModalOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ date: item.date?.split('T')[0] || '', category: item.category, vendor: item.vendor || '', description: item.description, amount: String(item.amount), billable: item.billable, projectId: item.projectId || '' }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ date: new Date().toISOString().split('T')[0], category: 'materials', vendor: '', description: '', amount: '', billable: false, projectId: '', jobId: '' }); setModalOpen(true); };
+  const openEdit = (item) => { setEditing(item); setForm({ date: item.date?.split('T')[0] || '', category: item.category, vendor: item.vendor || '', description: item.description, amount: String(item.amount), billable: item.billable, projectId: item.projectId || '', jobId: item.jobId || '' }); setModalOpen(true); };
 
   const columns = [
     { key: 'date', label: 'Date', render: (v) => formatDate(v) },
@@ -55,6 +59,7 @@ export default function ExpensesPage() {
     { key: 'vendor', label: 'Vendor' },
     { key: 'description', label: 'Description' },
     { key: 'amount', label: 'Amount', render: (v) => `$${Number(v).toLocaleString()}` },
+    { key: 'job', label: 'Service Call', render: (v) => v?.title || '-' },
     { key: 'project', label: 'Project', render: (v) => v?.name || '-' },
   ];
 
@@ -71,6 +76,7 @@ export default function ExpensesPage() {
           <div><label className="block text-sm font-medium mb-1">Vendor</label><input value={form.vendor} onChange={(e) => setForm({...form, vendor: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Description *</label><input value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Amount *</label><input type="number" value={form.amount} onChange={(e) => setForm({...form, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div><label className="block text-sm font-medium mb-1">Service Call</label><select value={form.jobId} onChange={(e) => setForm({...form, jobId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">None</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.number ? `${j.number} - ` : ''}{j.title}</option>)}</select></div>
           <div><label className="block text-sm font-medium mb-1">Project</label><select value={form.projectId} onChange={(e) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg"><option value="">Select...</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>

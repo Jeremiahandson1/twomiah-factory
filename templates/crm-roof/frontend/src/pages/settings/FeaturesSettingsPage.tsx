@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { featureEnabled } from '../../data/featureAliases';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -109,7 +110,7 @@ export default function FeaturesSettingsPage() {
               </div>
               <div className="divide-y divide-gray-50">
                 {cat.features.map((f) => {
-                  const on = selected.has(f.id);
+                  const on = selected.has(f.id) || featureEnabled(f.id, selected); // alias-aware (W-9)
                   return (
                     <div key={f.id} className="px-5 py-3 flex items-center justify-between gap-4">
                       <div className="min-w-0">

@@ -17,8 +17,10 @@ const expenseSchema = z.object({
   billable: z.boolean().default(false),
   reimbursable: z.boolean().default(false),
   receiptUrl: z.string().optional(),
-  projectId: z.string().optional(),
-  jobId: z.string().optional(),
+  // An unselected <select> posts '' — as a UUID FK that is a 409 (foreign-key violation), so
+  // Time/Expense forms could never save without a project (Wrench QA W-1/W-2). '' → not set.
+  projectId: z.string().optional().transform(v => v === '' ? undefined : v),
+  jobId: z.string().optional().transform(v => v === '' ? undefined : v),
   notes: z.string().optional(),
 })
 

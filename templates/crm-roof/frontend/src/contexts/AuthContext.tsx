@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { featureEnabled } from '../data/featureAliases'
 
 type User = { userId: string; email: string; role: string; companyId: string }
 type Company = { id: string; name: string; enabledFeatures: string[]; settings: any }
@@ -90,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const hasFeature = (featureId: string): boolean => {
-    return company?.enabledFeatures?.includes(featureId) ?? false
+    return featureEnabled(featureId, company?.enabledFeatures)
   }
 
   return <AuthContext.Provider value={{ user, company, token, login, logout, hasFeature }}>{children}</AuthContext.Provider>

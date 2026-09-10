@@ -1,4 +1,5 @@
 import React from 'react';
+import { featureEnabled } from '../data/featureAliases';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import type { AuthContextValue, User, Company, AuthData } from '../types';
@@ -110,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const getToken = useCallback(() => localStorage.getItem('accessToken'), []);
 
   const hasFeature = (featureId: string): boolean => {
-    return company?.enabledFeatures?.includes(featureId) ?? false;
+    return featureEnabled(featureId, company?.enabledFeatures);
   };
 
   return (

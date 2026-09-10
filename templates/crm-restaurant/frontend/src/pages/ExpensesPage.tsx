@@ -51,12 +51,14 @@ export default function ExpensesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Unselected pickers post '' which the API treats as a (non-existent) FK → 409. (Wrench QA W-2)
+  const stripEmpty = <U extends Record<string, unknown>>(o: U): U => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v !== null && v !== undefined)) as U;
   const handleSave = async () => {
     if (!form.description || !form.amount) { toast.error('Description and amount required'); return; }
     setSaving(true);
     try {
-      if (editing) { await api.expenses.update(editing.id as string, { ...form, amount: Number(form.amount) }); toast.success('Updated'); }
-      else { await api.expenses.create({ ...form, amount: Number(form.amount) }); toast.success('Created'); }
+      if (editing) { await api.expenses.update(editing.id as string, stripEmpty({ ...form, amount: Number(form.amount) })); toast.success('Updated'); }
+      else { await api.expenses.create(stripEmpty({ ...form, amount: Number(form.amount) })); toast.success('Created'); }
       setModalOpen(false); load();
     } catch (err) { toast.error((err as Error).message); }
     finally { setSaving(false); }

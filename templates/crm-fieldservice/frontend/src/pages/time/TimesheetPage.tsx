@@ -365,7 +365,9 @@ function ManualEntryModal({ onClose, onSave }) {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/api/time', form);
+      // Drop unselected optional pickers ('' would be sent as a FK and rejected). (W-1)
+      const stripEmpty = (o: any) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+      await api.post('/api/time', stripEmpty(form));
       onSave();
     } catch (error) {
       alert(error.message || 'Failed to save entry');
