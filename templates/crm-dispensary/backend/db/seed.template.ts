@@ -32,7 +32,7 @@ async function main() {
       enabledFeatures,
       taxRate: '10',
       loyaltyPointsPerDollar: 1,
-      purchaseLimitOz: '2.5',
+      purchaseLimitOz: '1',
       loyaltyEnabled: true,
       deliveryEnabled: false,
       merchEnabled: false,

@@ -70,10 +70,14 @@ const reportGenerateSchema = z.object({
 // API wanted { unitOfMeasure, witnessedBy, batchId } — a 400 the modal swallowed, so nothing
 // was ever saved (go-live QA H-2). Accept both spellings.
 const wasteSchema = z.object({
-  productId: z.string().min(1),
+  productId: z.string().min(1).optional(),
+  product_id: z.string().min(1).optional(),
   batchId: z.string().min(1).optional(),
+  batch_id: z.string().min(1).optional(),
   batchNumber: z.string().optional(),
+  batch_number: z.string().optional(),
   metrcTag: z.string().optional(),
+  metrc_tag: z.string().optional(),
   wasteType: z.string().min(1).optional(),
   waste_type: z.string().min(1).optional(),
   type: z.string().min(1).optional(),
@@ -96,10 +100,16 @@ const wasteSchema = z.object({
   // Accept camelCase, snake_case and the form's short names for every field (retest: API field map).
   const wasteType = d.wasteType || d.waste_type || d.type
   const reason = d.reason || d.waste_reason
+  const productId = d.productId || d.product_id
+  if (!productId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productId'], message: 'productId is required' })
   if (!wasteType) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['wasteType'], message: 'wasteType is required' })
   if (!reason) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'reason is required' })
   return {
     ...d,
+    productId: productId as string,
+    batchId: d.batchId || d.batch_id || undefined,
+    batchNumber: d.batchNumber || d.batch_number || undefined,
+    metrcTag: d.metrcTag || d.metrc_tag || undefined,
     wasteType: wasteType as string,
     reason: reason as string,
     unitOfMeasure: d.unitOfMeasure || d.unit_of_measure || d.unit || 'grams',

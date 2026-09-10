@@ -30,7 +30,7 @@ const categories = [
 
 // The per-transaction purchase limit comes from Settings (company.purchaseLimitOz), loaded below;
 // this is only the fallback until it arrives. (go-live QA V-1)
-const DEFAULT_WEIGHT_LIMIT_OZ = 2.5;
+const DEFAULT_WEIGHT_LIMIT_OZ = 1;
 
 export default function POSPage() {
   const { user } = useAuth();
