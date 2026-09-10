@@ -38,14 +38,15 @@ app.get('/sales', async (c) => {
     SELECT
       date_trunc(${dateTrunc}, COALESCE(completed_at, created_at))::date as period,
       COUNT(*)::int as order_count,
-      COALESCE(SUM(total::numeric), 0) as revenue,
+      -- Revenue and AOV share the same NET basis (total − refunded) so AOV × orders = revenue. (retest: AOV vs revenue)
+      COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as revenue,
       COALESCE(SUM(subtotal::numeric), 0) as subtotal,
       COALESCE(SUM(total_tax::numeric), 0) as tax_collected,
       COALESCE(SUM(discount_amount::numeric), 0) as discounts_given,
-      COALESCE(AVG(total::numeric), 0) as avg_order_value
+      COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status = 'completed'
+      AND status IN ('completed', 'partially_refunded')
       AND COALESCE(completed_at, created_at) >= ${start}
       AND COALESCE(completed_at, created_at) <= ${end}
     GROUP BY 1
@@ -129,7 +130,8 @@ app.get('/summary', async (c) => {
         COALESCE(SUM(CASE WHEN status IN ('completed', 'partially_refunded') THEN total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0) ELSE 0 END), 0) as revenue,
         COALESCE(SUM(CASE WHEN status = 'completed' THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
         COALESCE(SUM(CASE WHEN status IN ('completed', 'partially_refunded') THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
-        COALESCE(AVG(CASE WHEN status IN ('completed', 'partially_refunded') THEN total::numeric END), 0) as avg_order_value,
+        -- AOV on the same NET basis as revenue (AOV × completed orders = revenue). (retest: AOV vs revenue)
+        COALESCE(AVG(CASE WHEN status IN ('completed', 'partially_refunded') THEN total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0) END), 0) as avg_order_value,
         COALESCE(SUM(CASE WHEN status IN ('refunded', 'partially_refunded') THEN COALESCE(NULLIF(refunded_amount, '')::numeric, total::numeric) ELSE 0 END), 0) as refunds_total,
         COUNT(CASE WHEN type = 'walk_in' THEN 1 END)::int as walk_in_count,
         COUNT(CASE WHEN type = 'delivery' THEN 1 END)::int as delivery_count,
@@ -200,11 +202,11 @@ app.get('/peak-hours', async (c) => {
     SELECT
       EXTRACT(HOUR FROM created_at)::int as hour,
       COUNT(*)::int as order_count,
-      COALESCE(SUM(total::numeric), 0) as revenue,
-      COALESCE(AVG(total::numeric), 0) as avg_order_value
+      COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as revenue,
+      COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status = 'completed'
+      AND status IN ('completed', 'partially_refunded')
       AND created_at >= ${start}
       AND created_at <= ${end}
     GROUP BY 1

@@ -38,6 +38,56 @@ const REPORT_TYPES = [
 ];
 const REPORT_TYPE_OPTIONS = REPORT_TYPES.slice(0, 8);
 
+// ---- Report rendering / export helpers (mirror of the server's export shaping) ----
+const titleCase = (k: string) => String(k).replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, ch => ch.toUpperCase());
+const fmtCell = (v: any): string => {
+  if (v == null || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2);
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(v)) return formatDate(v);
+  if (typeof v === 'string' && /^-?\d+\.\d{3,}$/.test(v)) return Number(v).toFixed(2);
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+};
+type ReportSection = { name: string; columns?: string[]; rows?: any[]; pairs?: Array<[string, any]> };
+function reportSections(data: any): ReportSection[] {
+  const out: ReportSection[] = [];
+  const walk = (name: string, v: any) => {
+    if (Array.isArray(v)) {
+      if (v.length && typeof v[0] === 'object') out.push({ name, columns: Array.from(new Set(v.flatMap((r: any) => Object.keys(r || {})))), rows: v });
+      else out.push({ name, pairs: v.map((x: any, i: number) => [String(i + 1), x] as [string, any]) });
+    } else if (v && typeof v === 'object') {
+      const pairs: Array<[string, any]> = [];
+      for (const [k, val] of Object.entries(v)) { if (val && typeof val === 'object') walk(`${name === 'Summary' ? '' : name + ' › '}${titleCase(k)}`, val); else pairs.push([titleCase(k), val]); }
+      if (pairs.length) out.unshift({ name, pairs });
+    } else out.push({ name, pairs: [[name, v]] });
+  };
+  const payload = data && typeof data === 'object' && 'rows' in data ? data.rows : data;
+  walk('Summary', payload);
+  return out;
+}
+// Authenticated download/print: the export endpoint needs the bearer token, so fetch it and
+// hand the browser a blob (CSV) or a new window (printable HTML → Save as PDF).
+async function exportReport(id: string, format: 'csv' | 'html') {
+  const res = await fetch(`${(api as any).baseUrl || ''}/api/compliance/reports/${id}/export?format=${format}`, {
+    headers: { Authorization: `Bearer ${(api as any).accessToken || localStorage.getItem('accessToken') || ''}` },
+  });
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  if (format === 'csv') {
+    const blob = await res.blob();
+    const name = (res.headers.get('content-disposition') || '').match(/filename="([^"]+)"/)?.[1] || `compliance-report-${id}.csv`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } else {
+    const html = await res.text();
+    const w = window.open('', '_blank');
+    if (!w) throw new Error('Pop-up blocked — allow pop-ups to print the report');
+    w.document.open(); w.document.write(html); w.document.close();
+    w.focus(); setTimeout(() => w.print(), 300);
+  }
+}
+
 const WASTE_TYPES = ['Plant Material', 'Trim', 'Stems', 'Expired Product', 'Contaminated', 'Damaged', 'Other'];
 const WASTE_METHODS = ['Composting', 'Incineration', 'Rendering', 'Landfill', 'Other'];
 const WASTE_REASONS = ['Expired', 'Failed Lab Test', 'Contamination', 'Damaged', 'Overstock', 'Recall', 'Other'];
@@ -844,7 +894,7 @@ export default function CompliancePage() {
       <Modal
         isOpen={!!viewingReport}
         onClose={() => setViewingReport(null)}
-        title={`Report: ${REPORT_TYPES.find(r => r.value === viewingReport?.type)?.label || viewingReport?.type || ''}`}
+        title={`Report: ${REPORT_TYPES.find(r => r.value === (viewingReport?.reportType || viewingReport?.type))?.label || viewingReport?.reportType || viewingReport?.type || ''}`}
         size="lg"
       >
         {viewingReport && (
@@ -865,10 +915,38 @@ export default function CompliancePage() {
                 </span>
               </div>
             </div>
+            {/* Formatted export — regulators want a file, not a JSON dump (retest: report export). */}
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={() => exportReport(viewingReport.id, 'csv')}>Download CSV</Button>
+              <Button size="sm" variant="secondary" onClick={() => exportReport(viewingReport.id, 'html')}>Print / Save as PDF</Button>
+            </div>
             {viewingReport.data ? (
-              <pre className="bg-slate-800 rounded-lg p-4 text-sm text-slate-300 overflow-auto max-h-80">
-                {JSON.stringify(viewingReport.data, null, 2)}
-              </pre>
+              <div className="space-y-4 max-h-[60vh] overflow-auto pr-1">
+                {reportSections(viewingReport.data).map((s, i) => (
+                  <div key={i}>
+                    <h4 className="text-sm font-semibold text-slate-200 mb-1">{s.name}</h4>
+                    {s.columns ? (
+                      <div className="overflow-x-auto rounded-lg border border-slate-700">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-800">
+                            <tr>{s.columns.map(c => <th key={c} className="px-2 py-1.5 text-left text-slate-400 font-medium whitespace-nowrap">{titleCase(c)}</th>)}</tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800">
+                            {s.rows!.map((r: any, ri: number) => (
+                              <tr key={ri}>{s.columns!.map(c => <td key={c} className="px-2 py-1.5 text-slate-200 whitespace-nowrap">{fmtCell(r?.[c])}</td>)}</tr>
+                            ))}
+                            {s.rows!.length === 0 && <tr><td colSpan={s.columns.length} className="px-2 py-3 text-center text-slate-500">No rows in this period</td></tr>}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs bg-slate-800 rounded-lg p-3">
+                        {s.pairs!.map(([k, v]) => (<div key={k} className="contents"><dt className="text-slate-400">{k}</dt><dd className="text-slate-100 text-right">{fmtCell(v)}</dd></div>))}
+                      </dl>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : (
               <p className="text-slate-400 text-center py-8">No report data available</p>
             )}
