@@ -30,7 +30,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/customers', icon: Users, label: 'Customers' },
 
   // Inventory & Compliance
-  { to: '/crm/batches', icon: Layers, label: 'Batches', features: ['batches', 'inventory'] },
+  { to: '/crm/batches', icon: Layers, label: 'Batches', features: ['batches'] },
   { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'] },
   { to: '/crm/rfid', icon: Radio, label: 'RFID', features: ['rfid'] },
   { to: '/crm/labels', icon: Tag, label: 'Labels', features: ['labels'] },

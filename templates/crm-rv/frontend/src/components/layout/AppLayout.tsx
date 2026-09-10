@@ -69,7 +69,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
 
   // Customers & Marketing
   { to: '/crm/contacts', icon: Users, label: 'Contacts', section: 'Customers & Marketing' },
-  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'], section: 'Customers & Marketing' },
+  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'], section: 'Customers & Marketing' },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'], section: 'Customers & Marketing' },
   { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing' },

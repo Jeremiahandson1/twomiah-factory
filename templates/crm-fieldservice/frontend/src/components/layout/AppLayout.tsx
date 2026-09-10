@@ -65,7 +65,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/tech', icon: Wrench, label: 'Tech View', section: 'Field Service', features: ['tech_mobile_view'] },
   { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Field Service', features: ['dispatch_board'] },
   { to: '/crm/maintenance', icon: FileSignature, label: 'Maintenance Contracts', section: 'Field Service', features: ['maintenance_contracts'] },
-  { to: '/crm/parts', icon: Box, label: 'Parts Inventory', section: 'Field Service', features: ['parts_inventory'] },
+  { to: '/crm/parts', icon: Box, label: 'Parts Inventory', section: 'Field Service', features: ['parts_tracking'] },
   { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Flat Rate Pricebook', section: 'Field Service', features: ['flat_rate_pricebook'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 

@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import { getFeaturesForPlan } from '../shared/featureRegistry.ts'
+import { CRM_TEMPLATE } from '../config/template.ts'
 
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
@@ -42,47 +44,6 @@ async function revokeRefreshToken(userId: string, token: string | null | undefin
   const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
   const next = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
   await db.update(user).set({ refreshToken: next.length ? JSON.stringify(next) : null, updatedAt: new Date() } as any).where(eq(user.id, userId))
-}
-
-// Feature sets for each plan tier
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-  ],
-  pro: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'gps_tracking', 'geofencing', 'auto_clock',
-    'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing',
-  ],
-  business: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'scheduled_sms', 'gps_tracking', 'geofencing',
-    'auto_clock', 'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing', 'inventory',
-    'inventory_locations', 'stock_levels', 'inventory_transfers', 'purchase_orders',
-    'equipment_tracking', 'equipment_maintenance', 'fleet_vehicles', 'fleet_maintenance',
-    'fleet_fuel', 'warranties', 'warranty_claims', 'email_templates', 'email_campaigns',
-    'call_tracking', 'automations', 'custom_forms', 'consumer_financing', 'advanced_reporting',
-  ],
-  construction: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'scheduled_sms', 'gps_tracking', 'geofencing',
-    'auto_clock', 'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing', 'inventory',
-    'inventory_locations', 'stock_levels', 'inventory_transfers', 'purchase_orders',
-    'equipment_tracking', 'equipment_maintenance', 'fleet_vehicles', 'fleet_maintenance',
-    'fleet_fuel', 'warranties', 'warranty_claims', 'email_templates', 'email_campaigns',
-    'call_tracking', 'automations', 'custom_forms', 'consumer_financing', 'advanced_reporting',
-    'projects', 'project_budgets', 'project_phases', 'change_orders', 'rfis', 'submittals',
-    'daily_logs', 'punch_lists', 'inspections', 'bids', 'gantt_charts', 'selections',
-    'selection_portal', 'takeoffs', 'lien_waivers', 'draw_schedules', 'draw_requests', 'aia_forms',
-  ],
-  enterprise: ['all'],
 }
 
 // Plan limits
@@ -137,7 +98,7 @@ app.post('/signup', async (c) => {
   const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
 
   // Get features for the selected plan
-  const enabledFeatures = PLAN_FEATURES[data.plan] || PLAN_FEATURES.starter
+  const enabledFeatures = getFeaturesForPlan(CRM_TEMPLATE, data.plan)
   const limits = PLAN_LIMITS[data.plan] || PLAN_LIMITS.starter
 
   // Calculate trial end date (30 days)
@@ -240,55 +201,6 @@ app.post('/register', async (c) => {
   // with NO auth, invite, or rate limit. Users are added by an admin via
   // Settings -> Users. Kept as a 403 stub for any old caller.
   return c.json({ error: 'Public registration is disabled' }, 403)
-  // eslint-disable-next-line no-unreachable
-  const registerSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(8),
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    companyName: z.string().min(1),
-    phone: z.string().optional(),
-  })
-  const regBody = await c.req.json()
-  if (regBody.email && typeof regBody.email === 'string') regBody.email = regBody.email.toLowerCase().trim()
-  const data = registerSchema.parse(regBody)
-
-  const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
-  if (existing) return c.json({ error: 'Email already registered' }, 409)
-
-  const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + uuidv4().substring(0, 6)
-  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
-
-  const result = await db.transaction(async (tx) => {
-    const [newCompany] = await tx.insert(company).values({
-      name: data.companyName,
-      slug,
-      email: data.email,
-      phone: data.phone,
-      enabledFeatures: ['contacts', 'projects', 'jobs', 'quotes', 'invoices', 'scheduling', 'team'],
-    }).returning()
-
-    const [newUser] = await tx.insert(user).values({
-      email: data.email,
-      passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone,
-      role: 'owner',
-      companyId: newCompany.id,
-    }).returning()
-
-    return { company: newCompany, user: newUser }
-  })
-
-  const tokens = generateTokens(result.user.id, result.company.id, result.user.email, result.user.role)
-  await storeRefreshToken(result.user.id, tokens.refreshToken)
-
-  return c.json({
-    user: { id: result.user.id, email: result.user.email, firstName: result.user.firstName, lastName: result.user.lastName, role: result.user.role },
-    company: { id: result.company.id, name: result.company.name, slug: result.company.slug, enabledFeatures: result.company.enabledFeatures, phone: result.company.phone, email: result.company.email, address: result.company.address, city: result.company.city, state: result.company.state, zip: result.company.zip, website: result.company.website, settings: result.company.settings },
-    ...tokens,
-  }, 201)
 })
 
 // Login

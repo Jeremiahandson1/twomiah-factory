@@ -20,3 +20,11 @@ export type {
   FactoryApiClient,
 } from './types'
 export type { AccountDeps } from './account'
+
+// The feature registry — the one feature vocabulary shared by the Factory and every tenant.
+export {
+  FEATURE_REGISTRY, FEATURE_MAP, PLAN_TIERS,
+  getCategories, getFeaturesForTemplate, getDefaultFeaturesForTemplate,
+  getAdvertisableFeatures, getAdvertisableFeaturesForTemplate, getFeaturesForPlan,
+} from './featureRegistry'
+export type { FeatureDef } from './featureRegistry'

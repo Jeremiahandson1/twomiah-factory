@@ -23,6 +23,18 @@ import { db } from '../../db/index.ts';
 import { company } from '../../db/schema.ts';
 import { eq, sql } from 'drizzle-orm';
 import { SAAS_TIERS, SELF_HOSTED_PACKAGES, SELF_HOSTED_ADDONS, FEATURE_BUNDLES, calculateUserPrice } from '../config/pricing.ts';
+import { getFeaturesForPlan, FEATURE_MAP } from '../shared/featureRegistry.ts';
+import { CRM_TEMPLATE } from '../config/template.ts';
+
+// Plan changes write the REGISTRY features for the tier — never the pricing-page SKU bullets, whose ids
+// nothing in the app reads (that replaced the whole list and blanked the sidebar on any plan change).
+// Paid add-ons the company already holds (category "Add-on Products") survive a tier change: they are
+// bought separately, not bundled.
+async function planFeatures(companyId: string, plan: string): Promise<string[]> {
+  const [row] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1);
+  const addons = ((row?.enabledFeatures || []) as string[]).filter((id) => FEATURE_MAP[id]?.category === 'Add-on Products');
+  return [...new Set([...getFeaturesForPlan(CRM_TEMPLATE, plan), ...addons])];
+}
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -149,7 +161,7 @@ export async function createSubscription(companyId: string, {
   // Update company with enabled features
   await db.update(company)
     .set({
-      enabledFeatures: tier.features,
+      enabledFeatures: await planFeatures(companyId, tierId),
       subscriptionTier: tierId,
       updatedAt: new Date(),
     })
@@ -228,7 +240,7 @@ export async function changeTier(companyId: string, newTierId: string, { immedia
 
   await db.update(company)
     .set({
-      enabledFeatures: newTier.features,
+      enabledFeatures: await planFeatures(companyId, newTierId),
       subscriptionTier: newTierId,
       updatedAt: new Date(),
     })
@@ -300,7 +312,7 @@ export async function processOneTimePurchase(companyId: string, {
   if (!pkg) throw new Error('Package not available for one-time purchase');
 
   const amount = pkg.price;
-  const enabledFeatures = pkg.features;
+  const enabledFeatures = await planFeatures(companyId, packageId);
   const description = `{{COMPANY_NAME}} ${pkg.name} - Lifetime License`;
 
   let stripeCustomerId = comp.stripeCustomerId;
@@ -632,7 +644,7 @@ async function handleSubscriptionDeleted(stripeSubscription: any) {
     const tier = (SAAS_TIERS as any).starter;
     await db.update(company)
       .set({
-        enabledFeatures: tier.features,
+        enabledFeatures: await planFeatures(subscription.company_id, 'starter'),
         subscriptionTier: null,
         updatedAt: new Date(),
       })

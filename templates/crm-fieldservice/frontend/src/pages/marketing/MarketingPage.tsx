@@ -74,7 +74,7 @@ export default function MarketingPage() {
       </div>
 
       {/* Tab Content */}
-      {tab === 'campaigns' && <CampaignsTab />}
+      {tab === 'campaigns' && <CampaignsTab onChanged={loadStats} />}
       {tab === 'templates' && <TemplatesTab />}
       {tab === 'sequences' && <SequencesTab />}
     </div>
@@ -98,7 +98,8 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function CampaignsTab() {
+// `onChanged` lets the page refresh its stat cards — loadStats lives in MarketingPage, not here.
+function CampaignsTab({ onChanged }: { onChanged: () => void }) {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -212,7 +213,7 @@ function CampaignsTab() {
       {showForm && (
         <CampaignFormModal
           campaign={selectedCampaign}
-          onSave={() => { setShowForm(false); loadCampaigns(); loadStats(); }}
+          onSave={() => { setShowForm(false); loadCampaigns(); onChanged(); }}
           onClose={() => setShowForm(false)}
         />
       )}

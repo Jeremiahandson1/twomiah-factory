@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { useFeature } from '../../data/features';
+import { useFeature } from '../../hooks/useFeature';
 
 export default function SettingsPage() {
   const { token, user: currentUser } = useAuth();
@@ -41,7 +41,7 @@ export default function SettingsPage() {
   const [zipInput, setZipInput] = useState('');
   const [savingStorm, setSavingStorm] = useState(false);
 
-  const hasQB = useFeature('quickbooks_sync');
+  const hasQB = useFeature('quickbooks');
   const hasStorm = useFeature('storm_lead_gen');
 
   const headers = { Authorization: `Bearer ${token}` };

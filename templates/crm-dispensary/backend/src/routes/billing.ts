@@ -51,14 +51,15 @@ const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | nul
   enterprise: { users: null, contacts: null, orders: null },
 }
 
-// Add-on catalog. `featureKey` is the id stored in company.enabledFeatures that
-// activates the add-on — the same gating mechanism used everywhere else.
-const ADDON_CATALOG: Array<{ id: string; name: string; price: number; featureKey: string; features: string[] }> = [
-  { id: 'loyalty', name: 'Loyalty & Rewards', price: 49, featureKey: 'loyalty', features: ['Points program', 'Rewards catalog', 'Tiered members'] },
-  { id: 'delivery', name: 'Delivery Management', price: 79, featureKey: 'delivery', features: ['Driver dispatch', 'Delivery zones', 'Live tracking'] },
-  { id: 'analytics', name: 'Advanced Analytics', price: 59, featureKey: 'analytics', features: ['Sales reports', 'Product trends', 'Custom dashboards'] },
-  { id: 'marketing', name: 'Marketing Suite', price: 69, featureKey: 'marketing', features: ['Email campaigns', 'SMS blasts', 'Automations'] },
-  { id: 'extra_sms', name: 'Extra SMS Credits', price: 25, featureKey: 'extra_sms', features: ['+1,000 SMS / month', 'At-cost overage'] },
+// Add-on catalog. `featureKeys` are the REGISTRY feature ids (shared/featureRegistry.ts) the add-on
+// switches on in company.enabledFeatures — the same gate the sidebar and the Features page read. An
+// add-on with no feature keys (SMS credits) is a billing line only.
+const ADDON_CATALOG: Array<{ id: string; name: string; price: number; featureKeys: string[]; features: string[] }> = [
+  { id: 'loyalty', name: 'Loyalty & Rewards', price: 49, featureKeys: ['loyalty_rewards'], features: ['Points program', 'Rewards catalog', 'Tiered members'] },
+  { id: 'delivery', name: 'Delivery Management', price: 79, featureKeys: ['delivery'], features: ['Driver dispatch', 'Delivery zones', 'Live tracking'] },
+  { id: 'analytics', name: 'Advanced Analytics', price: 59, featureKeys: ['dispensary_analytics'], features: ['Sales reports', 'Product trends', 'Custom dashboards'] },
+  { id: 'marketing', name: 'Marketing Suite', price: 69, featureKeys: ['email_campaigns', 'sms_marketing'], features: ['Email campaigns', 'SMS blasts', 'Automations'] },
+  { id: 'extra_sms', name: 'Extra SMS Credits', price: 25, featureKeys: [], features: ['+1,000 SMS / month', 'At-cost overage'] },
 ]
 
 const app = new Hono()
@@ -269,7 +270,7 @@ app.get('/addons', async (c) => {
       name: a.name,
       price: a.price,
       features: a.features,
-      purchased: enabled.includes(a.featureKey),
+      purchased: a.featureKeys.length > 0 && a.featureKeys.every((k) => enabled.includes(k)),
     }))
     return c.json({ addons })
   } catch {
@@ -349,7 +350,7 @@ app.post('/subscription/change-plan', async (c) => {
 })
 
 // ---- POST /addons/purchase -------------------------------------------------
-// Body: { addonId }. Activates the add-on by adding its featureKey to
+// Body: { addonId }. Activates the add-on by adding its featureKeys to
 // company.enabledFeatures — the same gate the rest of the app uses.
 app.post('/addons/purchase', async (c) => {
   const u = c.get('user') as any
@@ -364,8 +365,8 @@ app.post('/addons/purchase', async (c) => {
     if (!comp) return c.json({ error: 'Company not found' }, 404)
 
     const enabled = ((comp.enabledFeatures as any) || []) as string[]
-    if (!enabled.includes(addon.featureKey)) {
-      const next = [...new Set([...enabled, addon.featureKey])]
+    if (addon.featureKeys.some((k) => !enabled.includes(k))) {
+      const next = [...new Set([...enabled, ...addon.featureKeys])]
       await db.update(company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(company.id, comp.id))
     }
     return c.json({ success: true, message: `${addon.name} activated`, addonId: addon.id })
@@ -375,7 +376,7 @@ app.post('/addons/purchase', async (c) => {
 })
 
 // ---- POST /addons/remove ---------------------------------------------------
-// Body: { addonId }. Deactivates the add-on by removing its featureKey from
+// Body: { addonId }. Deactivates the add-on by removing its featureKeys from
 // company.enabledFeatures — the mirror of /addons/purchase.
 app.post('/addons/remove', async (c) => {
   const u = c.get('user') as any
@@ -390,8 +391,8 @@ app.post('/addons/remove', async (c) => {
     if (!comp) return c.json({ error: 'Company not found' }, 404)
 
     const enabled = ((comp.enabledFeatures as any) || []) as string[]
-    if (enabled.includes(addon.featureKey)) {
-      const next = enabled.filter((f) => f !== addon.featureKey)
+    if (addon.featureKeys.some((k) => enabled.includes(k))) {
+      const next = enabled.filter((f) => !addon.featureKeys.includes(f))
       await db.update(company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(company.id, comp.id))
     }
     return c.json({ success: true, message: `${addon.name} removed`, addonId: addon.id })

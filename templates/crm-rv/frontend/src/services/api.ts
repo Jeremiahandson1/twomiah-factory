@@ -386,6 +386,7 @@ class ApiClient {
     get: () => this.get('/api/company'),
     update: (data: unknown) => this.request('/api/company', { method: 'PUT', body: JSON.stringify(data) }),
     updateFeatures: (features: string[]) => this.request('/api/company/features', { method: 'PUT', body: JSON.stringify({ features }) }),
+    featureCatalog: () => this.get('/api/company/features/catalog'),
     users: () => this.get('/api/company/users'),
     createUser: (data: unknown) => this.request('/api/company/users', { method: 'POST', body: JSON.stringify(data) }),
     updateUser: (id: string, data: unknown) => this.request(`/api/company/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

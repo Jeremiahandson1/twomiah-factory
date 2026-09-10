@@ -29,7 +29,6 @@ import {
   CreditCard,
   Radio,
   Mail, LifeBuoy } from 'lucide-react'
-import { useFeature } from '../../data/features'
 
 const baseNavItems = [
   { label: 'Pipeline', icon: LayoutDashboard, to: '/crm/pipeline' },
@@ -50,7 +49,7 @@ const fieldNavItems = [
   { label: 'Canvassing', icon: MapPin, to: '/crm/canvassing', feature: 'canvassing_tool' },
   { label: 'Storm Leads', icon: Zap, to: '/crm/storm-leads', feature: 'storm_lead_gen' },
   { label: 'Ads', icon: Megaphone, to: '/crm/ads', feature: 'paid_ads' },
-  { label: 'Reviews', icon: Star, to: '/crm/reviews', feature: 'review_requests' },
+  { label: 'Reviews', icon: Star, to: '/crm/reviews', feature: 'google_reviews' },
   { label: 'Financing', icon: CreditCard, to: '/crm/financing', feature: 'consumer_financing' },
   { label: 'Storm Radar', icon: Radio, to: '/crm/storm-radar', feature: 'storm_radar_overlay' },
   // Paid add-on products — hidden unless the add-on is enabled (matching the
@@ -68,22 +67,10 @@ const bottomNavItems = [
 ]
 
 export default function AppLayout() {
-  const { user, company, logout } = useAuth()
+  const { user, company, logout, hasFeature } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const hasCanvassing = useFeature('canvassing_tool')
-  const hasStormLeads = useFeature('storm_lead_gen')
-  const hasPaidAds = useFeature('paid_ads')
-  const hasEstimator = useFeature('instant_estimator')
-  const hasRoofReports = useFeature('measurement_reports')
-  const activeFieldItems = fieldNavItems.filter(item => {
-    if (item.feature === 'canvassing_tool') return hasCanvassing
-    if (item.feature === 'storm_lead_gen') return hasStormLeads
-    if (item.feature === 'paid_ads') return hasPaidAds
-    if (item.feature === 'instant_estimator') return hasEstimator
-    if (item.feature === 'measurement_reports') return hasRoofReports
-    return true
-  })
+  const activeFieldItems = fieldNavItems.filter(item => !item.feature || hasFeature(item.feature))
 
   const navItems = [
     ...baseNavItems,

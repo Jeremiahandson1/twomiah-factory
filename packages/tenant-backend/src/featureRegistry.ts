@@ -1,0 +1,462 @@
+// Central feature registry — THE feature vocabulary for the whole product.
+//
+// This single file is consumed by the Factory (apps/api re-exports it) AND vendored into every tenant
+// at generation as backend/src/shared/featureRegistry.ts. Every place that decides whether a feature is
+// on — Factory seeding, the tenant's Settings → Features page (GET /api/company/features/catalog), the
+// sidebar gates, PUT /api/company/features validation, plan changes in billing, the boot-time sync —
+// reads THESE ids. Nothing else may define feature ids; scripts/check-feature-vocabulary.ts enforces it
+// in CI. An entry's templates[] says which products offer it; an id gated in a template that is not
+// listed here simply never switches on (that is how unshipped modules stay dark).
+
+export type FeatureDef = {
+  id: string
+  name: string
+  description: string
+  category: string
+  core: boolean
+  templates: string[] // which CRM templates support this feature: 'crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive'
+  /**
+   * If true, hide from public-facing surfaces (signup wizard, pricing pages, plan upsell,
+   * marketing copy). Existing tenants with the feature in `enabledFeatures` keep using it;
+   * platform admin can still toggle it. Set to false to launch the feature.
+   */
+  hidden?: boolean
+}
+
+export const FEATURE_REGISTRY: FeatureDef[] = [
+  // Core
+  { id: 'contacts', name: 'Contacts', description: 'Client, lead, vendor management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+  { id: 'jobs', name: 'Jobs', description: 'Job tracking and management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-automotive', 'crm-roof'] },
+  { id: 'quotes', name: 'Quotes', description: 'Professional estimates and quotes', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-automotive', 'crm-roof'] },
+  { id: 'invoices', name: 'Invoices', description: 'Invoice generation and tracking', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+  { id: 'scheduling', name: 'Scheduling', description: 'Calendar and job scheduling', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-dispensary'] },
+  { id: 'team', name: 'Team', description: 'Team member management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+  { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+
+  // Construction
+  { id: 'projects', name: 'Projects', description: 'Multi-phase project management', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'rfis', name: 'RFIs', description: 'Request for information tracking', category: 'Construction', core: false, templates: ['crm'] },
+  // The pages and backend route have always shipped (SubmittalsPage.tsx,
+  // routes/submittals.ts) but no registry entry existed, so the sidebar gate
+  // could never open and the feature was invisible to sales.
+  { id: 'submittals', name: 'Submittals', description: 'Product submittal and approval workflow tracking', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'change_orders', name: 'Change Orders', description: 'Change order management', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'punch_lists', name: 'Punch Lists', description: 'Punch list tracking', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'daily_logs', name: 'Daily Logs', description: 'Field daily log reports', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'inspections', name: 'Inspections', description: 'Quality inspections', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'bid_management', name: 'Bid Management', description: 'Bid tracking and submission', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'takeoff_tools', name: 'Takeoff Tools', description: 'Material takeoff calculations', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'selections', name: 'Selections', description: 'Client material selections portal', category: 'Construction', core: false, templates: ['crm'] },
+
+  // Service Trade
+  { id: 'drag_drop_calendar', name: 'Drag & Drop Calendar', description: 'Visual job scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'recurring_jobs', name: 'Recurring Jobs', description: 'Automated recurring job creation', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'route_optimization', name: 'Route Optimization', description: 'Optimize daily service routes', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm'] },
+  { id: 'online_booking', name: 'Online Booking', description: 'Customer self-scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-salon'] },
+  { id: 'service_dispatch', name: 'Service Dispatch', description: 'Real-time dispatch board', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'service_agreements', name: 'Service Agreements', description: 'Maintenance agreement management', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm'] },
+  { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
+  { id: 'recurring_routes', name: 'Recurring Route Board', description: 'Weekly mow routes grouped into per-day crew routes', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
+  { id: 'area_pricing', name: 'Area-Based Pricing', description: 'Price services by measured property square footage', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
+  { id: 'snow_billing', name: 'Snow & Ice Billing', description: 'Per-push, per-event, per-inch, and seasonal snow billing', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
+  { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof'] },
+
+  // Field Service
+  { id: 'dispatch_board', name: 'Dispatch Board', description: 'Real-time tech dispatch and scheduling', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Recurring service agreements', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
+
+  // Automotive
+  { id: 'vehicle_inventory', name: 'Vehicle Inventory', description: 'VIN decode, stock management, pricing', category: 'Automotive', core: false, templates: ['crm-automotive'] },
+  { id: 'sales_pipeline', name: 'Sales Pipeline', description: 'Kanban lead pipeline with ADF/XML import', category: 'Automotive', core: false, templates: ['crm-automotive'] },
+  { id: 'service_department', name: 'Service Department', description: 'Repair orders and service check-in', category: 'Automotive', core: false, templates: ['crm-automotive'] },
+  { id: 'service_to_sales', name: 'Service-to-Sales Bridge', description: 'Alert salespeople when their leads check into service', category: 'Automotive', core: false, templates: ['crm-automotive'] },
+
+  // RV / Powersports (crm-rv) — dealership CRM layer (not a DMS)
+  { id: 'unit_inventory', name: 'Unit Inventory', description: 'New/used/consignment units with VIN decode, floorplans, photos and spec sheets', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
+  { id: 'deal_pipeline', name: 'Sales Pipeline', description: 'Kanban pipeline linking each lead to a unit of interest, by stage and salesperson', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
+  { id: 'service_dept', name: 'Service Department', description: 'Repair orders, bay/tech scheduling and service-to-sales alerts', category: 'RV / Powersports', core: true, templates: ['crm-rv'] },
+  { id: 'deal_desk', name: 'Deal Desk', description: 'Structure deals with payment calculator, fees, tax and trade allowance', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'trade_in', name: 'Trade-In Management', description: 'Appraise trades, attach to a deal, recondition and roll back into used inventory', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'recall_lookup', name: 'Recall Lookup', description: 'One-click NHTSA/OEM open-recall check by VIN at sale and service intake', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'inventory_syndication', name: 'Marketplace Syndication', description: 'Push inventory feeds to RV Trader, RVUSA, RVT, Cycle Trader & ATV Trader', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'service_status_texts', name: 'Service Status Updates', description: 'Automated "your unit is ready" texts plus tech photos/video to drive upsell approvals', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+  { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-touch SMS/email cadences that work long RV/powersports research cycles', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
+
+  // Veterinary (crm-vet) — client-relationship + preventive-care record (retention layer, not a clinical PIMS)
+  { id: 'patient_records', name: 'Patient Records', description: 'Pets linked to owners — multi-pet households, signalment, allergies/alerts, weight history, photo', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  { id: 'appointment_scheduling', name: 'Appointments', description: 'Appointment calendar by provider and type (wellness, sick, surgery, dental) with check-in', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  { id: 'medical_records', name: 'Medical Records', description: 'Per-visit SOAP notes, vitals, problem/diagnosis list and treatments', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  { id: 'vaccinations', name: 'Vaccinations', description: 'Vaccine history with due dates that drive reminders and rabies certificates', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  { id: 'reminders_recall', name: 'Reminders & Recall', description: 'Automated vaccine/wellness-due reminders and lapsed-client reactivation', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  { id: 'wellness_plans', name: 'Wellness Plans', description: 'Recurring preventive-care memberships billed monthly', category: 'Veterinary', core: false, templates: ['crm-vet'] },
+  { id: 'lab_results', name: 'Lab Results', description: 'Record and attach lab/diagnostic results to the patient', category: 'Veterinary', core: false, templates: ['crm-vet'] },
+  { id: 'rabies_certificates', name: 'Rabies Certificates', description: 'Generate printable rabies vaccination certificates from the vaccine record', category: 'Veterinary', core: false, templates: ['crm-vet'] },
+  { id: 'prescriptions', name: 'Prescriptions', description: 'Non-controlled prescription records (controlled-substance dispensing deferred)', category: 'Veterinary', core: false, templates: ['crm-vet'] },
+
+  // Salon & Barber (crm-salon) — the retention archetype: service menu → the
+  // book → formula record → rebooking reminder. Every id here gates exactly one
+  // sidebar item in the template; nothing is listed that the app doesn't act on.
+  { id: 'client_profiles', name: 'Client Profiles', description: 'Per-client chart — hair type, allergies and patch-test dates, preferences, regular stylist, lifetime value', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
+  { id: 'service_menu', name: 'Service Menu', description: 'Priced menu with durations and per-service rebook intervals — the input to rebooking reminders', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
+  { id: 'salon_booking', name: 'The Book', description: 'Chair and stylist scheduling with check-in, duration from the menu, and double-book protection', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
+  { id: 'rebooking_reminders', name: 'Rebooking & Recall', description: 'Who is due back, who has lapsed, whose birthday is coming — with bulk texting', category: 'Salon & Barber', core: true, templates: ['crm-salon'] },
+  { id: 'salon_memberships', name: 'Memberships & Packages', description: 'Recurring memberships and prepaid visit packages that burn down per redeem', category: 'Salon & Barber', core: false, templates: ['crm-salon'] },
+
+  // Private Events & Catering (crm-restaurant) — enquiry -> booking -> deposit
+  // -> banquet event order. Scoped to the private-events side of a restaurant,
+  // NOT a POS or covers system. Every id here gates exactly one sidebar item or
+  // tab in the template; nothing is listed that the app doesn't act on.
+  { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline and calendar, with per-space double-book protection', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
+  { id: 'event_spaces', name: 'Spaces', description: 'Bookable rooms with seated/standing capacity, minimum spend and hire fees', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
+  { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with structured courses, choices and guest minimums', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
+  { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Minute-by-minute banquet event order the kitchen and floor work from, printable', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
+  { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule per event with overdue tracking across the whole book', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
+
+  // Field Operations
+  { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare'] },
+  { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare'] },
+  { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof'] },
+  { id: 'equipment_tracking', name: 'Equipment', description: 'Equipment and tool tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'fleet', name: 'Fleet Management', description: 'Vehicle fleet tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+
+  // Finance
+  { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing — deposits and payments by card or ACH', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+  { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm', 'crm-dispensary'] },
+  { id: 'vendor_bills', name: 'Bills & Payables', description: 'Vendor bills with due dates, payments, and committed-vs-billed job rollups', category: 'Finance', core: false, templates: ['crm'] },
+  { id: 'vendor_portal', name: 'Vendor Portal', description: 'Subs and suppliers acknowledge POs and submit invoices through a private link', category: 'Communication', core: false, templates: ['crm'] },
+  { id: 'consumer_financing', name: 'Consumer Financing', description: 'F&I lender pre-qualification and finance offers on the deal', category: 'Finance', core: false, templates: ['crm', 'crm-rv', 'crm-roof'] },
+  { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+
+  // Communication
+  { id: 'two_way_texting', name: 'Two-Way Texting', description: 'Unified SMS inbox — every customer conversation logged', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+  { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'google_business', name: 'Google Reviews', description: 'Connect your Google Business Profile — see your rating and reply to reviews from the CRM', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-store'] },
+  { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare'] },
+  { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof'] },
+  { id: 'lead_inbox', name: 'Lead Inbox', description: 'Unified lead feed (Angi/Thumbtack for trades; RV Trader/RVUSA/RVT/Cycle Trader/ATV Trader for dealers)', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+
+  // Marketing
+  { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof'] },
+  { id: 'google_reviews', name: 'Google Reviews', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
+  { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+
+  // Advanced
+  { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
+  { id: 'reports', name: 'Reports', description: 'Drill-down reporting — visits, revenue, reminders due, reactivation', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
+  { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: ['crm'] },
+  { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+
+  // Roofing
+  { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
+  { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'pipeline_board', name: 'Pipeline Board', description: 'Visual Kanban pipeline for roofing jobs', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Storm damage lead generation', category: 'Roofing', core: false, templates: ['crm-roof'] },
+
+  // Dispensary — POS & Sales
+  { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
+  { id: 'products', name: 'Product Catalog', description: 'Product management with strain data, THC/CBD, pricing', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
+  { id: 'orders', name: 'Orders', description: 'Order management and history', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
+  { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — Inventory & Compliance
+  { id: 'dispensary_inventory', name: 'Inventory Tracking', description: 'Stock levels, adjustments, low-stock alerts', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+  { id: 'purchase_limits', name: 'Purchase Limits', description: 'Michigan 2.5oz per transaction enforcement', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+  { id: 'audit_log', name: 'Audit Log', description: 'Immutable audit trail for all sensitive actions', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+  { id: 'id_verification', name: 'ID Verification', description: 'Customer ID verification tracking at pickup/delivery', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+
+  // Dispensary — Loyalty & Marketing
+  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points, tiers, rewards, and referral tracking', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+  { id: 'sms_marketing', name: 'SMS Marketing', description: 'Text message campaigns and opt-in management', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+  { id: 'email_campaigns', name: 'Email Campaigns', description: 'Email marketing and deal notifications', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — Delivery & Online
+  { id: 'delivery', name: 'Delivery', description: 'Delivery zones, driver management, and tracking', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+  { id: 'order_ahead', name: 'Order Ahead', description: 'Online ordering for pickup and delivery', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+  { id: 'public_menu', name: 'Public Menu', description: 'Public-facing product menu with strain info', category: 'Delivery & Online', core: true, templates: ['crm-dispensary'] },
+
+  // Dispensary — Analytics & Merch
+  { id: 'dispensary_analytics', name: 'Analytics', description: 'Sales reports, product performance, peak hours', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'merch_store', name: 'Merch Store', description: 'Non-cannabis merchandise with Stripe checkout', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Compliance & Tracking
+  { id: 'metrc', name: 'Metrc Integration', description: 'Direct Metrc API integration for state compliance sync', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'compliance', name: 'Compliance Reporting', description: 'State-format compliance reports, license management, waste tracking', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'labels', name: 'Label Printing', description: 'Compliant cannabis labels with QR codes, barcodes, custom design', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Inventory & RFID
+  { id: 'multi_location', name: 'Multi-Location', description: 'Run several locations from one account: per-location inventory, transfers and reporting', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'batches', name: 'Batch/Lot Tracking', description: 'Full batch lifecycle from receipt to depletion', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'rfid', name: 'RFID Scanning', description: 'RFID tag management, scanning, and bulk inventory counts', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Delivery & Tracking
+  { id: 'delivery_tracking', name: 'Delivery Tracking', description: 'Real-time GPS tracking, route optimization, customer tracking', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: POS Enhancements
+  { id: 'kiosk', name: 'Self-Service Kiosk', description: 'Customer-facing kiosk for self-service ordering', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'ai_recommendations', name: 'AI Recommendations', description: 'Personalized product suggestions based on purchase history', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'pin_login', name: 'PIN Login', description: 'Quick PIN-based login for budtenders at POS', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'tip_management', name: 'Tip Management', description: 'Collect and distribute tips across budtenders', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Marketing
+  { id: 'referrals', name: 'Referral Program', description: 'Customer referral tracking with automatic rewards', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Analytics & BI
+  { id: 'custom_reports', name: 'Custom Reports & BI', description: 'Report builder, BI widgets, budtender performance', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'bi_dashboard', name: 'BI Dashboard', description: 'Drag-and-drop business intelligence dashboard', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'budtender_performance', name: 'Budtender Performance', description: 'Per-budtender sales attribution and metrics', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'website_analytics', name: 'Website & SEO Analytics', description: 'Page views, traffic sources, UTM campaigns, real-time visitors', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Supply Chain
+  { id: 'cultivation', name: 'Cultivation / Grow Tracking', description: 'Plant tracking from seed to harvest with grow room management', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+  { id: 'manufacturing', name: 'Manufacturing / Processing', description: 'Extraction, infusion, and processing job management', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+  { id: 'wholesale', name: 'Distribution / Wholesale', description: 'B2B customers, wholesale orders, manifests, lab testing/CoA', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+  { id: 'lab_testing', name: 'Lab Testing (CoA)', description: 'Lab test tracking with Certificate of Analysis import', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Enterprise
+  { id: 'multi_store', name: 'Multi-Store / Chain', description: 'Cross-location dashboard and reporting', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'franchise', name: 'Franchise Management', description: 'Manage franchise locations with shared settings', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'open_api', name: 'Open API', description: 'Published OpenAPI spec for third-party integrations', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'ach_payments', name: 'ACH/Bank Transfers', description: 'Accept ACH bank transfer payments', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+
+  // Cross-vertical pages that ship in several templates and are gated in their sidebars
+  { id: 'support_tickets', name: 'Support Tickets', description: 'Customer support ticket queue with statuses and assignment', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'] },
+  { id: 'tech_mobile_view', name: 'Technician / Crew Mobile View', description: 'Mobile-first field view: today\'s route, job details and status updates', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'commission_tracking', name: 'Commission Tracking', description: 'Sales and technician commission rules, statements and payouts', category: 'Finance', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+
+  // Construction pages that ship in crm and were already sold in the construction tier below
+  { id: 'lien_waivers', name: 'Lien Waivers', description: 'Conditional and unconditional lien waiver tracking per payment', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'draw_schedules', name: 'Draw Schedules', description: 'Construction-loan draw schedules and draw requests', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'aia_forms', name: 'AIA G702/G703 Billing', description: 'Application and certificate for payment with continuation sheet', category: 'Construction', core: false, templates: ['crm'] },
+  { id: 'gantt_charts', name: 'Gantt Chart', description: 'Project schedule as a Gantt chart with dependencies', category: 'Construction', core: false, templates: ['crm'] },
+
+  // Roofing
+  { id: 'storm_radar_overlay', name: 'Storm Radar', description: 'Live storm radar overlay on the service-area map', category: 'Roofing', core: false, templates: ['crm-roof'] },
+
+  // Dispensary — sidebar modules that had no registry entry
+  { id: 'checkin', name: 'Customer Check-In', description: 'Front-desk check-in with ID capture', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'queue_management', name: 'Queue Management', description: 'Waiting-room queue and budtender assignment', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'approvals', name: 'Manager Approvals', description: 'Manager PIN approval for discounts, voids and refunds', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'offline_mode', name: 'Offline Mode', description: 'Keep selling when the connection drops and sync later', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'pay_by_bank', name: 'Pay by Bank', description: 'Bank-to-bank checkout for cashless payment', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'ai_budtender', name: 'AI Budtender', description: 'Guided product recommendations from effects, terpenes and purchase history', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'biotrack', name: 'BioTrack Sync', description: 'BioTrackTHC state traceability sync', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'equivalency', name: 'Equivalency Calculator', description: 'Flower-equivalent purchase-limit math per state rules', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'tax_filing', name: 'Tax Filing Reports', description: 'Excise and sales-tax filing summaries', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'fraud_detection', name: 'Fraud Detection', description: 'Transaction anomaly scanning and alerts', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'predictive_inventory', name: 'Inventory Forecasting', description: 'Demand forecasting and reorder suggestions', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'gamified_loyalty', name: 'Loyalty Challenges', description: 'Gamified challenges and streak rewards on top of the loyalty program', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+  { id: 'seo_pages', name: 'SEO Landing Pages', description: 'Auto-generated strain and category landing pages', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+  { id: 'digital_signage', name: 'Digital Signage', description: 'In-store menu boards driven by live inventory', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+  { id: 'curbside', name: 'Curbside Pickup', description: 'Curbside order handoff with arrival notifications', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+  { id: 'menu_sync', name: 'Menu Sync', description: 'Push the live menu to third-party menus and the public menu', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+  { id: 'training_lms', name: 'Training Center', description: 'Budtender onboarding courses and certifications', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'marketplace', name: 'Integrations Marketplace', description: 'Connect third-party menus, payments and compliance tools', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'platform', name: 'Platform Settings', description: 'Advanced platform configuration and API keys', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'soc2', name: 'SOC 2 Controls', description: 'Security controls dashboard and evidence log', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+
+  // Add-on Products
+  // Paid add-on — offered ONLY to contractor (crm) and roofer (crm-roof). Never a plan-tier freebie.
+  { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },
+  // Instant Roof Estimator — NOT ready (2026-08-20). Its routes/pages still exist in crm and
+  // crm-roof and every surface is gated on this id. Offered to NO template and hidden, so it can
+  // never be seeded, toggled or sold; the id stays in the vocabulary so the gates are not "unknown".
+  // Add the templates back only when the feature actually works.
+  { id: 'instant_estimator', name: 'Instant Roof Estimator', description: 'Instant roof estimate from a satellite measurement — not yet available', category: 'Add-on Products', core: false, templates: [], hidden: true },
+]
+
+export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))
+
+export function getCategories(): string[] {
+  const seen = new Set<string>()
+  return FEATURE_REGISTRY.filter(f => { if (seen.has(f.category)) return false; seen.add(f.category); return true }).map(f => f.category)
+}
+
+export function getFeaturesForTemplate(template: string): FeatureDef[] {
+  return FEATURE_REGISTRY.filter(f => f.templates.includes(template))
+}
+
+/**
+ * The sensible LEAN starting set a new tenant is provisioned with — core features only.
+ * Every non-core feature's code still ships with the tenant (the generator never strips
+ * CRM frontend pages, and index.ts statically imports every backend route), so owners
+ * turn extras on anytime from Settings → Features. This keeps the initial sidebar clean
+ * instead of dumping all ~40 modules on a brand-new tenant.
+ */
+export function getDefaultFeaturesForTemplate(template: string): string[] {
+  return FEATURE_REGISTRY.filter(f => f.core && f.templates.includes(template)).map(f => f.id)
+}
+
+/**
+ * Features safe to advertise on public surfaces (signup wizard, pricing pages, plan upsell).
+ * Excludes anything flagged `hidden: true` — features still being built but not ready to sell.
+ */
+export function getAdvertisableFeatures(): FeatureDef[] {
+  return FEATURE_REGISTRY.filter(f => !f.hidden)
+}
+
+/** Public-facing feature list for a single template. Excludes hidden features. */
+export function getAdvertisableFeaturesForTemplate(template: string): FeatureDef[] {
+  return FEATURE_REGISTRY.filter(f => f.templates.includes(template) && !f.hidden)
+}
+
+// Plan tier → feature IDs. Each tier includes all features from lower tiers.
+// Feature IDs MUST match what the sidebar checks in AppLayout.tsx.
+// Each tier is cumulative — includes all lower tier features.
+export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
+  crm: {
+    starter: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
+      'time_tracking', 'expense_tracking', 'documents', 'online_payments', 'client_portal',
+    ],
+    pro: [
+      'two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking',
+      'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs',
+      'service_dispatch', 'drag_drop_calendar', 'lead_inbox',
+      'service_agreements', // agreements page
+    ],
+    business: [
+      'inventory', 'equipment_tracking', 'fleet', 'warranties',
+      'email_marketing', 'call_tracking', 'consumer_financing',
+      'reports', 'job_costing', 'photo_capture', 'referral_program',
+      'paid_ads', 'ai_receptionist',
+    ],
+    construction: [
+      'projects', 'rfis', 'change_orders', 'punch_lists', 'daily_logs', 'inspections',
+      'bid_management', 'takeoff_tools', 'selections',
+      'submittals', 'lien_waivers', 'draw_schedules', 'aia_forms', 'gantt_charts',
+      'custom_dashboards', 'map_view',
+    ],
+    enterprise: [], // visualizer + instant_estimator removed — add-ons, not tier-bundled
+  },
+  'crm-fieldservice': {
+    starter: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
+      'time_tracking', 'online_payments', 'client_portal', 'documents',
+    ],
+    pro: [
+      'two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking',
+      'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs',
+      'service_dispatch', 'drag_drop_calendar', 'lead_inbox',
+      'dispatch_board', 'flat_rate_pricebook', 'service_agreements',
+      'tech_mobile_view',
+    ],
+    business: [
+      'equipment_tracking', 'fleet', 'parts_tracking',
+      'maintenance_contracts', 'warranties', 'inventory',
+      'expense_tracking', 'reports', 'job_costing', 'photo_capture',
+      'call_tracking', 'email_marketing', 'referral_program',
+      'paid_ads', 'ai_receptionist',
+    ],
+    fleet: [
+      'multi_location', 'commission_tracking', 'map_view',
+    ],
+    enterprise: [], // visualizer not offered to fieldservice
+  },
+  'crm-landscaping': {
+    starter: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
+      'time_tracking', 'online_payments', 'client_portal', 'documents',
+    ],
+    pro: [
+      'two_way_texting', 'gps_tracking', 'recurring_jobs', 'drag_drop_calendar',
+      'service_dispatch', 'photo_capture', 'google_reviews',
+      'lead_inbox', 'online_booking', 'tech_mobile_view', 'recurring_routes',
+    ],
+    business: [
+      'route_optimization', 'job_costing', 'service_agreements', 'pricebook',
+      'quickbooks', 'expense_tracking', 'reports', 'map_view', 'area_pricing',
+    ],
+    fleet: [
+      'equipment_tracking', 'fleet', 'dispatch_board', 'multi_location',
+      'call_tracking', 'email_marketing', 'referral_program', 'paid_ads',
+      'ai_receptionist', 'snow_billing',
+    ],
+    enterprise: [],
+  },
+  'crm-roof': {
+    starter: [
+      'contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard',
+      'documents', 'client_portal', 'lead_inbox', 'crews',
+    ],
+    pro: [
+      'pricebook', 'measurement_reports', 'google_reviews',
+      'two_way_texting', 'quickbooks',
+    ],
+    business: [
+      'insurance_workflow', 'materials', 'call_tracking', 'reports',
+      'photo_capture', 'consumer_financing',
+    ],
+    storm: [
+      'storm_lead_gen', 'canvassing_tool', 'ai_receptionist', 'paid_ads',
+    ],
+    enterprise: [], // visualizer removed — paid add-on, not tier-bundled
+  },
+  'crm-homecare': {
+    starter: [
+      'contacts', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'documents',
+    ],
+    pro: [
+      'two_way_texting', 'pricebook', 'lead_inbox', 'gps_tracking',
+    ],
+    business: [
+      'quickbooks', 'reports', 'call_tracking',
+    ],
+    agency: [
+      'ai_receptionist',
+    ],
+    enterprise: [],
+  },
+}
+
+/**
+ * Pricing model v2 (2026-07) seat-tiered plans: every feature is included and
+ * free to toggle — EXCEPT paid Add-on Products (Exterior Visualizer, Instant
+ * Roof Estimator: off by default everywhere, sold separately) and features
+ * still flagged hidden. The unknown-plan fallback shares this filter: v2 plans
+ * used to miss the v1 tier map and fall into "give ALL features", which shipped
+ * every fleet-QA tenant with the paid add-ons switched on.
+ */
+function includedByDefault(template: string): string[] {
+  return getFeaturesForTemplate(template)
+    .filter(f => f.category !== 'Add-on Products' && !f.hidden)
+    .map(f => f.id)
+}
+
+const V2_PLANS = new Set(['website', 'starter10', 'team25', 'business50'])
+
+/**
+ * Get all feature IDs a plan tier unlocks for a given template.
+ * Each v1 tier includes all lower-tier features (cumulative); v2 seat tiers
+ * all resolve to everything-except-paid-add-ons.
+ */
+export function getFeaturesForPlan(template: string, plan: string): string[] {
+  if (V2_PLANS.has(plan)) return includedByDefault(template)
+
+  const tiers = PLAN_TIERS[template]
+  if (!tiers) return includedByDefault(template)
+
+  const tierOrder = Object.keys(tiers)
+  const planIndex = tierOrder.indexOf(plan)
+
+  if (planIndex === -1) {
+    // Unknown plan — everything except paid add-ons / hidden. Never the raw
+    // full list: a plan-name typo must not silently enable paid add-ons.
+    return includedByDefault(template)
+  }
+
+  const features: string[] = []
+  for (let i = 0; i <= planIndex; i++) {
+    features.push(...tiers[tierOrder[i]])
+  }
+  return features
+}

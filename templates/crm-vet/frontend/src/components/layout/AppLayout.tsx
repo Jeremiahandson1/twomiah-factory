@@ -40,7 +40,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', features: ['invoices'] },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
   { to: '/crm/team', icon: Users, label: 'Team' },
-  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'] },
+  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'] },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
   { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'] },

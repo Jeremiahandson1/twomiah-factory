@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import { getFeaturesForPlan } from '../shared/featureRegistry.ts'
+import { CRM_TEMPLATE } from '../config/template.ts'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import crypto from 'crypto'
@@ -41,25 +43,6 @@ async function revokeRefreshToken(userId: string, token: string | null | undefin
   const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
   const next = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
   await db.update(user).set({ refreshToken: next.length ? JSON.stringify(next) : null, updatedAt: new Date() } as any).where(eq(user.id, userId))
-}
-
-// Feature sets for each plan tier
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'dashboard', 'measurement_reports',
-  ],
-  pro: [
-    'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'dashboard', 'measurement_reports',
-    'insurance_workflow', 'customer_portal', 'two_way_texting', 'crews', 'materials',
-    'photo_capture', 'reports',
-  ],
-  business: [
-    'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'dashboard', 'measurement_reports',
-    'insurance_workflow', 'customer_portal', 'two_way_texting', 'crews', 'materials',
-    'photo_capture', 'reports',
-    'canvassing_tool', 'storm_lead_gen', 'quickbooks_sync', 'pipeline_board',
-  ],
-  enterprise: ['all'],
 }
 
 // Plan limits
@@ -113,7 +96,7 @@ app.post('/signup', async (c) => {
   const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
 
   // Get features for the selected plan
-  const enabledFeatures = PLAN_FEATURES[data.plan] || PLAN_FEATURES.starter
+  const enabledFeatures = getFeaturesForPlan(CRM_TEMPLATE, data.plan)
   const limits = PLAN_LIMITS[data.plan] || PLAN_LIMITS.starter
 
   // Calculate trial end date (30 days)

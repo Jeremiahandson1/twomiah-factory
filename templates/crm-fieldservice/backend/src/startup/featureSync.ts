@@ -1,44 +1,28 @@
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
+import { getFeaturesForPlan, getFeaturesForTemplate } from '../shared/featureRegistry.ts'
+import { CRM_TEMPLATE } from '../config/template.ts'
 
-const ALL_FEATURES = [
-  'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
-  'documents', 'photos', 'payments',
-  'gps_tracking', 'route_optimization', 'equipment_tracking', 'fleet',
-  'inspections', 'daily_logs', 'punch_lists',
-  'projects', 'change_orders', 'rfis', 'bids', 'gantt', 'selections',
-  'takeoffs', 'takeoff_tools', 'lien_waivers', 'draw_schedules', 'job_costing',
-  'service_agreements', 'warranties', 'recurring_jobs', 'pricebook',
-  'consumer_financing',
-  'email_campaigns', 'email_marketing', 'google_reviews', 'reviews',
-  'referral_program', 'call_tracking', 'two_way_texting', 'sms',
-  'quickbooks', 'customer_portal', 'online_booking',
-  'inventory', 'purchase_orders', 'reports', 'bid_management',
-]
-
+// Boot-time fill for a company whose enabledFeatures is EMPTY (tenants provisioned before the Factory
+// seeded features, or a wiped column). Resolves the plan through the shared registry — the same
+// function the Factory uses — so only registry ids ever land in the column. A populated list is never
+// touched here: the Factory sync and Settings → Features own it from then on.
 export async function syncFeatures() {
-  const pkg = process.env.FEATURE_PACKAGE
-  if (!pkg) return
-
-  const features = pkg === 'enterprise' ? ALL_FEATURES : []
-  if (features.length === 0) return
-
   try {
     const [comp] = await db.select().from(company).limit(1)
     if (!comp) return
-
-    const current = new Set((comp.enabledFeatures || []) as string[])
-    const desired = [...new Set(features)]
-    const alreadySet = desired.every(f => current.has(f))
-
-    if (alreadySet) {
-      console.log(`[featureSync] ${pkg} features already set — skipping`)
+    const current = (comp.enabledFeatures || []) as string[]
+    if (current.length > 0) {
+      console.log(`[featureSync] Company has ${current.length} features — skipping`)
       return
     }
-
-    await db.update(company).set({ enabledFeatures: desired }).where(eq(company.id, comp.id))
-    console.log(`[featureSync] Enabled ${desired.length} features for ${pkg} package`)
+    const plan = process.env.FEATURE_PACKAGE || (comp as any).subscriptionTier || 'starter'
+    const desired = new Set(getFeaturesForPlan(CRM_TEMPLATE, plan))
+    // The Exterior Visualizer is a paid add-on switched on by the Factory setting VISION_URL.
+    if (process.env.VISION_URL && getFeaturesForTemplate(CRM_TEMPLATE).some(f => f.id === 'visualizer')) desired.add('visualizer')
+    await db.update(company).set({ enabledFeatures: [...desired], subscriptionTier: plan } as any).where(eq(company.id, comp.id))
+    console.log(`[featureSync] Enabled ${desired.size} features for ${plan} plan`)
   } catch (err: any) {
     console.error('[featureSync] Failed to sync features:', err.message)
   }
