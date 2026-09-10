@@ -122,12 +122,15 @@ app.get('/summary', async (c) => {
     db.execute(sql`
       SELECT
         COUNT(*)::int as total_orders,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END)::int as completed_orders,
+        COUNT(CASE WHEN status IN ('completed', 'partially_refunded') THEN 1 END)::int as completed_orders,
         COUNT(CASE WHEN status = 'refunded' THEN 1 END)::int as refunded_orders,
-        COALESCE(SUM(CASE WHEN status = 'completed' THEN total::numeric ELSE 0 END), 0) as revenue,
+        -- Revenue is NET of refunds: a partially-refunded sale counts what the customer kept,
+        -- a fully-refunded one counts $0 (go-live QA V-3).
+        COALESCE(SUM(CASE WHEN status IN ('completed', 'partially_refunded') THEN total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0) ELSE 0 END), 0) as revenue,
         COALESCE(SUM(CASE WHEN status = 'completed' THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
-        COALESCE(SUM(CASE WHEN status = 'completed' THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
-        COALESCE(AVG(CASE WHEN status = 'completed' THEN total::numeric END), 0) as avg_order_value,
+        COALESCE(SUM(CASE WHEN status IN ('completed', 'partially_refunded') THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
+        COALESCE(AVG(CASE WHEN status IN ('completed', 'partially_refunded') THEN total::numeric END), 0) as avg_order_value,
+        COALESCE(SUM(CASE WHEN status IN ('refunded', 'partially_refunded') THEN COALESCE(NULLIF(refunded_amount, '')::numeric, total::numeric) ELSE 0 END), 0) as refunds_total,
         COUNT(CASE WHEN type = 'walk_in' THEN 1 END)::int as walk_in_count,
         COUNT(CASE WHEN type = 'delivery' THEN 1 END)::int as delivery_count,
         COUNT(CASE WHEN type = 'online' THEN 1 END)::int as online_count,
@@ -246,12 +249,25 @@ app.get('/customers', async (c) => {
         SELECT contact_id, COUNT(*)::int AS order_count
         FROM range_orders
         GROUP BY contact_id
+      ),
+      first_ever AS (
+        SELECT contact_id, MIN(COALESCE(completed_at, created_at)) AS first_at
+        FROM orders
+        WHERE company_id = ${currentUser.companyId}
+          AND status = 'completed'
+          AND contact_id IS NOT NULL
+        GROUP BY contact_id
       )
+      -- new + returning must equal unique (go-live QA M-8): a RETURNING customer is one who
+      -- bought in the range AND had bought before the range started; everyone else in the
+      -- range is NEW. The old "order_count > 1" definition counted a first-time customer who
+      -- came back twice inside the window as both new and returning.
       SELECT
         COUNT(*)::int AS unique_customers,
-        COUNT(CASE WHEN order_count > 1 THEN 1 END)::int AS returning_customers,
-        COALESCE(AVG(order_count), 0) AS avg_visits
-      FROM per_customer
+        COUNT(CASE WHEN fe.first_at < ${start} THEN 1 END)::int AS returning_customers,
+        COALESCE(AVG(pc.order_count), 0) AS avg_visits
+      FROM per_customer pc
+      LEFT JOIN first_ever fe ON fe.contact_id = pc.contact_id
     `),
     // New customers: contacts whose FIRST-EVER completed order (lifetime) lands in the range.
     db.execute(sql`
@@ -292,7 +308,9 @@ app.get('/customers', async (c) => {
 
   return c.json({
     uniqueCustomers,
-    newCustomers: Number(newRow.new_customers || 0),
+    // Derived so the three always reconcile: new = unique − returning (M-8).
+    newCustomers: Math.max(0, uniqueCustomers - returningCustomers),
+    newCustomersLifetimeFirstOrder: Number(newRow.new_customers || 0),
     returningCustomers,
     retentionRate,
     avgVisits: Number(range.avg_visits || 0),

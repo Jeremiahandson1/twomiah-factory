@@ -209,10 +209,27 @@ export default function OrderDetailPage() {
                 <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600 dark:text-slate-400">Subtotal</td>
                 <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-slate-100">${Number(order.subtotal || 0).toFixed(2)}</td>
               </tr>
+              {/* The order stores excise_tax / sales_tax / total_tax (and tax_amount). This read
+                  `order.tax`, which does not exist, so every detail page showed Tax $0.00 while
+                  the total included $6.25 of tax (go-live QA M-2). */}
+              {Number(order.exciseTax || 0) > 0 && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600 dark:text-slate-400">Excise Tax</td>
+                  <td className="px-4 py-2 text-right text-gray-700 dark:text-slate-200">${Number(order.exciseTax || 0).toFixed(2)}</td>
+                </tr>
+              )}
               <tr>
-                <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600 dark:text-slate-400">Tax</td>
-                <td className="px-4 py-2 text-right text-gray-700 dark:text-slate-200">${Number(order.tax || 0).toFixed(2)}</td>
+                <td colSpan={3} className="px-4 py-2 text-right text-sm text-gray-600 dark:text-slate-400">{Number(order.exciseTax || 0) > 0 ? 'Sales Tax' : 'Tax'}</td>
+                <td className="px-4 py-2 text-right text-gray-700 dark:text-slate-200">
+                  ${Number(Number(order.exciseTax || 0) > 0 ? (order.salesTax ?? (Number(order.totalTax ?? order.taxAmount ?? 0) - Number(order.exciseTax || 0))) : (order.totalTax ?? order.taxAmount ?? order.salesTax ?? order.tax ?? 0)).toFixed(2)}
+                </td>
               </tr>
+              {Number(order.discountAmount || 0) > 0 && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600">Discount</td>
+                  <td className="px-4 py-2 text-right text-green-600">-${Number(order.discountAmount).toFixed(2)}</td>
+                </tr>
+              )}
               {order.loyaltyDiscount > 0 && (
                 <tr>
                   <td colSpan={3} className="px-4 py-2 text-right text-sm text-green-600">Loyalty Discount</td>

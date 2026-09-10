@@ -163,7 +163,13 @@ app.get('/trending', async (c) => {
         AND oi.product_id IS NOT NULL
       GROUP BY oi.product_id
     )
-    SELECT p.*, ic.order_count
+    -- The page reads camelCase (orderCount); this returned order_count, so every trending row
+    -- showed "0 orders" even for products with real sales (go-live QA L-3). Expose both.
+    SELECT p.*, ic.order_count::int AS order_count, ic.order_count::int AS "orderCount",
+           (SELECT COUNT(DISTINCT o2.id)::int FROM order_items oi2 JOIN orders o2 ON o2.id = oi2.order_id
+             WHERE oi2.product_id = p.id AND o2.company_id = ${currentUser.companyId}
+               AND o2.created_at >= NOW() - INTERVAL '7 days' AND o2.status NOT IN ('cancelled', 'refunded')) AS "orders",
+           ic.order_count::int AS "unitsSold"
     FROM item_counts ic
     JOIN products p ON p.id = ic.product_id
     WHERE p.active = true
@@ -171,7 +177,12 @@ app.get('/trending', async (c) => {
     LIMIT 20
   `)
 
-  return c.json((result as any).rows || result)
+  const rows = ((result as any).rows || result).map((r: any) => {
+    const out: any = {}
+    for (const k of Object.keys(r)) out[k.includes('_') ? k.replace(/_([a-z])/g, (_m: string, ch: string) => ch.toUpperCase()) : k] = r[k]
+    return { ...r, ...out }
+  })
+  return c.json(rows)
 })
 
 // GET /similar/:productId — Products similar to a given product

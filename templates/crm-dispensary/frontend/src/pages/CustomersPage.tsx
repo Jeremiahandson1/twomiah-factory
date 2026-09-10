@@ -122,8 +122,10 @@ export default function CustomersPage() {
         await api.put(`/api/contacts/${editingCustomer.id}`, formData);
         toast.success('Customer updated');
       } else {
-        await api.post('/api/contacts', formData);
+        const created: any = await api.post('/api/contacts', formData);
         toast.success('Customer created');
+        // Server flags 18–20 year olds (medical-only) — show it, don't bury it. (L-2)
+        for (const w of created?.warnings || []) toast.error(w);
       }
       setModalOpen(false);
       loadCustomers();

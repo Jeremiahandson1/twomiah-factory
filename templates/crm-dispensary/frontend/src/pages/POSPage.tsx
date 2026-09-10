@@ -28,7 +28,9 @@ const categories = [
   { value: 'accessory', label: 'Merch' },
 ];
 
-const WEIGHT_LIMIT_OZ = 2.5;
+// The per-transaction purchase limit comes from Settings (company.purchaseLimitOz), loaded below;
+// this is only the fallback until it arrives. (go-live QA V-1)
+const DEFAULT_WEIGHT_LIMIT_OZ = 2.5;
 
 export default function POSPage() {
   const { user } = useAuth();
@@ -60,6 +62,15 @@ export default function POSPage() {
   // Cannabis excise rate (Settings → exciseTaxRate). The register showed a single "Tax" line
   // and no excise, so the quoted total disagreed with the recorded order. (QA F-01)
   const [exciseRate, setExciseRate] = useState(0.15);
+  const [WEIGHT_LIMIT_OZ, setWeightLimitOz] = useState(DEFAULT_WEIGHT_LIMIT_OZ);
+
+  // Loyalty reward redemption (go-live QA M-7): rewards come from Loyalty → Rewards; the
+  // cashier picks one, the server prices it and charges its points. The old flow applied an
+  // opaque "$1 per 100 pts" discount that never touched the catalog.
+  const [rewards, setRewards] = useState<any[]>([]);
+  const [memberPoints, setMemberPoints] = useState<number | null>(null);
+  const [rewardPickerOpen, setRewardPickerOpen] = useState(false);
+  const [selectedReward, setSelectedReward] = useState<any>(null);
 
   useEffect(() => {
     loadProducts();
@@ -72,6 +83,12 @@ export default function POSPage() {
       if (Number.isFinite(r)) setTaxRate(r / 100);
       const e = co?.exciseTaxRate != null && co?.exciseTaxRate !== '' ? Number(co.exciseTaxRate) : NaN;
       if (Number.isFinite(e)) setExciseRate(e / 100);
+      const lim = Number(co?.purchaseLimitOz);
+      if (Number.isFinite(lim) && lim > 0) setWeightLimitOz(lim);
+    }).catch(() => {});
+    api.get('/api/loyalty/rewards').then((r: any) => {
+      const list = Array.isArray(r) ? r : r?.data || [];
+      setRewards(list.filter((x: any) => x.isActive !== false && x.active !== false));
     }).catch(() => {});
   }, []);
 
@@ -213,6 +230,26 @@ export default function POSPage() {
     return typeof stock === 'number' && i.quantity > stock;
   });
 
+  // Price a catalog reward against the current cart (mirrors the server — the server's number wins).
+  const rewardValue = (r: any): { discount: number; problem?: string } => {
+    const val = Number(r.discountValue || 0);
+    const type = String(r.discountType || 'fixed');
+    if (type === 'percent') {
+      const cats: string[] = (Array.isArray(r.applicableCategories) ? r.applicableCategories : []).map((x: any) => String(x).toLowerCase());
+      const base = cats.length
+        ? cart.filter(i => cats.includes(String(i.category || '').toLowerCase())).reduce((s, i) => s + i.price * i.quantity, 0)
+        : subtotal;
+      if (cats.length && base <= 0) return { discount: 0, problem: `applies to ${cats.join('/')} items — none in cart` };
+      return { discount: round2(base * val / 100) };
+    }
+    if (type === 'free_item') {
+      const line = r.productId ? cart.find(i => i.productId === r.productId) : null;
+      if (!line) return { discount: 0, problem: 'add the reward product to the cart first' };
+      return { discount: round2(line.price) };
+    }
+    return { discount: round2(Math.min(val, subtotal)) };
+  };
+
   const applyLoyalty = async () => {
     if (!customer) {
       toast.error('Select a customer first');
@@ -220,20 +257,62 @@ export default function POSPage() {
     }
     try {
       const data = await api.get('/api/loyalty/check', { phone: customer.phone || '' });
-      if (!data.found || !data.points_balance || data.points_balance < 100) {
+      if (!data.found) {
+        toast.error('Customer is not enrolled in the loyalty program');
+        return;
+      }
+      const balance = Number(data.points_balance || 0);
+      setMemberPoints(balance);
+      if (rewards.length > 0) {
+        // Let the cashier pick from the configured Rewards catalog.
+        if (!rewards.some(r => balance >= Number(r.pointsCost || r.pointsRequired || 0))) {
+          const cheapest = Math.min(...rewards.map(r => Number(r.pointsCost || r.pointsRequired || 0)));
+          toast.error(`No rewards available yet — ${balance} pts (cheapest reward is ${cheapest} pts)`);
+          return;
+        }
+        setRewardPickerOpen(true);
+        return;
+      }
+      // No catalog configured: fall back to the generic conversion ($1 per 100 pts, max 10% of subtotal).
+      if (balance < 100) {
         toast.error('No rewards available (need at least 100 points)');
         return;
       }
-      // Apply $1 per 100 points, max 10% of subtotal
       const maxDiscount = subtotal * 0.1;
-      const pointsDiscount = Math.floor(data.points_balance / 100);
+      const pointsDiscount = Math.floor(balance / 100);
       const discount = Math.min(pointsDiscount, maxDiscount);
+      setSelectedReward(null);
       setLoyaltyDiscount(discount);
       setLoyaltyApplied(true);
-      toast.success(`Loyalty discount applied: $${Number(discount).toFixed(2)} (${data.points_balance} pts)`);
+      toast.success(`Loyalty discount applied: $${Number(discount).toFixed(2)} (${balance} pts)`);
     } catch (err: any) {
       toast.error(err.message || 'No rewards available');
     }
+  };
+
+  const chooseReward = (r: any) => {
+    const cost = Number(r.pointsCost || r.pointsRequired || 0);
+    if (memberPoints != null && memberPoints < cost) {
+      toast.error(`Needs ${cost} pts — customer has ${memberPoints}`);
+      return;
+    }
+    const { discount, problem } = rewardValue(r);
+    if (problem) {
+      toast.error(`${r.name}: ${problem}`);
+      return;
+    }
+    setSelectedReward(r);
+    setLoyaltyDiscount(discount);
+    setLoyaltyApplied(true);
+    setRewardPickerOpen(false);
+    toast.success(`${r.name} applied: -$${discount.toFixed(2)} for ${cost} pts`);
+  };
+
+  const clearLoyalty = () => {
+    setSelectedReward(null);
+    setLoyaltyDiscount(0);
+    setLoyaltyApplied(false);
+    setRewardPickerOpen(false);
   };
 
   const completeOrder = async () => {
@@ -270,7 +349,12 @@ export default function POSPage() {
         // redeemed (server converts 100 pts = $1). Sending it AGAIN as discountAmount made
         // the server apply it twice (loyalty + "manager" discount). (QA discount audit)
         discountAmount: 0,
-        loyaltyPointsRedeemed: loyaltyApplied ? Math.round(discountAmount * 100) : 0,
+        // A catalog reward is redeemed by id (server prices it + charges its pointsCost);
+        // the generic fallback still sends points at 100 pts = $1.
+        loyaltyRewardId: loyaltyApplied && selectedReward ? selectedReward.id : undefined,
+        loyaltyPointsRedeemed: loyaltyApplied
+          ? (selectedReward ? Number(selectedReward.pointsCost || selectedReward.pointsRequired || 0) : Math.round(discountAmount * 100))
+          : 0,
       });
       // Settle the sale immediately. Creating the order alone left it 'pending':
       // stock never decremented (B2), paymentStatus stayed pending (B6), the tender
@@ -292,6 +376,8 @@ export default function POSPage() {
       setIdVerified(false);
       setLoyaltyApplied(false);
       setLoyaltyDiscount(0);
+      setSelectedReward(null);
+      setMemberPoints(null);
       searchRef.current?.focus();
     } catch (err: any) {
       toast.error(err.message || 'Failed to complete order');
@@ -521,7 +607,10 @@ export default function POSPage() {
             </div>
             {loyaltyApplied && discountAmount > 0 && (
               <div className="flex justify-between text-green-600">
-                <span>Loyalty Discount</span>
+                <span>
+                  {selectedReward ? `${selectedReward.name} (${Number(selectedReward.pointsCost || selectedReward.pointsRequired || 0)} pts)` : 'Loyalty Discount'}
+                  <button onClick={clearLoyalty} className="ml-2 text-xs text-gray-400 hover:text-red-500" title="Remove reward">✕</button>
+                </span>
                 <span>-${Number(discountAmount).toFixed(2)}</span>
               </div>
             )}
@@ -542,13 +631,45 @@ export default function POSPage() {
           </div>
 
           {/* Loyalty */}
-          {customer && !loyaltyApplied && (
+          {customer && !loyaltyApplied && !rewardPickerOpen && (
             <button
               onClick={applyLoyalty}
               className="w-full px-3 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg text-sm font-medium hover:bg-amber-100 flex items-center justify-center gap-2"
             >
-              <Gift className="w-4 h-4" /> Apply Loyalty Reward
+              <Gift className="w-4 h-4" /> {rewards.length ? 'Redeem a Reward' : 'Apply Loyalty Reward'}
             </button>
+          )}
+          {rewardPickerOpen && (
+            <div className="border border-amber-200 rounded-lg bg-amber-50 p-2 space-y-1 dark:bg-slate-800 dark:border-slate-700">
+              <div className="flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 px-1">
+                <span>Rewards · {memberPoints ?? 0} pts available</span>
+                <button onClick={() => setRewardPickerOpen(false)} className="text-gray-500 hover:text-gray-800">Cancel</button>
+              </div>
+              {rewards.map(r => {
+                const cost = Number(r.pointsCost || r.pointsRequired || 0);
+                const { discount, problem } = rewardValue(r);
+                const affordable = memberPoints == null || memberPoints >= cost;
+                const disabled = !affordable || !!problem;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => chooseReward(r)}
+                    disabled={disabled}
+                    title={problem || (!affordable ? `Needs ${cost} pts` : '')}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm flex items-center justify-between ${
+                      disabled ? 'bg-white/60 text-gray-400 cursor-not-allowed dark:bg-slate-900/40' : 'bg-white hover:bg-amber-100 text-gray-900 dark:bg-slate-900 dark:text-slate-100'
+                    }`}
+                  >
+                    <span>
+                      <span className="font-medium">{r.name}</span>
+                      <span className="ml-2 text-xs text-gray-500">{cost} pts</span>
+                      {problem && <span className="ml-2 text-xs text-red-500">{problem}</span>}
+                    </span>
+                    <span className="text-green-700 font-medium">{problem ? '' : `-$${discount.toFixed(2)}`}</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {/* Payment Method */}

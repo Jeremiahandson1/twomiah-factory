@@ -130,7 +130,8 @@ class ApiClient {
   }
 
   async logout() {
-    await this.request('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    // Send this device's refresh token so only THIS session is revoked (other registers stay in).
+    await this.request('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken: this.refreshToken }) }).catch(() => {});
     this.clearTokens();
   }
 

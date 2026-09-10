@@ -115,9 +115,35 @@ handleUncaughtExceptions()
 
 const app = new Hono()
 
+// Content-Security-Policy (go-live QA L-7). The SPA is served from this origin; Vite emits
+// external bundles (no inline scripts), styles are Tailwind classes plus a few inline style
+// attributes, images come from /media (same origin), R2 or a customer's own https URL, and the
+// only third-party script surface is Stripe. connect-src stays https:/wss: because the API host
+// can differ from the page host on custom domains. Tighten further once every tenant is on one host.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://js.stripe.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' https: wss:",
+  "frame-src https://js.stripe.com https://hooks.stripe.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+  'upgrade-insecure-requests',
+].join('; ')
 app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin',
 }))
+app.use('*', async (c, next) => {
+  await next()
+  // Public menu/kiosk pages may be embedded by the tenant's website — they set their own policy.
+  if (!c.res.headers.has('Content-Security-Policy')) c.res.headers.set('Content-Security-Policy', CSP)
+})
 
 // CORS — allow all origins; auth is handled by JWT, not origin checks
 app.use('*', cors({

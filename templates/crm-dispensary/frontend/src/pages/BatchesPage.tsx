@@ -151,6 +151,20 @@ export default function BatchesPage() {
       toast.error('Batch number is required');
       return;
     }
+    // Date sanity (the server enforces the same rules): expiration and package date can't
+    // precede harvest, and a past expiration is flagged before saving. (go-live QA M-6)
+    const today = new Date().toISOString().slice(0, 10);
+    if (batchForm.harvestDate && batchForm.expirationDate && batchForm.expirationDate < batchForm.harvestDate) {
+      toast.error('Expiration date cannot be before the harvest date');
+      return;
+    }
+    if (batchForm.harvestDate && batchForm.packageDate && batchForm.packageDate < batchForm.harvestDate) {
+      toast.error('Package date cannot be before the harvest date');
+      return;
+    }
+    if (batchForm.expirationDate && batchForm.expirationDate < today && !editingBatch) {
+      if (!window.confirm('The expiration date is in the past — this batch will be recorded as EXPIRED (not sellable). Continue?')) return;
+    }
     setSavingBatch(true);
     try {
       const payload = {
@@ -160,6 +174,9 @@ export default function BatchesPage() {
         // quantity/unit, so Create silently 400'd "initialQuantity: Required". (M10)
         initialQuantity: parseFloat(batchForm.quantity) || 0,
         unitOfMeasure: batchForm.unit || 'grams',
+        // Column names for the dates the form collects (server accepts both spellings). (M-5)
+        manufacturingDate: batchForm.harvestDate || undefined,
+        receivedDate: batchForm.packageDate || undefined,
         thcPercent: batchForm.thcPercent ? parseFloat(batchForm.thcPercent) : null,
         cbdPercent: batchForm.cbdPercent ? parseFloat(batchForm.cbdPercent) : null,
       };
@@ -608,7 +625,7 @@ export default function BatchesPage() {
                 value={batchForm.batchNumber}
                 onChange={(e) => setBatchForm({ ...batchForm, batchNumber: e.target.value })}
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-white"
-                placeholder="BATCH-2026-001"
+                placeholder="e.g. BATCH-2026-001 (required)"
               />
             </div>
             <div>

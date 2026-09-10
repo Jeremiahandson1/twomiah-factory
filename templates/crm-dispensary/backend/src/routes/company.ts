@@ -30,7 +30,7 @@ app.get('/', async (c) => {
 
 app.put('/', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
-  const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), taxRate: z.union([z.string(), z.number()]).optional(), localTaxRate: z.union([z.string(), z.number()]).optional(), exciseTaxRate: z.union([z.string(), z.number()]).optional(), settings: z.record(z.any()).optional() })
+  const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), taxRate: z.union([z.string(), z.number()]).optional(), localTaxRate: z.union([z.string(), z.number()]).optional(), exciseTaxRate: z.union([z.string(), z.number()]).optional(), purchaseLimitOz: z.union([z.string(), z.number()]).optional(), settings: z.record(z.any()).optional() })
   // .catch: a missing or malformed body must not throw past validation into a
   // 500 — the caller gets a 400 that names the problem instead.
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -41,6 +41,11 @@ app.put('/', requireAdmin, async (c) => {
   if (data.taxRate !== undefined) data.taxRate = String(data.taxRate)
   if (data.localTaxRate !== undefined) data.localTaxRate = String(data.localTaxRate)
   if (data.exciseTaxRate !== undefined) data.exciseTaxRate = String(data.exciseTaxRate)
+  if (data.purchaseLimitOz !== undefined) {
+    const n = Number(data.purchaseLimitOz)
+    if (!Number.isFinite(n) || n <= 0 || n > 16) return c.json({ error: 'purchaseLimitOz must be a number between 0 and 16 (oz flower-equivalent per transaction)' }, 400)
+    data.purchaseLimitOz = String(n)
+  }
   const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(sanitizeCompany(result))

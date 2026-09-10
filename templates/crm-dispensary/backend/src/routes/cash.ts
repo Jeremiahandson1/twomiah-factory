@@ -48,19 +48,25 @@ app.get('/sessions', async (c) => {
     FROM cash_sessions cs
     LEFT JOIN "user" ou ON ou.id = cs.opened_by_id
     LEFT JOIN "user" cu ON cu.id = cs.closed_by_id
+    -- Cash IN: every cash sale settled in the window (whatever happened to it later — a sale
+    -- that was later refunded still put cash in this drawer). Cash OUT: refunds PAID in the
+    -- window (keyed on refunded_at, summing refunded_amount) — a refund of yesterday's sale
+    -- comes out of TODAY's drawer. The old query keyed refunds on the sale's completed_at and
+    -- only counted fully-refunded orders, so a cash refund of an earlier sale left "Cash
+    -- Refunds $0.00" and a false variance at reconciliation. (go-live QA M-3)
     LEFT JOIN LATERAL (
       SELECT COALESCE(SUM(o.total::numeric), 0) as amt FROM orders o
-      WHERE o.company_id = cs.company_id AND o.status = 'completed'
-        AND o.payment_method = 'cash' AND COALESCE(o.payment_status, '') <> 'refunded'
+      WHERE o.company_id = cs.company_id AND o.status IN ('completed', 'refunded', 'partially_refunded')
+        AND o.payment_method = 'cash'
         AND o.completed_at >= cs.opened_at
         AND (cs.closed_at IS NULL OR o.completed_at <= cs.closed_at)
     ) sales ON true
     LEFT JOIN LATERAL (
-      SELECT COALESCE(SUM(o.total::numeric), 0) as amt FROM orders o
-      WHERE o.company_id = cs.company_id AND o.status = 'completed'
-        AND o.payment_method = 'cash' AND o.payment_status = 'refunded'
-        AND o.completed_at >= cs.opened_at
-        AND (cs.closed_at IS NULL OR o.completed_at <= cs.closed_at)
+      SELECT COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as amt FROM orders o
+      WHERE o.company_id = cs.company_id AND o.status IN ('refunded', 'partially_refunded')
+        AND o.payment_method = 'cash'
+        AND o.refunded_at >= cs.opened_at
+        AND (cs.closed_at IS NULL OR o.refunded_at <= cs.closed_at)
     ) refunds ON true
     WHERE cs.company_id = ${currentUser.companyId}
       ${statusFilter}
@@ -98,27 +104,38 @@ app.get('/sessions/:id', async (c) => {
   const session = ((sessionResult as any).rows || sessionResult)?.[0]
   if (!session) return c.json({ error: 'Session not found' }, 404)
 
-  // Get cash transactions during this session
+  // Cash sales settled in this session (any later refund is a separate OUT line below).
   const transactionsResult = await db.execute(sql`
-    SELECT o.number, o.total, o.cash_tendered, o.change_due, o.payment_method, o.payment_status, o.completed_at
+    SELECT 'sale' as kind, o.number, o.total, o.cash_tendered, o.change_due, o.payment_method, o.payment_status, o.completed_at, o.completed_at as at
     FROM orders o
     WHERE o.company_id = ${currentUser.companyId}
-      AND o.status = 'completed'
+      AND o.status IN ('completed', 'refunded', 'partially_refunded')
       AND o.payment_method = 'cash'
       AND o.completed_at >= ${new Date(session.opened_at)}
       ${session.closed_at ? sql`AND o.completed_at <= ${new Date(session.closed_at)}` : sql``}
     ORDER BY o.completed_at ASC
   `)
+  // Cash refunds PAID OUT during this session (keyed on refunded_at — the sale may predate
+  // the drawer). (go-live QA M-3)
+  const refundsResult = await db.execute(sql`
+    SELECT 'refund' as kind, o.number, o.refunded_amount as total, o.payment_method, o.payment_status, o.completed_at, o.refunded_at as at
+    FROM orders o
+    WHERE o.company_id = ${currentUser.companyId}
+      AND o.status IN ('refunded', 'partially_refunded')
+      AND o.payment_method = 'cash'
+      AND o.refunded_at >= ${new Date(session.opened_at)}
+      ${session.closed_at ? sql`AND o.refunded_at <= ${new Date(session.closed_at)}` : sql``}
+    ORDER BY o.refunded_at ASC
+  `)
 
-  const transactions = ((transactionsResult as any).rows || transactionsResult).map(camel)
+  const sales = ((transactionsResult as any).rows || transactionsResult).map(camel)
+  const refunds = ((refundsResult as any).rows || refundsResult).map(camel)
+  const transactions = [...sales, ...refunds].sort((a: any, b: any) => new Date(a.at).getTime() - new Date(b.at).getTime())
 
-  // Net cash added to the drawer per sale == order total (tendered - change == total), so
-  // cash-in is SUM(total) of non-refunded cash orders; refunded cash orders are subtracted.
+  // Net cash added to the drawer per sale == order total (tendered - change == total).
   // (Do NOT subtract change_due on top of total — that double-counts the change.)
-  const totalCashIn = transactions.reduce((sum: number, t: any) =>
-    (t.paymentStatus === 'refunded' ? sum : sum + Number(t.total || 0)), 0)
-  const totalRefunds = transactions.reduce((sum: number, t: any) =>
-    (t.paymentStatus === 'refunded' ? sum + Number(t.total || 0) : sum), 0)
+  const totalCashIn = sales.reduce((sum: number, t: any) => sum + Number(t.total || 0), 0)
+  const totalRefunds = refunds.reduce((sum: number, t: any) => sum + Number(t.total || 0), 0)
   const expectedCash = Number(session.opening_amount) + totalCashIn - totalRefunds
 
   return c.json({
@@ -234,16 +251,18 @@ app.post('/sessions/:id/close', async (c) => {
   // Bound the sales window to [opened_at, now]. Without an upper bound it summed cash sales
   // right up to query time, so a drawer closed early still absorbed later sales — inflating
   // expected and producing a phantom shortfall. (retest#11)
+  // Cash IN = cash sales settled in the window; cash OUT = refunds PAID in the window
+  // (refunded_at / refunded_amount, so a refund of an earlier sale comes out of this drawer). (M-3)
   const ordersResult = await db.execute(sql`
     SELECT
-      COALESCE(SUM(total::numeric) FILTER (WHERE COALESCE(payment_status, '') <> 'refunded'), 0) as total_cash_in,
-      COALESCE(SUM(total::numeric) FILTER (WHERE payment_status = 'refunded'), 0) as total_refunds
-    FROM orders
-    WHERE company_id = ${currentUser.companyId}
-      AND status = 'completed'
-      AND payment_method = 'cash'
-      AND completed_at >= ${new Date(session.opened_at)}
-      AND completed_at <= NOW()
+      (SELECT COALESCE(SUM(total::numeric), 0) FROM orders
+        WHERE company_id = ${currentUser.companyId} AND payment_method = 'cash'
+          AND status IN ('completed', 'refunded', 'partially_refunded')
+          AND completed_at >= ${new Date(session.opened_at)} AND completed_at <= NOW()) as total_cash_in,
+      (SELECT COALESCE(SUM(NULLIF(refunded_amount, '')::numeric), 0) FROM orders
+        WHERE company_id = ${currentUser.companyId} AND payment_method = 'cash'
+          AND status IN ('refunded', 'partially_refunded')
+          AND refunded_at >= ${new Date(session.opened_at)} AND refunded_at <= NOW()) as total_refunds
   `)
   const orderSummary = ((ordersResult as any).rows || ordersResult)?.[0] || { total_cash_in: 0, total_refunds: 0 }
 

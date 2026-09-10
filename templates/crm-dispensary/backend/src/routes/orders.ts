@@ -8,14 +8,25 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
-import { isCannabisLine } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
-// Cannabis purchase limit: 2.5 oz = 70.87g
-const PURCHASE_LIMIT_GRAMS = 70.87
+// Cannabis purchase limit: company.purchase_limit_oz → state default → 2.5 oz (utils/cannabis.ts).
+// It used to be a hardcoded 2.5 oz here regardless of Settings or state (go-live QA V-1).
 const LOYALTY_POINTS_PER_DOLLAR = 1
+// Points-per-dollar from Settings → Loyalty (company.settings.loyalty.pointsPerDollar), else 1.
+const pointsRate = (settings: any): number => {
+  const r = Number(settings?.loyalty?.pointsPerDollar)
+  return Number.isFinite(r) && r >= 0 ? r : LOYALTY_POINTS_PER_DOLLAR
+}
+// Points accrue on what the customer paid for MERCHANDISE (subtotal − discounts), not on tax.
+// Earning on the tax-inclusive total (the old behaviour, QA V-2) paid points for money that
+// goes to the state. Reversals use the points recorded on the order, so this is consistent.
+const pointsBasis = (o: any): number =>
+  Math.max(0, Number(o.subtotal || 0) - Number(o.discountAmount || 0) - Number(o.loyaltyDiscount || 0))
+const TIER_ORDER = ['bronze', 'silver', 'gold', 'platinum']
 
 // Thrown inside the completion transaction when an atomic stock decrement finds nothing to take
 // (a concurrent sale grabbed the last unit) — caught to return 400 instead of a 500.
@@ -149,6 +160,10 @@ app.post('/', async (c) => {
       priceOverride: z.number().min(0).optional(), // a negative override drove line/subtotal negative
     })).min(1),
     loyaltyPointsRedeemed: z.number().int().min(0).default(0),
+    // Redeem a configured reward from Loyalty → Rewards (the server prices it and charges
+    // its pointsCost). Without this the POS applied an opaque "$1 per 100 pts" discount that
+    // never touched the rewards catalog (go-live QA M-7).
+    loyaltyRewardId: z.string().nullish(),
     discountAmount: z.number().min(0).default(0),
     discountReason: z.string().optional(),
     notes: z.string().optional(),
@@ -235,12 +250,17 @@ app.post('/', async (c) => {
     if (gate) return c.json(gate.body, gate.status)
   }
 
-  // Purchase limit validation (2.5 oz)
-  if (totalWeightGrams > PURCHASE_LIMIT_GRAMS) {
+  // Purchase limit validation — the configured/state limit, not a hardcoded 2.5 oz (V-1).
+  const [companyRow] = await db.select({
+    taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate,
+    purchaseLimitOz: company.purchaseLimitOz, state: company.state, settings: company.settings,
+  }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const limitOz = resolvePurchaseLimitOz(companyRow)
+  if (totalWeightGrams > limitOz * GRAMS_PER_OZ + 1e-6) {
     return c.json({
-      error: `Purchase exceeds limit: ${(totalWeightGrams / 28.3495).toFixed(2)}oz exceeds 2.5oz maximum`,
-      totalWeightOz: (totalWeightGrams / 28.3495).toFixed(2),
-      limitOz: '2.5',
+      error: `Purchase exceeds limit: ${(totalWeightGrams / GRAMS_PER_OZ).toFixed(2)}oz exceeds the ${limitOz}oz maximum`,
+      totalWeightOz: (totalWeightGrams / GRAMS_PER_OZ).toFixed(2),
+      limitOz: String(limitOz),
     }, 400)
   }
 
@@ -252,8 +272,7 @@ app.post('/', async (c) => {
   // Sales tax uses the rate configured in Settings (company.taxRate, a percent
   // like "8.5") so the register charges what the operator set — not a hardcoded
   // constant that disagreed with Settings. Excise stays a cannabis-specific rate.
-  const [companyRow] = await db.select({ taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate }).from(company)
-    .where(eq(company.id, currentUser.companyId)).limit(1)
+  // (companyRow was loaded above for the purchase-limit check.)
   const configuredSalesRate = companyRow?.taxRate != null && companyRow.taxRate !== ''
     ? Number(companyRow.taxRate) / 100
     : SALES_TAX_RATE
@@ -264,6 +283,54 @@ app.post('/', async (c) => {
     ? Number(companyRow.exciseTaxRate) / 100
     : CANNABIS_TAX_RATE
   const exciseRate = Number.isFinite(configuredExciseRate) ? configuredExciseRate : CANNABIS_TAX_RATE
+
+  // Reward redemption (M-7): price the chosen catalog reward server-side and charge its
+  // pointsCost. fixed → $value; percent → value% of the eligible lines (applicableCategories,
+  // else the whole cart); free_item → the reward's product must be in the cart, its unit price
+  // comes off. Tier gating and the member's balance are enforced below.
+  let rewardId: string | null = null
+  let rewardDiscount = 0
+  let rewardName: string | null = null
+  if (data.loyaltyRewardId) {
+    if (!data.contactId) return c.json({ error: 'Select the customer before redeeming a reward.' }, 400)
+    const rr = await db.execute(sql`SELECT * FROM loyalty_rewards WHERE id = ${data.loyaltyRewardId} AND company_id = ${currentUser.companyId} LIMIT 1`)
+    const reward = ((rr as any).rows || rr)?.[0]
+    if (!reward) return c.json({ error: 'Reward not found' }, 404)
+    if (reward.active === false) return c.json({ error: `Reward "${reward.name}" is not active` }, 400)
+    const memRes = await db.execute(sql`SELECT points_balance, tier FROM loyalty_members WHERE contact_id = ${data.contactId} AND company_id = ${currentUser.companyId} LIMIT 1`)
+    const mem = ((memRes as any).rows || memRes)?.[0]
+    const bal = Number(mem?.points_balance || 0)
+    const cost = Number(reward.points_cost || reward.points_required || 0)
+    if (!mem) return c.json({ error: 'Customer is not enrolled in the loyalty program' }, 400)
+    if (bal < cost) return c.json({ error: `"${reward.name}" needs ${cost} points — the customer has ${bal}.`, code: 'insufficient_points', pointsCost: cost, pointsBalance: bal }, 400)
+    if (reward.min_tier && TIER_ORDER.indexOf(String(mem.tier || 'bronze')) < TIER_ORDER.indexOf(String(reward.min_tier))) {
+      return c.json({ error: `"${reward.name}" requires ${reward.min_tier} tier (customer is ${mem.tier || 'bronze'})`, code: 'tier_required' }, 400)
+    }
+    if (reward.max_redemptions_per_day) {
+      const used = await db.execute(sql`SELECT COUNT(*)::int as n FROM orders WHERE company_id = ${currentUser.companyId} AND loyalty_reward_id = ${reward.id} AND created_at >= date_trunc('day', NOW()) AND status <> 'cancelled'`)
+      if (Number(((used as any).rows || used)?.[0]?.n || 0) >= Number(reward.max_redemptions_per_day)) {
+        return c.json({ error: `"${reward.name}" has reached its daily redemption limit`, code: 'reward_daily_limit' }, 400)
+      }
+    }
+    const val = Number(reward.discount_value || 0)
+    const type = String(reward.discount_type || 'fixed')
+    if (type === 'percent') {
+      let cats: string[] = []
+      try { cats = (Array.isArray(reward.applicable_categories) ? reward.applicable_categories : JSON.parse(reward.applicable_categories || '[]')).map((x: any) => String(x).toLowerCase()) } catch { cats = [] }
+      const base = cats.length ? resolvedItems.filter(i => cats.includes(String(i.category || '').toLowerCase())).reduce((s, i) => s + Number(i.lineTotal), 0) : subtotal
+      if (cats.length && base <= 0) return c.json({ error: `"${reward.name}" applies to ${cats.join('/')} items — none are in the cart`, code: 'reward_not_applicable' }, 400)
+      rewardDiscount = base * val / 100
+    } else if (type === 'free_item') {
+      const line = reward.product_id ? resolvedItems.find(i => i.productId === reward.product_id) : null
+      if (!line) return c.json({ error: `Add the reward product to the cart to redeem "${reward.name}"`, code: 'reward_product_missing', productId: reward.product_id }, 400)
+      rewardDiscount = Number(line.unitPrice)
+    } else {
+      rewardDiscount = val
+    }
+    rewardId = reward.id
+    rewardName = reward.name
+    data.loyaltyPointsRedeemed = cost
+  }
 
   // Discounts. Cap the combined discount at the merchandise subtotal so a client-supplied
   // discountAmount/loyalty redemption can never exceed the goods' value or drive the total
@@ -281,7 +348,9 @@ app.post('/', async (c) => {
   // Attribute the discount to its source so reporting can tell a points-funded discount from a
   // manager discount (F-32). Loyalty applies first, then the manager discount fills the remaining
   // room up to subtotal; the two are persisted to their own columns and always sum to totalDiscount.
-  const loyaltyApplied = round2(Math.min(data.loyaltyPointsRedeemed * 0.01, subtotal))
+  const loyaltyApplied = rewardId
+    ? round2(Math.min(rewardDiscount, subtotal))
+    : round2(Math.min(data.loyaltyPointsRedeemed * 0.01, subtotal))
   const managerApplied = round2(Math.min(data.discountAmount, subtotal - loyaltyApplied))
   const totalDiscount = round2(loyaltyApplied + managerApplied)
 
@@ -366,6 +435,7 @@ app.post('/', async (c) => {
         ? `${data.discountReason || ''}${data.discountReason ? ' | ' : ''}Approved by ${approvals.map(a => `${a.approvedBy} (${a.type}, ${a.via})`).join(', ')}`
         : data.discountReason,
       loyaltyPointsRedeemed: data.loyaltyPointsRedeemed,
+      loyaltyRewardId: rewardId,
       total: String(grandTotal),
       totalWeightGrams: String(totalWeightGrams),
       // Compliance/EOD read the oz field too; it was left at its '0' default. (retest#7)
@@ -407,7 +477,7 @@ app.post('/', async (c) => {
     req: c.req,
   })
 
-  return c.json({ ...result, items: resolvedItems, ...(approvals.length ? { approvals } : {}) }, 201)
+  return c.json({ ...result, items: resolvedItems, ...(approvals.length ? { approvals } : {}), ...(rewardId ? { reward: { id: rewardId, name: rewardName, discount: loyaltyApplied, pointsCost: data.loyaltyPointsRedeemed } } : {}) }, 201)
 })
 
 // Update order status
@@ -597,7 +667,12 @@ app.post('/:id/complete', async (c) => {
     // (no stock decrement, no payment) for any sale with a customer attached. Cast to
     // numeric so the arithmetic works whatever the column type is. (register/M5)
     if (existing.contactId) {
-      const pointsEarned = Math.floor(Number(existing.total) * LOYALTY_POINTS_PER_DOLLAR)
+      const [coRow] = await tx.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+      const pointsEarned = Math.floor(pointsBasis(existing) * pointsRate(coRow?.settings))
+      // A redeemed catalog reward counts a use once the sale actually settles.
+      if ((existing as any).loyaltyRewardId) {
+        await tx.execute(sql`UPDATE loyalty_rewards SET usage_count = COALESCE(usage_count, 0) + 1, updated_at = NOW() WHERE id = ${(existing as any).loyaltyRewardId} AND company_id = ${currentUser.companyId}`)
+      }
       // Auto-enroll the customer on their first completed purchase. The award below is an
       // UPDATE keyed on contact_id; with no membership row it hit 0 rows, so a customer with
       // real spend showed points 0 / tier null and every loyalty counter read zero. Create
@@ -862,7 +937,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       // Reverse in proportion to what's being refunded — a partial refund reverses partial points,
       // and cumulative partial reversals sum to the whole award once the order is fully refunded.
       // The visit only un-counts when the order becomes fully refunded. (F-33)
-      const totalEarned = Number(existing.loyaltyPointsEarned) || Math.floor(Number(existing.total) * LOYALTY_POINTS_PER_DOLLAR)
+      const totalEarned = Number(existing.loyaltyPointsEarned) || Math.floor(pointsBasis(existing) * LOYALTY_POINTS_PER_DOLLAR)
       const pointsToReverse = Math.round(totalEarned * refundFraction)
       const visitDelta = fullyRefunded ? 1 : 0
       await tx.execute(sql`

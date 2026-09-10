@@ -42,14 +42,15 @@ app.post('/generate', requireRole('manager'), async (c) => {
   // Cash $0.00. Refunds/voids are reported on their own lines. (retest#7)
   const ordersResult = await db.execute(sql`
     SELECT
-      COUNT(*) FILTER (WHERE status = 'completed')::int as order_count,
-      COALESCE(SUM(total::numeric) FILTER (WHERE status = 'completed'), 0) as total_revenue,
-      COALESCE(SUM(excise_tax::numeric) FILTER (WHERE status = 'completed'), 0) as total_excise_tax,
-      COALESCE(SUM(sales_tax::numeric) FILTER (WHERE status = 'completed'), 0) as total_sales_tax,
-      COALESCE(SUM(total_tax::numeric) FILTER (WHERE status = 'completed'), 0) as total_tax,
-      COALESCE(SUM(discount_amount::numeric) FILTER (WHERE status = 'completed'), 0) as total_discounts,
-      COUNT(*) FILTER (WHERE status = 'refunded')::int as refund_count,
-      COALESCE(SUM(total::numeric) FILTER (WHERE status = 'refunded'), 0) as refund_total,
+      COUNT(*) FILTER (WHERE status IN ('completed', 'partially_refunded'))::int as order_count,
+      -- NET revenue: partial refunds subtract what was returned; full refunds count $0 (QA V-3).
+      COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_revenue,
+      COALESCE(SUM(excise_tax::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_excise_tax,
+      COALESCE(SUM(sales_tax::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_sales_tax,
+      COALESCE(SUM(total_tax::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_tax,
+      COALESCE(SUM(discount_amount::numeric) FILTER (WHERE status IN ('completed', 'partially_refunded')), 0) as total_discounts,
+      COUNT(*) FILTER (WHERE status IN ('refunded', 'partially_refunded'))::int as refund_count,
+      COALESCE(SUM(COALESCE(NULLIF(refunded_amount, '')::numeric, total::numeric)) FILTER (WHERE status IN ('refunded', 'partially_refunded')), 0) as refund_total,
       COUNT(*) FILTER (WHERE status = 'cancelled')::int as void_count
     FROM orders
     WHERE company_id = ${currentUser.companyId}
