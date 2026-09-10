@@ -50,7 +50,7 @@ export default function SettingsPage() {
 
   // General
   const [generalForm, setGeneralForm] = useState({
-    name: '', address: '', phone: '', email: '', taxRate: '0', localTaxRate: '0', exciseTaxRate: '15', purchaseLimitOz: '2.5',
+    name: '', address: '', phone: '', email: '', taxRate: '0', localTaxRate: '0', exciseTaxRate: '15', purchaseLimitOz: '1',
   });
   const [storeHours, setStoreHours] = useState<StoreHours>(defaultHours());
 
@@ -102,7 +102,7 @@ export default function SettingsPage() {
         taxRate: pick(company.taxRate, settings.taxRate, '0'),
         localTaxRate: pick(company.localTaxRate, settings.localTaxRate, '0'),
         exciseTaxRate: pick(company.exciseTaxRate, settings.exciseTaxRate, '15'),
-        purchaseLimitOz: pick(company.purchaseLimitOz, settings.purchaseLimitOz, '2.5'),
+        purchaseLimitOz: pick(company.purchaseLimitOz, settings.purchaseLimitOz, '1'),
       });
       // /auth/me returns a trimmed company; fetch the full row so the column values win.
       api.get('/api/company').then((full: any) => {
@@ -113,7 +113,7 @@ export default function SettingsPage() {
           taxRate: pick(co.taxRate, prev.taxRate, '0'),
           localTaxRate: pick(co.localTaxRate, prev.localTaxRate, '0'),
           exciseTaxRate: pick(co.exciseTaxRate, prev.exciseTaxRate, '15'),
-          purchaseLimitOz: pick(co.purchaseLimitOz, prev.purchaseLimitOz, '2.5'),
+          purchaseLimitOz: pick(co.purchaseLimitOz, prev.purchaseLimitOz, '1'),
         }));
       }).catch(() => {});
       if (settings.storeHours) setStoreHours({ ...defaultHours(), ...settings.storeHours });
@@ -366,11 +366,11 @@ export default function SettingsPage() {
                       value={generalForm.purchaseLimitOz}
                       onChange={v => setGeneralForm({ ...generalForm, purchaseLimitOz: v })}
                       type="number"
-                      placeholder="2.5"
+                      placeholder="1"
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">oz</span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Enforced at the register and online menu. Set to your state's adult-use limit (e.g. CO 2 oz, CA/WA/IL/MA 1 oz, MI 2.5 oz).</p>
+                  <p className="text-xs text-gray-400 mt-1">Enforced at the register and online menu. This is the retail SALE limit per transaction (not the personal possession limit) — 1 oz of flower in most adult-use states, including Colorado. Raise it only where your state's retail rules allow.</p>
                 </div>
               </div>
 

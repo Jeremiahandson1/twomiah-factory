@@ -31,7 +31,9 @@ export const company = pgTable('company', {
   loyaltyEnabled: boolean('loyalty_enabled').default(true),
   deliveryEnabled: boolean('delivery_enabled').default(false),
   merchEnabled: boolean('merch_enabled').default(false),
-  purchaseLimitOz: text('purchase_limit_oz').default('2.5'),
+  // Retail SALE limit per transaction (oz flower-equivalent), NOT the possession limit. 1 oz is the
+  // common floor (e.g. Colorado); operators raise it in Settings only where their state allows.
+  purchaseLimitOz: text('purchase_limit_oz').default('1'),
 
   // POS Integration
   integrationKey: text('integration_key'),
