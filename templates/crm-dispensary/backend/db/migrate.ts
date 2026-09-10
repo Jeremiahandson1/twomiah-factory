@@ -76,6 +76,11 @@ const ENSURE_COLUMNS_SQL = `
   UPDATE "products" SET "tax_category" = 'cannabis' WHERE "tax_category" IS NULL AND LOWER("category") IN ('flower', 'pre_roll', 'preroll', 'edible', 'concentrate', 'vape', 'tincture');
   UPDATE "products" SET "tax_category" = 'non_cannabis' WHERE "tax_category" IS NULL AND "category" IS NOT NULL;
 
+  -- Batch-level potency (the Batches form collects THC/CBD per batch; new tables/columns must be
+  -- created here because the bounded reconcile push does not reliably add them). (retest: batch THC)
+  ALTER TABLE "batches" ADD COLUMN IF NOT EXISTS "thc_percent" TEXT;
+  ALTER TABLE "batches" ADD COLUMN IF NOT EXISTS "cbd_percent" TEXT;
+
   -- Wholesale customers: the create/edit form collects license expiration, tax-exempt
   -- and status, but the table never had columns for them, so those fields were dropped
   -- on save. Add them so wholesale customer records persist fully. (finish/wholesale)

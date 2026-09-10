@@ -901,6 +901,10 @@ export const batch = pgTable('batches', {
   locationId: text('location_id').references(() => location.id),
   labTested: boolean('lab_tested').default(false),
   labTestId: text('lab_test_id'),
+  // Potency as tested for THIS batch (the form collects it); previously only the product's
+  // catalog THC/CBD was shown, so the typed value was lost. (retest: batch THC source)
+  thcPercent: text('thc_percent'),
+  cbdPercent: text('cbd_percent'),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

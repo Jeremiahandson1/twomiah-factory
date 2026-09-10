@@ -74,20 +74,39 @@ const wasteSchema = z.object({
   batchId: z.string().min(1).optional(),
   batchNumber: z.string().optional(),
   metrcTag: z.string().optional(),
-  wasteType: z.string().min(1),
+  wasteType: z.string().min(1).optional(),
+  waste_type: z.string().min(1).optional(),
+  type: z.string().min(1).optional(),
   quantity: z.coerce.number().min(0),
   unitOfMeasure: z.string().min(1).optional(),
+  unit_of_measure: z.string().min(1).optional(),
   unit: z.string().min(1).optional(),
-  reason: z.string().min(1),
+  reason: z.string().min(1).optional(),
+  waste_reason: z.string().min(1).optional(),
   method: z.string().optional(),
+  disposalMethod: z.string().optional(),
+  disposal_method: z.string().optional(),
   witnessedBy: z.string().optional(),
+  witnessed_by: z.string().optional(),
   witness: z.string().optional(),
+  witnessName: z.string().optional(),
+  witness_name: z.string().optional(),
   notes: z.string().optional(),
-}).transform(d => ({
-  ...d,
-  unitOfMeasure: d.unitOfMeasure || d.unit || 'grams',
-  witnessedBy: d.witnessedBy || d.witness || undefined,
-}))
+}).transform((d, ctx) => {
+  // Accept camelCase, snake_case and the form's short names for every field (retest: API field map).
+  const wasteType = d.wasteType || d.waste_type || d.type
+  const reason = d.reason || d.waste_reason
+  if (!wasteType) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['wasteType'], message: 'wasteType is required' })
+  if (!reason) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['reason'], message: 'reason is required' })
+  return {
+    ...d,
+    wasteType: wasteType as string,
+    reason: reason as string,
+    unitOfMeasure: d.unitOfMeasure || d.unit_of_measure || d.unit || 'grams',
+    method: d.method || d.disposalMethod || d.disposal_method || undefined,
+    witnessedBy: d.witnessedBy || d.witnessed_by || d.witness || d.witnessName || d.witness_name || undefined,
+  }
+})
 
 // ==========================================
 // Licenses
@@ -518,6 +537,10 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
   `)
 
   const report = ((reportResult as any).rows || reportResult)[0]
+  // Every report is downloadable as CSV (regulator-friendly) and printable as a formatted page.
+  const fileUrl = `/api/compliance/reports/${report.id}/export?format=csv`
+  await db.execute(sql`UPDATE compliance_reports SET file_url = ${fileUrl} WHERE id = ${report.id}`)
+  report.file_url = fileUrl
 
   audit.log({
     action: audit.ACTIONS.CREATE,
@@ -527,7 +550,80 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
     req: c.req,
   })
 
-  return c.json(camel(report), 201)
+  return c.json({ ...camel(report), printUrl: `/api/compliance/reports/${report.id}/export?format=html` }, 201)
+})
+
+// ---- Export: CSV (download) or HTML (print → PDF) -------------------------------------------
+const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+const csvCell = (v: unknown) => { let s = v == null ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v)); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s }
+const titleCase = (k: string) => k.replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, ch => ch.toUpperCase())
+// Flatten a report's data into named sections: arrays of objects → tables, objects → key/value.
+function reportSections(data: any): Array<{ name: string; columns?: string[]; rows?: any[]; pairs?: Array<[string, any]> }> {
+  const out: Array<{ name: string; columns?: string[]; rows?: any[]; pairs?: Array<[string, any]> }> = []
+  const walk = (name: string, v: any) => {
+    if (Array.isArray(v)) {
+      if (v.length && typeof v[0] === 'object') { const cols = Array.from(new Set(v.flatMap((r: any) => Object.keys(r || {})))); out.push({ name, columns: cols, rows: v }) }
+      else out.push({ name, pairs: v.map((x: any, i: number) => [String(i + 1), x] as [string, any]) })
+    } else if (v && typeof v === 'object') {
+      const pairs: Array<[string, any]> = []
+      for (const [k, val] of Object.entries(v)) { if (val && typeof val === 'object') walk(`${name === 'Report' ? '' : name + ' › '}${titleCase(k)}`, val); else pairs.push([titleCase(k), val]) }
+      if (pairs.length) out.unshift({ name, pairs })
+    } else out.push({ name, pairs: [[name, v]] })
+  }
+  const payload = data && typeof data === 'object' && 'rows' in data ? data.rows : data
+  walk('Report', payload)
+  return out
+}
+
+app.get('/reports/:id/export', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const format = (c.req.query('format') || 'csv').toLowerCase()
+  const result = await db.execute(sql`
+    SELECT r.*, co.name as company_name, co.license_number, co.state as company_state, co.address, co.city, co.zip
+    FROM compliance_reports r JOIN company co ON co.id = r.company_id
+    WHERE r.id = ${id} AND r.company_id = ${currentUser.companyId} LIMIT 1
+  `)
+  const report = ((result as any).rows || result)[0]
+  if (!report) return c.json({ error: 'Report not found' }, 404)
+  const data = typeof report.data === 'string' ? JSON.parse(report.data) : report.data
+  const label = String(report.report_type || 'report')
+  const period = `${String(report.start_date).slice(0, 10)} to ${String(report.end_date).slice(0, 10)}`
+  const sections = reportSections(data)
+  const fname = `${label}-${String(report.start_date).slice(0, 10)}_${String(report.end_date).slice(0, 10)}`
+
+  if (format === 'csv') {
+    const lines: string[] = []
+    lines.push(['Report', titleCase(label)].map(csvCell).join(','))
+    lines.push(['Licensee', report.company_name, 'License', report.license_number || '', 'State', report.company_state || ''].map(csvCell).join(','))
+    lines.push(['Period', period, 'Status', report.status, 'Generated', String(report.created_at)].map(csvCell).join(','))
+    lines.push('')
+    for (const s of sections) {
+      lines.push(csvCell(s.name))
+      if (s.columns) { lines.push(s.columns.map(k => csvCell(titleCase(k))).join(',')); for (const r of s.rows || []) lines.push(s.columns.map(k => csvCell(r?.[k])).join(',')) }
+      else for (const [k, v] of s.pairs || []) lines.push([k, v].map(csvCell).join(','))
+      lines.push('')
+    }
+    c.header('Content-Type', 'text/csv; charset=utf-8')
+    c.header('Content-Disposition', `attachment; filename="${fname}.csv"`)
+    return c.body('﻿' + lines.join('\r\n'))
+  }
+
+  // Printable HTML (browser → Save as PDF). Escaped throughout; no scripts.
+  const sectionHtml = sections.map(s => {
+    if (s.columns) return `<h2>${esc(s.name)}</h2><table><thead><tr>${s.columns.map(k => `<th>${esc(titleCase(k))}</th>`).join('')}</tr></thead><tbody>${(s.rows || []).map(r => `<tr>${s.columns!.map(k => `<td>${esc(typeof r?.[k] === 'object' && r?.[k] != null ? JSON.stringify(r[k]) : r?.[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+    return `<h2>${esc(s.name)}</h2><table class="kv"><tbody>${(s.pairs || []).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join('')}</tbody></table>`
+  }).join('')
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titleCase(label))} — ${esc(period)}</title>
+<style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:32px;color:#111;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:20px 0 6px;border-bottom:1px solid #ddd;padding-bottom:2px}.meta{color:#555;margin-bottom:8px}table{border-collapse:collapse;width:100%;margin-bottom:8px}th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;vertical-align:top}th{background:#f5f5f5}table.kv th{width:32%}.foot{margin-top:24px;color:#777;font-size:10px}@media print{body{margin:12mm}}</style></head>
+<body><h1>${esc(titleCase(label))}</h1>
+<div class="meta"><strong>${esc(report.company_name)}</strong>${report.license_number ? ` · License ${esc(report.license_number)}` : ''}${report.company_state ? ` · ${esc(report.company_state)}` : ''}<br>Period ${esc(period)} · Status ${esc(report.status)} · Generated ${esc(String(report.created_at))}${report.submitted_at ? ` · Submitted ${esc(String(report.submitted_at))}` : ''}</div>
+${sectionHtml}
+<div class="foot">Report ${esc(report.id)} · generated by the point-of-sale compliance module. Figures are as recorded at generation time.</div>
+</body></html>`
+  c.header('Content-Type', 'text/html; charset=utf-8')
+  c.header('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'")
+  return c.body(html)
 })
 
 // Get report detail

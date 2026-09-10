@@ -122,6 +122,8 @@ app.post('/', requireRole('manager'), async (c) => {
     cost: z.coerce.number().min(0).optional(),
     locationId: z.string().optional(),
     notes: z.string().optional(),
+    thcPercent: z.coerce.number().min(0).max(100).nullish(),
+    cbdPercent: z.coerce.number().min(0).max(100).nullish(),
   }).passthrough()
   const data = batchSchema.parse(await c.req.json())
 
@@ -142,8 +144,8 @@ app.post('/', requireRole('manager'), async (c) => {
   const status = expiration && expiration < todayIso() ? 'expired' : 'active'
 
   const result = await db.execute(sql`
-    INSERT INTO batches(id, batch_number, product_id, metrc_tag, initial_quantity, current_quantity, unit_of_measure, received_date, expiration_date, manufacturing_date, supplier, supplier_license, cost, location_id, notes, status, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.batchNumber}, ${data.productId}, ${data.metrcTag || null}, ${Math.round(initialQuantity)}, ${Math.round(initialQuantity)}, ${unitOfMeasure}, ${packaged}, ${expiration}, ${harvest}, ${data.supplier || data.grower || null}, ${data.supplierLicense || null}, ${data.cost != null ? String(data.cost) : null}, ${data.locationId || null}, ${data.notes || null}, ${status}, ${currentUser.companyId}, NOW(), NOW())
+    INSERT INTO batches(id, batch_number, product_id, metrc_tag, initial_quantity, current_quantity, unit_of_measure, received_date, expiration_date, manufacturing_date, supplier, supplier_license, cost, location_id, notes, thc_percent, cbd_percent, status, company_id, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${data.batchNumber}, ${data.productId}, ${data.metrcTag || null}, ${Math.round(initialQuantity)}, ${Math.round(initialQuantity)}, ${unitOfMeasure}, ${packaged}, ${expiration}, ${harvest}, ${data.supplier || data.grower || null}, ${data.supplierLicense || null}, ${data.cost != null ? String(data.cost) : null}, ${data.locationId || null}, ${data.notes || null}, ${data.thcPercent != null ? String(data.thcPercent) : null}, ${data.cbdPercent != null ? String(data.cbdPercent) : null}, ${status}, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
 
@@ -182,6 +184,8 @@ app.put('/:id', requireRole('manager'), async (c) => {
     cost: z.coerce.number().min(0).optional(),
     locationId: z.string().optional(),
     notes: z.string().optional(),
+    thcPercent: z.coerce.number().min(0).max(100).nullish(),
+    cbdPercent: z.coerce.number().min(0).max(100).nullish(),
   }).passthrough()
   const data = batchSchema.parse(await c.req.json())
 
@@ -214,6 +218,8 @@ app.put('/:id', requireRole('manager'), async (c) => {
   if (data.cost !== undefined) sets.push(sql`cost = ${String(data.cost)}`)
   if (data.locationId !== undefined) sets.push(sql`location_id = ${data.locationId}`)
   if (data.notes !== undefined) sets.push(sql`notes = ${data.notes}`)
+  if (data.thcPercent !== undefined) sets.push(sql`thc_percent = ${data.thcPercent != null ? String(data.thcPercent) : null}`)
+  if (data.cbdPercent !== undefined) sets.push(sql`cbd_percent = ${data.cbdPercent != null ? String(data.cbdPercent) : null}`)
   // Keep status honest against the (possibly new) expiration date.
   if (expiration && expiration < todayIso() && current.status === 'active') sets.push(sql`status = 'expired'`)
   else if (expiration && expiration >= todayIso() && current.status === 'expired') sets.push(sql`status = 'active'`)
