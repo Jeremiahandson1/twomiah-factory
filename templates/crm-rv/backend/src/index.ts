@@ -134,6 +134,23 @@ app.use('*', secureHeaders({
   },
 }))
 
+// Paging guard (propagated from crm-dispensary go-live QA F-10). List endpoints read
+// ?page/?limit with a bare cast: page=-1 produced a negative SQL OFFSET and limit=999999999
+// was accepted uncapped. Validate once here — invalid values are a 400, not a server error.
+const MAX_PAGE_LIMIT = 500
+app.use('/api/*', async (c, next) => {
+  const pageRaw = c.req.query('page')
+  const limitRaw = c.req.query('limit')
+  const isPosInt = (v: string) => /^\d+$/.test(v) && Number(v) >= 1
+  if (pageRaw !== undefined && pageRaw !== '' && !isPosInt(pageRaw)) {
+    return c.json({ error: 'Invalid page: must be an integer ≥ 1', code: 'invalid_pagination', page: pageRaw }, 400)
+  }
+  if (limitRaw !== undefined && limitRaw !== '' && (!isPosInt(limitRaw) || Number(limitRaw) > MAX_PAGE_LIMIT)) {
+    return c.json({ error: `Invalid limit: must be an integer between 1 and ${MAX_PAGE_LIMIT}`, code: 'invalid_pagination', limit: limitRaw, max: MAX_PAGE_LIMIT }, 400)
+  }
+  await next()
+})
+
 // CORS — restrict to frontend origin in production
 app.use('*', cors({
   origin: process.env.FRONTEND_URL || '*',

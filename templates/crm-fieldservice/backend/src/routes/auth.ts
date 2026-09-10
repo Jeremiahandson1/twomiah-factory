@@ -15,8 +15,33 @@ const app = new Hono()
 
 const generateTokens = (userId: string, companyId: string, email: string, role: string) => {
   const accessToken = jwt.sign({ userId, companyId, email, role }, process.env.JWT_SECRET!, { expiresIn: '15m' })
-  const refreshToken = jwt.sign({ userId, companyId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' })
+  const refreshToken = jwt.sign({ userId, companyId, type: 'refresh', jti: crypto.randomUUID() }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' })
   return { accessToken, refreshToken }
+}
+
+// Multi-device sessions. user.refresh_token used to hold ONE token, overwritten on every login —
+// so signing in on a second device (or an admin/API login as the same account) silently
+// invalidated the first device's refresh token, and 15 minutes later that device was thrown
+// to the login screen mid-shift. The column now holds a JSON array of the user's live refresh
+// tokens (newest last, capped), and logout revokes only the device that logged out.
+// (Propagated from crm-dispensary go-live QA M-4.)
+const MAX_SESSIONS_PER_USER = 10
+const parseTokenList = (raw: string | null | undefined): string[] => {
+  if (!raw) return []
+  try { const v = JSON.parse(raw); return Array.isArray(v) ? v.filter((t) => typeof t === 'string') : [raw] } catch { return [raw] }
+}
+const stillValid = (token: string) => { try { jwt.verify(token, process.env.JWT_REFRESH_SECRET!); return true } catch { return false } }
+async function storeRefreshToken(userId: string, token: string, extra: Record<string, any> = {}) {
+  const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
+  const live = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
+  const next = [...live, token].slice(-MAX_SESSIONS_PER_USER)
+  await db.update(user).set({ refreshToken: JSON.stringify(next), updatedAt: new Date(), ...extra } as any).where(eq(user.id, userId))
+}
+async function revokeRefreshToken(userId: string, token: string | null | undefined) {
+  if (!token) { await db.update(user).set({ refreshToken: null, updatedAt: new Date() } as any).where(eq(user.id, userId)); return }
+  const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)
+  const next = parseTokenList(row?.refreshToken).filter((t) => t !== token && stillValid(t))
+  await db.update(user).set({ refreshToken: next.length ? JSON.stringify(next) : null, updatedAt: new Date() } as any).where(eq(user.id, userId))
 }
 
 // Feature sets for each plan tier
@@ -160,7 +185,7 @@ app.post('/signup', async (c) => {
 
   // Generate token pair (same as login/register)
   const tokens = generateTokens(result.user.id, result.company.id, result.user.email, result.user.role)
-  await db.update(user).set({ refreshToken: tokens.refreshToken, updatedAt: new Date() }).where(eq(user.id, result.user.id))
+  await storeRefreshToken(result.user.id, tokens.refreshToken)
 
   // Send welcome email
   try {
@@ -257,7 +282,7 @@ app.post('/register', async (c) => {
   })
 
   const tokens = generateTokens(result.user.id, result.company.id, result.user.email, result.user.role)
-  await db.update(user).set({ refreshToken: tokens.refreshToken, updatedAt: new Date() }).where(eq(user.id, result.user.id))
+  await storeRefreshToken(result.user.id, tokens.refreshToken)
 
   return c.json({
     user: { id: result.user.id, email: result.user.email, firstName: result.user.firstName, lastName: result.user.lastName, role: result.user.role },
@@ -285,7 +310,7 @@ app.post('/login', async (c) => {
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
   const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
-  await db.update(user).set({ refreshToken: tokens.refreshToken, lastLogin: new Date(), updatedAt: new Date() }).where(eq(user.id, foundUser.id))
+  await storeRefreshToken(foundUser.id, tokens.refreshToken, { lastLogin: new Date() })
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
@@ -309,7 +334,7 @@ app.post('/refresh', async (c) => {
   catch { return c.json({ error: 'Invalid refresh token' }, 401) }
 
   const [foundUser] = await db.select().from(user).where(eq(user.id, decoded.userId)).limit(1)
-  if (!foundUser || !foundUser.isActive || foundUser.refreshToken !== refreshToken) {
+  if (!foundUser || !foundUser.isActive || !parseTokenList(foundUser.refreshToken).includes(refreshToken)) {
     return c.json({ error: 'Invalid refresh token' }, 401)
   }
 
@@ -319,9 +344,12 @@ app.post('/refresh', async (c) => {
 })
 
 // Logout
+// Logout — revokes THIS device's refresh token when the client sends it; with no token in the
+// body (older clients) every session for the user is revoked, as before.
 app.post('/logout', authenticate, async (c) => {
   const currentUser = c.get('user') as any
-  await db.update(user).set({ refreshToken: null, updatedAt: new Date() }).where(eq(user.id, currentUser.userId))
+  const body = await c.req.json().catch(() => ({} as any))
+  await revokeRefreshToken(currentUser.userId, typeof body?.refreshToken === 'string' ? body.refreshToken : null)
   return c.json({ message: 'Logged out' })
 })
 

@@ -109,6 +109,49 @@ app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin',
 }))
 
+// Content-Security-Policy (propagated from crm-dispensary go-live QA L-7). The SPA is served
+// from this origin; Vite emits external bundles (no inline scripts). Allowed third-party
+// script surfaces: Stripe, Google Maps (address autocomplete), Leaflet from unpkg.
+// img/connect stay broad (https:) because media lives on R2/customer URLs and the API host can
+// differ from the page host on custom domains.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://unpkg.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' https: wss:",
+  "frame-src https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+  'upgrade-insecure-requests',
+].join('; ')
+app.use('*', async (c, next) => {
+  await next()
+  if (!c.res.headers.has('Content-Security-Policy')) c.res.headers.set('Content-Security-Policy', CSP)
+})
+
+// Paging guard (propagated from crm-dispensary go-live QA F-10). List endpoints read
+// ?page/?limit with a bare cast: page=-1 produced a negative SQL OFFSET and limit=999999999
+// was accepted uncapped. Validate once here — invalid values are a 400, not a server error.
+const MAX_PAGE_LIMIT = 500
+app.use('/api/*', async (c, next) => {
+  const pageRaw = c.req.query('page')
+  const limitRaw = c.req.query('limit')
+  const isPosInt = (v: string) => /^\d+$/.test(v) && Number(v) >= 1
+  if (pageRaw !== undefined && pageRaw !== '' && !isPosInt(pageRaw)) {
+    return c.json({ error: 'Invalid page: must be an integer ≥ 1', code: 'invalid_pagination', page: pageRaw }, 400)
+  }
+  if (limitRaw !== undefined && limitRaw !== '' && (!isPosInt(limitRaw) || Number(limitRaw) > MAX_PAGE_LIMIT)) {
+    return c.json({ error: `Invalid limit: must be an integer between 1 and ${MAX_PAGE_LIMIT}`, code: 'invalid_pagination', limit: limitRaw, max: MAX_PAGE_LIMIT }, 400)
+  }
+  await next()
+})
+
 // CORS — allow all origins; auth is handled by JWT, not origin checks
 app.use('*', cors({
   origin: '*',

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { escapeHtml, escapeRow } from '../utils/sanitize.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { db } from '../../db/index.ts'
 import { roofReport, contact, company } from '../../db/schema.ts'
@@ -767,8 +768,8 @@ app.get('/:id/html', async (c) => {
       elevationSource: (report as any).elevationSource || null,
     }
 
-    const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
-    const html = await generateReportHTML(reportData, companyRecord, fullAddress)
+    const fullAddress = escapeHtml(`${report.address}, ${report.city}, ${report.state} ${report.zip}`)
+    const html = await generateReportHTML(reportData, escapeRow(companyRecord as any), fullAddress)
 
     return c.html(html)
   } catch (err: any) {
@@ -819,7 +820,7 @@ app.get('/:id/pdf', authenticate, requireRoofReports, async (c) => {
       elevationSource: (report as any).elevationSource || null,
     }
 
-    const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
+    const fullAddress = escapeHtml(`${report.address}, ${report.city}, ${report.state} ${report.zip}`)
 
     // Try server-side PDF via Puppeteer first, fall back to print-ready HTML
     try {
@@ -835,7 +836,7 @@ app.get('/:id/pdf', authenticate, requireRoofReports, async (c) => {
     } catch (puppeteerErr: any) {
       logger.warn('Puppeteer PDF failed, falling back to print-ready HTML', { error: puppeteerErr.message })
       // Fallback: return printable HTML (legacy behavior)
-      const html = await generateReportPDF(reportData, companyRecord, fullAddress)
+      const html = await generateReportPDF(reportData, escapeRow(companyRecord as any), fullAddress)
       return new Response(html, {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',

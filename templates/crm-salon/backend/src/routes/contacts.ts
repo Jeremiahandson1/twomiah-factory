@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { cleanText } from '../utils/sanitize.ts'
 import { db } from '../../db/index.ts'
 import { contact, project, quote, invoice } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
@@ -12,19 +13,19 @@ const app = new Hono()
 app.use('*', authenticate)
 
 const contactSchema = z.object({
-  name: z.string().min(1),
+  name: cleanText(1),
   type: z.enum(['lead', 'client', 'subcontractor', 'vendor']).default('lead'),
-  company: z.string().optional(),
+  company: cleanText().optional(),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   mobile: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
-  source: z.string().optional(),
-  notes: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  address: cleanText().optional(),
+  city: cleanText().optional(),
+  state: cleanText().optional(),
+  zip: cleanText().optional(),
+  source: cleanText().optional(),
+  notes: cleanText().optional(),
+  tags: z.array(cleanText()).optional(),
 })
 
 app.get('/', requirePermission('contacts:read'), async (c) => {

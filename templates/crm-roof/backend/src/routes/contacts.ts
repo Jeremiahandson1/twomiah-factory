@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { cleanText } from '../utils/sanitize.ts'
 import { db } from '../../db/index.ts'
 import { contact, job, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, like, ilike, or, count, sql } from 'drizzle-orm'
@@ -16,17 +17,17 @@ const phoneField = z.string().optional().refine(
 )
 
 const contactSchema = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
+  firstName: cleanText(1),
+  lastName: cleanText(1),
   email: z.string().email().optional(),
   phone: phoneField,
   mobilePhone: phoneField,
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
-  leadSource: z.string().optional(),
-  propertyType: z.string().optional(),
+  address: cleanText().optional(),
+  city: cleanText().optional(),
+  state: cleanText().optional(),
+  zip: cleanText().optional(),
+  leadSource: cleanText().optional(),
+  propertyType: cleanText().optional(),
   portalEnabled: z.boolean().optional(),
 })
 

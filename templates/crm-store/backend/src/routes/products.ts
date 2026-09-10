@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { cleanText } from '../utils/sanitize.ts'
 import { db } from '../../db/index.ts'
 import { products, productImages, productVariants } from '../../db/schema.ts'
 import { eq, inArray, asc, desc } from 'drizzle-orm'
@@ -37,7 +38,7 @@ admin.get('/', async (c) => {
 })
 
 const productSchema = z.object({
-  name: z.string().min(1),
+  name: cleanText(1),
   slug: z.string().optional(),
   tagline: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
@@ -91,7 +92,7 @@ admin.delete('/:id', async (c) => {
 // ── Variants ─────────────────────────────────────────────────────────────────
 const variantSchema = z.object({
   sku: z.string().min(1),
-  name: z.string().min(1),
+  name: cleanText(1),
   // Cap money/int columns at Postgres int4 max — an over-max value overflowed the
   // column and surfaced as a raw 500 instead of a validation error. (BUG-01)
   priceCents: z.number().int().nonnegative().max(2147483647, 'Price is too large'),

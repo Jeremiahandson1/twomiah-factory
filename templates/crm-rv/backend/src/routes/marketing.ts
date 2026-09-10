@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { escapeHtml } from '../utils/sanitize.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import marketing from '../services/marketing.ts'
@@ -178,7 +179,7 @@ app.get('/unsubscribe/:recipientId/:contactId', async (c) => {
     const result = await marketing.handleUnsubscribe(recipientId, contactId)
     return page(
       'You have been unsubscribed',
-      `<p style="color:#4b5563;">${result.email ? result.email + ' will' : 'You will'} no longer receive marketing emails from us.</p>` +
+      `<p style="color:#4b5563;">${result.email ? escapeHtml(result.email) + ' will' : 'You will'} no longer receive marketing emails from us.</p>` +
       `<p style="color:#6b7280;font-size:.85rem;">Messages about your jobs, quotes and invoices are not affected.</p>`,
     )
   } catch (error) {
