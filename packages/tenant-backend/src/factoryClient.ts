@@ -38,7 +38,12 @@ async function call(method: 'GET' | 'POST', path: string, body?: any): Promise<a
   try { data = text ? JSON.parse(text) : null } catch { data = { raw: text } }
   if (!res.ok) {
     const msg = (data && data.error) ? data.error : ('Factory HTTP ' + res.status)
-    throw new Error(msg)
+    // Carry the upstream status so callers can map a factory 401/403/404 to a handled 4xx
+    // instead of a blanket 500 (email-domain /status returned 500 "Unauthorized"). (QA F-10)
+    const err: any = new Error(msg)
+    err.status = res.status
+    err.upstream = data
+    throw err
   }
   return data
 }

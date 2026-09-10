@@ -324,11 +324,19 @@ async function main() {
       },
     ]
 
+    // Seed rows used the legacy spellings ('preroll', 'merch') that the product enum no longer
+    // has, and left tax_category NULL — which made excise key off nothing and charge $0 on
+    // every sale. Seed canonical categories + an explicit tax category. (QA F-01)
+    const CANNABIS = new Set(['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture'])
+    const CATEGORY_ALIASES: Record<string, string> = { preroll: 'pre_roll', merch: 'accessory' }
     for (const prod of products) {
+      const category = CATEGORY_ALIASES[prod.category] || prod.category
       await db.insert(product).values({
         ...prod,
+        category,
+        taxCategory: CANNABIS.has(category) ? 'cannabis' : 'non_cannabis',
         companyId: comp.id,
-      })
+      } as any)
     }
     console.log(`Seeded ${products.length} sample products`)
   }

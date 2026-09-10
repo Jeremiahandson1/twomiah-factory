@@ -7,30 +7,36 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
+import { stripHtml } from '../utils/sanitize.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
+// Free-text fields are stored with markup stripped (QA F-09): a customer named `<script>`
+// was persisted verbatim. React escapes it in the SPA, but receipts, labels, emails and CSV
+// exports are not React. Strip on input; a name that is ONLY markup fails min(1).
+const cleanText = (min = 0) => z.string().transform(stripHtml).pipe(min > 0 ? z.string().min(min) : z.string())
+
 const contactSchema = z.object({
-  name: z.string().min(1),
+  name: cleanText(1),
   type: z.enum(['lead', 'client', 'patient', 'vendor']).default('lead'),
-  company: z.string().optional(),
+  company: cleanText().optional(),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
-  mobile: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
+  phone: cleanText().optional(),
+  mobile: cleanText().optional(),
+  address: cleanText().optional(),
+  city: cleanText().optional(),
+  state: cleanText().optional(),
+  zip: cleanText().optional(),
   // Dispensary customer fields — real columns date_of_birth / medical_card_*.
   // Empty strings from the form are coerced to undefined so they don't get
   // written into the date columns as invalid ''.
   dateOfBirth: z.string().optional().transform((v) => (v ? v : undefined)),
-  medicalCardNumber: z.string().optional(),
+  medicalCardNumber: cleanText().optional(),
   medicalCardExpiry: z.string().optional().transform((v) => (v ? v : undefined)),
-  source: z.string().optional(),
-  notes: z.string().optional(),
-  tags: z.array(z.string()).optional(),
+  source: cleanText().optional(),
+  notes: cleanText().optional(),
+  tags: z.array(cleanText()).optional(),
 })
 
 app.get('/', requirePermission('contacts:read'), async (c) => {

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import Stripe from 'stripe'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { db } from '../../db/index.ts'
 import { company, contact, user, order } from '../../db/schema.ts'
 import { eq, and, count, gte } from 'drizzle-orm'
@@ -63,7 +63,10 @@ const ADDON_CATALOG: Array<{ id: string; name: string; price: number; featureKey
 
 const app = new Hono()
 
-app.use('*', authenticate)
+// Billing is owner/admin-only — reads AND writes. A 'user'-role staff account could read
+// invoices/payment methods and flip the subscription plan because this router only
+// authenticated; the rest of the settings surface is role-gated. (QA F-05)
+app.use('*', authenticate, requireAdmin)
 
 // ---- helpers ---------------------------------------------------------------
 

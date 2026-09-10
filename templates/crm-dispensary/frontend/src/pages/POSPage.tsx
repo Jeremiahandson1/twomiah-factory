@@ -12,6 +12,7 @@ interface CartItem {
   quantity: number;
   weight?: number;
   category: string;
+  taxCategory?: string | null;
   strainType?: string;
 }
 
@@ -56,6 +57,9 @@ export default function POSPage() {
   // configured — not a hardcoded 15% that disagreed with both Settings and the
   // recorded order (the backend computes tax from company.taxRate too). (B3)
   const [taxRate, setTaxRate] = useState(0);
+  // Cannabis excise rate (Settings → exciseTaxRate). The register showed a single "Tax" line
+  // and no excise, so the quoted total disagreed with the recorded order. (QA F-01)
+  const [exciseRate, setExciseRate] = useState(0.15);
 
   useEffect(() => {
     loadProducts();
@@ -66,6 +70,8 @@ export default function POSPage() {
       const co = c?.data || c;
       const r = Number(co?.taxRate);
       if (Number.isFinite(r)) setTaxRate(r / 100);
+      const e = co?.exciseTaxRate != null && co?.exciseTaxRate !== '' ? Number(co.exciseTaxRate) : NaN;
+      if (Number.isFinite(e)) setExciseRate(e / 100);
     }).catch(() => {});
   }, []);
 
@@ -145,6 +151,7 @@ export default function POSPage() {
                 : 0
           ) || 0,
           category: product.category,
+          taxCategory: product.taxCategory ?? null,
           strainType: product.strainType,
         },
       ];
@@ -170,10 +177,21 @@ export default function POSPage() {
     setCart(prev => prev.filter(i => i.id !== itemId));
   };
 
+  // Mirrors the backend math (orders.ts): excise on the cannabis share, sales tax on everything,
+  // BOTH on the post-discount base (QA F-01 / F-07). The server's numbers are authoritative;
+  // this only keeps the on-screen quote in step with what gets recorded.
+  const CANNABIS_CATEGORIES = ['flower', 'pre_roll', 'preroll', 'edible', 'concentrate', 'vape', 'tincture'];
+  const isCannabisItem = (i: CartItem) =>
+    i.taxCategory === 'cannabis' || (i.taxCategory !== 'non_cannabis' && CANNABIS_CATEGORIES.includes(String(i.category || '').toLowerCase()));
+  const round2 = (n: number) => Math.round(n * 100) / 100;
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const taxAmount = subtotal * taxRate;
-  const discountAmount = loyaltyApplied ? loyaltyDiscount : 0;
-  const total = subtotal + taxAmount - discountAmount;
+  const cannabisSubtotal = cart.reduce((sum, i) => sum + (isCannabisItem(i) ? i.price * i.quantity : 0), 0);
+  const discountAmount = loyaltyApplied ? Math.min(loyaltyDiscount, subtotal) : 0;
+  const cannabisShare = subtotal > 0 ? cannabisSubtotal / subtotal : 0;
+  const exciseAmount = round2(Math.max(0, cannabisSubtotal - discountAmount * cannabisShare) * exciseRate);
+  const salesTaxAmount = round2(Math.max(0, subtotal - discountAmount) * taxRate);
+  const taxAmount = round2(exciseAmount + salesTaxAmount);
+  const total = round2(subtotal + taxAmount - discountAmount);
   const changeDue = paymentMethod === 'cash' && cashTendered ? parseFloat(cashTendered) - total : 0;
 
   // i.weight is per-unit GRAMS; the limit meter is in oz. Convert (g / 28.3495).
@@ -248,7 +266,10 @@ export default function POSPage() {
         type: 'walk_in',
         paymentMethod,
         idVerified,
-        discountAmount: discountAmount,
+        // The register's only discount is loyalty-funded and is expressed as the points
+        // redeemed (server converts 100 pts = $1). Sending it AGAIN as discountAmount made
+        // the server apply it twice (loyalty + "manager" discount). (QA discount audit)
+        discountAmount: 0,
         loyaltyPointsRedeemed: loyaltyApplied ? Math.round(discountAmount * 100) : 0,
       });
       // Settle the sale immediately. Creating the order alone left it 'pending':
@@ -260,6 +281,7 @@ export default function POSPage() {
         await api.post(`/api/orders/${orderId}/complete`, {
           paymentMethod,
           cashTendered: paymentMethod === 'cash' ? parseFloat(cashTendered || '0') : undefined,
+          idVerified,
         });
       }
       toast.success('Order completed!');
@@ -497,16 +519,22 @@ export default function POSPage() {
               <span>Subtotal</span>
               <span>${Number(subtotal).toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-600 dark:text-slate-400">
-              <span>Tax ({Number(taxRate * 100).toFixed(0)}%)</span>
-              <span>${Number(taxAmount).toFixed(2)}</span>
-            </div>
             {loyaltyApplied && discountAmount > 0 && (
               <div className="flex justify-between text-green-600">
                 <span>Loyalty Discount</span>
                 <span>-${Number(discountAmount).toFixed(2)}</span>
               </div>
             )}
+            {cannabisSubtotal > 0 && (
+              <div className="flex justify-between text-gray-600 dark:text-slate-400">
+                <span>Excise Tax ({Number(exciseRate * 100).toFixed(exciseRate * 100 % 1 ? 1 : 0)}%)</span>
+                <span>${Number(exciseAmount).toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-gray-600 dark:text-slate-400">
+              <span>Sales Tax ({Number(taxRate * 100).toFixed(taxRate * 100 % 1 ? 1 : 0)}%)</span>
+              <span>${Number(salesTaxAmount).toFixed(2)}</span>
+            </div>
             <div className="flex justify-between font-bold text-lg text-gray-900 pt-1 border-t dark:text-slate-100">
               <span>Total</span>
               <span>${Number(total).toFixed(2)}</span>

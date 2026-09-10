@@ -153,6 +153,24 @@ app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 
+// Paging guard (QA F-10). ~130 list endpoints read ?page/?limit with a bare `+` cast: page=-1
+// produced a negative SQL OFFSET (500 or partial data) and limit=999999999 was accepted uncapped.
+// Validate once here — invalid/absurd values are a 400, not a server error. 500 is the ceiling
+// because the frontend legitimately asks for up to 200 products in a few pickers.
+const MAX_PAGE_LIMIT = 500
+app.use('/api/*', async (c, next) => {
+  const pageRaw = c.req.query('page')
+  const limitRaw = c.req.query('limit')
+  const isPosInt = (v: string) => /^\d+$/.test(v) && Number(v) >= 1
+  if (pageRaw !== undefined && pageRaw !== '' && !isPosInt(pageRaw)) {
+    return c.json({ error: 'Invalid page: must be an integer ≥ 1', code: 'invalid_pagination', page: pageRaw }, 400)
+  }
+  if (limitRaw !== undefined && limitRaw !== '' && (!isPosInt(limitRaw) || Number(limitRaw) > MAX_PAGE_LIMIT)) {
+    return c.json({ error: `Invalid limit: must be an integer between 1 and ${MAX_PAGE_LIMIT}`, code: 'invalid_pagination', limit: limitRaw, max: MAX_PAGE_LIMIT }, 400)
+  }
+  await next()
+})
+
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 
 // API routes

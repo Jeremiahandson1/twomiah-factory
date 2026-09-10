@@ -70,6 +70,12 @@ const ENSURE_COLUMNS_SQL = `
   UPDATE "products" SET "category" = 'pre_roll' WHERE "category" = 'preroll';
   UPDATE "products" SET "category" = 'accessory' WHERE "category" = 'merch';
 
+  -- Excise tax keyed on tax_category = 'cannabis', but seeded/legacy products had it NULL, so
+  -- every sale charged $0 excise while Settings said 15%. Backfill from the category so the
+  -- explicit switch matches reality (the register now also falls back to category). (QA F-01)
+  UPDATE "products" SET "tax_category" = 'cannabis' WHERE "tax_category" IS NULL AND LOWER("category") IN ('flower', 'pre_roll', 'preroll', 'edible', 'concentrate', 'vape', 'tincture');
+  UPDATE "products" SET "tax_category" = 'non_cannabis' WHERE "tax_category" IS NULL AND "category" IS NOT NULL;
+
   -- Wholesale customers: the create/edit form collects license expiration, tax-exempt
   -- and status, but the table never had columns for them, so those fields were dropped
   -- on save. Add them so wholesale customer records persist fully. (finish/wholesale)
