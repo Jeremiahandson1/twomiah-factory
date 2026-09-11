@@ -1,6 +1,7 @@
 import { authenticate, supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
+import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { notifyBillingPastDue, notifyMessagingEnabled } from '../../services/email'
 import { portalUrlFor } from '../../lib/portal'
 import { PRODUCTS, getProductDefaults } from '../../config/pricing'
@@ -160,6 +161,8 @@ factory.post('/stripe/webhook', async (c) => {
       // Fetch old values for audit diff
       const { data: preTenant } = await supabase.from('tenants').select('*').eq('id', result.factoryCustomerId).single()
       await supabase.from('tenants').update(result.updates).eq('id', result.factoryCustomerId)
+      // The tenant CRM mirrors this state (Settings → Billing, trial gate) — push it, never block on it.
+      pushSubscriptionToTenant(result.factoryCustomerId).catch(() => {})
       if (preTenant) {
         const changes = diffTenantChanges(preTenant, result.updates)
         if (Object.keys(changes).length > 0) {
@@ -170,6 +173,7 @@ factory.post('/stripe/webhook', async (c) => {
       // Lookup tenant id for audit
       const { data: lookedUp } = await supabase.from('tenants').select('*').eq(result.lookupField, result.lookupValue).single()
       await supabase.from('tenants').update(result.updates).eq(result.lookupField, result.lookupValue)
+      if (lookedUp?.id) pushSubscriptionToTenant(lookedUp.id).catch(() => {})
       if (lookedUp) {
         const changes = diffTenantChanges(lookedUp, result.updates)
         if (Object.keys(changes).length > 0) {

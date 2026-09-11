@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
+import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, CreditCard, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../hooks/useFeature';
@@ -337,6 +337,25 @@ export default function SettingsPage() {
                 <Save className="w-4 h-4" /> {savingBranding ? 'Saving...' : 'Save'}
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Billing — read-only mirror of the Twomiah subscription + Stripe portal link */}
+        <div
+          onClick={() => navigate('/crm/settings/billing')}
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-green-300 cursor-pointer transition-colors dark:bg-slate-900"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                <CreditCard className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-slate-100">Billing</h2>
+                <p className="text-xs text-gray-500 dark:text-slate-400">Your plan, seats and next invoice — managed through Twomiah</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </div>
         </div>
 

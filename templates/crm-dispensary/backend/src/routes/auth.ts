@@ -1,6 +1,4 @@
 import { Hono } from 'hono'
-import { getFeaturesForPlan } from '../shared/featureRegistry.ts'
-import { CRM_TEMPLATE } from '../config/template.ts'
 
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
@@ -46,151 +44,11 @@ async function revokeRefreshToken(userId: string, token: string | null | undefin
   await db.update(user).set({ refreshToken: next.length ? JSON.stringify(next) : null, updatedAt: new Date() }).where(eq(user.id, userId))
 }
 
-// Plan limits
-const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | null; orders: number | null; storage: number | null; locations: number | null }> = {
-  starter: { users: 5, contacts: 2500, orders: null, storage: 10, locations: 1 },
-  pro: { users: 15, contacts: 10000, orders: null, storage: 50, locations: 3 },
-  business: { users: 30, contacts: 50000, orders: null, storage: 250, locations: 10 },
-  enterprise: { users: null, contacts: null, orders: null, storage: null, locations: null },
-}
-
-// Self-serve signup (multi-step flow)
 app.post('/signup', async (c) => {
-  const schema = z.object({
-    // Company
-    companyName: z.string().min(1),
-    industry: z.string().min(1),
-    phone: z.string().min(1),
-    address: z.string().optional(),
-    city: z.string().optional(),
-    state: z.string().optional(),
-    zip: z.string().optional(),
-    website: z.string().optional(),
-    employeeCount: z.string().optional(),
-
-    // User
-    firstName: z.string().min(1),
-    lastName: z.string().min(1),
-    email: z.string().email(),
-    password: z.string().min(8),
-
-    // Plan
-    plan: z.enum(['starter', 'pro', 'business', 'enterprise']),
-    billingCycle: z.enum(['monthly', 'annual']),
-  })
-
-  const body = await c.req.json()
-  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
-  const data = schema.parse(body)
-
-  // Check if email already exists
-  const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
-  if (existing) {
-    return c.json({ error: 'An account with this email already exists' }, 409)
-  }
-
-  // Generate unique company slug
-  const baseSlug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  const slug = `${baseSlug}-${uuidv4().substring(0, 6)}`
-
-  // Hash password
-  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
-
-  // Get features for the selected plan
-  const enabledFeatures = getFeaturesForPlan(CRM_TEMPLATE, data.plan)
-  const limits = PLAN_LIMITS[data.plan] || PLAN_LIMITS.starter
-
-  // Calculate trial end date (30 days)
-  const trialEndsAt = new Date()
-  trialEndsAt.setDate(trialEndsAt.getDate() + 30)
-
-  // Create company and user in transaction
-  const result = await db.transaction(async (tx) => {
-    // Create company
-    const [newCompany] = await tx.insert(company).values({
-      name: data.companyName,
-      slug,
-      email: data.email,
-      phone: data.phone,
-      address: data.address,
-      city: data.city,
-      state: data.state,
-      zip: data.zip,
-      website: data.website,
-      enabledFeatures,
-      settings: {
-        plan: data.plan,
-        billingCycle: data.billingCycle,
-        employeeCount: data.employeeCount,
-        industry: data.industry,
-        limits,
-        trialEndsAt: trialEndsAt.toISOString(),
-        subscriptionStatus: 'trialing',
-      },
-    }).returning()
-
-    // Create owner user
-    const [newUser] = await tx.insert(user).values({
-      email: data.email,
-      passwordHash,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      phone: data.phone,
-      role: 'owner',
-      companyId: newCompany.id,
-    }).returning()
-
-    return { company: newCompany, user: newUser }
-  })
-
-  // Generate token pair (same as login/register)
-  const tokens = generateTokens(result.user.id, result.company.id, result.user.email, result.user.role)
-  await storeRefreshToken(result.user.id, tokens.refreshToken)
-
-  // Send welcome email
-  try {
-    await emailService.sendWelcome(data.email, {
-      firstName: data.firstName,
-      companyName: data.companyName,
-      plan: data.plan,
-      trialEndsAt,
-    })
-  } catch (emailErr) {
-    logger.error('Email error', { action: 'sendWelcomeEmail', email: data.email })
-  }
-
-  logger.info('New signup', {
-    companyId: result.company.id,
-    plan: data.plan,
-    industry: data.industry,
-  })
-
-  return c.json({
-    user: {
-      id: result.user.id,
-      email: result.user.email,
-      firstName: result.user.firstName,
-      lastName: result.user.lastName,
-      role: result.user.role,
-    },
-    company: {
-      id: result.company.id,
-      name: result.company.name,
-      slug: result.company.slug,
-      enabledFeatures: result.company.enabledFeatures,
-      settings: result.company.settings,
-      phone: result.company.phone,
-      email: result.company.email,
-      address: result.company.address,
-      city: result.company.city,
-      state: result.company.state,
-      zip: result.company.zip,
-      website: result.company.website,
-      plan: data.plan,
-      trialEndsAt,
-    },
-    ...tokens,
-  }, 201)
+  // SECURITY: self-serve signup is DISABLED. A tenant is ONE company, provisioned by the Twomiah
+  // Factory; this route used to create a second company + owner login in the same database with no
+  // auth. Kept as a 403 stub for any old caller (same as /register).
+  return c.json({ error: 'Self-serve signup is disabled. Accounts are provisioned by Twomiah.' }, 403)
 })
 
 // Legacy register endpoint (keep for backwards compatibility)

@@ -1,6 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
+import { buildTenantSubscription, TENANT_SUBSCRIPTION_COLUMNS } from '../../services/tenantSubscription'
 import { deleteZip } from '../../services/factoryStorage'
 import { notifyPreviewFollowup, notifyPostLaunchTips, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../../services/email'
 import fs from 'fs'
@@ -109,6 +110,38 @@ factory.post('/inbound-parse/:secret', async (c) => {
   }
 })
 
+
+// ─── Subscription summary + billing portal (tenant → factory, X-Factory-Key auth) ───────────
+// A tenant CRM never computes billing state itself: it pulls this at boot and when Settings → Billing
+// opens, and the Factory pushes the same summary to /api/internal/sync-subscription on every change
+// (see services/tenantSubscription.ts). Plans are changed only through the Stripe portal below.
+factory.get('/customers/:id/subscription', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select(TENANT_SUBSCRIPTION_COLUMNS).eq('id', tenantId).single()
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    return c.json(buildTenantSubscription(tenant))
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.post('/customers/:id/billing-portal-link', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, stripe_customer_id, render_frontend_url').eq('id', tenantId).single()
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    if (!tenant.stripe_customer_id) return c.json({ url: null, reason: 'no_stripe_customer' })
+    const returnUrl = tenant.render_frontend_url ? tenant.render_frontend_url.replace(/\/$/, '') + '/crm/settings/billing' : undefined
+    const result = await factoryStripe.createBillingPortalSession(tenant.stripe_customer_id, returnUrl as string)
+    return c.json({ url: result.url })
+  } catch (err: any) {
+    console.error('[Stripe] Tenant billing portal error:', err)
+    return c.json({ url: null, error: err.message }, 500)
+  }
+})
 
 // ─── Offboard status (tenant → factory, X-Factory-Key auth) ────────────────
 factory.get('/customers/:id/offboard/status', async (c) => {

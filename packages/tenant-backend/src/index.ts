@@ -12,6 +12,11 @@ export { createGbpAdminRoutes, createGbpInternalRoutes } from './gbp'
 export { createOnboardingRoutes } from './onboarding'
 export { createEmailDomainRoutes } from './emailDomain'
 export { createAccountRoutes } from './account'
+// Read-only billing: the Factory owns plans + Stripe; the tenant mirrors the subscription summary.
+export { createBillingRoutes, createSubscriptionSyncRoute, refreshSubscriptionFromFactory, applySubscriptionToCompany } from './billing'
+export type { BillingDeps, BillingFactoryClient } from './billing'
+export { PLANS, planFor, seatsForPlan } from './plans'
+export type { PlanDef, TenantSubscription } from './plans'
 export { createFactoryApiClient } from './factoryClient'
 export type {
   EmailAliasesDeps,

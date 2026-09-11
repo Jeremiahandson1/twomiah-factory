@@ -9,11 +9,14 @@
 //   const emailAliasesRoutes = createEmailAliasesRoutes({ db, emailAliasesTable, factoryApiClient: factoryClient })
 
 import type { FactoryApiClient } from './types'
+import type { TenantSubscription } from './plans'
 
 interface FullFactoryApiClient extends FactoryApiClient {
   getOffboardStatus(): Promise<{ status: string; offboardStartedAt: string | null; offboardGraceEndsAt: string | null; domain?: string | null; domainRegistrar?: string | null }>
   startOffboard(confirm: true): Promise<{ success: boolean; offboardGraceEndsAt?: string; steps?: any[]; error?: string }>
   reactivate(): Promise<{ success: boolean; error?: string }>
+  getSubscription(): Promise<TenantSubscription>
+  getBillingPortalLink(): Promise<{ url: string | null; reason?: string }>
 }
 
 function env(name: string): string {
@@ -68,6 +71,13 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     },
     async reactivate() {
       return call('POST', tenantBase() + '/reactivate')
+    },
+    // Billing is read-only in a tenant: the Factory owns the subscription and the Stripe portal.
+    async getSubscription() {
+      return call('GET', tenantBase() + '/subscription')
+    },
+    async getBillingPortalLink() {
+      return call('POST', tenantBase() + '/billing-portal-link')
     },
   }
 }
