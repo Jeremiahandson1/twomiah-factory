@@ -24,7 +24,8 @@ export async function getRevenueOverview(companyId: string, { startDate, endDate
   const dateConditions = buildDateConditions(startDate, endDate)
 
   // Total invoiced
-  const invoiceConditions = [eq(invoice.companyId, companyId)]
+  // Invoiced = billed and still standing: drafts were never issued, void/refunded are reversed. (SALON-N8)
+  const invoiceConditions = [eq(invoice.companyId, companyId), sql`${invoice.status} NOT IN ('void', 'refunded', 'draft')`]
   if (dateConditions.gte) invoiceConditions.push(gte(invoice.createdAt, dateConditions.gte))
   if (dateConditions.lte) invoiceConditions.push(lte(invoice.createdAt, dateConditions.lte))
 
@@ -48,7 +49,7 @@ export async function getRevenueOverview(companyId: string, { startDate, endDate
   const [outstanding] = await db
     .select({ total: sql<string>`coalesce(sum(${invoice.total}::numeric - ${invoice.amountPaid}::numeric), 0)` })
     .from(invoice)
-    .where(and(eq(invoice.companyId, companyId), sql`${invoice.status} IN ('sent', 'partial', 'overdue')`))
+    .where(and(eq(invoice.companyId, companyId), sql`${invoice.status} IN ('sent', 'open', 'viewed', 'partial', 'overdue')`))
 
   // Overdue
   const [overdue] = await db
@@ -60,7 +61,7 @@ export async function getRevenueOverview(companyId: string, { startDate, endDate
     .where(
       and(
         eq(invoice.companyId, companyId),
-        sql`${invoice.status} IN ('sent', 'partial')`,
+        sql`${invoice.status} IN ('sent', 'open', 'viewed', 'partial')`,
         lte(invoice.dueDate, new Date())
       )
     )
@@ -91,7 +92,7 @@ export async function getRevenueByMonth(companyId: string, { months = 12 }: { mo
   const invoices = await db
     .select({ total: invoice.total, amountPaid: invoice.amountPaid, createdAt: invoice.createdAt, paidAt: invoice.paidAt })
     .from(invoice)
-    .where(and(eq(invoice.companyId, companyId), gte(invoice.createdAt, startDate)))
+    .where(and(eq(invoice.companyId, companyId), gte(invoice.createdAt, startDate), sql`${invoice.status} NOT IN ('void', 'refunded', 'draft')`))
 
   // Group by month
   const monthlyData: Record<string, { month: string; invoiced: number; collected: number }> = {}

@@ -748,6 +748,49 @@ async function createRenderStaticSite(config: {
  * is no read to truncate and no collection to replace. Returns true only if
  * every variable was accepted, so callers can report honestly.
  */
+// Platform-level integration credentials a CRM backend needs for SELF-SERVE onboarding:
+//   • STRIPE_SECRET_KEY / STRIPE_PUBLISHABLE_KEY — the Factory's Stripe account is the Connect platform;
+//     with it the salon owner clicks "Connect Stripe" and onboards their own Stripe account (standard
+//     Connect), so card payments and deposits work without Twomiah touching the tenant. A key the
+//     customer supplied themselves (integrations.stripe.secretKey) always wins.
+//   • QUICKBOOKS_CLIENT_ID / _SECRET — the Factory's Intuit app (QBO_* in the Factory env).
+//   • API_URL / BACKEND_URL — OAuth callbacks and SMS status webhooks need the backend's own URL.
+// Nothing here is a tenant secret: the values are the Factory's own credentials, scoped by Stripe
+// Connect / Intuit OAuth to the account the owner connects. (SALON-C5)
+export function platformIntegrationEnv(backendUrl: string, opts: { customerHasStripeKey?: boolean } = {}): Array<{ key: string; value: string }> {
+  const out: Array<{ key: string; value: string }> = []
+  if (backendUrl) { out.push({ key: 'API_URL', value: backendUrl }); out.push({ key: 'BACKEND_URL', value: backendUrl }) }
+  if (!opts.customerHasStripeKey && process.env.STRIPE_SECRET_KEY) {
+    out.push({ key: 'STRIPE_SECRET_KEY', value: process.env.STRIPE_SECRET_KEY })
+    if (process.env.STRIPE_PUBLISHABLE_KEY) out.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: process.env.STRIPE_PUBLISHABLE_KEY })
+  }
+  if (process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET) {
+    out.push({ key: 'QUICKBOOKS_CLIENT_ID', value: process.env.QBO_CLIENT_ID })
+    out.push({ key: 'QUICKBOOKS_CLIENT_SECRET', value: process.env.QBO_CLIENT_SECRET })
+    out.push({ key: 'QUICKBOOKS_ENVIRONMENT', value: process.env.QBO_ENVIRONMENT || 'production' })
+  }
+  return out
+}
+
+/** Existing tenant: add the platform integration env vars it is missing (never overwrite a value that is set). */
+export async function refreshPlatformIntegrationEnv(serviceId: string): Promise<{ added: string[]; error?: string }> {
+  try {
+    const svcRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId, { headers: renderHeaders() })
+    if (!svcRes.ok) return { added: [], error: 'service lookup ' + svcRes.status }
+    const svc: any = await svcRes.json()
+    const backendUrl: string = svc?.serviceDetails?.url || (svc?.slug ? 'https://' + svc.slug + '.onrender.com' : '')
+    const envRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars?limit=100', { headers: renderHeaders() })
+    if (!envRes.ok) return { added: [], error: 'env lookup ' + envRes.status }
+    const existing = new Set(((await envRes.json()) as any[]).map((e: any) => (e.envVar || e).key))
+    const wanted = platformIntegrationEnv(backendUrl, { customerHasStripeKey: existing.has('STRIPE_SECRET_KEY') }).filter(v => !existing.has(v.key))
+    if (!wanted.length) return { added: [] }
+    const ok = await updateRenderEnvVars(serviceId, wanted)
+    return { added: wanted.map(v => v.key), error: ok ? undefined : 'some env vars failed' }
+  } catch (e: any) {
+    return { added: [], error: e?.message || String(e) }
+  }
+}
+
 export async function updateRenderEnvVars(serviceId: string, envVars: Array<{ key: string; value: string }>) {
   let allOk = true
   for (const { key, value } of envVars) {
@@ -1258,6 +1301,10 @@ export async function deployCustomer(
           // setup updates this value when a tenant attaches one.
           const publicUrl = backendUrl
           const okFrontendUrl = await updateRenderEnvVars(backendSvc.id, [{ key: 'FRONTEND_URL', value: publicUrl }])
+          // Self-serve Stripe Connect / QuickBooks / callback URLs from day one. (SALON-C5)
+          const platformEnv = await refreshPlatformIntegrationEnv(backendSvc.id)
+          if (platformEnv.added.length) console.log('[Deploy] platform integration env added:', platformEnv.added.join(', '))
+          if (platformEnv.error) console.warn('[Deploy] platform integration env:', platformEnv.error)
           if (!okFrontendUrl) {
             console.warn('[Deploy] Could not set FRONTEND_URL — emailed links will fall back to the service URL')
           }
@@ -1854,6 +1901,8 @@ export async function updateCustomerCode(
       // reconcile step (db/reconcile.ts). The command is otherwise frozen at service creation, which
       // is how tenants kept booting with the push-only step long after the code moved on.
       if (serviceIds.crm) {
+        const platformEnv = await refreshPlatformIntegrationEnv(serviceIds.crm)
+        steps.push({ step: 'platform_env', status: platformEnv.error ? 'warning' : 'ok', detail: platformEnv.added.length ? 'added ' + platformEnv.added.join(', ') : (platformEnv.error || 'already present') })
         const ok = await updateRenderServiceSettings(serviceIds.crm, { startCommand: crmBackendStartCommand() })
         steps.push({ step: 'start_command', status: ok ? 'ok' : 'warning', detail: ok ? 'CRM start command refreshed' : 'could not update the start command — boot will use the previous one' })
       }

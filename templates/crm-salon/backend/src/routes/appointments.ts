@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { appointment, serviceMenu, contact, user } from '../../db/schema.ts'
-import { eq, and, gte, lte, ne } from 'drizzle-orm'
+import { appointment, serviceMenu, contact, user, serviceRecord } from '../../db/schema.ts'
+import { eq, and, gte, lte, ne, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -20,6 +20,15 @@ const app = new Hono()
 app.use('*', authenticate)
 
 const CANCELLED = ['cancelled', 'no_show']
+const APPT_STATUSES = ['scheduled', 'confirmed', 'checked_in', 'in_chair', 'completed', 'no_show', 'cancelled']
+const MAX_APPT_MS = 12 * 3600_000 // no salon service runs longer than a working day (SALON-M3)
+
+// An online booking mirrors its appointment's status so the Bookings list never says "confirmed"
+// for a cancelled visit. (SALON-N10)
+async function syncOnlineBooking(appointmentId: string, status: string) {
+  const mapped = status === 'cancelled' ? 'cancelled' : status === 'no_show' ? 'no_show' : status === 'completed' ? 'completed' : 'confirmed'
+  try { await db.execute(sql`UPDATE online_booking SET status = ${mapped}, updated_at = NOW() WHERE appointment_id = ${appointmentId}`) } catch { /* no booking row */ }
+}
 
 // Resolve endTime: explicit > service duration > 60 min.
 async function resolveEnd(companyId: string, startTime: Date, serviceId: string | null, explicitEnd: string | null): Promise<Date> {
@@ -92,6 +101,20 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
     const inv = await ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price })
     invoiceId = inv?.id || null
   } catch (e: any) { console.warn('[appointments] sale not created:', e?.message || e) }
+  // The visit itself: a completed appointment IS a visit, so write the service record (once) —
+  // visit count, last visit, due-back and the formula history all hang off it. The stylist adds the
+  // formula from the client's page; Log Service still works and simply edits this row. (SALON-H4)
+  try {
+    const [rec] = await db.select({ id: serviceRecord.id }).from(serviceRecord).where(and(eq(serviceRecord.appointmentId, row.id), eq(serviceRecord.companyId, row.companyId))).limit(1)
+    if (!rec) {
+      const price = Number(row.quotedPrice)
+      await db.insert(serviceRecord).values({
+        id: createId(), contactId: row.contactId, appointmentId: row.id, stylistId: row.stylistId || null, serviceId: row.serviceId || null,
+        performedAt: new Date(row.startTime), formula: [], priceCharged: price > 0 ? String(price) : null,
+        notes: 'Logged automatically when the appointment was completed.', companyId: row.companyId,
+      } as any)
+    }
+  } catch (e: any) { console.warn('[appointments] visit record not created:', e?.message || e) }
   scheduleReviewRequestForVisit({ companyId: row.companyId, contactId: row.contactId }).catch((e) => console.warn('[appointments] review schedule failed:', e?.message || e))
   return invoiceId
 }
@@ -144,10 +167,13 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
   const startTime = new Date(body.startTime)
   if (Number.isNaN(startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
+  if (body.status && !APPT_STATUSES.includes(body.status)) return c.json({ error: `status must be one of ${APPT_STATUSES.join(', ')}` }, 400)
+  if (body.quotedPrice != null && body.quotedPrice !== '' && (isNaN(Number(body.quotedPrice)) || Number(body.quotedPrice) < 0)) return c.json({ error: 'Quoted price cannot be negative.' }, 400)
   const serviceId = body.serviceId || null
   const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
   // A manually-set end before the start was saved verbatim ("9:00 AM – 8:00 AM"). (SCHED-01)
   if (endTime.getTime() <= startTime.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
+  if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return c.json({ error: 'An appointment cannot run longer than 12 hours.' }, 400)
 
   if (body.stylistId) {
     const clash = await findConflict(currentUser.companyId, body.stylistId, startTime, endTime)
@@ -192,6 +218,8 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['contactId', 'stylistId', 'serviceId', 'status', 'station', 'startTime', 'endTime', 'quotedPrice', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  if ('status' in updates && !APPT_STATUSES.includes(updates.status)) return c.json({ error: `status must be one of ${APPT_STATUSES.join(', ')}` }, 400)
+  if ('quotedPrice' in updates && updates.quotedPrice != null && updates.quotedPrice !== '' && (isNaN(Number(updates.quotedPrice)) || Number(updates.quotedPrice) < 0)) return c.json({ error: 'Quoted price cannot be negative.' }, 400)
   if (updates.startTime) {
     updates.startTime = new Date(updates.startTime)
     if (Number.isNaN(updates.startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
@@ -211,6 +239,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   // Re-validate the effective pair — editing the end (or dragging the start) must not
   // produce an end at/before the start. (SCHED-01)
   if (nextEnd.getTime() <= nextStart.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
+  if (nextEnd.getTime() - nextStart.getTime() > MAX_APPT_MS) return c.json({ error: 'An appointment cannot run longer than 12 hours.' }, 400)
 
   if (nextStylist && !CANCELLED.includes(nextStatus)) {
     const clash = await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id)
@@ -225,6 +254,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const [updated] = await db.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
+  if (nextStatus !== existing.status) await syncOnlineBooking(id, nextStatus)
   const invoiceId = nextStatus === 'completed' && existing.status !== 'completed' ? await onVisitCompleted(updated) : null
   return c.json({ ...updated, invoiceId })
 })
@@ -264,6 +294,7 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .set({ status: 'cancelled', updatedAt: new Date() })
     .where(eq(appointment.id, id))
     .returning()
+  await syncOnlineBooking(id, 'cancelled')
 
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })

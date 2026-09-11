@@ -745,8 +745,8 @@ app.get('/stripe/connect-url', authenticate, async (c) => {
 
   const accountLink = await stripe.accountLinks.create({
     account: accountId,
-    refresh_url: `${process.env.FRONTEND_URL}/settings/integrations?stripe=refresh`,
-    return_url: `${process.env.FRONTEND_URL}/settings/integrations?stripe=success`,
+    refresh_url: `${process.env.FRONTEND_URL}/crm/settings/integrations?stripe=refresh`,
+    return_url: `${process.env.FRONTEND_URL}/crm/settings/integrations?stripe=success`,
     type: 'account_onboarding',
   })
 

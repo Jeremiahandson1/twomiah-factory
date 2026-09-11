@@ -40,7 +40,7 @@ interface PaginationData {
 const contactTypes = [
   { value: 'lead', label: 'Lead' },
   { value: 'client', label: 'Client' },
-  { value: 'vendor', label: 'Vendor' },
+  { value: 'vendor', label: 'Supplier' },
 ];
 
 const initialFormData: ContactForm = {

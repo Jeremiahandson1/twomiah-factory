@@ -19,6 +19,7 @@ type WorkingHours = Record<Day, DayHours>;
 interface Settings {
   enabled: boolean;
   slotDurationMinutes: number;
+  concurrentBookings: number;
   leadTimeDays: number;
   maxDaysOut: number;
   workingHours: WorkingHours;
@@ -58,6 +59,7 @@ export default function BookingSettingsTab() {
         setSettings({
           enabled: s?.enabled !== false,
           slotDurationMinutes: Number(s?.slotDurationMinutes ?? 60),
+          concurrentBookings: Number(s?.concurrentBookings ?? 1),
           leadTimeDays: Number(s?.leadTimeDays ?? 1),
           maxDaysOut: Number(s?.maxDaysOut ?? 30),
           workingHours: normalizeHours(s?.workingHours ?? s?.working_hours),
@@ -99,6 +101,7 @@ export default function BookingSettingsTab() {
       await api.put('/api/booking/settings', {
         enabled: settings.enabled,
         slotDurationMinutes: settings.slotDurationMinutes,
+        concurrentBookings: settings.concurrentBookings,
         leadTimeDays: settings.leadTimeDays,
         maxDaysOut: settings.maxDaysOut,
         workingHours: settings.workingHours,
@@ -188,6 +191,13 @@ export default function BookingSettingsTab() {
               {[15, 30, 45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} minutes</option>)}
             </select>
             <p className="mt-1 text-xs text-gray-400">A service's own duration overrides this.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Chairs bookable at once</label>
+            <input type="number" min={1} max={20} value={settings.concurrentBookings}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => set('concurrentBookings', Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+            <p className="mt-1 text-xs text-gray-400">Online bookings per time slot — the number of stylists taking online clients. Desk bookings count too.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Notice needed</label>

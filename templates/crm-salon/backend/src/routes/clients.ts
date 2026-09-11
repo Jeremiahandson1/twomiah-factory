@@ -173,6 +173,12 @@ app.put('/:contactId/profile', requirePermission('contacts:update'), async (c) =
 
   // Whitelist editable columns — never let companyId/id/contactId be set from the body.
   const EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'preferences', 'pronouns', 'birthday', 'notes'] as const
+  for (const k of ['birthday', 'patchTestAt'] as const) {
+    if (body[k] == null || body[k] === '') continue
+    const v = String(body[k])
+    if (!/^\d{4}-\d{2}-\d{2}/.test(v) || isNaN(new Date(v.slice(0, 10) + 'T00:00:00Z').getTime())) return c.json({ error: `${k === 'birthday' ? 'Birthday' : 'Patch test date'} must be a valid date (YYYY-MM-DD).` }, 400)
+    if (v.slice(0, 10) > new Date().toISOString().slice(0, 10)) return c.json({ error: `${k === 'birthday' ? 'Birthday' : 'Patch test date'} cannot be in the future.` }, 400)
+  }
 
   const [existing] = await db.select().from(clientProfile)
     .where(and(eq(clientProfile.contactId, contactId), eq(clientProfile.companyId, currentUser.companyId)))

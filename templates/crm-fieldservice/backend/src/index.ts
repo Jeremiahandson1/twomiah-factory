@@ -164,7 +164,10 @@ function createRateLimiter(windowMs: number, max: number, countMethod?: (m: stri
   const hits = new Map<string, { count: number; resetAt: number }>()
   return async (c: Context, next: Next) => {
     if (countMethod && !countMethod(c.req.method)) return next()
-    const key = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || 'unknown'
+    // Key on the CLIENT address only. x-forwarded-for is "client, hop, hop" and Render's edge appends a
+    // varying hop, so keying on the whole header gave every request its own counter — 30 wrong
+    // passwords in a row never hit the limit. (SALON-H5)
+    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
     const now = Date.now()
     const entry = hits.get(key)
     if (!entry || now > entry.resetAt) {

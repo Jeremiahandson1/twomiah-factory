@@ -9,6 +9,14 @@ import api from '../../services/api';
 /**
  * Two-Way SMS Messaging Page
  */
+// +16085550188 → (608) 555-0188; anything else is shown as stored.
+function fmtPhone(p: unknown): string {
+  const d = String(p || '').replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return String(p || '');
+}
+
 export default function MessagesPage() {
   const [conversations, setConversations] = useState<Record<string, unknown>[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Record<string, unknown> | null>(null);
@@ -145,9 +153,9 @@ export default function MessagesPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-slate-100">
-                  {(selectedConversation.contact as Record<string, unknown>)?.name as string || selectedConversation.phoneNumber as string}
+                  {(selectedConversation.contact as Record<string, unknown>)?.name as string || fmtPhone(selectedConversation.phoneNumber as string)}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-slate-400">{selectedConversation.phoneNumber as string}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{fmtPhone(selectedConversation.phoneNumber as string)}</p>
               </div>
               <button className="p-2 hover:bg-gray-100 rounded-lg">
                 <Phone className="w-5 h-5 text-gray-500 dark:text-slate-400" />
@@ -224,7 +232,7 @@ function ConversationItem({ conversation, selected, onClick }: ConversationItemP
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <p className={`font-medium truncate ${(conversation.unreadCount as number) > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
-              {(conversation.contact as Record<string, unknown>)?.name as string || conversation.phoneNumber as string}
+              {(conversation.contact as Record<string, unknown>)?.name as string || fmtPhone(conversation.phoneNumber as string)}
             </p>
             <span className="text-xs text-gray-500 dark:text-slate-400">{timeAgo}</span>
           </div>

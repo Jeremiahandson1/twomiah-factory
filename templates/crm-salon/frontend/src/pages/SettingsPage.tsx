@@ -162,9 +162,6 @@ export default function SettingsPage() {
             <button onClick={() => navigate('/crm/settings/import')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <Upload className="w-5 h-5" />Import from CSV
             </button>
-            <button onClick={() => navigate('/crm/settings/estimator')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
-              <Calculator className="w-5 h-5" />Instant Estimator
-            </button>
           </div>
         </div>
         <div className="flex-1 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">

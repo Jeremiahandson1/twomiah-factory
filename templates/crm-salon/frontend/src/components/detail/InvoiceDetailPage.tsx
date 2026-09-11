@@ -139,7 +139,7 @@ export default function InvoiceDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadInvoice} actionLabel="Retry" />;
   if (!invoice) return <EmptyState title="Invoice not found" />;
 
-  const balance = Number(invoice.total) - Number(invoice.amountPaid || 0);
+  const balance = invoice.status === 'void' ? 0 : Number(invoice.total) - Number(invoice.amountPaid || 0);
   const balanceColor = balance > 0 ? 'text-red-600' : 'text-green-600';
 
   return (
@@ -161,7 +161,7 @@ export default function InvoiceDetailPage() {
               <Send className="w-4 h-4" /> Send
             </button>
           )}
-          {balance > 0 && invoice.status !== 'draft' && (
+          {balance > 0 && invoice.status !== 'draft' && invoice.status !== 'void' && (
             <button onClick={() => setPaymentOpen(true)} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
               <DollarSign className="w-4 h-4" /> Record Payment
             </button>
@@ -176,9 +176,9 @@ export default function InvoiceDetailPage() {
               <Ban className="w-4 h-4" /> Void
             </button>
           )}
-          <Link to={`/crm/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
+          {invoice.status !== 'void' && (<Link to={`/crm/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
-          </Link>
+          </Link>)}
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
             <Trash2 className="w-4 h-4" />
           </button>

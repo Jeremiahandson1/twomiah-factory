@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
+import { requireEnabledFeature } from './middleware/enabledFeature.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
@@ -194,7 +195,10 @@ function createRateLimiter(windowMs: number, max: number, countMethod?: (m: stri
 
   return async (c: Context, next: Next) => {
     if (countMethod && !countMethod(c.req.method)) return next()
-    const key = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip') || 'unknown'
+    // Key on the CLIENT address only. x-forwarded-for is "client, hop, hop" and Render's edge appends a
+    // varying hop, so keying on the whole header gave every request its own counter — 30 wrong
+    // passwords in a row never hit the limit. (SALON-H5)
+    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
     const now = Date.now()
     let entry = hits.get(key)
     if (!entry || now > entry.resetAt) { entry = { count: 0, resetAt: now + windowMs }; hits.set(key, entry) }
@@ -223,6 +227,59 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // API routes
 if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+
+// Modules outside this tenant's enabled features are refused at the API, not just hidden in the menu. (SALON-M1)
+app.use('/api/projects', authenticate, requireEnabledFeature('projects'))
+app.use('/api/projects/*', authenticate, requireEnabledFeature('projects'))
+app.use('/api/jobs', authenticate, requireEnabledFeature('jobs'))
+app.use('/api/jobs/*', authenticate, requireEnabledFeature('jobs'))
+app.use('/api/quotes', authenticate, requireEnabledFeature('quotes'))
+app.use('/api/quotes/*', authenticate, requireEnabledFeature('quotes'))
+app.use('/api/rfis', authenticate, requireEnabledFeature('rfis'))
+app.use('/api/rfis/*', authenticate, requireEnabledFeature('rfis'))
+app.use('/api/submittals', authenticate, requireEnabledFeature('submittals'))
+app.use('/api/submittals/*', authenticate, requireEnabledFeature('submittals'))
+app.use('/api/lien-waivers', authenticate, requireEnabledFeature('lien_waivers'))
+app.use('/api/lien-waivers/*', authenticate, requireEnabledFeature('lien_waivers'))
+app.use('/api/draw-schedules', authenticate, requireEnabledFeature('draw_schedules'))
+app.use('/api/draw-schedules/*', authenticate, requireEnabledFeature('draw_schedules'))
+app.use('/api/aia-forms', authenticate, requireEnabledFeature('aia_forms'))
+app.use('/api/aia-forms/*', authenticate, requireEnabledFeature('aia_forms'))
+app.use('/api/gantt-charts', authenticate, requireEnabledFeature('gantt_charts'))
+app.use('/api/gantt-charts/*', authenticate, requireEnabledFeature('gantt_charts'))
+app.use('/api/change-orders', authenticate, requireEnabledFeature('change_orders'))
+app.use('/api/change-orders/*', authenticate, requireEnabledFeature('change_orders'))
+app.use('/api/punch-lists', authenticate, requireEnabledFeature('punch_lists'))
+app.use('/api/punch-lists/*', authenticate, requireEnabledFeature('punch_lists'))
+app.use('/api/daily-logs', authenticate, requireEnabledFeature('daily_logs'))
+app.use('/api/daily-logs/*', authenticate, requireEnabledFeature('daily_logs'))
+app.use('/api/inspections', authenticate, requireEnabledFeature('inspections'))
+app.use('/api/inspections/*', authenticate, requireEnabledFeature('inspections'))
+app.use('/api/bids', authenticate, requireEnabledFeature('bid_management'))
+app.use('/api/bids/*', authenticate, requireEnabledFeature('bid_management'))
+app.use('/api/takeoffs', authenticate, requireEnabledFeature('takeoff_tools'))
+app.use('/api/takeoffs/*', authenticate, requireEnabledFeature('takeoff_tools'))
+app.use('/api/selections', authenticate, requireEnabledFeature('selections'))
+app.use('/api/selections/*', authenticate, requireEnabledFeature('selections'))
+app.use('/api/fleet', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/fleet/*', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/inventory', authenticate, requireEnabledFeature('inventory'))
+app.use('/api/inventory/*', authenticate, requireEnabledFeature('inventory'))
+app.use('/api/equipment', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/equipment/*', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/pricebook', authenticate, requireEnabledFeature('pricebook'))
+app.use('/api/pricebook/*', authenticate, requireEnabledFeature('pricebook'))
+app.use('/api/roof-reports', authenticate, requireEnabledFeature('instant_estimator'))
+app.use('/api/roof-reports/*', authenticate, requireEnabledFeature('instant_estimator'))
+app.use('/api/estimator', authenticate, requireEnabledFeature('instant_estimator'))
+app.use('/api/estimator/*', authenticate, requireEnabledFeature('instant_estimator'))
+app.use('/api/memberships', authenticate, requireEnabledFeature('salon_memberships'))
+app.use('/api/memberships/*', authenticate, requireEnabledFeature('salon_memberships'))
+app.use('/api/ads', authenticate, requireEnabledFeature('paid_ads'))
+app.use('/api/ads/*', authenticate, requireEnabledFeature('paid_ads'))
+app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
+app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
+
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)

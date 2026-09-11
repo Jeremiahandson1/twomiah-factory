@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, contact, project, quote, payment, company } from '../../db/schema.ts'
-import { eq, and, count, desc, asc } from 'drizzle-orm'
+import { eq, and, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -261,6 +261,7 @@ app.post('/:id/send', requirePermission('invoices:update'), async (c) => {
 
   const [found] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
   if (!found) return c.json({ error: 'Invoice not found' }, 404)
+  if (found.status === 'void') return c.json({ error: 'This invoice is void and cannot be sent.' }, 400)
 
   // Delivery truth (SEND-01): this used to flip the invoice to "sent" without ever
   // emailing anyone — an invoice to a missing/undeliverable address still showed
@@ -303,40 +304,44 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
   const paymentSchema = z.object({ amount: z.number().positive(), method: z.enum(['card', 'cash', 'check', 'bank_transfer', 'stripe', 'other']), reference: z.string().optional(), notes: z.string().optional() })
   const data = paymentSchema.parse(await c.req.json())
 
-  const [foundInvoice] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
-  if (!foundInvoice) return c.json({ error: 'Invoice not found' }, 404)
-
-  // Reject overpayment: recording more than the balance due poisons
-  // amountPaid and every report built on it (collection rate, revenue).
   // Work in whole cents so fractional inputs cannot desync amountPaid from status. (R2-04)
   const round2 = (n: number) => Math.round(n * 100) / 100
   const amount = round2(data.amount)
   if (amount <= 0) return c.json({ error: 'Payment amount must be at least $0.01' }, 400)
-  const balanceDue = round2(Number(foundInvoice.total) - Number(foundInvoice.amountPaid))
-  if (amount > balanceDue + 0.005) {
-    return c.json({ error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }, 400)
+
+  // The balance check and the update run in ONE transaction with the invoice row locked, so two
+  // payments (or a payment and a refund) sent at the same moment cannot both pass the check — the
+  // second waits for the lock and then sees the updated balance. (SALON-N1)
+  let outcome: { status: number; body: any; row?: any; newBalance?: number; newStatus?: string } = { status: 500, body: { error: 'Payment failed' } }
+  await db.transaction(async (tx) => {
+    const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`)
+    const row = (locked.rows || locked)[0]
+    if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
+    if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void and cannot take payments.' } }; return }
+    // A draft can take a payment (a walk-in pays at the desk before anything is emailed); the payment
+    // issues it. Only void is final.
+    const balanceDue = round2(Number(row.total) - Number(row.amount_paid))
+    if (amount > balanceDue + 0.005) { outcome = { status: 400, body: { error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` } }; return }
+
+    const [newPayment] = await tx.insert(payment).values({ ...data, amount: amount.toString(), invoiceId: id } as any).returning()
+    const newAmountPaid = round2(Number(row.amount_paid) + amount)
+    const newBalance = round2(Number(row.total) - newAmountPaid)
+    const newStatus = newBalance <= 0.005 ? 'paid' : newAmountPaid > 0 ? 'partial' : row.status
+    await tx.update(invoice).set({
+      amountPaid: newAmountPaid.toString(),
+      status: newStatus,
+      paidAt: newBalance <= 0.005 ? new Date() : null,
+      updatedAt: new Date(),
+    }).where(eq(invoice.id, id))
+    outcome = { status: 201, body: newPayment, row, newBalance, newStatus }
+  })
+  if (outcome.status !== 201) return c.json(outcome.body, outcome.status as any)
+
+  emitToCompany(currentUser.companyId, EVENTS.PAYMENT_RECEIVED, { invoiceId: id, invoiceNumber: outcome.row.number, amount, newBalance: outcome.newBalance, status: outcome.newStatus })
+  if (outcome.newStatus === 'paid') {
+    emitToCompany(currentUser.companyId, EVENTS.INVOICE_PAID, { id, number: outcome.row.number, total: outcome.row.total })
   }
-
-  const [newPayment] = await db.insert(payment).values({ ...data, amount: amount.toString(), invoiceId: id }).returning()
-
-  const newAmountPaid = round2(Number(foundInvoice.amountPaid) + amount)
-  const newBalance = round2(Number(foundInvoice.total) - newAmountPaid)
-  const newStatus = newBalance <= 0.005 ? 'paid' : newAmountPaid > 0 ? 'partial' : foundInvoice.status
-
-  await db.update(invoice).set({
-    amountPaid: newAmountPaid.toString(),
-    total: foundInvoice.total,
-    status: newStatus,
-    paidAt: newBalance <= 0 ? new Date() : null,
-    updatedAt: new Date(),
-  }).where(eq(invoice.id, id))
-
-  emitToCompany(currentUser.companyId, EVENTS.PAYMENT_RECEIVED, { invoiceId: foundInvoice.id, invoiceNumber: foundInvoice.number, amount: data.amount, newBalance, status: newStatus })
-  if (newStatus === 'paid') {
-    emitToCompany(currentUser.companyId, EVENTS.INVOICE_PAID, { id: foundInvoice.id, number: foundInvoice.number, total: foundInvoice.total })
-  }
-
-  return c.json(newPayment, 201)
+  return c.json(outcome.body, 201)
 })
 
 // POST /:id/void — an issued invoice is never deleted: voiding keeps the number and the audit trail
@@ -364,25 +369,38 @@ app.post('/:id/void', requirePermission('invoices:update'), async (c) => {
 app.post('/:id/refund', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(['card', 'cash', 'check', 'bank_transfer', 'stripe', 'other']).default('other'), reference: z.string().optional(), notes: z.string().optional() })
+  const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(['card', 'cash', 'check', 'bank_transfer', 'stripe', 'other']).optional(), reference: z.string().optional(), notes: z.string().optional() })
   const data = refundSchema.parse(await c.req.json())
-  const [existing] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
-  if (!existing) return c.json({ error: 'Invoice not found' }, 404)
   const round2 = (n: number) => Math.round(n * 100) / 100
-  const paid = round2(Number(existing.amountPaid))
   const amount = round2(data.amount)
-  if (paid <= 0.005) return c.json({ error: 'This invoice has no payments to refund.' }, 400)
-  if (amount > paid + 0.005) return c.json({ error: `Refund exceeds what was collected — $${paid.toFixed(2)} paid on this invoice.` }, 400)
-  const [refund] = await db.insert(payment).values({
-    invoiceId: id, amount: (-amount).toString(), method: data.method, reference: data.reference || null, notes: data.notes || 'Refund',
-  }).returning()
-  const newPaid = round2(paid - amount)
-  const newStatus = newPaid <= 0.005 ? 'refunded' : 'partial'
-  const [updated] = await db.update(invoice)
-    .set({ amountPaid: newPaid.toString(), status: newStatus, paidAt: null, updatedAt: new Date() })
-    .where(eq(invoice.id, id)).returning()
-  emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, updated)
-  return c.json({ refund, invoice: updated })
+
+  // Same row lock as payments: concurrent refunds used to each read the same amountPaid and
+  // together refund more than was ever collected. (SALON-N1)
+  let outcome: { status: number; body: any } = { status: 500, body: { error: 'Refund failed' } }
+  await db.transaction(async (tx) => {
+    const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`)
+    const row = (locked.rows || locked)[0]
+    if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
+    if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void.' } }; return }
+    const paid = round2(Number(row.amount_paid))
+    if (paid <= 0.005) { outcome = { status: 400, body: { error: 'This invoice has no payments to refund.' } }; return }
+    if (amount > paid + 0.005) { outcome = { status: 400, body: { error: `Refund exceeds what was collected — $${paid.toFixed(2)} paid on this invoice.` } }; return }
+    // Default to how the money came in — the most recent positive payment's method. (SALON-N12)
+    const [last] = await tx.select({ method: payment.method }).from(payment)
+      .where(and(eq(payment.invoiceId, id), sql`${payment.amount}::numeric > 0`)).orderBy(desc(payment.paidAt)).limit(1)
+    const method = data.method || last?.method || 'other'
+    const [refund] = await tx.insert(payment).values({
+      invoiceId: id, amount: (-amount).toString(), method, reference: data.reference || null, notes: data.notes || 'Refund',
+    } as any).returning()
+    const newPaid = round2(paid - amount)
+    const newStatus = newPaid <= 0.005 ? 'refunded' : 'partial'
+    const [updated] = await tx.update(invoice)
+      .set({ amountPaid: newPaid.toString(), status: newStatus, paidAt: null, updatedAt: new Date() })
+      .where(eq(invoice.id, id)).returning()
+    outcome = { status: 200, body: { refund, invoice: updated } }
+  })
+  if (outcome.status === 200) emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.body.invoice)
+  return c.json(outcome.body, outcome.status as any)
 })
 
 // PDF download

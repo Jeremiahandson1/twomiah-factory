@@ -1636,6 +1636,7 @@ export const bookingSettings = pgTable('booking_settings', {
   leadTimeDays: integer('lead_time_days').default(1).notNull(),
   maxDaysOut: integer('max_days_out').default(30).notNull(),
   slotDurationMinutes: integer('slot_duration_minutes').default(60).notNull(),
+  concurrentBookings: integer('concurrent_bookings').default(1).notNull(), // chairs that can take an online booking at the same time (SALON-N3)
   workingHours: json('working_hours').notNull(),
   timezone: text('timezone').default('America/Chicago').notNull(), // salon-local tz for slot times (CC-33)
 
@@ -3690,6 +3691,7 @@ export const serviceMenu = pgTable('service_menu', {
   priceIsFrom: boolean('price_is_from').default(false).notNull(), // "from $250" — colour is rarely fixed
   rebookIntervalDays: integer('rebook_interval_days'),
   requiresPatchTest: boolean('requires_patch_test').default(false).notNull(),
+  bookableOnline: boolean('bookable_online').default(false).notNull(),  // offered on the public booking widget (SALON-N4)
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

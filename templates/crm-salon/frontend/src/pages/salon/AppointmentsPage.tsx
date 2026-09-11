@@ -158,7 +158,7 @@ export default function AppointmentsPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">The Book</h1>
-          <p className="text-gray-500 dark:text-slate-400">Today's chairs</p>
+          <p className="text-gray-500 dark:text-slate-400">{day === todayStr() ? "Today's chairs" : `Chairs on ${new Date(day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`}</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
           <Plus className="w-4 h-4" /> New Appointment
@@ -172,7 +172,7 @@ export default function AppointmentsPage() {
         </div>
         <button onClick={() => setDay(todayStr())} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Today</button>
         <span className="text-sm text-gray-500 dark:text-slate-400">
-          {booked} booked{done ? ` · ${done} done` : ''}{cancelled ? ` · ${cancelled} cancelled` : ''}
+          {booked} booked{done ? ` · ${done} done` : ''}{cancelled ? ` · ${cancelled} cancelled / no-show` : ''}
         </span>
       </div>
 

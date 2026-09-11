@@ -4,13 +4,22 @@ import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import booking from '../services/booking.ts'
+import booking, { BookingError } from '../services/booking.ts'
 
 const app = new Hono()
 
 // ============================================
 // PUBLIC ROUTES (no auth - for the widget)
 // ============================================
+
+// A bad public request (closed day, past date, taken slot, malformed time) is the caller's problem,
+// not a server error — bots and broken widgets used to 500 this endpoint. (SALON-N5)
+app.use('/public/*', async (c, next) => {
+  try { await next() } catch (e: any) {
+    if (e instanceof BookingError) return c.json({ error: e.message }, 400)
+    throw e
+  }
+})
 
 app.get('/public/:companySlug', async (c) => {
   const companySlug = c.req.param('companySlug')
@@ -27,7 +36,7 @@ app.get('/public/:companySlug', async (c) => {
     booking.getBookingSettings(found.id),
     // Public widget must only offer ACTIVE services — switching one off left it
     // bookable because this passed no activeOnly flag. (BOOK-05)
-    booking.getBookableServices(found.id, true),
+    booking.getPublicServices(found.id),
   ])
 
   if (!settings.enabled) return c.json({ error: 'Online booking is not enabled' }, 403)
@@ -40,7 +49,7 @@ app.get('/public/:companySlug', async (c) => {
     },
     settings: {
       title: settings.title,
-      description: settings.description,
+      description: '',
       requirePhone: settings.requirePhone,
       requireAddress: settings.requireAddress,
     },
@@ -63,6 +72,7 @@ app.get('/public/:companySlug/slots', async (c) => {
   const serviceId = c.req.query('serviceId')
 
   if (!date) return c.json({ error: 'Date required' }, 400)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: 'Date must be YYYY-MM-DD' }, 400)
 
   const [found] = await db.select().from(company).where(eq(company.slug, companySlug)).limit(1)
   if (!found) return c.json({ error: 'Company not found' }, 404)

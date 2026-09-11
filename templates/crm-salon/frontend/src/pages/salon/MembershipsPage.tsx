@@ -46,7 +46,7 @@ function fmtDate(s?: string): string {
   if (!s) return '—';
   const str = String(s);
   // date-only ("2026-08-29") parsed at LOCAL midnight, else it rolls back a day. (CC-07)
-  const dateOnly = /^d{4}-d{2}-d{2}$/.test(str) || /T00:00:00(.000)?Z?$/.test(str);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
   const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -206,7 +206,7 @@ export default function MembershipsPage() {
                           {e.creditsRemaining === null || e.creditsRemaining === undefined ? 'Unlimited' : e.creditsRemaining}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{e.status || 'active'}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${e.status === 'active' && e.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400'}`}>{e.status === 'active' && e.creditsRemaining === 0 ? 'used up' : (e.status || 'active')}</span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           {e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (

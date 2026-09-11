@@ -34,6 +34,7 @@ interface NavItem {
 // relevant. Used with ALL_NAV_ITEMS to gate URLs (see gatedItem below).
 const EXTRA_ROUTE_GATES: Record<string, string[]> = {
   '/crm/jobs': ['jobs'], '/crm/quotes': ['quotes'], '/crm/schedule': ['scheduling'], '/crm/time': ['time_tracking'], '/crm/expenses': ['expense_tracking'],
+  '/crm/roof-reports': ['instant_estimator'], '/crm/pricebook-trial': ['pricebook'], '/crm/settings/estimator': ['instant_estimator'],
 };
 
 const ALL_NAV_ITEMS: NavItem[] = [

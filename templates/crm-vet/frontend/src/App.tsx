@@ -1,4 +1,5 @@
 import React from 'react';
+import NotFoundPage from './pages/NotFoundPage';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -201,7 +202,7 @@ function App() {
                   </Route>
 
                   {/* Catch all */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </SocketProvider>
             </ToastProvider>

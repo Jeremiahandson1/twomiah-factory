@@ -94,6 +94,7 @@ export async function updateBookingSettings(companyId: string, data: Record<stri
   if (typeof data.enabled === 'boolean') updates.enabled = data.enabled;
   if (data.slotDurationMinutes != null) updates.slotDurationMinutes = Number(data.slotDurationMinutes);
   if (data.maxDaysOut != null) updates.maxDaysOut = Number(data.maxDaysOut);
+  if (data.concurrentBookings != null) updates.concurrentBookings = Math.min(20, Math.max(1, Math.round(Number(data.concurrentBookings) || 1)));
   // Accept either unit; the column is days.
   if (data.leadTimeDays != null) updates.leadTimeDays = Number(data.leadTimeDays);
   else if (data.leadTimeHours != null) updates.leadTimeDays = Math.ceil(Number(data.leadTimeHours) / 24);
@@ -200,10 +201,6 @@ export async function updateBookingStatus(bookingId: string, companyId: string, 
 // AVAILABILITY
 // ============================================
 
-/**
- * Get available time slots for a date
- */
-
 // Abandoned deposit checkouts must not squat on bookable capacity: a booking
 // still owing its deposit after the hold window is cancelled and its appointment
 // released the next time availability is computed.
@@ -227,136 +224,180 @@ export async function expireStaleDepositHolds(companyId: string) {
   return ids.length
 }
 
-export async function getAvailableSlots(companyId: string, date: string, serviceId?: string) {
-  await expireStaleDepositHolds(companyId);
-  const settings = await getBookingSettings(companyId);
 
-  let service: any = null;
-  if (serviceId) {
-    const svcResult = await db.execute(sql`
-      SELECT * FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId} LIMIT 1
-    `);
-    const svcRows = (svcResult as any).rows || svcResult;
-    service = svcRows[0] || null;
+// ============================================
+// AVAILABILITY — salon-local time, capacity-aware, race-safe
+// ============================================
+//
+// Everything here is computed in the salon's timezone (booking_settings.timezone). The previous
+// implementation compared slot times (salon-local) against appointment times read with the SERVER's
+// getHours() (UTC on Render): a 10:00 booking was stored as 15:00Z, never overlapped the 10:00 slot,
+// and the slot stayed open — two customers took the same time (SALON-N3). Two more rules live here:
+//   • capacity: a slot is open while fewer than `concurrentBookings` active appointments overlap it
+//     (a three-chair salon takes three online bookings at 10:00; the default is 1);
+//   • the calendar of record is the appointment book, so desk bookings block online slots too.
+
+export class BookingError extends Error {
+  status = 400
+  constructor(message: string) { super(message); this.name = 'BookingError' }
+}
+
+const DAY_MS = 86400000
+const MAX_CONCURRENT = 20
+
+function tzParts(d: Date, timeZone: string): { date: string; minutes: number; weekday: string } {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone, hour12: false, weekday: 'long', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(d)
+  const get = (t: string) => parts.find(p => p.type === t)?.value || ''
+  const hour = Number(get('hour')) % 24
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, minutes: hour * 60 + Number(get('minute')), weekday: get('weekday').toLowerCase() }
+}
+
+function safeTz(tz: string | null | undefined): string {
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz || 'x' }); return tz as string } catch { return 'America/Chicago' }
+}
+
+function parseHours(raw: unknown): Record<string, { start: string; end: string; enabled: boolean }> {
+  if (!raw) return {}
+  if (typeof raw === 'string') { try { return JSON.parse(raw) } catch { return {} } }
+  return raw as any
+}
+
+interface ResolvedService {
+  id: string
+  name: string
+  durationMinutes: number
+  price: number
+  depositRequired: boolean
+  depositAmount: number
+  /** service_menu id when the booked service is a menu item (goes on the appointment) */
+  menuServiceId: string | null
+  /** bookable_service id when the booked service is a legacy widget service (online_booking.service_id FK) */
+  legacyServiceId: string | null
+}
+
+// The public catalog: Service Menu items flagged "bookable online" (the salon's real menu, so the
+// appointment carries the service, its duration, price, patch-test rule and rebook interval —
+// SALON-N4 / M7), plus any legacy widget-only services whose name has no menu match.
+export async function getPublicServices(companyId: string) {
+  const menu = await db.select().from(serviceMenu)
+    .where(and(eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true), eq(serviceMenu.bookableOnline, true)))
+    .orderBy(serviceMenu.name)
+  const legacy: any[] = await getBookableServices(companyId, true)
+  const names = new Set(menu.map(m => m.name.trim().toLowerCase()))
+  const out = menu.map(m => ({
+    id: m.id, name: m.name, description: m.description || null,
+    duration_minutes: m.durationMin, durationMinutes: m.durationMin,
+    price: m.price != null ? String(m.price) : '0', price_is_from: m.priceIsFrom,
+    deposit_required: false, depositRequired: false, deposit_amount: '0', depositAmount: '0',
+    source: 'menu',
+  }))
+  for (const s of legacy) {
+    if (names.has(String(s.name || '').trim().toLowerCase())) continue
+    out.push({ ...s, durationMinutes: s.duration_minutes, depositRequired: !!s.deposit_required, depositAmount: String(s.deposit_amount ?? '0'), source: 'widget' })
   }
+  return out
+}
 
-  const slotDuration = service?.duration_minutes || settings.slot_duration_minutes || 60;
-  const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-  const workingHours = typeof settings.working_hours === 'string'
-    ? JSON.parse(settings.working_hours)
-    : settings.working_hours;
-  const daySettings = workingHours[dayOfWeek];
-
-  if (!daySettings?.enabled) {
-    return [];
+async function resolveService(companyId: string, serviceId: string | undefined, exec: any = db): Promise<ResolvedService | null> {
+  if (!serviceId) return null
+  const [menu] = await exec.select().from(serviceMenu)
+    .where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true)))
+    .limit(1)
+  if (menu) {
+    return { id: menu.id, name: menu.name, durationMinutes: Number(menu.durationMin) || 60, price: Number(menu.price) || 0, depositRequired: false, depositAmount: 0, menuServiceId: menu.id, legacyServiceId: null }
   }
-
-  const slots: Array<{ time: string; available: boolean }> = [];
-  const [startHour, startMin] = daySettings.start.split(':').map(Number);
-  const [endHour, endMin] = daySettings.end.split(':').map(Number);
-
-  let currentTime = startHour * 60 + startMin;
-  const endTime = endHour * 60 + endMin;
-
-  while (currentTime + slotDuration <= endTime) {
-    const hour = Math.floor(currentTime / 60);
-    const min = currentTime % 60;
-    slots.push({
-      time: `${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`,
-      available: true,
-    });
-    currentTime += slotDuration;
+  const res: any = await exec.execute(sql`SELECT * FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId} AND active = true LIMIT 1`)
+  const row = (res.rows || res)[0]
+  if (!row) return null
+  // Link a legacy widget service to the menu entry with the same name when one exists.
+  const [match] = await exec.select({ id: serviceMenu.id }).from(serviceMenu)
+    .where(and(eq(serviceMenu.companyId, companyId), sql`lower(${serviceMenu.name}) = lower(${row.name})`)).limit(1)
+  return {
+    id: row.id, name: row.name, durationMinutes: Number(row.duration_minutes) || 60, price: Number(row.price) || 0,
+    depositRequired: !!row.deposit_required && Number(row.deposit_amount || 0) > 0, depositAmount: Number(row.deposit_amount || 0),
+    menuServiceId: match?.id || null, legacyServiceId: row.id,
   }
-
-  // Get existing bookings for this date
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
-
-  // Salon: the calendar of record is the APPOINTMENT book, so online slots are
-  // subtracted against it — a walk-in booked at the desk blocks the online slot
-  // and vice versa. (The contractor-family templates subtract jobs here.)
-  const existingAppointments = await db.select({
-    startTime: appointment.startTime,
-    endTime: appointment.endTime,
-    status: appointment.status,
-  })
-    .from(appointment)
-    .where(and(
-      eq(appointment.companyId, companyId),
-      gte(appointment.startTime, startOfDay),
-      lte(appointment.startTime, endOfDay),
-    ));
-
-  // Mark unavailable slots. Cancelled / no-show rows free the slot back up.
-  for (const a of existingAppointments) {
-    if (!a.startTime || a.status === 'cancelled' || a.status === 'no_show') continue;
-    const apptStart = a.startTime.getHours() * 60 + a.startTime.getMinutes();
-    const apptEnd = a.endTime
-      ? a.endTime.getHours() * 60 + a.endTime.getMinutes()
-      : apptStart + 60;
-
-    for (const slot of slots) {
-      const [slotHour, slotMin] = slot.time.split(':').map(Number);
-      const slotTime = slotHour * 60 + slotMin;
-
-      if (slotTime < apptEnd && slotTime + slotDuration > apptStart) {
-        slot.available = false;
-      }
-    }
-  }
-
-  // Filter by lead time
-  const now = new Date();
-  const leadTimeHours = settings.lead_time_hours || 24;
-  const minTime = new Date(now.getTime() + leadTimeHours * 60 * 60 * 1000);
-
-  if (new Date(date).toDateString() === now.toDateString()) {
-    for (const slot of slots) {
-      const [slotHour, slotMin] = slot.time.split(':').map(Number);
-      const slotDate = new Date(date);
-      slotDate.setHours(slotHour, slotMin, 0, 0);
-
-      if (slotDate < minTime) {
-        slot.available = false;
-      }
-    }
-  }
-
-  return slots.filter(s => s.available);
 }
 
 /**
- * Get available dates for the next N days
+ * Available start times for a date, in the salon's local clock ("HH:MM").
  */
-export async function getAvailableDates(companyId: string, days = 30) {
-  const settings = await getBookingSettings(companyId);
-  const dates: Array<{ date: string; dayOfWeek: string }> = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+export async function getAvailableSlots(companyId: string, date: string, serviceId?: string, exec: any = db) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw new BookingError('Date must be YYYY-MM-DD.')
+  await expireStaleDepositHolds(companyId)
+  const settings = await getBookingSettings(companyId)
+  const tz = safeTz((settings as any).timezone)
+  const service = await resolveService(companyId, serviceId, exec)
+  const slotDuration = service?.durationMinutes || Number(settings.slotDurationMinutes) || 60
+  const capacity = Math.min(MAX_CONCURRENT, Math.max(1, Number((settings as any).concurrentBookings) || 1))
 
-  const maxDaysOut = settings.max_days_out || 30;
-  const workingHours = typeof settings.working_hours === 'string'
-    ? JSON.parse(settings.working_hours)
-    : settings.working_hours;
+  const noon = zonedWallTimeToUtc(date, '12:00', tz)
+  if (Number.isNaN(noon.getTime())) throw new BookingError('That date is not valid.')
+  const weekday = tzParts(noon, tz).weekday
+  const daySettings = parseHours(settings.workingHours)[weekday]
+  if (!daySettings?.enabled) return []
 
-  for (let i = 0; i < Math.min(days, maxDaysOut); i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() + i);
-
-    const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const daySettings = workingHours[dayOfWeek];
-
-    if (daySettings?.enabled) {
-      dates.push({
-        date: date.toISOString().split('T')[0],
-        dayOfWeek,
-      });
-    }
+  const [startHour, startMin] = String(daySettings.start || '09:00').split(':').map(Number)
+  const [endHour, endMin] = String(daySettings.end || '17:00').split(':').map(Number)
+  const slots: Array<{ time: string; minutes: number; available: boolean }> = []
+  for (let t = startHour * 60 + startMin, end = endHour * 60 + endMin; t + slotDuration <= end; t += slotDuration) {
+    slots.push({ time: `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`, minutes: t, available: true })
   }
 
-  return dates;
+  // Every active appointment that touches this salon-local day.
+  const dayStart = zonedWallTimeToUtc(date, '00:00', tz)
+  const dayEnd = new Date(dayStart.getTime() + DAY_MS)
+  const existing = await exec.select({ startTime: appointment.startTime, endTime: appointment.endTime, status: appointment.status })
+    .from(appointment)
+    .where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, new Date(dayStart.getTime() - DAY_MS)), lte(appointment.startTime, dayEnd)))
+
+  const busy: Array<{ s: number; e: number }> = []
+  for (const a of existing) {
+    if (!a.startTime || a.status === 'cancelled' || a.status === 'no_show') continue
+    const sp = tzParts(new Date(a.startTime), tz)
+    if (sp.date !== date) continue
+    const s = sp.minutes
+    const e = a.endTime ? (tzParts(new Date(a.endTime), tz).date === date ? tzParts(new Date(a.endTime), tz).minutes : 24 * 60) : s + 60
+    busy.push({ s, e })
+  }
+  for (const slot of slots) {
+    const overlapping = busy.filter(b => slot.minutes < b.e && slot.minutes + slotDuration > b.s).length
+    if (overlapping >= capacity) slot.available = false
+  }
+
+  // Lead time: nothing inside the notice window (stored in days, exposed in hours).
+  const leadHours = Number((settings as any).lead_time_hours) || (Number(settings.leadTimeDays ?? 1) * 24)
+  const minTime = Date.now() + leadHours * 3600_000
+  for (const slot of slots) {
+    if (zonedWallTimeToUtc(date, slot.time, tz).getTime() < minTime) slot.available = false
+  }
+
+  return slots.filter(s => s.available).map(({ time, available }) => ({ time, available }))
+}
+
+/**
+ * Dates that have at least one bookable slot (salon-local calendar, lead time respected).
+ */
+export async function getAvailableDates(companyId: string, days = 30) {
+  const settings = await getBookingSettings(companyId)
+  const tz = safeTz((settings as any).timezone)
+  const hours = parseHours(settings.workingHours)
+  const leadHours = Number((settings as any).lead_time_hours) || (Number(settings.leadTimeDays ?? 1) * 24)
+  const minTime = Date.now() + leadHours * 3600_000
+  const maxDaysOut = Number(settings.maxDaysOut) || 30
+  const todayLocal = tzParts(new Date(), tz).date
+  const [y, m, d] = todayLocal.split('-').map(Number)
+  const dates: Array<{ date: string; dayOfWeek: string }> = []
+  for (let i = 0; i < Math.min(days, maxDaysOut); i++) {
+    const date = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10)
+    const weekday = tzParts(zonedWallTimeToUtc(date, '12:00', tz), tz).weekday
+    const ds = hours[weekday]
+    if (!ds?.enabled) continue
+    // A day whose closing time is inside the notice window has no times to offer — leave it out. (SALON-N11)
+    if (zonedWallTimeToUtc(date, String(ds.end || '17:00'), tz).getTime() <= minTime) continue
+    dates.push({ date, dayOfWeek: weekday })
+  }
+  return dates
 }
 
 // ============================================
@@ -364,172 +405,105 @@ export async function getAvailableDates(companyId: string, days = 30) {
 // ============================================
 
 /**
- * Create a booking (public endpoint)
+ * Create a booking (public endpoint). The availability check and the appointment insert run inside
+ * one transaction under a per-salon-per-day advisory lock, so two customers submitting the same slot
+ * at the same instant are serialised — the second one is told the time was just taken. (SALON-N3)
  */
 export async function createBooking(companyId: string, data: {
-  serviceId?: string;
-  date: string;
-  time: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-  notes?: string;
+  serviceId?: string
+  date: string
+  time: string
+  firstName: string
+  lastName: string
+  email: string
+  phone?: string
+  address?: string
+  city?: string
+  state?: string
+  zip?: string
+  notes?: string
 }) {
-  const {
-    serviceId, date, time, firstName, lastName, email,
-    phone, address, city, state, zip, notes,
-  } = data;
+  const { serviceId, date, time, firstName, lastName, email, phone, address, city, state, zip, notes } = data
 
-  // The /dates helper only offers future working days, but a direct POST can send
-  // any date — reject anything before today so bookings can't be injected in the
-  // past (BOOK-04). Basic shape check too, so a bad date doesn't crash later.
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date)) || !/^\d{2}:\d{2}/.test(String(time || ''))) {
-    throw new Error('A valid date and time are required.');
-  }
-  if (String(date) < new Date().toISOString().slice(0, 10)) {
-    throw new Error('That date is in the past.');
-  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw new BookingError('Date must be YYYY-MM-DD.')
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ''))) throw new BookingError('Time must be HH:MM (24-hour).')
+  const settings = await getBookingSettings(companyId)
+  const tz = safeTz((settings as any).timezone)
+  if (String(date) < tzParts(new Date(), tz).date) throw new BookingError('That date is in the past.')
+  if (serviceId && !(await resolveService(companyId, serviceId))) throw new BookingError('That service is not available for online booking.')
 
-  // Validate slot availability
-  const slots = await getAvailableSlots(companyId, date, serviceId);
-  const slot = slots.find(s => s.time === time);
+  const created = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':' + date}))`)
 
-  if (!slot) {
-    throw new Error('Selected time slot is no longer available');
-  }
+    const slots = await getAvailableSlots(companyId, date, serviceId, tx)
+    if (!slots.find(s => s.time === time)) throw new BookingError('That time is no longer available — please pick another slot.')
 
-  // Get service details
-  let service: any = null;
-  if (serviceId) {
-    const svcResult = await db.execute(sql`
-      SELECT * FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId} LIMIT 1
-    `);
-    service = ((svcResult as any).rows || svcResult)[0] || null;
-  }
+    const service = await resolveService(companyId, serviceId, tx)
 
-  // Find or create contact
-  const existingContacts = await db.select()
-    .from(contact)
-    .where(and(eq(contact.companyId, companyId), eq(contact.email, email)))
-    .limit(1);
+    // Find or create the client. Someone who books is a client, not a sales lead. (SALON-N11)
+    let [theContact] = await tx.select().from(contact)
+      .where(and(eq(contact.companyId, companyId), eq(contact.email, email))).limit(1)
+    if (!theContact) {
+      ;[theContact] = await tx.insert(contact).values({
+        companyId, name: `${firstName} ${lastName}`.trim(), email, phone: phone || null, mobile: phone || null,
+        address: address || null, city: city || null, state: state || null, zip: zip || null,
+        type: 'client', source: 'online_booking',
+      }).returning()
+    }
 
-  let theContact = existingContacts[0];
+    const scheduledDate = zonedWallTimeToUtc(String(date), time, tz)
+    const durationMin = service?.durationMinutes || Number(settings.slotDurationMinutes) || 60
+    const endTimeDate = new Date(scheduledDate.getTime() + durationMin * 60000)
 
-  if (!theContact) {
-    const [newContact] = await db.insert(contact).values({
+    const [newAppointment] = await tx.insert(appointment).values({
       companyId,
-      name: `${firstName} ${lastName}`,
-      email,
-      phone: phone || null,
-      address: address || null,
-      city: city || null,
-      state: state || null,
-      zip: zip || null,
-      type: 'lead',
-      source: 'online_booking',
-    }).returning();
-    theContact = newContact;
-  }
+      contactId: theContact.id,
+      serviceId: service?.menuServiceId || null,
+      status: 'scheduled',
+      startTime: scheduledDate,
+      endTime: endTimeDate,
+      quotedPrice: service && service.price > 0 ? String(service.price) : null,
+      notes: `Online booking: ${service?.name || 'service'}${notes ? ' — ' + notes : ''}`,
+    }).returning()
 
-  // Build scheduled date in the salon's timezone, not the UTC server's. (CC-33)
-  const [bset] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings)
-    .where(eq(bookingSettings.companyId, companyId)).limit(1);
-  const scheduledDate = zonedWallTimeToUtc(String(date), time, bset?.timezone || 'America/Chicago');
+    const confirmationCode = generateConfirmationCode()
+    const depositRequired = !!service?.depositRequired
+    const depositAmount = depositRequired ? service!.depositAmount : 0
+    const bookingId = createId()
+    await tx.execute(sql`
+      INSERT INTO online_booking (
+        id, company_id, appointment_id, contact_id, service_id, scheduled_date,
+        customer_name, customer_email, customer_phone, notes, status,
+        confirmation_code, deposit_amount, deposit_status, created_at, updated_at
+      ) VALUES (
+        ${bookingId}, ${companyId}, ${newAppointment.id}, ${theContact.id}, ${service?.legacyServiceId || null},
+        ${scheduledDate}, ${(firstName + ' ' + lastName).trim()}, ${email}, ${phone || null},
+        ${notes || null}, ${depositRequired ? 'pending' : 'confirmed'}, ${confirmationCode},
+        ${String(depositAmount)}, ${depositRequired ? 'pending' : 'none'}, NOW(), NOW()
+      )`)
+    return { newAppointment, theContact, service, confirmationCode, bookingId, depositRequired, depositAmount }
+  })
 
-  // Create the APPOINTMENT — this is what the front desk sees in The Book.
-  // The bookable_service catalog is the widget's own; if a service-menu entry
-  // with the same name exists, link it so the row carries its service name
-  // (and the rebooking engine picks it up once a service record is written).
-  const durationMin = service ? Number(service.duration_minutes) || 60 : 60;
-  const endTimeDate = new Date(scheduledDate.getTime() + durationMin * 60000);
-
-  let menuServiceId: string | null = null;
-  if (service?.name) {
-    const [menuMatch] = await db.select({ id: serviceMenu.id }).from(serviceMenu)
-      .where(and(eq(serviceMenu.companyId, companyId), sql`lower(${serviceMenu.name}) = lower(${service.name})`))
-      .limit(1);
-    menuServiceId = menuMatch?.id || null;
-  }
-
-  const [newAppointment] = await db.insert(appointment).values({
-    companyId,
-    contactId: theContact.id,
-    serviceId: menuServiceId,
-    status: 'scheduled',
-    startTime: scheduledDate,
-    endTime: endTimeDate,
-    quotedPrice: service?.price != null ? String(service.price) : null,
-    notes: `Online booking: ${service?.name || 'service'}${notes ? ' — ' + notes : ''}`,
-  }).returning();
-
-  // Create booking record.
-  // NOTE: this used to write customer_first_name/customer_last_name/
-  // confirmation_code — columns online_booking does not have — so every
-  // booking blew up here after the appointment and contact had already been created.
-  const confirmationCode = generateConfirmationCode();
-  const depositRequired = !!(service?.deposit_required) && Number(service?.deposit_amount || 0) > 0;
-  const depositAmount = depositRequired ? Number(service.deposit_amount) : 0;
-  const bookingId = createId();
-
-  await db.execute(sql`
-    INSERT INTO online_booking (
-      id, company_id, appointment_id, contact_id, service_id, scheduled_date,
-      customer_name, customer_email, customer_phone, notes, status,
-      confirmation_code, deposit_amount, deposit_status, created_at, updated_at
-    )
-    VALUES (
-      ${bookingId}, ${companyId}, ${newAppointment.id}, ${theContact.id}, ${serviceId || null},
-      ${scheduledDate}, ${firstName + ' ' + lastName}, ${email}, ${phone || null},
-      ${notes || null}, ${depositRequired ? 'pending' : 'confirmed'}, ${confirmationCode},
-      ${String(depositAmount)}, ${depositRequired ? 'pending' : 'none'},
-      NOW(), NOW()
-    )
-  `);
+  const { newAppointment, theContact, service, confirmationCode, bookingId, depositRequired, depositAmount } = created
 
   // A booking that owes a deposit is not confirmed until it is paid.
-  let deposit: { required: boolean; amount: number; clientSecret?: string; publishableKey?: string } = {
-    required: depositRequired,
-    amount: depositAmount,
-  };
-
+  let deposit: { required: boolean; amount: number; clientSecret?: string; publishableKey?: string } = { required: depositRequired, amount: depositAmount }
   if (depositRequired) {
-    // The appointment stays 'scheduled' — deposit state lives on the
-    // online_booking row, and the owner's Bookings list shows it as pending.
     try {
-      const { createBookingDepositIntent } = await import('./stripe.ts');
-      const intent = await createBookingDepositIntent({
-        bookingId,
-        companyId,
-        amount: depositAmount,
-        contactRow: theContact,
-        description: `Deposit for ${service?.name || 'booking'}`,
-      });
+      const { createBookingDepositIntent } = await import('./stripe.ts')
+      const intent = await createBookingDepositIntent({ bookingId, companyId, amount: depositAmount, contactRow: theContact, description: `Deposit for ${service?.name || 'booking'}` })
       if (intent?.clientSecret) {
-        await db.execute(sql`
-          UPDATE online_booking SET payment_intent_id = ${intent.paymentIntentId} WHERE id = ${bookingId}
-        `);
-        deposit = { ...deposit, clientSecret: intent.clientSecret, publishableKey: intent.publishableKey };
+        await db.execute(sql`UPDATE online_booking SET payment_intent_id = ${intent.paymentIntentId} WHERE id = ${bookingId}`)
+        deposit = { ...deposit, clientSecret: intent.clientSecret, publishableKey: intent.publishableKey }
       }
     } catch (err: any) {
-      // Card processing not configured, or Stripe refused. Keep the booking —
-      // the owner can still collect the deposit by hand — but say so.
-      console.error('[Booking] Deposit intent failed:', err?.message || err);
+      // Card processing not configured, or Stripe refused. Keep the booking — the owner can still
+      // collect the deposit by hand — but say so.
+      console.error('[Booking] Deposit intent failed:', err?.message || err)
     }
   }
 
-  return {
-    appointment: newAppointment,
-    serviceName: service?.name || 'Online Booking',
-    contact: theContact,
-    bookingId,
-    confirmationCode,
-    deposit,
-  };
+  return { appointment: newAppointment, serviceName: service?.name || 'Online Booking', contact: theContact, bookingId, confirmationCode, deposit }
 }
 
 /**
@@ -610,6 +584,7 @@ export function getEmbedCode(_companyId: string, companySlug: string): string {
 
 export default {
   getBookingSettings,
+  getPublicServices,
   updateBookingSettings,
   getBookableServices,
   createBookableService,
