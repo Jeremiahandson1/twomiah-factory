@@ -314,7 +314,8 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
     const row = (locked.rows || locked)[0]
     if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
     if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void and cannot take payments.' } }; return }
-    if (row.status === 'draft') { outcome = { status: 400, body: { error: 'Send the invoice before recording a payment.' } }; return }
+    // A draft can take a payment (a walk-in pays at the desk before anything is emailed); the payment
+    // issues it. Only void is final.
     const balanceDue = round2(Number(row.total) - Number(row.amount_paid))
     if (amount > balanceDue + 0.005) { outcome = { status: 400, body: { error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` } }; return }
 
