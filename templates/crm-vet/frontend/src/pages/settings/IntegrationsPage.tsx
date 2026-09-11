@@ -522,9 +522,7 @@ export default function IntegrationsPage() {
       {/* Usage Note */}
       <div className="mt-6 p-4 bg-gray-50 dark:bg-slate-800/50 rounded-lg">
         <p className="text-sm text-gray-600 dark:text-slate-400">
-          <strong>SMS & Email Usage:</strong> Your plan includes 500 SMS and 2,000 emails per month.
-          Additional messages are billed at $0.02/SMS and $0.001/email.
-        </p>
+          <strong>Texting &amp; email usage:</strong> texts are billed at cost from a prepaid wallet you top up in Settings › Billing; transactional email is included. Nothing is sent when the wallet is empty — the send screens warn you first.</p>
       </div>
     </div>
   );

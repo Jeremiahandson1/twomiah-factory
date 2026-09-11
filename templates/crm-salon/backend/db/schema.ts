@@ -307,6 +307,7 @@ export const invoice = pgTable('invoice', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').unique().references(() => quote.id, { onDelete: 'set null' }),
+  appointmentId: text('appointment_id'),                     // salon: the visit this sale closed (services/salonCheckout.ts)
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
