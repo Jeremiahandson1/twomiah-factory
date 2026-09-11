@@ -9,6 +9,25 @@ import { getRegistrar } from '../../services/registrar'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL } from './shared'
 import { triggerAutoDeploy } from './deploy'
 
+// Apply a webhook's tenant updates so that activation NEVER depends on an optional attribute.
+// PostgREST rejects the whole update when it names a column the table lacks (PGRST204) — that is how
+// `billing_cycle` silently dropped stripe_subscription_id / billing_status / status on every
+// subscription checkout until 2026-09-11 (see migrations/2026-09-11_tenants_billing_cycle.sql).
+// Unknown columns are logged loudly and stripped, then the rest is written; never swallowed.
+async function applyTenantUpdates(match: { field: string; value: any }, updates: Record<string, any>): Promise<{ applied: Record<string, any>; dropped: string[] }> {
+  const pending = { ...updates }
+  const dropped: string[] = []
+  for (let attempt = 0; attempt < 8 && Object.keys(pending).length > 0; attempt++) {
+    const { error } = await supabase.from('tenants').update(pending).eq(match.field, match.value)
+    if (!error) return { applied: pending, dropped }
+    const missing = error.code === 'PGRST204' ? error.message.match(/'([A-Za-z0-9_]+)' column/)?.[1] : null
+    if (!missing || !(missing in pending)) throw new Error(`tenants update failed (${error.code}): ${error.message}`)
+    console.error(`[Stripe] tenants.${missing} does not exist — dropping it from this update. Apply the pending migration in apps/api/migrations.`)
+    dropped.push(missing); delete pending[missing]
+  }
+  return { applied: pending, dropped }
+}
+
 // Email the tenant a welcome + billing-portal link when a channel is enabled.
 async function emailEnabled(tenantId: string, label: string) {
   try {
@@ -160,7 +179,7 @@ factory.post('/stripe/webhook', async (c) => {
     if (result.handled && result.factoryCustomerId && result.updates) {
       // Fetch old values for audit diff
       const { data: preTenant } = await supabase.from('tenants').select('*').eq('id', result.factoryCustomerId).single()
-      await supabase.from('tenants').update(result.updates).eq('id', result.factoryCustomerId)
+      await applyTenantUpdates({ field: 'id', value: result.factoryCustomerId }, result.updates)
       // The tenant CRM mirrors this state (Settings → Billing, trial gate) — push it, never block on it.
       pushSubscriptionToTenant(result.factoryCustomerId).catch(() => {})
       if (preTenant) {
@@ -172,7 +191,7 @@ factory.post('/stripe/webhook', async (c) => {
     } else if (result.handled && result.lookupField && result.lookupValue && result.updates) {
       // Lookup tenant id for audit
       const { data: lookedUp } = await supabase.from('tenants').select('*').eq(result.lookupField, result.lookupValue).single()
-      await supabase.from('tenants').update(result.updates).eq(result.lookupField, result.lookupValue)
+      await applyTenantUpdates({ field: result.lookupField, value: result.lookupValue }, result.updates)
       if (lookedUp?.id) pushSubscriptionToTenant(lookedUp.id).catch(() => {})
       if (lookedUp) {
         const changes = diffTenantChanges(lookedUp, result.updates)
