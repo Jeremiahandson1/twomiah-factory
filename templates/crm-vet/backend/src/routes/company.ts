@@ -5,7 +5,7 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
-import { requirePermission } from '../middleware/permissions.ts'
+import { requirePermission, invalidateExtraPermissions } from '../middleware/permissions.ts'
 
 import { getFeaturesForTemplate } from '../shared/featureRegistry.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
@@ -86,7 +86,9 @@ app.put('/features', requireAdmin, async (c) => {
 })
 
 // User management (roster carries emails/roles) — require team:read.
-app.get('/users', requirePermission('team:read'), async (c) => {
+// Who may see the login-user list: the OWNER, plus anyone the owner grants 'users:read' to
+// (Settings › Users). Managers used to get it through team:read. (Wrench QA decision)
+app.get('/users', requirePermission('users:read'), async (c) => {
   const currentUser = c.get('user') as any
   const users = await db.select({
     id: user.id,
@@ -98,6 +100,7 @@ app.get('/users', requirePermission('team:read'), async (c) => {
     isActive: user.isActive,
     lastLogin: user.lastLogin,
     createdAt: user.createdAt,
+    extraPermissions: (user as any).extraPermissions,
   }).from(user).where(eq(user.companyId, currentUser.companyId))
   return c.json(users)
 })
@@ -184,12 +187,14 @@ app.post('/users', requireAdmin, async (c) => {
 app.put('/users/:id', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const schema = z.object({ firstName: z.string().optional(), lastName: z.string().optional(), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).optional(), isActive: z.boolean().optional() })
+  const schema = z.object({ firstName: z.string().optional(), lastName: z.string().optional(), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).optional(), extraPermissions: z.array(z.enum(['users:read'])).optional(), isActive: z.boolean().optional() })
   // safeParse, not parse — a ZodError has no .status and the global handler
   // turns it into a 500 that production masks as "Internal server error".
   const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
   const data = parsed.data
+  // Grants are the owner's alone to give — an admin cannot widen their own or anyone's access.
+  if (data.extraPermissions !== undefined && currentUser.role !== 'owner') return c.json({ error: 'Only the owner can grant or revoke permissions.' }, 403)
 
   // Scope the lookup to this company. The original updated by id alone, so a
   // well-formed request could reach a row this admin has no claim to.
@@ -214,6 +219,7 @@ app.put('/users/:id', requireAdmin, async (c) => {
     }
   }
 
+  if (data.extraPermissions !== undefined) invalidateExtraPermissions(id)
   const [result] = await db.update(user).set({ ...data, updatedAt: new Date() })
     .where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId))).returning({
     id: user.id,

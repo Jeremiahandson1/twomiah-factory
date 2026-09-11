@@ -44,6 +44,7 @@ export default function SettingsPage() {
   // Mirrors the server's requireAdmin (admin|owner). Without this a non-admin
   // could fill in the whole form and get a bare 403 toast.
   const canManageUsers = (user as any)?.role === 'admin' || (user as any)?.role === 'owner';
+  const isOwner = (user as any)?.role === 'owner';
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'user' });
@@ -128,6 +129,15 @@ export default function SettingsPage() {
   // Revoking access is a deactivation, not a delete — orders and loyalty rows
   // point at this user, and the seat count is of ACTIVE users, so this is also
   // what frees a seat. Before this the table was read-only.
+  // Owner-only grant: who may see the login-user list besides the owner. (Wrench QA decision)
+  const handleToggleUserListGrant = async (u: any) => {
+    const has = ((u.extraPermissions as string[]) || []).includes('users:read');
+    try {
+      await api.company.updateUser(u.id, { extraPermissions: has ? [] : ['users:read'] });
+      toast.success(has ? 'User list access removed' : 'User list access granted');
+      loadUsers();
+    } catch (err) { toast.error((err as Error).message || 'Could not change permissions'); }
+  };
   const handleToggleUserAccess = async (id: string, currentlyActive: boolean) => {
     if (currentlyActive && !confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.')) return;
     try {
@@ -726,9 +736,14 @@ export default function SettingsPage() {
                           {u.id === (user as any)?.id
                             ? <span className="text-xs text-gray-400">You</span>
                             : canManageUsers ? (
-                              <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>
+                              <>{isOwner && u.role !== 'owner' && (
+                        <label className="inline-flex items-center gap-1 text-xs text-gray-500 mr-3 dark:text-slate-400" title="Lets this person see the list of logins under Settings › Users">
+                          <input type="checkbox" checked={(u.extraPermissions || []).includes('users:read')} onChange={() => handleToggleUserListGrant(u)} /> can view user list
+                        </label>
+                      )}
+                      <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>
                                 {u.isActive ? 'Revoke access' : 'Restore access'}
-                              </button>
+                              </button></>
                             ) : null}
                         </td>
                       </tr>

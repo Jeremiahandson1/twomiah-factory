@@ -89,6 +89,9 @@ export const user = pgTable('user', {
   // rate limiting alone never stopped a credential-stuffing run that rotates addresses.
   failedLoginCount: integer('failed_login_count').default(0).notNull(),
   lockedUntil: timestamp('locked_until'),
+  // Grants the OWNER hands out on top of the role (Settings › Users), e.g. 'users:read' = may see the
+  // login-user list. Roles stay the coarse model; this is the per-person exception list.
+  extraPermissions: json('extra_permissions').default([]),
   refreshToken: text('refresh_token'),
   resetToken: text('reset_token'),
   resetTokenExp: timestamp('reset_token_exp'),

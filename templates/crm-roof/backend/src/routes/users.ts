@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -14,7 +15,8 @@ app.use('*', authenticate)
 // Pass ?includeInactive=1 for the Settings list, which has to show revoked
 // people so they can be reactivated — otherwise deactivating someone hides them
 // forever and the action is one-way.
-app.get('/', async (c) => {
+// Owner + owner-granted 'users:read' only (Wrench QA decision).
+app.get('/', requirePermission('users:read'), async (c) => {
   const currentUser = c.get('user') as any
   const includeInactive = c.req.query('includeInactive') === '1'
   const where = includeInactive
