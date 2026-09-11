@@ -596,6 +596,7 @@ export function getEmbedCode(_companyId: string, companySlug: string): string {
 export default {
   getBookingSettings,
   getPublicServices,
+  legacyListRetired,
   updateBookingSettings,
   getBookableServices,
   createBookableService,
