@@ -7,6 +7,8 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
+import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 
 /**
  * The book. A salon books a CHAIR for a duration, so endTime is derived from
@@ -51,6 +53,47 @@ async function findConflict(companyId: string, stylistId: string, start: Date, e
     const re = r.endTime ? new Date(r.endTime).getTime() : rs + 3600000
     return start.getTime() < re && end.getTime() > rs
   })
+}
+
+// A chair/room is a physical resource too: two clients booked into "Chair 2" at the same time is a
+// double-book even with no stylist assigned. Station names are compared trimmed + case-insensitive. (SALON-H10)
+async function findStationConflict(companyId: string, station: string, start: Date, end: Date, ignoreId?: string) {
+  const wanted = station.trim().toLowerCase()
+  if (!wanted) return undefined
+  const rows = await db.select().from(appointment)
+    .where(and(
+      eq(appointment.companyId, companyId),
+      lte(appointment.startTime, end),
+      gte(appointment.startTime, new Date(start.getTime() - 86400000)),
+      ...(ignoreId ? [ne(appointment.id, ignoreId)] : []),
+    ))
+  return rows.find(r => {
+    if (CANCELLED.includes(r.status) || r.status === 'completed') return false
+    if ((r.station || '').trim().toLowerCase() !== wanted) return false
+    const rs = new Date(r.startTime).getTime()
+    const re = r.endTime ? new Date(r.endTime).getTime() : rs + 3600000
+    return start.getTime() < re && end.getTime() > rs
+  })
+}
+
+// Closing a visit: create the sale once and queue the review request. Never throws — the status
+// change must succeed even if billing or reviews hiccup. (SALON-H4 / H2)
+async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<string | null> {
+  if (!row.contactId) return null
+  let invoiceId: string | null = null
+  try {
+    let price = Number(row.quotedPrice)
+    let serviceName: string | null = null
+    if (row.serviceId) {
+      const [svc] = await db.select({ name: serviceMenu.name, price: serviceMenu.price }).from(serviceMenu).where(eq(serviceMenu.id, row.serviceId)).limit(1)
+      serviceName = svc?.name || null
+      if (!(price > 0)) price = Number(svc?.price)
+    }
+    const inv = await ensureInvoiceForVisit({ companyId: row.companyId, contactId: row.contactId, appointmentId: row.id, serviceName, price })
+    invoiceId = inv?.id || null
+  } catch (e: any) { console.warn('[appointments] sale not created:', e?.message || e) }
+  scheduleReviewRequestForVisit({ companyId: row.companyId, contactId: row.contactId }).catch((e) => console.warn('[appointments] review schedule failed:', e?.message || e))
+  return invoiceId
 }
 
 // GET /appointments — ?from=&to= on startTime, ?stylistId=, ?status=
@@ -109,6 +152,10 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (body.stylistId) {
     const clash = await findConflict(currentUser.companyId, body.stylistId, startTime, endTime)
     if (clash) return c.json({ error: 'That stylist is already booked at this time', conflictId: clash.id }, 409)
+  }
+  if (body.station) {
+    const clash = await findStationConflict(currentUser.companyId, String(body.station), startTime, endTime)
+    if (clash) return c.json({ error: `${String(body.station).trim()} is already booked at this time`, conflictId: clash.id }, 409)
   }
 
   const [created] = await db.insert(appointment).values({
@@ -169,11 +216,17 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     const clash = await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id)
     if (clash) return c.json({ error: 'That stylist is already booked at this time', conflictId: clash.id }, 409)
   }
+  const nextStation = 'station' in updates ? updates.station : existing.station
+  if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
+    const clash = await findStationConflict(currentUser.companyId, String(nextStation), nextStart, nextEnd, id)
+    if (clash) return c.json({ error: `${String(nextStation).trim()} is already booked at this time`, conflictId: clash.id }, 409)
+  }
 
   const [updated] = await db.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
-  return c.json(updated)
+  const invoiceId = nextStatus === 'completed' && existing.status !== 'completed' ? await onVisitCompleted(updated) : null
+  return c.json({ ...updated, invoiceId })
 })
 
 // POST /appointments/:id/check-in

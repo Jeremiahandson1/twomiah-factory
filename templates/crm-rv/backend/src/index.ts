@@ -51,6 +51,7 @@ import companyRoutes from './routes/company.ts'
 import dashboardRoutes from './routes/dashboard.ts'
 import documentsRoutes from './routes/documents.ts'
 import billingRoutes from './routes/billing.ts'
+import messagingBillingRoutes from './routes/messagingBilling.ts'
 import integrationsRoutes from './routes/integrations.ts'
 import agreementsRoutes from './routes/agreements.ts'
 import auditRoutes from './routes/audit.ts'
@@ -243,6 +244,7 @@ app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/documents', documentsRoutes)
 app.route('/api/billing', billingRoutes)
+app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/integrations', integrationsRoutes)
 app.route('/api/agreements', agreementsRoutes)
 app.route('/api/audit', auditRoutes)

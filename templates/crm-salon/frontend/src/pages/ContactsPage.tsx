@@ -40,7 +40,6 @@ interface PaginationData {
 const contactTypes = [
   { value: 'lead', label: 'Lead' },
   { value: 'client', label: 'Client' },
-  { value: 'subcontractor', label: 'Subcontractor' },
   { value: 'vendor', label: 'Vendor' },
 ];
 

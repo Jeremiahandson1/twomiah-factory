@@ -2,7 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDate } from '../utils/date';
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit, Trash2, Send, DollarSign } from 'lucide-react';
+import { Plus, Edit, Trash2, Send, DollarSign, Ban, RotateCcw } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -39,12 +39,15 @@ interface PaginationData {
   totalPages: number;
 }
 
-const statuses = ['draft', 'sent', 'viewed', 'partial', 'paid', 'overdue'];
+const statuses = ['draft', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'refunded', 'void'];
 
 export default function InvoicesPage() {
   // New quotes/invoices start from the company's default sales-tax rate (Settings → Company). (W-8)
   const defaultTaxRate = Number((useAuth().company as any)?.settings?.defaultTaxRate) || 0;
   const toast = useToast();
+  const [refundOpen, setRefundOpen] = useState<boolean>(false);
+  const [refundInvoice, setRefundInvoice] = useState<Record<string, unknown> | null>(null);
+  const [refund, setRefund] = useState<{ amount: string; method: string; reference: string }>({ amount: '', method: 'other', reference: '' });
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Detail pages link here as /crm/invoices?edit=<id>. Open that record's edit
@@ -111,6 +114,16 @@ export default function InvoicesPage() {
   const handleDelete = async () => { try { await api.invoices.delete((toDelete as Record<string, unknown>).id as string); toast.success('Invoice deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleSend = async (inv: Record<string, unknown>) => { try { await api.invoices.send(inv.id as string); toast.success('Invoice sent'); load(); } catch (err) { toast.error((err as Error).message); } };
 
+  const handleVoid = async (inv: Record<string, unknown>) => {
+    if (!confirm(`Void invoice ${inv.number as string}? It stays on record but no longer counts as owed.`)) return;
+    try { await api.post(`/api/invoices/${inv.id}/void`, {}); toast.success('Invoice voided'); load(); } catch (err) { toast.error((err as Error).message); }
+  };
+  const openRefund = (inv: Record<string, unknown>) => { setRefundInvoice(inv); setRefund({ amount: String(Number(inv.amountPaid || 0)), method: 'other', reference: '' }); setRefundOpen(true); };
+  const handleRefund = async () => {
+    if (!refund.amount || Number(refund.amount) <= 0) { toast.error('Enter a valid amount'); return; }
+    try { await api.post(`/api/invoices/${(refundInvoice as Record<string, unknown>).id}/refund`, { ...refund, amount: Number(refund.amount) }); toast.success('Refund recorded'); setRefundOpen(false); load(); }
+    catch (err) { toast.error((err as Error).message); }
+  };
   const openPayment = (inv: Record<string, unknown>) => { setPaymentInvoice(inv); setPayment({ amount: String(Number(inv.total) - Number(inv.amountPaid || 0)), method: 'card', reference: '', notes: '' }); setPaymentOpen(true); };
   const handlePayment = async () => {
     if (!payment.amount || Number(payment.amount) <= 0) { toast.error('Enter a valid amount'); return; }
@@ -144,6 +157,8 @@ export default function InvoicesPage() {
         { label: 'Edit', icon: Edit, onClick: openEdit },
         { label: 'Send', icon: Send, onClick: handleSend },
         { label: 'Record Payment', icon: DollarSign, onClick: openPayment },
+        { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) <= 0 },
+        { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => Number(r.amountPaid || 0) > 0 },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Invoice' : 'New Invoice'} size="xl">
@@ -181,6 +196,15 @@ export default function InvoicesPage() {
           <div><label className="block text-sm font-medium mb-1">Reference</label><input value={payment.reference} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayment({...payment, reference: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="Check # or transaction ID" /></div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setPaymentOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handlePayment}>Record Payment</Button></div>
+      </Modal>
+      <Modal isOpen={refundOpen} onClose={() => setRefundOpen(false)} title="Record Refund" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">Records money returned to the client on invoice {(refundInvoice as Record<string, unknown>)?.number as string}. Card refunds are issued in your payment processor; this keeps the invoice truthful.</p>
+          <div><label className="block text-sm font-medium mb-1">Amount *</label><input type="number" step="0.01" value={refund.amount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRefund({ ...refund, amount: e.target.value })} className="w-full px-3 py-2 border rounded-lg" /></div>
+          <div><label className="block text-sm font-medium mb-1">Method</label><select value={refund.method} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setRefund({ ...refund, method: e.target.value })} className="w-full px-3 py-2 border rounded-lg"><option value="card">Card</option><option value="cash">Cash</option><option value="check">Check</option><option value="bank_transfer">Bank Transfer</option><option value="other">Other</option></select></div>
+          <div><label className="block text-sm font-medium mb-1">Reference</label><input value={refund.reference} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRefund({ ...refund, reference: e.target.value })} className="w-full px-3 py-2 border rounded-lg" /></div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6"><button onClick={() => setRefundOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleRefund}>Record Refund</Button></div>
       </Modal>
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete Invoice" message={`Delete invoice ${toDelete?.number as string}?`} confirmText="Delete" />
     </div>

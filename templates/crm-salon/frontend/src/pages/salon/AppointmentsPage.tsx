@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armchair, Scissors } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armchair, Scissors, AlertTriangle, RotateCcw, CalendarClock } from 'lucide-react';
 import api from '../../services/api';
 import ClientPicker from '../../components/salon/ClientPicker';
 import ServiceRecordEditorModal from '../../components/salon/ServiceRecordEditorModal';
@@ -47,7 +47,25 @@ interface Appointment {
   stylistFirstName?: string;
   stylistLastName?: string;
 }
-interface ServiceOption { id: string; name?: string; durationMin?: number; price?: string | number }
+interface ServiceOption { id: string; name?: string; durationMin?: number; price?: string | number; requiresPatchTest?: boolean }
+interface ClientProfileLite { allergies?: string | null; patchTestAt?: string | null }
+
+// Allergy + patch-test warnings come from the client profile the salon keeps; a patch test older
+// than 6 months (or none) on a service that requires one is flagged. (SALON-H3)
+const PATCH_TEST_VALID_DAYS = 180;
+function visitWarnings(profile: ClientProfileLite | null | undefined, service: ServiceOption | null | undefined): string[] {
+  const out: string[] = [];
+  if (profile?.allergies && profile.allergies.trim()) out.push(`Allergies on file: ${profile.allergies.trim()}`);
+  if (service?.requiresPatchTest) {
+    const at = profile?.patchTestAt ? new Date(String(profile.patchTestAt).slice(0, 10) + 'T00:00:00') : null;
+    const ageDays = at && !isNaN(at.getTime()) ? (Date.now() - at.getTime()) / 86400000 : Infinity;
+    if (ageDays > PATCH_TEST_VALID_DAYS) out.push(at ? `${service.name || 'This service'} needs a patch test — last one was ${Math.round(ageDays)} days ago` : `${service.name || 'This service'} needs a patch test — none on file`);
+  }
+  return out;
+}
+async function loadProfile(contactId: string): Promise<ClientProfileLite | null> {
+  try { const d = await api.get(`/api/clients/${contactId}`); return (d?.profile as ClientProfileLite) || null; } catch { return null; }
+}
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -77,6 +95,15 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [closing, setClosing] = useState<Appointment | null>(null);
+  const [resched, setResched] = useState<Appointment | null>(null);
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const navigate = useNavigate();
+  useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
+
+  // Closing a visit creates the sale (backend); offer to take payment right away. (SALON-H4)
+  const offerCheckout = (invoiceId?: string | null) => {
+    if (invoiceId && confirm('Sale created for this visit. Take payment now?')) navigate(`/crm/invoices/${invoiceId}`);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +124,10 @@ export default function AppointmentsPage() {
 
   const checkIn = async (a: Appointment) => {
     try {
+      if (a.contactId) {
+        const warnings = visitWarnings(await loadProfile(a.contactId), services.find((s) => s.id === a.serviceId));
+        if (warnings.length && !confirm(`⚠ ${warnings.join('\n⚠ ')}\n\nCheck in anyway?`)) return;
+      }
       await api.post(`/api/appointments/${a.id}/check-in`);
       load();
     } catch (err) {
@@ -105,10 +136,13 @@ export default function AppointmentsPage() {
   };
 
   // Cancel / no-show / complete so a chair can be freed and no-shows tracked. (CC-25)
-  const setStatus = async (a: Appt, status: string) => {
+  const setStatus = async (a: Appointment, status: string) => {
+    if (status === 'cancelled' && !confirm(`Cancel ${a.clientName || 'this'} appointment? You can reopen it afterwards.`)) return;
+    if (status === 'no_show' && !confirm(`Mark ${a.clientName || 'this client'} as a no-show? You can reopen it afterwards.`)) return;
     try {
-      await api.put(`/api/appointments/${a.id}`, { status });
+      const res = await api.put(`/api/appointments/${a.id}`, { status });
       load();
+      if (status === 'completed') offerCheckout(res?.invoiceId as string | undefined);
     } catch (err) {
       alert((err as Error).message || 'Failed to update the appointment');
     }
@@ -190,6 +224,16 @@ export default function AppointmentsPage() {
                 </button>
               )}
               {!CLOSED.has(a.status || 'scheduled') && (
+                <button onClick={() => setResched(a)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm" title="Move to another day or time">
+                  <CalendarClock className="w-4 h-4" /> Reschedule
+                </button>
+              )}
+              {CLOSED.has(a.status || 'scheduled') && a.status !== 'completed' && (
+                <button onClick={() => setStatus(a, 'scheduled')} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg hover:bg-gray-50 text-sm" title="Undo the cancellation / no-show">
+                  <RotateCcw className="w-4 h-4" /> Reopen
+                </button>
+              )}
+              {!CLOSED.has(a.status || 'scheduled') && (
                 <>
                   <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 text-sm">Complete</button>
                   <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">No-Show</button>
@@ -213,10 +257,69 @@ export default function AppointmentsPage() {
           contactId={closing.contactId}
           appointmentId={closing.id}
           record={{ serviceId: closing.serviceId, stylistId: closing.stylistId, priceCharged: closing.quotedPrice, performedAt: closing.startTime }}
-          onSave={() => { setClosing(null); load(); }}
+          onSave={(saved) => { setClosing(null); load(); offerCheckout(saved?.invoiceId as string | undefined); }}
           onClose={() => setClosing(null)}
         />
       )}
+      {resched && (
+        <RescheduleModal appt={resched} onSave={() => { setResched(null); load(); }} onClose={() => setResched(null)} />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Reschedule Modal ---------------- */
+
+function toLocalParts(iso?: string): { date: string; time: string } {
+  const d = iso ? new Date(iso) : new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return { date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
+}
+
+function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave: () => void; onClose: () => void }) {
+  const start = toLocalParts(appt.startTime);
+  const end = appt.endTime ? toLocalParts(appt.endTime) : { date: start.date, time: '' };
+  const [date, setDate] = useState(start.date);
+  const [startTime, setStartTime] = useState(start.time);
+  const [endTime, setEndTime] = useState(end.time);
+  const [saving, setSaving] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = { startTime: new Date(`${date}T${startTime}:00`).toISOString() };
+      if (endTime) payload.endTime = new Date(`${date}T${endTime}:00`).toISOString();
+      await api.put(`/api/appointments/${appt.id}`, payload);
+      onSave();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to reschedule');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 dark:bg-slate-900">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Reschedule {appt.clientName ? `— ${appt.clientName}` : ''}</h2>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start</label><input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End</label><input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></div>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-slate-400">Leave End blank to keep the service's normal duration. Stylist and chair conflicts are checked before the move is saved.</p>
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">{saving ? 'Saving...' : 'Move appointment'}</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
@@ -228,6 +331,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
   const [contactId, setContactId] = useState<string>('');
+  const [profile, setProfile] = useState<ClientProfileLite | null>(null);
   const [form, setForm] = useState({
     serviceId: '', stylistId: '',
     date: defaultDay, startTime: '09:00', endTime: '',
@@ -304,8 +408,14 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
           <form onSubmit={submit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Client <span className="text-red-500">*</span></label>
-              <ClientPicker value={contactId} onChange={(id) => setContactId(id)} />
+              <ClientPicker value={contactId} onChange={(id) => { setContactId(id); setProfile(null); if (id) loadProfile(id).then(setProfile); }} />
             </div>
+            {visitWarnings(profile, services.find((s) => s.id === form.serviceId)).length > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <ul className="space-y-1">{visitWarnings(profile, services.find((s) => s.id === form.serviceId)).map((w) => <li key={w}>{w}</li>)}</ul>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Service</label>

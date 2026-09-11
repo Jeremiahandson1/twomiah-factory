@@ -257,7 +257,7 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }) {
       setNewMessage('');
       onMessageSent();
     } catch (error) {
-      alert('Failed to send message');
+      alert((error as Error).message || 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -395,7 +395,7 @@ function NewMessageModal({ onSend, onClose }) {
       });
       onSend(result.conversation);
     } catch (error) {
-      alert('Failed to send message');
+      alert((error as Error).message || 'Failed to send message');
       setSending(false);
     }
   };

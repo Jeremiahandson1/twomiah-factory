@@ -11,7 +11,7 @@
 import { db } from '../../db/index.ts'
 import { reportSmsUsage } from './messagingUsage'
 import { reviewRequest, company, job, contact } from '../../db/schema.ts'
-import { eq, and, lte, isNull, count, sql } from 'drizzle-orm'
+import { eq, and, lte, gte, isNull, count, sql } from 'drizzle-orm'
 import email from './email.ts'
 
 // Twilio for SMS (optional)
@@ -128,6 +128,27 @@ export async function scheduleReviewRequest(jobId: string) {
 }
 
 /**
+ * Schedule a review request for a completed VISIT (salon: appointments, not jobs). One request per
+ * client per 30 days so a weekly regular is not asked every week. Sent by processScheduledRequests
+ * after the configured delay, exactly like job-based requests. (SALON-H2)
+ */
+export async function scheduleReviewRequestForVisit({ companyId, contactId }: { companyId: string; contactId: string }) {
+  const settings = await getReviewSettings(companyId)
+  if (!settings.reviewRequestEnabled) return null
+  const since = new Date(Date.now() - 30 * 86400000)
+  const recent = await db.select({ id: reviewRequest.id }).from(reviewRequest)
+    .where(and(eq(reviewRequest.companyId, companyId), eq(reviewRequest.contactId, contactId), gte(reviewRequest.createdAt, since)))
+    .limit(1)
+  if (recent.length) return null
+  const reviewLink = settings.googlePlaceId ? generateGoogleReviewLink(settings.googlePlaceId) : settings.googleReviewUrl || null
+  const [request] = await db.insert(reviewRequest).values({
+    companyId, contactId, jobId: null, channel: settings.reviewChannel || 'both', status: 'pending', reviewLink,
+  }).returning()
+  console.log('[Reviews] Scheduled review request for visit — contact', contactId)
+  return request
+}
+
+/**
  * Send review request immediately for a job
  */
 export async function sendReviewRequest(jobId: string, { channel = 'both' }: { channel?: string } = {}) {
@@ -234,7 +255,7 @@ export async function processScheduledRequests() {
 
       // Find pending requests older than the delay
       const pending = await db
-        .select({ request: reviewRequest, contact: { id: contact.id, name: contact.name, phone: contact.phone, email: contact.email } })
+        .select({ request: reviewRequest, contact: { id: contact.id, name: contact.name, phone: contact.phone, mobile: contact.mobile, email: contact.email } })
         .from(reviewRequest)
         .leftJoin(contact, eq(reviewRequest.contactId, contact.id))
         .where(and(
@@ -251,10 +272,10 @@ export async function processScheduledRequests() {
           let sent = false
 
           // SMS
-          if ((channel === 'sms' || channel === 'both') && ct?.phone) {
+          if ((channel === 'sms' || channel === 'both') && (ct?.mobile || ct?.phone)) {
             const template = settings.reviewSmsTemplate ||
               'Hi {firstName}, thanks for choosing {companyName}! We\'d love your feedback — could you leave us a quick Google review? {trackingUrl}'
-            await sendReviewSms(ct.phone, {
+            await sendReviewSms((ct.mobile || ct.phone) as string, {
               contactName: ct.name?.split(' ')[0] || 'there',
               companyName: comp.name || '',
               reviewLink: trackingUrl,
@@ -561,6 +582,7 @@ export default {
   getReviewSettings,
   updateReviewSettings,
   scheduleReviewRequest,
+  scheduleReviewRequestForVisit,
   sendReviewRequest,
   processScheduledRequests,
   sendFollowUp,

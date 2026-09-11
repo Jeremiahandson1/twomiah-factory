@@ -103,6 +103,10 @@ export const user = pgTable('user', {
   hourlyRate: decimal('hourly_rate', { precision: 10, scale: 2 }),
   isActive: boolean('is_active').default(true).notNull(),
   lastLogin: timestamp('last_login'),
+  // Per-account lockout: consecutive failed logins → 15-minute lock (see routes/auth.ts). Per-IP
+  // rate limiting alone never stopped a credential-stuffing run that rotates addresses.
+  failedLoginCount: integer('failed_login_count').default(0).notNull(),
+  lockedUntil: timestamp('locked_until'),
   refreshToken: text('refresh_token'),
   resetToken: text('reset_token'),
   resetTokenExp: timestamp('reset_token_exp'),
@@ -325,6 +329,7 @@ export const invoiceLineItem = pgTable('invoice_line_item', {
 export const payment = pgTable('payment', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  tipAmount: decimal('tip_amount', { precision: 12, scale: 2 }).default('0').notNull(), // gratuity, on top of `amount` (never counts toward the invoice)
   method: text('method').default('other').notNull(),
   reference: text('reference'),
   notes: text('notes'),
@@ -2069,6 +2074,9 @@ export const emailRecipient = pgTable('email_recipient', {
   sentAt: timestamp('sent_at'),
   openedAt: timestamp('opened_at'),
   clickedAt: timestamp('clicked_at'),
+  openCount: integer('open_count').default(0).notNull(),
+  clickCount: integer('click_count').default(0).notNull(),
+  unsubscribedAt: timestamp('unsubscribed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('email_recipient_campaign_id_status_idx').on(t.campaignId, t.status),
@@ -2227,6 +2235,7 @@ export const sequenceEnrollment = pgTable('sequence_enrollment', {
   currentStep: integer('current_step').default(1).notNull(),
   status: text('status').default('active').notNull(),
   nextEmailAt: timestamp('next_email_at'),
+  lastEmailAt: timestamp('last_email_at'),
   completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
@@ -3720,6 +3729,8 @@ export const appointment = pgTable('appointment', {
   startTime: timestamp('start_time').notNull(),
   endTime: timestamp('end_time'),
   checkedInAt: timestamp('checked_in_at'),
+  reminderSentAt: timestamp('reminder_sent_at'),                 // day-before text sent (services/appointmentReminders.ts)
+  reminderNotes: text('reminder_notes'),
   quotedPrice: decimal('quoted_price', { precision: 10, scale: 2 }),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

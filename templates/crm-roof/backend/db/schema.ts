@@ -89,6 +89,10 @@ export const user = pgTable('user', {
   role: text('role').default('user').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   lastLogin: timestamp('last_login'),
+  // Per-account lockout: consecutive failed logins → 15-minute lock (see routes/auth.ts). Per-IP
+  // rate limiting alone never stopped a credential-stuffing run that rotates addresses.
+  failedLoginCount: integer('failed_login_count').default(0).notNull(),
+  lockedUntil: timestamp('locked_until'),
   refreshToken: text('refresh_token'),
   resetToken: text('reset_token'),
   resetTokenExp: timestamp('reset_token_exp'),

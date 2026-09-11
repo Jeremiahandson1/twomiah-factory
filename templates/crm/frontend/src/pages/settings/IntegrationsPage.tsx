@@ -6,7 +6,6 @@ import {
   Globe, ChevronRight, Phone, Link2, Search, Eye, EyeOff,
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
@@ -34,11 +33,6 @@ export default function IntegrationsPage() {
     loadIntegrations();
   }, []);
 
-  const getAuthHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${localStorage.getItem('token')}`,
-  });
-
   const loadIntegrations = async () => {
     try {
       // Route through the api client so a lapsed access token refreshes+retries
@@ -60,7 +54,7 @@ export default function IntegrationsPage() {
         }
       }
     } catch (err) {
-      setError('Failed to load integrations');
+      setError((err as Error).message || 'Failed to load integrations');
     } finally {
       setLoading(false);
     }
@@ -68,15 +62,12 @@ export default function IntegrationsPage() {
 
   const handleQuickBooksConnect = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/quickbooks/auth-url`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
+      const data = await api.get(`/api/integrations/quickbooks/auth-url`);
       if (data.authUrl) {
         window.location.href = data.authUrl;
       }
     } catch (err) {
-      setError('Failed to start QuickBooks connection');
+      setError((err as Error).message || 'Failed to start QuickBooks connection');
     }
   };
 
@@ -85,17 +76,14 @@ export default function IntegrationsPage() {
 
     setSaving('quickbooks');
     try {
-      await fetch(`${API_URL}/api/integrations/quickbooks/disconnect`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post(`/api/integrations/quickbooks/disconnect`);
       setIntegrations(prev => ({
         ...prev,
         quickbooks: { connected: false, companyName: null, lastSync: null },
       }));
       setSuccess('QuickBooks disconnected');
     } catch (err) {
-      setError('Failed to disconnect QuickBooks');
+      setError((err as Error).message || 'Failed to disconnect QuickBooks');
     } finally {
       setSaving(null);
     }
@@ -103,15 +91,12 @@ export default function IntegrationsPage() {
 
   const handleStripeConnect = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/stripe/connect-url`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
+      const data = await api.get(`/api/integrations/stripe/connect-url`);
       if (data.connectUrl) {
         window.location.href = data.connectUrl;
       }
     } catch (err) {
-      setError('Failed to start Stripe connection');
+      setError((err as Error).message || 'Failed to start Stripe connection');
     }
   };
 
@@ -120,17 +105,14 @@ export default function IntegrationsPage() {
 
     setSaving('stripe');
     try {
-      await fetch(`${API_URL}/api/integrations/stripe/disconnect`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post(`/api/integrations/stripe/disconnect`);
       setIntegrations(prev => ({
         ...prev,
         stripe: { connected: false, accountId: null, chargesEnabled: false },
       }));
       setSuccess('Stripe disconnected');
     } catch (err) {
-      setError('Failed to disconnect Stripe');
+      setError((err as Error).message || 'Failed to disconnect Stripe');
     } finally {
       setSaving(null);
     }
@@ -141,14 +123,7 @@ export default function IntegrationsPage() {
     setError('');
 
     try {
-      const response = await fetch(`${API_URL}/api/integrations/${service}/toggle`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ enabled: !(integrations[service as keyof typeof integrations] as Record<string, unknown>)?.enabled }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      const data = await api.post(`/api/integrations/${service}/toggle`, { enabled: !(integrations[service as keyof typeof integrations] as Record<string, unknown>)?.enabled });
 
       setIntegrations(prev => ({
         ...prev,
@@ -165,14 +140,11 @@ export default function IntegrationsPage() {
   const handleSyncNow = async () => {
     setSaving('sync');
     try {
-      await fetch(`${API_URL}/api/integrations/quickbooks/sync`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post(`/api/integrations/quickbooks/sync`);
       setSuccess('Sync started');
       loadIntegrations();
     } catch (err) {
-      setError('Sync failed');
+      setError((err as Error).message || 'Sync failed');
     } finally {
       setSaving(null);
     }
@@ -186,13 +158,7 @@ export default function IntegrationsPage() {
     setSaving('twilio');
     setError('');
     try {
-      const response = await fetch(`${API_URL}/api/integrations/twilio/configure`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(twilioForm),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to save Twilio config');
+      const data = await api.post(`/api/integrations/twilio/configure`, twilioForm);
       setIntegrations(prev => ({ ...prev, twilio: { configured: true, phoneNumber: twilioForm.phoneNumber } }));
       setSuccess('Twilio configured successfully');
       setTwilioForm(prev => ({ ...prev, accountSid: '', authToken: '' }));

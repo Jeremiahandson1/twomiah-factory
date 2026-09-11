@@ -371,14 +371,18 @@ export default function ContactDetailPage() {
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Summary</h2>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-slate-400">Projects</span>
-                <span className="font-medium">{contact.projects?.length || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500 dark:text-slate-400">Quotes</span>
-                <span className="font-medium">{contact.quotes?.length || 0}</span>
-              </div>
+              {hasFeature('projects') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 dark:text-slate-400">Projects</span>
+                  <span className="font-medium">{contact.projects?.length || 0}</span>
+                </div>
+              )}
+              {hasFeature('quotes') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500 dark:text-slate-400">Quotes</span>
+                  <span className="font-medium">{contact.quotes?.length || 0}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-gray-500 dark:text-slate-400">Invoices</span>
                 <span className="font-medium">{contact.invoices?.length || 0}</span>
@@ -413,20 +417,20 @@ export default function ContactDetailPage() {
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Quick Actions</h2>
             <div className="space-y-2">
-              <Link
+              {hasFeature('quotes') && <Link
                 to={`/crm/quotes?contactId=${id}`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
                 <FileText className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Create Quote
-              </Link>
-              <Link
+              </Link>}
+              {hasFeature('jobs') && <Link
                 to={`/crm/jobs?contactId=${id}`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"
               >
                 <Briefcase className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                 Schedule Job
-              </Link>
+              </Link>}
               <Link
                 to={`/crm/invoices?contactId=${id}`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-900"

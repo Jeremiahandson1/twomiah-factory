@@ -89,7 +89,7 @@ app.get('/status', authenticate, async (c) => {
 app.get('/quickbooks/auth-url', authenticate, async (c) => {
   const user = c.get('user') as any
 
-  if (!QB_CLIENT_ID) return c.json({ error: 'QuickBooks not configured' }, 500)
+  if (!QB_CLIENT_ID) return c.json({ error: 'QuickBooks sync is not enabled for this CRM yet. Email support@twomiah.com and we will switch it on for your account.' }, 503)
 
   const state = Buffer.from(JSON.stringify({
     companyId: user.companyId,
@@ -224,6 +224,8 @@ app.post('/quickbooks/sync', authenticate, async (c) => {
 
 app.get('/stripe/connect-url', authenticate, async (c) => {
   const user = c.get('user') as any
+  // No STRIPE_SECRET_KEY on this CRM → `stripe` is null and this used to crash with a 500 "null is not an object". (SALON-C5)
+  if (!stripe) return c.json({ error: 'Card payments are not set up for this CRM yet. Twomiah support can connect Stripe for your account — email support@twomiah.com.' }, 503)
 
   const [comp] = await db.select({
     name: company.name,

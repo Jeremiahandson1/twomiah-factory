@@ -15,6 +15,9 @@ export function DataTable({
   searchValue = '',
 }) {
   const [openMenu, setOpenMenu] = useState(null);
+  // The menu is position:fixed at the button's screen position so the table's overflow-x-auto
+  // wrapper cannot clip it (the last rows' menus were cut off). (SALON-H6)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
 
   return (
     <div className="bg-white rounded-lg shadow-sm overflow-hidden dark:bg-slate-900">
@@ -81,6 +84,8 @@ export function DataTable({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                            setMenuPos({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
                             setOpenMenu(openMenu === row.id ? null : row.id);
                           }}
                           className="p-1.5 rounded-md border border-gray-200 hover:bg-gray-100 hover:border-gray-300 text-gray-500 hover:text-gray-700 transition-colors dark:border-slate-700 dark:text-slate-400"
@@ -90,7 +95,7 @@ export function DataTable({
                         {openMenu === row.id && (
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
-                            <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border z-20 py-1 dark:bg-slate-900">
+                            <div className="fixed w-40 bg-white rounded-lg shadow-lg border z-20 py-1 dark:bg-slate-900" style={{ top: menuPos.top, right: menuPos.right }}>
                               {actions.map((action, idx) => (
                                 <button
                                   key={idx}

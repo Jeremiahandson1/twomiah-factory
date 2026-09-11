@@ -48,13 +48,10 @@ export default function MessagesPage() {
     setSelectedConversation(conv);
     setLoadingMessages(true);
     try {
-      const data = await api.get(`/api/sms/conversations/${conv.id}/messages`);
-      setMessages(data || []);
-      // Mark as read
-      if ((conv.unreadCount as number) > 0) {
-        await api.post(`/api/sms/conversations/${conv.id}/read`);
-        loadConversations();
-      }
+      const data = await api.get(`/api/sms/conversations/${conv.id}`);
+      setMessages((data?.messages as Record<string, unknown>[]) || []);
+      // The backend marks the thread read when it is fetched; refresh the unread badges. (SALON-C3)
+      if ((conv.unreadCount as number) > 0) loadConversations();
     } catch (error: unknown) {
       console.error('Failed to load messages:', error);
     } finally {
@@ -265,13 +262,11 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }: Mes
 
     setSending(true);
     try {
-      await api.post(`/api/sms/conversations/${conversationId}/messages`, {
-        body: newMessage,
-      });
+      await api.post(`/api/sms/conversations/${conversationId}/reply`, { message: newMessage });
       setNewMessage('');
       onMessageSent();
     } catch (error: unknown) {
-      alert('Failed to send message');
+      alert((error as Error).message || 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -418,7 +413,7 @@ function NewMessageModal({ onSend, onClose }: NewMessageModalProps) {
       });
       onSend(result.conversation);
     } catch (error: unknown) {
-      alert('Failed to send message');
+      alert((error as Error).message || 'Failed to send message');
       setSending(false);
     }
   };

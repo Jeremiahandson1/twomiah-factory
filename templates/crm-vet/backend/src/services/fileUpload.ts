@@ -182,9 +182,20 @@ export function deleteFile(filePath: string): boolean {
   }
 }
 
-export function getFileUrl(filePath: string, companyId: string): string {
-  const relativePath = filePath.replace(UPLOAD_DIR, '').replace(/\\/g, '/')
-  return `/uploads${relativePath}`
+// Files live on the service's private disk and are streamed by GET /api/documents/file/* (auth +
+// company-scoped). The old value was `/uploads/…`, which nothing served — previews and thumbnails
+// were blank. (SALON-H1)
+export function getFileUrl(filePath: string, _companyId: string): string {
+  const relativePath = path.relative(UPLOAD_DIR, filePath).replace(/\\/g, '/')
+  return '/api/documents/file/' + relativePath.split('/').map(encodeURIComponent).join('/')
+}
+
+/** Resolve a key from /api/documents/file/<key> back to a disk path, or null when outside the upload dir. */
+export function resolveFileKey(key: string): string | null {
+  const abs = path.resolve(UPLOAD_DIR, key)
+  const root = path.resolve(UPLOAD_DIR)
+  if (abs !== root && !abs.startsWith(root + path.sep)) return null
+  return abs
 }
 
 export function getFileInfo(filePath: string): { name: string; path: string; size: number; created: Date; modified: Date; extension: string } | null {
@@ -204,6 +215,7 @@ export function getFileInfo(filePath: string): { name: string; path: string; siz
 }
 
 export default {
+  resolveFileKey,
   saveFile,
   saveFiles,
   processImage,

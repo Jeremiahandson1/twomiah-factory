@@ -109,7 +109,7 @@ app.get('/stats', requirePermission('invoices:read'), async (c) => {
   invoices.forEach(inv => {
     stats[inv.status] = (stats[inv.status] || 0) + 1
     // Drafts aren't sent; exclude from invoiced + outstanding so collection rate stays meaningful. (VET-19)
-    if (inv.status !== 'draft') {
+    if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') {
       stats.totalAmount += Number(inv.total)
       stats.outstanding += Number(inv.total) - Number(inv.amountPaid)
     }
@@ -188,17 +188,19 @@ app.put('/:id', requirePermission('invoices:update'), async (c) => {
 
   const [existing] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Invoice not found' }, 404)
+  if (existing.status === 'void') return c.json({ error: 'This invoice is void and can no longer be edited.' }, 400)
 
   const { lineItems, ...invoiceData } = data
   let totals: Record<string, string> = {}
   if (lineItems) {
-    await db.delete(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, id))
     const calc = calcTotals(lineItems, data.taxRate ?? Number(existing.taxRate), data.discount ?? Number(existing.discount))
     // Never let an edit drop the total below what has already been collected. (CC-02)
     const paid = Number(existing.amountPaid)
     if (calc.total < paid - 0.005) {
       return c.json({ error: `This invoice already has $${paid.toFixed(2)} in payments; the total can't be lowered below that. Refund or void instead.` }, 400)
     }
+    // Only now is it safe to replace the lines — a rejected edit used to leave a paid invoice with no line items. (SALON-C2)
+    await db.delete(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, id))
     const newStatus = paid >= calc.total - 0.005 ? 'paid' : paid > 0 ? 'partial' : existing.status
     totals = { subtotal: calc.subtotal.toString(), taxAmount: calc.taxAmount.toString(), total: calc.total.toString(), amountPaid: existing.amountPaid, status: newStatus }
   }
@@ -325,6 +327,52 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
   }
 
   return c.json(newPayment, 201)
+})
+
+// POST /:id/void — an issued invoice is never deleted: voiding keeps the number and the audit trail
+// and takes it out of outstanding balances. Money already taken must be refunded first. (SALON-H8)
+app.post('/:id/void', requirePermission('invoices:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+  const [existing] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Invoice not found' }, 404)
+  if (existing.status === 'void') return c.json({ error: 'This invoice is already void.' }, 400)
+  const paid = Number(existing.amountPaid)
+  if (paid > 0.005) return c.json({ error: `This invoice has $${paid.toFixed(2)} in payments. Refund them first, then void.` }, 400)
+  const note = body.reason ? `Voided: ${String(body.reason).slice(0, 500)}` : 'Voided'
+  const [updated] = await db.update(invoice)
+    .set({ status: 'void', notes: existing.notes ? `${existing.notes}\n${note}` : note, updatedAt: new Date() })
+    .where(eq(invoice.id, id)).returning()
+  emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, updated)
+  return c.json(updated)
+})
+
+// POST /:id/refund — records a NEGATIVE payment so amountPaid, status and the payments list stay
+// truthful (a refund is a real ledger event, not an edit). Card refunds through Stripe are issued in
+// the processor; this records the outcome on the invoice. (SALON-H8)
+app.post('/:id/refund', requirePermission('invoices:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(['card', 'cash', 'check', 'bank_transfer', 'stripe', 'other']).default('other'), reference: z.string().optional(), notes: z.string().optional() })
+  const data = refundSchema.parse(await c.req.json())
+  const [existing] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Invoice not found' }, 404)
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const paid = round2(Number(existing.amountPaid))
+  const amount = round2(data.amount)
+  if (paid <= 0.005) return c.json({ error: 'This invoice has no payments to refund.' }, 400)
+  if (amount > paid + 0.005) return c.json({ error: `Refund exceeds what was collected — $${paid.toFixed(2)} paid on this invoice.` }, 400)
+  const [refund] = await db.insert(payment).values({
+    invoiceId: id, amount: (-amount).toString(), method: data.method, reference: data.reference || null, notes: data.notes || 'Refund',
+  }).returning()
+  const newPaid = round2(paid - amount)
+  const newStatus = newPaid <= 0.005 ? 'refunded' : 'partial'
+  const [updated] = await db.update(invoice)
+    .set({ amountPaid: newPaid.toString(), status: newStatus, paidAt: null, updatedAt: new Date() })
+    .where(eq(invoice.id, id)).returning()
+  emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, updated)
+  return c.json({ refund, invoice: updated })
 })
 
 // PDF download

@@ -30,6 +30,11 @@ interface NavItem {
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
 // Items with `features` show if ANY listed feature is enabled.
+// Routes that exist in the app but have no sidebar entry, and the features that make them
+// relevant. Used with ALL_NAV_ITEMS to gate URLs (see gatedItem below).
+const EXTRA_ROUTE_GATES: Record<string, string[]> = {
+};
+
 const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
 
@@ -113,6 +118,22 @@ export default function AppLayout() {
       return item.features.some((f: string) => hasFeature(f));
     });
   }, [hasFeature]);
+
+  // A module that is not part of this tenant's vertical/plan must not be reachable by URL either:
+  // the sidebar hid it, but /crm/rfis, /crm/lien-waivers… still rendered contractor pages inside a
+  // salon. Gate from the same nav list so there is one source of truth. (SALON launch QA)
+  const gatedItem = useMemo(() => {
+    const path = location.pathname.replace(/\/+$/, '');
+    const candidates: { to: string; label: string; features?: string[] }[] = [
+      ...ALL_NAV_ITEMS.map((i: any) => ({ to: i.to as string, label: i.label as string, features: i.features as string[] | undefined })),
+      ...Object.entries(EXTRA_ROUTE_GATES).map(([to, features]) => ({ to, label: to.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), features })),
+    ];
+    const match = candidates
+      .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
+      .sort((a, b) => b.to.length - a.to.length)[0];
+    if (!match) return null;
+    return match.features!.some((f: string) => hasFeature(f)) ? null : match;
+  }, [location.pathname, hasFeature]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -359,7 +380,15 @@ export default function AppLayout() {
 
         {/* Page Content */}
         <main id="main-content" className="p-4 lg:p-6" tabIndex={-1}>
-          <Outlet context={{ instance: { primaryColor: company?.primaryColor || '#f97316', companyName: company?.name, companyId: company?.id, slug: company?.slug } }} />
+          {gatedItem ? (
+            <div className="max-w-xl mx-auto mt-16 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">{gatedItem.label} isn't part of this CRM</h1>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">This module is not included for your business type or plan. Everything you can use is in the left menu.</p>
+              <NavLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</NavLink>
+            </div>
+          ) : (
+            <Outlet context={{ instance: { primaryColor: company?.primaryColor || '#f97316', companyName: company?.name, companyId: company?.id, slug: company?.slug } }} />
+          )}
         </main>
       </div>
     </div>

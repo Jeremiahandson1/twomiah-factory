@@ -7,6 +7,8 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
+import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 
 /**
  * The formula log — what was actually done in the chair. This is the salon's
@@ -89,7 +91,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     appointmentId: body.appointmentId || null,
     stylistId: body.stylistId || null,
     serviceId: body.serviceId || null,
-    performedAt: body.performedAt ? new Date(body.performedAt) : new Date(),
+    // A date-only value ("2026-09-11") is a calendar date: store it at noon UTC so it renders as that
+    // date in any US timezone instead of UTC midnight rolling back a day. (SALON-H9)
+    performedAt: body.performedAt ? (/^\d{4}-\d{2}-\d{2}$/.test(String(body.performedAt)) ? new Date(`${body.performedAt}T12:00:00.000Z`) : new Date(body.performedAt)) : new Date(),
     formula: Array.isArray(body.formula) ? body.formula : [],
     developerVolume: body.developerVolume || null,
     processingMin: body.processingMin ?? null,
@@ -108,9 +112,23 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
       .where(and(eq(appointment.id, created.appointmentId), eq(appointment.companyId, currentUser.companyId)))
   }
 
+  // Logging the service closes the visit: create the sale (once per appointment) and queue the
+  // review request. Neither may fail the record write. (SALON-H4 / H2)
+  let invoiceId: string | null = null
+  try {
+    let serviceName: string | null = null
+    if (created.serviceId) {
+      const [svc] = await db.select({ name: serviceMenu.name }).from(serviceMenu).where(eq(serviceMenu.id, created.serviceId)).limit(1)
+      serviceName = svc?.name || null
+    }
+    const inv = await ensureInvoiceForVisit({ companyId: currentUser.companyId, contactId: created.contactId, appointmentId: created.appointmentId, serviceName, price: Number(created.priceCharged) })
+    invoiceId = inv?.id || null
+  } catch (e: any) { console.warn('[service-records] sale not created:', e?.message || e) }
+  scheduleReviewRequestForVisit({ companyId: currentUser.companyId, contactId: created.contactId }).catch((e) => console.warn('[service-records] review schedule failed:', e?.message || e))
+
   await audit.log({ action: 'create', entity: 'service_record', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
-  return c.json(created, 201)
+  return c.json({ ...created, invoiceId }, 201)
 })
 
 // PUT /service-records/:id

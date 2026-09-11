@@ -29,6 +29,26 @@ interface PaginationData {
   totalPages: number;
 }
 
+// Document files are served by an authenticated route; an <img src>/<iframe src> cannot send the
+// bearer token, so previews and thumbnails were blank and window.open() downloads hit a 401. Fetch
+// with the token and hand the browser a blob URL instead. (SALON-H1)
+async function fetchAuthedBlobUrl(url: string): Promise<string> {
+  const base = (api as unknown as { baseUrl?: string }).baseUrl || '';
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('token') || '';
+  const res = await fetch(url.startsWith('http') ? url : base + url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Could not load file (${res.status})`);
+  return URL.createObjectURL(await res.blob());
+}
+function AuthImg({ src, alt, className }: { src: string; alt?: string; className?: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let obj: string | null = null; let live = true;
+    fetchAuthedBlobUrl(src).then((u) => { obj = u; if (live) setUrl(u); else URL.revokeObjectURL(u); }).catch(() => { if (live) setUrl(null); });
+    return () => { live = false; if (obj) URL.revokeObjectURL(obj); };
+  }, [src]);
+  return url ? <img src={url} alt={alt || ''} className={className} /> : <div className={className} />;
+}
+
 export default function DocumentsPage() {
   const toast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,6 +63,13 @@ export default function DocumentsPage() {
   const [uploadForm, setUploadForm] = useState<UploadForm>({ name: '', type: 'general', projectId: '', description: '' });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewDoc, setPreviewDoc] = useState<Record<string, unknown> | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!previewDoc) { setPreviewUrl(null); return; }
+    let obj: string | null = null; let live = true;
+    fetchAuthedBlobUrl(String((previewDoc as Record<string, unknown>).url)).then((u) => { obj = u; if (live) setPreviewUrl(u); else URL.revokeObjectURL(u); }).catch(() => { if (live) setPreviewUrl(null); });
+    return () => { live = false; if (obj) URL.revokeObjectURL(obj); };
+  }, [previewDoc]);
   const [historyDoc, setHistoryDoc] = useState<Record<string, unknown> | null>(null);
   const [markupDoc, setMarkupDoc] = useState<Record<string, unknown> | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -122,7 +149,9 @@ export default function DocumentsPage() {
 
   const handleDownload = async (doc: Record<string, unknown>) => {
     try {
-      window.open(`${(api as unknown as Record<string, string>).baseUrl || ''}/api/documents/${doc.id}/download`, '_blank');
+      const url = await fetchAuthedBlobUrl(`/api/documents/${doc.id}/download`);
+      const a = document.createElement('a'); a.href = url; a.download = String(doc.originalName || doc.name || 'download'); document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       toast.error('Download failed');
     }
@@ -154,7 +183,7 @@ export default function DocumentsPage() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center dark:bg-slate-800">
               {row.thumbnailUrl ? (
-                <img src={row.thumbnailUrl as string} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                <AuthImg src={row.thumbnailUrl as string} className="w-10 h-10 rounded-lg object-cover" />
               ) : (
                 <Icon className="w-5 h-5 text-gray-500 dark:text-slate-400" />
               )}
@@ -340,9 +369,9 @@ export default function DocumentsPage() {
               <X className="w-5 h-5" />
             </button>
             {(previewDoc.mimeType as string)?.startsWith('image/') ? (
-              <img src={previewDoc.url as string} alt={previewDoc.name as string} className="max-w-full max-h-[90vh] rounded-lg" />
+              <img src={previewUrl || undefined} alt={previewDoc.name as string} className="max-w-full max-h-[90vh] rounded-lg" />
             ) : (
-              <iframe src={previewDoc.url as string} className="w-[800px] h-[90vh] bg-white rounded-lg dark:bg-slate-900" />
+              <iframe src={previewUrl || undefined} className="w-[800px] h-[90vh] bg-white rounded-lg dark:bg-slate-900" />
             )}
           </div>
         </div>

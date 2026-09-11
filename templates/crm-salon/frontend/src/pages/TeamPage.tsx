@@ -62,7 +62,7 @@ export default function TeamPage() {
 
   const columns = [
     { key: 'name', label: 'Name', render: (v: unknown) => <span className="font-medium">{v as string}</span> },
-    { key: 'role', label: 'Job Title / Trade' },
+    { key: 'role', label: 'Role / Specialty' },
     { key: 'department', label: 'Department' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },
