@@ -9,6 +9,14 @@ import api from '../../services/api';
 /**
  * Two-Way SMS Messaging Page
  */
+// +16085550188 → (608) 555-0188; anything else is shown as stored.
+function fmtPhone(p: unknown): string {
+  const d = String(p || '').replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('1')) return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  return String(p || '');
+}
+
 export default function MessagesPage() {
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
@@ -147,9 +155,9 @@ export default function MessagesPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900 dark:text-slate-100">
-                  {selectedConversation.contact?.name || selectedConversation.phoneNumber}
+                  {selectedConversation.contact?.name || fmtPhone(selectedConversation.phoneNumber)}
                 </p>
-                <p className="text-sm text-gray-500 dark:text-slate-400">{selectedConversation.phoneNumber}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{fmtPhone(selectedConversation.phoneNumber)}</p>
               </div>
               <button className="p-2 hover:bg-gray-100 rounded-lg">
                 <Phone className="w-5 h-5 text-gray-500 dark:text-slate-400" />
@@ -220,7 +228,7 @@ function ConversationItem({ conversation, selected, onClick }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <p className={`font-medium truncate ${conversation.unreadCount > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
-              {conversation.contact?.name || conversation.phoneNumber}
+              {conversation.contact?.name || fmtPhone(conversation.phoneNumber)}
             </p>
             <span className="text-xs text-gray-500 dark:text-slate-400">{timeAgo}</span>
           </div>

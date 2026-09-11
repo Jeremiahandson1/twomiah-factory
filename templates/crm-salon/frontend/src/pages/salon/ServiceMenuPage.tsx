@@ -22,6 +22,7 @@ interface Service {
   priceIsFrom?: boolean;
   rebookIntervalDays?: number | null;
   requiresPatchTest?: boolean;
+  bookableOnline?: boolean;
   active?: boolean;
 }
 
@@ -116,6 +117,9 @@ export default function ServiceMenuPage() {
                           no rebook reminder
                         </span>
                       )}
+                      {s.bookableOnline && (
+                        <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">online</span>
+                      )}
                       {s.requiresPatchTest && (
                         <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full">
                           <AlertTriangle className="w-3 h-3" /> patch test
@@ -161,6 +165,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
     priceIsFrom: service?.priceIsFrom ?? false,
     rebookIntervalDays: service?.rebookIntervalDays?.toString() || '',
     requiresPatchTest: service?.requiresPatchTest ?? false,
+    bookableOnline: service?.bookableOnline ?? false,
     active: service?.active ?? true,
   });
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
@@ -181,6 +186,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
         // reminders off — so it must be sent as null, not omitted.
         rebookIntervalDays: form.rebookIntervalDays === '' ? null : Number(form.rebookIntervalDays),
         requiresPatchTest: form.requiresPatchTest,
+        bookableOnline: form.bookableOnline,
         active: form.active,
       };
       if (service) await api.put(`/api/service-menu/${service.id}`, payload);
@@ -245,6 +251,10 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
               <div className="flex items-center gap-2">
                 <input id="requiresPatchTest" type="checkbox" checked={form.requiresPatchTest} onChange={(e) => set('requiresPatchTest', e.target.checked)} className="w-4 h-4" />
                 <label htmlFor="requiresPatchTest" className="text-sm font-medium text-gray-700 dark:text-slate-200">Requires a patch test</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input id="bookableOnline" type="checkbox" checked={form.bookableOnline} onChange={(e) => set('bookableOnline', e.target.checked)} className="w-4 h-4" />
+                <label htmlFor="bookableOnline" className="text-sm font-medium text-gray-700 dark:text-slate-200">Bookable online (shows on the booking page)</label>
               </div>
               <div className="flex items-center gap-2">
                 <input id="active" type="checkbox" checked={form.active} onChange={(e) => set('active', e.target.checked)} className="w-4 h-4" />

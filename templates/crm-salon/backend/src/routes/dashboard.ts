@@ -16,6 +16,9 @@ app.get('/stats', async (c) => {
   const user_ = c.get('user') as any
   const companyId = user_.companyId
   const now = new Date()
+  // Cancelled and no-show rows are not appointments the desk has to serve; upcoming excludes completed too. (SALON-N9)
+  const LIVE_APPT = sql`${appointment.status} NOT IN ('cancelled', 'no_show')`
+  const UPCOMING_APPT = sql`${appointment.status} NOT IN ('cancelled', 'no_show', 'completed')`
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const tomorrow = new Date(today.getTime() + 86400000)
   const in7 = new Date(today.getTime() + 7 * 86400000)
@@ -28,8 +31,8 @@ app.get('/stats', async (c) => {
 
   const [clientRows, todayApptRows, upcomingApptRows, apptsByStatus, visitsMonthRows, revenueRows, byStylistRows, membershipRows, dueRows] = await Promise.all([
     safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }]),
-    safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, tomorrow))), [{ value: 0 }]),
-    safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), lt(appointment.startTime, in7))), [{ value: 0 }]),
+    safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, tomorrow), LIVE_APPT)), [{ value: 0 }]),
+    safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), lt(appointment.startTime, in7), UPCOMING_APPT)), [{ value: 0 }]),
     safe(() => db.select({ status: appointment.status, c: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, in7))).groupBy(appointment.status), [] as { status: string; c: number }[]),
     safe(() => db.select({ value: count() }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [{ value: 0 }]),
     safe(() => db.select({ amt: serviceRecord.priceCharged }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [] as { amt: string | null }[]),
@@ -115,7 +118,7 @@ app.get('/recent-activity', async (c) => {
       .leftJoin(serviceMenu, eq(appointment.serviceId, serviceMenu.id))
       .leftJoin(contact, eq(appointment.contactId, contact.id))
       .leftJoin(user, eq(appointment.stylistId, user.id))
-      .where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now))).orderBy(appointment.startTime).limit(8), []),
+      .where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), UPCOMING_APPT)).orderBy(appointment.startTime).limit(8), []),
   ])
 
   return c.json({ recentClients, recentServices, upcomingAppointments })

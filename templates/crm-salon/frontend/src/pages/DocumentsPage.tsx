@@ -168,7 +168,7 @@ export default function DocumentsPage() {
     return (b / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const documentTypes = ['general', 'contract', 'permit', 'drawing', 'photo', 'invoice', 'receipt', 'other'];
+  const documentTypes = ['general', 'consent_form', 'photo', 'invoice', 'receipt', 'contract', 'other'];
 
   const columns = [
     {
@@ -238,16 +238,6 @@ export default function DocumentsPage() {
             <option value="">All Types</option>
             {documentTypes.map(t => (
               <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
-            ))}
-          </select>
-          <select
-            value={filter.projectId}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter({ ...filter, projectId: e.target.value })}
-            className="px-3 py-2 border rounded-lg"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p: Record<string, unknown>) => (
-              <option key={p.id as string} value={p.id as string}>{p.name as string}</option>
             ))}
           </select>
           <button

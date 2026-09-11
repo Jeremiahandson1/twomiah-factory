@@ -236,28 +236,6 @@ export default function CustomerPortal() {
             </a>
           )}
 
-          {/* Pricebook Promo — show if they don't have it yet */}
-          {!hasFeature('pricebook') && (
-            <div
-              onClick={() => navigate('/crm/pricebook-trial')}
-              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden dark:bg-slate-900"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-amber-600" />
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                  <Sparkles className="w-3 h-3" />
-                  FREE TRIAL
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Pricebook</h3>
-              <p className="text-sm text-slate-500">
-                Standardized pricing catalog — consistent quotes, faster estimates
-              </p>
-            </div>
-          )}
 
           {/* Exterior Visualizer add-on is contractor/roofer-only — no promo on salon portals */}
 

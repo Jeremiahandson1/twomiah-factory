@@ -123,9 +123,9 @@ export default function InvoicesPage() {
       <PageHeader title="Invoices" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Invoice</Button>} />
       <div className="mb-4"><select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-4 py-2 border rounded-lg"><option value="">All Status</option>{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/crm/invoices/${row.id}`)} actions={[
-        { label: 'Edit', icon: Edit, onClick: openEdit },
-        { label: 'Send', icon: Send, onClick: handleSend },
-        { label: 'Record Payment', icon: DollarSign, onClick: openPayment },
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => r.status !== 'void' },
+        { label: 'Send', icon: Send, onClick: handleSend, show: (r: Record<string, unknown>) => r.status !== 'void' },
+        { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: (r: Record<string, unknown>) => r.status !== 'void' && r.status !== 'refunded' },
         { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) <= 0 },
         { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => Number(r.amountPaid || 0) > 0 },
         { label: 'Delete', icon: Trash2, onClick: (r) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },

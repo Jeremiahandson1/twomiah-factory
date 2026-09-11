@@ -87,6 +87,14 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const cBody = await c.req.json()
   if (cBody.email && typeof cBody.email === 'string') cBody.email = cBody.email.toLowerCase().trim()
   const data = contactSchema.parse(cBody)
+  if (data.name.length > 200) return c.json({ error: 'Name is too long (200 characters max).' }, 400)
+  // Same email or phone as an existing contact is almost always the same person. (SALON-M5)
+  if (!cBody.allowDuplicate) {
+    const phones = [data.phone, data.mobile].filter(Boolean).map((p) => String(p).replace(/\D/g, '')).filter((p) => p.length >= 7)
+    const rows = await db.select({ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone, mobile: contact.mobile }).from(contact).where(eq(contact.companyId, currentUser.companyId))
+    const dupe = rows.find((r) => (data.email && r.email && r.email.toLowerCase() === data.email.toLowerCase()) || phones.some((p) => [r.phone, r.mobile].some((x) => x && String(x).replace(/\D/g, '').endsWith(p.slice(-10)))))
+    if (dupe) return c.json({ error: `${dupe.name} already has this email or phone number. Open that record, or send allowDuplicate: true to create another.`, existingId: dupe.id }, 409)
+  }
   const [newContact] = await db.insert(contact).values({ ...data, companyId: currentUser.companyId }).returning()
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, newContact)
   audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, req: c.req })

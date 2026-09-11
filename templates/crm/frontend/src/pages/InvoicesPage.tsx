@@ -143,7 +143,7 @@ export default function InvoicesPage() {
     { key: 'contact', label: 'Client', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
-    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { const bal = Number(r.total) - Number(v || 0); return bal > 0.005 ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : <span className="text-green-600">Paid</span>; } },
+    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { if (r.status === 'void') return <span className="text-gray-400">Void</span>; const bal = Number(r.total) - Number(v || 0); return bal > 0.005 ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : <span className="text-green-600">Paid</span>; } },
     { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
   ];
 
@@ -154,9 +154,9 @@ export default function InvoicesPage() {
       <PageHeader title="Invoices" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Invoice</Button>} />
       <div className="mb-4"><select value={statusFilter} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setStatusFilter(e.target.value); setPage(1); }} className="px-4 py-2 border rounded-lg"><option value="">All Status</option>{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row: Record<string, unknown>) => navigate(`/crm/invoices/${row.id}`)} actions={[
-        { label: 'Edit', icon: Edit, onClick: openEdit },
-        { label: 'Send', icon: Send, onClick: handleSend },
-        { label: 'Record Payment', icon: DollarSign, onClick: openPayment },
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => r.status !== 'void' },
+        { label: 'Send', icon: Send, onClick: handleSend, show: (r: Record<string, unknown>) => r.status !== 'void' },
+        { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: (r: Record<string, unknown>) => r.status !== 'void' && r.status !== 'refunded' },
         { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) <= 0 },
         { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => Number(r.amountPaid || 0) > 0 },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },

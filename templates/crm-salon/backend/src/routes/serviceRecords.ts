@@ -80,11 +80,31 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     .limit(1)
   if (!ct) return c.json({ error: 'Client not found' }, 404)
 
+  if (body.processingMin != null && body.processingMin !== '' && (isNaN(Number(body.processingMin)) || Number(body.processingMin) < 0 || Number(body.processingMin) > 600)) {
+    return c.json({ error: 'Processing time must be between 0 and 600 minutes.' }, 400)
+  }
+  const hasFormula = Array.isArray(body.formula) && body.formula.some((l: any) => (l?.product || l?.shade || '').toString().trim())
+  if (!body.serviceId && !hasFormula && !body.result && !body.productsUsed && (body.priceCharged == null || body.priceCharged === '') && !body.notes) {
+    return c.json({ error: 'Add a service, a formula, a result or a price — an empty record tells the next stylist nothing.' }, 400)
+  }
   // A negative price charged dragged the client's lifetime value negative. (CC-18)
   if (body.priceCharged != null && (isNaN(Number(body.priceCharged)) || Number(body.priceCharged) < 0)) {
     return c.json({ error: 'Price charged cannot be negative.' }, 400)
   }
 
+  // SALON-H4: reuse the record that Complete auto-created for this appointment rather than logging a second visit.
+  if (body.appointmentId) {
+    const [auto] = await db.select().from(serviceRecord).where(and(eq(serviceRecord.appointmentId, body.appointmentId), eq(serviceRecord.companyId, currentUser.companyId))).limit(1)
+    if (auto) {
+      const upd: any = { updatedAt: new Date() }
+      for (const k of ['stylistId', 'serviceId', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes']) if (k in body) upd[k] = body[k] === '' ? null : body[k]
+      if (Array.isArray(body.formula)) upd.formula = body.formula
+      if (body.performedAt) upd.performedAt = /^\d{4}-\d{2}-\d{2}$/.test(String(body.performedAt)) ? new Date(`${body.performedAt}T12:00:00.000Z`) : new Date(body.performedAt)
+      const [merged] = await db.update(serviceRecord).set(upd).where(eq(serviceRecord.id, auto.id)).returning()
+      emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
+      return c.json({ ...merged, invoiceId: null, merged: true }, 200)
+    }
+  }
   const [created] = await db.insert(serviceRecord).values({
     id: createId(),
     contactId: body.contactId,

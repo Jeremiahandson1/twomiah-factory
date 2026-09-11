@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { serviceMenu } from '../../db/schema.ts'
-import { eq, and, asc } from 'drizzle-orm'
+import { eq, and, asc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -45,9 +45,16 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (body.price != null && (isNaN(Number(body.price)) || Number(body.price) < 0)) {
     return c.json({ error: 'Price cannot be negative.' }, 400)
   }
-  if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1)) {
-    return c.json({ error: 'Duration must be at least 1 minute.' }, 400)
+  if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1 || Number(body.durationMin) > 720)) {
+    return c.json({ error: 'Duration must be between 1 and 720 minutes.' }, 400)
   }
+  if (body.rebookIntervalDays != null && body.rebookIntervalDays !== '' && (isNaN(Number(body.rebookIntervalDays)) || Number(body.rebookIntervalDays) < 0 || Number(body.rebookIntervalDays) > 365)) {
+    return c.json({ error: 'Rebook interval must be between 0 and 365 days.' }, 400)
+  }
+  // Two "Men's Cut" entries make the book, reports and rebooking ambiguous. (SALON-M5)
+  const [dupe] = await db.select({ id: serviceMenu.id }).from(serviceMenu)
+    .where(and(eq(serviceMenu.companyId, currentUser.companyId), sql`lower(${serviceMenu.name}) = lower(${body.name.trim()})`)).limit(1)
+  if (dupe && !body.allowDuplicate) return c.json({ error: `"${body.name.trim()}" is already on the menu.`, existingId: dupe.id }, 409)
 
   const [created] = await db.insert(serviceMenu).values({
     id: createId(),

@@ -40,11 +40,13 @@ interface PaginationData {
   totalPages: number;
 }
 
-const statuses = ['draft', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'refunded', 'void'];
+const statuses = ['draft', 'open', 'sent', 'viewed', 'partial', 'paid', 'overdue', 'refunded', 'void'];
 
 export default function InvoicesPage() {
   // New quotes/invoices start from the company's default sales-tax rate (Settings → Company). (W-8)
   const defaultTaxRate = Number((useAuth().company as any)?.settings?.defaultTaxRate) || 0;
+  // New invoices default to net-<terms> (Settings › Company), net-30 when unset. (SALON-L12)
+  const defaultDueDate = () => { const terms = Number((useAuth().company as any)?.settings?.defaultPaymentTerms); const d = new Date(); d.setDate(d.getDate() + (Number.isFinite(terms) && terms >= 0 ? terms : 30)); return d.toISOString().slice(0, 10); };
   const toast = useToast();
   const [refundOpen, setRefundOpen] = useState<boolean>(false);
   const [refundInvoice, setRefundInvoice] = useState<Record<string, unknown> | null>(null);
@@ -136,7 +138,7 @@ export default function InvoicesPage() {
   const updateLineItem = (idx: number, field: string, val: string | number) => { const items = [...form.lineItems]; (items[idx] as Record<string, unknown>)[field] = val; setForm({ ...form, lineItems: items }); };
   const removeLineItem = (idx: number) => setForm({ ...form, lineItems: form.lineItems.filter((_: LineItem, i: number) => i !== idx) });
 
-  const openCreate = () => { setEditing(null); setForm({ contactId: '', projectId: '', dueDate: '', taxRate: defaultTaxRate, discount: 0, notes: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ contactId: '', projectId: '', dueDate: defaultDueDate(), taxRate: defaultTaxRate, discount: 0, notes: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ contactId: (item.contactId as string) || '', projectId: (item.projectId as string) || '', dueDate: (item.dueDate as string)?.split('T')[0] || '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: (item.notes as string) || '', lineItems: (item.lineItems as LineItem[])?.length ? (item.lineItems as LineItem[]).map((li: LineItem) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
 
   const columns = [
@@ -144,7 +146,7 @@ export default function InvoicesPage() {
     { key: 'contact', label: 'Client', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString()}` },
-    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { const bal = Number(r.total) - Number(v || 0); return bal > 0 ? <span className="text-orange-600 font-medium">${bal.toLocaleString()}</span> : <span className="text-green-600">Paid</span>; } },
+    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { if (r.status === 'void') return <span className="text-gray-400">Void</span>; const bal = Number(r.total) - Number(v || 0); return bal > 0 ? <span className="text-orange-600 font-medium">${bal.toLocaleString()}</span> : <span className="text-green-600">Paid</span>; } },
     { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
   ];
 
@@ -155,9 +157,9 @@ export default function InvoicesPage() {
       <PageHeader title="Invoices" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Invoice</Button>} />
       <div className="mb-4"><select value={statusFilter} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setStatusFilter(e.target.value); setPage(1); }} className="px-4 py-2 border rounded-lg"><option value="">All Status</option>{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row: Record<string, unknown>) => navigate(`/crm/invoices/${row.id}`)} actions={[
-        { label: 'Edit', icon: Edit, onClick: openEdit },
-        { label: 'Send', icon: Send, onClick: handleSend },
-        { label: 'Record Payment', icon: DollarSign, onClick: openPayment },
+        { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => r.status !== 'void' },
+        { label: 'Send', icon: Send, onClick: handleSend, show: (r: Record<string, unknown>) => r.status !== 'void' },
+        { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: (r: Record<string, unknown>) => r.status !== 'void' && r.status !== 'refunded' },
         { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) <= 0 },
         { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => Number(r.amountPaid || 0) > 0 },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },

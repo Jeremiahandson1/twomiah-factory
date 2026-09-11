@@ -115,7 +115,7 @@ function DashboardTab() {
               <thead>
                 <tr className="text-left text-gray-500 dark:text-slate-400 border-b dark:border-slate-800">
                   <th className="px-4 py-3 font-medium">Contact</th>
-                  <th className="px-4 py-3 font-medium">Job</th>
+                  <th className="px-4 py-3 font-medium">Visit</th>
                   <th className="px-4 py-3 font-medium">Channel</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Sent</th>

@@ -83,7 +83,7 @@ export async function saveFile(
 ): Promise<UploadedFile> {
   const mimes = ALLOWED_MIMES[allowedTypes] || ALLOWED_MIMES.all
   if (!mimes.includes(file.type)) {
-    throw new Error(`Invalid file type: ${file.type}. Allowed: ${allowedTypes}`)
+    throw new Error(`This file type (${file.type || 'unknown'}) can't be uploaded. Allowed: ${mimes.map((m) => m.split('/')[1].replace(/^vnd\..*\./, '')).join(', ')}`)
   }
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(`File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
