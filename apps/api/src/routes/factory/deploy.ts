@@ -2,6 +2,7 @@ import { supabase, requireRole } from '../../middleware/auth'
 import { generate, cleanOldBuilds, type GenerateConfig } from '../../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
+import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { getZipDownloadUrl } from '../../services/factoryStorage'
 import { notifyDeployComplete, notifyDeployFailed, notifyStillWorking } from '../../services/email'
 import fs from 'fs'
@@ -584,6 +585,7 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
           })
           if (syncRes.ok) {
             console.log('[Deploy] Synced features to running CRM for', tenant.slug)
+            pushSubscriptionToTenant(tenant.id).catch(() => {})
           } else {
             console.warn('[Deploy] CRM feature sync HTTP failed:', syncRes.status)
           }

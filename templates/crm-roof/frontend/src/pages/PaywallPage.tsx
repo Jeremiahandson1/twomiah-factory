@@ -42,7 +42,7 @@ export default function PaywallPage() {
               under a minute.
             </p>
             <Link
-              to="/crm/billing/pricing"
+              to="/crm/settings/billing"
               className="flex items-center justify-center gap-2 w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg transition-colors"
             >
               Upgrade to unlock

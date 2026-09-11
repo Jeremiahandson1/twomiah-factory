@@ -22,7 +22,13 @@ const registry = new Map<string, Def>((FEATURE_REGISTRY as Def[]).map((f) => [f.
 
 // Templates under the guard. crm-automotive and crm-homecare are parked; crm-store has no feature gating.
 const ACTIVE = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-roof', 'crm-rv', 'crm-salon', 'crm-vet', 'crm-dispensary']
-const FORBIDDEN = ['frontend/src/data/features.ts', 'frontend/src/data/featureAliases.ts', 'backend/src/config/featureRegistry.ts', 'backend/src/shared/plans.ts']
+// The second half of the list is the tenant storefront: a tenant never sells plans or signs up
+// companies itself — the Factory does (packages/tenant-backend/src/plans.ts is the one price list).
+const FORBIDDEN = [
+  'frontend/src/data/features.ts', 'frontend/src/data/featureAliases.ts', 'backend/src/config/featureRegistry.ts', 'backend/src/shared/plans.ts',
+  'backend/src/config/pricing.ts', 'backend/src/services/billing.ts',
+  'frontend/src/pages/public/SignupPage.tsx', 'frontend/src/pages/public/PricingPage.tsx', 'frontend/src/pages/public/SelfHostedPurchasePage.tsx', 'frontend/src/pages/settings/BillingSettingsPage.tsx',
+]
 
 const errors: string[] = [], infos: string[] = []
 const err = (m: string) => errors.push(m), info = (m: string) => infos.push(m)

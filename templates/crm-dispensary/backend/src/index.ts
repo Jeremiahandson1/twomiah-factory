@@ -10,6 +10,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { company, user } from '../db/schema.ts'
+import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient } from './shared/index.ts'
 import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
@@ -304,6 +305,12 @@ app.post('/api/internal/sync-features', async (c) => {
   return c.json({ success: true, features: updated.enabledFeatures })
 })
 
+// Factory → tenant push of the subscription summary (same X-Factory-Key as sync-features). A tenant
+// never computes billing state itself: plans, trials and suspensions are decided in the Factory, and
+// Settings → Billing plus the trial gate read the mirror this writes into company.settings.
+const subscriptionDeps = { db, companyTable: company, userTable: user, factoryApiClient: createFactoryApiClient(), seatLimitEnv: process.env.SEAT_LIMIT }
+app.route('/api/internal/sync-subscription', createSubscriptionSyncRoute(subscriptionDeps))
+
 // Path A++ — seed CRM owner with credentials matching the premium
 // admin. See templates/crm-fieldservice/backend/src/index.ts for the
 // canonical implementation + commentary.
@@ -419,6 +426,8 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 
 initializeSocket(server as any)
 syncFeatures().catch(console.error)
+// Pull the current subscription from the Factory at boot so the mirror is right even if a push was missed.
+refreshSubscriptionFromFactory(subscriptionDeps).catch(console.error)
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

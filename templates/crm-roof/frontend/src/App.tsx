@@ -20,7 +20,7 @@ import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage'
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from './shared'
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage } from './shared'
 import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
 import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
@@ -39,7 +39,6 @@ import RoofReportDetail from './pages/roofReports/RoofReportDetail'
 import VisualizerTrialPage from './pages/VisualizerTrialPage'
 import PricebookTrialPage from './pages/PricebookTrialPage'
 import EstimatorTrialPage from './pages/EstimatorTrialPage'
-import BillingPricingPage from './pages/billing/PricingPage'
 import EstimatorPage from './pages/EstimatorPage'
 import CustomerPortal from './pages/CustomerPortal'
 import LoginPage from './pages/LoginPage'
@@ -136,6 +135,7 @@ export default function App() {
                 <Route path="settings/features" element={<FeaturesSettingsPage />} />
                 <Route path="settings/email" element={<EmailAliasesPage />} />
                 <Route path="settings/email-domain" element={<EmailDomainPage />} />
+                <Route path="settings/billing" element={<BillingPage smsBilling />} />
                 <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
                 <Route path="email" element={<InboundMessagesPage />} />
                 <Route path="google-reviews" element={<GbpReviewsPage />} />
@@ -148,7 +148,6 @@ export default function App() {
                 <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                 <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />
-                <Route path="billing/pricing" element={<BillingPricingPage />} />
                 <Route path="reviews" element={<ReviewsPage />} />
                 <Route path="financing" element={<FinancingPage />} />
                 <Route path="storm-radar" element={<StormRadarPage />} />

@@ -79,7 +79,7 @@ export function TrialBanner() {
           </div>
         </div>
         <Link
-          to="/crm/billing/pricing"
+          to="/crm/settings/billing"
           className={`px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${btn}`}
         >
           Upgrade

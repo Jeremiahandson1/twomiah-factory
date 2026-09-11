@@ -13,11 +13,6 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CustomerPortal from './pages/CustomerPortal';
 import NotFoundPage from './pages/NotFoundPage';
-import PricingPage from './pages/public/PricingPage';
-import SignupPage from './pages/public/SignupPage';
-import SignupSuccessPage from './pages/public/SignupSuccessPage';
-import SelfHostedPurchasePage from './pages/public/SelfHostedPurchasePage';
-import BillingSettingsPage from './pages/settings/BillingSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
 import ImportPage from './pages/settings/ImportPage';
@@ -83,7 +78,7 @@ import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from './shared';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage } from './shared';
 
 // Portal
 import { PortalProvider } from './contexts/PortalContext';
@@ -126,10 +121,6 @@ function App() {
                       marketing build explicitly opts in. */}
                   {import.meta.env.VITE_ENABLE_PUBLIC_MARKETING === 'true' && (
                     <>
-                      <Route path="/pricing" element={<PricingPage />} />
-                      <Route path="/signup" element={<SignupPage />} />
-                      <Route path="/signup/success" element={<SignupSuccessPage />} />
-                      <Route path="/self-hosted" element={<SelfHostedPurchasePage />} />
                     </>
                   )}
 
@@ -163,7 +154,7 @@ function App() {
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
-                    <Route path="settings/billing" element={<BillingSettingsPage />} />
+                    <Route path="settings/billing" element={<BillingPage />} />
                     <Route path="settings/email" element={<EmailAliasesPage />} />
                     <Route path="settings/email-domain" element={<EmailDomainPage />} />
                     <Route path="settings/email-inbox" element={<InboundMessagesPage />} />

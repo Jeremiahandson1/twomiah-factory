@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { eq, desc } from 'drizzle-orm'
 import { company, roofReport, user } from '../db/schema.ts'
+import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient } from './shared/index.ts'
 import logger from './services/logger.ts'
 import { authenticate } from './middleware/auth.ts'
 
@@ -138,7 +139,6 @@ const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
-app.use('/api/auth/signup', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 
 // Health check
@@ -201,6 +201,12 @@ app.post('/api/internal/sync-features', async (c) => {
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
   return c.json({ success: true, features: updated.enabledFeatures })
 })
+
+// Factory → tenant push of the subscription summary (same X-Factory-Key as sync-features). A tenant
+// never computes billing state itself: plans, trials and suspensions are decided in the Factory, and
+// Settings → Billing plus the trial gate read the mirror this writes into company.settings.
+const subscriptionDeps = { db, companyTable: company, userTable: user, factoryApiClient: createFactoryApiClient(), seatLimitEnv: process.env.SEAT_LIMIT }
+app.route('/api/internal/sync-subscription', createSubscriptionSyncRoute(subscriptionDeps))
 
 // Path A++ — seed CRM owner with credentials matching the premium
 // admin. See templates/crm-fieldservice/backend/src/index.ts for the
@@ -402,6 +408,9 @@ if (hasFrontendBuild) {
 }
 
 const PORT = Number(process.env.PORT) || 3001
+
+// Pull the current subscription from the Factory at boot so the mirror is right even if a push was missed.
+refreshSubscriptionFromFactory(subscriptionDeps).catch(console.error)
 
 const server = serve({ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' }, (info) => {
   logger.info(`Server running on port ${info.port}`, {

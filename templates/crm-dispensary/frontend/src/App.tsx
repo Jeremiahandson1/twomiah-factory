@@ -12,10 +12,6 @@ import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CustomerPortal from './pages/CustomerPortal';
-import PricingPage from './pages/billing/PricingPage';
-import SignupPage from './pages/public/SignupPage';
-import SignupSuccessPage from './pages/public/SignupSuccessPage';
-import SelfHostedPurchasePage from './pages/public/SelfHostedPurchasePage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // CRM Pages
@@ -85,10 +81,9 @@ import MenuSyncPage from './pages/MenuSyncPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from './shared';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage, BillingPage } from './shared';
 
 // Settings sub-pages
-import BillingSettingsPage from './pages/settings/BillingSettingsPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 import ContactSupportPage from './pages/support/ContactSupportPage';
@@ -126,10 +121,6 @@ function App() {
               <SocketProvider>
                 <Routes>
                   {/* Public marketing pages */}
-                  <Route path="/pricing" element={<PricingPage />} />
-                  <Route path="/signup" element={<SignupPage />} />
-                  <Route path="/signup/success" element={<SignupSuccessPage />} />
-                  <Route path="/self-hosted" element={<SelfHostedPurchasePage />} />
 
                   {/* Public auth routes */}
                   <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
@@ -161,7 +152,7 @@ function App() {
                     <Route path="team" element={<TeamPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
-                    <Route path="settings/billing" element={<BillingSettingsPage />} />
+                    <Route path="settings/billing" element={<BillingPage smsBilling />} />
                     <Route path="settings/email" element={<EmailAliasesPage />} />
                     <Route path="settings/email-domain" element={<EmailDomainPage />} />
                     <Route path="settings/email-inbox" element={<InboundMessagesPage />} />

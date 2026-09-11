@@ -1,6 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { generate, type GenerateConfig } from '../../services/generator'
 import factoryStripe from '../../services/factoryStripe'
+import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
 import { uploadZip, getZipDownloadUrl, uploadIntakeAsset } from '../../services/factoryStorage'
 import { notifyWelcome, notifyNewIntake, notifyPreviewReady, notifyIntakeFeedback, notifyTrialWarning, notifyTrialExpired, notifyProvisionFailure } from '../../services/email'
 import path from 'path'
@@ -188,6 +189,7 @@ factory.post('/internal/trial-check', async (c) => {
           status: 'trial_expired',
         }).eq('id', t.id)
         await notifyTrialExpired(t as any).catch(() => {})
+        pushSubscriptionToTenant(t.id).catch(() => {})  // the CRM's trial gate mirrors this
         results.expired++
       } catch (e: any) {
         results.errors.push(`expire ${t.slug}: ${e.message}`)
