@@ -123,7 +123,7 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
 
 app.get('/stats', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
-  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid, dueDate: invoice.dueDate }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
+  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid, amountRefunded: invoice.amountRefunded, dueDate: invoice.dueDate }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
   const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0 }
   invoices.forEach(inv => {
     const s = deriveStatus(inv)
@@ -136,7 +136,7 @@ app.get('/stats', requirePermission('invoices:read'), async (c) => {
       stats.outstanding += Math.max(0, Number(inv.total) - Number(inv.amountPaid))
     }
     // Money actually collected (net of refunds) — the same base Reports uses, so the two screens agree. (SALON-N8)
-    if (inv.status !== 'void') stats.paidAmount += Number(inv.amountPaid || 0)
+    if (inv.status !== 'void') stats.paidAmount += Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0)
   })
   return c.json(stats)
 })
@@ -334,6 +334,7 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
     const row = (locked.rows || locked)[0]
     if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
     if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void and cannot take payments.' } }; return }
+    if (row.status === 'refunded') { outcome = { status: 400, body: { error: 'This sale was refunded. Start a new invoice to charge the client again.' } }; return }
     // A draft can take a payment (a walk-in pays at the desk before anything is emailed); the payment
     // issues it. Only void is final.
     const balanceDue = round2(Number(row.total) - Number(row.amount_paid))
@@ -369,8 +370,8 @@ app.post('/:id/void', requirePermission('invoices:update'), async (c) => {
   const [existing] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Invoice not found' }, 404)
   if (existing.status === 'void') return c.json({ error: 'This invoice is already void.' }, 400)
-  const paid = Number(existing.amountPaid)
-  if (paid > 0.005) return c.json({ error: `This invoice has $${paid.toFixed(2)} in payments. Refund them first, then void.` }, 400)
+  const paid = Number(existing.amountPaid) - Number((existing as any).amountRefunded || 0)
+  if (paid > 0.005) return c.json({ error: `This invoice has ${paid.toFixed(2)} in payments that were not refunded. Refund them first, then void.` }, 400)
   const note = body.reason ? `Voided: ${String(body.reason).slice(0, 500)}` : 'Voided'
   const [updated] = await db.update(invoice)
     .set({ status: 'void', notes: existing.notes ? `${existing.notes}\n${note}` : note, updatedAt: new Date() })
@@ -379,7 +380,7 @@ app.post('/:id/void', requirePermission('invoices:update'), async (c) => {
   return c.json(updated)
 })
 
-// POST /:id/refund — records a NEGATIVE payment so amountPaid, status and the payments list stay
+// POST /:id/refund — records a NEGATIVE payment and raises amountRefunded; amountPaid stays gross, so the ledger, status and balance stay
 // truthful (a refund is a real ledger event, not an edit). Card refunds through Stripe are issued in
 // the processor; this records the outcome on the invoice. (SALON-H8)
 app.post('/:id/refund', requirePermission('invoices:update'), async (c) => {
@@ -399,8 +400,11 @@ app.post('/:id/refund', requirePermission('invoices:update'), async (c) => {
     if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
     if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void.' } }; return }
     const paid = round2(Number(row.amount_paid))
+    const refunded = round2(Number(row.amount_refunded || 0))
+    const net = round2(paid - refunded)
     if (paid <= 0.005) { outcome = { status: 400, body: { error: 'This invoice has no payments to refund.' } }; return }
-    if (amount > paid + 0.005) { outcome = { status: 400, body: { error: `Refund exceeds what was collected — $${paid.toFixed(2)} paid on this invoice.` } }; return }
+    if (net <= 0.005) { outcome = { status: 400, body: { error: 'Everything collected on this invoice has already been refunded.' } }; return }
+    if (amount > net + 0.005) { outcome = { status: 400, body: { error: `Refund exceeds what was collected — ${net.toFixed(2)} still refundable on this invoice.` } }; return }
     // Default to how the money came in — the most recent positive payment's method. (SALON-N12)
     const [last] = await tx.select({ method: payment.method }).from(payment)
       .where(and(eq(payment.invoiceId, id), sql`${payment.amount}::numeric > 0`)).orderBy(desc(payment.paidAt)).limit(1)
@@ -408,10 +412,12 @@ app.post('/:id/refund', requirePermission('invoices:update'), async (c) => {
     const [refund] = await tx.insert(payment).values({
       invoiceId: id, amount: (-amount).toString(), method, reference: data.reference || null, notes: data.notes || 'Refund',
     } as any).returning()
-    const newPaid = round2(paid - amount)
-    const newStatus = newPaid <= 0.005 ? 'refunded' : 'partial'
+    // The sale stays paid: a refund is its own transaction and never reopens a balance the client
+    // must settle again. Only refunding everything collected changes the status.
+    const newRefunded = round2(refunded + amount)
+    const newStatus = newRefunded >= paid - 0.005 ? 'refunded' : row.status
     const [updated] = await tx.update(invoice)
-      .set({ amountPaid: newPaid.toString(), status: newStatus, paidAt: null, updatedAt: new Date() })
+      .set({ amountRefunded: newRefunded.toString(), status: newStatus, updatedAt: new Date() })
       .where(eq(invoice.id, id)).returning()
     outcome = { status: 200, body: { refund, invoice: updated } }
   })

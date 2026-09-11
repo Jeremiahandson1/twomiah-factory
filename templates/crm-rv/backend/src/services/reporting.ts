@@ -321,7 +321,7 @@ export async function getProjectProfitability(companyId: string, { limit = 10 }:
     .select({
       projectId: invoice.projectId,
       totalInvoiced: sum(invoice.total),
-      totalPaid: sum(invoice.amountPaid),
+      totalPaid: sql<string>`coalesce(sum(${invoice.amountPaid}::numeric - ${invoice.amountRefunded}::numeric), 0)`,
     })
     .from(invoice)
     .where(inArray(invoice.projectId, projectIds))

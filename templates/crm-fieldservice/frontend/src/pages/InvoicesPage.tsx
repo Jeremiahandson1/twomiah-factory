@@ -87,7 +87,7 @@ export default function InvoicesPage() {
     if (!confirm(`Void invoice ${inv.number as string}? It stays on record but no longer counts as owed.`)) return;
     try { await api.post(`/api/invoices/${inv.id}/void`, {}); toast.success('Invoice voided'); load(); } catch (err) { toast.error((err as Error).message); }
   };
-  const openRefund = (inv: Record<string, unknown>) => { setRefundInvoice(inv); setRefund({ amount: String(Number(inv.amountPaid || 0)), method: 'other', reference: '' }); setRefundOpen(true); };
+  const openRefund = (inv: Record<string, unknown>) => { setRefundInvoice(inv); setRefund({ amount: (Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0)).toFixed(2), method: 'other', reference: '' }); setRefundOpen(true); };
   const handleRefund = async () => {
     if (!refund.amount || Number(refund.amount) <= 0) { toast.error('Enter a valid amount'); return; }
     try { await api.post(`/api/invoices/${(refundInvoice as Record<string, unknown>).id}/refund`, { ...refund, amount: Number(refund.amount) }); toast.success('Refund recorded'); setRefundOpen(false); load(); }
@@ -112,7 +112,7 @@ export default function InvoicesPage() {
     { key: 'contact', label: 'Client', render: (v) => v?.name || '-' },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', render: (v) => `$${Number(v).toLocaleString()}` },
-    { key: 'balance', label: 'Balance', render: (v) => Number(v) > 0 ? <span className="text-orange-600 font-medium">${Number(v).toLocaleString()}</span> : <span className="text-green-600">Paid</span> },
+    { key: 'balance', label: 'Balance', render: (v, r: any) => r?.status === 'refunded' ? <span className="text-amber-700">Refunded</span> : r?.status === 'void' ? <span className="text-gray-400">Void</span> : Number(v) > 0 ? <span className="text-orange-600 font-medium">${Number(v).toLocaleString()}</span> : <span className="text-green-600">Paid</span> },
     { key: 'dueDate', label: 'Due', render: (v) => v ? formatDate(v) : '-' },
   ];
 
@@ -126,8 +126,8 @@ export default function InvoicesPage() {
         { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => r.status !== 'void' },
         { label: 'Send', icon: Send, onClick: handleSend, show: (r: Record<string, unknown>) => r.status !== 'void' },
         { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: (r: Record<string, unknown>) => r.status !== 'void' && r.status !== 'refunded' },
-        { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) <= 0 },
-        { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => Number(r.amountPaid || 0) > 0 },
+        { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) - Number(r.amountRefunded || 0) <= 0 },
+        { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) - Number(r.amountRefunded || 0) > 0 },
         { label: 'Delete', icon: Trash2, onClick: (r) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Invoice' : 'New Invoice'} size="xl">

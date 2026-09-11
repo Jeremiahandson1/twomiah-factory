@@ -312,6 +312,7 @@ export const invoice = pgTable('invoice', {
   discount: decimal('discount', { precision: 12, scale: 2 }).default('0').notNull(),
   total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
   amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).default('0').notNull(),
+  amountRefunded: decimal('amount_refunded', { precision: 12, scale: 2 }).default('0').notNull(), // money returned; amountPaid stays gross so a refund never reopens a balance
   notes: text('notes'),
   terms: text('terms'),
   sentAt: timestamp('sent_at'),

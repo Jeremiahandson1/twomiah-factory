@@ -32,6 +32,7 @@ interface InvoiceDetailData {
   taxAmount: string | number;
   discount?: string | number;
   amountPaid: string | number;
+  amountRefunded?: string | number;
   dueDate?: string | null;
   createdAt: string;
   lineItems?: LineItem[];
@@ -137,7 +138,7 @@ export default function InvoiceDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadInvoice} actionLabel="Retry" />;
   if (!invoice) return <EmptyState title="Invoice not found" />;
 
-  const balance = invoice.status === 'void' ? 0 : Number(invoice.total) - Number(invoice.amountPaid || 0);
+  const balance = (invoice.status === 'void' || invoice.status === 'refunded') ? 0 : Number(invoice.total) - Number(invoice.amountPaid || 0);
   const balanceColor = balance > 0 ? 'text-red-600' : 'text-green-600';
 
   return (
@@ -164,12 +165,12 @@ export default function InvoiceDetailPage() {
               <DollarSign className="w-4 h-4" /> Record Payment
             </button>
           )}
-          {Number(invoice.amountPaid || 0) > 0 && (
-            <button onClick={() => { setRefund({ amount: Number(invoice.amountPaid || 0).toFixed(2), method: 'other', reference: '' }); setRefundOpen(true); }} className="px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 flex items-center gap-2">
+          {invoice.status !== 'void' && Number(invoice.amountPaid || 0) - Number(invoice.amountRefunded || 0) > 0 && (
+            <button onClick={() => { setRefund({ amount: (Number(invoice.amountPaid || 0) - Number(invoice.amountRefunded || 0)).toFixed(2), method: 'other', reference: '' }); setRefundOpen(true); }} className="px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 flex items-center gap-2">
               <RotateCcw className="w-4 h-4" /> Refund
             </button>
           )}
-          {invoice.status !== 'void' && Number(invoice.amountPaid || 0) <= 0 && (
+          {invoice.status !== 'void' && Number(invoice.amountPaid || 0) - Number(invoice.amountRefunded || 0) <= 0 && (
             <button onClick={handleVoid} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 flex items-center gap-2">
               <Ban className="w-4 h-4" /> Void
             </button>
@@ -212,6 +213,7 @@ export default function InvoiceDetailPage() {
                 {Number(invoice.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
                 <tr className="font-bold"><td colSpan={3} className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
                 {Number(invoice.amountPaid) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>}
+                {Number(invoice.amountRefunded || 0) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Refunded</td><td className="px-4 py-2 text-right text-amber-700">${Number(invoice.amountRefunded).toFixed(2)}</td></tr>}
                 <tr className="font-bold text-lg"><td colSpan={3} className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${balance.toFixed(2)}</td></tr>
               </tfoot>
             </table>
@@ -269,7 +271,7 @@ export default function InvoiceDetailPage() {
 
           <div className={`rounded-lg p-6 text-center ${balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
             <p className={`text-3xl font-bold ${balanceColor}`}>${balance.toLocaleString()}</p>
-            <p className="text-gray-600 dark:text-slate-400">{balance > 0 ? 'Balance Due' : 'Paid in Full'}</p>
+            <p className="text-gray-600 dark:text-slate-400">{balance > 0 ? 'Balance Due' : invoice.status === 'refunded' ? 'Refunded' : Number(invoice.amountRefunded || 0) > 0 ? `Paid in Full · ${Number(invoice.amountRefunded).toFixed(2)} refunded` : 'Paid in Full'}</p>
           </div>
         </div>
       </div>
