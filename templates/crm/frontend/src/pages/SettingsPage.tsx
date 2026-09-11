@@ -55,7 +55,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   // Mirrors the server's requireAdmin (admin|owner). Without this a 'field'
   // user could fill in the whole form and get a bare 403 toast.
-  const canManageUsers = ((user as unknown as Record<string, unknown> | null)?.role === 'admin')
+  const isOwner = ((user as unknown as Record<string, unknown> | null)?.role === 'owner');
+  // Owners manage users too — the check used to be admin-only, so the owner saw no buttons.
+  const canManageUsers = isOwner || ((user as unknown as Record<string, unknown> | null)?.role === 'admin')
     || ((user as unknown as Record<string, unknown> | null)?.role === 'owner');
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
@@ -77,6 +79,15 @@ export default function SettingsPage() {
   // this user, and the seat count is of ACTIVE users, so this is also what frees
   // a seat. Before this the table was read-only: you could add a teammate and
   // never remove one.
+  // Owner-only grant: who may see the login-user list besides the owner. (Wrench QA decision)
+  const handleToggleUserListGrant = async (u: Record<string, unknown>) => {
+    const has = ((u.extraPermissions as string[]) || []).includes('users:read');
+    try {
+      await api.company.updateUser(u.id as string, { extraPermissions: has ? [] : ['users:read'] });
+      toast.success(has ? 'User list access removed' : 'User list access granted');
+      loadUsers();
+    } catch (err) { toast.error((err as Error).message || 'Could not change permissions'); }
+  };
   const handleToggleUserAccess = async (id: string, currentlyActive: boolean) => {
     if (currentlyActive && !confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.')) return;
     try {
@@ -233,7 +244,12 @@ export default function SettingsPage() {
                     <tr key={u.id as string}><td className="px-4 py-3">{u.firstName as string} {u.lastName as string}</td><td className="px-4 py-3">{u.email as string}</td><td className="px-4 py-3 capitalize">{((u.role as string) === 'field' || (u.role as string) === 'user') ? 'Staff' : (u.role as string)}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) === (user as Record<string, unknown> | null)?.id
                       ? <span className="text-xs text-gray-400">You</span>
                       : canManageUsers ? (
-                      <button onClick={() => handleToggleUserAccess(u.id as string, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
+                      <>{isOwner && (u.role as string) !== 'owner' && (
+                        <label className="inline-flex items-center gap-1 text-xs text-gray-500 mr-3 dark:text-slate-400" title="Lets this person see the list of logins under Settings › Users">
+                          <input type="checkbox" checked={((u.extraPermissions as string[]) || []).includes('users:read')} onChange={() => handleToggleUserListGrant(u)} /> can view user list
+                        </label>
+                      )}
+                      <button onClick={() => handleToggleUserAccess(u.id as string, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button></>
                     ) : null}</td></tr>
                   ))}</tbody>
                 </table>

@@ -1,4 +1,7 @@
 import { Context, Next } from 'hono'
+import { db } from '../../db/index.ts'
+import { user } from '../../db/schema.ts'
+import { eq } from 'drizzle-orm'
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   owner: ['*'],
@@ -37,7 +40,26 @@ function normalizeRole(role: string): string {
   return ROLE_MAPPING[role] || role || 'viewer'
 }
 
-export function hasPermission(role: string, permission: string): boolean {
+// Per-user grants the OWNER hands out on top of the role (Settings › Users), e.g. users:read.
+// Read from the user row and cached 15s per user so every guarded request does not pay a query.
+const GRANT_CACHE = new Map<string, { at: number; list: string[] }>()
+export async function getExtraPermissions(userId: string | undefined): Promise<string[]> {
+  if (!userId) return []
+  const hit = GRANT_CACHE.get(userId)
+  if (hit && Date.now() - hit.at < 15_000) return hit.list
+  let list: string[] = []
+  try {
+    const [row] = await db.select({ extra: (user as any).extraPermissions }).from(user).where(eq(user.id, userId)).limit(1)
+    list = Array.isArray(row?.extra) ? (row!.extra as string[]).filter((x) => typeof x === 'string') : []
+  } catch { list = [] }
+  GRANT_CACHE.set(userId, { at: Date.now(), list })
+  return list
+}
+export function invalidateExtraPermissions(userId: string) { GRANT_CACHE.delete(userId) }
+
+export function hasPermission(role: string, permission: string, extra: string[] = []): boolean {
+  // Per-user grants (extra_permissions) sit on top of the role.
+  if (extra.includes('*') || extra.includes(permission)) return true
   const normalizedRole = normalizeRole(role)
   const permissions = ROLE_PERMISSIONS[normalizedRole] || ROLE_PERMISSIONS.viewer
   if (permissions.includes('*')) return true
@@ -56,7 +78,8 @@ export function requirePermission(permission: string) {
   return async (c: Context, next: Next) => {
     const userRole = (c.get('user') as any)?.role
     if (!userRole) return c.json({ error: 'Authentication required' }, 401)
-    if (!hasPermission(userRole, permission)) {
+    const extra = await getExtraPermissions((c.get('user') as any)?.userId)
+    if (!hasPermission(userRole, permission, extra)) {
       return c.json({
         error: 'Permission denied',
         required: permission,
@@ -71,7 +94,8 @@ export function requireAnyPermission(permissions: string[]) {
   return async (c: Context, next: Next) => {
     const userRole = (c.get('user') as any)?.role
     if (!userRole) return c.json({ error: 'Authentication required' }, 401)
-    if (!permissions.some(p => hasPermission(userRole, p))) {
+    const extra = await getExtraPermissions((c.get('user') as any)?.userId)
+    if (!permissions.some(p => hasPermission(userRole, p, extra))) {
       return c.json({
         error: 'Permission denied',
         requiredAny: permissions,
