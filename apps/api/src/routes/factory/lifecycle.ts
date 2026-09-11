@@ -119,7 +119,10 @@ factory.get('/customers/:id/subscription', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
-    const { data: tenant } = await supabase.from('tenants').select(TENANT_SUBSCRIPTION_COLUMNS).eq('id', tenantId).single()
+    const { data: tenant, error } = await supabase.from('tenants').select(TENANT_SUBSCRIPTION_COLUMNS).eq('id', tenantId).single()
+    // A query error (bad column, DB down) is a 500 with the reason in the log — masking it as 401
+    // sent every tenant chasing its sync key when the key was fine.
+    if (error && error.code !== 'PGRST116') { console.error('[Subscription] tenant lookup failed:', error.message); return c.json({ error: 'Lookup failed' }, 500) }
     if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
     return c.json(buildTenantSubscription(tenant))
   } catch (err: any) {
