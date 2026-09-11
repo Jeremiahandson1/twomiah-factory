@@ -8,8 +8,11 @@
 import { supabase } from '../middleware/auth'
 import { planFor, seatsForPlan, type TenantSubscription } from '../config/planSeats'
 
+// NOTE: tenants has no billing_cycle column (the Stripe webhook's `updates.billing_cycle` has never
+// landed anywhere); the cycle is derived from billing_type below. Selecting a missing column makes
+// PostgREST return an error row, which the caller must surface — never mask it as "unauthorized".
 export const TENANT_SUBSCRIPTION_COLUMNS =
-  'id, slug, status, plan, products, billing_type, billing_status, billing_cycle, monthly_amount, next_billing_date, paid_at, trial_ends_at, trial_expired_at, stripe_customer_id, stripe_subscription_id, factory_sync_key, render_backend_url'
+  'id, slug, status, plan, products, billing_type, billing_status, monthly_amount, next_billing_date, paid_at, trial_ends_at, trial_expired_at, stripe_customer_id, stripe_subscription_id, factory_sync_key, render_backend_url'
 
 export function buildTenantSubscription(t: any): TenantSubscription {
   const plan = planFor(t?.plan)
@@ -44,7 +47,8 @@ export function buildTenantSubscription(t: any): TenantSubscription {
 /** Push the current summary to the running tenant CRM. Never throws — billing must not fail because a CRM is asleep. */
 export async function pushSubscriptionToTenant(tenantId: string): Promise<boolean> {
   try {
-    const { data: t } = await supabase.from('tenants').select(TENANT_SUBSCRIPTION_COLUMNS).eq('id', tenantId).single()
+    const { data: t, error } = await supabase.from('tenants').select(TENANT_SUBSCRIPTION_COLUMNS).eq('id', tenantId).single()
+    if (error) { console.warn('[Subscription] tenant lookup failed:', error.message); return false }
     if (!t?.render_backend_url || !t?.factory_sync_key) return false
     const res = await fetch(t.render_backend_url.replace(/\/$/, '') + '/api/internal/sync-subscription', {
       method: 'POST',
