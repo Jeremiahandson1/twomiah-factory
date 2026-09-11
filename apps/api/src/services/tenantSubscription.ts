@@ -8,11 +8,11 @@
 import { supabase } from '../middleware/auth'
 import { planFor, seatsForPlan, type TenantSubscription } from '../config/planSeats'
 
-// NOTE: tenants has no billing_cycle column (the Stripe webhook's `updates.billing_cycle` has never
-// landed anywhere); the cycle is derived from billing_type below. Selecting a missing column makes
-// PostgREST return an error row, which the caller must surface — never mask it as "unauthorized".
+// billing_cycle exists since migrations/2026-09-11_tenants_billing_cycle.sql (applied to production
+// 2026-09-11). If a column here is ever missing, PostgREST returns an error row — callers surface it
+// as a 500, never as "unauthorized" (that masked exactly this class of bug once).
 export const TENANT_SUBSCRIPTION_COLUMNS =
-  'id, slug, status, plan, products, billing_type, billing_status, monthly_amount, next_billing_date, paid_at, trial_ends_at, trial_expired_at, stripe_customer_id, stripe_subscription_id, factory_sync_key, render_backend_url'
+  'id, slug, status, plan, products, billing_type, billing_status, billing_cycle, monthly_amount, next_billing_date, paid_at, trial_ends_at, trial_expired_at, stripe_customer_id, stripe_subscription_id, factory_sync_key, render_backend_url'
 
 export function buildTenantSubscription(t: any): TenantSubscription {
   const plan = planFor(t?.plan)
