@@ -533,12 +533,14 @@ export async function createRefund(paymentRow: any, amount: number | null = null
   const [invoiceRow] = await db.select().from(invoice).where(eq(invoice.id, paymentRow.invoiceId))
   const refundAmount = refund.amount / 100
 
+  // Same model as a manual refund: a negative ledger row, amountRefunded goes up, amountPaid stays
+  // gross, and only a full refund changes the status. The sale is never reopened as a balance due.
+  const paid = Number(invoiceRow.amountPaid || 0)
+  const newRefunded = Math.round((Number((invoiceRow as any).amountRefunded || 0) + refundAmount) * 100) / 100
+  await db.insert(payment).values({ invoiceId: paymentRow.invoiceId, amount: (-refundAmount).toString(), method: 'stripe', reference: refund.id, notes: 'Stripe refund' } as any)
   await db
     .update(invoice)
-    .set({
-      amountPaid: String(Math.max(0, Number(invoiceRow.amountPaid) - refundAmount)),
-      status: 'sent',
-    })
+    .set({ amountRefunded: String(newRefunded), status: newRefunded >= paid - 0.005 ? 'refunded' : invoiceRow.status, updatedAt: new Date() } as any)
     .where(eq(invoice.id, paymentRow.invoiceId))
 
   return refund

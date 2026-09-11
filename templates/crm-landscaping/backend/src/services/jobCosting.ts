@@ -69,6 +69,7 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
     number: invoice.number,
     total: invoice.total,
     amountPaid: invoice.amountPaid,
+    amountRefunded: invoice.amountRefunded,
     status: invoice.status,
   }).from(invoice)
     .where(and(eq(invoice.companyId, companyId), eq(invoice.projectId, jobRow.projectId!)))
@@ -130,7 +131,7 @@ export async function getJobCostAnalysis(jobId: string, companyId: string) {
 
   // Calculate revenue
   const invoicedAmount = invoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0)
-  const collectedAmount = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid || 0), 0)
+  const collectedAmount = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid || 0) - Number((inv as any).amountRefunded || 0), 0)
 
   // Profit calculations
   const grossProfit = invoicedAmount - totalCost

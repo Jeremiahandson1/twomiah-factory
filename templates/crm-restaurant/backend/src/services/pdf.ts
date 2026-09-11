@@ -65,7 +65,8 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
   if (Number(data.taxAmount) > 0) doc.text(`Tax: $${Number(data.taxAmount).toFixed(2)}`, { align: 'right' })
   if (data.total != null) doc.fontSize(12).text(`Total: $${Number(data.total).toFixed(2)}`, { align: 'right' })
   if (Number(data.amountPaid) > 0) {
-    doc.fontSize(10).text(`Paid: -$${Number(data.amountPaid).toFixed(2)}`, { align: 'right' })
+    doc.fontSize(10).text(`Paid: -${Number(data.amountPaid).toFixed(2)}`, { align: 'right' })
+    if (Number(data.amountRefunded) > 0) doc.fontSize(10).text(`Refunded: ${Number(data.amountRefunded).toFixed(2)}`, { align: 'right' })
     doc.fontSize(12).text(`Balance Due: $${(Number(data.total) - Number(data.amountPaid)).toFixed(2)}`, { align: 'right' })
   }
 }

@@ -157,6 +157,7 @@ export function PortalInvoiceDetail() {
             {Number(invoice.discount || 0) > 0 && <div className="flex justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Discount</span><span>-${Number(invoice.discount).toLocaleString()}</span></div>}
             <div className="flex justify-between font-medium border-t pt-2"><span>Total</span><span>${Number(invoice.total).toLocaleString()}</span></div>
             {Number(invoice.amountPaid || 0) > 0 && <div className="flex justify-between text-sm text-green-600"><span>Paid</span><span>-${Number(invoice.amountPaid).toLocaleString()}</span></div>}
+            {Number(invoice.amountRefunded || 0) > 0 && <div className="flex justify-between text-sm text-amber-700"><span>Refunded</span><span>${Number(invoice.amountRefunded).toLocaleString()}</span></div>}
             <div className="flex justify-between text-lg font-bold border-t pt-2"><span>Balance Due</span><span className={Number(invoice.balance) > 0 ? 'text-orange-600' : 'text-green-600'}>${Number(invoice.balance).toLocaleString()}</span></div>
           </div>
         </div>

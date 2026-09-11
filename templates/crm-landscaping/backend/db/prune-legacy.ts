@@ -79,6 +79,10 @@ const ENSURE = [
   `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS opened_at timestamp`,
   `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS submitted_at timestamp`,
   `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS review_link text`,
+  // Refund model: amount_paid is GROSS collected and amount_refunded tracks returns, so a refund never reopens a balance.
+  `ALTER TABLE invoice ADD COLUMN IF NOT EXISTS amount_refunded numeric(12,2) NOT NULL DEFAULT 0`,
+  // Invoices refunded under the old model had amount_paid reduced; rebuild both figures from the payment ledger, once.
+  `UPDATE invoice i SET amount_paid = r.paid, amount_refunded = r.refunded, status = CASE WHEN r.refunded >= r.paid - 0.005 THEN 'refunded' WHEN r.paid >= i.total::numeric - 0.005 THEN 'paid' WHEN r.paid > 0 THEN 'partial' ELSE i.status END FROM (SELECT invoice_id, COALESCE(SUM(CASE WHEN amount::numeric > 0 THEN amount::numeric END), 0) AS paid, COALESCE(SUM(CASE WHEN amount::numeric < 0 THEN -amount::numeric END), 0) AS refunded FROM payment GROUP BY invoice_id HAVING SUM(CASE WHEN amount::numeric < 0 THEN 1 ELSE 0 END) > 0) r WHERE i.id = r.invoice_id AND i.amount_refunded = 0 AND i.status <> 'void'`,
 ]
 for (const stmt of ENSURE) {
   try { await db.execute(sql.raw(stmt)) }

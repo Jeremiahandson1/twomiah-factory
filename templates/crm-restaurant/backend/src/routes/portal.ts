@@ -757,6 +757,7 @@ app.get('/p/:token/invoices', portalAuth, async (c) => {
       status: invoice.status,
       total: invoice.total,
       amountPaid: invoice.amountPaid,
+      amountRefunded: invoice.amountRefunded,
       balance: sql<string>`(${invoice.total} - ${invoice.amountPaid})`,
       dueDate: invoice.dueDate,
       createdAt: invoice.createdAt,

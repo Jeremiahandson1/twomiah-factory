@@ -118,7 +118,7 @@ export default function InvoicesPage() {
     if (!confirm(`Void invoice ${inv.number as string}? It stays on record but no longer counts as owed.`)) return;
     try { await api.post(`/api/invoices/${inv.id}/void`, {}); toast.success('Invoice voided'); load(); } catch (err) { toast.error((err as Error).message); }
   };
-  const openRefund = (inv: Record<string, unknown>) => { setRefundInvoice(inv); setRefund({ amount: String(Number(inv.amountPaid || 0)), method: 'other', reference: '' }); setRefundOpen(true); };
+  const openRefund = (inv: Record<string, unknown>) => { setRefundInvoice(inv); setRefund({ amount: (Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0)).toFixed(2), method: 'other', reference: '' }); setRefundOpen(true); };
   const handleRefund = async () => {
     if (!refund.amount || Number(refund.amount) <= 0) { toast.error('Enter a valid amount'); return; }
     try { await api.post(`/api/invoices/${(refundInvoice as Record<string, unknown>).id}/refund`, { ...refund, amount: Number(refund.amount) }); toast.success('Refund recorded'); setRefundOpen(false); load(); }
@@ -143,7 +143,7 @@ export default function InvoicesPage() {
     { key: 'contact', label: 'Client', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
-    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { if (r.status === 'void') return <span className="text-gray-400">Void</span>; const bal = Number(r.total) - Number(v || 0); return bal > 0.005 ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : <span className="text-green-600">Paid</span>; } },
+    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { if (r.status === 'void') return <span className="text-gray-400">Void</span>; if (r.status === 'refunded') return <span className="text-amber-700">Refunded</span>; const bal = Number(r.total) - Number(v || 0); return bal > 0.005 ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : <span className="text-green-600">Paid</span>; } },
     { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? formatDate(String(v).split('T')[0] + 'T00:00:00') : '-' },
   ];
 
@@ -157,8 +157,8 @@ export default function InvoicesPage() {
         { label: 'Edit', icon: Edit, onClick: openEdit, show: (r: Record<string, unknown>) => r.status !== 'void' },
         { label: 'Send', icon: Send, onClick: handleSend, show: (r: Record<string, unknown>) => r.status !== 'void' },
         { label: 'Record Payment', icon: DollarSign, onClick: openPayment, show: (r: Record<string, unknown>) => r.status !== 'void' && r.status !== 'refunded' },
-        { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) <= 0 },
-        { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => Number(r.amountPaid || 0) > 0 },
+        { label: 'Void', icon: Ban, onClick: handleVoid, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) - Number(r.amountRefunded || 0) <= 0 },
+        { label: 'Refund', icon: RotateCcw, onClick: openRefund, show: (r: Record<string, unknown>) => r.status !== 'void' && Number(r.amountPaid || 0) - Number(r.amountRefunded || 0) > 0 },
         { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' },
       ]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Invoice' : 'New Invoice'} size="xl">
