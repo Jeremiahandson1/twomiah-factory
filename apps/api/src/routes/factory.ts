@@ -60,6 +60,10 @@ factory.use('*', async (c, next) => {
     || c.req.path.endsWith('/support-tickets')
     || c.req.path.endsWith('/offboard')
     || c.req.path.endsWith('/reactivate')
+    // Read-only billing mirror (PR #43): the tenant CRM pulls its subscription summary and asks for a
+    // Stripe portal link with X-Factory-Key (checked in lifecycle.ts). Exact match on the id segment so
+    // the admin-only POST /customers/:id/checkout/subscription is NOT let through.
+    || /\/customers\/[0-9a-f-]{36}\/(subscription|billing-portal-link)$/i.test(c.req.path)
   ) return next()
   return authenticate(c, next)
 })
