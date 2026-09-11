@@ -192,7 +192,7 @@ app.put('/password', authenticate, async (c) => {
 // Forgot password
 app.post('/forgot-password', async (c) => {
   const body = await c.req.json().catch(() => ({} as any))
-  const email = typeof body?.email === 'string' ? fpBody.email.toLowerCase().trim() : ''
+  const email = typeof body?.email === 'string' ? body.email.toLowerCase().trim() : ''
   // Validate the format (400) like /login does; the response below stays generic so this never
   // reveals whether an account exists. (Wrench QA W-6)
   if (!email || !z.string().email().safeParse(email).success) {
