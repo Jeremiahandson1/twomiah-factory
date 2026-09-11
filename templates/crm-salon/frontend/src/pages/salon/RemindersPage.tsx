@@ -348,14 +348,19 @@ export default function RemindersPage() {
 function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { contactIds: string[]; defaultMessage: string; onDone: () => void; onClose: () => void }) {
   const [message, setMessage] = useState<string>(defaultMessage);
   const [sending, setSending] = useState<boolean>(false);
-  const [result, setResult] = useState<{ sent?: number; failed?: number } | null>(null);
+  const [result, setResult] = useState<{ sent?: number; failed?: number; noPhone?: number; reason?: string | null } | null>(null);
+  // Texting runs on a prepaid usage wallet billed by Twomiah. Warn BEFORE sending when it is empty
+  // or texting is not enabled — a failed send used to be reported as "sent". (SALON-C4)
+  const [wallet, setWallet] = useState<{ configured: boolean; enabled: boolean; walletCents: number } | null>(null);
+  useEffect(() => { api.get('/api/messaging-billing/status').then((w) => setWallet(w)).catch(() => setWallet(null)); }, []);
+  const walletEmpty = !!wallet?.configured && (!wallet.enabled || wallet.walletCents <= 0);
 
   const send = async () => {
     if (!message.trim()) { alert('Message is required'); return; }
     setSending(true);
     try {
       const res = await api.post('/api/reminders/send', { contactIds, message: message.trim() });
-      setResult({ sent: res.sent || 0, failed: res.failed || 0 });
+      setResult({ sent: res.sent || 0, failed: res.failed || 0, noPhone: res.noPhone || 0, reason: res.reason || null });
     } catch (err) {
       alert((err as Error).message || 'Failed to send');
     } finally {
@@ -375,14 +380,14 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
 
           {result ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-green-700">
+              <div className={`flex items-center gap-2 ${(result.sent || 0) > 0 ? 'text-green-700' : 'text-gray-600'}`}>
                 <CheckCircle2 className="w-5 h-5" />
                 <span className="font-medium">{result.sent} text{result.sent === 1 ? '' : 's'} sent</span>
               </div>
               {(result.failed || 0) > 0 && (
                 <div className="flex items-center gap-2 text-amber-700">
                   <AlertCircle className="w-5 h-5" />
-                  <span>{result.failed} failed (usually a missing mobile number)</span>
+                  <span>{result.failed} failed{result.reason ? ` — ${result.reason}` : (result.noPhone || 0) > 0 ? ' — no mobile number on file' : ''}</span>
                 </div>
               )}
               <button onClick={onDone} className="w-full px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Done</button>
@@ -390,13 +395,19 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
           ) : (
             <div className="space-y-4">
               <p className="text-sm text-gray-500 dark:text-slate-400">Sending to {contactIds.length} client{contactIds.length === 1 ? '' : 's'}.</p>
+              {walletEmpty && (
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>{wallet?.enabled ? 'Your texting wallet is empty — these texts will not send.' : 'Texting is not enabled for this account yet.'} <Link to="/crm/settings/billing" className="underline">Manage texting in Settings › Billing</Link>.</span>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Message</label>
                 <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={send} disabled={sending || contactIds.length === 0} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                <button onClick={send} disabled={sending || contactIds.length === 0 || walletEmpty} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
                   {sending ? 'Sending...' : 'Send'}
                 </button>
               </div>

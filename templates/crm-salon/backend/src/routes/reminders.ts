@@ -166,15 +166,19 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
   const clients = await db.select().from(contact).where(and(eq(contact.companyId, u.companyId), inArray(contact.id, contactIds)))
   let sent = 0
   const failures: string[] = []
+  const reasons: string[] = []
   for (const ct of clients) {
     const to = (ct as any).mobile || ct.phone
     if (!to) { failures.push(ct.id); continue }
     try {
-      await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message, userId: u.userId })
-      sent++
-    } catch { failures.push(ct.id) }
+      // sendSMS returns the saved row; a wallet/carrier failure comes back as status "failed", not a throw. (SALON-C4)
+      const row: any = await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message, userId: u.userId })
+      if (row?.status === 'failed') { failures.push(ct.id); reasons.push(row.errorMessage || 'Send failed') }
+      else sent++
+    } catch (e: any) { failures.push(ct.id); reasons.push(e?.message || 'Send failed') }
   }
-  return c.json({ sent, failed: failures.length, failures })
+  const noPhone = clients.filter((ct) => !((ct as any).mobile || ct.phone)).length
+  return c.json({ sent, failed: failures.length, failures, noPhone, reason: reasons[0] || null })
 })
 
 export default app

@@ -304,7 +304,8 @@ export async function getConversation(conversationId: string, companyId: string)
     .set({ unreadCount: 0 })
     .where(eq(smsConversation.id, conversationId))
 
-  return { ...conversation, contact: contactRow, messages }
+  // Flat rows: every inbox renders message.direction / message.body directly. (SALON-C3)
+  return { ...conversation, contact: contactRow, messages: messages.map((r) => ({ ...r.message, sentBy: r.sentBy })) }
 }
 
 /**
@@ -514,8 +515,11 @@ export async function sendBulkSMS(
 
   for (const contactId of contactIds) {
     try {
-      await sendSMS(companyId, { contactId, message, templateId, userId })
-      results.sent++
+      // sendSMS never throws for a carrier/wallet failure — it returns the row with status "failed".
+      // Only a real send counts as sent. (SALON-C4)
+      const row: any = await sendSMS(companyId, { contactId, message, templateId, userId })
+      if (row?.status === 'failed') { results.failed++; results.errors.push({ contactId, error: row.errorMessage || 'Send failed' }) }
+      else results.sent++
     } catch (error: any) {
       results.failed++
       results.errors.push({ contactId, error: error.message })

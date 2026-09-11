@@ -69,8 +69,23 @@ app.post('/login', async (c) => {
   if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
   if (!foundUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
 
+  // Per-account lockout: 10 consecutive failures → 15-minute lock. The per-IP limiter alone never
+  // stopped a run that rotates addresses (37 attempts sailed through in QA). Same message for a
+  // locked account whether or not the password is right, so the lock leaks nothing. (SALON-H5)
+  const LOCK_AFTER = 10, LOCK_MS = 15 * 60 * 1000
+  const lockedUntilMs = (foundUser as any).lockedUntil ? new Date((foundUser as any).lockedUntil).getTime() : 0
+  if (lockedUntilMs > Date.now()) {
+    const mins = Math.max(1, Math.ceil((lockedUntilMs - Date.now()) / 60000))
+    return c.json({ error: `Too many failed sign-in attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.` }, 423)
+  }
   const valid = await Bun.password.verify(data.password, foundUser.passwordHash)
-  if (!valid) return c.json({ error: 'Invalid email or password' }, 401)
+  if (!valid) {
+    const fails = (Number((foundUser as any).failedLoginCount) || 0) + 1
+    const lock = fails >= LOCK_AFTER
+    await db.update(user).set({ failedLoginCount: lock ? 0 : fails, lockedUntil: lock ? new Date(Date.now() + LOCK_MS) : null } as any).where(eq(user.id, foundUser.id))
+    return c.json({ error: lock ? 'Too many failed sign-in attempts. Try again in 15 minutes.' : 'Invalid email or password' }, lock ? 423 : 401)
+  }
+  if ((Number((foundUser as any).failedLoginCount) || 0) > 0 || lockedUntilMs) await db.update(user).set({ failedLoginCount: 0, lockedUntil: null } as any).where(eq(user.id, foundUser.id))
 
   // Fetch company
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)

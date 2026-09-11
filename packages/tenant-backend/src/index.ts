@@ -33,3 +33,11 @@ export {
   getAdvertisableFeatures, getAdvertisableFeaturesForTemplate, getFeaturesForPlan,
 } from './featureRegistry'
 export type { FeatureDef } from './featureRegistry'
+
+// Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
+export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'
+export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResult } from './schemaReconcile'
+
+// Texting / AI usage wallet (read-only mirror of the Factory) — /api/messaging-billing in every CRM.
+export { createMessagingBillingRoutes, fetchMessagingBillingStatus } from './messagingBilling'
+export type { MessagingBillingStatus } from './messagingBilling'

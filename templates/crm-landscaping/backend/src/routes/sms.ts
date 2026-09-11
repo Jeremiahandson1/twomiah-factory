@@ -124,6 +124,8 @@ app.post('/send', async (c) => {
     templateId,
   })
 
+  // A wallet/carrier failure is saved as a failed message; tell the caller instead of returning 200. (SALON-C4)
+  if ((result as any)?.status === 'failed') return c.json({ error: (result as any).errorMessage || 'Text could not be sent', message: result }, 502)
   return c.json(result)
 })
 
@@ -150,6 +152,8 @@ app.post('/conversations/:id/reply', async (c) => {
     userId: user.userId,
   })
 
+  // A wallet/carrier failure is saved as a failed message; tell the caller instead of returning 200. (SALON-C4)
+  if ((result as any)?.status === 'failed') return c.json({ error: (result as any).errorMessage || 'Text could not be sent', message: result }, 502)
   return c.json(result)
 })
 

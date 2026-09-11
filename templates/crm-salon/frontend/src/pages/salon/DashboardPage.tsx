@@ -69,7 +69,11 @@ function fmtDateTime(s?: string): string {
 
 function fmtDate(s?: string): string {
   if (!s) return '—';
-  const d = new Date(s);
+  // Date-only values ("2026-09-11", or midnight UTC) are calendar dates — parse at local midnight or
+  // every viewer west of UTC sees the previous day. (SALON-H9)
+  const str = String(s);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(str) || /T00:00:00(\.000)?Z?$/.test(str);
+  const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }

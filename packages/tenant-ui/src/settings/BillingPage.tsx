@@ -21,6 +21,14 @@ interface Subscription {
   hasStripeCustomer: boolean
   syncedAt: string
 }
+interface MessagingStatus {
+  configured: boolean
+  enabled: boolean
+  aiEnabled: boolean
+  walletCents: number
+  enableMonthlyCents: number | null
+  error?: string
+}
 interface BillingResponse {
   subscription: Subscription | null
   source: 'factory' | 'cache' | 'unavailable'
@@ -51,8 +59,20 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [opening, setOpening] = useState(false)
+  const [msg, setMsg] = useState<MessagingStatus | null>(null)
+  const [openingSms, setOpeningSms] = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadMessaging() }, [])
+
+  // Texting / AI usage is a separate prepaid wallet billed by Twomiah at cost. Shown whenever the
+  // tenant is wired to the Factory so an empty wallet is visible here, not discovered as a failed text.
+  async function loadMessaging() {
+    try {
+      const res = await fetch('/api/messaging-billing/status', { headers: authHeaders() })
+      const body = await res.json().catch(() => null)
+      if (res.ok && body && body.configured) setMsg(body)
+    } catch { /* card simply stays hidden */ }
+  }
 
   async function load() {
     setLoading(true); setError('')
@@ -85,11 +105,13 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   }
 
   async function openSmsBilling() {
+    setOpeningSms(true); setNotice('')
     try {
       const res = await fetch('/api/messaging-billing/portal-link', { headers: authHeaders() })
       const body = await res.json().catch(() => ({}))
-      if (res.ok && body.url) window.open(body.url, '_blank'); else setNotice(body.error || 'Could not open SMS billing')
-    } catch { setNotice('Could not open SMS billing') }
+      if (res.ok && body.url) window.open(body.url, '_blank'); else setNotice(body.error || 'Could not open texting billing')
+    } catch { setNotice('Could not open texting billing') }
+    finally { setOpeningSms(false) }
   }
 
   const sub = data?.subscription || null
@@ -161,11 +183,6 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
               <button onClick={openPortal} disabled={opening} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
                 {opening ? 'Opening…' : 'Manage billing'}
               </button>
-              {smsBilling && (
-                <button onClick={openSmsBilling} className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-slate-600 dark:text-slate-200">
-                  SMS credits
-                </button>
-              )}
               <a href="mailto:support@twomiah.com" className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-slate-300">Contact support</a>
             </div>
           </div>
@@ -184,6 +201,35 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
             )}
             <p className="text-xs text-gray-400 mt-3">Deactivating a user in Settings › Users frees a seat. Need more seats? Move up a plan in the billing portal.</p>
           </div>
+
+          {(msg || smsBilling) && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 dark:bg-slate-900 dark:border-slate-700">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h2 className="font-semibold text-gray-900 dark:text-slate-100">Texting &amp; AI usage</h2>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Texts and AI replies are billed at cost from a prepaid wallet, separate from your plan.</p>
+                </div>
+                {msg && (
+                  <div className="text-right">
+                    <div className="text-xs uppercase tracking-wide text-gray-400">Wallet balance</div>
+                    <div className={'text-2xl font-bold ' + (msg.enabled && msg.walletCents <= 0 ? 'text-red-600' : 'text-gray-900 dark:text-slate-100')}>${(msg.walletCents / 100).toFixed(2)}</div>
+                  </div>
+                )}
+              </div>
+              {msg && !msg.enabled && (
+                <div className="mt-4 bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Texting is not enabled for this account yet. Enable it and fund the wallet in the texting billing page.</div>
+              )}
+              {msg && msg.enabled && msg.walletCents <= 0 && (
+                <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">Your texting wallet is empty — reminders and replies will not send until you add funds.</div>
+              )}
+              {msg?.error && <div className="mt-4 text-sm text-amber-700">Could not reach billing right now: {msg.error}</div>}
+              <div className="flex flex-wrap gap-3 mt-6">
+                <button onClick={openSmsBilling} disabled={openingSms} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
+                  {openingSms ? 'Opening…' : msg && msg.enabled ? 'Add funds / manage texting' : 'Enable texting'}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-xl border border-gray-200 p-6 dark:bg-slate-900 dark:border-slate-700">
             <h2 className="font-semibold text-gray-900 dark:text-slate-100 mb-1">Features</h2>

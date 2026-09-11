@@ -26,11 +26,11 @@ interface LeadStats {
 }
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  angi: { bg: '#e8f5e9', text: '#2e7d32', label: 'Angi' },
-  homeadvisor: { bg: '#fff3e0', text: '#e65100', label: 'HomeAdvisor' },
-  thumbtack: { bg: '#e3f2fd', text: '#1565c0', label: 'Thumbtack' },
-  google_lsa: { bg: '#fce4ec', text: '#c62828', label: 'Google LSA' },
-  houzz: { bg: '#f3e5f5', text: '#6a1b9a', label: 'Houzz' },
+  google_business: { bg: '#fce4ec', text: '#c62828', label: 'Google' },
+  instagram: { bg: '#f3e5f5', text: '#6a1b9a', label: 'Instagram / Facebook' },
+  yelp: { bg: '#fff3e0', text: '#e65100', label: 'Yelp' },
+  booking_app: { bg: '#e3f2fd', text: '#1565c0', label: 'Booking app' },
+  website: { bg: '#e8f5e9', text: '#2e7d32', label: 'Website' },
   other: { bg: '#f5f5f5', text: '#616161', label: 'Other' },
 };
 
@@ -205,11 +205,11 @@ export default function LeadInboxPage() {
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">All Sources</option>
-          <option value="angi">Angi</option>
-          <option value="homeadvisor">HomeAdvisor</option>
-          <option value="thumbtack">Thumbtack</option>
-          <option value="google_lsa">Google LSA</option>
-          <option value="houzz">Houzz</option>
+          <option value="google_business">Google</option>
+          <option value="instagram">Instagram / Facebook</option>
+          <option value="yelp">Yelp</option>
+          <option value="booking_app">Booking app</option>
+          <option value="website">Website</option>
         </select>
       </div>
 

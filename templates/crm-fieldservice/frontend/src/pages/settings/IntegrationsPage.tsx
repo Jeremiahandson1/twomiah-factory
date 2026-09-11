@@ -6,7 +6,6 @@ import {
   Phone, Copy, Send
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function IntegrationsPage() {
   const [loading, setLoading] = useState(true);
@@ -25,11 +24,6 @@ export default function IntegrationsPage() {
     loadIntegrations();
   }, []);
 
-  const getAuthHeaders = () => ({
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${localStorage.getItem('token')}`,
-  });
-
   const loadIntegrations = async () => {
     try {
       const data = await api.get('/api/integrations/status') as any;
@@ -44,7 +38,7 @@ export default function IntegrationsPage() {
         }
       }
     } catch (err) {
-      setError('Failed to load integrations');
+      setError((err as Error).message || 'Failed to load integrations');
     } finally {
       setLoading(false);
     }
@@ -52,15 +46,12 @@ export default function IntegrationsPage() {
 
   const handleQuickBooksConnect = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/quickbooks/auth-url`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
+      const data = await api.get(`/api/integrations/quickbooks/auth-url`);
       if (data.authUrl) {
         window.location.href = data.authUrl;
       }
     } catch (err) {
-      setError('Failed to start QuickBooks connection');
+      setError((err as Error).message || 'Failed to start QuickBooks connection');
     }
   };
 
@@ -69,17 +60,14 @@ export default function IntegrationsPage() {
     
     setSaving('quickbooks');
     try {
-      await fetch(`${API_URL}/api/integrations/quickbooks/disconnect`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post(`/api/integrations/quickbooks/disconnect`);
       setIntegrations(prev => ({
         ...prev,
         quickbooks: { connected: false, companyName: null, lastSync: null },
       }));
       setSuccess('QuickBooks disconnected');
     } catch (err) {
-      setError('Failed to disconnect QuickBooks');
+      setError((err as Error).message || 'Failed to disconnect QuickBooks');
     } finally {
       setSaving(null);
     }
@@ -87,15 +75,12 @@ export default function IntegrationsPage() {
 
   const handleStripeConnect = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/integrations/stripe/connect-url`, {
-        headers: getAuthHeaders(),
-      });
-      const data = await response.json();
+      const data = await api.get(`/api/integrations/stripe/connect-url`);
       if (data.connectUrl) {
         window.location.href = data.connectUrl;
       }
     } catch (err) {
-      setError('Failed to start Stripe connection');
+      setError((err as Error).message || 'Failed to start Stripe connection');
     }
   };
 
@@ -104,17 +89,14 @@ export default function IntegrationsPage() {
     
     setSaving('stripe');
     try {
-      await fetch(`${API_URL}/api/integrations/stripe/disconnect`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post(`/api/integrations/stripe/disconnect`);
       setIntegrations(prev => ({
         ...prev,
         stripe: { connected: false, accountId: null, chargesEnabled: false },
       }));
       setSuccess('Stripe disconnected');
     } catch (err) {
-      setError('Failed to disconnect Stripe');
+      setError((err as Error).message || 'Failed to disconnect Stripe');
     } finally {
       setSaving(null);
     }
@@ -125,15 +107,7 @@ export default function IntegrationsPage() {
     setError('');
     
     try {
-      const response = await fetch(`${API_URL}/api/integrations/${service}/toggle`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ enabled: !integrations[service].enabled }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) throw new Error(data.error);
+      const data = await api.post(`/api/integrations/${service}/toggle`, { enabled: !integrations[service].enabled });
       
       setIntegrations(prev => ({
         ...prev,
@@ -151,18 +125,14 @@ export default function IntegrationsPage() {
     setSaving('autosync');
     try {
       const newVal = !integrations.quickbooks.syncEnabled;
-      await fetch(`${API_URL}/api/quickbooks/auto-sync`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ enabled: newVal }),
-      });
+      await api.post(`/api/quickbooks/auto-sync`, { enabled: newVal });
       setIntegrations(prev => ({
         ...prev,
         quickbooks: { ...prev.quickbooks, syncEnabled: newVal },
       }));
       setSuccess(`Auto-sync ${newVal ? 'enabled' : 'disabled'}`);
     } catch (err) {
-      setError('Failed to update auto-sync');
+      setError((err as Error).message || 'Failed to update auto-sync');
     } finally {
       setSaving(null);
     }
@@ -172,15 +142,11 @@ export default function IntegrationsPage() {
     if (!testPhone.trim()) { setError('Enter a phone number'); return; }
     setSaving('testsms');
     try {
-      await fetch(`${API_URL}/api/sms/test`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ to: testPhone }),
-      });
+      await api.post(`/api/sms/test`, { to: testPhone });
       setSuccess('Test SMS sent');
       setTestPhone('');
     } catch (err) {
-      setError('Failed to send test SMS');
+      setError((err as Error).message || 'Failed to send test SMS');
     } finally {
       setSaving(null);
     }
@@ -195,14 +161,11 @@ export default function IntegrationsPage() {
   const handleSyncNow = async () => {
     setSaving('sync');
     try {
-      await fetch(`${API_URL}/api/integrations/quickbooks/sync`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-      });
+      await api.post(`/api/integrations/quickbooks/sync`);
       setSuccess('Sync started');
       loadIntegrations();
     } catch (err) {
-      setError('Sync failed');
+      setError((err as Error).message || 'Sync failed');
     } finally {
       setSaving(null);
     }
@@ -488,9 +451,7 @@ export default function IntegrationsPage() {
       {/* Usage Note */}
       <div className="mt-6 p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
         <p className="text-sm text-gray-600 dark:text-slate-400">
-          <strong>SMS & Email Usage:</strong> Your plan includes 500 SMS and 2,000 emails per month. 
-          Additional messages are billed at $0.02/SMS and $0.001/email.
-        </p>
+          <strong>Texting &amp; email usage:</strong> texts are billed at cost from a prepaid wallet you top up in Settings › Billing; transactional email is included. Nothing is sent when the wallet is empty — the send screens warn you first.</p>
       </div>
     </div>
   );

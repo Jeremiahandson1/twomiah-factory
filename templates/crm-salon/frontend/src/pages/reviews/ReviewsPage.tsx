@@ -15,7 +15,7 @@ export default function ReviewsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reviews</h1>
-        <p className="text-gray-500 dark:text-slate-400">Automate Google review requests after job completion</p>
+        <p className="text-gray-500 dark:text-slate-400">Automatically ask clients for a Google review after their visit</p>
       </div>
 
       {/* Tabs */}
@@ -199,7 +199,7 @@ function SettingsTab() {
         <label className="flex items-center justify-between cursor-pointer">
           <div>
             <p className="font-semibold text-gray-900 dark:text-white">Auto-Request Reviews</p>
-            <p className="text-sm text-gray-500 dark:text-slate-400">Automatically request reviews after job completion</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Automatically request a review after each completed visit (one per client per month)</p>
           </div>
           <input
             type="checkbox"

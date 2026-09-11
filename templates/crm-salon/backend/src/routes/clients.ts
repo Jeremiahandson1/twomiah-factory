@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user } from '../../db/schema.ts'
+import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, bookingSettings } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, ne } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -139,8 +139,13 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
   // "Due back on" comes from the most recent record that has a rebook interval,
   // computed rather than stored so re-timing a service re-times every client.
   const withInterval = serviceRecords.find(r => r.rebookIntervalDays)
+  // Count the interval from the visit's calendar date in the salon's timezone — an 11:03 PM visit is
+  // stored after midnight UTC and used to push due-back a day late. (SALON-H9)
+  const [bs] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings).where(eq(bookingSettings.companyId, currentUser.companyId)).limit(1)
+  const tz = bs?.timezone || 'America/Chicago'
+  const calendarDateIn = (d: Date) => { try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d) } catch { return d.toISOString().slice(0, 10) } }
   const dueBackAt = withInterval
-    ? new Date(new Date(withInterval.performedAt).getTime() + withInterval.rebookIntervalDays * 86400000).toISOString().slice(0, 10)
+    ? (() => { const [y, m, d] = calendarDateIn(new Date(withInterval.performedAt)).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d) + withInterval.rebookIntervalDays * 86400000).toISOString().slice(0, 10) })()
     : null
 
   const lifetimeValue = serviceRecords.reduce((s: number, r: any) => s + Number(r.priceCharged || 0), 0)

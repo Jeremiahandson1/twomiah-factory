@@ -63,6 +63,27 @@ app.get('/', async (c) => {
   })
 })
 
+// Stream a stored file. Authenticated + company-scoped: keys are `<companyId>/<subdir>/<file>`, so a
+// user can only read their own company's files. Powers doc.url / thumbnailUrl (the frontend fetches
+// these with the bearer token and shows a blob URL — an <img src> cannot send a header). (SALON-H1)
+app.get('/file/*', async (c) => {
+  const currentUser = c.get('user') as any
+  const key = decodeURIComponent(c.req.path.replace(/^\/api\/documents\/file\//, ''))
+  if (!key || key.includes('..')) return c.json({ error: 'Invalid key' }, 400)
+  if (!key.startsWith(`${currentUser.companyId}/`)) return c.json({ error: 'Forbidden' }, 403)
+  const abs = fileService.resolveFileKey(key)
+  if (!abs || !fs.existsSync(abs)) return c.json({ error: 'Not found' }, 404)
+  const ext = path.extname(abs).toLowerCase()
+  const types: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.pdf': 'application/pdf' }
+  const contentType = types[ext] || 'application/octet-stream'
+  const body = fs.readFileSync(abs)
+  c.header('Content-Type', contentType)
+  c.header('X-Content-Type-Options', 'nosniff')
+  if (contentType === 'application/octet-stream') c.header('Content-Disposition', 'attachment')
+  c.header('Cache-Control', 'private, max-age=86400')
+  return c.body(body)
+})
+
 // Get single document
 app.get('/:id', async (c) => {
   const currentUser = c.get('user') as any

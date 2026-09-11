@@ -27,41 +27,46 @@ function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETC
   return fetch(url, { ...options, signal: AbortSignal.timeout(timeout) })
 }
 
-// Generation-level guard against schema drift. Every CRM/pricing tenant DB is
-// reconciled to its Drizzle schema on boot: run the recorded migrations, then
-// `drizzle-kit push` to add any tables/columns the hand-maintained migrations
-// drifted behind (that drift is what made whole modules 500 across crm-dispensary,
-// crm-rv, etc.). `schema.ts` is a strict superset of the DB in these templates, so
-// push is additive — it creates missing tables/columns and drops nothing.
+// Generation-level guard against schema drift. Every CRM/pricing tenant DB is reconciled to its
+// Drizzle schema on boot, in three steps:
+//   1. `bun db/migrate.ts`      — the recorded migrations (in the start command before this step).
+//   2. `bun db/reconcile.ts`    — the guarantee: additive CREATE TABLE / ADD COLUMN / CREATE INDEX
+//      … IF NOT EXISTS derived from schema.ts (packages/tenant-backend/src/schemaReconcile.ts).
+//      One information_schema query, seconds to run, no prompts, never drops anything.
+//   3. `drizzle-kit push --force` — best-effort polish for what the additive step does not do
+//      (type/nullability changes, FKs, dropping columns removed from the schema).
 //
-// Two gotchas learned from the premium-site boot loop: `drizzle-kit push` exits 0
-// even on a connection failure, so success is confirmed by matching its stdout
-// ("Changes applied" / "No changes detected"), not the exit code; and `for … do`
-// takes a space (not a semicolon) before the first command. Runs from the backend
-// rootDir where drizzle.config.ts lives. Non-fatal: if push never verifies the app
-// still boots (working modules stay up) rather than bricking the whole deploy.
+// Step 2 exists because step 3 alone was never reliable: push introspects the whole database before
+// it does anything, and on Render's Postgres a 300-table CRM schema takes longer than the boot
+// window — the salon tenant's boot log showed three 60s attempts all killed at "Pulling schema…",
+// so booking_settings.timezone was never added and the entire online-booking module 500'd. push also
+// stops on interactive prompts in a non-TTY. Nothing user-facing may depend on it any more.
+//
+// Two gotchas kept from the premium-site boot loop: push exits 0 even on a connection failure, so
+// success is confirmed by matching its stdout, and `for … do` takes a space before the first command.
+// Runs from the backend rootDir where drizzle.config.ts lives. Every step is non-fatal: the app boots
+// on whatever schema it has rather than bricking the deploy.
 function dbReconcileStep(): string {
-  // `timeout -k 10 60` bounds each push so a HANG can never block boot. drizzle-kit 0.28
-  // renders an interactive "Is X created or renamed?" prompt on any rename
-  // ambiguity (e.g. contractor's ads_experiment vs the dropped quickbooks_connection)
-  // and, in Render's non-TTY, spins on "Pulling schema…" forever — `--force` and
-  // piped stdin do NOT answer it. -k 10 SIGKILLs a push still alive 10s after SIGTERM so
-  // its DB connection is freed. Capped at 3 attempts (≈3 min worst case) so a persistently
-  // stalling push can't exceed Render's port-bind window and fail the deploy on "no open
-  // ports" — the killed push falls through to seed+start on the migrated schema. Where push
-  // has
-  // no ambiguity (most verticals) it completes in seconds and reconciles as before.
   return (
-    // Drop known-removed legacy tables first so drizzle-kit push has no rename
-    // ambiguity to prompt on (which used to hang push and leave the schema only
-    // partially reconciled — e.g. review_request.job_id never added).
+    // Drop known-removed legacy tables first so push has no rename ambiguity to prompt on.
     'bun run db/prune-legacy.ts 2>&1 | head -20 || echo "[boot] prune-legacy skipped"; ' +
-    'for i in 1 2 3; do ' +
-      'OUT=$(timeout -k 10 60 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
+    // The guarantee. Older tenant repos (generated before this step existed) have no db/reconcile.ts.
+    '{ [ -f db/reconcile.ts ] && timeout -k 10 120 bun db/reconcile.ts 2>&1 | tail -40; } || echo "[boot] reconcile skipped"; ' +
+    // Best-effort push: one bounded attempt. -k 10 SIGKILLs a push still alive 10s after SIGTERM so
+    // its DB connection is freed. Worst case ≈2.5 min, inside Render's port-bind window.
+    'for i in 1; do ' +
+      'OUT=$(timeout -k 10 150 bunx drizzle-kit push --force 2>&1); echo "$OUT" | grep -v "Pulling schema" | tail -30; ' +
       'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +
-      'echo "[boot] drizzle push not verified (attempt $i), retrying in 6s"; sleep 6; ' +
+      'echo "[boot] drizzle push not verified (attempt $i) — db/reconcile.ts already applied the additive schema"; ' +
     'done'
   )
+}
+
+// The CRM backend start command. Used at first deploy AND refreshed on every code update
+// (updateCustomerCode) so an existing tenant picks up boot-time changes such as db/reconcile.ts —
+// Render otherwise freezes the start command at service creation.
+export function crmBackendStartCommand(): string {
+  return 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && ' + dbReconcileStep() + ' && bun db/seed.ts && bun src/index.ts'
 }
 
 /**
@@ -799,9 +804,14 @@ async function getServiceDeploys(serviceId: string, limit = 5): Promise<any[]> {
 export async function updateRenderServiceSettings(serviceId: string, settings: {
   rootDir?: string; buildCommand?: string; startCommand?: string; publishPath?: string
 }): Promise<boolean> {
+  // Render's PATCH shape: build/start commands live under serviceDetails.envSpecificDetails for
+  // native runtimes (a top-level serviceDetails.startCommand is silently ignored — the start command
+  // never changed and every redeploy kept booting with the command frozen at creation).
   const serviceDetails: Record<string, any> = {}
-  if (settings.buildCommand) serviceDetails.buildCommand = settings.buildCommand
-  if (settings.startCommand) serviceDetails.startCommand = settings.startCommand
+  const envSpecific: Record<string, any> = {}
+  if (settings.buildCommand) envSpecific.buildCommand = settings.buildCommand
+  if (settings.startCommand) envSpecific.startCommand = settings.startCommand
+  if (Object.keys(envSpecific).length) serviceDetails.envSpecificDetails = envSpecific
   if (settings.publishPath) serviceDetails.publishPath = settings.publishPath
 
   const body: Record<string, any> = { serviceDetails }
@@ -1207,7 +1217,7 @@ export async function deployCustomer(
         // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const backendBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" VITE_GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
-        const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && ' + dbReconcileStep() + ' && bun db/seed.ts && bun src/index.ts'
+        const backendStart = crmBackendStartCommand()
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',
           buildCommand: backendBuild,
@@ -1840,6 +1850,13 @@ export async function updateCustomerCode(
     // We trigger manually as a fallback.
     const serviceIds = factoryCustomer.renderServiceIds
     if (serviceIds && Object.keys(serviceIds).length > 0) {
+      // Step 3b: refresh the CRM backend's start command so this redeploy boots with the current
+      // reconcile step (db/reconcile.ts). The command is otherwise frozen at service creation, which
+      // is how tenants kept booting with the push-only step long after the code moved on.
+      if (serviceIds.crm) {
+        const ok = await updateRenderServiceSettings(serviceIds.crm, { startCommand: crmBackendStartCommand() })
+        steps.push({ step: 'start_command', status: ok ? 'ok' : 'warning', detail: ok ? 'CRM start command refreshed' : 'could not update the start command — boot will use the previous one' })
+      }
       for (const [role, serviceId] of Object.entries(serviceIds)) {
         try {
           const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', {

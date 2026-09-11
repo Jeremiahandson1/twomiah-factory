@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, RefreshCw, BookOpen } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, RefreshCw, BookOpen, Ban, RotateCcw } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
@@ -13,6 +13,9 @@ export default function InvoiceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const [refundOpen, setRefundOpen] = useState<boolean>(false);
+  const [refunding, setRefunding] = useState<boolean>(false);
+  const [refund, setRefund] = useState<{ amount: string; method: string; reference: string }>({ amount: '', method: 'other', reference: '' });
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -88,6 +91,19 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const handleVoid = async () => {
+    if (!confirm(`Void invoice ${invoice?.number}? It stays on record but no longer counts as owed.`)) return;
+    try { await api.post(`/api/invoices/${id}/void`, {}); toast.success('Invoice voided'); loadInvoice(); }
+    catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Could not void'); }
+  };
+  const handleRefund = async () => {
+    if (!refund.amount || Number(refund.amount) <= 0) { toast.error('Enter a valid amount'); return; }
+    setRefunding(true);
+    try { await api.post(`/api/invoices/${id}/refund`, { ...refund, amount: Number(refund.amount) }); toast.success('Refund recorded'); setRefundOpen(false); loadInvoice(); }
+    catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Could not refund'); }
+    finally { setRefunding(false); }
+  };
+
   if (loading) return <SkeletonDetail />;
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadInvoice} actionLabel="Retry" />;
   if (!invoice) return <EmptyState title="Invoice not found" />;
@@ -117,6 +133,16 @@ export default function InvoiceDetailPage() {
           {computedBalance > 0 && invoice.status !== 'draft' && (
             <button onClick={() => setPaymentOpen(true)} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
               <DollarSign className="w-4 h-4" /> Record Payment
+            </button>
+          )}
+          {Number(invoice.amountPaid || 0) > 0 && (
+            <button onClick={() => { setRefund({ amount: Number(invoice.amountPaid || 0).toFixed(2), method: 'other', reference: '' }); setRefundOpen(true); }} className="px-4 py-2 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 flex items-center gap-2">
+              <RotateCcw className="w-4 h-4" /> Refund
+            </button>
+          )}
+          {invoice.status !== 'void' && Number(invoice.amountPaid || 0) <= 0 && (
+            <button onClick={handleVoid} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+              <Ban className="w-4 h-4" /> Void
             </button>
           )}
           <Link to={`/crm/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2 dark:bg-slate-800">
@@ -180,7 +206,7 @@ export default function InvoiceDetailPage() {
                       <td className="px-4 py-2">{formatDate(p.paidAt)}</td>
                       <td className="px-4 py-2 capitalize">{p.method}</td>
                       <td className="px-4 py-2">{p.reference || '-'}</td>
-                      <td className="px-4 py-2 text-right font-medium text-green-600">${Number(p.amount).toFixed(2)}</td>
+                      <td className={`px-4 py-2 text-right font-medium ${Number(p.amount) < 0 ? 'text-amber-700' : 'text-green-600'}`}>{Number(p.amount) < 0 ? `−${Math.abs(Number(p.amount)).toFixed(2)} refund` : `${Number(p.amount).toFixed(2)}`}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -266,6 +292,19 @@ export default function InvoiceDetailPage() {
           <button onClick={handleRecordPayment} disabled={recording} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50">
             {recording ? 'Recording...' : 'Record Payment'}
           </button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={refundOpen} onClose={() => setRefundOpen(false)} title="Record Refund" size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-slate-400">Records money returned to the client. Card refunds are issued in your payment processor; this keeps the invoice balance and status truthful.</p>
+          <div><label className="block text-sm font-medium mb-1">Amount *</label><input type="number" step="0.01" value={refund.amount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRefund({ ...refund, amount: e.target.value })} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700" /></div>
+          <div><label className="block text-sm font-medium mb-1">Method</label><select value={refund.method} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setRefund({ ...refund, method: e.target.value })} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700"><option value="card">Card</option><option value="cash">Cash</option><option value="check">Check</option><option value="bank_transfer">Bank Transfer</option><option value="other">Other</option></select></div>
+          <div><label className="block text-sm font-medium mb-1">Reference</label><input value={refund.reference} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRefund({ ...refund, reference: e.target.value })} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700" /></div>
+        </div>
+        <div className="flex justify-end gap-3 mt-6">
+          <button onClick={() => setRefundOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+          <button onClick={handleRefund} disabled={refunding} className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50">{refunding ? 'Recording...' : 'Record Refund'}</button>
         </div>
       </Modal>
 

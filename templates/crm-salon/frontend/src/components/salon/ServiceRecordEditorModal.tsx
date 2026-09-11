@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Scissors, Plus, Trash2 } from 'lucide-react';
+import { X, Scissors, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 
@@ -36,13 +36,26 @@ export interface ServiceRecord {
   stylistLastName?: string;
 }
 
-interface ServiceOption { id: string; name?: string; price?: string | number }
+interface ServiceOption { id: string; name?: string; price?: string | number; requiresPatchTest?: boolean }
+interface ClientProfileLite { allergies?: string | null; patchTestAt?: string | null }
+// Same rule as the book: allergies always, patch test when the service requires one and the last
+// recorded test is missing or older than 6 months. (SALON-H3)
+function visitWarnings(profile: ClientProfileLite | null, service: ServiceOption | undefined): string[] {
+  const out: string[] = [];
+  if (profile?.allergies && profile.allergies.trim()) out.push(`Allergies on file: ${profile.allergies.trim()}`);
+  if (service?.requiresPatchTest) {
+    const at = profile?.patchTestAt ? new Date(String(profile.patchTestAt).slice(0, 10) + 'T00:00:00') : null;
+    const ageDays = at && !isNaN(at.getTime()) ? (Date.now() - at.getTime()) / 86400000 : Infinity;
+    if (ageDays > 180) out.push(at ? `${service.name || 'This service'} needs a patch test — last one was ${Math.round(ageDays)} days ago` : `${service.name || 'This service'} needs a patch test — none on file`);
+  }
+  return out;
+}
 
 interface Props {
   contactId: string;
   record: ServiceRecord | null;
   appointmentId?: string;
-  onSave: () => void;
+  onSave: (saved?: Record<string, unknown>) => void;
   onClose: () => void;
 }
 
@@ -56,6 +69,8 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
+  const [profile, setProfile] = useState<ClientProfileLite | null>(null);
+  useEffect(() => { api.get(`/api/clients/${contactId}`).then((d) => setProfile((d?.profile as ClientProfileLite) || null)).catch(() => setProfile(null)); }, [contactId]);
   const [formula, setFormula] = useState<FormulaLine[]>(
     record?.formula?.length ? record.formula : [{ product: '', shade: '', parts: '' }]
   );
@@ -121,9 +136,8 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
       if (form.priceCharged !== '') payload.priceCharged = Number(form.priceCharged);
       if (form.notes) payload.notes = form.notes;
 
-      if (record?.id) await api.put(`/api/service-records/${record.id}`, payload);
-      else await api.post('/api/service-records', payload);
-      onSave();
+      const saved = record?.id ? await api.put(`/api/service-records/${record.id}`, payload) : await api.post('/api/service-records', payload);
+      onSave(saved as Record<string, unknown>);
     } catch (err) {
       alert((err as Error).message || 'Failed to save service record');
     } finally {
@@ -143,6 +157,12 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
             <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
           </div>
 
+          {visitWarnings(profile, services.find((s) => s.id === form.serviceId)).length > 0 && (
+            <div className="mb-4 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-sm">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <ul className="space-y-1">{visitWarnings(profile, services.find((s) => s.id === form.serviceId)).map((w) => <li key={w}>{w}</li>)}</ul>
+            </div>
+          )}
           <form onSubmit={submit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
