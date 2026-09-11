@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useParams } from 'react-router-dom';
-import { Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageSquare, Loader2, Hammer, FileSignature, FileCheck2, FolderOpen, HelpCircle , CreditCard } from 'lucide-react';
+import { Home, Receipt, MessageSquare, Loader2, FolderOpen, CreditCard } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -50,36 +50,16 @@ export default function PortalLayout() {
   const messages: NavItem = { to: `/portal/${token}/messages`, icon: MessageSquare, label: 'Messages' };
   const documents: NavItem = { to: `/portal/${token}/shared-documents`, icon: FolderOpen, label: 'Documents' };
 
-  const isSub = contactType === 'subcontractor' || contactType === 'vendor' || contactType === 'supplier';
-  const isArchitect = contactType === 'architect' || contactType === 'consultant' || contactType === 'inspector';
-
-  const navItems = isSub
-    ? [
+  // Salon clients see their bills, card on file and messages; suppliers see shared documents and messages.
+  const isSupplier = contactType === 'supplier' || contactType === 'vendor' || contactType === 'subcontractor';
+  const navItems = isSupplier
+    ? [dashboard, documents, messages]
+    : [
         dashboard,
-        { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'My Jobs' },
-        { to: `/portal/${token}/lien-waivers`, icon: FileSignature, label: 'Lien Waivers' },
-        documents,
+        { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
+        { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
         messages,
-      ]
-    : isArchitect
-      ? [
-          dashboard,
-          { to: `/portal/${token}/rfis-assigned`, icon: HelpCircle, label: 'RFIs' },
-          { to: `/portal/${token}/submittal-review`, icon: FileCheck2, label: 'Submittals' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          documents,
-          messages,
-        ]
-      : [
-          dashboard,
-          { to: `/portal/${token}/projects`, icon: FolderKanban, label: 'Projects' },
-          { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
-          { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
-          { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          { to: `/portal/${token}/selections`, icon: Palette, label: 'Selections' },
-          messages,
-        ];
+      ];
 
   const portalLabel = ROLE_LABELS[contactType] || 'Portal';
 

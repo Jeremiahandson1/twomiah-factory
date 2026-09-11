@@ -286,7 +286,7 @@ app.get('/p/:token', portalAuth, async (c) => {
     .where(
       and(
         eq(invoice.contactId, portalContact.id),
-        inArray(invoice.status, ['sent', 'partial', 'overdue'])
+        inArray(invoice.status, ['sent', 'open', 'viewed', 'partial', 'overdue'])
       )
     )
 
