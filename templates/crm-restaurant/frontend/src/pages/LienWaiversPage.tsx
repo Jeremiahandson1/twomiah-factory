@@ -61,7 +61,7 @@ export default function LienWaiversPage() {
           <tbody>
             {waivers.length === 0 ? <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">No lien waivers yet.</td></tr> :
               waivers.map((w) => (
-                <tr key={w.id} className="border-b hover:bg-gray-50">
+                <tr key={w.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 font-medium">{w.vendorName}<div className="text-xs text-gray-500 dark:text-slate-400">{w.vendorType}</div></td>
                   <td className="px-4 py-3 text-sm">{TYPE_LABELS[w.waiverType]}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{w.project?.name || '—'}</td>

@@ -328,7 +328,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }) {
   };
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className="hover:bg-gray-50 dark:hover:bg-slate-800">
       <td className="px-4 py-3">
         <p className="font-medium text-gray-900 dark:text-slate-100">{agreement.contact?.name}</p>
         <p className="text-sm text-gray-500 dark:text-slate-400">{agreement.contact?.email}</p>

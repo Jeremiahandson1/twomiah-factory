@@ -288,7 +288,7 @@ function CallRow({ call }: CallRowProps) {
   };
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className="hover:bg-gray-50 dark:hover:bg-slate-800">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${statusColors[call.status] || 'bg-gray-100'}`}>
@@ -452,7 +452,7 @@ function TrackingNumbersTab() {
           </thead>
           <tbody className="divide-y">
             {numbers.map((num: TrackingNumber) => (
-              <tr key={num.id} className="hover:bg-gray-50">
+              <tr key={num.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-3 font-mono">{num.phoneNumber}</td>
                 <td className="px-4 py-3">{num.name || '-'}</td>
                 <td className="px-4 py-3">

@@ -113,7 +113,7 @@ export default function PatientsPage() {
             </thead>
             <tbody className="divide-y">
               {patients.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <Link to={`/crm/patients/${p.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">
                       <PawPrint className="w-4 h-4 text-teal-500" />

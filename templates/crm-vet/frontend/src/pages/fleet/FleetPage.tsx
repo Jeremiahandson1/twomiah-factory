@@ -453,7 +453,7 @@ function TripsTab() {
         </thead>
         <tbody className="divide-y">
           {trips.map((trip: Trip) => (
-            <tr key={trip.id} className="hover:bg-gray-50">
+            <tr key={trip.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
               <td className="px-4 py-3 font-medium">{trip.vehicle?.name}</td>
               <td className="px-4 py-3 text-gray-500 dark:text-slate-400">
                 {trip.driver ? `${trip.driver.firstName} ${trip.driver.lastName}` : '-'}

@@ -198,7 +198,7 @@ export default function RoofReportDetail() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {measurements.map((m) => (
-              <tr key={m.label} className="hover:bg-gray-50">
+              <tr key={m.label} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{m.label}</td>
                 <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">
                   {m.value != null ? `${Number(m.value).toLocaleString()} ${m.unit}` : '-'}
@@ -228,7 +228,7 @@ export default function RoofReportDetail() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {report.segments.map((seg, i) => (
-                <tr key={i} className="hover:bg-gray-50">
+                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{seg.name || `Segment ${i + 1}`}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{Number(seg.area || seg.areaSqft || 0).toLocaleString()}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 text-right dark:text-slate-200">{seg.pitch}</td>

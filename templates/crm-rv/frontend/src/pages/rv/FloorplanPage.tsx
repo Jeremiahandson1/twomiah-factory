@@ -52,7 +52,7 @@ export default function FloorplanPage() {
             <tbody>
               {units.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{loading ? 'Loading…' : 'No floored units.'}</td></tr>}
               {units.map((u, i) => (
-                <tr key={i} className="border-t hover:bg-gray-50">
+                <tr key={i} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-2">{u.unit}</td>
                   <td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{u.stock || '—'}</td>
                   <td className="px-4 py-2 text-gray-600 dark:text-slate-400">{u.lender}</td>

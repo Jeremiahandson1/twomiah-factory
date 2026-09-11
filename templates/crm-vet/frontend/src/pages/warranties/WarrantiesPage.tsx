@@ -238,7 +238,7 @@ function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
         </thead>
         <tbody className="divide-y">
           {warranties.map((warranty: WarrantyData) => (
-            <tr key={warranty.id} className="hover:bg-gray-50">
+            <tr key={warranty.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -400,7 +400,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                 const StatusIcon = status.icon;
 
                 return (
-                  <tr key={claim.id} className="hover:bg-gray-50">
+                  <tr key={claim.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-900 dark:text-slate-100">{claim.title}</p>
                       <p className="text-sm text-gray-500 dark:text-slate-400">{claim.warranty?.name}</p>

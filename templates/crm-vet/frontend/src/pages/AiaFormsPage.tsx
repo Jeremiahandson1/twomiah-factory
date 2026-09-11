@@ -74,7 +74,7 @@ export default function AiaFormsPage() {
           <tbody>
             {forms.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No pay applications yet.</td></tr> :
               forms.map((f) => (
-                <tr key={f.id} className="border-b hover:bg-gray-50">
+                <tr key={f.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 font-mono text-sm">#{f.applicationNumber}</td>
                   <td className="px-4 py-3 font-semibold">{f.formType}</td>
                   <td className="px-4 py-3 text-sm">{f.project?.name || '—'}</td>

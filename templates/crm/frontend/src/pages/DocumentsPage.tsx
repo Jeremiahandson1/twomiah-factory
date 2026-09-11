@@ -4,6 +4,7 @@ import { Plus, Upload, File, Image, FileText, Download, Trash2, Eye, X, FolderOp
 import { DocumentHistoryModal, PlanMarkupModal } from './documentsExtras/DocumentExtrasModals';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 import { EmptyState } from '../components/common/EmptyState';
@@ -51,6 +52,7 @@ function AuthImg({ src, alt, className }: { src: string; alt?: string; className
 
 export default function DocumentsPage() {
   const toast = useToast();
+  const { hasFeature } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [documents, setDocuments] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
@@ -83,7 +85,7 @@ export default function DocumentsPage() {
       const [resRaw, projResRaw] = await Promise.all([
         api.documents.list(params),
         // Projects is optional here — in verticals without it the API answers 403 and the documents must still show. (SALON-R2)
-        api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))
+        hasFeature('projects') ? api.projects.list({ limit: 100 }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
       ]);
       const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
       setDocuments(res.data as Record<string, unknown>[]);

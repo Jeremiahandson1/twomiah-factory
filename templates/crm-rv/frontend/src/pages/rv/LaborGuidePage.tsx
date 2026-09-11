@@ -64,7 +64,7 @@ export default function LaborGuidePage() {
             <tbody>
               {ops.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{loading ? 'Searching…' : 'No operations found.'}</td></tr>}
               {ops.map((o, i) => (
-                <tr key={i} className="border-t hover:bg-gray-50">
+                <tr key={i} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-2 font-mono text-xs text-gray-500 align-top dark:text-slate-400">{o.code}</td>
                   <td className="px-4 py-2 align-top">{o.name}<span className="block text-[11px] text-gray-400">{o.category}</span></td>
                   <td className="px-4 py-2 text-gray-500 text-xs align-top dark:text-slate-400">{o.applies}</td>
