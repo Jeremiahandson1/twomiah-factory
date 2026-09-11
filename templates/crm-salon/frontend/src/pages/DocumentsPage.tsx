@@ -151,7 +151,8 @@ export default function DocumentsPage() {
       const a = document.createElement('a'); a.href = url; a.download = String(doc.originalName || doc.name || 'download'); document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
-      toast.error('Download failed');
+      const msg = err instanceof Error ? err.message : '';
+      toast.error(/\(404\)/.test(msg) ? 'Download failed — this file is no longer in storage.' : `Download failed${msg ? `: ${msg}` : ''}`);
     }
   };
 
@@ -194,8 +195,7 @@ export default function DocumentsPage() {
         );
       }
     },
-    { key: 'type', label: 'Type', render: (v: unknown) => <span className="capitalize">{v as string}</span> },
-    { key: 'project', label: 'Project', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
+    { key: 'type', label: 'Type', render: (v: unknown) => <span className="capitalize">{String(v || '').replace(/_/g, ' ')}</span> },
     { key: 'size', label: 'Size', render: (v: unknown) => formatSize(v) },
     { key: 'createdAt', label: 'Uploaded', render: (v: unknown) => formatDate(v as string) },
   ];

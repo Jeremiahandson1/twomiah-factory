@@ -162,7 +162,7 @@ app.put('/settings', async (c) => {
 app.get('/services', async (c) => {
   const user = c.get('user') as any
   const services = await booking.getBookableServices(user.companyId)
-  return c.json(services)
+  return c.json({ data: services, retired: await booking.legacyListRetired(user.companyId) })
 })
 
 app.post('/services', async (c) => {

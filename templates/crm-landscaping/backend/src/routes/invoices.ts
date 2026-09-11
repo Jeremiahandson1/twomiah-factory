@@ -11,6 +11,16 @@ import emailService from '../services/email.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// "Overdue" is derived, not stored — billed, not fully paid, past due. Computed at read time so the
+// list, stats and Reports agree without a background job flipping statuses.
+const OPEN_STATUSES = ['sent', 'open', 'viewed', 'partial']
+const isOverdue = (inv: { status: string; dueDate: Date | string | null; total: any; amountPaid: any }) => {
+  if (!OPEN_STATUSES.includes(inv.status) || !inv.dueDate) return false
+  if (Number(inv.total) - Number(inv.amountPaid) <= 0.005) return false
+  return new Date(inv.dueDate) < new Date()
+}
+const deriveStatus = (inv: any) => (isOverdue(inv) ? 'overdue' : inv.status)
+
 const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().min(0, 'Quantity cannot be negative').default(1), unitPrice: z.number().min(0, 'Price cannot be negative').default(0) })
 const invoiceSchema = z.object({
   // An invoice must have a client and at least one line item — a completely
@@ -93,6 +103,7 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
 
   const dataWithRelations = data.map(inv => ({
     ...inv,
+    status: deriveStatus(inv),
     contact: inv.contactId ? contactMap[inv.contactId] || null : null,
     lineItems: lineItemMap[inv.id] || [],
     payments: paymentMap[inv.id] || [],
@@ -103,10 +114,11 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
 
 app.get('/stats', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
-  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
+  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid, dueDate: invoice.dueDate }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
   const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0 }
   invoices.forEach(inv => {
-    stats[inv.status] = (stats[inv.status] || 0) + 1
+    const s = deriveStatus(inv)
+    stats[s] = (stats[s] || 0) + 1
     stats.totalAmount += Number(inv.total)
     // Outstanding = what's still owed on BILLED invoices; a draft isn't billed,
     // and a credit balance must not net off another invoice, so floor at zero.

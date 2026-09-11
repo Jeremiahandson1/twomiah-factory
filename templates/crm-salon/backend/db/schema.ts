@@ -605,6 +605,7 @@ export const campaign = pgTable('campaign', {
   scheduledDate: timestamp('scheduled_date'),
   sentAt: timestamp('sent_at'),
   recipientCount: integer('recipient_count').default(0).notNull(),
+  lastError: text('last_error'), // why the last send failed — shown on the campaign row
   openCount: integer('open_count').default(0).notNull(),
   clickCount: integer('click_count').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

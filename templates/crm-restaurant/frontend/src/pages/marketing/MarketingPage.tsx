@@ -198,21 +198,25 @@ function CampaignsTab({ onChanged }: { onChanged: () => void }) {
                       campaign.status === 'sent' ? 'bg-green-100 text-green-700' :
                       campaign.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
                       campaign.status === 'sending' ? 'bg-yellow-100 text-yellow-700' :
+                      campaign.status === 'failed' ? 'bg-red-100 text-red-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
                       {campaign.status as string}
                     </span>
+                    {campaign.status === 'failed' && !!campaign.lastError && (
+                      <p className="text-xs text-red-600 mt-1 max-w-xs">{campaign.lastError as string}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">{(campaign._count as Record<string, unknown>)?.recipients as number || 0}</td>
                   <td className="px-4 py-3 text-right">-</td>
                   <td className="px-4 py-3 text-right">-</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
-                      {campaign.status === 'draft' && (
+                      {(campaign.status === 'draft' || campaign.status === 'failed') && (
                         <button
                           onClick={() => handleSend(campaign.id as string)}
                           className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
-                          title="Send"
+                          title={campaign.status === 'failed' ? 'Send again' : 'Send'}
                         >
                           <Send className="w-4 h-4" />
                         </button>

@@ -300,6 +300,13 @@ export async function getPublicServices(companyId: string) {
   return out
 }
 
+/** True once any Service Menu item is bookable online — the legacy widget-only list is then retired everywhere (catalog AND booking). */
+export async function legacyListRetired(companyId: string, exec: any = db): Promise<boolean> {
+  const [flagged] = await exec.select({ id: serviceMenu.id }).from(serviceMenu)
+    .where(and(eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true), eq(serviceMenu.bookableOnline, true))).limit(1)
+  return !!flagged
+}
+
 async function resolveService(companyId: string, serviceId: string | undefined, exec: any = db): Promise<ResolvedService | null> {
   if (!serviceId) return null
   const [menu] = await exec.select().from(serviceMenu)
@@ -308,6 +315,8 @@ async function resolveService(companyId: string, serviceId: string | undefined, 
   if (menu) {
     return { id: menu.id, name: menu.name, durationMinutes: Number(menu.durationMin) || 60, price: Number(menu.price) || 0, depositRequired: false, depositAmount: 0, menuServiceId: menu.id, legacyServiceId: null }
   }
+  // A retired legacy id is not bookable — the public page no longer offers it, so the API must not accept it either. (SALON-R5)
+  if (await legacyListRetired(companyId, exec)) return null
   const res: any = await exec.execute(sql`SELECT * FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId} AND active = true LIMIT 1`)
   const row = (res.rows || res)[0]
   if (!row) return null
@@ -587,6 +596,7 @@ export function getEmbedCode(_companyId: string, companySlug: string): string {
 export default {
   getBookingSettings,
   getPublicServices,
+  legacyListRetired,
   updateBookingSettings,
   getBookableServices,
   createBookableService,

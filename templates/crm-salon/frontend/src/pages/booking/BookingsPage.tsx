@@ -59,6 +59,7 @@ export default function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [editing, setEditing] = useState<BookableService | null>(null);
   const [embed, setEmbed] = useState('');
+  const [retired, setRetired] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
@@ -70,6 +71,7 @@ export default function BookingsPage() {
       ]);
       setBookings(Array.isArray(b) ? b : b.data || []);
       setServices(Array.isArray(s) ? s : s.data || []);
+      setRetired(!Array.isArray(s) && !!s.retired);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not load bookings');
     } finally {
@@ -117,7 +119,7 @@ export default function BookingsPage() {
         {tab === 'services' && (
           <div className="mb-4 p-3 rounded-lg bg-sky-50 border border-sky-200 text-sm text-sky-900">Services offered online now come from the <a href="/crm/service-menu" className="underline">Service Menu</a> — tick <strong>Bookable online</strong> on a service. Once one is flagged, this legacy list is no longer shown to customers; you can delete what is here.</div>
         )}
-        {tab === 'services' && (
+        {tab === 'services' && !retired && (
           <button
             onClick={() => setEditing({ name: '', durationMinutes: 60, price: 0, depositRequired: false, depositAmount: 0, active: true })}
             className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
@@ -205,6 +207,9 @@ export default function BookingsPage() {
 
       {tab === 'services' && (
         <div className="space-y-3">
+          {retired && services.length > 0 && (
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900">These older widget services are retired — they are no longer offered or accepted online. Delete them when convenient.</div>
+          )}
           {services.length === 0 && !loading && (
             <div className="bg-white rounded-xl border p-12 text-center text-gray-500 dark:bg-slate-900 dark:text-slate-400">
               No bookable services yet. Add one so customers have something to book.

@@ -188,7 +188,7 @@ export default function CustomerPortal() {
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-1">Business CRM</h3>
             <p className="text-sm text-slate-500">
-              Contacts, jobs, quotes, invoices, scheduling, and more
+              Clients, appointments, service records, invoices and more
             </p>
           </div>
 

@@ -93,6 +93,16 @@ export default function MembershipsPage() {
     }
   };
 
+  const cancelEnrollment = async (e: Enrollment) => {
+    if (!window.confirm(`Cancel ${e.clientName || 'this client'}'s ${e.planName || 'membership'}? Remaining credits are forfeited.`)) return;
+    try {
+      await api.put(`/api/memberships/enrollments/${e.id}`, { status: 'cancelled' });
+      load();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to cancel the membership');
+    }
+  };
+
   const redeem = async (e: Enrollment) => {
     try {
       await api.post(`/api/memberships/enrollments/${e.id}/redeem`);
@@ -211,6 +221,9 @@ export default function MembershipsPage() {
                         <td className="px-4 py-3 text-right">
                           {e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (
                             <button onClick={() => redeem(e)} className="text-xs text-teal-600 hover:text-teal-700">Use a credit</button>
+                          )}
+                          {e.status === 'active' && (
+                            <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700">Cancel</button>
                           )}
                         </td>
                       </tr>
