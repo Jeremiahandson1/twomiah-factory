@@ -17,7 +17,6 @@ import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
 import ImportPage from './pages/settings/ImportPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
-import DashboardPage from './pages/DashboardPage';
 import SalonDashboardPage from './pages/salon/DashboardPage';
 import ClientsPage from './pages/salon/ClientsPage';
 import ClientDetailPage from './pages/salon/ClientDetailPage';

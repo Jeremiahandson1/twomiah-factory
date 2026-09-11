@@ -79,7 +79,8 @@ export default function DocumentsPage() {
       Object.keys(params).forEach(k => !params[k] && delete params[k]);
       const [resRaw, projResRaw] = await Promise.all([
         api.documents.list(params),
-        api.projects.list({ limit: 100 })
+        // Projects is optional here — in verticals without it the API answers 403 and the documents must still show. (SALON-R2)
+        api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))
       ]);
       const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
       setDocuments(res.data as Record<string, unknown>[]);

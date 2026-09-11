@@ -196,8 +196,8 @@ export default function SettingsPage() {
               </div>
               <h3 className="text-md font-semibold pt-2">Billing Defaults</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium mb-1">Default Sales Tax Rate (%)</label><input type="number" step="0.01" min="0" max="100" value={companyForm.defaultTaxRate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCompanyForm({...companyForm, defaultTaxRate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="e.g. 7.5" /><p className="text-xs text-gray-400 mt-1">Applied to new quotes and invoices. Leave 0 if you do not collect sales tax.</p></div>
-                <div><label className="block text-sm font-medium mb-1">Invoice Payment Terms (days)</label><input type="number" min="0" value={companyForm.paymentTermsDays} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCompanyForm({...companyForm, paymentTermsDays: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="30" /><p className="text-xs text-gray-400 mt-1">Sets the due date when a quote is converted to an invoice.</p></div>
+                <div><label className="block text-sm font-medium mb-1">Default Sales Tax Rate (%)</label><input type="number" step="0.01" min="0" max="100" value={companyForm.defaultTaxRate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCompanyForm({...companyForm, defaultTaxRate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="e.g. 7.5" /><p className="text-xs text-gray-400 mt-1">Applied to new invoices and checkout sales. Leave 0 if you do not collect sales tax.</p></div>
+                <div><label className="block text-sm font-medium mb-1">Invoice Payment Terms (days)</label><input type="number" min="0" value={companyForm.paymentTermsDays} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCompanyForm({...companyForm, paymentTermsDays: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="30" /><p className="text-xs text-gray-400 mt-1">Sets the default due date on new invoices.</p></div>
               </div>
               <Button onClick={handleSaveCompany} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
             </div>
@@ -255,8 +255,8 @@ export default function SettingsPage() {
                       <div>
                         <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Access Role</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
-                          <option value="field">Staff — day-to-day work: view jobs, log time, expenses and notes</option>
-                          <option value="manager">Manager — full access to work and invoicing, but not company settings</option>
+                          <option value="field">Staff — the book, clients and service records; no invoices or settings</option>
+                          <option value="manager">Manager — everything staff can do plus invoices, reports and the team; not company settings</option>
                           <option value="admin">Admin — full access, including company settings and team</option>
                         </select>
                       </div>

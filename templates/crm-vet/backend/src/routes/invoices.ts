@@ -113,7 +113,8 @@ app.get('/stats', requirePermission('invoices:read'), async (c) => {
       stats.totalAmount += Number(inv.total)
       stats.outstanding += Number(inv.total) - Number(inv.amountPaid)
     }
-    if (inv.status === 'paid') stats.paidAmount += Number(inv.total)
+    // Money actually collected (net of refunds) — the same base Reports uses, so the two screens agree. (SALON-N8)
+    if (inv.status !== 'void') stats.paidAmount += Number(inv.amountPaid || 0)
   })
   return c.json(stats)
 })
@@ -143,6 +144,10 @@ app.post('/', requirePermission('invoices:create'), async (c) => {
   // with "—" as the client. Require a client on create. (VET-18)
   if (!data.contactId) return c.json({ error: 'A client is required to create an invoice.' }, 400)
   const { lineItems, ...invoiceData } = data
+  const [client] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, data.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!client) return c.json({ error: 'That client does not exist.' }, 404)
+  const subtotalRaw = lineItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0)
+  if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
   const taxRate = data.taxRate ?? await defaultTaxRate(currentUser.companyId)
   const totals = calcTotals(lineItems, taxRate, data.discount)
 

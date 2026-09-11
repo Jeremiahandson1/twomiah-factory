@@ -296,7 +296,7 @@ export default function IntegrationsPage() {
                     {integrations.stripe.chargesEnabled ? (
                       <p className="text-green-600 dark:text-green-400 font-medium">Ready to accept payments</p>
                     ) : (
-                      <p className="text-yellow-600 dark:text-yellow-400 font-medium">Setup incomplete — check Stripe dashboard</p>
+                      <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-600 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payouts can start.</p><button onClick={handleStripeConnect} className="px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700">Continue setup</button></div>
                     )}
                   </div>
                 )}

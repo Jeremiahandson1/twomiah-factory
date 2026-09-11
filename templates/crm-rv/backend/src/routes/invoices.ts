@@ -150,6 +150,10 @@ app.post('/', requirePermission('invoices:create'), async (c) => {
     if (due < today) return c.json({ error: 'Due date cannot be before the issue date' }, 400)
   }
   const { lineItems, ...invoiceData } = data
+  const [client] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, data.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!client) return c.json({ error: 'That client does not exist.' }, 404)
+  const subtotalRaw = lineItems.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0)
+  if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
   const taxRate = data.taxRate ?? await defaultTaxRate(currentUser.companyId)
   const totals = calcTotals(lineItems, taxRate, data.discount)
 

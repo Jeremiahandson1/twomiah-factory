@@ -312,7 +312,7 @@ export default function SupportPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-white">Support Tickets</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Support Tickets</h1>
         <div className="flex gap-2">
           <button onClick={() => setView('ai-chat')} className="flex items-center gap-1.5 px-3 py-2 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg text-sm">
             <Bot size={16} /> AI Chat

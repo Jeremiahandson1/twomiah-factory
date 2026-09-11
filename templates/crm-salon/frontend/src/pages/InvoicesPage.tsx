@@ -46,7 +46,9 @@ export default function InvoicesPage() {
   // New quotes/invoices start from the company's default sales-tax rate (Settings → Company). (W-8)
   const defaultTaxRate = Number((useAuth().company as any)?.settings?.defaultTaxRate) || 0;
   // New invoices default to net-<terms> (Settings › Company), net-30 when unset. (SALON-L12)
-  const defaultDueDate = () => { const terms = Number((useAuth().company as any)?.settings?.defaultPaymentTerms); const d = new Date(); d.setDate(d.getDate() + (Number.isFinite(terms) && terms >= 0 ? terms : 30)); return d.toISOString().slice(0, 10); };
+  // Read once at render — a hook inside the click handler crashed the page (React #321). The setting is `paymentTermsDays`. (SALON-R1)
+  const paymentTermsDays = Number((useAuth().company as any)?.settings?.paymentTermsDays);
+  const defaultDueDate = () => { const d = new Date(); d.setDate(d.getDate() + (Number.isFinite(paymentTermsDays) && paymentTermsDays >= 0 ? paymentTermsDays : 30)); return d.toISOString().slice(0, 10); };
   const toast = useToast();
   const [refundOpen, setRefundOpen] = useState<boolean>(false);
   const [refundInvoice, setRefundInvoice] = useState<Record<string, unknown> | null>(null);

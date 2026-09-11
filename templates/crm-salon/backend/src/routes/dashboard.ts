@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user } from '../../db/schema.ts'
+import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -76,7 +76,11 @@ app.get('/stats', async (c) => {
     else if (due <= soon) dueSoon++
   }
 
+  // What clients still owe — the portal home showed $0 because it read a key this dashboard never set. (SALON-M14)
+  const owing = await safe(() => db.select({ total: invoice.total, amountPaid: invoice.amountPaid }).from(invoice).where(and(eq(invoice.companyId, companyId), sql`${invoice.status} IN ('open', 'sent', 'viewed', 'partial', 'overdue')`)), [] as { total: string; amountPaid: string }[])
+  const outstandingValue = Math.round((owing as any[]).reduce((sum: number, r: any) => sum + Math.max(0, Number(r.total) - Number(r.amountPaid || 0)), 0) * 100) / 100
   return c.json({
+    invoices: { outstandingValue },
     contacts: clientRows[0]?.value ?? 0,
     clients: { total: clientRows[0]?.value ?? 0 },
     appointments: {

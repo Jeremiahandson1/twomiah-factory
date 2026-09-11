@@ -96,6 +96,8 @@ const ENSURE = [
   `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS opened_at timestamp`,
   `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS submitted_at timestamp`,
   `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS review_link text`,
+  // Bookings made before status sync existed still said "confirmed" for cancelled appointments. (SALON-N10 data)
+  `UPDATE online_booking ob SET status = a.status FROM appointment a WHERE ob.appointment_id = a.id AND a.status IN ('cancelled', 'no_show', 'completed') AND ob.status <> a.status`,
 ]
 for (const stmt of ENSURE) {
   try { await db.execute(sql.raw(stmt)) }

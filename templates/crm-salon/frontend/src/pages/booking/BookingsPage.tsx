@@ -115,6 +115,9 @@ export default function BookingsPage() {
           <p className="text-gray-500 dark:text-slate-400">What customers can book, and what they have booked</p>
         </div>
         {tab === 'services' && (
+          <div className="mb-4 p-3 rounded-lg bg-sky-50 border border-sky-200 text-sm text-sky-900">Services offered online now come from the <a href="/crm/service-menu" className="underline">Service Menu</a> — tick <strong>Bookable online</strong> on a service. Once one is flagged, this legacy list is no longer shown to customers; you can delete what is here.</div>
+        )}
+        {tab === 'services' && (
           <button
             onClick={() => setEditing({ name: '', durationMinutes: 60, price: 0, depositRequired: false, depositAmount: 0, active: true })}
             className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"

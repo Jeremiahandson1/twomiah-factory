@@ -17,8 +17,9 @@ const contactSchema = z.object({
   type: z.enum(['lead', 'client', 'subcontractor', 'vendor']).default('lead'),
   company: cleanText().optional(),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
-  mobile: z.string().optional(),
+  // A phone number must look like one — "abc123" saved before. (SALON-M3)
+  phone: z.string().optional().refine((v) => !v || v.replace(/\D/g, '').length >= 7, 'Phone number must contain at least 7 digits'),
+  mobile: z.string().optional().refine((v) => !v || v.replace(/\D/g, '').length >= 7, 'Mobile number must contain at least 7 digits'),
   address: cleanText().optional(),
   city: cleanText().optional(),
   state: cleanText().optional(),
