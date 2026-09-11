@@ -804,9 +804,14 @@ async function getServiceDeploys(serviceId: string, limit = 5): Promise<any[]> {
 export async function updateRenderServiceSettings(serviceId: string, settings: {
   rootDir?: string; buildCommand?: string; startCommand?: string; publishPath?: string
 }): Promise<boolean> {
+  // Render's PATCH shape: build/start commands live under serviceDetails.envSpecificDetails for
+  // native runtimes (a top-level serviceDetails.startCommand is silently ignored — the start command
+  // never changed and every redeploy kept booting with the command frozen at creation).
   const serviceDetails: Record<string, any> = {}
-  if (settings.buildCommand) serviceDetails.buildCommand = settings.buildCommand
-  if (settings.startCommand) serviceDetails.startCommand = settings.startCommand
+  const envSpecific: Record<string, any> = {}
+  if (settings.buildCommand) envSpecific.buildCommand = settings.buildCommand
+  if (settings.startCommand) envSpecific.startCommand = settings.startCommand
+  if (Object.keys(envSpecific).length) serviceDetails.envSpecificDetails = envSpecific
   if (settings.publishPath) serviceDetails.publishPath = settings.publishPath
 
   const body: Record<string, any> = { serviceDetails }
