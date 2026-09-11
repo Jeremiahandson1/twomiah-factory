@@ -34,6 +34,8 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 })
 
 // POST /service-menu
+const CATEGORIES = ['hair', 'colour', 'color', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other']
+
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -42,6 +44,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   }
   // The payment fields are validated; the service catalog wasn't — a negative price or a
   // 0-minute duration was accepted (and a −$50 service dragged a client's LTV negative). (CC-18)
+  if (body.category != null && body.category !== '' && !CATEGORIES.includes(String(body.category).toLowerCase())) {
+    return c.json({ error: `Category must be one of: ${CATEGORIES.join(', ')}.` }, 400)
+  }
   if (body.price != null && (isNaN(Number(body.price)) || Number(body.price) < 0)) {
     return c.json({ error: 'Price cannot be negative.' }, 400)
   }
@@ -95,6 +100,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   }
 
   // Whitelist editable columns — never let companyId/id be reassigned from the body.
+  if (body.category != null && body.category !== '' && !CATEGORIES.includes(String(body.category).toLowerCase())) return c.json({ error: `Category must be one of: ${CATEGORIES.join(', ')}.` }, 400)
   const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'bookableOnline', 'active'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]

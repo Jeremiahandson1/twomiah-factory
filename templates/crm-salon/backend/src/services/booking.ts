@@ -282,7 +282,9 @@ export async function getPublicServices(companyId: string) {
   const menu = await db.select().from(serviceMenu)
     .where(and(eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true), eq(serviceMenu.bookableOnline, true)))
     .orderBy(serviceMenu.name)
-  const legacy: any[] = await getBookableServices(companyId, true)
+  // Once the salon flags anything on the Service Menu, the legacy widget-only list is retired — it kept
+  // offering "Men's Cut (online)" next to the real menu. Tenants that never flagged a menu item keep it.
+  const legacy: any[] = menu.length ? [] : await getBookableServices(companyId, true)
   const names = new Set(menu.map(m => m.name.trim().toLowerCase()))
   const out = menu.map(m => ({
     id: m.id, name: m.name, description: m.description || null,

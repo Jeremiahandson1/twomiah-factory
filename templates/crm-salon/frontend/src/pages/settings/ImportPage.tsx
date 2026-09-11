@@ -29,11 +29,9 @@ interface ImportResults {
 }
 
 const IMPORT_TYPES: ImportType[] = [
-  { id: 'contacts', label: 'Contacts', icon: Users, description: 'Import customers, vendors, and leads' },
-  { id: 'projects', label: 'Projects', icon: FolderKanban, description: 'Import project records' },
-  { id: 'jobs', label: 'Jobs', icon: Briefcase, description: 'Import work orders and jobs' },
-  { id: 'products', label: 'Products/Services', icon: Package, description: 'Import products and service items' },
-  { id: 'invoices', label: 'Invoices', icon: Receipt, description: 'Import invoices and open balances from Jobber, HousecallPro or QuickBooks' },
+  { id: 'contacts', label: 'Clients', icon: Users, description: 'Import clients, leads and suppliers' },
+  { id: 'products', label: 'Products/Services', icon: Package, description: 'Import your service menu and retail products' },
+  { id: 'invoices', label: 'Invoices', icon: Receipt, description: 'Import invoices and open balances from your previous booking app or QuickBooks' },
 ];
 
 export default function ImportPage() {
@@ -110,7 +108,7 @@ export default function ImportPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Import Data</h1>
-        <p className="text-gray-500 dark:text-slate-400">Import contacts, projects, jobs, and more from CSV files</p>
+        <p className="text-gray-500 dark:text-slate-400">Import clients, services and invoices from CSV files</p>
       </div>
 
       {/* Type Selection */}
@@ -275,7 +273,6 @@ export default function ImportPage() {
                   <option value="client">Client</option>
                   <option value="lead">Lead</option>
                   <option value="vendor">Vendor</option>
-                  <option value="subcontractor">Subcontractor</option>
                 </select>
               </div>
             )}

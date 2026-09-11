@@ -228,7 +228,7 @@ export default function IntegrationsPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">QuickBooks</h3>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  Sync invoices, expenses, and customers with your books.
+                  Sync invoices, payments and clients with your books.
                 </p>
                 {integrations.quickbooks.connected && (
                   <div className="mt-2 text-sm">
@@ -296,7 +296,7 @@ export default function IntegrationsPage() {
                     {integrations.stripe.chargesEnabled ? (
                       <p className="text-green-600 dark:text-green-400 font-medium">Ready to accept payments</p>
                     ) : (
-                      <p className="text-yellow-600 dark:text-yellow-400 font-medium">Setup incomplete — check Stripe dashboard</p>
+                      <div className="flex items-center gap-3 flex-wrap"><p className="text-yellow-600 dark:text-yellow-400 font-medium">Setup incomplete — Stripe still needs a few details before payouts can start.</p><button onClick={handleStripeConnect} className="px-3 py-1.5 text-sm font-medium bg-purple-600 text-white rounded-lg hover:bg-purple-700">Continue setup</button></div>
                     )}
                   </div>
                 )}
@@ -415,7 +415,7 @@ export default function IntegrationsPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">SMS Notifications</h3>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  Send text updates to customers and crew members.
+                  Send appointment reminders and updates to clients and stylists.
                 </p>
                 {integrations.sms.enabled && (
                   <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
@@ -446,7 +446,7 @@ export default function IntegrationsPage() {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Email</h3>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  Send invoices, quotes, and reminders via email.
+                  Send invoices, receipts and reminders by email.
                 </p>
                 {integrations.email.enabled && (
                   <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">

@@ -150,9 +150,9 @@ export default function CustomerPortal() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {([
-              { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
+              { label: 'Clients', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
+              { label: 'Appointments today', value: ((stats as Record<string, unknown>).appointments as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Visits this month', value: ((stats as Record<string, unknown>).services as Record<string, unknown>)?.thisMonth ?? 0, icon: FileText, color: 'amber' },
               { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
@@ -266,24 +266,20 @@ export default function CustomerPortal() {
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
-            {(activity?.recentJobs?.length || activity?.recentQuotes?.length || activity?.recentInvoices?.length) ? (
+            {((activity as Record<string, unknown> | null)?.recentServices as Record<string, unknown>[] | undefined)?.length || ((activity as Record<string, unknown> | null)?.upcomingAppointments as Record<string, unknown>[] | undefined)?.length ? (
               <>
-                {(activity?.recentJobs || []).slice(0, 3).map((item: Record<string, unknown>) => (
+                {(((activity as Record<string, unknown>).recentServices as Record<string, unknown>[]) || []).slice(0, 4).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-sm text-slate-700">Job: {(item.title as string) || (item.number as string)} — {((item.status as string)?.replace('_', ' ')) || 'pending'}</span>
-                    <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? formatDate(item.updatedAt as string) : ''}
-                    </span>
+                    <div className="w-2 h-2 rounded-full bg-teal-400" />
+                    <span className="text-sm text-slate-700">Visit: {(item.clientName as string) || 'Client'} — {(item.serviceName as string) || 'service'}{item.priceCharged ? ` · $${Number(item.priceCharged).toLocaleString()}` : ''}</span>
+                    <span className="text-xs text-slate-400 ml-auto">{item.performedAt ? formatDate(item.performedAt as string) : ''}</span>
                   </div>
                 ))}
-                {(activity?.recentQuotes || []).slice(0, 2).map((item: Record<string, unknown>) => (
+                {(((activity as Record<string, unknown>).upcomingAppointments as Record<string, unknown>[]) || []).slice(0, 3).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-sm text-slate-700">Quote: {(item.name as string) || (item.number as string)} — ${Number(item.total || 0).toLocaleString()}</span>
-                    <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? formatDate(item.updatedAt as string) : ''}
-                    </span>
+                    <div className="w-2 h-2 rounded-full bg-indigo-400" />
+                    <span className="text-sm text-slate-700">Upcoming: {(item.clientName as string) || 'Walk-in'} — {(item.serviceName as string) || 'appointment'}</span>
+                    <span className="text-xs text-slate-400 ml-auto">{item.startTime ? new Date(item.startTime as string).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</span>
                   </div>
                 ))}
               </>
@@ -291,7 +287,7 @@ export default function CustomerPortal() {
               <div className="px-6 py-8 text-center">
                 <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm text-slate-500">No recent activity</p>
-                <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
+                <p className="text-xs text-slate-400 mt-1">Visits and upcoming appointments will show here</p>
               </div>
             )}
           </div>

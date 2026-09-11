@@ -169,6 +169,10 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (Number.isNaN(startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
   if (body.status && !APPT_STATUSES.includes(body.status)) return c.json({ error: `status must be one of ${APPT_STATUSES.join(', ')}` }, 400)
   if (body.quotedPrice != null && body.quotedPrice !== '' && (isNaN(Number(body.quotedPrice)) || Number(body.quotedPrice) < 0)) return c.json({ error: 'Quoted price cannot be negative.' }, 400)
+  if (body.contactId) {
+    const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, body.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+    if (!ct) return c.json({ error: 'That client does not exist.' }, 404)
+  }
   const serviceId = body.serviceId || null
   const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
   // A manually-set end before the start was saved verbatim ("9:00 AM – 8:00 AM"). (SCHED-01)
