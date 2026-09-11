@@ -66,6 +66,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     priceIsFrom: body.priceIsFrom ?? false,
     rebookIntervalDays: body.rebookIntervalDays ?? null,
     requiresPatchTest: body.requiresPatchTest ?? false,
+    bookableOnline: body.bookableOnline ?? false,
     active: body.active ?? true,
     companyId: currentUser.companyId,
   }).returning()
@@ -94,7 +95,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   }
 
   // Whitelist editable columns — never let companyId/id be reassigned from the body.
-  const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'active'] as const
+  const EDITABLE = ['name', 'category', 'description', 'durationMin', 'price', 'priceIsFrom', 'rebookIntervalDays', 'requiresPatchTest', 'bookableOnline', 'active'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
 
