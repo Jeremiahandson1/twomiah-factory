@@ -1,64 +1,80 @@
 /**
- * File Upload Service
+ * File Upload Service — durable object storage (Cloudflare R2, private bucket).
  *
- * Handles file uploads with:
- * - Hono parseBody() for multipart form data
- * - Image processing (sharp)
- * - Thumbnail generation
- * - File management utilities
+ * Files are stored in a PRIVATE per-tenant R2 bucket (no public URL). They are
+ * served back ONLY through authenticated, company-scoped routes in documents.ts
+ * (GET /api/documents/:id/download and GET /api/documents/file/*), which stream
+ * from R2 — so private business documents are never publicly reachable.
+ *
+ * The public API (saveFile / processImage / generateThumbnail / getFileUrl /
+ * deleteFile) is unchanged so existing callers (documents.ts, portal.ts) work as
+ * before; "path" values are now opaque R2 keys instead of disk paths. Image
+ * processing runs in-memory via sharp (no disk needed).
+ *
+ * The factory injects R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY /
+ * R2_BUCKET_NAME but NOT R2_ENDPOINT, so the endpoint is derived from the account id.
  */
 
 import path from 'path'
-import fs from 'fs'
 import crypto from 'crypto'
 import sharp from 'sharp'
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import logger from './logger.ts'
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
+const ACCOUNT_ID = process.env.R2_ACCOUNT_ID || ''
+const ENDPOINT = process.env.R2_ENDPOINT || (ACCOUNT_ID ? `https://${ACCOUNT_ID}.r2.cloudflarestorage.com` : '')
+const BUCKET = process.env.R2_BUCKET_NAME || ''
+
+const s3 = new S3Client({
+  region: 'auto',
+  endpoint: ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+  },
+})
+
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE as string) || 10 * 1024 * 1024 // 10MB
 const ALLOWED_MIMES: Record<string, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
   spreadsheet: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
-  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
+  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/plain'],
 }
 
-function ensureDir(dir: string): void {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
+/** True when R2 credentials are present and uploads/reads can succeed. */
+export function storageConfigured(): boolean {
+  return !!(ENDPOINT && BUCKET && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY)
+}
+
+async function put(key: string, body: Buffer, contentType: string): Promise<void> {
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: key, Body: body, ContentType: contentType,
+    CacheControl: 'private, max-age=31536000',
+  }))
+}
+
+/** Read an object back for the authenticated serving routes. Returns null on 404. */
+export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+    const bytes = await res.Body!.transformToByteArray()
+    const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    return { body, contentType: res.ContentType || 'application/octet-stream' }
+  } catch (e: any) {
+    if (e?.name === 'NoSuchKey' || e?.$metadata?.httpStatusCode === 404) return null
+    throw e
   }
 }
 
-function getCompanyPath(companyId: string, subdir = ''): string {
-  const companyDir = path.join(UPLOAD_DIR, companyId, subdir)
-  ensureDir(companyDir)
-  return companyDir
-}
-
 export interface UploadedFile {
-  path: string
+  path: string          // opaque R2 key
   originalname: string
   mimetype: string
   size: number
 }
 
-// Detect a file's real type from its leading bytes, for the types that carry a reliable
-// signature. Returns null when it isn't one of those. (R2-05)
-function sniffMime(buf: Buffer): string | null {
-  if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return 'application/pdf' // %PDF
-  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'image/png'
-  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'image/jpeg'
-  if (buf.length >= 4 && buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return 'image/gif' // GIF8
-  if (buf.length >= 12 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp'
-  return null
-}
-// Declared MIMEs we can verify by content; anything else (office/csv) can't be sniffed cheaply.
-const SNIFFABLE_MIMES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
-
-/**
- * Save a single file from Hono's parseBody() result.
- * Call with: const file = body['file'] as File
- */
+/** Save a single file from Hono's parseBody() result to the private bucket. */
 export async function saveFile(
   file: File,
   companyId: string,
@@ -66,39 +82,39 @@ export async function saveFile(
   allowedTypes = 'all'
 ): Promise<UploadedFile> {
   const mimes = ALLOWED_MIMES[allowedTypes] || ALLOWED_MIMES.all
-  if (!mimes.includes(file.type)) {
-    throw new Error(`This file type (${file.type || 'unknown'}) can't be uploaded. Allowed: ${mimes.map((m) => m.split('/')[1].replace(/^vnd\..*\./, '')).join(', ')}`)
+  // Browsers append parameters to the MIME type (e.g. "text/plain;charset=utf-8").
+  // Compare on the base type so a valid file isn't rejected over its charset.
+  const baseType = (file.type || '').split(';')[0].trim().toLowerCase()
+  if (!mimes.includes(baseType)) {
+    throw new Error(`Unsupported file type${file.type ? ` (${baseType || file.type})` : ''}. Allowed: images, PDF, Word, Excel, CSV and text files.`)
   }
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(`File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
   }
 
   const ext = path.extname(file.name).toLowerCase()
-  const filename = `${crypto.randomUUID()}${ext}`
-  const uploadPath = getCompanyPath(companyId, subdir)
-  const filePath = path.join(uploadPath, filename)
-
+  const key = `${companyId}/${subdir}/${crypto.randomUUID()}${ext}`
   const buffer = Buffer.from(await file.arrayBuffer())
 
-  // Verify the content matches the declared type, so an HTML file renamed evil.pdf and sent
-  // as application/pdf can't be stored and later served as a "PDF". (R2-05)
-  if (SNIFFABLE_MIMES.has(file.type) && sniffMime(buffer) !== file.type) {
-    throw new Error(`File content does not match its declared type (${file.type}).`)
+  // Verify magic bytes match the declared type so evil.pdf (really HTML) is rejected. (R2-05)
+  const _b = buffer
+  const _sniff = (_b.length >= 4 && _b[0] === 0x25 && _b[1] === 0x50 && _b[2] === 0x44 && _b[3] === 0x46) ? 'application/pdf'
+    : (_b.length >= 8 && _b[0] === 0x89 && _b[1] === 0x50 && _b[2] === 0x4e && _b[3] === 0x47) ? 'image/png'
+    : (_b.length >= 3 && _b[0] === 0xff && _b[1] === 0xd8 && _b[2] === 0xff) ? 'image/jpeg'
+    : (_b.length >= 4 && _b[0] === 0x47 && _b[1] === 0x49 && _b[2] === 0x46 && _b[3] === 0x38) ? 'image/gif'
+    : (_b.length >= 12 && _b.toString('ascii', 0, 4) === 'RIFF' && _b.toString('ascii', 8, 12) === 'WEBP') ? 'image/webp'
+    : null
+  const _sniffable = ['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']
+  if (_sniffable.includes(file.type) && _sniff !== file.type) {
+    throw new Error('File content does not match its declared type (' + file.type + ').')
   }
 
-  fs.writeFileSync(filePath, buffer)
+  await put(key, buffer, file.type)
 
-  return {
-    path: filePath,
-    originalname: file.name,
-    mimetype: file.type,
-    size: file.size,
-  }
+  return { path: key, originalname: file.name, mimetype: file.type, size: file.size }
 }
 
-/**
- * Save multiple files from Hono's parseBody() result.
- */
+/** Save multiple files. */
 export async function saveFiles(
   files: File[],
   companyId: string,
@@ -120,110 +136,65 @@ interface ProcessImageOptions {
   fit?: keyof sharp.FitEnum
 }
 
-export async function processImage(filePath: string, options: ProcessImageOptions = {}): Promise<string> {
-  const {
-    width = 1200,
-    height = 1200,
-    quality = 80,
-    format = 'jpeg',
-    fit = 'inside',
-  } = options
-
-  const ext = path.extname(filePath)
-  const outputPath = filePath.replace(ext, `.processed.${format}`)
-
+/** Resize an already-stored image in place (download → sharp → re-upload same key). */
+export async function processImage(key: string, options: ProcessImageOptions = {}): Promise<string> {
+  const { width = 1200, height = 1200, quality = 80, format = 'jpeg', fit = 'inside' } = options
   try {
-    await sharp(filePath)
+    const obj = await getObject(key)
+    if (!obj) return key
+    const out = await sharp(Buffer.from(obj.body))
       .resize(width, height, { fit, withoutEnlargement: true })
       .toFormat(format, { quality })
-      .toFile(outputPath)
-
-    fs.unlinkSync(filePath)
-
-    const finalPath = filePath.replace(ext, `.${format}`)
-    fs.renameSync(outputPath, finalPath)
-
-    return finalPath
+      .toBuffer()
+    await put(key, out, `image/${format === 'jpeg' ? 'jpeg' : String(format)}`)
+    return key
   } catch (error) {
-    logger.logError(error, null, { filePath, options })
+    logger.error('processImage failed', { key, error: (error as Error)?.message })
     throw error
   }
 }
 
-export async function generateThumbnail(filePath: string, size = 200): Promise<string> {
-  const ext = path.extname(filePath)
-  const basename = path.basename(filePath, ext)
-  const dirname = path.dirname(filePath)
-  const thumbPath = path.join(dirname, `${basename}_thumb${ext}`)
-
+/** Generate a thumbnail beside the given key and return the thumbnail key. */
+export async function generateThumbnail(key: string, size = 200): Promise<string> {
   try {
-    await sharp(filePath)
-      .resize(size, size, { fit: 'cover' })
-      .toFile(thumbPath)
-
-    return thumbPath
+    const obj = await getObject(key)
+    if (!obj) return key
+    const thumb = await sharp(Buffer.from(obj.body)).resize(size, size, { fit: 'cover' }).toBuffer()
+    const ext = path.extname(key)
+    const thumbKey = `${key.slice(0, key.length - ext.length)}_thumb${ext || '.jpg'}`
+    await put(thumbKey, thumb, obj.contentType.startsWith('image/') ? obj.contentType : 'image/jpeg')
+    return thumbKey
   } catch (error) {
-    logger.logError(error, null, { filePath, size })
+    logger.error('generateThumbnail failed', { key, size, error: (error as Error)?.message })
     throw error
   }
 }
 
-export function deleteFile(filePath: string): boolean {
-  try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath)
-      logger.info('File deleted', { filePath })
-      return true
-    }
-    return false
-  } catch (error) {
-    logger.logError(error, null, { filePath })
-    throw error
-  }
+/** Delete an object by key. Best-effort, non-blocking. */
+export function deleteFile(key: string): boolean {
+  s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key })).catch((error) => {
+    logger.error('deleteFile failed', { key, error: (error as Error)?.message })
+  })
+  return true
 }
 
-// Files live on the service's private disk and are streamed by GET /api/documents/file/* (auth +
-// company-scoped). The old value was `/uploads/…`, which nothing served — previews and thumbnails
-// were blank. (SALON-H1)
-export function getFileUrl(filePath: string, _companyId: string): string {
-  const relativePath = path.relative(UPLOAD_DIR, filePath).replace(/\\/g, '/')
-  return '/api/documents/file/' + relativePath.split('/').map(encodeURIComponent).join('/')
-}
-
-/** Resolve a key from /api/documents/file/<key> back to a disk path, or null when outside the upload dir. */
-export function resolveFileKey(key: string): string | null {
-  const abs = path.resolve(UPLOAD_DIR, key)
-  const root = path.resolve(UPLOAD_DIR)
-  if (abs !== root && !abs.startsWith(root + path.sep)) return null
-  return abs
-}
-
-export function getFileInfo(filePath: string): { name: string; path: string; size: number; created: Date; modified: Date; extension: string } | null {
-  try {
-    const stats = fs.statSync(filePath)
-    return {
-      name: path.basename(filePath),
-      path: filePath,
-      size: stats.size,
-      created: stats.birthtime,
-      modified: stats.mtime,
-      extension: path.extname(filePath).toLowerCase(),
-    }
-  } catch (error) {
-    return null
-  }
+/**
+ * URL an authenticated client uses to fetch the file. Served (company-scoped) by
+ * GET /api/documents/file/* in documents.ts — NOT a public URL.
+ */
+export function getFileUrl(key: string, _companyId?: string): string {
+  return `/api/documents/file/${key}`
 }
 
 export default {
-  resolveFileKey,
   saveFile,
   saveFiles,
   processImage,
   generateThumbnail,
   deleteFile,
   getFileUrl,
-  getFileInfo,
-  UPLOAD_DIR,
+  getObject,
+  storageConfigured,
   MAX_FILE_SIZE,
   ALLOWED_MIMES,
 }

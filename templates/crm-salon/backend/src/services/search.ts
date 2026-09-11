@@ -6,7 +6,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi } from '../../db/schema.ts'
+import { contact, project, job, quote, invoice, document, teamMember, rfi, serviceMenu } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
 
 interface SearchResult {
@@ -37,7 +37,8 @@ export async function globalSearch(
   const perType = Math.ceil(limit / 6)
   const pattern = `%${searchTerm}%`
 
-  const searchTypes = types || ['contact', 'project', 'job', 'quote', 'invoice', 'document']
+  // Salon: services on the menu are searchable; projects/jobs are not part of this CRM.
+  const searchTypes = types || ['contact', 'service', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
 
@@ -213,6 +214,29 @@ export async function globalSearch(
             description: item.mimeType || '',
             url: `/crm/documents/${item.id}`,
             icon: 'file',
+          }))
+        )
+    )
+  }
+
+  // Service menu
+  if (searchTypes.includes('service')) {
+    searches.push(
+      db
+        .select({ id: serviceMenu.id, name: serviceMenu.name, category: serviceMenu.category, price: serviceMenu.price })
+        .from(serviceMenu)
+        .where(and(eq(serviceMenu.companyId, companyId), eq(serviceMenu.active, true), or(ilike(serviceMenu.name, pattern), ilike(serviceMenu.category, pattern))))
+        .orderBy(asc(serviceMenu.name))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'service',
+            subtype: item.category || '',
+            id: item.id,
+            name: item.name,
+            description: [item.category, item.price != null ? `${Number(item.price).toFixed(2)}` : ''].filter(Boolean).join(' · '),
+            url: `/crm/service-menu`,
+            icon: 'scissors',
           }))
         )
     )

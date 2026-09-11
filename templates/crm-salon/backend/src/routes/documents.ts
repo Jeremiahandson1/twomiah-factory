@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import fs from 'fs'
 import path from 'path'
 import { db } from '../../db/index.ts'
 import { document, project, contact, user } from '../../db/schema.ts'
@@ -71,17 +70,16 @@ app.get('/file/*', async (c) => {
   const key = decodeURIComponent(c.req.path.replace(/^\/api\/documents\/file\//, ''))
   if (!key || key.includes('..')) return c.json({ error: 'Invalid key' }, 400)
   if (!key.startsWith(`${currentUser.companyId}/`)) return c.json({ error: 'Forbidden' }, 403)
-  const abs = fileService.resolveFileKey(key)
-  if (!abs || !fs.existsSync(abs)) return c.json({ error: 'Not found' }, 404)
-  const ext = path.extname(abs).toLowerCase()
-  const types: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.pdf': 'application/pdf' }
-  const contentType = types[ext] || 'application/octet-stream'
-  const body = fs.readFileSync(abs)
-  c.header('Content-Type', contentType)
+
+  const obj = await fileService.getObject(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+
+  const inlineOk = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(obj.contentType)
+  c.header('Content-Type', inlineOk ? obj.contentType : 'application/octet-stream')
   c.header('X-Content-Type-Options', 'nosniff')
-  if (contentType === 'application/octet-stream') c.header('Content-Disposition', 'attachment')
+  if (!inlineOk) c.header('Content-Disposition', 'attachment')
   c.header('Cache-Control', 'private, max-age=86400')
-  return c.body(body)
+  return c.body(obj.body)
 })
 
 // Get single document
@@ -300,14 +298,16 @@ app.get('/:id/download', async (c) => {
   const [doc] = await db.select().from(document).where(and(eq(document.id, id), eq(document.companyId, currentUser.companyId))).limit(1)
 
   if (!doc) return c.json({ error: 'Document not found' }, 404)
-  if (!doc.path || !fs.existsSync(doc.path)) return c.json({ error: 'File not found' }, 404)
+  if (!doc.path) return c.json({ error: 'File not found' }, 404)
 
-  const fileBuffer = fs.readFileSync(doc.path)
-  return new Response(fileBuffer, {
+  const obj = await fileService.getObject(doc.path)
+  if (!obj) return c.json({ error: 'File not found' }, 404)
+  return new Response(obj.body, {
     headers: {
-      'Content-Type': doc.mimeType || 'application/octet-stream',
+      'Content-Type': doc.mimeType || obj.contentType || 'application/octet-stream',
       'Content-Disposition': `attachment; filename="${doc.originalName || path.basename(doc.path)}"`,
-      'Content-Length': String(fileBuffer.length),
+      'Content-Length': String(obj.body.byteLength),
+      'X-Content-Type-Options': 'nosniff',
     },
   })
 })

@@ -242,6 +242,7 @@ export async function sendCampaign(campaignId: string, companyId: string) {
     .where(eq(campaign.id, campaignId))
 
   let sentCount = 0
+  let firstError: string | null = null
   for (const c of contacts) {
     let recipientId: string | null = null
     try {
@@ -282,6 +283,7 @@ export async function sendCampaign(campaignId: string, companyId: string) {
       // A recipient failing silently is how you discover a broken campaign a
       // week later. Say so in the log.
       console.error('[Marketing] Send failed for', c.email, '-', error?.message || error)
+      if (!firstError) firstError = String(error?.message || error)
       if (recipientId) {
         await db.execute(sql`UPDATE email_recipient SET status = 'failed' WHERE id = ${recipientId}`).catch(() => {})
       }
@@ -300,7 +302,7 @@ export async function sendCampaign(campaignId: string, companyId: string) {
   // don't record it as "sent". Surface the failed count so the UI can tell the truth.
   const finalStatus = sentCount === 0 ? 'failed' : 'sent'
   await db.update(campaign)
-    .set({ status: finalStatus, recipientCount: sentCount })
+    .set({ status: finalStatus, recipientCount: sentCount, lastError: finalStatus === 'failed' ? (firstError || 'No email could be delivered') : null })
     .where(eq(campaign.id, campaignId))
 
   return { sent: sentCount, audience: contacts.length, failed: contacts.length - sentCount, status: finalStatus }
@@ -324,7 +326,7 @@ export async function processScheduledCampaigns() {
       sent += result.sent
     } catch (err: any) {
       console.error('[Marketing] Scheduled campaign failed:', row.id, err.message)
-      await db.update(campaign).set({ status: 'failed' }).where(eq(campaign.id, row.id)).catch(() => {})
+      await db.update(campaign).set({ status: 'failed', lastError: String(err?.message || err) }).where(eq(campaign.id, row.id)).catch(() => {})
     }
   }
   return { due: due.length, sent }

@@ -145,6 +145,19 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
     }
   };
 
+  const handleDelete = async () => {
+    if (!record?.id || !window.confirm('Delete this service record? This cannot be undone.')) return;
+    setSaving(true);
+    try {
+      await api.delete('/api/service-records', record.id);
+      onSave();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to delete service record');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
@@ -254,6 +267,9 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
             </div>
 
             <div className="flex gap-3 pt-2">
+              {record?.id && (
+                <button type="button" onClick={handleDelete} disabled={saving} className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50">Delete</button>
+              )}
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Record'}

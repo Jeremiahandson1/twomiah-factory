@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Search, X, User, Folder, Wrench, FileText, File, Users, HelpCircle, Loader2 } from 'lucide-react';
+import { Search, X, User, Folder, Wrench, FileText, File, Users, HelpCircle, Loader2, Scissors } from 'lucide-react';
 import api from '../../services/api';
 
 const TYPE_ICONS: Record<string, React.ElementType> = {
   contact: User,
+  service: Scissors,
   project: Folder,
   job: Wrench,
   quote: FileText,
@@ -17,6 +18,7 @@ const TYPE_ICONS: Record<string, React.ElementType> = {
 
 const TYPE_COLORS: Record<string, string> = {
   contact: 'bg-blue-100 text-blue-700',
+  service: 'bg-teal-100 text-teal-700',
   project: 'bg-purple-100 text-purple-700',
   job: 'bg-orange-100 text-orange-700',
   quote: 'bg-green-100 text-green-700',

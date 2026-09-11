@@ -34,6 +34,9 @@ interface TabItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+// Same words the Add User dialog uses — the table said "User" for the role the dialog calls Staff.
+const ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', manager: 'Manager', field: 'Staff', user: 'Staff', viewer: 'Viewer' };
+
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, company, updateCompany } = useAuth();
@@ -272,7 +275,7 @@ export default function SettingsPage() {
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Access Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th><th className="px-4 py-2 text-right text-xs font-medium">Access</th></tr></thead>
                   <tbody className="divide-y">{users.map((u: Record<string, unknown>) => (
-                    <tr key={u.id as string}><td className="px-4 py-3">{u.firstName as string} {u.lastName as string}</td><td className="px-4 py-3">{u.email as string}</td><td className="px-4 py-3 capitalize">{u.role as string}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) === (user as Record<string, unknown> | null)?.id
+                    <tr key={u.id as string}><td className="px-4 py-3">{u.firstName as string} {u.lastName as string}</td><td className="px-4 py-3">{u.email as string}</td><td className="px-4 py-3">{ROLE_LABELS[u.role as string] || (u.role as string)}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) === (user as Record<string, unknown> | null)?.id
                       ? <span className="text-xs text-gray-400">You</span>
                       : canManageUsers ? (
                       <>{isOwner && (u.role as string) !== 'owner' && (

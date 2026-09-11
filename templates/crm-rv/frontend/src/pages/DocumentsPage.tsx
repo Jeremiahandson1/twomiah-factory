@@ -151,7 +151,8 @@ export default function DocumentsPage() {
       const a = document.createElement('a'); a.href = url; a.download = String(doc.originalName || doc.name || 'download'); document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
-      toast.error('Download failed');
+      const msg = err instanceof Error ? err.message : '';
+      toast.error(/\(404\)/.test(msg) ? 'Download failed — this file is no longer in storage.' : `Download failed${msg ? `: ${msg}` : ''}`);
     }
   };
 

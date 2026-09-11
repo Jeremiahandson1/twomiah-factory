@@ -213,7 +213,7 @@ export default function InvoiceDetailPage() {
                 {Number(invoice.discount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.discount).toFixed(2)}</td></tr>}
                 {Number(invoice.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
                 <tr className="font-bold"><td colSpan={3} className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
-                <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>
+                {Number(invoice.amountPaid) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>}
                 <tr className="font-bold text-lg"><td colSpan={3} className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${balance.toFixed(2)}</td></tr>
               </tfoot>
             </table>
