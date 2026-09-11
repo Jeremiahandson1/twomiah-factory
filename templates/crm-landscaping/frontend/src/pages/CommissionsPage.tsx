@@ -62,7 +62,7 @@ export default function CommissionsPage() {
             <tbody>
               {commissions.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No commission records yet.</td></tr> :
                 commissions.map((c) => (
-                  <tr key={c.id} className="border-b hover:bg-gray-50">
+                  <tr key={c.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-mono text-xs">{c.userId.substring(0, 8)}…</td>
                     <td className="px-4 py-3 font-mono text-sm">${Number(c.baseAmount).toLocaleString()}</td>
                     <td className="px-4 py-3 text-sm">{c.rateApplied ? `${c.rateApplied}%` : '—'}</td>

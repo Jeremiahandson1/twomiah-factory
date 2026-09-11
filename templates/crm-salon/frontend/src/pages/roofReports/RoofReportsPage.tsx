@@ -455,7 +455,7 @@ export default function RoofReportsPage() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {reports.map((report) => (
-                <tr key={report.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={report.id} className="hover:bg-gray-50 transition-colors dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />

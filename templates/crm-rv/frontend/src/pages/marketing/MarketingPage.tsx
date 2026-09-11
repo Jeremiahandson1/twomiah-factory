@@ -188,7 +188,7 @@ function CampaignsTab({ onChanged }: { onChanged: () => void }) {
             </thead>
             <tbody className="divide-y">
               {campaigns.map((campaign: Record<string, unknown>) => (
-                <tr key={campaign.id as string} className="hover:bg-gray-50">
+                <tr key={campaign.id as string} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-900 dark:text-slate-100">{campaign.name as string}</p>
                     <p className="text-sm text-gray-500 dark:text-slate-400">{campaign.subject as string}</p>

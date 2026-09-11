@@ -177,7 +177,7 @@ export default function InventoryPage() {
                 </thead>
                 <tbody className="divide-y">
                   {items.map(item => (
-                    <tr key={item.id} className="hover:bg-gray-50">
+                    <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           {item.isLowStock && (

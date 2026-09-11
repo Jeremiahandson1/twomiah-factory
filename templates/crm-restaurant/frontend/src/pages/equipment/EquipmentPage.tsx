@@ -287,7 +287,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
   const CategoryIcon = CATEGORIES.find((c: CategoryDef) => c.id === equipment.category)?.icon || Wrench;
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className="hover:bg-gray-50 dark:hover:bg-slate-800">
       <td className="px-4 py-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center dark:bg-slate-800">

@@ -219,7 +219,7 @@ function ListView({ events }: { events: EventRow[] }) {
         </thead>
         <tbody className="divide-y">
           {events.map((e) => (
-            <tr key={e.id} className="hover:bg-gray-50">
+            <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
               <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-slate-400">
                 {fmtEventDate(e.eventDate)}
                 {e.startTime && <span className="block text-xs text-gray-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}

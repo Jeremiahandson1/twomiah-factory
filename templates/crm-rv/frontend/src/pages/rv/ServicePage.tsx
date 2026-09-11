@@ -121,7 +121,7 @@ export default function ServicePage() {
             </thead>
             <tbody className="divide-y">
               {rows.map((row) => (
-                <tr key={row.ro.id} className="hover:bg-gray-50">
+                <tr key={row.ro.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{row.ro.roNumber || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{row.customerName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{unitDesc(row)}</td>

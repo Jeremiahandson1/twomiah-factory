@@ -162,7 +162,7 @@ export default function OEMPartsPage() {
             <tbody>
               {parts.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{loading ? 'Searching…' : 'No parts found.'}</td></tr>}
               {parts.map((p, i) => (
-                <tr key={i} className="border-t hover:bg-gray-50">
+                <tr key={i} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-2 font-mono text-xs align-top">{p.partNumber}{p.supersededBy && <span className="block text-[10px] text-amber-600">→ {p.supersededBy}</span>}</td>
                   <td className="px-4 py-2 align-top">{p.name}<span className="block text-[11px] text-gray-400">{p.category}{p.diagram ? ` · ${p.diagram}` : ''}</span></td>
                   <td className="px-4 py-2 text-gray-600 align-top dark:text-slate-400">{p.oem}</td>

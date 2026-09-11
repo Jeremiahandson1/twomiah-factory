@@ -176,7 +176,7 @@ export default function BookingsPage() {
                 </thead>
                 <tbody className="divide-y">
                   {bookings.map((b) => (
-                    <tr key={b.id} className="hover:bg-gray-50">
+                    <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900 dark:text-slate-100">{b.customer_name || '-'}</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{b.customer_email}</div>

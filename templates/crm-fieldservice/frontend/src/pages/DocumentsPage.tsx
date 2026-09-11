@@ -3,6 +3,7 @@ import { formatDate } from '../utils/date';
 import { Plus, Upload, File, Image, FileText, Download, Trash2, Eye, X, FolderOpen } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 import { EmptyState } from '../components/common/EmptyState';
@@ -29,6 +30,7 @@ function AuthImg({ src, alt, className }: { src: string; alt?: string; className
 
 export default function DocumentsPage() {
   const toast = useToast();
+  const { hasFeature } = useAuth();
   const fileInputRef = useRef(null);
   const [documents, setDocuments] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -59,7 +61,7 @@ export default function DocumentsPage() {
       const [res, projRes] = await Promise.all([
         api.documents.list(params),
         // Projects is optional here — in verticals without it the API answers 403 and the documents must still show. (SALON-R2)
-        api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))
+        hasFeature('projects') ? api.projects.list({ limit: 100 }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
       ]);
       setDocuments(res.data);
       setPagination(res.pagination);
