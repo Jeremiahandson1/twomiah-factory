@@ -471,12 +471,14 @@ if (hasFrontendBuild) {
     return next()
   })
 
-  // SPA fallback: serve index.html for all non-API GET requests
+  // SPA fallback: serve index.html for all non-API GET requests. The shell is sent with no-store so a
+  // reload after a deploy always picks up the new hashed bundle (assets themselves stay cacheable) — a
+  // tester on a stale shell re-reported fixes that were already live.
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
   // An unmatched /api/* request must 404 in JSON — NOT fall through to the SPA
   // catch-all, which would hand back index.html with a 200 and break res.json().
   app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
-  app.get('*', (c) => c.html(indexHtml))
+  app.get('*', (c) => c.html(indexHtml, 200, { 'Cache-Control': 'no-store' }))
   logger.info('Serving frontend from ' + FRONTEND_DIST)
 } else {
   app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))

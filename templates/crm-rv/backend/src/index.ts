@@ -555,15 +555,15 @@ if (hasFrontendBuild) {
 
   // Register known SPA route prefixes explicitly before the catch-all
   // so they are matched deterministically and never fall through to notFound
-  app.get('/admin/*', (c) => c.html(indexHtml))
-  app.get('/crm/*', (c) => c.html(indexHtml))
-  app.get('/login', (c) => c.html(indexHtml))
-  app.get('/register', (c) => c.html(indexHtml))
-  app.get('*', (c) => c.html(indexHtml))
+  app.get('/admin/*', (c) => c.html(indexHtml, 200, { 'Cache-Control': 'no-store' }))
+  app.get('/crm/*', (c) => c.html(indexHtml, 200, { 'Cache-Control': 'no-store' }))
+  app.get('/login', (c) => c.html(indexHtml, 200, { 'Cache-Control': 'no-store' }))
+  app.get('/register', (c) => c.html(indexHtml, 200, { 'Cache-Control': 'no-store' }))
+  app.get('*', (c) => c.html(indexHtml, 200, { 'Cache-Control': 'no-store' }))
 
   // Catch any non-GET requests to SPA routes that slip through
   app.notFound((c) => {
-    if (c.req.method === 'GET') return c.html(indexHtml)
+    if (c.req.method === 'GET') return c.html(indexHtml, 200, { 'Cache-Control': 'no-store' })
     return c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
   })
 
