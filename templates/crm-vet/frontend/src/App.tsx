@@ -28,7 +28,6 @@ import ProjectsPage from './pages/ProjectsPage';
 import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
-import SchedulePage from './pages/SchedulePage';
 import TimePage from './pages/TimePage';
 import ExpensesPage from './pages/ExpensesPage';
 import TeamPage from './pages/TeamPage';

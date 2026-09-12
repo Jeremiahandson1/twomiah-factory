@@ -22,6 +22,29 @@ const bookingSchema = z.object({
   notes: z.string().max(2000).optional(),
 })
 
+/**
+ * Bookings taken on the connected premium website (website-premium-* `/api/internal/bookings`), for the
+ * CRM schedule. Auth-gated by the CRM's own JWT (mount behind `authenticate`); the server-to-server call
+ * uses FACTORY_SYNC_KEY. Empty list when no site is connected.
+ */
+export function externalBookingsProxy() {
+  return async (c: any) => {
+    const websiteUrl = process.env.WEBSITE_PREMIUM_URL
+    const syncKey = process.env.FACTORY_SYNC_KEY
+    if (!websiteUrl || !syncKey) return c.json({ bookings: [] })
+    const url = new URL(websiteUrl.replace(/\/$/, '') + '/api/internal/bookings')
+    for (const k of ['from', 'to']) { const v = c.req.query(k); if (v) url.searchParams.set(k, v) }
+    try {
+      const r = await fetch(url.toString(), { headers: { 'X-Factory-Key': syncKey } })
+      if (!r.ok) return c.json({ bookings: [], error: 'upstream ' + r.status }, 502)
+      const data = (await r.json()) as any
+      return c.json({ bookings: data.bookings || [] })
+    } catch (e: any) {
+      return c.json({ bookings: [], error: e?.message || 'fetch failed' }, 502)
+    }
+  }
+}
+
 export function createBookingRoutes(deps: BookingDeps) {
   const { db, tables: t, authenticate } = deps
   const svc = createBookingService(deps)
@@ -127,8 +150,8 @@ export function createBookingRoutes(deps: BookingDeps) {
   })
 
   app.get('/', async (c) => {
-    const { status, page = '1', limit = '50' } = c.req.query() as any
-    return c.json(await svc.listBookings(companyId(c), { status: status || undefined, page: Math.max(1, parseInt(page) || 1), limit: Math.min(100, Math.max(1, parseInt(limit) || 50)) }))
+    const { status, page = '1', limit = '50', from, to } = c.req.query() as any
+    return c.json(await svc.listBookings(companyId(c), { status: status || undefined, page: Math.max(1, parseInt(page) || 1), limit: Math.min(500, Math.max(1, parseInt(limit) || 50)), from: from ? new Date(from) : undefined, to: to ? new Date(to) : undefined }))
   })
 
   app.get('/embed-code', async (c) => {

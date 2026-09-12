@@ -1,7 +1,7 @@
 // Online booking — ONE implementation for every CRM template, vendored into each tenant at generation.
 // Settings, the bookable catalog, availability (business-local time, capacity-aware, race-safe),
 // booking submission, the owner's list, cancel/status, deposits and owner notifications.
-import { eq, and, desc, count, lt, inArray, sql } from 'drizzle-orm'
+import { eq, and, desc, count, lt, lte, gte, inArray, sql } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { BookingError } from './types'
 import type { BookingDeps, BookingStatus, CatalogService } from './types'
@@ -435,8 +435,13 @@ ${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit
     return rows.map(r => bookingOut(r, r.serviceId ? names.get(r.serviceId) || null : null, r[calendar.linkField] ? cal[r[calendar.linkField]] || null : null))
   }
 
-  async function listBookings(companyId: string, { status, page = 1, limit = 50 }: { status?: string; page?: number; limit?: number } = {}) {
-    const where = status ? and(eq(t.onlineBooking.companyId, companyId), eq(t.onlineBooking.status, status)) : eq(t.onlineBooking.companyId, companyId)
+  async function listBookings(companyId: string, { status, page = 1, limit = 50, from, to }: { status?: string; page?: number; limit?: number; from?: Date; to?: Date } = {}) {
+    // from/to: the schedule asks for one week at a time
+    const conds: any[] = [eq(t.onlineBooking.companyId, companyId)]
+    if (status) conds.push(eq(t.onlineBooking.status, status))
+    if (from && !isNaN(from.getTime())) conds.push(gte(t.onlineBooking.scheduledDate, from))
+    if (to && !isNaN(to.getTime())) conds.push(lte(t.onlineBooking.scheduledDate, to))
+    const where = and(...conds)
     const offset = (page - 1) * limit
     const [rows, [{ value: total }]] = await Promise.all([
       db.select().from(t.onlineBooking).where(where).orderBy(desc(t.onlineBooking.scheduledDate)).limit(limit).offset(offset),

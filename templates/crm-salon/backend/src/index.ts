@@ -11,7 +11,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { company, user } from '../db/schema.ts'
-import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient } from './shared/index.ts'
+import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient, externalBookingsProxy } from './shared/index.ts'
 import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
@@ -468,31 +468,13 @@ app.post('/api/internal/seed-from-premium', async (c) => {
   return c.json({ success: true, action: 'created', userId: created.id })
 })
 
+// Bookings taken on the connected premium website, for the CRM schedule (shared handler; empty when no
+// site is connected). Auth-gated by the CRM's own JWT.
+app.get('/api/bookings/external', authenticate, externalBookingsProxy())
+
 // Internal SMS send for Twomiah Bookings — the website-premium service
 // POSTs here when a booking is confirmed so we send the SMS via this
 // tenant's Twilio credentials (which only live in the CRM env).
-// CRM SchedulePage pulls Twomiah Bookings from the connected website-
-// premium service. Auth-gated by the CRM's own JWT (whoever can see
-// jobs can see bookings); server-to-server call uses FACTORY_SYNC_KEY.
-app.get('/api/bookings/external', authenticate, async (c) => {
-  const websiteUrl = process.env.WEBSITE_PREMIUM_URL
-  const syncKey = process.env.FACTORY_SYNC_KEY
-  if (!websiteUrl || !syncKey) return c.json({ bookings: [] })
-  const fromQ = c.req.query('from')
-  const toQ = c.req.query('to')
-  const url = new URL(websiteUrl.replace(/\/$/, '') + '/api/internal/bookings')
-  if (fromQ) url.searchParams.set('from', fromQ)
-  if (toQ) url.searchParams.set('to', toQ)
-  try {
-    const r = await fetch(url.toString(), { headers: { 'X-Factory-Key': syncKey } })
-    if (!r.ok) return c.json({ bookings: [], error: 'upstream ' + r.status }, 502)
-    const data = await r.json() as any
-    return c.json({ bookings: data.bookings || [] })
-  } catch (e: any) {
-    return c.json({ bookings: [], error: e?.message || 'fetch failed' }, 502)
-  }
-})
-
 app.post('/api/internal/send-sms', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
   if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
