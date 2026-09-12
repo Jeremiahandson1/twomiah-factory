@@ -345,7 +345,7 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
   if (booking_id) {
     const paidAmount = paymentIntent.amount / 100
     const found = await db.execute(sql`
-      SELECT status, deposit_status, job_id FROM online_booking WHERE id = ${booking_id} LIMIT 1
+      SELECT status, deposit_status, appointment_id FROM online_booking WHERE id = ${booking_id} LIMIT 1
     `)
     const bk = (found.rows?.[0] as any) || null
     if (!bk) {
@@ -358,18 +358,16 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
     // otherwise refund, so nobody pays for a slot that no longer exists.
     if (bk.status === 'cancelled' || bk.deposit_status === 'expired') {
       let slotFree = false
-      if (bk.job_id) {
+      if (bk.appointment_id) {
         const clash = await db.execute(sql`
-          SELECT (j.scheduled_date > NOW()) AS in_future,
+          SELECT (a.start_time > NOW()) AS in_future,
             EXISTS (
-              SELECT 1 FROM job x
-              WHERE x.company_id = j.company_id AND x.id != j.id
-                AND x.status != 'cancelled'
-                AND x.scheduled_date IS NOT NULL
-                AND x.scheduled_date < j.scheduled_date + (COALESCE(j.estimated_hours, 1) * interval '1 hour')
-                AND x.scheduled_date + (COALESCE(x.estimated_hours, 1) * interval '1 hour') > j.scheduled_date
+              SELECT 1 FROM appointment x
+              WHERE x.company_id = a.company_id AND x.id != a.id
+                AND x.status NOT IN ('cancelled', 'no_show')
+                AND x.start_time < a.end_time AND x.end_time > a.start_time
             ) AS taken
-          FROM job j WHERE j.id = ${bk.job_id} LIMIT 1
+          FROM appointment a WHERE a.id = ${bk.appointment_id} LIMIT 1
         `)
         const c = (clash.rows?.[0] as any) || null
         slotFree = !!c && c.in_future === true && c.taken === false
@@ -387,7 +385,7 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
         console.log('[Stripe] Late deposit on an expired hold — auto-refunded:', booking_id, paidAmount)
         return { handled: true, booking_id, refunded: true }
       }
-      await db.execute(sql`UPDATE job SET status = 'scheduled', updated_at = NOW() WHERE id = ${bk.job_id}`)
+      await db.execute(sql`UPDATE appointment SET status = 'scheduled', updated_at = NOW() WHERE id = ${bk.appointment_id}`)
       console.log('[Stripe] Late deposit but the slot is still free — booking resurrected:', booking_id)
     }
 

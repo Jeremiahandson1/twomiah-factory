@@ -17,4 +17,8 @@ export { InvoiceDetailPage } from './invoicing/InvoiceDetailPage'
 export { QuotesPage } from './invoicing/QuotesPage'
 export { QuoteDetailPage } from './invoicing/QuoteDetailPage'
 export type { InvoicingConfig, InvoicingPageProps, InvoicingApi, InvoicingToast } from './invoicing/types'
+// Online booking — one page for every CRM; the template passes its api/toast + a vertical config.
+export { BookingsPage } from './booking/BookingsPage'
+export { BookingSettingsTab } from './booking/BookingSettingsTab'
+export type { BookingConfig, BookingPageProps, BookingApi, BookingToast } from './booking/types'
 export { EMAIL_ALIAS_DEFAULTS, getAliasDefaultsForProduct } from './config/emailDefaults'

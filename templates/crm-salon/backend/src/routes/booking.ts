@@ -1,226 +1,26 @@
-import { Hono } from 'hono'
-import { z } from 'zod'
+// Online booking — shared implementation (packages/tenant-backend/src/booking), vendored into this tenant
+// as ../shared at generation. This file only wires the template's tables, the calendar a booking lands on
+// and its notification/deposit services in; behaviour lives in one place for every CRM.
+import { createBookingRoutes, appointmentCalendar, createMenuCatalog } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { company } from '../../db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { company, contact, bookingSettings, bookableService, onlineBooking, appointment, serviceMenu } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import booking, { BookingError } from '../services/booking.ts'
+import { sendRaw } from '../services/email.ts'
+import { sendSMS } from '../services/sms.ts'
 
-const app = new Hono()
-
-// ============================================
-// PUBLIC ROUTES (no auth - for the widget)
-// ============================================
-
-// A bad public request (closed day, past date, taken slot, malformed time) is the caller's problem,
-// not a server error — bots and broken widgets used to 500 this endpoint. (SALON-N5)
-app.use('/public/*', async (c, next) => {
-  try { await next() } catch (e: any) {
-    if (e instanceof BookingError) return c.json({ error: e.message }, 400)
-    throw e
-  }
-})
-
-app.get('/public/:companySlug', async (c) => {
-  const companySlug = c.req.param('companySlug')
-  const [found] = await db.select({
-    id: company.id,
-    name: company.name,
-    logo: company.logo,
-    primaryColor: company.primaryColor,
-  }).from(company).where(eq(company.slug, companySlug)).limit(1)
-
-  if (!found) return c.json({ error: 'Company not found' }, 404)
-
-  const [settings, services] = await Promise.all([
-    booking.getBookingSettings(found.id),
-    // Public widget must only offer ACTIVE services — switching one off left it
-    // bookable because this passed no activeOnly flag. (BOOK-05)
-    booking.getPublicServices(found.id),
-  ])
-
-  if (!settings.enabled) return c.json({ error: 'Online booking is not enabled' }, 403)
-
-  return c.json({
-    company: {
-      name: found.name,
-      logo: found.logo || settings.logoUrl,
-      primaryColor: found.primaryColor || settings.primaryColor,
+export default createBookingRoutes({
+  db,
+  tables: { company, contact, bookingSettings, bookableService, onlineBooking },
+  authenticate,
+  calendar: appointmentCalendar(appointment, { contactColumn: 'contactId', serviceColumn: 'serviceId', priceColumn: 'quotedPrice', serviceTable: serviceMenu }),
+  options: {
+    requireAddress: false,
+    contactType: 'client',
+    catalog: createMenuCatalog(db, { bookableService, serviceMenu }),
+    notify: {
+      email: ({ to, subject, html }) => sendRaw({ to, subject, html }),
+      sms: (companyId, { toPhone, message }) => sendSMS(companyId, { toPhone, message }),
     },
-    settings: {
-      title: settings.title,
-      description: '',
-      requirePhone: settings.requirePhone,
-      requireAddress: settings.requireAddress,
-    },
-    services,
-  })
+    createDepositIntent: (args) => import('../services/stripe.ts').then(m => m.createBookingDepositIntent(args)),
+  },
 })
-
-app.get('/public/:companySlug/dates', async (c) => {
-  const companySlug = c.req.param('companySlug')
-  const [found] = await db.select().from(company).where(eq(company.slug, companySlug)).limit(1)
-  if (!found) return c.json({ error: 'Company not found' }, 404)
-
-  const dates = await booking.getAvailableDates(found.id)
-  return c.json(dates)
-})
-
-app.get('/public/:companySlug/slots', async (c) => {
-  const companySlug = c.req.param('companySlug')
-  const date = c.req.query('date')
-  const serviceId = c.req.query('serviceId')
-
-  if (!date) return c.json({ error: 'Date required' }, 400)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: 'Date must be YYYY-MM-DD' }, 400)
-
-  const [found] = await db.select().from(company).where(eq(company.slug, companySlug)).limit(1)
-  if (!found) return c.json({ error: 'Company not found' }, 404)
-
-  const slots = await booking.getAvailableSlots(found.id, date, serviceId)
-  return c.json(slots)
-})
-
-const bookingSchema = z.object({
-  serviceId: z.string().optional(),
-  date: z.string(),
-  time: z.string(),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  email: z.string().email(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip: z.string().optional(),
-  notes: z.string().optional(),
-})
-
-app.post('/public/:companySlug', async (c) => {
-  const companySlug = c.req.param('companySlug')
-  const body = await c.req.json()
-  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
-  const data = bookingSchema.parse(body)
-
-  const [found] = await db.select().from(company).where(eq(company.slug, companySlug)).limit(1)
-  if (!found) return c.json({ error: 'Company not found' }, 404)
-
-  const settings = await booking.getBookingSettings(found.id)
-
-  if (settings.requirePhone && !data.phone) {
-    return c.json({ error: 'Phone number is required' }, 400)
-  }
-  if (settings.requireAddress && !data.address) {
-    return c.json({ error: 'Address is required' }, 400)
-  }
-
-  const result = await booking.createBooking(found.id, data)
-
-  return c.json({
-    success: true,
-    confirmationCode: result.confirmationCode,
-    bookingId: result.bookingId,
-    // When the service requires a deposit the booking is held as pending and
-    // the widget finishes payment with this client secret.
-    deposit: result.deposit,
-    appointment: {
-      date: data.date,
-      time: data.time,
-      service: result.serviceName,
-    },
-  }, 201)
-})
-
-// Confirmation lookup — the customer has a code, not a login.
-app.get('/public/:companySlug/lookup/:code', async (c) => {
-  const [found] = await db.select({ id: company.id }).from(company).where(eq(company.slug, c.req.param('companySlug'))).limit(1)
-  if (!found) return c.json({ error: 'Company not found' }, 404)
-  const row = await booking.getBookingByCode(found.id, c.req.param('code').toUpperCase())
-  if (!row) return c.json({ error: 'Booking not found' }, 404)
-  return c.json(row)
-})
-
-// ============================================
-// ADMIN ROUTES (authenticated)
-// ============================================
-
-app.use('*', authenticate)
-
-app.get('/settings', async (c) => {
-  const user = c.get('user') as any
-  const settings = await booking.getBookingSettings(user.companyId)
-  return c.json(settings)
-})
-
-app.put('/settings', async (c) => {
-  const user = c.get('user') as any
-  const body = await c.req.json()
-  const settings = await booking.updateBookingSettings(user.companyId, body)
-  return c.json(settings)
-})
-
-app.get('/services', async (c) => {
-  const user = c.get('user') as any
-  const services = await booking.getBookableServices(user.companyId)
-  return c.json({ data: services, retired: await booking.legacyListRetired(user.companyId) })
-})
-
-app.post('/services', async (c) => {
-  const user = c.get('user') as any
-  const body = await c.req.json()
-  const service = await booking.createBookableService(user.companyId, body)
-  return c.json(service, 201)
-})
-
-app.put('/services/:id', async (c) => {
-  const user = c.get('user') as any
-  const id = c.req.param('id')
-  const body = await c.req.json()
-  await booking.updateBookableService(id, user.companyId, body)
-  return c.json({ success: true })
-})
-
-// Delete a bookable service — the delete control 404'd; no route existed. (BOOK-06)
-app.delete('/services/:id', async (c) => {
-  const user = c.get('user') as any
-  await booking.deleteBookableService(c.req.param('id'), user.companyId)
-  return c.json({ success: true })
-})
-
-app.get('/', async (c) => {
-  const user = c.get('user') as any
-  const { status, page = '1', limit = '50' } = c.req.query() as any
-
-  const data = await booking.getBookings(user.companyId, {
-    status,
-    page: parseInt(page),
-    limit: parseInt(limit),
-  })
-
-  return c.json(data)
-})
-
-// Cancel a booking (and its appointment) — no cancel/delete route existed. (BOOK-06)
-app.delete('/:id', async (c) => {
-  const user = c.get('user') as any
-  await booking.cancelBooking(c.req.param('id'), user.companyId)
-  return c.json({ success: true })
-})
-
-// Change a booking's status (confirm / no-show / etc.). (BOOK-06)
-app.patch('/:id', async (c) => {
-  const user = c.get('user') as any
-  const body = await c.req.json().catch(() => ({} as any))
-  if (!body.status) return c.json({ error: 'status is required' }, 400)
-  await booking.updateBookingStatus(c.req.param('id'), user.companyId, String(body.status))
-  return c.json({ success: true })
-})
-
-app.get('/embed-code', async (c) => {
-  const user = c.get('user') as any
-  const [found] = await db.select({ slug: company.slug }).from(company).where(eq(company.id, user.companyId)).limit(1)
-  const embedCode = booking.getEmbedCode(user.companyId, found?.slug)
-  return c.json({ embedCode })
-})
-
-export default app

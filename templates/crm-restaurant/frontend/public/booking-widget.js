@@ -118,11 +118,15 @@
           renderDepositNote();
           loadSlots();
         };
+        // The first option is what the customer sees selected, so it is the selected service — slots and
+        // the submitted booking used no service at all until the customer changed the dropdown.
+        state.service = cfg.services[0] || null;
         form.appendChild(sel);
       }
 
       var depositNote = el('p', { class: 'tw-note' });
       form.appendChild(depositNote);
+      renderDepositNote();
 
       function renderDepositNote() {
         var s = state.service;
