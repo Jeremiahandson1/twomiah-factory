@@ -95,8 +95,6 @@ import adsRoutes from './routes/ads.ts'
 import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
-import estimatorRoutes from './routes/estimator.ts'
-import roofReportsRoutes from './routes/roofReports.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
@@ -289,8 +287,6 @@ app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
-app.route('/api/estimator', estimatorRoutes)
-app.route('/api/roof-reports', roofReportsRoutes)
 
 // ─── Private events & catering (Twomiah Events) — enquiry to BEO to balance ───
 try { app.route('/api/events', (await import('./routes/events.ts')).default) } catch (e) { console.error('[events] events route failed to mount', e) }

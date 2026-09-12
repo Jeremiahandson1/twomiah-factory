@@ -97,8 +97,6 @@ import adsRoutes from './routes/ads.ts'
 import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
-import estimatorRoutes from './routes/estimator.ts'
-import roofReportsRoutes from './routes/roofReports.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
@@ -269,10 +267,6 @@ app.use('/api/equipment', authenticate, requireEnabledFeature('equipment_trackin
 app.use('/api/equipment/*', authenticate, requireEnabledFeature('equipment_tracking'))
 app.use('/api/pricebook', authenticate, requireEnabledFeature('pricebook'))
 app.use('/api/pricebook/*', authenticate, requireEnabledFeature('pricebook'))
-app.use('/api/roof-reports', authenticate, requireEnabledFeature('instant_estimator'))
-app.use('/api/roof-reports/*', authenticate, requireEnabledFeature('instant_estimator'))
-app.use('/api/estimator', authenticate, requireEnabledFeature('instant_estimator'))
-app.use('/api/estimator/*', authenticate, requireEnabledFeature('instant_estimator'))
 app.use('/api/memberships', authenticate, requireEnabledFeature('salon_memberships'))
 app.use('/api/memberships/*', authenticate, requireEnabledFeature('salon_memberships'))
 app.use('/api/ads', authenticate, requireEnabledFeature('paid_ads'))
@@ -360,8 +354,6 @@ app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
-app.route('/api/estimator', estimatorRoutes)
-app.route('/api/roof-reports', roofReportsRoutes)
 
 // ─── Salon / barber (Twomiah Salon) — the book, the formula log, rebooking ────
 try { app.route('/api/clients', (await import('./routes/clients.ts')).default) } catch (e) { console.error('[salon] clients route failed to mount', e) }
