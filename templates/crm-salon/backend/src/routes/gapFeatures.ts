@@ -1,6 +1,5 @@
 /**
- * Routes for the 5 remaining competitive gap features:
- * 1. Online Booking
+ * Routes for the remaining competitive gap features (online booking lives in routes/booking.ts):
  * 2. Job Costing
  * 3. Custom Forms
  * 4. Lien Waivers
@@ -9,89 +8,10 @@
 
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
-import booking from '../services/booking.ts'
 import jobCosting from '../services/jobCosting.ts'
 import customForms from '../services/customForms.ts'
 import lienWaivers from '../services/lienWaivers.ts'
 import drawSchedules from '../services/drawSchedules.ts'
-
-// ============================================
-// 1. ONLINE BOOKING
-// ============================================
-export const bookingRoutes = new Hono()
-
-// PUBLIC (no auth) - for the embeddable widget
-bookingRoutes.get('/public/:slug', async (c) => {
-  const slug = c.req.param('slug')
-  const settings = await booking.getBookingSettingsBySlug(slug)
-  const services = await booking.getBookableServicesBySlug(slug)
-  return c.json({ settings, services })
-})
-
-bookingRoutes.get('/public/:slug/dates', async (c) => {
-  const slug = c.req.param('slug')
-  const dates = await booking.getAvailableDatesBySlug(slug)
-  return c.json(dates)
-})
-
-bookingRoutes.get('/public/:slug/slots', async (c) => {
-  const slug = c.req.param('slug')
-  const date = c.req.query('date')
-  const serviceId = c.req.query('serviceId')
-  const slots = await booking.getAvailableSlotsBySlug(slug, date, serviceId)
-  return c.json(slots)
-})
-
-bookingRoutes.post('/public/:slug', async (c) => {
-  const slug = c.req.param('slug')
-  const body = await c.req.json()
-  // Ordinary rejections (slot taken, closed day, outside hours, past date) throw
-  // in the service; return them as a clean 4xx to the customer instead of a raw
-  // 500 "Internal server error" (BOOK-03).
-  try {
-    const result = await booking.createBooking(slug, body)
-    return c.json(result, 201)
-  } catch (e: any) {
-    const msg = e?.message || 'Sorry, that booking could not be completed.'
-    if (/not found/i.test(msg)) return c.json({ error: msg }, 404)
-    return c.json({ error: msg }, 400)
-  }
-})
-
-// ADMIN (authenticated)
-bookingRoutes.use('*', authenticate)
-
-bookingRoutes.get('/settings', async (c) => {
-  const user = c.get('user') as any
-  const settings = await booking.getBookingSettings(user.companyId)
-  return c.json(settings)
-})
-
-bookingRoutes.put('/settings', async (c) => {
-  const user = c.get('user') as any
-  const body = await c.req.json()
-  const settings = await booking.updateBookingSettings(user.companyId, body)
-  return c.json(settings)
-})
-
-bookingRoutes.get('/services', async (c) => {
-  const user = c.get('user') as any
-  const services = await booking.getBookableServices(user.companyId)
-  return c.json(services)
-})
-
-bookingRoutes.post('/services', async (c) => {
-  const user = c.get('user') as any
-  const body = await c.req.json()
-  const service = await booking.createBookableService(user.companyId, body)
-  return c.json(service, 201)
-})
-
-bookingRoutes.get('/embed-code', async (c) => {
-  const user = c.get('user') as any
-  const code = booking.generateEmbedCode(user.company?.slug)
-  return c.json({ embedCode: code })
-})
 
 // ============================================
 // 2. JOB COSTING
@@ -383,7 +303,6 @@ drawScheduleRoutes.get('/:id/g703', async (c) => {
 })
 
 const app = new Hono()
-app.route('/booking', bookingRoutes)
 app.route('/job-costing', jobCostingRoutes)
 app.route('/forms', customFormsRoutes)
 app.route('/lien-waivers', lienWaiverRoutes)

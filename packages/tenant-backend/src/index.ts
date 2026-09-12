@@ -41,6 +41,16 @@ export { createQuoteRoutes } from './invoicing/quotes'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 export { round2, calcTotals, isOverdue, deriveStatus, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, normalizeDateInput, nextNumber } from './invoicing/money'
 
+// Online booking — one implementation for every CRM; the template injects its tables + the calendar it books onto.
+export { createBookingRoutes } from './booking/routes'
+export { createBookingService } from './booking/service'
+export type { BookingService } from './booking/service'
+export { jobCalendar, appointmentCalendar } from './booking/calendars'
+export { createWidgetCatalog, createMenuCatalog } from './booking/catalog'
+export { BookingError } from './booking/types'
+export type { BookingDeps, BookingOptions, BookingTables, BookingCalendar, BookingCatalog, CatalogService, BookingStatus } from './booking/types'
+export { zonedWallTimeToUtc, tzParts, safeTz, isValidTz, formatWhen } from './booking/time'
+
 // Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
 export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'
 export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResult } from './schemaReconcile'

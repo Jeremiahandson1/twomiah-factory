@@ -1639,6 +1639,8 @@ export const bookingSettings = pgTable('booking_settings', {
   leadTimeDays: integer('lead_time_days').default(1).notNull(),
   maxDaysOut: integer('max_days_out').default(30).notNull(),
   slotDurationMinutes: integer('slot_duration_minutes').default(60).notNull(),
+  concurrentBookings: integer('concurrent_bookings').default(1).notNull(), // bookings one slot can take at once (crews / chairs / rooms)
+  timezone: text('timezone').default('America/Chicago').notNull(), // business-local zone the slot times are shown in
   workingHours: json('working_hours').notNull(),
 
   primaryColor: text('primary_color'),
@@ -1677,6 +1679,8 @@ export const onlineBooking = pgTable('online_booking', {
   companyId: text('company_id').notNull().references(() => company.id),
 
   jobId: text('job_id').references(() => job.id),
+  // Vet: an online booking lands in the appointment book. jobId stays for schema compatibility but is not written.
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
   contactId: text('contact_id').references(() => contact.id),
   serviceId: text('service_id').references(() => bookableService.id),
 
