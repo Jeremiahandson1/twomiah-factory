@@ -6,10 +6,14 @@
   "main": "./src/index.ts",
   "description": "React components vendored into each tenant CRM frontend at generation time. Not consumed at runtime.",
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0"
+    "react": "^18.0.0 || ^19.0.0",
+    "react-router-dom": "^6.0.0",
+    "lucide-react": ">=0.300.0"
   },
   "devDependencies": {
     "react": "^18.3.1",
-    "@types/react": "^18.3.12"
+    "@types/react": "^18.3.12",
+    "react-router-dom": "^6.22.1",
+    "lucide-react": "^0.344.0"
   }
 }
