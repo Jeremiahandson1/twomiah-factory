@@ -35,17 +35,7 @@ import quotesRoutes from './routes/quotes.ts'
 import invoicesRoutes from './routes/invoices.ts'
 import timeRoutes from './routes/time.ts'
 import expensesRoutes from './routes/expenses.ts'
-import rfisRoutes from './routes/rfis.ts'
-import submittalsRoutes from './routes/submittals.ts'
-import lienWaiversRoutes from './routes/lienWaivers.ts'
-import drawSchedulesRoutes from './routes/drawSchedules.ts'
-import aiaFormsRoutes from './routes/aiaForms.ts'
 import ganttChartsRoutes from './routes/ganttCharts.ts'
-import changeOrdersRoutes from './routes/changeOrders.ts'
-import punchListsRoutes from './routes/punchLists.ts'
-import dailyLogsRoutes from './routes/dailyLogs.ts'
-import inspectionsRoutes from './routes/inspections.ts'
-import bidsRoutes from './routes/bids.ts'
 import teamRoutes from './routes/team.ts'
 import companyRoutes from './routes/company.ts'
 import dashboardRoutes from './routes/dashboard.ts'
@@ -53,7 +43,6 @@ import documentsRoutes from './routes/documents.ts'
 import billingRoutes from './routes/billing.ts'
 import messagingBillingRoutes from './routes/messagingBilling.ts'
 import integrationsRoutes from './routes/integrations.ts'
-import agreementsRoutes from './routes/agreements.ts'
 import auditRoutes from './routes/audit.ts'
 import bookingRoutes from './routes/booking.ts'
 import bulkRoutes from './routes/bulk.ts'
@@ -61,34 +50,27 @@ import calltrackingRoutes from './routes/calltracking.ts'
 import commentsRoutes from './routes/comments.ts'
 import equipmentRoutes from './routes/equipment.ts'
 import exportRoutes from './routes/export.ts'
-import fleetRoutes from './routes/fleet.ts'
 import gapFeaturesRoutes from './routes/gapFeatures.ts'
 import geofencingRoutes from './routes/geofencing.ts'
 import importRoutes from './routes/import.ts'
 import migrationRoutes from './routes/migration.ts'
-import inventoryRoutes from './routes/inventory.ts'
 import mapsRoutes from './routes/maps.ts'
 import marketingRoutes from './routes/marketing.ts'
 import payrollRoutes from './routes/payroll.ts'
 import photosRoutes from './routes/photos.ts'
 import portalRoutes from './routes/portal.ts'
 // portal-selections and portal-messages are handled inline in portal.ts under /p/:token/
-import pricebookRoutes from './routes/pricebook.ts'
 import pushRoutes from './routes/push.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
-import recurringRoutes from './routes/recurring.ts'
 import reportingRoutes from './routes/reporting.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import routingRoutes from './routes/routing.ts'
 import schedulingRoutes from './routes/scheduling.ts'
 import searchRoutes from './routes/search.ts'
-import selectionsRoutes from './routes/selections.ts'
 import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
-import takeoffsRoutes from './routes/takeoffs.ts'
 import tasksRoutes from './routes/tasks.ts'
 import timeTrackingRoutes from './routes/timeTracking.ts'
-import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
 import adsRoutes from './routes/ads.ts'
@@ -229,17 +211,7 @@ app.route('/api/contacts', contactsRoutes)
 app.route('/api/invoices', invoicesRoutes)
 // [vet-scope] app.route('/api/time', timeRoutes)
 // [vet-scope] app.route('/api/expenses', expensesRoutes)
-// [vet-scope] app.route('/api/rfis', rfisRoutes)
-// [vet-scope] app.route('/api/submittals', submittalsRoutes)
-// [vet-scope] app.route('/api/lien-waivers', lienWaiversRoutes)
-// [vet-scope] app.route('/api/draw-schedules', drawSchedulesRoutes)
-// [vet-scope] app.route('/api/aia-forms', aiaFormsRoutes)
 // [vet-scope] app.route('/api/gantt-charts', ganttChartsRoutes)
-// [vet-scope] app.route('/api/change-orders', changeOrdersRoutes)
-// [vet-scope] app.route('/api/punch-lists', punchListsRoutes)
-// [vet-scope] app.route('/api/daily-logs', dailyLogsRoutes)
-// [vet-scope] app.route('/api/inspections', inspectionsRoutes)
-// [vet-scope] app.route('/api/bids', bidsRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/company', companyRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
@@ -255,7 +227,6 @@ app.route('/api/documents', documentsRoutes)
 app.route('/api/billing', billingRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/integrations', integrationsRoutes)
-app.route('/api/agreements', agreementsRoutes)
 app.route('/api/audit', auditRoutes)
 app.route('/api/booking', bookingRoutes)
 app.route('/api/bulk', bulkRoutes)
@@ -263,35 +234,28 @@ app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/comments', commentsRoutes)
 // [vet-scope] app.route('/api/equipment', equipmentRoutes)
 app.route('/api/export', exportRoutes)
-// [vet-scope] app.route('/api/fleet', fleetRoutes)
 app.route('/api/gap-features', gapFeaturesRoutes)
 // [vet-scope] app.route('/api/geofencing', geofencingRoutes)
 app.route('/api/import', importRoutes)
 app.route('/api/migration', migrationRoutes)
-// [vet-scope] app.route('/api/inventory', inventoryRoutes)
 // [vet-scope] app.route('/api/maps', mapsRoutes)
 app.route('/api/marketing', marketingRoutes)
 // [vet-scope] app.route('/api/payroll', payrollRoutes)
 // [vet-scope] app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
-// [vet-scope] app.route('/api/pricebook', pricebookRoutes)
 // [vet-scope] try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}
 // [vet-scope] try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
 app.route('/api/push', pushRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
-app.route('/api/recurring', recurringRoutes)
 app.route('/api/reports', reportingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 // [vet-scope] app.route('/api/routing', routingRoutes)
 // [vet-scope] app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/search', searchRoutes)
-// [vet-scope] app.route('/api/selections', selectionsRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/stripe', stripeRoutes)
-// [vet-scope] app.route('/api/takeoffs', takeoffsRoutes)
 app.route('/api/tasks', tasksRoutes)
 // [vet-scope] app.route('/api/time-tracking', timeTrackingRoutes)
-// [vet-scope] app.route('/api/warranties', warrantiesRoutes)
 // [vet-scope] app.route('/api/weather', weatherRoutes)
 app.route('/api/support', supportRoutes)
 app.route('/api/ads', adsRoutes)
