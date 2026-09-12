@@ -29,15 +29,9 @@ import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
 // Feature pages
-import FleetPage from './pages/fleet/FleetPage';
 import InventoryPage from './pages/inventory/InventoryPage';
-import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
-import AgreementsPage from './pages/agreements/AgreementsPage';
 import WarrantiesPage from './pages/warranties/WarrantiesPage';
-import { AIReceptionistPage } from './components/features/AIReceptionistPage';
-import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
-import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
 import SupportPage from './pages/support/SupportPage';
@@ -173,7 +167,6 @@ function App() {
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="fleet" element={<FleetPage />} />
                     <Route path="inventory" element={<InventoryPage />} />
                     {/* RV / Powersports dealership */}
                     <Route path="units" element={<RvInventoryPage />} />
@@ -191,15 +184,8 @@ function App() {
                     <Route path="accounting" element={<AccountingPage />} />
                     <Route path="service" element={<ServicePage />} />
                     <Route path="alerts" element={<AlertsPage />} />
-                    <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
-                    <Route path="agreements" element={<AgreementsPage />} />
                     <Route path="warranties" element={<WarrantiesPage />} />
-                    <Route path="ai-receptionist" element={<AIReceptionistPage />} />
-                    <Route path="recurring" element={<RecurringListPage />} />
-                    <Route path="recurring/new" element={<RecurringForm />} />
-                    <Route path="recurring/:id/edit" element={<RecurringForm />} />
-                    <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
                     <Route path="reviews" element={<ReviewsPage />} />

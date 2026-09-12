@@ -43,7 +43,6 @@ import documentsRoutes from './routes/documents.ts'
 import billingRoutes from './routes/billing.ts'
 import messagingBillingRoutes from './routes/messagingBilling.ts'
 import integrationsRoutes from './routes/integrations.ts'
-import agreementsRoutes from './routes/agreements.ts'
 import auditRoutes from './routes/audit.ts'
 import bookingRoutes from './routes/booking.ts'
 import bulkRoutes from './routes/bulk.ts'
@@ -51,7 +50,6 @@ import calltrackingRoutes from './routes/calltracking.ts'
 import commentsRoutes from './routes/comments.ts'
 import equipmentRoutes from './routes/equipment.ts'
 import exportRoutes from './routes/export.ts'
-import fleetRoutes from './routes/fleet.ts'
 import gapFeaturesRoutes from './routes/gapFeatures.ts'
 import geofencingRoutes from './routes/geofencing.ts'
 import importRoutes from './routes/import.ts'
@@ -65,7 +63,6 @@ import portalRoutes from './routes/portal.ts'
 // portal-selections and portal-messages are handled inline in portal.ts under /p/:token/
 import pushRoutes from './routes/push.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
-import recurringRoutes from './routes/recurring.ts'
 import reportingRoutes from './routes/reporting.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import routingRoutes from './routes/routing.ts'
@@ -74,7 +71,6 @@ import scheduleEventsRoutes from './routes/scheduleEvents.ts'
 import searchRoutes from './routes/search.ts'
 import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
-import tasksRoutes from './routes/tasks.ts'
 import timeTrackingRoutes from './routes/timeTracking.ts'
 import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
@@ -225,7 +221,6 @@ app.route('/api/documents', documentsRoutes)
 app.route('/api/billing', billingRoutes)
 app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/integrations', integrationsRoutes)
-app.route('/api/agreements', agreementsRoutes)
 app.route('/api/audit', auditRoutes)
 app.route('/api/booking', bookingRoutes)
 app.route('/api/bulk', bulkRoutes)
@@ -233,7 +228,6 @@ app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/comments', commentsRoutes)
 app.route('/api/equipment', equipmentRoutes)
 app.route('/api/export', exportRoutes)
-app.route('/api/fleet', fleetRoutes)
 app.route('/api/gap-features', gapFeaturesRoutes)
 app.route('/api/geofencing', geofencingRoutes)
 app.route('/api/import', importRoutes)
@@ -249,7 +243,6 @@ try { app.route('/api/valuation', (await import('./routes/valuation.ts')).defaul
 try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
 app.route('/api/push', pushRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
-app.route('/api/recurring', recurringRoutes)
 app.route('/api/reports', reportingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 app.route('/api/routing', routingRoutes)
@@ -258,7 +251,6 @@ app.route('/api/schedule-events', scheduleEventsRoutes)
 app.route('/api/search', searchRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/stripe', stripeRoutes)
-app.route('/api/tasks', tasksRoutes)
 app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/warranties', warrantiesRoutes)
 app.route('/api/weather', weatherRoutes)

@@ -68,12 +68,6 @@ const NAV: NavItem[] = [
 export const SHELL: ShellConfig = {
   nav: NAV,
   routeGates: {
-  '/crm/agreements': ['service_agreements'],
-  '/crm/ai-receptionist': ['ai_receptionist'],
-  '/crm/equipment': ['equipment_tracking'],
-  '/crm/fleet': ['fleet'],
-  '/crm/recurring': ['recurring_jobs'],
-  '/crm/tasks': ['projects'],
   },
   brand: { icon: Caravan, fallbackName: 'Roam' },
 };
