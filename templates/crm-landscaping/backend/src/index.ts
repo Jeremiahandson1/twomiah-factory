@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { eq } from 'drizzle-orm'
 import { company, user } from '../db/schema.ts'
-import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient } from './shared/index.ts'
+import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient, externalBookingsProxy } from './shared/index.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
@@ -101,6 +101,7 @@ import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import onboardingRoutes from './routes/onboarding.ts'
 import mediaRoutes from './routes/media.ts'
+import { authenticate } from './middleware/auth.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -230,6 +231,9 @@ app.route('/api/agreements', agreementsRoutes)
 app.route('/api/maintenance-contracts', agreementsRoutes)
 app.route('/api/audit', auditRoutes)
 app.route('/api/booking', bookingRoutes)
+// Bookings taken on the connected premium website, for the CRM schedule (shared handler; empty when no
+// site is connected). Auth-gated by the CRM's own JWT.
+app.get('/api/bookings/external', authenticate, externalBookingsProxy())
 app.route('/api/bulk', bulkRoutes)
 app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/comments', commentsRoutes)

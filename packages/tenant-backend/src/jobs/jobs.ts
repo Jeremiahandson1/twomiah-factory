@@ -12,7 +12,7 @@
 //     ignored ?search=), and related rows are fetched by id instead of the whole company
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, gte, lt, count, asc, desc, or, ilike, inArray } from 'drizzle-orm'
+import { eq, and, gte, lt, lte, count, asc, desc, or, ilike, inArray } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
 import { sniffType, baseMime } from '../files/storage'
 
@@ -133,6 +133,10 @@ export function createJobRoutes(deps: JobDeps) {
       const dayStart = new Date(q.date + 'T00:00:00')
       if (!isNaN(dayStart.getTime())) conditions.push(gte(t.job.scheduledDate, dayStart), lt(t.job.scheduledDate, new Date(dayStart.getTime() + 86400000)))
     }
+    // The schedule passes ?startDate&endDate for the visible week. Every template ignored them and
+    // handed back the first page of ALL jobs, so a week view silently lost jobs past the page size.
+    if (q.startDate) { const d = new Date(q.startDate); if (!isNaN(d.getTime())) conditions.push(gte(t.job.scheduledDate, d)) }
+    if (q.endDate) { const d = new Date(q.endDate); if (!isNaN(d.getTime())) conditions.push(lte(t.job.scheduledDate, d)) }
     const where = and(...conditions)
     const [rows, [{ value: total }]] = await Promise.all([
       db.select().from(t.job).where(where).orderBy(asc(t.job.scheduledDate), desc(t.job.createdAt)).offset((page - 1) * limit).limit(limit),

@@ -36,6 +36,9 @@ export type { ContactsConfig, ContactsPageProps, ContactsApi, ContactsToast, Con
 export { JobsPage } from './jobs/JobsPage'
 export { JobDetailPage } from './jobs/JobDetailPage'
 export type { JobsConfig, JobsPageProps, JobsApi, JobsToast, JobRow } from './jobs/types'
+// Week schedule — jobs (drag to reschedule) + bookings (+ RV appointments), one page for every CRM.
+export { SchedulePage } from './schedule/SchedulePage'
+export type { ScheduleConfig, SchedulePageProps } from './schedule/types'
 // App shell — sidebar/header layout, settings, feature toggles + the hooks/components they use.
 export { AppShell } from './shell/AppShell'
 export { SettingsPage } from './shell/SettingsPage'
