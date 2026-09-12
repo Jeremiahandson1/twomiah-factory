@@ -32,6 +32,10 @@ export type { DocumentsConfig, DocumentsPageProps, FilesApi, FilesToast } from '
 export { ContactsPage } from './contacts/ContactsPage'
 export { ContactDetailPage } from './contacts/ContactDetailPage'
 export type { ContactsConfig, ContactsPageProps, ContactsApi, ContactsToast, ContactType, QuickAction, ContactSections } from './contacts/types'
+// Jobs / service calls — list + detail, one implementation for every CRM.
+export { JobsPage } from './jobs/JobsPage'
+export { JobDetailPage } from './jobs/JobDetailPage'
+export type { JobsConfig, JobsPageProps, JobsApi, JobsToast, JobRow } from './jobs/types'
 // App shell — sidebar/header layout, settings, feature toggles + the hooks/components they use.
 export { AppShell } from './shell/AppShell'
 export { SettingsPage } from './shell/SettingsPage'

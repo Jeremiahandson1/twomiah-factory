@@ -73,6 +73,10 @@ export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, Contac
 export { createCompanyRoutes, sanitizeCompany, COMPANY_SECRETS } from './company/company'
 export type { CompanyDeps } from './company/company'
 
+// Jobs / service calls + the public media proxy for job photos — one implementation for every CRM.
+export { createJobRoutes, createMediaRoutes, JOB_PRIORITIES, OPEN_JOB_STATUSES } from './jobs/jobs'
+export type { JobDeps, JobOptions, JobTables, JobHook, JobPhotoStorage } from './jobs/jobs'
+
 // Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
 export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'
 export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResult } from './schemaReconcile'
