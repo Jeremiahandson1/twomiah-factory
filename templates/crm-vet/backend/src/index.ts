@@ -127,7 +127,7 @@ const CSP = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
   "connect-src 'self' https: wss:",
-  "frame-src https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
+  "frame-src blob: https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

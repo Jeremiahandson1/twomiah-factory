@@ -25,4 +25,7 @@ export type { BookingConfig, BookingPageProps, BookingApi, BookingToast } from '
 export { ReportsPage } from './reporting/ReportsPage'
 export { JobsDashboardPage } from './reporting/JobsDashboardPage'
 export type { ReportingConfig, ReportsPageProps, JobsDashboardConfig, JobsDashboardPageProps } from './reporting/types'
+// Documents — one page for every CRM (upload, preview, authenticated download, versions, markup).
+export { DocumentsPage } from './files/DocumentsPage'
+export type { DocumentsConfig, DocumentsPageProps, FilesApi, FilesToast } from './files/types'
 export { EMAIL_ALIAS_DEFAULTS, getAliasDefaultsForProduct } from './config/emailDefaults'

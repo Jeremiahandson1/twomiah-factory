@@ -57,6 +57,14 @@ export type { ReportingDeps, ReportingOptions, ReportingTables, ReportingService
 export { createJobsDashboardRoutes } from './reporting/jobsDashboard'
 export type { JobsDashboardDeps, JobsDashboardTables } from './reporting/jobsDashboard'
 
+// Files — private R2 storage + documents (with version history / markups) + photos, one implementation for every CRM.
+export { createFileStorage, sniffType, baseMime, ALLOWED_MIMES, INLINE_IMAGE_TYPES } from './files/storage'
+export type { FileStorage, UploadedFile, StoredObject, FileStorageOptions } from './files/storage'
+export { createDocumentRoutes } from './files/documents'
+export type { DocumentDeps, DocumentTables } from './files/documents'
+export { createPhotoRoutes, PHOTO_CATEGORIES } from './files/photos'
+export type { PhotoDeps, PhotoTables } from './files/photos'
+
 // Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
 export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'
 export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResult } from './schemaReconcile'
