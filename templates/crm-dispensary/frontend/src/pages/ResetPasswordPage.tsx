@@ -24,8 +24,8 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError('');
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      setError('Password must be at least 8 characters and include at least one letter and one number');
       return;
     }
 
@@ -97,7 +97,7 @@ export default function ResetPasswordPage() {
         <div className="bg-white rounded-xl shadow-lg p-8 dark:bg-slate-900">
           <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Set new password</h1>
           <p className="text-gray-600 mb-6 dark:text-slate-400">
-            Your new password must be at least 8 characters.
+            Your new password must be at least 8 characters and include a letter and a number.
           </p>
 
           {error && (

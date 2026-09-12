@@ -33,7 +33,6 @@ import documentsRoutes from './routes/documents.ts'
 import exportRoutes from './routes/export.ts'
 import importRoutes from './routes/import.ts'
 import marketingRoutes from './routes/marketing.ts'
-import photosRoutes from './routes/photos.ts'
 import pushRoutes from './routes/push.ts'
 import searchRoutes from './routes/search.ts'
 import smsRoutes from './routes/sms.ts'
@@ -225,7 +224,6 @@ app.route('/api/documents', documentsRoutes)
 app.route('/api/export', exportRoutes)
 app.route('/api/import', importRoutes)
 app.route('/api/marketing', marketingRoutes)
-app.route('/api/photos', photosRoutes)
 app.route('/api/push', pushRoutes)
 app.route('/api/search', searchRoutes)
 app.route('/api/sms', smsRoutes)

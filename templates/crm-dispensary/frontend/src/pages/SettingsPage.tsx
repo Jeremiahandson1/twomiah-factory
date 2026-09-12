@@ -154,7 +154,7 @@ export default function SettingsPage() {
   const handleAddUser = async () => {
     if (!newUser.firstName.trim() || !newUser.lastName.trim()) { toast.error('First and last name are required'); return; }
     if (!newUser.email.trim()) { toast.error('Email is required'); return; }
-    if (newUser.password.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    if (newUser.password.length < 8 || !/[A-Za-z]/.test(newUser.password) || !/\d/.test(newUser.password)) { toast.error('Password must be at least 8 characters and include at least one letter and one number'); return; }
     setAddingUser(true);
     try {
       await api.company.createUser(newUser);

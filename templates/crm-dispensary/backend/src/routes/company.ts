@@ -8,6 +8,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requirePermission, invalidateExtraPermissions } from '../middleware/permissions.ts'
 
 import { getFeaturesForTemplate } from '../shared/featureRegistry.ts'
+import { passwordSchema } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 
 const app = new Hono()
@@ -111,7 +112,7 @@ app.get('/users', requirePermission('users:read'), async (c) => {
 
 app.post('/users', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
-  const schema = z.object({ email: z.string().email(), password: z.string().min(8), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).default('user') })
+  const schema = z.object({ email: z.string().email(), password: passwordSchema, firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).default('user') })
   // .catch: a missing or malformed body must not throw past validation into a
   // 500 — the caller gets a 400 that names the problem instead.
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
