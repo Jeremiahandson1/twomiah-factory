@@ -15,7 +15,8 @@
     "mobile:ios": "cd apps/mobile && expo run:ios",
     "mobile:build:apk": "cd apps/mobile && eas build --platform android --profile preview",
     "mobile:build:ios": "cd apps/mobile && eas build --platform ios --profile preview",
-    "check:features": "bun run scripts/check-feature-vocabulary.ts"
+    "check:features": "bun run scripts/check-feature-vocabulary.ts",
+    "check:shared-deps": "bun run scripts/check-shared-deps.ts"
   },
   "devDependencies": {
     "turbo": "^2.10.12"
