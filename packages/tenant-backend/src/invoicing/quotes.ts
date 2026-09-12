@@ -251,7 +251,7 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const cid = currentUser.companyId
     const existing = await findOwn(cid, id)
     if (!existing) return c.json({ error: 'Quote not found' }, 404)
-    if (allowedFrom && !allowedFrom.includes(existing.status)) return c.json({ error: `A ${existing.status} quote cannot be ${patch.status}.` }, 400)
+    if (allowedFrom && !allowedFrom.includes(existing.status)) return c.json({ error: `This quote is already ${existing.status} and cannot be marked ${patch.status}.` }, 400)
     const [updated] = await db.update(t.quote).set({ ...patch, updatedAt: new Date() }).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).returning()
     if (event) emitToCompany(cid, event, { id: updated.id, number: updated.number, ...(extraPayload ? extraPayload(updated) : {}) })
     return { updated, existing, cid }
