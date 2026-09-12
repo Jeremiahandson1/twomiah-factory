@@ -242,9 +242,11 @@ app.post('/:id/convert-to-invoice', requirePermission('invoices:create'), async 
   const quoteItems = await db.select().from(quoteLineItem).where(eq(quoteLineItem.quoteId, id))
   const [{ value: cnt }] = await db.select({ value: count() }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
 
-  // Give the new invoice a due date (net-30 from today) — without one it could
+  // Due date follows the company's payment terms (Settings › Invoice Payment Terms), default net-30 — without one it could
   // never go overdue and the invoice showed no due date at all.
-  const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  const [coRow] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const termsDays = Math.max(0, Number((coRow?.settings as any)?.paymentTermsDays) || 30)
+  const dueDate = new Date(Date.now() + termsDays * 86400000)
 
   const [newInvoice] = await db.insert(invoice).values({
     number: `INV-${String(Number(cnt) + 1).padStart(5, '0')}`,
