@@ -1,12 +1,12 @@
 // Contact detail — one page for every CRM. Header (convert / edit / delete), contact info, notes,
-// related lists (projects, quotes, events, equipment, locations, SMS thread — whichever the vertical
-// enables), summary counts, activity, quick actions, roof reports and customer-portal access.
+// related lists (projects, quotes, events, patients, equipment, locations, SMS thread — whichever the
+// vertical enables), summary counts, activity, quick actions and customer-portal access.
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2, FileText, Briefcase, Receipt, MessageSquare,
   Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight, MapPinned, ChevronRight, X,
-  FileBarChart, CalendarDays, PawPrint,
+  CalendarDays, PawPrint,
 } from 'lucide-react'
 import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, dateTime, errMsg } from '../invoicing/ui'
 import { resolveContactsConfig } from './types'
@@ -15,8 +15,8 @@ import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 type Related = { id: string; name?: string; number?: string; total?: unknown; status?: string; eventDate?: string }
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
 type Site = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; accessNotes?: string | null; equipment?: Equipment[]; jobs?: any[] }
-type ContactDetail = ContactRow & { projects?: Related[]; quotes?: Related[]; invoices?: Related[]; events?: Related[]; equipment?: Equipment[]; sites?: Site[] }
-type RoofReport = { id: string; totalSquares?: number; imageryQuality?: string; createdAt: string }
+type Patient = { id: string; name: string; species?: string | null; breed?: string | null; deceased?: boolean | null }
+type ContactDetail = ContactRow & { projects?: Related[]; quotes?: Related[]; invoices?: Related[]; events?: Related[]; patients?: Patient[]; equipment?: Equipment[]; sites?: Site[] }
 
 const ACTION_ICONS: Record<QuickActionIcon, React.ComponentType<{ className?: string }>> = {
   quote: FileText, job: Briefcase, invoice: Receipt, event: CalendarDays, patients: PawPrint, appointment: CalendarDays,
@@ -63,8 +63,6 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
   const [portalStatus, setPortalStatus] = useState<any>(null)
   const [portalLoading, setPortalLoading] = useState(false)
-  const [roofReports, setRoofReports] = useState<RoofReport[]>([])
-  const [generatingReport, setGeneratingReport] = useState(false)
 
   const [siteModalOpen, setSiteModalOpen] = useState(false)
   const [siteForm, setSiteForm] = useState({ name: '', address: '', city: '', state: '', zip: '', accessNotes: '' })
@@ -77,7 +75,6 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const [smsSending, setSmsSending] = useState(false)
 
   const showPortal = !!sections.portal && (cfg.portalGate === false || hasFeature(cfg.portalGate))
-  const showRoof = !!sections.roofReports && hasFeature('instant_estimator')
   const gated = (feature: string) => !cfg.gateByFeature || hasFeature(feature)
 
   const loadContact = useCallback(async () => {
@@ -96,9 +93,6 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const loadPortalStatus = async () => {
     try { setPortalStatus(await api.get(`/api/portal/contacts/${id}/status`)) } catch { /* panel stays "Disabled" */ }
   }
-  const loadRoofReports = async () => {
-    try { const data = await api.get('/api/roof-reports', { contactId: id }); setRoofReports(data?.data || []) } catch { /* optional */ }
-  }
   const loadSms = async () => {
     setSmsLoading(true)
     try {
@@ -115,7 +109,6 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   useEffect(() => {
     loadContact()
     if (showPortal) loadPortalStatus()
-    if (showRoof) loadRoofReports()
     if (sections.sms) loadSms()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -131,14 +124,6 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     setPortalLoading(true)
     try { await api.post(`/api/portal/contacts/${id}/send-link`); toast.success('Portal invite sent') }
     catch (err) { toast.error(errMsg(err, 'Failed to send invite')) } finally { setPortalLoading(false) }
-  }
-  const purchaseRoofReport = async () => {
-    setGeneratingReport(true)
-    try {
-      const result = await api.post(`/api/roof-reports/purchase-for-contact/${id}`)
-      if (result?.free) { toast.success('Roof report generated'); loadRoofReports() }
-      else if (result?.checkoutUrl) window.location.href = result.checkoutUrl
-    } catch (err) { toast.error(errMsg(err, 'Failed — does this contact have an address?')) } finally { setGeneratingReport(false) }
   }
   const handleDelete = async () => {
     try { await api.delete('/api/contacts', id); toast.success('Contact deleted'); navigate('/crm/contacts') }
@@ -296,6 +281,36 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             )} />
           )}
 
+          {sections.patients && (
+            <div className={card}>
+              <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">
+                <h2 className={h2}>Patients</h2>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500 dark:text-slate-400">{contact.patients?.length || 0}</span>
+                  <NavLink to="/crm/patients" className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"><Plus className="w-3 h-3" />Add Patient</NavLink>
+                </div>
+              </div>
+              {contact.patients && contact.patients.length > 0 ? (
+                <div className="divide-y dark:divide-slate-800">
+                  {contact.patients.map((p) => (
+                    <NavLink key={p.id} to={`/crm/patients/${p.id}`} className={rowLink}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/30 rounded-lg flex items-center justify-center"><PawPrint className="w-5 h-5 text-orange-500" /></div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-slate-100">{p.name}</p>
+                          <p className="text-sm text-gray-500 dark:text-slate-400 capitalize">{[p.species, p.breed].filter(Boolean).join(' · ') || 'No species on file'}</p>
+                        </div>
+                      </div>
+                      {p.deceased ? <span className="text-xs text-gray-400">Deceased</span> : <ChevronRight className="w-5 h-5 text-gray-300" />}
+                    </NavLink>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-gray-400"><PawPrint className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No patients on file for this owner</p></div>
+              )}
+            </div>
+          )}
+
           {projects.length > 0 && (
             <RelatedList title="Projects" rows={projects} icon={Briefcase} href={(r) => `/crm/projects/${r.id}`} render={(r) => (
               <div className="flex-1 flex items-center justify-between gap-3">
@@ -424,6 +439,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             <h2 className={`${h2} mb-4`}>Summary</h2>
             <div className="space-y-4">
               {sections.events && hasFeature('event_bookings') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Events</span><span className="font-medium">{contact.events?.length || 0}</span></div>}
+              {sections.patients && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Patients</span><span className="font-medium">{contact.patients?.length || 0}</span></div>}
               {sections.projects && gated('projects') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Projects</span><span className="font-medium">{contact.projects?.length || 0}</span></div>}
               {sections.quotes && gated('quotes') && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Quotes</span><span className="font-medium">{contact.quotes?.length || 0}</span></div>}
               {showInvoices && <div className="flex items-center justify-between"><span className="text-gray-500 dark:text-slate-400">Invoices</span><span className="font-medium">{contact.invoices?.length || 0}</span></div>}
@@ -441,7 +457,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             </div>
           </div>
 
-          {(quickActions.length > 0 || (showRoof && contact.address)) && (
+          {quickActions.length > 0 && (
             <div className={cardPad}>
               <h2 className={`${h2} mb-4`}>Quick Actions</h2>
               <div className="space-y-2">
@@ -449,28 +465,6 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   const Icon = ACTION_ICONS[a.icon || 'invoice']
                   return <NavLink key={a.label} to={a.to.replace(':id', id)} className={quickBtn}><Icon className="w-4 h-4 text-gray-500 dark:text-slate-400" />{a.label}</NavLink>
                 })}
-                {showRoof && contact.address && (
-                  <button type="button" onClick={purchaseRoofReport} disabled={generatingReport} className="w-full px-4 py-2 text-left bg-green-50 hover:bg-green-100 rounded-lg flex items-center gap-2 text-green-700 disabled:opacity-50 dark:bg-green-900/20 dark:text-green-200">
-                    <FileBarChart className="w-4 h-4" />{generatingReport ? 'Processing...' : 'Roof Report — $9.99'}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {showRoof && roofReports.length > 0 && (
-            <div className={card}>
-              <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between"><h2 className={h2}>Roof Reports</h2><span className="text-sm text-gray-500 dark:text-slate-400">{roofReports.length}</span></div>
-              <div className="divide-y dark:divide-slate-800">
-                {roofReports.map((r) => (
-                  <NavLink key={r.id} to={`/crm/roof-reports/${r.id}`} className={rowLink}>
-                    <div className="flex items-center gap-3">
-                      <FileBarChart className="w-5 h-5 text-blue-500" />
-                      <div><p className="font-medium text-gray-900 text-sm dark:text-slate-100">{r.totalSquares} squares</p><p className="text-xs text-gray-500 dark:text-slate-400">{dateOnly(r.createdAt)}</p></div>
-                    </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full ${r.imageryQuality === 'HIGH' ? 'bg-green-100 text-green-700' : r.imageryQuality === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{r.imageryQuality}</span>
-                  </NavLink>
-                ))}
               </div>
             </div>
           )}

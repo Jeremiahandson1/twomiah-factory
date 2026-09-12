@@ -2,8 +2,8 @@
 import type { ContactsConfig } from './shared'
 
 export const CONTACTS: ContactsConfig = {
-  // owners: no projects / quotes in the clinic CRM
-  sections: { projects: false, quotes: false, roofReports: true, portal: true },
+  // owners: their patients, no projects / quotes in the clinic CRM
+  sections: { patients: true, projects: false, quotes: false, portal: true },
   quickActions: [
     { label: 'Patients', to: '/crm/patients', icon: 'patients' },
     { label: 'Book Appointment', to: '/crm/appointments', icon: 'appointment' },

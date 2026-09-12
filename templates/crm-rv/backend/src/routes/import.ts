@@ -62,7 +62,7 @@ app.post('/contacts', async (c) => {
   const options = {
     skipDuplicates: skipDuplicates !== 'false',
     updateExisting: updateExisting === 'true',
-    defaultType: (defaultType as string) || 'client',
+    defaultType: (defaultType as string) || 'customer',
   }
 
   const results = await importService.importContacts(csvContent, user.companyId, options)

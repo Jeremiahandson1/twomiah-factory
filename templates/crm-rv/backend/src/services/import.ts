@@ -240,7 +240,7 @@ export async function importContacts(csvContent: string, companyId: string, opti
 function mapContactType(type: string | null): string {
   if (!type) return 'lead'
   const t = type.toLowerCase()
-  if (t.includes('client') || t.includes('customer')) return 'client'
+  if (t.includes('client') || t.includes('customer')) return 'customer'
   if (t.includes('vendor') || t.includes('supplier')) return 'vendor'
   if (t.includes('sub')) return 'subcontractor'
   if (t.includes('lead') || t.includes('prospect')) return 'lead'
@@ -310,7 +310,7 @@ export async function importProjects(csvContent: string, companyId: string, opti
             companyId,
             name: contactName || contactEmail!,
             email: contactEmail,
-            type: 'client',
+            type: 'customer',
           }).returning()
           contactId = newContact.id
         }
@@ -751,7 +751,7 @@ export async function importInvoices(
             companyId,
             name: name || email!,
             email: email || null,
-            type: 'client',
+            type: 'customer',
             source: 'import',
           }).returning({ id: contact.id })
           contactId = created?.id ?? null

@@ -288,7 +288,7 @@ export async function updateCustomer(companyId: string, contactData: any) {
 export async function syncAllCustomers(companyId: string) {
   const contacts = await db.select()
     .from(contact)
-    .where(and(eq(contact.companyId, companyId), eq(contact.type, 'client')))
+    .where(and(eq(contact.companyId, companyId), eq(contact.type, 'customer')))
 
   const results: Array<{ id: string; success: boolean; action?: string; error?: string }> = []
 
@@ -543,7 +543,7 @@ export async function importCustomers(companyId: string) {
       const customFieldsData = { qboCustomerId: customer.Id }
       const [created] = await db.insert(contact).values({
         companyId,
-        type: 'client',
+        type: 'customer',
         name: customer.DisplayName,
         company: customer.CompanyName,
         email: customer.PrimaryEmailAddr?.Address,

@@ -2,6 +2,6 @@
 import type { ContactsConfig } from './shared'
 
 export const CONTACTS: ContactsConfig = {
-  sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, roofReports: false, portal: true },
+  sections: { projects: true, quotes: true, equipment: true, sites: true, sms: true, portal: true },
   portalGate: false,
 }
