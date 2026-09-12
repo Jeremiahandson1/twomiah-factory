@@ -65,6 +65,10 @@ export type { DocumentDeps, DocumentTables } from './files/documents'
 export { createPhotoRoutes, PHOTO_CATEGORIES } from './files/photos'
 export type { PhotoDeps, PhotoTables } from './files/photos'
 
+// Contacts — one implementation for every CRM; the template injects its tables, guards and related lists.
+export { createContactRoutes, standardRelations, standardGuards, isValidPhone, DEFAULT_CONTACT_TYPES } from './contacts/contacts'
+export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables } from './contacts/contacts'
+
 // Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
 export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'
 export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResult } from './schemaReconcile'

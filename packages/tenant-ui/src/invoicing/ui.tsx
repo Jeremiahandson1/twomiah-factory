@@ -80,6 +80,12 @@ const STATUS_STYLES: Record<string, string> = {
   en_route: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
   on_hold: 'bg-gray-200 text-gray-600 dark:bg-slate-700 dark:text-slate-300',
   active: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+  // contact types
+  lead: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
+  client: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+  customer: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200',
+  subcontractor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+  vendor: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
 }
 export function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}>{status.replace(/_/g, ' ')}</span>
@@ -107,8 +113,16 @@ export function NavLink({ to, className, children }: { to: string; className?: s
   return <a href={to} className={className} onClick={e => { if (e.metaKey || e.ctrlKey || e.button !== 0) return; e.preventDefault(); navigate(to) }}>{children}</a>
 }
 
-export function PageHeader({ title, action }: { title: string; action?: React.ReactNode }) {
-  return <div className="flex items-center justify-between mb-6"><h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>{action}</div>
+export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mb-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{title}</h1>
+        {subtitle && <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------- form controls
