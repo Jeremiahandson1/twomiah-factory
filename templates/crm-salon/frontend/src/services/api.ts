@@ -132,11 +132,6 @@ class ApiClient {
   }
 
   // Auth
-  async register(data: Record<string, string>): Promise<AuthData> {
-    const result = await this.request<AuthData>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
-    this.setTokens(result.accessToken, result.refreshToken);
-    return result;
-  }
 
   async login(email: string, password: string): Promise<AuthData> {
     const result = await this.request<AuthData>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });

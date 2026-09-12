@@ -117,11 +117,6 @@ class ApiClient {
   }
 
   // Auth
-  async register(data) {
-    const result = await this.request('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
-    this.setTokens(result.accessToken, result.refreshToken);
-    return result;
-  }
 
   async login(email, password) {
     const result = await this.request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });

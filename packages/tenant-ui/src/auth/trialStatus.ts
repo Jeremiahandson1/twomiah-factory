@@ -8,7 +8,7 @@
  * the fields that matter for trial gating.
  */
 type TrialCompany = {
-  createdAt?: string;
+  createdAt?: string | null;
   settings?: {
     trialEndsAt?: string;
     subscriptionStatus?: string;
@@ -45,7 +45,7 @@ export function isTrialExpired(company: TrialCompany): boolean {
 const TRIAL_BYPASS_PREFIXES = [
   '/crm/paywall',
   '/crm/settings/billing',
-  '/crm/billing',       // Roof uses /crm/billing/pricing for upgrade
+  '/crm/billing',
   '/login',
   '/logout',
 ];
