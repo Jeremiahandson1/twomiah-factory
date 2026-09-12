@@ -17,7 +17,6 @@ import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
 import ImportPage from './pages/settings/ImportPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
-import DashboardPage from './pages/DashboardPage';
 import VetDashboardPage from './pages/vet/DashboardPage';
 import PatientsPage from './pages/vet/PatientsPage';
 import PatientDetailPage from './pages/vet/PatientDetailPage';

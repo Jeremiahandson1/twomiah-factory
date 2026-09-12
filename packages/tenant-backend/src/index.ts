@@ -51,6 +51,12 @@ export { BookingError } from './booking/types'
 export type { BookingDeps, BookingOptions, BookingTables, BookingCalendar, BookingCatalog, CatalogService, BookingStatus } from './booking/types'
 export { zonedWallTimeToUtc, tzParts, safeTz, isValidTz, formatWhen } from './booking/time'
 
+// Reports + the jobs-family dashboard — one implementation for every CRM; the template injects its tables.
+export { createReportingRoutes, createReportingService, parseRange, ReportError } from './reporting/reporting'
+export type { ReportingDeps, ReportingOptions, ReportingTables, ReportingService, DateRange } from './reporting/reporting'
+export { createJobsDashboardRoutes } from './reporting/jobsDashboard'
+export type { JobsDashboardDeps, JobsDashboardTables } from './reporting/jobsDashboard'
+
 // Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
 export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'
 export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResult } from './schemaReconcile'

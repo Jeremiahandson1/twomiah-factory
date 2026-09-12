@@ -21,4 +21,8 @@ export type { InvoicingConfig, InvoicingPageProps, InvoicingApi, InvoicingToast 
 export { BookingsPage } from './booking/BookingsPage'
 export { BookingSettingsTab } from './booking/BookingSettingsTab'
 export type { BookingConfig, BookingPageProps, BookingApi, BookingToast } from './booking/types'
+// Reports + the jobs-family home dashboard — one page each for every CRM that uses them.
+export { ReportsPage } from './reporting/ReportsPage'
+export { JobsDashboardPage } from './reporting/JobsDashboardPage'
+export type { ReportingConfig, ReportsPageProps, JobsDashboardConfig, JobsDashboardPageProps } from './reporting/types'
 export { EMAIL_ALIAS_DEFAULTS, getAliasDefaultsForProduct } from './config/emailDefaults'
