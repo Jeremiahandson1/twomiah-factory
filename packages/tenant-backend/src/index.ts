@@ -92,3 +92,7 @@ export { createPermissions, ROLE_HIERARCHY, BASE_ROLE_PERMISSIONS } from './auth
 export type { PermissionsDeps, Permissions } from './auth/permissions'
 export { createAuthRoutes, passwordSchema, PASSWORD_RULE_TEXT, generateTokens } from './auth/auth'
 export type { AuthDeps, AuthOptions, AuthTables } from './auth/auth'
+
+// Customer portal — token-link routes for customers / collaborators / service customers, one implementation for every CRM.
+export { createPortalRoutes, PORTAL_QUOTE_HIDDEN, PORTAL_INVOICE_HIDDEN } from './portal/portal'
+export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService } from './portal/portal'

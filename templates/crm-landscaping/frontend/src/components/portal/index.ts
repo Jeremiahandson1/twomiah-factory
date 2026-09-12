@@ -1,9 +1,26 @@
-export { default as PortalLayout } from './PortalLayout';
-export { default as PortalDashboard } from './PortalDashboard';
-export { default as PortalProjects, PortalProjectDetail } from './PortalProjects';
-export { default as PortalQuotes, PortalQuoteDetail } from './PortalQuotes';
-export { default as PortalInvoices, PortalInvoiceDetail } from './PortalInvoices';
-export { default as PortalChangeOrders, PortalChangeOrderDetail } from './PortalChangeOrders';
-export { default as PortalSelections } from './PortalSelections';
-export { default as PortalMessages } from './PortalMessages';
-export { default as PortalPaymentMethods } from './PortalPaymentMethods';
+// Customer portal pages — shared implementation (packages/tenant-ui/src/portal), vendored as ../../shared.
+export {
+  PortalLayout,
+  PortalDashboard,
+  PortalProjects,
+  PortalProjectDetail,
+  PortalProjectFiles,
+  PortalQuotes,
+  PortalQuoteDetail,
+  PortalInvoices,
+  PortalInvoiceDetail,
+  PortalPaymentMethods,
+  PortalChangeOrders,
+  PortalChangeOrderDetail,
+  PortalSelections,
+  PortalMessages,
+  PortalMyJobs,
+  PortalLienWaivers,
+  PortalSubmittalReview,
+  PortalAssignedRfis,
+  PortalSharedDocuments,
+  PortalEquipment,
+  PortalEquipmentDetail,
+  PortalAgreements,
+  PortalServiceRequest,
+} from '../../shared';
