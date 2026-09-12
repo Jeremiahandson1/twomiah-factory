@@ -2,11 +2,12 @@
 //
 // Completing an appointment or logging a service record used to leave no financial trail — the desk
 // had to hand-build an invoice from a blank form. This creates (once) the invoice for the visit:
-// one line for the service at the price charged/quoted, the company's default tax rate, due today,
+// one line for the service at the price charged/quoted, the company's default tax rate, due per the payment terms,
 // status "sent" so it shows as owed and can take a payment immediately. The invoice is linked to the
 // appointment so a second completion/record never double-bills.
 import { db } from '../../db/index.ts'
-import { invoice, invoiceLineItem, company, bookingSettings } from '../../db/schema.ts'
+import { invoice, invoiceLineItem, company } from '../../db/schema.ts'
+import { dueDateFromTerms } from '../shared/index.ts'
 import { eq, and } from 'drizzle-orm'
 import { emitToCompany, EVENTS } from './socket.ts'
 
@@ -46,12 +47,8 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
   }
 
   const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, v.companyId)).limit(1)
-  // Due at the end of the visit day in the salon's timezone — an in-salon sale is settled at the desk,
-  // and 'due today at 00:00' made Reports count it overdue the same afternoon. (SALON-N7)
-  const [bs] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings).where(eq(bookingSettings.companyId, v.companyId)).limit(1)
-  const tz = bs?.timezone || 'America/Chicago'
-  const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
-  const endOfDayUtc = (() => { const asUtc = new Date(`${localDate}T23:59:00Z`); const local = new Date(asUtc.toLocaleString('en-US', { timeZone: tz })); const utc = new Date(asUtc.toLocaleString('en-US', { timeZone: 'UTC' })); return new Date(asUtc.getTime() - (local.getTime() - utc.getTime())) })()
+  // Due date follows the company's payment terms, like every other invoice (an in-chair sale used to be
+  // due at 23:59 the same day and showed Overdue at midnight).
   const rate = Number((co?.settings as any)?.defaultTaxRate)
   const taxRate = Number.isFinite(rate) && rate >= 0 && rate <= 100 ? rate : 0
   const taxAmount = round2(price * (taxRate / 100))
@@ -69,7 +66,7 @@ export async function ensureInvoiceForVisit(v: VisitSale): Promise<typeof invoic
     discount: '0',
     total: total.toString(),
     amountPaid: '0',
-    dueDate: endOfDayUtc,
+    dueDate: dueDateFromTerms((co?.settings as any)),
     sentAt: null,
     notes: 'Created from the appointment book',
   } as any).returning()
