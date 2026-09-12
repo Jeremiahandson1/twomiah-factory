@@ -63,9 +63,12 @@ export function appointmentCalendar(appointment: any, opts: {
   priceColumn?: string
   /** extra fixed values on insert (vet: { type: 'wellness' }) */
   defaults?: Record<string, unknown>
+  /** the table serviceColumn points at (salon service_menu) — its `name` becomes the booking's service name in the owner's list */
+  serviceTable?: any
 }): BookingCalendar {
   const inactive = ['cancelled', 'no_show']
   const statusFor = (s: BookingStatus) => s === 'pending' ? 'scheduled' : s
+  const svcCol = opts.serviceColumn ? appointment[opts.serviceColumn] : null
   return {
     kind: 'appointment',
     linkField: 'appointmentId',
@@ -96,8 +99,13 @@ export function appointmentCalendar(appointment: any, opts: {
     },
     async lookup(exec, ids) {
       if (!ids.length) return {}
-      const rows = await exec.select({ id: appointment.id, status: appointment.status }).from(appointment).where(inArray(appointment.id, ids))
-      return Object.fromEntries(rows.map((r: any) => [r.id, { label: null, status: r.status }]))
+      const rows = await exec.select({ id: appointment.id, status: appointment.status, ...(svcCol ? { serviceId: svcCol } : {}) }).from(appointment).where(inArray(appointment.id, ids))
+      const names = new Map<string, string>()
+      if (svcCol && opts.serviceTable) {
+        const svcIds = [...new Set(rows.map((r: any) => r.serviceId).filter(Boolean))] as string[]
+        if (svcIds.length) for (const s of await exec.select({ id: opts.serviceTable.id, name: opts.serviceTable.name }).from(opts.serviceTable).where(inArray(opts.serviceTable.id, svcIds))) names.set(s.id, s.name)
+      }
+      return Object.fromEntries(rows.map((r: any) => [r.id, { label: null, status: r.status, serviceName: (r.serviceId && names.get(r.serviceId)) || null }]))
     },
   }
 }

@@ -12,7 +12,7 @@ export default createBookingRoutes({
   db,
   tables: { company, contact, bookingSettings, bookableService, onlineBooking },
   authenticate,
-  calendar: appointmentCalendar(appointment, { contactColumn: 'contactId', serviceColumn: 'serviceId', priceColumn: 'quotedPrice' }),
+  calendar: appointmentCalendar(appointment, { contactColumn: 'contactId', serviceColumn: 'serviceId', priceColumn: 'quotedPrice', serviceTable: serviceMenu }),
   options: {
     requireAddress: false,
     contactType: 'client',

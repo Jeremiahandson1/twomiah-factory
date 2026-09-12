@@ -40,8 +40,8 @@ export interface BookingCalendar {
   }): Promise<CalendarEntry>
   /** Mirror a booking status onto the calendar row. */
   setStatus(exec: any, id: string, status: BookingStatus): Promise<void>
-  /** Label + status for the owner's list, keyed by calendar row id. */
-  lookup(exec: any, ids: string[]): Promise<Record<string, { label: string | null; status: string | null }>>
+  /** Label + status (+ the service name the calendar row carries, if any) for the owner's list, keyed by calendar row id. */
+  lookup(exec: any, ids: string[]): Promise<Record<string, { label: string | null; status: string | null; serviceName?: string | null }>>
 }
 
 export interface CatalogService {

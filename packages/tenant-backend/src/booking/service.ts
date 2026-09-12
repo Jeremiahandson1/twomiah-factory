@@ -311,6 +311,7 @@ export function createBookingService(deps: BookingDeps) {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':booking:' + date}))`)
       const service = serviceId ? await catalog.resolve(companyId, serviceId, tx) : null
       const slots = await slotsFor(settings, date, service, companyId, tx)
+      if (!slots.length) throw new BookingError('No online times are available on that day — please pick another date.')
       if (!slots.find(s => s.time === time)) throw new BookingError('That time is no longer available — please pick another slot.')
 
       let [theContact] = await tx.select().from(t.contact).where(and(eq(t.contact.companyId, companyId), eq(t.contact.email, email))).limit(1)
@@ -408,10 +409,11 @@ ${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit
 
   // ---------------------------------------------------------------- owner's list, lookup, cancel, status
 
-  const bookingOut = (r: any, serviceName: string | null, cal: { label: string | null; status: string | null } | null) => ({
+  const bookingOut = (r: any, serviceName: string | null, cal: { label: string | null; status: string | null; serviceName?: string | null } | null) => ({
     id: r.id, companyId: r.companyId,
     contactId: r.contactId ?? null,
-    serviceId: r.serviceId ?? null, serviceName,
+    // widget services carry their own name; menu-based bookings (salon) get it from the appointment
+    serviceId: r.serviceId ?? null, serviceName: serviceName || cal?.serviceName || null,
     scheduledDate: r.scheduledDate,
     customerName: r.customerName, customerEmail: r.customerEmail, customerPhone: r.customerPhone ?? null,
     notes: r.notes ?? null,
