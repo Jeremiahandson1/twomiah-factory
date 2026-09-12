@@ -29,7 +29,8 @@ export default createJobRoutes({
     // completing a call under a service agreement schedules the next visit
     onComplete: async ({ job, companyId }) => {
       smsService.sendJobUpdate(companyId, job.id, 'completed').catch(() => {})
-      if (!job.serviceAgreementId) return
+      // same response shape whether or not a visit was scheduled
+      if (!job.serviceAgreementId) return { nextServiceDate: null }
       try {
         const result = await agreementService.generateNextJob(job.serviceAgreementId, companyId)
         return { nextServiceDate: result?.nextServiceDate ?? null }
