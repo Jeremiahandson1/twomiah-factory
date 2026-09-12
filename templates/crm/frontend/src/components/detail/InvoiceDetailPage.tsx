@@ -271,7 +271,7 @@ export default function InvoiceDetailPage() {
 
           <div className={`rounded-lg p-6 text-center ${balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
             <p className={`text-3xl font-bold ${balanceColor}`}>{balance < 0 ? '-' : ''}${Math.abs(balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            <p className="text-gray-600 dark:text-slate-400">{balance > 0 ? 'Balance Due' : balance < 0 ? 'Credit Balance' : 'Paid in Full'}</p>
+            <p className="text-gray-600 dark:text-slate-400">{balance > 0 ? 'Balance Due' : balance < 0 ? 'Credit Balance' : invoice.status === 'refunded' ? 'Refunded' : Number(invoice.amountRefunded || 0) > 0 ? `Paid in Full · $${Number(invoice.amountRefunded).toFixed(2)} refunded` : 'Paid in Full'}</p>
           </div>
         </div>
       </div>
