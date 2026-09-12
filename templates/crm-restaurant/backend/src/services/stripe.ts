@@ -649,4 +649,9 @@ export default {
   getAccountStatus,
   constructWebhookEvent,
   getPublishableKey,
+  // every named export is also reachable from the default import — routes call stripeService.<fn>()
+  createBookingDepositIntent,
+  createSetupIntent,
+  listSavedPaymentMethods,
+  chargeInvoiceOffSession,
 }
