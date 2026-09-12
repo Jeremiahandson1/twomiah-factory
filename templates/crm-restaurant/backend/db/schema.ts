@@ -1649,6 +1649,17 @@ export const bookingSettings = pgTable('booking_settings', {
   notifyEmail: boolean('notify_email').default(true).notNull(),
   notifySms: boolean('notify_sms').default(false).notNull(),
 
+  // Columns the raw-SQL booking service writes (services/booking.ts) — declared so the boot reconcile creates them;
+  // a fresh tenant 500'd on GET /api/booking/settings with "column title does not exist". (FLEET-R7)
+  title: text('title'),
+  description: text('description'),
+  leadTimeHours: integer('lead_time_hours').default(24),
+  requirePhone: boolean('require_phone').default(true),
+  requireAddress: boolean('require_address').default(true),
+  sendConfirmationEmail: boolean('send_confirmation_email').default(true),
+  sendConfirmationSms: boolean('send_confirmation_sms').default(false),
+  logoUrl: text('logo_url'),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
