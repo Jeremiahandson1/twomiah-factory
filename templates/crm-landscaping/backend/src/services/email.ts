@@ -396,6 +396,24 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     text: `${data.inviterName} invited you to join ${data.companyName} on {{COMPANY_NAME}}.\n\nAccept: ${data.inviteLink}`,
   }),
 
+  collaboratorAction: (data) => ({
+    subject: `${data.actorName} ${data.summary.toLowerCase().startsWith(data.actorName.toLowerCase()) ? '' : '— '}${data.summary}`.slice(0, 120),
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1></div>
+        <div class="content">
+          <h2>Customer Portal Activity</h2>
+          <p>${data.adminName ? `Hi ${data.adminName},` : 'Hi,'}</p>
+          <p><strong>${data.actorName}</strong> (${data.actorRole}) ${data.summary}${data.projectName ? ` on project <strong>${data.projectName}</strong>` : ''}.</p>
+          <p style="text-align:center;"><a href="${APP_URL}/crm" class="button">Open CRM</a></p>
+        </div>
+        <div class="footer">&copy; ${new Date().getFullYear()} ${data.companyName}</div>
+      </div></body></html>
+    `,
+    text: `${data.actorName} (${data.actorRole}) ${data.summary}${data.projectName ? ` on ${data.projectName}` : ''}.`,
+  }),
+
   portalInvite: (data) => ({
     subject: `Access your account with ${data.companyName}`,
     html: `
