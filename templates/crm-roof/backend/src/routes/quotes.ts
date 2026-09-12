@@ -147,6 +147,8 @@ app.put('/:id', requirePermission('quotes:update'), async (c) => {
     .where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Quote not found' }, 404)
+  // Once a customer has approved (or declined) a quote it is a record, not a draft. Signed acceptances must not be mutable.
+  if (!['draft', 'sent'].includes(existing.status)) return c.json({ error: 'Only draft or sent quotes can be edited' }, 400)
 
   const updateData: Record<string, any> = { updatedAt: new Date() }
   if (data.contactId) updateData.contactId = data.contactId
@@ -194,6 +196,7 @@ app.post('/:id/approve', requirePermission('quotes:update'), async (c) => {
     .where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Quote not found' }, 404)
+  if (!['draft', 'sent', 'approved'].includes(existing.status)) return c.json({ error: `This quote is already ${existing.status} and cannot be marked approved.` }, 400)
 
   const [updated] = await db.update(quote).set({
     status: 'approved',
@@ -213,6 +216,7 @@ app.post('/:id/decline', async (c) => {
     .where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Quote not found' }, 404)
+  if (!['draft', 'sent', 'declined'].includes(existing.status)) return c.json({ error: `This quote is already ${existing.status} and cannot be marked declined.` }, 400)
 
   const [updated] = await db.update(quote).set({
     status: 'declined',

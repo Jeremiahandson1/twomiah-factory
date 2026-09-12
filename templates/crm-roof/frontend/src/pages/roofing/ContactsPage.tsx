@@ -146,6 +146,33 @@ export default function ContactsPage() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        // 409 + existingId: this email/phone already belongs to a contact. Offer the existing record or an explicit duplicate.
+        if (res.status === 409 && err?.existingId && !editingId) {
+          if (confirm(`${err.error}\n\nOK = create this contact anyway.\nCancel = open the existing record.`)) {
+            const again = await fetch('/api/contacts', {
+              method: 'POST',
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ...payload, allowDuplicate: true }),
+            });
+            if (!again.ok) {
+              const err2 = await again.json().catch(() => ({}));
+              throw new Error(err2?.error || 'Could not save contact');
+            }
+            const dup = await again.json();
+            toast.success('Contact added');
+            setShowCreate(false);
+            setForm(emptyForm);
+            setEditingId(null);
+            await load();
+            selectContact(dup);
+            return;
+          }
+          const existing = await fetch(`/api/contacts/${err.existingId}`, { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+          setShowCreate(false);
+          setForm(emptyForm);
+          if (existing) selectContact(existing);
+          return;
+        }
         throw new Error(err?.error || 'Could not save contact');
       }
       const saved = await res.json();

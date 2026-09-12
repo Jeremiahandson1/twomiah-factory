@@ -9,6 +9,7 @@ import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import logger from '../services/logger.ts'
 import emailService from '../services/email.ts'
+import { passwordSchema } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -203,8 +204,9 @@ app.post('/logout', authenticate, async (c) => {
 // Change password
 app.put('/password', authenticate, async (c) => {
   const currentUser = c.get('user') as any
-  const passwordSchema = z.object({ currentPassword: z.string(), newPassword: z.string().min(8) })
-  const data = passwordSchema.parse(await c.req.json())
+  // One password rule for every CRM (shared passwordSchema): 8+ chars with a letter and a number.
+  const changeSchema = z.object({ currentPassword: z.string(), newPassword: passwordSchema })
+  const data = changeSchema.parse(await c.req.json())
 
   const [foundUser] = await db.select().from(user).where(eq(user.id, currentUser.userId)).limit(1)
   if (!foundUser) return c.json({ error: 'User not found' }, 404)
@@ -248,14 +250,16 @@ app.post('/forgot-password', async (c) => {
 
 // Reset password
 app.post('/reset-password', async (c) => {
-  const resetSchema = z.object({ token: z.string(), password: z.string().min(8) })
+  const resetSchema = z.object({ token: z.string(), password: passwordSchema })
   const data = resetSchema.parse(await c.req.json())
 
   const [foundUser] = await db.select().from(user).where(and(eq(user.resetToken, data.token), gt(user.resetTokenExp, new Date()))).limit(1)
   if (!foundUser) return c.json({ error: 'Invalid or expired reset token' }, 400)
 
+  // A reset is how a user recovers from a stolen password: every signed-in device is logged out and a
+  // pending lockout is cleared, same as the shared auth module.
   const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
-  await db.update(user).set({ passwordHash, resetToken: null, resetTokenExp: null, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
+  await db.update(user).set({ passwordHash, resetToken: null, resetTokenExp: null, refreshToken: null, failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() } as any).where(eq(user.id, foundUser.id))
 
   return c.json({ message: 'Password reset successfully' })
 })

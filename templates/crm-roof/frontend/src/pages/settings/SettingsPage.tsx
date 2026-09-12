@@ -147,7 +147,7 @@ export default function SettingsPage() {
   const inviteUser = async () => {
     if (!inviteForm.email.trim()) { toast.error('Email is required'); return; }
     if (!inviteForm.firstName.trim() || !inviteForm.lastName.trim()) { toast.error('First and last name are required'); return; }
-    if (inviteForm.password.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    if (inviteForm.password.length < 8 || !/[A-Za-z]/.test(inviteForm.password) || !/\d/.test(inviteForm.password)) { toast.error('Password must be at least 8 characters and include at least one letter and one number'); return; }
     setInviting(true);
     try {
       // POST /api/users — this used to call /api/users/invite, which was never

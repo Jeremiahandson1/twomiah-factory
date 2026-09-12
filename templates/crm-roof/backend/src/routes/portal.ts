@@ -3,7 +3,8 @@ import { z } from 'zod'
 import crypto from 'crypto'
 import { db } from '../../db/index.ts'
 import { portalSession, contact, company, job, jobPhoto, invoice, quote } from '../../db/schema.ts'
-import { eq, and, desc, gt, sql, count } from 'drizzle-orm'
+import { eq, and, desc, gt, sql, count, inArray, notInArray } from 'drizzle-orm'
+import { PORTAL_INVOICE_HIDDEN } from '../shared/index.ts'
 
 const app = new Hono()
 
@@ -15,6 +16,8 @@ const portalAuth = async (c: any, next: any) => {
   }
 
   const token = authHeader.split(' ')[1]
+  // A 6-digit sign-in code is also stored in portal_session; only a real 64-hex session token gets in.
+  if (!token || token.length < 32) return c.json({ error: 'Invalid or expired portal session' }, 401)
   const [session] = await db.select().from(portalSession)
     .where(and(eq(portalSession.token, token), gt(portalSession.expiresAt, new Date())))
     .limit(1)
@@ -45,55 +48,85 @@ const STATUS_DESCRIPTIONS: Record<string, string> = {
   collected: 'Project Complete',
 }
 
-// Portal login with PIN
+// Portal sign-in: email → 6-digit code by email → /verify → 30-day session.
+// The code is a short-lived portal_session row (6 digits, 10 minutes); a real session token is 64 hex
+// chars and portalAuth refuses anything shorter, so a code can never be used as a session. Before this,
+// POST /login handed out a full session for a bare email address (no secret at all), and the shipped
+// sign-in page already asked for a PIN and called /verify — which did not exist.
+// The login response never says whether the email has portal access (no account enumeration).
+const CODE_TTL_MS = 10 * 60 * 1000
+const SESSION_DAYS = 30
+const isCode = (t: string) => /^\d{6}$/.test(t)
+const findPortalContacts = async (email: string, companySlug?: string) => {
+  const conds: any[] = [sql`lower(${contact.email}) = ${email}`]
+  if (companySlug) {
+    const [comp] = await db.select({ id: company.id }).from(company).where(eq(company.slug, companySlug)).limit(1)
+    if (!comp) return [] as any[]
+    conds.push(eq(contact.companyId, comp.id))
+  }
+  return db.select().from(contact).where(and(...conds)).limit(5)
+}
+
 app.post('/login', async (c) => {
-  const loginSchema = z.object({
-    email: z.string().email(),
-    companySlug: z.string().min(1),
-  })
+  const body = await c.req.json().catch(() => ({} as any))
+  const email = typeof body?.email === 'string' ? body.email.toLowerCase().trim() : ''
+  if (!email || !z.string().email().safeParse(email).success) return c.json({ error: 'A valid email address is required' }, 400)
+  const companySlug = typeof body?.companySlug === 'string' && body.companySlug.trim() ? body.companySlug.trim() : undefined
+  const generic = { message: 'If that email has portal access, a 6-digit sign-in code is on its way.' }
 
-  const portalBody = await c.req.json()
-  if (typeof portalBody.email === 'string') { portalBody.email = portalBody.email.toLowerCase().trim(); if (!portalBody.email) delete portalBody.email }
-  const data = loginSchema.parse(portalBody)
+  const rows = (await findPortalContacts(email, companySlug)).filter((r: any) => r.portalEnabled)
+  if (!rows.length) return c.json(generic)
 
-  // Find company by slug
-  const [comp] = await db.select().from(company).where(eq(company.slug, data.companySlug)).limit(1)
-  if (!comp) return c.json({ error: 'Company not found' }, 404)
+  const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')
+  const expiresAt = new Date(Date.now() + CODE_TTL_MS)
+  for (const row of rows) {
+    // one live code per contact
+    await db.delete(portalSession).where(and(eq(portalSession.contactId, row.id), sql`length(${portalSession.token}) = 6`))
+    await db.insert(portalSession).values({ contactId: row.id, companyId: row.companyId, token: code, expiresAt })
+  }
+  const [comp] = await db.select({ name: company.name }).from(company).where(eq(company.id, rows[0].companyId)).limit(1)
+  try {
+    const { send } = await import('../services/email.ts')
+    await send(email, 'portalLoginCode', {
+      companyName: comp?.name || 'Your Contractor',
+      contactName: [rows[0].firstName, rows[0].lastName].filter(Boolean).join(' ') || 'there',
+      code,
+      minutes: CODE_TTL_MS / 60000,
+    })
+  } catch (err: any) {
+    console.error('[portal/login] sign-in code email failed:', err?.message)
+    return c.json({ error: 'Could not send the sign-in code — please try again in a moment.' }, 502)
+  }
+  return c.json(generic)
+})
 
-  // Find contact by email within this company
-  const [contactRow] = await db.select().from(contact)
-    .where(and(eq(contact.email, data.email), eq(contact.companyId, comp.id)))
+app.post('/verify', async (c) => {
+  const body = await c.req.json().catch(() => ({} as any))
+  const email = typeof body?.email === 'string' ? body.email.toLowerCase().trim() : ''
+  const pin = String(body?.pin ?? body?.code ?? '').trim()
+  if (!email || !isCode(pin)) return c.json({ error: 'Enter the 6-digit code from your email.' }, 400)
+  const invalid = { error: 'That code is not valid or has expired. Request a new one.' }
+
+  const rows = (await findPortalContacts(email)).filter((r: any) => r.portalEnabled)
+  const ids = rows.map((r: any) => r.id)
+  if (!ids.length) return c.json(invalid, 401)
+  const [pending] = await db.select().from(portalSession)
+    .where(and(inArray(portalSession.contactId, ids), eq(portalSession.token, pin), gt(portalSession.expiresAt, new Date())))
     .limit(1)
+  if (!pending) return c.json(invalid, 401)
+  await db.delete(portalSession).where(eq(portalSession.id, pending.id))
 
-  if (!contactRow) return c.json({ error: 'No account found with this email' }, 404)
-  if (!contactRow.portalEnabled) return c.json({ error: 'Portal access is not enabled for this account' }, 403)
-
-  // Generate 6-character alphanumeric token
-  const token = crypto.randomBytes(3).toString('hex').toUpperCase()
-
-  // Create portal session (30-day expiry)
+  const contactRow = rows.find((r: any) => r.id === pending.contactId)!
+  const token = crypto.randomBytes(32).toString('hex')
   const expiresAt = new Date()
-  expiresAt.setDate(expiresAt.getDate() + 30)
-
-  await db.insert(portalSession).values({
-    contactId: contactRow.id,
-    companyId: comp.id,
-    token,
-    expiresAt,
-  })
+  expiresAt.setDate(expiresAt.getDate() + SESSION_DAYS)
+  await db.insert(portalSession).values({ contactId: contactRow.id, companyId: contactRow.companyId, token, expiresAt })
+  const [comp] = await db.select({ id: company.id, name: company.name }).from(company).where(eq(company.id, contactRow.companyId)).limit(1)
 
   return c.json({
     token,
-    contact: {
-      id: contactRow.id,
-      firstName: contactRow.firstName,
-      lastName: contactRow.lastName,
-      email: contactRow.email,
-    },
-    company: {
-      id: comp.id,
-      name: comp.name,
-    },
+    contact: { id: contactRow.id, firstName: contactRow.firstName, lastName: contactRow.lastName, email: contactRow.email },
+    company: comp || null,
     expiresAt,
   })
 })
@@ -358,7 +391,8 @@ app.get('/invoices', portalAuth, async (c) => {
     dueDate: invoice.dueDate,
     createdAt: invoice.createdAt,
   }).from(invoice)
-    .where(and(eq(invoice.contactId, portalContact.id), eq(invoice.companyId, companyId)))
+    // Drafts are the office's working copies and void invoices are cancelled — neither is the customer's business.
+    .where(and(eq(invoice.contactId, portalContact.id), eq(invoice.companyId, companyId), notInArray(invoice.status, PORTAL_INVOICE_HIDDEN)))
     .orderBy(desc(invoice.createdAt))
 
   return c.json(invoices)

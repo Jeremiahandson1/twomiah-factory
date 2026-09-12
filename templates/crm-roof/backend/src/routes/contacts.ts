@@ -71,6 +71,30 @@ app.post('/', async (c) => {
   if (typeof cBody.email === 'string') { cBody.email = cBody.email.toLowerCase().trim(); if (!cBody.email) delete cBody.email }
   const data = contactSchema.parse(cBody)
 
+  // Duplicate guard (same rule as the shared contacts module): a create that matches an existing
+  // contact's email or phone digits is refused with 409 + existingId unless the body says allowDuplicate,
+  // so the UI can offer "open the existing record" / "create anyway" instead of silently making a twin.
+  if (!cBody.allowDuplicate) {
+    const conds: any[] = []
+    if (data.email) conds.push(sql`lower(${contact.email}) = ${data.email}`)
+    const phones = [data.phone, data.mobilePhone]
+      .map((p) => String(p || '').replace(/\D/g, ''))
+      .filter((p) => p.length >= 7)
+      .map((p) => '%' + p.slice(-10))
+    for (const p of phones) {
+      conds.push(sql`regexp_replace(coalesce(${contact.phone}, ''), '\\D', '', 'g') like ${p}`)
+      conds.push(sql`regexp_replace(coalesce(${contact.mobilePhone}, ''), '\\D', '', 'g') like ${p}`)
+    }
+    if (conds.length) {
+      const [dupe] = await db.select({ id: contact.id, firstName: contact.firstName, lastName: contact.lastName }).from(contact)
+        .where(and(eq(contact.companyId, currentUser.companyId), or(...conds))).limit(1)
+      if (dupe) {
+        const who = [dupe.firstName, dupe.lastName].filter(Boolean).join(' ') || 'A contact'
+        return c.json({ error: `${who} already has this email or phone number. Open that record, or create this contact anyway.`, existingId: dupe.id, duplicate: true }, 409)
+      }
+    }
+  }
+
   const [newContact] = await db.insert(contact).values({
     ...data,
     companyId: currentUser.companyId,

@@ -143,6 +143,9 @@ app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'pr
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
+// Customer-portal sign-in: a 6-digit emailed code is only safe behind a per-IP cap on guesses.
+app.use('/api/portal/login', createRateLimiter(15 * 60 * 1000, 10))
+app.use('/api/portal/verify', createRateLimiter(15 * 60 * 1000, 10))
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))

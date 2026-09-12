@@ -446,6 +446,25 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     }
   },
 
+  portalLoginCode: (data) => ({
+    subject: `${data.code} is your ${data.companyName} portal sign-in code`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1></div>
+        <div class="content">
+          <h2>Your sign-in code</h2>
+          <p>Hi ${data.contactName},</p>
+          <p>Enter this code on the portal sign-in page. It expires in ${data.minutes} minutes.</p>
+          <p style="text-align:center;font-size:32px;letter-spacing:8px;font-weight:bold;">${data.code}</p>
+          <p><small>If you did not try to sign in, you can ignore this email — the code is useless without it.</small></p>
+        </div>
+        <div class="footer">${data.companyName}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your ${data.companyName} portal sign-in code is ${data.code}. It expires in ${data.minutes} minutes.`,
+  }),
+
   collaboratorAction: (data) => ({
     subject: `${data.actorName} ${data.summary.toLowerCase().startsWith(data.actorName.toLowerCase()) ? '' : '— '}${data.summary}`.slice(0, 120),
     html: `
