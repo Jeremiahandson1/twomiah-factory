@@ -24,8 +24,9 @@ app.post('/webhook', async (c) => {
   return c.json({ received: true, ...result });
 });
 
-// All other routes require authentication
-app.use('*', authenticate);
+// All other routes require authentication — except the customer-portal ones, which carry the portal token in
+// the body and are called by customers who have no login.
+app.use('*', async (c, next) => (c.req.path.includes('/portal/') ? next() : authenticate(c, next)));
 
 // ============================================
 // CONFIG

@@ -90,11 +90,12 @@ import {
   PortalDashboard,
   PortalProjects,
   PortalProjectDetail,
+  PortalProjectFiles,
   PortalQuotes,
   PortalQuoteDetail,
   PortalInvoices,
-  PortalPaymentMethods,
   PortalInvoiceDetail,
+  PortalPaymentMethods,
   PortalChangeOrders,
   PortalChangeOrderDetail,
   PortalSelections,
@@ -102,9 +103,12 @@ import {
   PortalMyJobs,
   PortalLienWaivers,
   PortalSubmittalReview,
-  PortalSharedDocuments,
   PortalAssignedRfis,
-  PortalProjectFiles,
+  PortalSharedDocuments,
+  PortalEquipment,
+  PortalEquipmentDetail,
+  PortalAgreements,
+  PortalServiceRequest,
 } from './components/portal';
 
 
@@ -231,18 +235,21 @@ function App() {
                     <Route path="quotes" element={<PortalQuotes />} />
                     <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
                     <Route path="invoices" element={<PortalInvoices />} />
-                    <Route path="payment-methods" element={<PortalPaymentMethods />} />
                     <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
+                    <Route path="payment-methods" element={<PortalPaymentMethods />} />
                     <Route path="change-orders" element={<PortalChangeOrders />} />
                     <Route path="change-orders/:changeOrderId" element={<PortalChangeOrderDetail />} />
                     <Route path="selections" element={<PortalSelections />} />
                     <Route path="messages" element={<PortalMessages />} />
-                    {/* Collaborator routes (subs, architects, consultants) */}
                     <Route path="my-jobs" element={<PortalMyJobs />} />
                     <Route path="lien-waivers" element={<PortalLienWaivers />} />
                     <Route path="submittal-review" element={<PortalSubmittalReview />} />
                     <Route path="rfis-assigned" element={<PortalAssignedRfis />} />
                     <Route path="shared-documents" element={<PortalSharedDocuments />} />
+                    <Route path="equipment" element={<PortalEquipment />} />
+                    <Route path="equipment/:equipmentId" element={<PortalEquipmentDetail />} />
+                    <Route path="agreements" element={<PortalAgreements />} />
+                    <Route path="service-request" element={<PortalServiceRequest />} />
                   </Route>
 
                   {/* Catch all */}

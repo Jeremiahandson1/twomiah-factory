@@ -60,3 +60,5 @@ export { ProtectedRoute, PublicRoute } from './auth/ProtectedRoute'
 export { isTrialExpired, isTrialBypassPath } from './auth/trialStatus'
 export { PASSWORD_RULE_TEXT, passwordMeetsRule } from './auth/types'
 export type { AuthApi, AuthContextValue, AuthUser, AuthCompany, AuthData } from './auth/types'
+// Customer portal — token-link portal for customers, collaborators and reviewers, one implementation for every CRM.
+export * from './portal'
