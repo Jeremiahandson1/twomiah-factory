@@ -180,12 +180,15 @@ export interface Pagination { page: number; limit: number; total: number; pages:
 export function DataTable<T extends { id: string }>({ data, columns, loading, pagination, onPageChange, onRowClick, actions = [], emptyMessage = 'Nothing here yet.' }: {
   data: T[]; columns: Column<T>[]; loading?: boolean; pagination?: Pagination | null; onPageChange?: (p: number) => void; onRowClick?: (row: T) => void; actions?: RowAction<T>[]; emptyMessage?: string
 }) {
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number; anchor: HTMLElement } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!menu) return
     const close = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null) }
-    const onScroll = () => setMenu(null)
+    // The menu is position:fixed, so it must close when its anchor moves — i.e. when the document or a
+    // scroll container ABOVE the anchor scrolls. Scroll events from unrelated elements (a search input
+    // scrolling its own text back on blur, another panel) must not close it.
+    const onScroll = (e: Event) => { const t = e.target as Node | Document; if (t !== document && !(t as Node).contains?.(menu.anchor)) return; setMenu(null) }
     document.addEventListener('mousedown', close); window.addEventListener('scroll', onScroll, true)
     return () => { document.removeEventListener('mousedown', close); window.removeEventListener('scroll', onScroll, true) }
   }, [menu])
@@ -209,7 +212,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
                 {columns.map(c => <td key={c.key} className={`px-4 py-3 ${c.className || ''}`}>{c.render ? c.render((row as any)[c.key], row) : String((row as any)[c.key] ?? '-')}</td>)}
                 {actions.length > 0 && (
                   <td className="px-2 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"><MoreVertical className="w-4 h-4" /></button>
+                    <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"><MoreVertical className="w-4 h-4" /></button>
                   </td>
                 )}
               </tr>
