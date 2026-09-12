@@ -23,60 +23,27 @@ import AppointmentsPage from './pages/vet/AppointmentsPage';
 import RemindersPage from './pages/vet/RemindersPage';
 import WellnessPlansPage from './pages/vet/WellnessPlansPage';
 import ContactsPage from './pages/ContactsPage';
-import ProjectsPage from './pages/ProjectsPage';
-import JobsPage from './pages/JobsPage';
-import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
-import TimePage from './pages/TimePage';
-import ExpensesPage from './pages/ExpensesPage';
 import TeamPage from './pages/TeamPage';
-import RFIsPage from './pages/RFIsPage';
-import ChangeOrdersPage from './pages/ChangeOrdersPage';
-import PunchListsPage from './pages/PunchListsPage';
-import DailyLogsPage from './pages/DailyLogsPage';
-import InspectionsPage from './pages/InspectionsPage';
-import BidsPage from './pages/BidsPage';
-import SubmittalsPage from './pages/SubmittalsPage';
-import LienWaiversPage from './pages/LienWaiversPage';
-import DrawSchedulesPage from './pages/DrawSchedulesPage';
-import AiaFormsPage from './pages/AiaFormsPage';
-import GanttChartsPage from './pages/GanttChartsPage';
 import SettingsPage from './pages/SettingsPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
 // Feature pages
-import FleetPage from './pages/fleet/FleetPage';
-import InventoryPage from './pages/inventory/InventoryPage';
-import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
-import BookingsPage from './pages/booking/BookingsPage';
-import PricebookPage from './pages/pricebook/PricebookPage';
-import AgreementsPage from './pages/agreements/AgreementsPage';
-import WarrantiesPage from './pages/warranties/WarrantiesPage';
-import CallTrackingPage from './pages/calltracking/CallTrackingPage';
-import { AIReceptionistPage } from './components/features/AIReceptionistPage';
-import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
-import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
 import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
-import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
-import AdsPage from './pages/ads/AdsPage';
-import PricebookTrialPage from './pages/PricebookTrialPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import ContactSupportPage from './pages/support/ContactSupportPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
-import ProjectDetailPage from './components/detail/ProjectDetailPage';
-import JobDetailPage from './components/detail/JobDetailPage';
-import QuoteDetailPage from './components/detail/QuoteDetailPage';
 import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
 
 // Layout
@@ -166,13 +133,6 @@ function App() {
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
-                    <Route path="bookings" element={<BookingsPage />} />
-                    <Route path="agreements" element={<AgreementsPage />} />
-                    <Route path="call-tracking" element={<CallTrackingPage />} />
-                    <Route path="ai-receptionist" element={<AIReceptionistPage />} />
-                    <Route path="recurring" element={<RecurringListPage />} />
-                    <Route path="recurring/new" element={<RecurringForm />} />
-                    <Route path="recurring/:id/edit" element={<RecurringForm />} />
                     <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
@@ -180,7 +140,6 @@ function App() {
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
-                    <Route path="ads" element={<AdsPage />} />
                     <Route path="patients" element={<PatientsPage />} />
                     <Route path="patients/:id" element={<PatientDetailPage />} />
                     <Route path="appointments" element={<AppointmentsPage />} />

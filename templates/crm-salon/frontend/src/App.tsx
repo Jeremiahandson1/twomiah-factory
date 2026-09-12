@@ -24,7 +24,6 @@ import RemindersPage from './pages/salon/RemindersPage';
 import ServiceMenuPage from './pages/salon/ServiceMenuPage';
 import MembershipsPage from './pages/salon/MembershipsPage';
 import ContactsPage from './pages/ContactsPage';
-import ProjectsPage from './pages/ProjectsPage';
 import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
@@ -32,51 +31,25 @@ import SchedulePage from './pages/SchedulePage';
 import TimePage from './pages/TimePage';
 import ExpensesPage from './pages/ExpensesPage';
 import TeamPage from './pages/TeamPage';
-import RFIsPage from './pages/RFIsPage';
-import ChangeOrdersPage from './pages/ChangeOrdersPage';
-import PunchListsPage from './pages/PunchListsPage';
-import DailyLogsPage from './pages/DailyLogsPage';
-import InspectionsPage from './pages/InspectionsPage';
-import BidsPage from './pages/BidsPage';
-import SubmittalsPage from './pages/SubmittalsPage';
-import LienWaiversPage from './pages/LienWaiversPage';
-import DrawSchedulesPage from './pages/DrawSchedulesPage';
-import AiaFormsPage from './pages/AiaFormsPage';
-import GanttChartsPage from './pages/GanttChartsPage';
 import SettingsPage from './pages/SettingsPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
 // Feature pages
-import FleetPage from './pages/fleet/FleetPage';
-import InventoryPage from './pages/inventory/InventoryPage';
-import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
 import BookingsPage from './pages/booking/BookingsPage';
-import PricebookPage from './pages/pricebook/PricebookPage';
-import AgreementsPage from './pages/agreements/AgreementsPage';
-import WarrantiesPage from './pages/warranties/WarrantiesPage';
-import CallTrackingPage from './pages/calltracking/CallTrackingPage';
-import { AIReceptionistPage } from './components/features/AIReceptionistPage';
-import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
-import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
-import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
-import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
-import AdsPage from './pages/ads/AdsPage';
-import PricebookTrialPage from './pages/PricebookTrialPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import ContactSupportPage from './pages/support/ContactSupportPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
-import ProjectDetailPage from './components/detail/ProjectDetailPage';
 import JobDetailPage from './components/detail/JobDetailPage';
 import QuoteDetailPage from './components/detail/QuoteDetailPage';
 import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
@@ -150,8 +123,6 @@ function App() {
                     <Route index element={<SalonDashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
-                    <Route path="projects" element={<ProjectsPage />} />
-                    <Route path="projects/:id" element={<ProjectDetailPage />} />
                     <Route path="jobs" element={<JobsPage />} />
                     <Route path="jobs/:id" element={<JobDetailPage />} />
                     <Route path="quotes" element={<QuotesPage />} />
@@ -163,17 +134,6 @@ function App() {
                     <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
-                    <Route path="rfis" element={<RFIsPage />} />
-                    <Route path="submittals" element={<SubmittalsPage />} />
-                    <Route path="lien-waivers" element={<LienWaiversPage />} />
-                    <Route path="draw-schedules" element={<DrawSchedulesPage />} />
-                    <Route path="aia-forms" element={<AiaFormsPage />} />
-                    <Route path="gantt" element={<GanttChartsPage />} />
-                    <Route path="change-orders" element={<ChangeOrdersPage />} />
-                    <Route path="punch-lists" element={<PunchListsPage />} />
-                    <Route path="daily-logs" element={<DailyLogsPage />} />
-                    <Route path="inspections" element={<InspectionsPage />} />
-                    <Route path="bids" element={<BidsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
@@ -187,30 +147,14 @@ function App() {
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="fleet" element={<FleetPage />} />
-                    <Route path="inventory" element={<InventoryPage />} />
-                    <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
                     <Route path="bookings" element={<BookingsPage />} />
-                    <Route path="pricebook" element={<PricebookPage />} />
-                    <Route path="agreements" element={<AgreementsPage />} />
-                    <Route path="warranties" element={<WarrantiesPage />} />
-                    <Route path="call-tracking" element={<CallTrackingPage />} />
-                    <Route path="ai-receptionist" element={<AIReceptionistPage />} />
-                    <Route path="recurring" element={<RecurringListPage />} />
-                    <Route path="recurring/new" element={<RecurringForm />} />
-                    <Route path="recurring/:id/edit" element={<RecurringForm />} />
-                    <Route path="takeoffs" element={<TakeoffsPage />} />
-                    <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
-                    <Route path="selections" element={<SelectionsPage />} />
                     <Route path="reviews" element={<ReviewsPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
-                    <Route path="ads" element={<AdsPage />} />
-                    <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                     <Route path="clients" element={<ClientsPage />} />
                     <Route path="clients/:id" element={<ClientDetailPage />} />
                     <Route path="appointments" element={<AppointmentsPage />} />

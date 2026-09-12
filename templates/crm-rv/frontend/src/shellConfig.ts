@@ -44,11 +44,8 @@ const NAV: NavItem[] = [
   // Customers & Marketing
   { to: '/crm/contacts', icon: Users, label: 'Contacts', section: 'Customers & Marketing' },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'], section: 'Customers & Marketing' },
-  { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'], section: 'Customers & Marketing' },
   { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing' },
-  { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'], section: 'Customers & Marketing' },
-  { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], section: 'Customers & Marketing' },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], section: 'Customers & Marketing' },

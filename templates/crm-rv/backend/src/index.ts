@@ -35,17 +35,7 @@ import quotesRoutes from './routes/quotes.ts'
 import invoicesRoutes from './routes/invoices.ts'
 import timeRoutes from './routes/time.ts'
 import expensesRoutes from './routes/expenses.ts'
-import rfisRoutes from './routes/rfis.ts'
-import submittalsRoutes from './routes/submittals.ts'
-import lienWaiversRoutes from './routes/lienWaivers.ts'
-import drawSchedulesRoutes from './routes/drawSchedules.ts'
-import aiaFormsRoutes from './routes/aiaForms.ts'
 import ganttChartsRoutes from './routes/ganttCharts.ts'
-import changeOrdersRoutes from './routes/changeOrders.ts'
-import punchListsRoutes from './routes/punchLists.ts'
-import dailyLogsRoutes from './routes/dailyLogs.ts'
-import inspectionsRoutes from './routes/inspections.ts'
-import bidsRoutes from './routes/bids.ts'
 import teamRoutes from './routes/team.ts'
 import companyRoutes from './routes/company.ts'
 import dashboardRoutes from './routes/dashboard.ts'
@@ -73,7 +63,6 @@ import payrollRoutes from './routes/payroll.ts'
 import photosRoutes from './routes/photos.ts'
 import portalRoutes from './routes/portal.ts'
 // portal-selections and portal-messages are handled inline in portal.ts under /p/:token/
-import pricebookRoutes from './routes/pricebook.ts'
 import pushRoutes from './routes/push.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
 import recurringRoutes from './routes/recurring.ts'
@@ -83,10 +72,8 @@ import routingRoutes from './routes/routing.ts'
 import schedulingRoutes from './routes/scheduling.ts'
 import scheduleEventsRoutes from './routes/scheduleEvents.ts'
 import searchRoutes from './routes/search.ts'
-import selectionsRoutes from './routes/selections.ts'
 import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
-import takeoffsRoutes from './routes/takeoffs.ts'
 import tasksRoutes from './routes/tasks.ts'
 import timeTrackingRoutes from './routes/timeTracking.ts'
 import warrantiesRoutes from './routes/warranties.ts'
@@ -222,17 +209,7 @@ app.route('/api/quotes', quotesRoutes)
 app.route('/api/invoices', invoicesRoutes)
 app.route('/api/time', timeRoutes)
 app.route('/api/expenses', expensesRoutes)
-app.route('/api/rfis', rfisRoutes)
-app.route('/api/submittals', submittalsRoutes)
-app.route('/api/lien-waivers', lienWaiversRoutes)
-app.route('/api/draw-schedules', drawSchedulesRoutes)
-app.route('/api/aia-forms', aiaFormsRoutes)
 app.route('/api/gantt-charts', ganttChartsRoutes)
-app.route('/api/change-orders', changeOrdersRoutes)
-app.route('/api/punch-lists', punchListsRoutes)
-app.route('/api/daily-logs', dailyLogsRoutes)
-app.route('/api/inspections', inspectionsRoutes)
-app.route('/api/bids', bidsRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/company', companyRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
@@ -267,7 +244,6 @@ app.route('/api/marketing', marketingRoutes)
 app.route('/api/payroll', payrollRoutes)
 app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
-app.route('/api/pricebook', pricebookRoutes)
 try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}
 try { app.route('/api/valuation', (await import('./routes/valuation.ts')).default) } catch {}
 try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
@@ -280,10 +256,8 @@ app.route('/api/routing', routingRoutes)
 app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/schedule-events', scheduleEventsRoutes)
 app.route('/api/search', searchRoutes)
-app.route('/api/selections', selectionsRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/stripe', stripeRoutes)
-app.route('/api/takeoffs', takeoffsRoutes)
 app.route('/api/tasks', tasksRoutes)
 app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/warranties', warrantiesRoutes)

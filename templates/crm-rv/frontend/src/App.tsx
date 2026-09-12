@@ -33,10 +33,8 @@ import FleetPage from './pages/fleet/FleetPage';
 import InventoryPage from './pages/inventory/InventoryPage';
 import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
-import BookingsPage from './pages/booking/BookingsPage';
 import AgreementsPage from './pages/agreements/AgreementsPage';
 import WarrantiesPage from './pages/warranties/WarrantiesPage';
-import CallTrackingPage from './pages/calltracking/CallTrackingPage';
 import { AIReceptionistPage } from './components/features/AIReceptionistPage';
 import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
 import TasksPage from './pages/tasks/TasksPage';
@@ -47,7 +45,6 @@ import ReviewsPage from './pages/reviews/ReviewsPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
-import AdsPage from './pages/ads/AdsPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // RV / Powersports dealership pages
@@ -196,10 +193,8 @@ function App() {
                     <Route path="alerts" element={<AlertsPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
-                    <Route path="bookings" element={<BookingsPage />} />
                     <Route path="agreements" element={<AgreementsPage />} />
                     <Route path="warranties" element={<WarrantiesPage />} />
-                    <Route path="call-tracking" element={<CallTrackingPage />} />
                     <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                     <Route path="recurring" element={<RecurringListPage />} />
                     <Route path="recurring/new" element={<RecurringForm />} />
@@ -211,7 +206,6 @@ function App() {
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
-                    <Route path="ads" element={<AdsPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>
 
