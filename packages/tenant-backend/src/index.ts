@@ -69,6 +69,10 @@ export type { PhotoDeps, PhotoTables } from './files/photos'
 export { createContactRoutes, standardRelations, standardGuards, isValidPhone, DEFAULT_CONTACT_TYPES } from './contacts/contacts'
 export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables } from './contacts/contacts'
 
+// Company settings + feature toggles + login users — one implementation for every CRM.
+export { createCompanyRoutes, sanitizeCompany, COMPANY_SECRETS } from './company/company'
+export type { CompanyDeps } from './company/company'
+
 // Boot-time additive schema reconcile (db/reconcile.ts in every CRM template).
 export { reconcileSchema, buildCreateTable, buildAddColumn, buildCreateIndex } from './schemaReconcile'
 export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResult } from './schemaReconcile'

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, MoreVertical, LucideIcon } from 'lucide-react';
-import { useIsMobile } from '../../hooks/useMediaQuery';
+import { useIsMobile } from '../../shared';
 
 interface ResponsiveTableColumn<T = Record<string, unknown>> {
   key: string;

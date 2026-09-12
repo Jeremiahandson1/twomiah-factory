@@ -6,7 +6,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { PermissionsProvider } from './contexts/PermissionsContext';
 import { ProtectedRoute, PublicRoute } from './components/auth/ProtectedRoute';
-import ErrorBoundary from './components/common/ErrorBoundary';
+import { ErrorBoundary } from './shared';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -72,8 +72,6 @@ import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import AdsPage from './pages/ads/AdsPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
-import RoofReportsPage from './pages/roofReports/RoofReportsPage';
-import RoofReportDetail from './pages/roofReports/RoofReportDetail';
 import OnboardingWizard from './pages/OnboardingWizard';
 import ContactSupportPage from './pages/support/ContactSupportPage';
 
@@ -210,8 +208,6 @@ function App() {
                     <Route path="support" element={<SupportPage />} />
                     <Route path="ads" element={<AdsPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
-                    <Route path="roof-reports" element={<RoofReportsPage />} />
-                    <Route path="roof-reports/:id" element={<RoofReportDetail />} />
                     <Route path="clients" element={<ClientsPage />} />
                     <Route path="clients/:id" element={<ClientDetailPage />} />
                     <Route path="appointments" element={<AppointmentsPage />} />
