@@ -10,8 +10,8 @@ app.use('*', authenticate)
 
 const lineItemSchema = z.object({
   description: z.string().min(1),
-  quantity: z.number().default(1),
-  unitPrice: z.number().default(0),
+  quantity: z.number().min(0, 'Quantity cannot be negative').default(1),
+  unitPrice: z.number().min(0, 'Price cannot be negative').default(0),
 })
 
 const invoiceSchema = z.object({
@@ -81,6 +81,11 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
   const data = invoiceSchema.parse(await c.req.json())
+  // Both relations must be this company's — an unknown id used to surface as a foreign-key 500.
+  const [ownContact] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, data.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!ownContact) return c.json({ error: 'That contact does not exist.' }, 404)
+  const [ownJob] = await db.select({ id: job.id }).from(job).where(and(eq(job.id, data.jobId), eq(job.companyId, currentUser.companyId))).limit(1)
+  if (!ownJob) return c.json({ error: 'That job does not exist.' }, 404)
 
   // Auto-generate invoiceNumber: INV-0001
   const [maxResult] = await db

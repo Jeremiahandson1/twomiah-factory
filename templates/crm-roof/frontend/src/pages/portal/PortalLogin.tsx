@@ -19,11 +19,11 @@ export default function PortalLogin() {
       const res = await fetch('/api/portal/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Account not found');
+        throw new Error(data.error || data.message || 'Could not send a sign-in code');
       }
       setStep('pin');
     } catch (err: any) {
@@ -42,11 +42,11 @@ export default function PortalLogin() {
       const res = await fetch('/api/portal/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, pin }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), pin: pin.trim() }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Invalid PIN');
+        throw new Error(data.error || data.message || 'Invalid code');
       }
       const data = await res.json();
       localStorage.setItem('portalToken', data.token);
@@ -95,9 +95,9 @@ export default function PortalLogin() {
           ) : (
             <form onSubmit={handleSubmitPin}>
               <p className="text-gray-400 text-sm mb-4">
-                We sent a PIN to <span className="text-white font-medium">{email}</span>
+                If <span className="text-white font-medium">{email}</span> has portal access, a 6-digit sign-in code is on its way. It expires in 10 minutes.
               </p>
-              <label className="text-xs text-gray-400 block mb-1.5">Enter PIN</label>
+              <label className="text-xs text-gray-400 block mb-1.5">Enter code</label>
               <input
                 type="text"
                 value={pin}

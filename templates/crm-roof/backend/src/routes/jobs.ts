@@ -7,9 +7,27 @@ import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzl
 import { authenticate } from '../middleware/auth.ts'
 import { uploadFile, deleteFile, keyFromMediaUrl } from '../services/storage.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { normalizeDateInput } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// Date fields arrive as strings from the form; an unparseable one used to reach Postgres as an Invalid
+// Date and 500. '' clears the field, a bad value is a 400 naming the field.
+const JOB_DATE_FIELDS = ['dateOfLoss', 'inspectionDate', 'installDate', 'installEndDate'] as const
+const jobDates = (data: Record<string, any>): { error?: string; values: Record<string, Date | null | undefined> } => {
+  const values: Record<string, Date | null | undefined> = {}
+  for (const f of JOB_DATE_FIELDS) {
+    const r = normalizeDateInput(data[f])
+    if (r.error) return { error: `${f}: ${r.error}`, values }
+    values[f] = r.value
+  }
+  return { values }
+}
+const ownContact = async (companyId: string, contactId: string) => {
+  const [row] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, contactId), eq(contact.companyId, companyId))).limit(1)
+  return !!row
+}
 
 const PIPELINE_ORDER = [
   'lead',
@@ -141,6 +159,9 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
   const data = jobSchema.parse(await c.req.json())
+  const dates = jobDates(data)
+  if (dates.error) return c.json({ error: dates.error }, 400)
+  if (!(await ownContact(currentUser.companyId, data.contactId))) return c.json({ error: 'That contact does not exist.' }, 404)
 
   // Auto-generate jobNumber: ROOF-0001
   const [maxResult] = await db
@@ -159,15 +180,15 @@ app.post('/', async (c) => {
     ...data,
     jobNumber,
     source: data.source || 'manual',
-    dateOfLoss: data.dateOfLoss ? new Date(data.dateOfLoss) : undefined,
+    dateOfLoss: dates.values.dateOfLoss ?? undefined,
     deductible: data.deductible?.toString(),
     rcv: data.rcv?.toString(),
     acv: data.acv?.toString(),
     estimatedRevenue: data.estimatedRevenue?.toString(),
     totalSquares: data.totalSquares?.toString(),
-    inspectionDate: data.inspectionDate ? new Date(data.inspectionDate) : undefined,
-    installDate: data.installDate ? new Date(data.installDate) : undefined,
-    installEndDate: data.installEndDate ? new Date(data.installEndDate) : undefined,
+    inspectionDate: dates.values.inspectionDate ?? undefined,
+    installDate: dates.values.installDate ?? undefined,
+    installEndDate: dates.values.installEndDate ?? undefined,
     companyId: currentUser.companyId,
   }).returning()
 
@@ -219,20 +240,20 @@ app.put('/:id', async (c) => {
   const rawBody = await c.req.json()
   const cleanedBody = Object.fromEntries(Object.entries(rawBody).map(([k, v]) => [k, v === null ? undefined : v]))
   const data = jobSchema.partial().parse(cleanedBody)
+  const dates = jobDates(data)
+  if (dates.error) return c.json({ error: dates.error }, 400)
 
   const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)
+  if (data.contactId && !(await ownContact(currentUser.companyId, data.contactId))) return c.json({ error: 'That contact does not exist.' }, 404)
 
   const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
-  if (data.dateOfLoss) updateData.dateOfLoss = new Date(data.dateOfLoss)
+  for (const f of JOB_DATE_FIELDS) { if (dates.values[f] === undefined) delete updateData[f]; else updateData[f] = dates.values[f] }
   if (data.deductible !== undefined) updateData.deductible = data.deductible.toString()
   if (data.rcv !== undefined) updateData.rcv = data.rcv.toString()
   if (data.acv !== undefined) updateData.acv = data.acv.toString()
   if (data.estimatedRevenue !== undefined) updateData.estimatedRevenue = data.estimatedRevenue.toString()
   if (data.totalSquares !== undefined) updateData.totalSquares = data.totalSquares.toString()
-  if (data.inspectionDate) updateData.inspectionDate = new Date(data.inspectionDate)
-  if (data.installDate) updateData.installDate = new Date(data.installDate)
-  if (data.installEndDate) updateData.installEndDate = new Date(data.installEndDate)
 
   const [updated] = await db.update(job).set(updateData).where(eq(job.id, id)).returning()
   return c.json(updated)

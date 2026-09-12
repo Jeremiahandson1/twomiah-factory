@@ -5,6 +5,7 @@ import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import { passwordSchema } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -55,7 +56,7 @@ app.post('/', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({
     email: z.string().email(),
-    password: z.string().min(8),
+    password: passwordSchema,
     firstName: z.string().min(1),
     lastName: z.string().min(1),
     phone: z.string().optional(),
