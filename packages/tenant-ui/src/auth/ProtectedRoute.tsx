@@ -5,6 +5,7 @@ import React, { useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { isTrialExpired, isTrialBypassPath } from './trialStatus'
+import { useTheme } from '../shell/hooks'
 
 /** Hook-based <Navigate>: react-router's JSX components do not type-check from the vendored package. */
 function Redirect({ to, state }: { to: string; state?: unknown }) {
@@ -45,6 +46,9 @@ export function ProtectedRoute({ children, requiredRole }: { children: React.Rea
 export function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
   const location = useLocation()
+  // The shell applies the remembered theme once you are inside the app; the sign-in / forgot / reset pages
+  // render before that, so apply it here too — otherwise a dark-mode user always gets a light login page.
+  useTheme()
 
   if (loading) return <Spinner />
   if (isAuthenticated) {
