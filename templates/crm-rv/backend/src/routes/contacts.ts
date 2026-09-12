@@ -19,8 +19,9 @@ export default createContactRoutes({
   audit,
   cleanText,
   options: {
-    // a dealership's buyers are customers; 'client' stays accepted for rows QuickBooks sync created
-    types: ['lead', 'customer', 'client', 'subcontractor', 'vendor'],
+    // a dealership sells to customers; legacy 'client' rows are folded into 'customer' at boot (db/prune-legacy.ts)
+    types: ['lead', 'customer', 'vendor'],
+    convertTo: 'customer',
     relations: standardRelations({ project, quote, invoice }),
     guards: [
       ...standardGuards({ invoice, quote, job, project }),

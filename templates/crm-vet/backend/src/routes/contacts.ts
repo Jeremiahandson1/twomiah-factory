@@ -1,6 +1,7 @@
 // Contacts — shared implementation (packages/tenant-backend/src/contacts/contacts.ts), vendored into this
 // tenant as ../shared at generation. This file only wires the template's tables, middleware and services in.
 import { createContactRoutes, standardRelations, standardGuards } from '../shared/index.ts'
+import { asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { contact, project, quote, invoice, job, patient, appointment } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
@@ -19,7 +20,11 @@ export default createContactRoutes({
   audit,
   cleanText,
   options: {
-    relations: standardRelations({ project, quote, invoice }),
+    relations: [
+      ...standardRelations({ project, quote, invoice }),
+      // the owner page lists their pets
+      { key: 'patients', table: patient, column: patient.ownerId, columns: { id: patient.id, name: patient.name, species: patient.species, breed: patient.breed, deceased: patient.deceased }, orderBy: asc(patient.name) },
+    ],
     guards: [
       // A client owns patients, and every patient's visits/vaccinations/prescriptions/lab results
       // cascade-delete with them. That is medical history under statutory retention — block it.

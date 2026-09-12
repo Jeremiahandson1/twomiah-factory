@@ -25,8 +25,8 @@ export interface ContactSections {
   equipment?: boolean
   sites?: boolean
   sms?: boolean
-  /** roof reports panel + "Roof Report" action — gated by `instant_estimator` */
-  roofReports?: boolean
+  /** vet: the owner's patients */
+  patients?: boolean
   /** customer portal access panel (needs an email) */
   portal?: boolean
 }
@@ -63,7 +63,7 @@ export const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
   { label: 'Create Invoice', to: '/crm/invoices?contactId=:id', icon: 'invoice' },
 ]
 
-export const DEFAULT_SECTIONS: ContactSections = { projects: true, quotes: true, roofReports: true, portal: true }
+export const DEFAULT_SECTIONS: ContactSections = { projects: true, quotes: true, portal: true }
 
 export function resolveContactsConfig(c?: ContactsConfig) {
   const cfg = c || {}

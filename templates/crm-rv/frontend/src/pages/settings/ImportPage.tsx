@@ -46,7 +46,7 @@ export default function ImportPage() {
   const [options, setOptions] = useState({
     skipDuplicates: true,
     updateExisting: false,
-    defaultType: 'client',
+    defaultType: 'customer',
       createMissingContacts: true,
   });
 
@@ -272,7 +272,7 @@ export default function ImportPage() {
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOptions({ ...options, defaultType: e.target.value })}
                   className="px-3 py-1.5 border rounded-lg"
                 >
-                  <option value="client">Client</option>
+                  <option value="customer">Customer</option>
                   <option value="lead">Lead</option>
                   <option value="vendor">Vendor</option>
                   <option value="subcontractor">Subcontractor</option>

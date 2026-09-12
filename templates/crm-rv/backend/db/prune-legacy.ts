@@ -31,6 +31,16 @@ for (const t of LEGACY_TABLES) {
 // Drizzle schema), so `drizzle-kit push` never reconciles them — an old table
 // missing the `total` column made recurring-invoice creation 500. Ensure they
 // exist with every column the recurring service writes (idempotent).
+// The dealership CRM shipped with two words for the same thing: the UI offered "Customer" while the
+// backend, QuickBooks sync and CSV import wrote 'client'. Everything now says 'customer'; fold the
+// legacy rows in so type filters, stats cards and the QuickBooks sync see every buyer (idempotent).
+try {
+  const r: any = await db.execute(sql.raw(`UPDATE contact SET type = 'customer' WHERE type = 'client'`))
+  console.log('[prune-legacy] contact type client→customer:', r?.rowCount ?? r?.count ?? 'ok')
+} catch (e: any) {
+  console.warn('[prune-legacy] contact type backfill skipped', e?.message || e)
+}
+
 const ENSURE = [
   // takeoff_item column drift: fieldservice-lineage migrations created this table
   // with the old cost columns; schema.ts uses assembly_id + measurement columns.
