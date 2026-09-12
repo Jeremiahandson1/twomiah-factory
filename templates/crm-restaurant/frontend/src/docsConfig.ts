@@ -1,0 +1,4 @@
+// What this vertical does differently in the shared Documents page (see ./shared).
+import type { DocumentsConfig } from './shared'
+
+export const DOCUMENTS: DocumentsConfig = { types: ['general', 'contract', 'menu', 'floor_plan', 'photo', 'invoice', 'receipt', 'other'] }

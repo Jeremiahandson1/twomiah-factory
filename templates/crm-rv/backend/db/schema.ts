@@ -667,6 +667,27 @@ export const document = pgTable('document', {
   index('document_type_idx').on(t.type),
 ])
 
+// Version history: the document row always points at the CURRENT file; replacing it snapshots the
+// outgoing file here, so a revision never silently destroys what someone already worked from.
+export const documentVersion = pgTable('document_version', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  versionNumber: integer('version_number').notNull(),
+  filename: text('filename').notNull(),
+  originalName: text('original_name').notNull(),
+  mimeType: text('mime_type'),
+  size: integer('size'),
+  path: text('path').notNull(),
+  url: text('url').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('document_version_document_id_idx').on(t.documentId),
+])
+
+
 export const documentShare = pgTable('document_share', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
