@@ -8,9 +8,13 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { stripHtml } from '../utils/sanitize.ts'
+import { isValidPhone } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// The portal token is a bearer credential — never in an API response or a socket broadcast (VET-29).
+const stripPortal = (row: any) => { if (!row) return row; const { portalToken, portalTokenExp, ...rest } = row; return rest }
 
 // Free-text fields are stored with markup stripped (QA F-09): a customer named `<script>`
 // was persisted verbatim. React escapes it in the SPA, but receipts, labels, emails and CSV
@@ -22,8 +26,9 @@ const contactSchema = z.object({
   type: z.enum(['lead', 'client', 'patient', 'vendor']).default('lead'),
   company: cleanText().optional(),
   email: z.string().email().optional().or(z.literal('')),
-  phone: cleanText().optional(),
-  mobile: cleanText().optional(),
+  // Same phone rule as the shared contacts module: phone punctuation only and at least 7 digits.
+  phone: cleanText().optional().refine(isValidPhone, { message: 'Enter a valid phone number (at least 7 digits)' }),
+  mobile: cleanText().optional().refine(isValidPhone, { message: 'Enter a valid mobile number (at least 7 digits)' }),
   address: cleanText().optional(),
   city: cleanText().optional(),
   state: cleanText().optional(),
@@ -175,26 +180,36 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     if (age < 21) warnings.push(`Customer is ${age} — adult-use sales require 21+. Only medical sales with a valid card are permitted.`)
   }
 
-  // Block duplicate customers within the company on email or phone (S22). Only
-  // check the identifiers actually supplied so blank fields never collide.
-  const dupeChecks = []
-  if (data.email) dupeChecks.push(eq(contact.email, data.email))
-  if (data.phone) dupeChecks.push(eq(contact.phone, data.phone))
-  if (dupeChecks.length) {
-    const [existing] = await db.select({ id: contact.id, email: contact.email, phone: contact.phone })
-      .from(contact)
-      .where(and(eq(contact.companyId, currentUser.companyId), or(...dupeChecks)!))
-      .limit(1)
-    if (existing) {
-      const field = existing.email && data.email && existing.email === data.email ? 'email address' : 'phone number'
-      return c.json({ error: `A customer with that ${field} already exists.` }, 409)
+  // Duplicate guard (S22, now the same rule as the shared contacts module): a create that matches an
+  // existing customer's email or phone DIGITS is refused with 409 + existingId unless the body says
+  // allowDuplicate, so the UI can offer "open the existing record" / "create anyway". The old check
+  // compared the phone as typed, so "(614) 555-0100" slipped past "6145550100".
+  if (!cBody.allowDuplicate) {
+    const conds: any[] = []
+    if (data.email) conds.push(sql`lower(${contact.email}) = ${data.email}`)
+    const phones = [data.phone, data.mobile]
+      .map((p) => String(p || '').replace(/\D/g, ''))
+      .filter((p) => p.length >= 7)
+      .map((p) => '%' + p.slice(-10))
+    for (const p of phones) {
+      conds.push(sql`regexp_replace(coalesce(${contact.phone}, ''), '\\D', '', 'g') like ${p}`)
+      conds.push(sql`regexp_replace(coalesce(${contact.mobile}, ''), '\\D', '', 'g') like ${p}`)
+    }
+    if (conds.length) {
+      const [dupe] = await db.select({ id: contact.id, name: contact.name }).from(contact)
+        .where(and(eq(contact.companyId, currentUser.companyId), or(...conds)!))
+        .limit(1)
+      if (dupe) {
+        return c.json({ error: `${dupe.name} already has this email or phone number. Open that record, or create this customer anyway.`, existingId: dupe.id, duplicate: true }, 409)
+      }
     }
   }
 
   const [newContact] = await db.insert(contact).values({ ...data, companyId: currentUser.companyId }).returning()
-  emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, newContact)
+  const safeNew = stripPortal(newContact)
+  emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, safeNew)
   audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, metadata: warnings.length ? { warnings } : undefined, req: c.req })
-  return c.json(warnings.length ? { ...newContact, warnings } : newContact, 201)
+  return c.json(warnings.length ? { ...safeNew, warnings } : safeNew, 201)
 })
 
 app.put('/:id', requirePermission('contacts:update'), async (c) => {
@@ -208,10 +223,11 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
 
   const [updated] = await db.update(contact).set({ ...data, updatedAt: new Date() }).where(eq(contact.id, id)).returning()
-  emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, updated)
+  const safeUpdated = stripPortal(updated)
+  emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safeUpdated)
   const changes = audit.diff(existing, updated)
   if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c.req })
-  return c.json(updated)
+  return c.json(safeUpdated)
 })
 
 app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
@@ -220,6 +236,18 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
+
+  // A customer with sales or loyalty history is a record, not a row: deleting nulled every order's
+  // customer (FK set null) and cascaded the loyalty member (points) away. Same 409 rule as the shared
+  // contacts module — keep the record instead.
+  const [[{ value: orderCount }], [member]] = await Promise.all([
+    db.select({ value: count() }).from(order).where(eq(order.contactId, id)),
+    db.select({ pointsBalance: loyaltyMember.pointsBalance, lifetimePoints: loyaltyMember.lifetimePoints }).from(loyaltyMember).where(eq(loyaltyMember.contactId, id)).limit(1),
+  ])
+  const reasons: string[] = []
+  if (Number(orderCount) > 0) reasons.push(`${orderCount} order${Number(orderCount) === 1 ? '' : 's'}`)
+  if (member && (Number(member.pointsBalance) > 0 || Number(member.lifetimePoints) > 0)) reasons.push('loyalty points history')
+  if (reasons.length) return c.json({ error: `This customer has ${reasons.join(' and ')}. Customers with history can't be deleted — keep the record instead.` }, 409)
 
   await db.delete(contact).where(eq(contact.id, id))
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id })
@@ -236,9 +264,10 @@ app.post('/:id/convert', requirePermission('contacts:update'), async (c) => {
   if (existing.type !== 'lead') return c.json({ error: 'Only leads can be converted' }, 400)
 
   const [updated] = await db.update(contact).set({ type: 'client', updatedAt: new Date() }).where(eq(contact.id, id)).returning()
-  emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, updated)
+  const safeConverted = stripPortal(updated)
+  emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safeConverted)
   audit.log({ action: audit.ACTIONS.STATUS_CHANGE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes: { type: { old: 'lead', new: 'client' } }, req: c.req })
-  return c.json(updated)
+  return c.json(safeConverted)
 })
 
 export default app

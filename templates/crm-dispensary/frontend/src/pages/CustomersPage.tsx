@@ -122,7 +122,20 @@ export default function CustomersPage() {
         await api.put(`/api/contacts/${editingCustomer.id}`, formData);
         toast.success('Customer updated');
       } else {
-        const created: any = await api.post('/api/contacts', formData);
+        let created: any;
+        try {
+          created = await api.post('/api/contacts', formData);
+        } catch (err: any) {
+          // 409 + existingId: this email/phone already belongs to a customer — offer that record or an explicit duplicate.
+          if (err?.status !== 409 || !err?.data?.existingId) throw err;
+          if (!confirm(`${err.data.error}\n\nOK = create this customer anyway.\nCancel = open the existing record.`)) {
+            const existing: any = await api.get(`/api/contacts/${err.data.existingId}`).catch(() => null);
+            setModalOpen(false);
+            if (existing) openEditModal(existing);
+            return;
+          }
+          created = await api.post('/api/contacts', { ...formData, allowDuplicate: true });
+        }
         toast.success('Customer created');
         // Server flags 18–20 year olds (medical-only) — show it, don't bury it. (L-2)
         for (const w of created?.warnings || []) toast.error(w);
