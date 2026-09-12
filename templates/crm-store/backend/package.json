@@ -13,10 +13,12 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
     "@hono/node-server": "^1.13.7",
+    "@paralleldrive/cuid2": "^2.2.2",
     "drizzle-orm": "^0.36.4",
     "hono": "^4.6.14",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.13.1",
+    "sharp": "^0.33.2",
     "stripe": "^17.5.0",
     "zod": "^3.22.4"
   },
