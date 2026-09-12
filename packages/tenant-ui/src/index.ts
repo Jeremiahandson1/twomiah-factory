@@ -28,4 +28,8 @@ export type { ReportingConfig, ReportsPageProps, JobsDashboardConfig, JobsDashbo
 // Documents — one page for every CRM (upload, preview, authenticated download, versions, markup).
 export { DocumentsPage } from './files/DocumentsPage'
 export type { DocumentsConfig, DocumentsPageProps, FilesApi, FilesToast } from './files/types'
+// Contacts — list + detail, one implementation for every CRM; the template passes its api/toast + a vertical config.
+export { ContactsPage } from './contacts/ContactsPage'
+export { ContactDetailPage } from './contacts/ContactDetailPage'
+export type { ContactsConfig, ContactsPageProps, ContactsApi, ContactsToast, ContactType, QuickAction, ContactSections } from './contacts/types'
 export { EMAIL_ALIAS_DEFAULTS, getAliasDefaultsForProduct } from './config/emailDefaults'
