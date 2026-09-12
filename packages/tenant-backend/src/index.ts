@@ -84,3 +84,11 @@ export type { TableSpec, ColumnSpec, IndexSpec, ReconcileExecutor, ReconcileResu
 // Texting / AI usage wallet (read-only mirror of the Factory) — /api/messaging-billing in every CRM.
 export { createMessagingBillingRoutes, fetchMessagingBillingStatus } from './messagingBilling'
 export type { MessagingBillingStatus } from './messagingBilling'
+
+// Auth — bearer middleware, the role → permission matrix, and the login/refresh/me/password routes, one implementation for every CRM.
+export { createAuthMiddleware } from './auth/middleware'
+export type { AuthMiddlewareDeps, AuthUserContext } from './auth/middleware'
+export { createPermissions, ROLE_HIERARCHY, BASE_ROLE_PERMISSIONS } from './auth/permissions'
+export type { PermissionsDeps, Permissions } from './auth/permissions'
+export { createAuthRoutes, passwordSchema, PASSWORD_RULE_TEXT, generateTokens } from './auth/auth'
+export type { AuthDeps, AuthOptions, AuthTables } from './auth/auth'

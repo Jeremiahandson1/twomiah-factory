@@ -92,25 +92,6 @@ export interface PermissionsValue {
   canDeleteAnything: boolean;
 }
 
-// ─── Auth context ───────────────────────────────────────────────────────────
-
-export interface AuthContextValue {
-  user: User | null;
-  company: Company | null;
-  loading: boolean;
-  error: string | null;
-  isAuthenticated: boolean;
-  isAdmin: boolean;
-  isManager: boolean;
-  login: (email: string, password: string) => Promise<AuthData>;
-  register: (formData: Record<string, string>) => Promise<AuthData>;
-  logout: () => Promise<void>;
-  checkAuth: () => Promise<void>;
-  updateCompany: (updates: Partial<Company>) => void;
-  hasFeature: (featureId: string) => boolean;
-  getToken: () => string | null;
-}
-
 // ─── Socket context ─────────────────────────────────────────────────────────
 
 export interface SocketContextValue {

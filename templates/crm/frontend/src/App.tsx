@@ -5,8 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { PermissionsProvider } from './contexts/PermissionsContext';
-import { ProtectedRoute, PublicRoute } from './components/auth/ProtectedRoute';
-import { ErrorBoundary } from './shared';
+import { ErrorBoundary, ProtectedRoute, PublicRoute } from './shared';
 
 // Pages
 import LoginPage from './pages/LoginPage';

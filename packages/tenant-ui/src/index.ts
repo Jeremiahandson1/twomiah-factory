@@ -51,3 +51,12 @@ export { useTheme, useMediaQuery, useIsMobile, useIsTablet, useIsDesktop, usePre
 export type { NavItem, ShellConfig, ShellAuth, AppShellProps, SettingsConfig, SettingsPageProps, FeaturesSettingsPageProps, RoleOption } from './shell/types'
 export { DEFAULT_ROLES, ROLE_LABELS } from './shell/types'
 export { EMAIL_ALIAS_DEFAULTS, getAliasDefaultsForProduct } from './config/emailDefaults'
+// Auth — session provider + sign-in / forgot / reset pages + route guards, one implementation for every CRM.
+export { AuthProvider, useAuth } from './auth/AuthContext'
+export { LoginPage } from './auth/LoginPage'
+export { ForgotPasswordPage } from './auth/ForgotPasswordPage'
+export { ResetPasswordPage } from './auth/ResetPasswordPage'
+export { ProtectedRoute, PublicRoute } from './auth/ProtectedRoute'
+export { isTrialExpired, isTrialBypassPath } from './auth/trialStatus'
+export { PASSWORD_RULE_TEXT, passwordMeetsRule } from './auth/types'
+export type { AuthApi, AuthContextValue, AuthUser, AuthCompany, AuthData } from './auth/types'
