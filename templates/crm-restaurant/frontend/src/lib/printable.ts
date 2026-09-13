@@ -5,7 +5,7 @@
  * a Bearer header only — it sets no cookie — so a top-level navigation arrives
  * with no credentials and the tab shows {"error":"No token provided"}.
  *
- * The token is deliberately NOT put in the query string (as AdsPage does): a
+ * The token is deliberately NOT put in the query string: a
  * JWT in a URL leaks into browser history, referrer headers and server logs.
  * Instead the document is fetched with the header and handed to the tab as a
  * blob, which prints identically.

@@ -87,3 +87,6 @@ export * from './portal'
 // Browser API client — timeout, single-flight tri-state refresh, undefined-free queries; the template's services/api.ts re-exports `api`.
 export { ApiClient, createApiClient, api } from './api/client'
 export type { ApiError, ListParams, RequestOptions, ApiClientOptions, RefreshOutcome } from './api/client'
+// Ads — connection, performance, campaigns (spend-confirmed resume/launch), AI recommendations, A/B website tests, settings.
+export { AdsPage } from './ads/AdsPage'
+export type { AdsApi, AdsToast, AdsConfig, AdsOverview, AdsPlatformState, AdsProfile } from './ads/types'

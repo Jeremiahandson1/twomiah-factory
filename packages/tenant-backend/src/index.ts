@@ -126,3 +126,8 @@ export type { MarketingService, MarketingServiceDeps, MarketingRoutesDeps, Marke
 // Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.
 export { createLeadsRoutes, parseLeadEmail, parseWebhookPayload, readInboundBody, TRADES_LEAD_PLATFORMS, LEAD_STATUSES } from './leads/leads'
 export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/leads'
+
+// Twomiah Ads — pass-through to the Twomiah Ads service with the tenant's key (spend-guarded), plus A/B landing-page tests
+// and the premium website's public assign/convert endpoints.
+export { createAdsRoutes, createAdsPublicRoutes, createAdsClient, normaliseVariants, AdsUpstreamError, ADS_PLATFORMS, ADS_OBJECTIVES, ADS_CONNECT_PLATFORMS, EXPERIMENT_STATUSES, DEFAULT_ADS_URL } from './ads/ads'
+export type { AdsDeps, AdsPublicDeps, AdsTables } from './ads/ads'

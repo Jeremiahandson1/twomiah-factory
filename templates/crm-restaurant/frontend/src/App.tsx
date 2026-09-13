@@ -65,7 +65,6 @@ import ReviewsPage from './pages/reviews/ReviewsPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
-import AdsPage from './pages/ads/AdsPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import ContactSupportPage from './pages/support/ContactSupportPage';
@@ -213,7 +212,6 @@ function App() {
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
-                    <Route path="ads" element={<AdsPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                     <Route path="events" element={<EventsPage />} />
                     <Route path="events/:id" element={<EventDetailPage />} />

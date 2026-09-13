@@ -13,6 +13,8 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'expenses:*', 'documents:*', 'rfis:*', 'change-orders:*', 'punch-lists:*',
     'daily-logs:*', 'inspections:*', 'bids:*', 'team:*', 'company:read',
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
+    // ads:read / ads:update (pause, dismiss, A/B tests) / ads:settings (profile, mode, platforms) / ads:spend (launch, resume, apply, AI preview)
+    'ads:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
@@ -20,6 +22,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'rfis:*', 'change-orders:*', 'punch-lists:*', 'daily-logs:*', 'inspections:*',
     'bids:read', 'team:read', 'company:read', 'dashboard:*', 'schedule:*', 'pricebook:*',
     'marketing:read', 'marketing:create', 'marketing:update',
+    'ads:read', 'ads:update',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',

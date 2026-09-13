@@ -153,6 +153,15 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 
+// Premium-website A/B endpoints are called by scripts/ab.js from the site's own origin. They are anonymous and send no
+// credentials, so they get an explicit open policy here, ahead of the global one (which on most CRMs is locked to
+// FRONTEND_URL and failed the site's preflight).
+app.use('/api/public/ads-experiments/*', cors({
+  origin: '*',
+  allowMethods: ['POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+}))
+
 // CORS — allow all origins; auth is handled by JWT, not origin checks
 app.use('*', cors({
   origin: '*',
