@@ -54,7 +54,7 @@ factory.post('/public/inbound-email', async (c) => {
     // render_backend_url which we need to forward to
     const { data: tenants } = await supabase
       .from('tenants')
-      .select('id, render_backend_url, slug')
+      .select('id, render_backend_url, slug, factory_sync_key')
       .not('render_backend_url', 'is', null)
 
     if (!tenants?.length) {
@@ -73,9 +73,11 @@ factory.post('/public/inbound-email', async (c) => {
     const targetUrl = `${tenant.render_backend_url}/api/leads/inbound/email`
     console.log('[InboundEmail] Forwarding to:', targetUrl, 'tenant:', tenant.slug)
 
+    // The tenant's /api/leads/inbound/email is locked with the same X-Factory-Key it uses for sync-features,
+    // so nobody but the Factory (i.e. SendGrid via this router) can drop forged leads into a CRM.
     const resp = await fetch(targetUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(tenant.factory_sync_key ? { 'X-Factory-Key': tenant.factory_sync_key } : {}) },
       body: JSON.stringify(body),
     })
 

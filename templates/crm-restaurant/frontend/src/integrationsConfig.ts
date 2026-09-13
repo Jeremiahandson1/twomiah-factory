@@ -1,8 +1,10 @@
 // Vertical vocabulary for the shared Settings → Integrations / Import / Migrate and Reviews pages
 // (packages/tenant-ui/src/settings, vendored into this tenant as ./shared). Behaviour lives there; only the words live here.
 import type { IntegrationsConfig, ImportConfig, MigrationConfig, ReviewsConfig } from './shared'
+import { leadSourceGuides } from './shared'
+import { leadsConfig } from './leadsConfig'
 
-export const integrationsConfig: IntegrationsConfig = {}
+export const integrationsConfig: IntegrationsConfig = { leadSources: leadSourceGuides(leadsConfig.platforms) }
 
 export const importConfig: ImportConfig = {
     intro: 'Import contacts, events, spaces, menus and more from CSV files',

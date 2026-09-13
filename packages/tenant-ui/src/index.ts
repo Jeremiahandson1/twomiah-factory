@@ -17,6 +17,11 @@ export { ImportPage, DEFAULT_IMPORT_TYPES, DEFAULT_IMPORT_CONTACT_TYPES } from '
 export { MigrationPage } from './settings/MigrationPage'
 export { ReviewsPage } from './reviews/ReviewsPage'
 export type { SettingsApi, SettingsToast, IntegrationsConfig, LeadSourceGuide, ImportConfig, ImportTypeDef, MigrationConfig, ReviewsConfig } from './settings/integrationsTypes'
+// Lead Inbox + Lead Sources — one implementation for every CRM; the template passes its api (+toast, +socket subscribe) and its platform vocabulary.
+export { LeadInboxPage } from './leads/LeadInboxPage'
+export { LeadSourcesPage } from './leads/LeadSourcesPage'
+export { TRADES_LEAD_PLATFORMS, leadSourceGuides, LEAD_STATUSES } from './leads/types'
+export type { LeadsApi, LeadsToast, LeadsSubscribe, LeadsConfig, LeadPlatform, LeadRow, LeadSourceRow } from './leads/types'
 // Invoices + quotes — one set of pages for every CRM; the template passes its api/toast/settings + a vertical config.
 export { InvoicesPage } from './invoicing/InvoicesPage'
 export { InvoiceDetailPage } from './invoicing/InvoiceDetailPage'

@@ -161,6 +161,8 @@ export const EVENTS = {
   CO_CREATED: 'change_order:created',
   CO_APPROVED: 'change_order:approved',
   NOTIFICATION: 'notification',
+  LEAD_CREATED: 'lead:created',
+  LEAD_UPDATED: 'lead:updated',
 } as const;
 
 export default SocketContext;
