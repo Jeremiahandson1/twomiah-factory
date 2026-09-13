@@ -97,3 +97,7 @@ export type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from '
 // Tasks — to-do list with checklist, due dates, stats page + upcoming-tasks widget (crm, crm-vet).
 export { default as TasksPage, TaskWidget } from './tasks/TasksPage'
 export type { TasksApi, TasksPageProps } from './tasks/types'
+
+// Equipment — asset tracking page (crm, crm-fieldservice, crm-landscaping); fs/lnd add contact/site/linked-jobs via config.
+export { default as EquipmentPage } from './equipment/EquipmentPage'
+export type { EquipmentApi, EquipmentConfig, EquipmentPageProps } from './equipment/types'
