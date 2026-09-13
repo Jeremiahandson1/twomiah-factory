@@ -480,7 +480,7 @@
     "pricebook": {
       "backend": {
         "routes": ["pricebook.ts"],
-        "services": ["pricebook.ts"]
+        "services": []
       },
       "frontend": {
         "pages": ["pricebook/PricebookPage.tsx"]
