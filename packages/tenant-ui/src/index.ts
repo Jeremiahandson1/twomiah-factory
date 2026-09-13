@@ -105,3 +105,8 @@ export type { EquipmentApi, EquipmentConfig, EquipmentPageProps } from './equipm
 // Service Agreements — plans, agreements, visits, autopay; fs/landscaping add recurrence auto-scheduling via config.
 export { default as AgreementsPage } from './agreements/AgreementsPage'
 export type { AgreementsApi, AgreementsConfig, AgreementsPageProps } from './agreements/types'
+
+// Recurring invoices — list + create/edit form (crm, crm-fieldservice, crm-landscaping).
+export { default as RecurringForm } from './recurring/RecurringForm'
+export { default as RecurringList } from './recurring/RecurringList'
+export type { RecurringApi, RecurringPageProps } from './recurring/types'

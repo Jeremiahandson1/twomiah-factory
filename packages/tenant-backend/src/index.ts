@@ -149,3 +149,8 @@ export type { EquipmentService, EquipmentServiceDeps, EquipmentRoutesDeps, Equip
 // (crm, crm-fieldservice, crm-landscaping). fs/landscaping enable the recurrence endpoints via routes' `recurrence`.
 export { createAgreementsService, createAgreementsRoutes } from './agreements/agreements'
 export type { AgreementsService, AgreementsServiceDeps, AgreementsRoutesDeps, AgreementsTables, AgreementsStripe } from './agreements/agreements'
+
+// Recurring invoices — templates that generate invoices on a schedule (crm, crm-fieldservice, crm-landscaping).
+// Parameterized raw SQL (recurring_invoice tables aren't in schema.ts); emailService injected via deps.
+export { createRecurringService, createRecurringRoutes, FREQUENCIES, calculateNextDate } from './recurring/recurring'
+export type { RecurringService, RecurringServiceDeps, RecurringRoutesDeps, RecurringTables, RecurringEmail, RecurringAudit } from './recurring/recurring'
