@@ -27,8 +27,6 @@ import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
 import SchedulePage from './pages/SchedulePage';
-import TimePage from './pages/TimePage';
-import ExpensesPage from './pages/ExpensesPage';
 import TeamPage from './pages/TeamPage';
 import RFIsPage from './pages/RFIsPage';
 import ChangeOrdersPage from './pages/ChangeOrdersPage';
@@ -167,8 +165,6 @@ function App() {
                     <Route path="invoices" element={<InvoicesPage />} />
                     <Route path="invoices/:id" element={<InvoiceDetailPage />} />
                     <Route path="schedule" element={<SchedulePage />} />
-                    <Route path="time" element={<TimePage />} />
-                    <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="rfis" element={<FeatureGate feature="rfis"><RFIsPage /></FeatureGate>} />

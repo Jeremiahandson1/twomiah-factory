@@ -36,7 +36,5 @@ export const SHELL: ShellConfig = {
   '/crm/jobs': ['jobs'],
   '/crm/quotes': ['quotes'],
   '/crm/schedule': ['scheduling'],
-  '/crm/time': ['time_tracking'],
-  '/crm/expenses': ['expense_tracking'],
   },
 };

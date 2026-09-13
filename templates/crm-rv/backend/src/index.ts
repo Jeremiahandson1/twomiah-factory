@@ -33,8 +33,6 @@ import projectsRoutes from './routes/projects.ts'
 import jobsRoutes from './routes/jobs.ts'
 import quotesRoutes from './routes/quotes.ts'
 import invoicesRoutes from './routes/invoices.ts'
-import timeRoutes from './routes/time.ts'
-import expensesRoutes from './routes/expenses.ts'
 import ganttChartsRoutes from './routes/ganttCharts.ts'
 import teamRoutes from './routes/team.ts'
 import companyRoutes from './routes/company.ts'
@@ -71,7 +69,6 @@ import scheduleEventsRoutes from './routes/scheduleEvents.ts'
 import searchRoutes from './routes/search.ts'
 import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
-import timeTrackingRoutes from './routes/timeTracking.ts'
 import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
@@ -203,8 +200,6 @@ app.route('/api/projects', projectsRoutes)
 app.route('/api/jobs', jobsRoutes)
 app.route('/api/quotes', quotesRoutes)
 app.route('/api/invoices', invoicesRoutes)
-app.route('/api/time', timeRoutes)
-app.route('/api/expenses', expensesRoutes)
 app.route('/api/gantt-charts', ganttChartsRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/company', companyRoutes)
@@ -251,7 +246,6 @@ app.route('/api/schedule-events', scheduleEventsRoutes)
 app.route('/api/search', searchRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/stripe', stripeRoutes)
-app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/warranties', warrantiesRoutes)
 app.route('/api/weather', weatherRoutes)
 app.route('/api/support', supportRoutes)

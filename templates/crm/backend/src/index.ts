@@ -90,7 +90,6 @@ import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
 import takeoffsRoutes from './routes/takeoffs.ts'
 import tasksRoutes from './routes/tasks.ts'
-import timeTrackingRoutes from './routes/timeTracking.ts'
 import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
@@ -294,7 +293,6 @@ app.route('/api/sms', smsRoutes)
 app.route('/api/stripe', stripeRoutes)
 app.route('/api/takeoffs', takeoffsRoutes)
 app.route('/api/tasks', tasksRoutes)
-app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/warranties', warrantiesRoutes)
 app.route('/api/weather', weatherRoutes)
 app.route('/api/support', supportRoutes)
