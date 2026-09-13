@@ -13,6 +13,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'expenses:*', 'documents:*', 'rfis:*', 'change-orders:*', 'punch-lists:*',
     'daily-logs:*', 'inspections:*', 'bids:*', 'team:*', 'company:read',
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
+    'tasks:*',
     // ads:read / ads:update (pause, dismiss, A/B tests) / ads:settings (profile, mode, platforms) / ads:spend (launch, resume, apply, AI preview)
     'ads:*',
   ],
@@ -23,6 +24,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'bids:read', 'team:read', 'company:read', 'dashboard:*', 'schedule:*', 'pricebook:*',
     'marketing:read', 'marketing:create', 'marketing:update',
     'ads:read', 'ads:update',
+    'tasks:*',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
@@ -30,12 +32,15 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'documents:create', 'rfis:read', 'rfis:create', 'punch-lists:read',
     'punch-lists:update', 'daily-logs:read', 'daily-logs:create', 'inspections:read',
     'company:read', 'dashboard:read', 'schedule:read',
+    // create + read any; update/delete gated to own tasks (assignee or creator) in the routes
+    'tasks:read', 'tasks:create', 'tasks:update',
   ],
   viewer: [
     'contacts:read', 'projects:read', 'jobs:read', 'quotes:read', 'invoices:read',
     'time:read', 'expenses:read', 'documents:read', 'rfis:read', 'change-orders:read',
     'punch-lists:read', 'daily-logs:read', 'inspections:read', 'bids:read',
     'team:read', 'company:read', 'dashboard:read', 'schedule:read',
+    'tasks:read',
   ],
   user: [],
 }
