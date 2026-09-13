@@ -139,3 +139,8 @@ export type { PricebookService, PricebookServiceDeps, PricebookRoutesDeps, Price
 // Tasks — to-do list with checklist, due dates, stats (crm, crm-vet). Parameterized raw SQL; template wires db + authenticate.
 export { createTasksService, createTasksRoutes } from './tasks/tasks'
 export type { TasksService, TasksServiceDeps, TasksRoutesDeps } from './tasks/tasks'
+
+// Equipment tracking — assets, warranty, maintenance history, reports (crm, crm-fieldservice, crm-landscaping).
+// fs/landscaping link equipment to contact/site/location/jobs via options.
+export { createEquipmentService, createEquipmentRoutes } from './equipment/equipment'
+export type { EquipmentService, EquipmentServiceDeps, EquipmentRoutesDeps, EquipmentTables, EquipmentOptions } from './equipment/equipment'
