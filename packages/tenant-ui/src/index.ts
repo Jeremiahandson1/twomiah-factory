@@ -114,3 +114,7 @@ export type { RecurringApi, RecurringPageProps } from './recurring/types'
 // Fleet — vehicles/maintenance/fuel + live GPS map (leaflet) & trips gated on config.gps (crm, crm-fieldservice, crm-landscaping).
 export { default as FleetPage } from './fleet/FleetPage'
 export type { FleetApi, FleetConfig, FleetPageProps } from './fleet/types'
+
+// Warranties — post-construction warranty tracking + service claims (crm, crm-fieldservice, crm-landscaping, crm-rv).
+export { default as WarrantiesPage } from './warranties/WarrantiesPage'
+export type { WarrantiesApi, WarrantiesPageProps } from './warranties/types'
