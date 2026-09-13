@@ -17,7 +17,10 @@ export interface TasksServiceDeps { db: any }
 export interface TasksRoutesDeps {
   service: TasksService
   authenticate: any
+  requirePermission: (permission: string) => any
 }
+
+const MANAGER_ROLES = new Set(['owner', 'admin', 'manager'])
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
@@ -332,12 +335,17 @@ export function createTasksService(deps: TasksServiceDeps) {
 export type TasksService = ReturnType<typeof createTasksService>
 
 export function createTasksRoutes(deps: TasksRoutesDeps) {
-  const { service, authenticate } = deps
+  const { service, authenticate, requirePermission } = deps
   const app = new Hono()
   app.use('*', authenticate)
 
+  const isManager = (u: any) => MANAGER_ROLES.has(u?.role)
+  // Own-or-manager: below manager, you may only change a task you're assigned to or created.
+  const canTouch = (u: any, task: any) =>
+    isManager(u) || task?.assigned_to_id === u?.userId || task?.created_by_id === u?.userId
+
   // Get tasks
-  app.get('/', async (c) => {
+  app.get('/', requirePermission('tasks:read'), async (c) => {
     const user = c.get('user') as any
     const assignedToId = c.req.query('assignedToId')
     const projectId = c.req.query('projectId')
@@ -382,7 +390,7 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Get my upcoming tasks
-  app.get('/upcoming', async (c) => {
+  app.get('/upcoming', requirePermission('tasks:read'), async (c) => {
     const user = c.get('user') as any
     const days = c.req.query('days') || '7'
     try {
@@ -395,7 +403,7 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Get my overdue tasks
-  app.get('/overdue', async (c) => {
+  app.get('/overdue', requirePermission('tasks:read'), async (c) => {
     const user = c.get('user') as any
     try {
       const result = await service.getOverdueTasks(user.companyId, user.userId)
@@ -407,7 +415,7 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Get my task stats
-  app.get('/stats', async (c) => {
+  app.get('/stats', requirePermission('tasks:read'), async (c) => {
     const user = c.get('user') as any
     try {
       const result = await service.getTaskStats(user.companyId, user.userId)
@@ -421,7 +429,7 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Get single task
-  app.get('/:id', async (c) => {
+  app.get('/:id', requirePermission('tasks:read'), async (c) => {
     const user = c.get('user') as any
     const task = await service.getTask(c.req.param('id'), user.companyId)
     if (!task) {
@@ -431,7 +439,7 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Create task
-  app.post('/', async (c) => {
+  app.post('/', requirePermission('tasks:create'), async (c) => {
     const user = c.get('user') as any
     const {
       title, description, dueDate, priority,
@@ -460,8 +468,11 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Update task
-  app.put('/:id', async (c) => {
+  app.put('/:id', requirePermission('tasks:update'), async (c) => {
     const user = c.get('user') as any
+    const existing = await service.getTask(c.req.param('id'), user.companyId)
+    if (!existing) return c.json({ error: 'Task not found' }, 404)
+    if (!canTouch(user, existing)) return c.json({ error: 'You can only edit tasks assigned to you or that you created' }, 403)
     const body = await c.req.json()
     const task = await service.updateTask(c.req.param('id'), user.companyId, body)
     if (!task) {
@@ -471,8 +482,11 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Toggle task complete
-  app.post('/:id/toggle', async (c) => {
+  app.post('/:id/toggle', requirePermission('tasks:update'), async (c) => {
     const user = c.get('user') as any
+    const existing = await service.getTask(c.req.param('id'), user.companyId)
+    if (!existing) return c.json({ error: 'Task not found' }, 404)
+    if (!canTouch(user, existing)) return c.json({ error: 'You can only change tasks assigned to you or that you created' }, 403)
     const task = await service.toggleTaskComplete(c.req.param('id'), user.companyId)
     if (!task) {
       return c.json({ error: 'Task not found' }, 404)
@@ -481,8 +495,11 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Toggle checklist item
-  app.post('/:id/checklist/:itemId/toggle', async (c) => {
+  app.post('/:id/checklist/:itemId/toggle', requirePermission('tasks:update'), async (c) => {
     const user = c.get('user') as any
+    const existing = await service.getTask(c.req.param('id'), user.companyId)
+    if (!existing) return c.json({ error: 'Task not found' }, 404)
+    if (!canTouch(user, existing)) return c.json({ error: 'You can only change tasks assigned to you or that you created' }, 403)
     const task = await service.toggleChecklistItem(
       c.req.param('id'),
       user.companyId,
@@ -495,8 +512,11 @@ export function createTasksRoutes(deps: TasksRoutesDeps) {
   })
 
   // Delete task
-  app.delete('/:id', async (c) => {
+  app.delete('/:id', requirePermission('tasks:update'), async (c) => {
     const user = c.get('user') as any
+    const existing = await service.getTask(c.req.param('id'), user.companyId)
+    if (!existing) return c.json({ error: 'Task not found' }, 404)
+    if (!canTouch(user, existing)) return c.json({ error: 'You can only delete tasks assigned to you or that you created' }, 403)
     const deleted = await service.deleteTask(c.req.param('id'), user.companyId)
     if (!deleted) {
       return c.json({ error: 'Task not found' }, 404)
