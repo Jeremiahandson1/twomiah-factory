@@ -154,3 +154,8 @@ export type { AgreementsService, AgreementsServiceDeps, AgreementsRoutesDeps, Ag
 // Parameterized raw SQL (recurring_invoice tables aren't in schema.ts); emailService injected via deps.
 export { createRecurringService, createRecurringRoutes, FREQUENCIES, calculateNextDate } from './recurring/recurring'
 export type { RecurringService, RecurringServiceDeps, RecurringRoutesDeps, RecurringTables, RecurringEmail, RecurringAudit } from './recurring/recurring'
+
+// Fleet / vehicle tracking — vehicles, maintenance, fuel, stats (crm, crm-fieldservice, crm-landscaping).
+// Live GPS + trips (location_log / vehicle_trip) gated behind options.gps (fs/landscaping).
+export { createFleetService, createFleetRoutes } from './fleet/fleet'
+export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } from './fleet/fleet'
