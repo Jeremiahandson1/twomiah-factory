@@ -90,3 +90,6 @@ export type { ApiError, ListParams, RequestOptions, ApiClientOptions, RefreshOut
 // Ads — connection, performance, campaigns (spend-confirmed resume/launch), AI recommendations, A/B website tests, settings.
 export { AdsPage } from './ads/AdsPage'
 export type { AdsApi, AdsToast, AdsConfig, AdsOverview, AdsPlatformState, AdsProfile } from './ads/types'
+// Pricebook — catalog page with configurable tier wording (crm "Sign Today…" vs trades Basic/Standard/Premium).
+export { PricebookPage } from './pricebook/PricebookPage'
+export type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './pricebook/types'

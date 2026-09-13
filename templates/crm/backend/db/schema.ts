@@ -1154,6 +1154,7 @@ export const pricebookItem = pgTable('pricebook_item', {
   customerDescription: text('customer_description'),
   laborHours: decimal('labor_hours', { precision: 8, scale: 2 }),
   showToCustomer: boolean('show_to_customer').default(true).notNull(),
+  partsIncluded: text('parts_included'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   categoryId: text('category_id').references(() => pricebookCategory.id),
@@ -2460,6 +2461,7 @@ export const pricebookGoodBetterBest = pgTable('pricebook_good_better_best', {
   description: text('description'),
   price: decimal('price', { precision: 12, scale: 2 }).notNull(),
   features: json('features'),
+  recommended: boolean('recommended').default(false).notNull(),
 }, (t) => [
   index('pricebook_good_better_best_pricebook_item_id_idx').on(t.pricebookItemId),
 ])

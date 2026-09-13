@@ -131,3 +131,7 @@ export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/l
 // and the premium website's public assign/convert endpoints.
 export { createAdsRoutes, createAdsPublicRoutes, createAdsClient, createAdsConnector, normaliseVariants, AdsUpstreamError, ADS_PLATFORMS, ADS_OBJECTIVES, ADS_CONNECT_PLATFORMS, EXPERIMENT_STATUSES, DEFAULT_ADS_URL } from './ads/ads'
 export type { AdsDeps, AdsPublicDeps, AdsTables, AdsConnector, AdsConnectorDeps } from './ads/ads'
+
+// Pricebook — flat-rate catalog: validated items/categories, Good-Better-Best tiers (schema-backed), feature-gated.
+export { createPricebookService, createPricebookRoutes, PricebookError, PRICEBOOK_TIERS, itemCreateSchema, itemUpdateSchema, optionsSchema } from './pricebook/pricebook'
+export type { PricebookService, PricebookServiceDeps, PricebookRoutesDeps, PricebookTables } from './pricebook/pricebook'
