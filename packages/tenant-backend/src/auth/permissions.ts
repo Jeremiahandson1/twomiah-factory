@@ -14,6 +14,11 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'daily-logs:*', 'inspections:*', 'bids:*', 'team:*', 'company:read',
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
     'tasks:*',
+    // operational modules (writes gated in their routes; reads are open)
+    'equipment:*', 'fleet:*', 'warranties:*', 'inventory:*', 'agreements:*',
+    'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:*',
+    // company config (geofencing, Stripe onboarding) + refunds — admin-tier, like company:update
+    'settings:*', 'payments:*',
     // ads:read / ads:update (pause, dismiss, A/B tests) / ads:settings (profile, mode, platforms) / ads:spend (launch, resume, apply, AI preview)
     'ads:*',
   ],
@@ -25,6 +30,9 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'marketing:read', 'marketing:create', 'marketing:update',
     'ads:read', 'ads:update',
     'tasks:*',
+    // operational modules (writes gated in their routes; reads are open) + read-only reports
+    'equipment:*', 'fleet:*', 'warranties:*', 'inventory:*', 'agreements:*',
+    'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:read',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',
