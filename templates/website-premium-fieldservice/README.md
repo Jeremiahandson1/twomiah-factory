@@ -20,7 +20,7 @@ templates/website-premium-fieldservice/
 ├── package.json               Bun + Hono + Drizzle + Sharp + R2
 ├── render.yaml.template       Render service + Postgres database
 ├── drizzle.config.ts          Migration target
-├── .env.template              Env vars (DATABASE_URL, R2_*, SENDGRID, etc.)
+├── .env.example               Env var names (values are set on Render by the Factory)
 ├── db/
 │   ├── index.ts               Drizzle client (pg pool)
 │   └── schema.ts              Tables: settings, pages, photos, users, leads
@@ -55,7 +55,7 @@ Uploaded photos go to the `photos` table (R2 keys + metadata); section JSON refe
 ```bash
 cd templates/website-premium-fieldservice
 bun install
-cp .env.template .env  # fill DATABASE_URL at minimum
+cp .env.example .env   # fill DATABASE_URL at minimum
 bun run db:push        # creates tables in your local Postgres
 bun run dev            # serves on :3000
 ```

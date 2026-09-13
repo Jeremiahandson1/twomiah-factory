@@ -515,6 +515,7 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
     if (result.services.site?.id) renderServiceIds.site = result.services.site.id
     if (result.services.database?.id) renderServiceIds.database = result.services.database.id
     if (result.services.vision?.id) renderServiceIds.vision = result.services.vision.id
+    if (result.services.pricing?.id) renderServiceIds.pricing = result.services.pricing.id
 
     const jobUpdate: Record<string, any> = {
       status: result.success ? 'complete' : 'failed',

@@ -11,7 +11,7 @@ import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3'
-import { verticalFor } from '../config/industryRouting'
+import { verticalFor, buildCrmApiHost } from '../config/industryRouting'
 import { seatsForPlan } from '../config/planSeats'
 import { quickbooksTenantEnv, QBO_ENVIRONMENT_KEYS } from './quickbooksEnv'
 import * as cloudflare from './cloudflare'
@@ -1140,6 +1140,8 @@ export async function deployCustomer(
     const googleMapsKey = integrations?.googleMaps?.apiKey || process.env.TWOMIAH_GOOGLE_MAPS_KEY || ''
     if (googleMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: googleMapsKey })
     if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
+    // Read by the CRMs' email services; it used to reach them only through the committed .env.
+    if (integrations?.sendgrid?.apiKey?.trim()) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: integrations.sendgrid.apiKey.trim() })
     // Roof estimator: Nearmap high-res imagery + SAM 2 AI segmentation (shared factory keys)
     const nearmapKey = integrations?.nearmap?.apiKey || process.env.TWOMIAH_NEARMAP_KEY || ''
     if (nearmapKey) integrationEnvVars.push({ key: 'NEARMAP_API_KEY', value: nearmapKey })
@@ -1371,6 +1373,8 @@ export async function deployCustomer(
         const pricingStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && ' + dbReconcileStep() + ' && bun db/seed.ts && bun src/index.ts'
         const pricingEnvVars = [
           { key: 'NODE_ENV', value: 'production' },
+          // Session length the committed .env used to set (the code default is 24h).
+          { key: 'JWT_EXPIRES_IN', value: '7d' },
           { key: 'JWT_SECRET', value: jwtSecret },
           { key: 'PORT', value: '10000' },
           ...r2EnvVars,
@@ -1472,7 +1476,8 @@ export async function deployCustomer(
             ...r2EnvVars,
         ]
         // Store storefront reads its catalog + checkout from the crm-store backend PUBLIC API.
-        if (isStore && results.apiUrl) siteEnvVars.push({ key: 'CRM_STORE_API_URL', value: results.apiUrl })
+        // The storefront's catalog API. Same host the committed .env used to carry when the CRM is not part of this run.
+        if (isStore) siteEnvVars.push({ key: 'CRM_STORE_API_URL', value: results.apiUrl || ('https://' + buildCrmApiHost(slug, factoryCustomer.config?.company?.industry)) })
         // AI sales chatbot on the public site calls Claude directly.
         if (process.env.ANTHROPIC_API_KEY) siteEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
         if (siteDbConnectionString) {
@@ -1499,6 +1504,8 @@ export async function deployCustomer(
           siteEnvVars.push({ key: 'ADMIN_EMAIL',           value: adminEmail })
           siteEnvVars.push({ key: 'ADMIN_INITIAL_PASSWORD',value: adminPassword })
           siteEnvVars.push({ key: 'COMPANY_NAME',          value: factoryCustomer.name || slug })
+          // Photo uploads go to R2. Without it services/storage.ts falls back to local disk, which a redeploy wipes.
+          siteEnvVars.push({ key: 'STORAGE_BACKEND',       value: 's3' })
           // Pass through Google Calendar OAuth creds so the tenant can
           // refresh access tokens. Initial token exchange is done by
           // the Factory (one approved app, one redirect URI).
@@ -1822,6 +1829,49 @@ export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Rec
  * Database is NEVER touched. Service URL is NEVER changed.
  * Only the code is updated.
  */
+const ENV_CARRY_ROLES = ['crm', 'backend', 'site', 'pricing']
+
+/** KEY=value lines of a .env file (comments, blanks and `export` prefixes handled; surrounding quotes stripped). */
+export function parseDotEnv(text: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const raw of text.replace(/\r\n/g, '\n').split('\n')) {
+    const m = raw.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
+    if (!m) continue
+    let v = m[2].trim()
+    if ((v.startsWith('"') && v.endsWith('"') && v.length >= 2) || (v.startsWith("'") && v.endsWith("'") && v.length >= 2)) v = v.slice(1, -1)
+    out[m[1]] = v
+  }
+  return out
+}
+
+/** Committed values worth keeping: missing on Render, non-empty, not an unreplaced {{TOKEN}}, not a generator placeholder. */
+export function envValuesToCarry(committed: Record<string, string>, onRender: Set<string>): Array<{ key: string; value: string }> {
+  return Object.entries(committed)
+    .filter(([key, value]) => !onRender.has(key) && value !== '' && !/\{\{[A-Z0-9_]+\}\}/.test(value)
+      && !(key === 'DATABASE_URL' && value.includes('USER:PASSWORD@HOST')) && !/^change-me/i.test(value))
+    .map(([key, value]) => ({ key, value }))
+}
+
+/** Reads the service's committed .env from its repo (at the service's rootDir) and adds the keepable values to Render. */
+export async function carryCommittedEnvToRender(repoFullName: string, serviceId: string): Promise<{ added: string[]; source: string | null }> {
+  const svcRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId, { headers: renderHeaders() })
+  if (!svcRes.ok) throw new Error('Render service lookup failed for ' + serviceId + ' (' + svcRes.status + ')')
+  const svc: any = await svcRes.json()
+  const rootDir = String(svc?.rootDir ?? svc?.service?.rootDir ?? '').replace(/^\/+|\/+$/g, '')
+  const source = (rootDir ? rootDir + '/' : '') + '.env'
+  const fileRes = await fetchWithTimeout(GITHUB_API + '/repos/' + repoFullName + '/contents/' + source + '?ref=main', { headers: { ...githubHeaders(), Accept: 'application/vnd.github.raw' } })
+  if (fileRes.status === 404) return { added: [], source: null }
+  if (!fileRes.ok) throw new Error('Could not read committed ' + source + ' from ' + repoFullName + ' (' + fileRes.status + ')')
+  const committed = parseDotEnv(await fileRes.text())
+  const envRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars?limit=100', { headers: renderHeaders() })
+  if (!envRes.ok) throw new Error('Render env lookup failed for ' + serviceId + ' (' + envRes.status + ')')
+  const onRender = new Set<string>(((await envRes.json()) as any[]).map((e: any) => String((e.envVar || e).key)))
+  const wanted = envValuesToCarry(committed, onRender)
+  if (!wanted.length) return { added: [], source }
+  if (!(await updateRenderEnvVars(serviceId, wanted))) throw new Error('Could not move ' + wanted.map((w) => w.key).join(', ') + ' to Render for ' + serviceId + ' — update stopped before pushing')
+  return { added: wanted.map((w) => w.key), source }
+}
+
 export async function updateCustomerCode(
   factoryCustomer: {
     id: string
@@ -1856,6 +1906,15 @@ export async function updateCustomerCode(
     const zip = new AdmZip(zipPath)
     zip.extractAllTo(extractDir, true)
     steps.push({ step: 'extract', status: 'ok' })
+
+    // Step 2b: generated code no longer commits a .env for servers (templates ship .env.example). Before the push
+    // removes the old file, move every value that lived ONLY there onto its Render service. Never overwrites; a
+    // failure stops the update here, before anything is pushed.
+    const envServiceIds = [...new Set(Object.entries(factoryCustomer.renderServiceIds || {}).filter(([role]) => ENV_CARRY_ROLES.includes(role)).map(([, id]) => id))]
+    for (const serviceId of envServiceIds) {
+      const carried = await carryCommittedEnvToRender(repoFullName, serviceId)
+      steps.push({ step: 'env_carry', status: 'ok', detail: serviceId + ': ' + (!carried.source ? 'no committed .env' : carried.added.length ? 'moved to Render ' + carried.added.join(', ') : 'nothing missing on Render') })
+    }
 
     // Step 3: Push new code to existing repo
     // Uses force push on main — the repo is Factory-managed, not manually edited
@@ -1897,13 +1956,16 @@ export async function updateCustomerCode(
       // Step 3b: refresh the CRM backend's start command so this redeploy boots with the current
       // reconcile step (db/reconcile.ts). The command is otherwise frozen at service creation, which
       // is how tenants kept booting with the push-only step long after the code moved on.
-      if (serviceIds.crm) {
-        const platformEnv = await refreshPlatformIntegrationEnv(serviceIds.crm)
+      // Factory update routes pass the deploy job's ids (role 'backend'); test scripts pass 'crm'. Both are the CRM backend.
+      const crmServiceId = serviceIds.crm || serviceIds.backend
+      if (crmServiceId) {
+        const platformEnv = await refreshPlatformIntegrationEnv(crmServiceId)
         steps.push({ step: 'platform_env', status: platformEnv.error ? 'warning' : 'ok', detail: platformEnv.added.length ? 'added ' + platformEnv.added.join(', ') : (platformEnv.error || 'already present') })
-        const ok = await updateRenderServiceSettings(serviceIds.crm, { startCommand: crmBackendStartCommand() })
+        const ok = await updateRenderServiceSettings(crmServiceId, { startCommand: crmBackendStartCommand() })
         steps.push({ step: 'start_command', status: ok ? 'ok' : 'warning', detail: ok ? 'CRM start command refreshed' : 'could not update the start command — boot will use the previous one' })
       }
       for (const [role, serviceId] of Object.entries(serviceIds)) {
+        if (role === 'database') continue // a Postgres id is not a deployable service
         try {
           const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', {
             method: 'POST',
@@ -1954,6 +2016,7 @@ export async function findRenderServicesBySlug(slug: string): Promise<Record<str
       '-api': 'backend', '-care-api': 'backend',
       '-frontend': 'frontend', '-care': 'frontend',
       '-site': 'site',
+      '-pricing-api': 'pricing',
       '-vision': 'vision',
     }
     for (const item of list) {

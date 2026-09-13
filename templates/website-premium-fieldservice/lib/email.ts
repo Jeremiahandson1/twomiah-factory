@@ -10,7 +10,7 @@ function escape(s: string): string {
 
 function fromAddress(): string {
   // FACTORY_FROM_EMAIL wins because it's set by the factory to a verified
-  // sender. FROM_EMAIL is a placeholder from .env.template that ships
+  // sender. FROM_EMAIL is a placeholder the old committed .env shipped
   // hello@example.com — never used in prod, only present so the tenant
   // can boot before the factory wires the real sender.
   const email = process.env.FACTORY_FROM_EMAIL || process.env.FROM_EMAIL || 'onboarding@resend.dev'

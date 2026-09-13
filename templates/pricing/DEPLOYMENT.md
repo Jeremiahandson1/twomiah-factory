@@ -22,7 +22,7 @@ docker-compose up -d
 
 ## Environment Variables
 
-See `backend/.env.template` for all required and optional variables.
+See `backend/.env.example` for the variable names. Twomiah Factory sets the values on the Render service; no `.env` is generated or committed.
 
 ## Database
 

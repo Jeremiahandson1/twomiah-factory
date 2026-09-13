@@ -12,7 +12,7 @@ app.use('*', requireAdmin)
 app.get('/config', async (c) => {
   const [mapCount] = await db.select({ value: count() }).from(gustoEmployeeMap)
   return c.json({
-    enabled: !!process.env.ENABLE_GUSTO,
+    enabled: process.env.ENABLE_GUSTO === 'true', // was !!value, so the string "false" read as enabled
     connected: mapCount.value > 0,
   })
 })

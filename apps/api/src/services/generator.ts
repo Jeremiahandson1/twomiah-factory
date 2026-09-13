@@ -886,6 +886,8 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
 }
 
 
+// Only frontends (public VITE_* build config) and the parked crm-automotive still ship a .env.template. Server-side
+// templates ship .env.example (key names only): their values live on Render, so no generated secret is committed.
 function processEnvTemplate(dir: string, tokens: Record<string, string>) {
   const templatePath = path.join(dir, '.env.template')
   if (fs.existsSync(templatePath)) {
