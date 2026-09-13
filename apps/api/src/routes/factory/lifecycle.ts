@@ -1,5 +1,5 @@
 import { supabase, requireRole } from '../../middleware/auth'
-import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
+import { findRenderServicesBySlug, wireDomainInfrastructure, ensureAdsTenant } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
 import { buildTenantSubscription, TENANT_SUBSCRIPTION_COLUMNS } from '../../services/tenantSubscription'
 import { deleteZip } from '../../services/factoryStorage'
@@ -157,6 +157,27 @@ factory.post('/customers/:id/billing-portal-link', async (c) => {
   } catch (err: any) {
     console.error('[Stripe] Tenant billing portal error:', err)
     return c.json({ url: null, error: err.message }, 500)
+  }
+})
+
+// ─── Twomiah Ads registration (tenant → factory, X-Factory-Key auth) ───────
+// deployCustomer registers a tenant with Twomiah Ads only when paid_ads is on at deploy. A tenant that switches Ads on
+// later calls this: it registers once (no campaign, nothing launched), stores ADS_URL + ADS_API_KEY on the tenant's
+// Render backend, and returns the key so the running CRM can use it without a restart. Idempotent: a key already on
+// the service is returned as-is.
+factory.post('/customers/:id/ads/register', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant, error } = await supabase.from('tenants').select('id, slug, name, industry, factory_sync_key').eq('id', tenantId).single()
+    if (error && error.code !== 'PGRST116') { console.error('[Ads] tenant lookup failed:', error.message); return c.json({ error: 'Lookup failed' }, 500) }
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const result = await ensureAdsTenant({ slug: tenant.slug, name: tenant.name, industry: tenant.industry })
+    console.log('[Ads] register', tenant.slug, result.created ? 'created' : 'key already on Render')
+    return c.json(result)
+  } catch (err: any) {
+    console.error('[Ads] register failed:', err.message)
+    return c.json({ error: err.message }, 502)
   }
 })
 

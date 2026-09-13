@@ -129,5 +129,5 @@ export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/l
 
 // Twomiah Ads — pass-through to the Twomiah Ads service with the tenant's key (spend-guarded), plus A/B landing-page tests
 // and the premium website's public assign/convert endpoints.
-export { createAdsRoutes, createAdsPublicRoutes, createAdsClient, normaliseVariants, AdsUpstreamError, ADS_PLATFORMS, ADS_OBJECTIVES, ADS_CONNECT_PLATFORMS, EXPERIMENT_STATUSES, DEFAULT_ADS_URL } from './ads/ads'
-export type { AdsDeps, AdsPublicDeps, AdsTables } from './ads/ads'
+export { createAdsRoutes, createAdsPublicRoutes, createAdsClient, createAdsConnector, normaliseVariants, AdsUpstreamError, ADS_PLATFORMS, ADS_OBJECTIVES, ADS_CONNECT_PLATFORMS, EXPERIMENT_STATUSES, DEFAULT_ADS_URL } from './ads/ads'
+export type { AdsDeps, AdsPublicDeps, AdsTables, AdsConnector, AdsConnectorDeps } from './ads/ads'

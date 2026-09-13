@@ -35,8 +35,23 @@ export interface AdsDeps {
   fetch?: typeof fetch
   /** Feature id the whole router is gated on. Default 'paid_ads'. */
   feature?: string
+  /** Registers this tenant with Twomiah Ads through the Factory when it has no key yet (POST /connect). */
+  connector?: AdsConnector
 }
 export interface AdsPublicDeps { db: any; tables: AdsTables }
+export interface AdsConnectorDeps {
+  /** process.env by default — the same object the ads client reads ADS_API_KEY / ADS_URL from. */
+  env?: Record<string, string | undefined>
+  /** Tenant → Factory call: registers the tenant with Twomiah Ads (or returns the key its Render service already
+   *  holds), stores ADS_URL + ADS_API_KEY on the Render backend, and returns the key. Nothing is launched. */
+  registerWithFactory: () => Promise<{ apiKey?: string; adsUrl?: string; created?: boolean }>
+  feature?: string
+  log?: (message: string) => void
+}
+export interface AdsConnector {
+  ensure: () => Promise<{ configured: true; created: boolean }>
+  onFeaturesChanged: (features: unknown) => void
+}
 
 export const ADS_PLATFORMS = ['google', 'meta', 'tiktok'] as const
 export const ADS_OBJECTIVES = ['leads', 'traffic', 'awareness'] as const
@@ -132,6 +147,43 @@ export function normaliseVariants(input: Array<{ key?: string; label: string; tr
   return { variants: input.map((v, i) => ({ key: keys[i], label: v.label, trafficPercent: pct[i] })) }
 }
 
+/**
+ * Connects a tenant that has paid_ads on but no ADS_API_KEY. The Factory only registered tenants with Twomiah Ads at
+ * first deploy, so a tenant that switched Ads on later stayed "not connected" forever. ensure() asks the Factory to
+ * register this tenant (or hand back the key its Render service already holds), keeps the key in this process so the
+ * page works immediately (the Factory also writes it to Render, so it survives a restart), and never runs twice at once.
+ */
+export function createAdsConnector(deps: AdsConnectorDeps): AdsConnector {
+  const env = deps.env || process.env
+  const feature = deps.feature || 'paid_ads'
+  const log = deps.log || ((m: string) => console.log(m))
+  let inflight: Promise<{ configured: true; created: boolean }> | null = null
+  const ensure = () => {
+    if (String(env.ADS_API_KEY || '').trim()) return Promise.resolve({ configured: true as const, created: false })
+    if (!inflight) {
+      inflight = (async () => {
+        try {
+          const r = await deps.registerWithFactory()
+          const key = String(r?.apiKey || '').trim()
+          if (!key) throw new AdsUpstreamError(502, 'The Factory did not return a Twomiah Ads key.')
+          env.ADS_API_KEY = key
+          if (r?.adsUrl) env.ADS_URL = r.adsUrl
+          return { configured: true as const, created: !!r?.created }
+        } finally { inflight = null }
+      })()
+    }
+    return inflight
+  }
+  // Called after every feature save (owner Settings › Features and the Factory's sync). No-op when Ads is off or a key exists.
+  const onFeaturesChanged = (features: unknown) => {
+    if (!Array.isArray(features) || !features.includes(feature) || String(env.ADS_API_KEY || '').trim()) return
+    ensure()
+      .then((r) => log(`[Ads] ${feature} is on — Twomiah Ads ${r.created ? 'registration created' : 'key already on record'}`))
+      .catch((e: any) => log(`[Ads] ${feature} is on but connecting Twomiah Ads failed: ${e?.message || e}`))
+  }
+  return { ensure, onFeaturesChanged }
+}
+
 export function createAdsRoutes(deps: AdsDeps) {
   const { db, tables: t, authenticate, requirePermission } = deps
   const env = deps.env || process.env
@@ -185,6 +237,15 @@ export function createAdsRoutes(deps: AdsDeps) {
         balanceCents: Number(balance?.balance_cents || 0),
       }
     })
+  })
+  // Owner/admin "Connect Twomiah Ads" for a tenant with Ads on but no key (switched on after its first deploy).
+  // Registers the account only — no campaign, no spend.
+  app.post('/connect', requirePermission('ads:settings'), async (c) => {
+    if (ads.configured()) return c.json({ configured: true, created: false })
+    if (!deps.connector) return c.json({ error: 'Connecting Twomiah Ads is not available on this server.' }, 501)
+    try { return c.json(await deps.connector.ensure()) } catch (e: any) {
+      return c.json({ error: `Could not connect Twomiah Ads: ${e?.message || 'unknown error'}` }, (e instanceof AdsUpstreamError ? e.status : 502) as any)
+    }
   })
   app.get('/profile', requirePermission('ads:read'), (c) => upstream(c, async () => ({ profile: (await ads.call('GET', '/profile'))?.profile || null })))
   app.put('/profile', requirePermission('ads:settings'), async (c) => {

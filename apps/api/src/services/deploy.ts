@@ -1938,9 +1938,18 @@ export async function updateCustomerCode(
 export async function findRenderServicesBySlug(slug: string): Promise<Record<string, string>> {
   const serviceIds: Record<string, string> = {}
   try {
-    const res = await fetchWithTimeout(RENDER_API + '/services?type=web_service,static_site&limit=100', { headers: renderHeaders() })
-    if (!res.ok) return serviceIds
-    const list = await res.json() as any[]
+    // Paged: the list used to stop at the first 100 services, so a tenant past that silently had "no services".
+    const list: any[] = []
+    let cursor = ''
+    for (let page = 0; page < 50; page++) {
+      const res = await fetchWithTimeout(RENDER_API + '/services?type=web_service,static_site&limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''), { headers: renderHeaders() })
+      if (!res.ok) break
+      const batch = await res.json() as any[]
+      if (!Array.isArray(batch) || batch.length === 0) break
+      list.push(...batch)
+      cursor = batch[batch.length - 1]?.cursor || ''
+      if (!cursor || batch.length < 100) break
+    }
     const suffixes: Record<string, string> = {
       '-api': 'backend', '-care-api': 'backend',
       '-frontend': 'frontend', '-care': 'frontend',
@@ -2413,7 +2422,30 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
   return apiKey
 }
 
-async function registerAdsTenant(slug: string, companyName: string, company?: any): Promise<{ url: string; apiKey: string }> {
+/**
+ * Registers a deployed tenant with Twomiah Ads unless its CRM backend already holds a key, then stores ADS_URL +
+ * ADS_API_KEY on that Render service. Registration creates the ads-service tenant row and key only — no templateId is
+ * sent, so nothing is launched. Used when a tenant switches paid_ads on after its first deploy (deployCustomer only
+ * registers at deploy). Note: twomiah-ads refuses a second registration for the same slug, so the Render env is the
+ * record that must be written — a registration whose env write fails is reported, not retried silently.
+ */
+export async function ensureAdsTenant(tenant: { slug: string; name?: string | null; industry?: string | null }): Promise<{ apiKey: string; adsUrl: string; created: boolean }> {
+  const adsUrl = process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com'
+  const serviceId = (await findRenderServicesBySlug(tenant.slug)).backend
+  if (!serviceId) throw new Error('No CRM backend service found on Render for ' + tenant.slug)
+  const envRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars?limit=100', { headers: renderHeaders() })
+  if (!envRes.ok) throw new Error('Render env lookup failed (' + envRes.status + ')')
+  const current = ((await envRes.json()) as any[]).map((e: any) => e.envVar || e)
+  const valueOf = (key: string) => String(current.find((v: any) => v.key === key)?.value || '').trim()
+  if (valueOf('ADS_API_KEY')) return { apiKey: valueOf('ADS_API_KEY'), adsUrl: valueOf('ADS_URL') || adsUrl, created: false }
+  const reg = await registerAdsTenant(tenant.slug, tenant.name || tenant.slug, { industry: tenant.industry || undefined })
+  if (!reg.apiKey) throw new Error('Twomiah Ads registration returned no key for ' + tenant.slug)
+  const stored = await updateRenderEnvVars(serviceId, [{ key: 'ADS_URL', value: adsUrl }, { key: 'ADS_API_KEY', value: reg.apiKey }])
+  if (!stored) throw new Error('Registered ' + tenant.slug + ' with Twomiah Ads but could not store ADS_API_KEY on Render (' + serviceId + ') — set it by hand; a second registration will be refused')
+  return { apiKey: reg.apiKey, adsUrl, created: true }
+}
+
+export async function registerAdsTenant(slug: string, companyName: string, company?: any): Promise<{ url: string; apiKey: string }> {
   const adsUrl = process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com'
   const webhookSecret = process.env.ADS_WEBHOOK_SECRET || process.env.CRON_SECRET
   if (!webhookSecret) {

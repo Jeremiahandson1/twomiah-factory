@@ -6,6 +6,7 @@ import { company, user } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { requirePermission, invalidateExtraPermissions } from '../middleware/permissions.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
+import { adsConnector } from './ads.ts'
 
 export default createCompanyRoutes({
   db,
@@ -15,4 +16,5 @@ export default createCompanyRoutes({
   requirePermission,
   invalidateExtraPermissions,
   template: CRM_TEMPLATE,
+  onFeaturesChanged: (features) => adsConnector.onFeaturesChanged(features),
 })

@@ -17,6 +17,7 @@ interface FullFactoryApiClient extends FactoryApiClient {
   reactivate(): Promise<{ success: boolean; error?: string }>
   getSubscription(): Promise<TenantSubscription>
   getBillingPortalLink(): Promise<{ url: string | null; reason?: string }>
+  registerAds(): Promise<{ apiKey: string; adsUrl?: string; created: boolean }>
 }
 
 function env(name: string): string {
@@ -78,6 +79,10 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     },
     async getBillingPortalLink() {
       return call('POST', tenantBase() + '/billing-portal-link')
+    },
+    // Twomiah Ads: register this tenant (or get the key its Render service already holds). No campaign is created.
+    async registerAds() {
+      return call('POST', tenantBase() + '/ads/register')
     },
   }
 }
