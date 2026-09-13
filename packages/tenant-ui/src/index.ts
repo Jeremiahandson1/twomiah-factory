@@ -11,6 +11,12 @@ export { AccountOffboardPage } from './settings/AccountOffboardPage'
 export { InboundMessagesPage } from './settings/InboundMessagesPage'
 export { GbpReviewsPage } from './settings/GbpReviewsPage'
 export { BillingPage } from './settings/BillingPage'
+// Settings → Integrations / Import / Migrate + the Reviews page — one implementation for every CRM; the template passes its api (+toast) and a vertical config.
+export { IntegrationsPage, DEFAULT_LEAD_SOURCES } from './settings/IntegrationsPage'
+export { ImportPage, DEFAULT_IMPORT_TYPES, DEFAULT_IMPORT_CONTACT_TYPES } from './settings/ImportPage'
+export { MigrationPage } from './settings/MigrationPage'
+export { ReviewsPage } from './reviews/ReviewsPage'
+export type { SettingsApi, SettingsToast, IntegrationsConfig, LeadSourceGuide, ImportConfig, ImportTypeDef, MigrationConfig, ReviewsConfig } from './settings/integrationsTypes'
 // Invoices + quotes — one set of pages for every CRM; the template passes its api/toast/settings + a vertical config.
 export { InvoicesPage } from './invoicing/InvoicesPage'
 export { InvoiceDetailPage } from './invoicing/InvoiceDetailPage'
