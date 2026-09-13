@@ -1084,11 +1084,16 @@ export const reviewRequest = pgTable('review_request', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   status: text('status').default('pending').notNull(),
   sentAt: timestamp('sent_at'),
+  channel: text('channel').default('both').notNull(), // sms, email, both
+  clickedAt: timestamp('clicked_at'),
+  followUpSentAt: timestamp('follow_up_sent_at'),
+  reviewLink: text('review_link'),
   openedAt: timestamp('opened_at'),
   submittedAt: timestamp('submitted_at'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [

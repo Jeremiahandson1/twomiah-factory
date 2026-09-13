@@ -20,7 +20,7 @@ export default createJobRoutes({
     // Completing a job schedules a review request when the tenant has the feature on.
     onComplete: async ({ job, companyId }) => {
       const [comp] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, companyId)).limit(1)
-      if (((comp?.enabledFeatures || []) as string[]).includes('review_requests')) reviews.scheduleReviewRequest(job.id).catch((err: any) => console.warn('[Jobs] Review schedule failed:', err?.message))
+      if (((comp?.enabledFeatures || []) as string[]).includes('google_reviews')) reviews.scheduleReviewRequest(job.id).catch((err: any) => console.warn('[Jobs] Review schedule failed:', err?.message))
     },
   },
 })

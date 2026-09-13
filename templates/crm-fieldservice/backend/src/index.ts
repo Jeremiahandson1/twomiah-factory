@@ -19,6 +19,7 @@ import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
+import { startReviewProcessor } from './services/reviews.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -486,6 +487,7 @@ initializeSocket(server as any)
 startMarketingProcessor()
 startAgreementBillingProcessor()
 syncFeatures().catch(console.error)
+startReviewProcessor()
 // Pull the current subscription from the Factory at boot so the mirror is right even if a push was missed.
 refreshSubscriptionFromFactory(subscriptionDeps).catch(console.error)
 

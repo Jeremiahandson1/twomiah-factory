@@ -20,6 +20,7 @@
     "pg": "^8.13.1",
     "sharp": "^0.33.2",
     "stripe": "^17.5.0",
+    "twilio": "^5.3.4",
     "zod": "^3.22.4"
   },
   "devDependencies": {

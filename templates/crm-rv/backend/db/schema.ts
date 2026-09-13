@@ -143,6 +143,7 @@ export const contact = pgTable('contact', {
   source: text('source'),
   tags: json('tags').default([]).notNull(),
   customFields: json('custom_fields').default({}).notNull(),
+  qbCustomerId: text('qb_customer_id'),
   portalEnabled: boolean('portal_enabled').default(false).notNull(),
   portalToken: text('portal_token'),
   portalTokenExp: timestamp('portal_token_exp'),
@@ -302,6 +303,8 @@ export const invoice = pgTable('invoice', {
   amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).default('0').notNull(),
   amountRefunded: decimal('amount_refunded', { precision: 12, scale: 2 }).default('0').notNull(), // money returned; amountPaid stays gross so a refund never reopens a balance
   notes: text('notes'),
+  qbInvoiceId: text('qb_invoice_id'),
+  syncedAt: timestamp('synced_at'),
   terms: text('terms'),
   sentAt: timestamp('sent_at'),
   paidAt: timestamp('paid_at'),
@@ -1099,6 +1102,23 @@ export const pricebookItem = pgTable('pricebook_item', {
 ])
 
 // ==================== REVIEWS ====================
+
+// QuickBooks Online connection (one per company). Replaces the raw-SQL quickbooks_connection table that
+// db/prune-legacy.ts drops on every boot — which is why QuickBooks could never stay connected here.
+export const qbIntegration = pgTable('qb_integration', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().unique().references(() => company.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  realmId: text('realm_id'),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  syncEnabled: boolean('sync_enabled').default(false).notNull(),
+  lastSyncedAt: timestamp('last_synced_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('qb_integration_company_id_idx').on(t.companyId),
+])
 
 export const reviewRequest = pgTable('review_request', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
