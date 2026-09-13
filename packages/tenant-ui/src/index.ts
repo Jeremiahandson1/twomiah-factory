@@ -110,3 +110,7 @@ export type { AgreementsApi, AgreementsConfig, AgreementsPageProps } from './agr
 export { default as RecurringForm } from './recurring/RecurringForm'
 export { default as RecurringList } from './recurring/RecurringList'
 export type { RecurringApi, RecurringPageProps } from './recurring/types'
+
+// Fleet — vehicles/maintenance/fuel + live GPS map (leaflet) & trips gated on config.gps (crm, crm-fieldservice, crm-landscaping).
+export { default as FleetPage } from './fleet/FleetPage'
+export type { FleetApi, FleetConfig, FleetPageProps } from './fleet/types'
