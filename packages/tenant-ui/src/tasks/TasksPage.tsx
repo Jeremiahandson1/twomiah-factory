@@ -5,6 +5,7 @@ import {
   ChevronDown, ChevronRight, MoreVertical
 } from 'lucide-react';
 import type { TasksApi, TasksPageProps } from './types';
+import { useAuth } from '../auth/AuthContext';
 
 // UTC-safe date formatting (carried from the templates' utils/date). Date-only values are stored as
 // UTC midnight; parsing the date part at LOCAL midnight avoids shifting viewers west of UTC a day back.
@@ -29,6 +30,7 @@ interface TaskData {
   priority: string;
   dueDate?: string;
   assignedToId?: string;
+  createdById?: string;
   assignedTo?: { firstName: string };
   projectId?: string;
   project?: { name: string };
@@ -60,6 +62,12 @@ interface ProjectData {
 }
 
 export default function TasksPage({ api }: TasksPageProps) {
+  const { user, isManager } = useAuth();
+  // Mirror the backend gate (routes/tasks.ts): viewers are read-only; below manager you can only
+  // change a task assigned to you or that you created; managers/admins/owners any.
+  const canCreate = !!user && user.role !== 'viewer';
+  const canModify = (t: TaskData) =>
+    isManager || (!!user && (t.assignedToId === user.id || t.createdById === user.id));
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -153,13 +161,15 @@ export default function TasksPage({ api }: TasksPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">My Tasks</h1>
           <p className="text-gray-500 dark:text-slate-400">Manage your to-do list</p>
         </div>
-        <button
-          onClick={() => { setEditingTask(null); setShowForm(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
-        >
-          <Plus className="w-4 h-4" />
-          New Task
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => { setEditingTask(null); setShowForm(true); }}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
+          >
+            <Plus className="w-4 h-4" />
+            New Task
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -205,6 +215,7 @@ export default function TasksPage({ api }: TasksPageProps) {
             <TaskItem
               key={task.id}
               task={task}
+              canModify={canModify(task)}
               onToggle={() => handleToggle(task.id)}
               onEdit={() => { setEditingTask(task); setShowForm(true); }}
               onDelete={() => handleDelete(task.id)}
@@ -251,27 +262,38 @@ function StatCard({ label, value, color = 'gray' }: StatCardProps) {
 
 interface TaskItemProps {
   task: TaskData;
+  canModify: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
   priorityColors: Record<string, string>;
 }
 
-function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItemProps) {
+function TaskItem({ task, canModify, onToggle, onEdit, onDelete, priorityColors }: TaskItemProps) {
   const [showMenu, setShowMenu] = useState<boolean>(false);
   const isOverdue = task.status !== 'completed' && task.dueDate && new Date(task.dueDate) < new Date();
 
   return (
     <div className={`p-4 hover:bg-gray-50 ${task.status === 'completed' ? 'opacity-60' : ''}`}>
       <div className="flex items-start gap-3">
-        {/* Checkbox */}
-        <button onClick={onToggle} className="mt-0.5">
-          {task.status === 'completed' ? (
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
-          ) : (
-            <Circle className="w-5 h-5 text-gray-300 hover:text-gray-400" />
-          )}
-        </button>
+        {/* Checkbox — read-only users see the state but cannot toggle */}
+        {canModify ? (
+          <button onClick={onToggle} className="mt-0.5">
+            {task.status === 'completed' ? (
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+            ) : (
+              <Circle className="w-5 h-5 text-gray-300 hover:text-gray-400" />
+            )}
+          </button>
+        ) : (
+          <span className="mt-0.5">
+            {task.status === 'completed' ? (
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+            ) : (
+              <Circle className="w-5 h-5 text-gray-300" />
+            )}
+          </span>
+        )}
 
         {/* Content */}
         <div className="flex-1 min-w-0">
@@ -316,7 +338,8 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
           )}
         </div>
 
-        {/* Actions */}
+        {/* Actions — hidden for users who can't modify this task (backend still enforces) */}
+        {canModify && (
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
@@ -346,6 +369,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   );
