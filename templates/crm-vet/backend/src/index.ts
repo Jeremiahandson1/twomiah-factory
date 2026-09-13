@@ -33,8 +33,6 @@ import projectsRoutes from './routes/projects.ts'
 import jobsRoutes from './routes/jobs.ts'
 import quotesRoutes from './routes/quotes.ts'
 import invoicesRoutes from './routes/invoices.ts'
-import timeRoutes from './routes/time.ts'
-import expensesRoutes from './routes/expenses.ts'
 import ganttChartsRoutes from './routes/ganttCharts.ts'
 import teamRoutes from './routes/team.ts'
 import companyRoutes from './routes/company.ts'
@@ -70,7 +68,6 @@ import searchRoutes from './routes/search.ts'
 import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
 import tasksRoutes from './routes/tasks.ts'
-import timeTrackingRoutes from './routes/timeTracking.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
 import adsRoutes from './routes/ads.ts'
@@ -209,8 +206,6 @@ app.route('/api/contacts', contactsRoutes)
 // [vet-scope] app.route('/api/jobs', jobsRoutes)
 // [vet-scope] app.route('/api/quotes', quotesRoutes)
 app.route('/api/invoices', invoicesRoutes)
-// [vet-scope] app.route('/api/time', timeRoutes)
-// [vet-scope] app.route('/api/expenses', expensesRoutes)
 // [vet-scope] app.route('/api/gantt-charts', ganttChartsRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/company', companyRoutes)
@@ -255,7 +250,6 @@ app.route('/api/search', searchRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/stripe', stripeRoutes)
 app.route('/api/tasks', tasksRoutes)
-// [vet-scope] app.route('/api/time-tracking', timeTrackingRoutes)
 // [vet-scope] app.route('/api/weather', weatherRoutes)
 app.route('/api/support', supportRoutes)
 app.route('/api/ads', adsRoutes)

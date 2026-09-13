@@ -111,6 +111,14 @@ export { createReviewsService, createReviewsRoutes, generateGoogleReviewLink } f
 export type { ReviewsService, ReviewsServiceDeps, ReviewsRoutesDeps, ReviewsTables } from './integrations/reviews'
 export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService } from './portal/portal'
 
+// Team roster, time tracking (hours + clock-in/out + weekly + approvals) and expenses — one implementation each; the template injects its tables.
+export { createTeamRoutes, teamMemberSchema } from './team/team'
+export type { TeamDeps, TeamTables } from './team/team'
+export { createTimeRoutes, getWeekStart } from './time/time'
+export type { TimeDeps, TimeTables } from './time/time'
+export { createExpenseRoutes, DEFAULT_EXPENSE_CATEGORIES } from './expenses/expenses'
+export type { ExpenseDeps, ExpenseTables } from './expenses/expenses'
+
 // Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.
 export { createLeadsRoutes, parseLeadEmail, parseWebhookPayload, readInboundBody, TRADES_LEAD_PLATFORMS, LEAD_STATUSES } from './leads/leads'
 export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/leads'

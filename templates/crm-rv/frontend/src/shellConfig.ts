@@ -30,14 +30,12 @@ const NAV: NavItem[] = [
   { to: '/crm/floorplan', icon: DollarSign, label: 'Floorplan', section: 'Operations' },
   { to: '/crm/rentals', icon: Repeat, label: 'Rentals', section: 'Operations' },
   { to: '/crm/schedule', icon: Calendar, label: 'Schedule', section: 'Operations' },
-  { to: '/crm/time', icon: Clock, label: 'Time', section: 'Operations' },
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', features: ['deal_pipeline', 'service_dept'], section: 'Operations' },
 
   // Back Office
   { to: '/crm/accounting', icon: Receipt, label: 'Accounting', section: 'Back Office' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices', section: 'Back Office' },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes', section: 'Back Office' },
-  { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', section: 'Back Office' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', section: 'Back Office' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', section: 'Back Office' },
 

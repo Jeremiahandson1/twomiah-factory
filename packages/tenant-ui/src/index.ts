@@ -17,6 +17,12 @@ export { ImportPage, DEFAULT_IMPORT_TYPES, DEFAULT_IMPORT_CONTACT_TYPES } from '
 export { MigrationPage } from './settings/MigrationPage'
 export { ReviewsPage } from './reviews/ReviewsPage'
 export type { SettingsApi, SettingsToast, IntegrationsConfig, LeadSourceGuide, ImportConfig, ImportTypeDef, MigrationConfig, ReviewsConfig } from './settings/integrationsTypes'
+// Team roster, time tracking (clock in/out + hours) and expenses — one page each for every CRM that offers them.
+export { TeamPage } from './people/TeamPage'
+export { TimePage } from './people/TimePage'
+export { ExpensesPage } from './people/ExpensesPage'
+export { DEFAULT_EXPENSE_CATEGORIES } from './people/types'
+export type { PeopleApi, PeopleToast, TeamConfig, TimeConfig, ExpensesConfig } from './people/types'
 // Lead Inbox + Lead Sources — one implementation for every CRM; the template passes its api (+toast, +socket subscribe) and its platform vocabulary.
 export { LeadInboxPage } from './leads/LeadInboxPage'
 export { LeadSourcesPage } from './leads/LeadSourcesPage'
