@@ -12,7 +12,7 @@ In-home sales pricing application built with Twomiah Factory.
 ```bash
 # Backend
 cd backend
-cp .env.template .env   # fill in values
+cp .env.example .env   # fill in values
 bun install
 bun run db:push
 bun run db:seed
@@ -20,7 +20,7 @@ bun run dev
 
 # Frontend
 cd frontend
-cp .env.template .env
+cp .env.example .env
 bun install
 bun run dev
 ```
