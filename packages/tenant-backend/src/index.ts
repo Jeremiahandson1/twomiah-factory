@@ -135,3 +135,7 @@ export type { AdsDeps, AdsPublicDeps, AdsTables, AdsConnector, AdsConnectorDeps 
 // Pricebook — flat-rate catalog: validated items/categories, Good-Better-Best tiers (schema-backed), feature-gated.
 export { createPricebookService, createPricebookRoutes, PricebookError, PRICEBOOK_TIERS, itemCreateSchema, itemUpdateSchema, optionsSchema } from './pricebook/pricebook'
 export type { PricebookService, PricebookServiceDeps, PricebookRoutesDeps, PricebookTables } from './pricebook/pricebook'
+
+// Tasks — to-do list with checklist, due dates, stats (crm, crm-vet). Parameterized raw SQL; template wires db + authenticate.
+export { createTasksService, createTasksRoutes } from './tasks/tasks'
+export type { TasksService, TasksServiceDeps, TasksRoutesDeps } from './tasks/tasks'

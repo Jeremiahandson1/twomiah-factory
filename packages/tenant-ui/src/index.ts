@@ -93,3 +93,7 @@ export type { AdsApi, AdsToast, AdsConfig, AdsOverview, AdsPlatformState, AdsPro
 // Pricebook — catalog page with configurable tier wording (crm "Sign Today…" vs trades Basic/Standard/Premium).
 export { PricebookPage } from './pricebook/PricebookPage'
 export type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './pricebook/types'
+
+// Tasks — to-do list with checklist, due dates, stats page + upcoming-tasks widget (crm, crm-vet).
+export { default as TasksPage, TaskWidget } from './tasks/TasksPage'
+export type { TasksApi, TasksPageProps } from './tasks/types'
