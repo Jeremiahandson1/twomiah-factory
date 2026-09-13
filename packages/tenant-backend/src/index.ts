@@ -159,3 +159,8 @@ export type { RecurringService, RecurringServiceDeps, RecurringRoutesDeps, Recur
 // Live GPS + trips (location_log / vehicle_trip) gated behind options.gps (fs/landscaping).
 export { createFleetService, createFleetRoutes } from './fleet/fleet'
 export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } from './fleet/fleet'
+
+// Warranties — post-construction warranty tracking, claims, service scheduling (crm, crm-fieldservice, crm-landscaping, crm-rv).
+// Activity-log table injected via tables.activityLog (crm/rv pass `activity`; fs/lnd pass `activityLog`).
+export { createWarrantiesService, createWarrantiesRoutes } from './warranties/warranties'
+export type { WarrantiesService, WarrantiesServiceDeps, WarrantiesRoutesDeps, WarrantiesTables } from './warranties/warranties'
