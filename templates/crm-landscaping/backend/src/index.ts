@@ -156,6 +156,15 @@ app.use('/api/*', async (c, next) => {
   await next()
 })
 
+// Premium-website A/B endpoints are called by scripts/ab.js from the site's own origin. They are anonymous and send no
+// credentials, so they get an explicit open policy here, ahead of the global one (which on most CRMs is locked to
+// FRONTEND_URL and failed the site's preflight).
+app.use('/api/public/ads-experiments/*', cors({
+  origin: '*',
+  allowMethods: ['POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+}))
+
 // CORS — allow all origins; auth is handled by JWT, not origin checks
 app.use('*', cors({
   origin: '*',
@@ -276,6 +285,8 @@ app.route('/api/support', supportRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ads', adsRoutes)
+const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
+app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 // Public media proxy for uploaded photos (streamed from private R2). Must be
 // registered before the static/SPA catch-all so /media/* is not swallowed.

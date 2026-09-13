@@ -31,7 +31,6 @@ const NAV: NavItem[] = [
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'] },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
-  { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'] },
   { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },

@@ -170,6 +170,15 @@ app.use('/api/booking/public/*', cors({
   allowHeaders: ['Content-Type'],
 }))
 
+// Premium-website A/B endpoints are called by scripts/ab.js from the site's own origin. They are anonymous and send no
+// credentials, so they get an explicit open policy here, ahead of the global one (which on most CRMs is locked to
+// FRONTEND_URL and failed the site's preflight).
+app.use('/api/public/ads-experiments/*', cors({
+  origin: '*',
+  allowMethods: ['POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+}))
+
 app.use('*', cors({
   origin: process.env.FRONTEND_URL || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
