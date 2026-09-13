@@ -119,6 +119,10 @@ export type { TimeDeps, TimeTables } from './time/time'
 export { createExpenseRoutes, DEFAULT_EXPENSE_CATEGORIES } from './expenses/expenses'
 export type { ExpenseDeps, ExpenseTables } from './expenses/expenses'
 
+// Email marketing — templates, campaigns (audience preview, send, schedule, tracking, unsubscribe), drip sequences + the worker.
+export { createMarketingService, createMarketingRoutes, MarketingError, SEQUENCE_TRIGGERS, AUDIENCE_TYPES } from './marketing/marketing'
+export type { MarketingService, MarketingServiceDeps, MarketingRoutesDeps, MarketingTables, MailMessage } from './marketing/marketing'
+
 // Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.
 export { createLeadsRoutes, parseLeadEmail, parseWebhookPayload, readInboundBody, TRADES_LEAD_PLATFORMS, LEAD_STATUSES } from './leads/leads'
 export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/leads'
