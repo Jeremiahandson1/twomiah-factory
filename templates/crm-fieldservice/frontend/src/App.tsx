@@ -18,7 +18,6 @@ import ImportPage from './pages/settings/ImportPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
-import ProjectsPage from './pages/ProjectsPage';
 import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
@@ -26,12 +25,6 @@ import SchedulePage from './pages/SchedulePage';
 import TimePage from './pages/TimePage';
 import ExpensesPage from './pages/ExpensesPage';
 import TeamPage from './pages/TeamPage';
-import RFIsPage from './pages/RFIsPage';
-import ChangeOrdersPage from './pages/ChangeOrdersPage';
-import PunchListsPage from './pages/PunchListsPage';
-import DailyLogsPage from './pages/DailyLogsPage';
-import InspectionsPage from './pages/InspectionsPage';
-import BidsPage from './pages/BidsPage';
 import SettingsPage from './pages/SettingsPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -51,11 +44,8 @@ import CallTrackingPage from './pages/calltracking/CallTrackingPage';
 import AdsPage from './pages/ads/AdsPage';
 import { AIReceptionistPage } from './components/features/AIReceptionistPage';
 import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
-import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
-import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
-import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
@@ -77,7 +67,6 @@ import ContactSupportPage from './pages/support/ContactSupportPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
-import ProjectDetailPage from './components/detail/ProjectDetailPage';
 import JobDetailPage from './components/detail/JobDetailPage';
 import QuoteDetailPage from './components/detail/QuoteDetailPage';
 import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
@@ -151,8 +140,6 @@ function App() {
                     <Route index element={<DashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
-                    <Route path="projects" element={<ProjectsPage />} />
-                    <Route path="projects/:id" element={<ProjectDetailPage />} />
                     <Route path="jobs" element={<JobsPage />} />
                     <Route path="jobs/:id" element={<JobDetailPage />} />
                     <Route path="quotes" element={<QuotesPage />} />
@@ -164,12 +151,6 @@ function App() {
                     <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
-                    <Route path="rfis" element={<RFIsPage />} />
-                    <Route path="change-orders" element={<ChangeOrdersPage />} />
-                    <Route path="punch-lists" element={<PunchListsPage />} />
-                    <Route path="daily-logs" element={<DailyLogsPage />} />
-                    <Route path="inspections" element={<InspectionsPage />} />
-                    <Route path="bids" element={<BidsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
@@ -200,11 +181,8 @@ function App() {
                     <Route path="recurring" element={<RecurringListPage />} />
                     <Route path="recurring/new" element={<RecurringForm />} />
                     <Route path="recurring/:id/edit" element={<RecurringForm />} />
-                    <Route path="takeoffs" element={<TakeoffsPage />} />
-                    <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
-                    <Route path="selections" element={<SelectionsPage />} />
                     <Route path="support" element={<SupportPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />

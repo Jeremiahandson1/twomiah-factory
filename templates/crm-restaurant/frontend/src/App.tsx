@@ -22,56 +22,29 @@ import EventDetailPage from './pages/events/EventDetailPage';
 import SpacesPage from './pages/events/SpacesPage';
 import MenusPage from './pages/events/MenusPage';
 import ContactsPage from './pages/ContactsPage';
-import ProjectsPage from './pages/ProjectsPage';
 import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
 import InvoicesPage from './pages/InvoicesPage';
 import SchedulePage from './pages/SchedulePage';
 import TeamPage from './pages/TeamPage';
-import RFIsPage from './pages/RFIsPage';
-import ChangeOrdersPage from './pages/ChangeOrdersPage';
-import PunchListsPage from './pages/PunchListsPage';
-import DailyLogsPage from './pages/DailyLogsPage';
-import InspectionsPage from './pages/InspectionsPage';
-import BidsPage from './pages/BidsPage';
-import SubmittalsPage from './pages/SubmittalsPage';
-import LienWaiversPage from './pages/LienWaiversPage';
-import DrawSchedulesPage from './pages/DrawSchedulesPage';
-import AiaFormsPage from './pages/AiaFormsPage';
-import GanttChartsPage from './pages/GanttChartsPage';
 import SettingsPage from './pages/SettingsPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
 // Feature pages
-import FleetPage from './pages/fleet/FleetPage';
-import InventoryPage from './pages/inventory/InventoryPage';
-import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
-import BookingsPage from './pages/booking/BookingsPage';
-import PricebookPage from './pages/pricebook/PricebookPage';
-import AgreementsPage from './pages/agreements/AgreementsPage';
-import WarrantiesPage from './pages/warranties/WarrantiesPage';
-import CallTrackingPage from './pages/calltracking/CallTrackingPage';
-import { AIReceptionistPage } from './components/features/AIReceptionistPage';
-import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
-import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
-import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
-import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
-import PricebookTrialPage from './pages/PricebookTrialPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import ContactSupportPage from './pages/support/ContactSupportPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
-import ProjectDetailPage from './components/detail/ProjectDetailPage';
 import JobDetailPage from './components/detail/JobDetailPage';
 import QuoteDetailPage from './components/detail/QuoteDetailPage';
 import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
@@ -155,8 +128,6 @@ function App() {
                     <Route index element={<EventsDashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
-                    <Route path="projects" element={<FeatureGate feature="projects"><ProjectsPage /></FeatureGate>} />
-                    <Route path="projects/:id" element={<FeatureGate feature="projects"><ProjectDetailPage /></FeatureGate>} />
                     <Route path="jobs" element={<FeatureGate feature="jobs"><JobsPage /></FeatureGate>} />
                     <Route path="jobs/:id" element={<FeatureGate feature="jobs"><JobDetailPage /></FeatureGate>} />
                     <Route path="quotes" element={<FeatureGate feature="quotes"><QuotesPage /></FeatureGate>} />
@@ -166,17 +137,6 @@ function App() {
                     <Route path="schedule" element={<SchedulePage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
-                    <Route path="rfis" element={<FeatureGate feature="rfis"><RFIsPage /></FeatureGate>} />
-                    <Route path="submittals" element={<FeatureGate feature="submittals"><SubmittalsPage /></FeatureGate>} />
-                    <Route path="lien-waivers" element={<FeatureGate feature="lien_waivers"><LienWaiversPage /></FeatureGate>} />
-                    <Route path="draw-schedules" element={<FeatureGate feature="draw_schedules"><DrawSchedulesPage /></FeatureGate>} />
-                    <Route path="aia-forms" element={<FeatureGate feature="aia_forms"><AiaFormsPage /></FeatureGate>} />
-                    <Route path="gantt" element={<FeatureGate feature="gantt_charts"><GanttChartsPage /></FeatureGate>} />
-                    <Route path="change-orders" element={<FeatureGate feature="change_orders"><ChangeOrdersPage /></FeatureGate>} />
-                    <Route path="punch-lists" element={<FeatureGate feature="punch_lists"><PunchListsPage /></FeatureGate>} />
-                    <Route path="daily-logs" element={<FeatureGate feature="daily_logs"><DailyLogsPage /></FeatureGate>} />
-                    <Route path="inspections" element={<FeatureGate feature="inspections"><InspectionsPage /></FeatureGate>} />
-                    <Route path="bids" element={<FeatureGate feature="bid_management"><BidsPage /></FeatureGate>} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
@@ -190,29 +150,13 @@ function App() {
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="fleet" element={<FleetPage />} />
-                    <Route path="inventory" element={<InventoryPage />} />
-                    <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
-                    <Route path="bookings" element={<BookingsPage />} />
-                    <Route path="pricebook" element={<PricebookPage />} />
-                    <Route path="agreements" element={<AgreementsPage />} />
-                    <Route path="warranties" element={<WarrantiesPage />} />
-                    <Route path="call-tracking" element={<CallTrackingPage />} />
-                    <Route path="ai-receptionist" element={<AIReceptionistPage />} />
-                    <Route path="recurring" element={<RecurringListPage />} />
-                    <Route path="recurring/new" element={<RecurringForm />} />
-                    <Route path="recurring/:id/edit" element={<RecurringForm />} />
-                    <Route path="takeoffs" element={<FeatureGate feature="takeoff_tools"><TakeoffsPage /></FeatureGate>} />
-                    <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<FeatureGate feature="reports"><ReportsDashboard /></FeatureGate>} />
-                    <Route path="selections" element={<FeatureGate feature="selections"><SelectionsPage /></FeatureGate>} />
                     <Route path="reviews" element={<ReviewsPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
-                    <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                     <Route path="events" element={<EventsPage />} />
                     <Route path="events/:id" element={<EventDetailPage />} />
                     <Route path="spaces" element={<SpacesPage />} />

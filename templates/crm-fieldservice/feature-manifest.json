@@ -4,8 +4,8 @@
     "_comment": "Always included — cannot be disabled",
     "features": ["contacts", "jobs", "quotes", "invoices", "scheduling", "team", "dashboard"],
     "backend": {
-      "routes": ["auth.ts", "contacts.ts", "jobs.ts", "quotes.ts", "invoices.ts", "time.ts", "team.ts", "company.ts", "dashboard.ts", "projects.ts", "expenses.ts", "documents.ts", "payroll.ts", "webhooks.ts", "audit.ts", "billing.ts", "bulk.ts", "comments.ts", "export.ts", "gapFeatures.ts", "import.ts", "integrations.ts", "migration.ts", "portal-messages.ts", "push.ts", "search.ts", "support.ts", "tasks.ts", "weather.ts"],
-      "services": ["audit.ts", "booking.ts", "bulk.ts", "comments.ts", "customForms.ts", "drawSchedules.ts", "email.ts", "export.ts", "fileUpload.ts", "import.ts", "jobCosting.ts", "lienWaivers.ts", "logger.ts", "migration.ts", "pdf.ts", "push.ts", "search.ts", "socket.ts", "tasks.ts", "weather.ts"],
+      "routes": ["auth.ts", "contacts.ts", "jobs.ts", "quotes.ts", "invoices.ts", "time.ts", "team.ts", "company.ts", "dashboard.ts", "projects.ts", "expenses.ts", "documents.ts", "payroll.ts", "webhooks.ts", "audit.ts", "billing.ts", "bulk.ts", "comments.ts", "export.ts", "gapFeatures.ts", "import.ts", "integrations.ts", "migration.ts", "portal-messages.ts", "push.ts", "search.ts", "support.ts", "weather.ts"],
+      "services": ["audit.ts", "booking.ts", "bulk.ts", "comments.ts", "customForms.ts", "drawSchedules.ts", "email.ts", "export.ts", "fileUpload.ts", "import.ts", "jobCosting.ts", "lienWaivers.ts", "logger.ts", "migration.ts", "pdf.ts", "push.ts", "search.ts", "socket.ts", "weather.ts"],
       "middleware": ["auth.ts", "featureGate.ts", "permissions.ts", "security.ts"]
     },
     "frontend": {
@@ -230,10 +230,10 @@
     },
     "daily_logs": {
       "backend": {
-        "routes": ["dailyLogs.ts"]
+        "routes": []
       },
       "frontend": {
-        "pages": ["DailyLogsPage.tsx"],
+        "pages": [],
         "features": ["DailyLogsPage.tsx"]
       },
       "sidebar": {
@@ -245,10 +245,10 @@
     },
     "rfis": {
       "backend": {
-        "routes": ["rfis.ts"]
+        "routes": []
       },
       "frontend": {
-        "pages": ["RFIsPage.tsx"],
+        "pages": [],
         "features": ["RFIsPage.tsx"]
       },
       "sidebar": {
@@ -260,10 +260,10 @@
     },
     "punch_lists": {
       "backend": {
-        "routes": ["punchLists.ts"]
+        "routes": []
       },
       "frontend": {
-        "pages": ["PunchListsPage.tsx"],
+        "pages": [],
         "features": ["PunchListsPage.tsx"]
       },
       "sidebar": {
@@ -275,10 +275,10 @@
     },
     "change_orders": {
       "backend": {
-        "routes": ["changeOrders.ts"]
+        "routes": []
       },
       "frontend": {
-        "pages": ["ChangeOrdersPage.tsx"],
+        "pages": [],
         "features": ["ChangeOrdersPage.tsx"]
       },
       "sidebar": {
@@ -290,10 +290,10 @@
     },
     "inspections": {
       "backend": {
-        "routes": ["inspections.ts"]
+        "routes": []
       },
       "frontend": {
-        "pages": ["InspectionsPage.tsx"],
+        "pages": [],
         "features": ["QualityPage.tsx"]
       },
       "sidebar": {
@@ -305,10 +305,10 @@
     },
     "bid_management": {
       "backend": {
-        "routes": ["bids.ts"]
+        "routes": []
       },
       "frontend": {
-        "pages": ["BidsPage.tsx"],
+        "pages": [],
         "features": ["BiddingPage.tsx"]
       },
       "sidebar": {
@@ -320,11 +320,11 @@
     },
     "takeoff_tools": {
       "backend": {
-        "routes": ["takeoffs.ts"],
-        "services": ["takeoffs.ts"]
+        "routes": [],
+        "services": []
       },
       "frontend": {
-        "pages": ["takeoffs/TakeoffsPage.tsx"]
+        "pages": []
       },
       "sidebar": null
     },
@@ -527,7 +527,7 @@
         "routes": ["projects.ts"]
       },
       "frontend": {
-        "pages": ["ProjectsPage.tsx"],
+        "pages": [],
         "features": ["ProjectsPage.tsx"]
       },
       "sidebar": {
@@ -539,11 +539,11 @@
     },
     "selections": {
       "backend": {
-        "routes": ["selections.ts"],
+        "routes": [],
         "services": ["selections.ts"]
       },
       "frontend": {
-        "pages": ["selections/SelectionsPage.tsx"]
+        "pages": []
       },
       "sidebar": null
     },

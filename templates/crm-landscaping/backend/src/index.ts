@@ -33,12 +33,6 @@ import quotesRoutes from './routes/quotes.ts'
 import invoicesRoutes from './routes/invoices.ts'
 import timeRoutes from './routes/time.ts'
 import expensesRoutes from './routes/expenses.ts'
-import rfisRoutes from './routes/rfis.ts'
-import changeOrdersRoutes from './routes/changeOrders.ts'
-import punchListsRoutes from './routes/punchLists.ts'
-import dailyLogsRoutes from './routes/dailyLogs.ts'
-import inspectionsRoutes from './routes/inspections.ts'
-import bidsRoutes from './routes/bids.ts'
 import teamRoutes from './routes/team.ts'
 import companyRoutes from './routes/company.ts'
 import dashboardRoutes from './routes/dashboard.ts'
@@ -80,11 +74,8 @@ import reviewsRoutes from './routes/reviews.ts'
 import routingRoutes from './routes/routing.ts'
 import schedulingRoutes from './routes/scheduling.ts'
 import searchRoutes from './routes/search.ts'
-import selectionsRoutes from './routes/selections.ts'
 import smsRoutes from './routes/sms.ts'
 import stripeRoutes from './routes/stripe.ts'
-import takeoffsRoutes from './routes/takeoffs.ts'
-import tasksRoutes from './routes/tasks.ts'
 import techRoutes from './routes/tech.ts'
 import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
@@ -215,12 +206,6 @@ app.route('/api/quotes', quotesRoutes)
 app.route('/api/invoices', invoicesRoutes)
 app.route('/api/time', timeRoutes)
 app.route('/api/expenses', expensesRoutes)
-app.route('/api/rfis', rfisRoutes)
-app.route('/api/change-orders', changeOrdersRoutes)
-app.route('/api/punch-lists', punchListsRoutes)
-app.route('/api/daily-logs', dailyLogsRoutes)
-app.route('/api/inspections', inspectionsRoutes)
-app.route('/api/bids', bidsRoutes)
 app.route('/api/team', teamRoutes)
 app.route('/api/company', companyRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
@@ -273,11 +258,8 @@ app.route('/api/reviews', reviewsRoutes)
 app.route('/api/routing', routingRoutes)
 app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/search', searchRoutes)
-app.route('/api/selections', selectionsRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/stripe', stripeRoutes)
-app.route('/api/takeoffs', takeoffsRoutes)
-app.route('/api/tasks', tasksRoutes)
 app.route('/api/tech', techRoutes)
 app.route('/api/warranties', warrantiesRoutes)
 app.route('/api/weather', weatherRoutes)
