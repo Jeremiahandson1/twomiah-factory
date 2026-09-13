@@ -164,3 +164,8 @@ export type { FleetService, FleetServiceDeps, FleetRoutesDeps, FleetTables } fro
 // Activity-log table injected via tables.activityLog (crm/rv pass `activity`; fs/lnd pass `activityLog`).
 export { createWarrantiesService, createWarrantiesRoutes } from './warranties/warranties'
 export type { WarrantiesService, WarrantiesServiceDeps, WarrantiesRoutesDeps, WarrantiesTables } from './warranties/warranties'
+
+// Inventory — parts/materials across locations, stock ops, transfers, job usage, purchase orders (crm, crm-fieldservice, crm-landscaping, crm-rv).
+// emailService (low-stock alerts) and audit are injected via deps; company table needed for the alert.
+export { createInventoryService, createInventoryRoutes } from './inventory/inventory'
+export type { InventoryService, InventoryServiceDeps, InventoryRoutesDeps, InventoryTables, InventoryEmail, InventoryAudit } from './inventory/inventory'

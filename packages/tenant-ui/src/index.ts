@@ -118,3 +118,7 @@ export type { FleetApi, FleetConfig, FleetPageProps } from './fleet/types'
 // Warranties — post-construction warranty tracking + service claims (crm, crm-fieldservice, crm-landscaping, crm-rv).
 export { default as WarrantiesPage } from './warranties/WarrantiesPage'
 export type { WarrantiesApi, WarrantiesPageProps } from './warranties/types'
+
+// Inventory — parts/materials across locations, stock ops, transfers, purchase orders (crm, crm-fieldservice, crm-landscaping, crm-rv).
+export { default as InventoryPage } from './inventory/InventoryPage'
+export type { InventoryApi, InventoryPageProps } from './inventory/types'
