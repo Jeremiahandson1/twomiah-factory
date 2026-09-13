@@ -142,7 +142,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Marketing
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof'] },
   { id: 'google_reviews', name: 'Google Reviews', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
-  { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'] },
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
 
   // Advanced

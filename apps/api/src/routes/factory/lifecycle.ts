@@ -75,6 +75,20 @@ factory.post('/inbound-parse/:secret', async (c) => {
       fromEmail = fromMatch[2].trim()
     }
 
+    // Lead Inbox: <tenantId>-leads-<platform>@<parseHost> is a lead-source address (Angi, Google Business Profile…),
+    // not a mailbox alias. Hand it to the tenant's lead parser instead of the email inbox. "leads-" is reserved.
+    const leadMatch = localPart.match(/^leads-([a-z][a-z0-9_]{1,30})$/)
+    if (leadMatch) {
+      const leadRes = await fetch(tenant.render_backend_url.replace(/\/$/, '') + '/api/leads/inbound/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
+        body: JSON.stringify({ platform: leadMatch[1], from: fromRaw, subject, text, html }),
+        signal: AbortSignal.timeout(10_000),
+      })
+      if (!leadRes.ok) console.warn('[InboundParse] Lead ingestion failed:', leadRes.status, 'for', tenantId, leadMatch[1])
+      return c.json({ success: true, tenantId, lead: leadMatch[1], status: leadRes.status })
+    }
+
     // Forward to tenant backend. Fire-and-forget with timeout so a slow
     // tenant doesn't stall SendGrid retries (SendGrid retries on non-200
     // for ~3 days — we want a clean ack immediately).

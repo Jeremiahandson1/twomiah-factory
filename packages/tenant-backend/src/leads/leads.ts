@@ -3,12 +3,12 @@
 // offers (options.platforms) and what a converted lead becomes (options.contactType).
 //
 // Two public inbound doors, both unauthenticated by nature and therefore locked differently:
-//   POST /inbound/email            — the Factory forwards SendGrid Inbound Parse mail here. Locked with X-Factory-Key
-//                                    (FACTORY_SYNC_KEY, the key the Factory already uses for sync-features). The To
-//                                    address is leads+{tenantIdPrefix}-{platform}@{inboundDomain}; the Factory routes
-//                                    on the FIRST 8 CHARS OF THE FACTORY TENANT ID (TENANT_ID env), so that is the
-//                                    prefix we hand out. (Before: the CRM handed out the CRM company-id prefix, which
-//                                    the Factory could never match — inbound email never routed for any tenant.)
+//   POST /inbound/email            — lead-source email. The address handed out is
+//                                    {factoryTenantId-without-dashes}-leads-{platform}@{parse hostname}
+//                                    (default parse.twomiah.com: MX → SendGrid Inbound Parse → Factory /inbound-parse/:secret,
+//                                    the same path the branded-email aliases use). The Factory reads the tenant from the
+//                                    local part and posts {platform, from, subject, text, html} here with X-Factory-Key
+//                                    (FACTORY_SYNC_KEY). Before: addresses were on inbound.twomiah.com, which has no DNS.
 //   POST /inbound/webhook/:source  — Zapier / Make / any platform webhook. Locked with the per-source secret
 //                                    (?secret= or x-webhook-secret). Before: a missing secret fell back to
 //                                    ?company_id=… and accepted the lead — anyone could inject leads.
@@ -26,7 +26,7 @@ export interface LeadsTables { lead: any; leadSource: any; contact: any }
 export interface LeadsOptions {
   /** Platform ids this vertical offers on the Lead Sources page. Create refuses anything else. Default: the trades set. */
   platforms?: string[]
-  /** Domain the inbound lead addresses live on. Default inbound.twomiah.com (SendGrid Inbound Parse → Factory → here). */
+  /** Parse hostname the lead addresses live on. Default INBOUND_PARSE_HOSTNAME env, else parse.twomiah.com (MX → SendGrid Inbound Parse → Factory /inbound-parse → here). */
   inboundDomain?: string
   /** Contact type a converted lead is created with. Default 'lead'. */
   contactType?: string
@@ -51,7 +51,6 @@ export const LEAD_STATUSES = ['new', 'contacted', 'converted', 'dismissed'] as c
 /** Statuses a user may set directly; 'converted' only ever comes from POST /:id/convert (it creates/links the contact). */
 const SETTABLE_STATUSES = ['new', 'contacted', 'dismissed'] as const
 const PLATFORM_RE = /^[a-z][a-z0-9_]{1,30}$/
-const ADDRESS_RE = /leads\+([a-z0-9]+)-([a-z_]+)@/
 
 const safeEqual = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b))
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt }
@@ -78,16 +77,15 @@ export function createLeadsRoutes(deps: LeadsDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, audit } = deps
   const env = deps.env || process.env
   const platforms = deps.options?.platforms || TRADES_LEAD_PLATFORMS
-  const inboundDomain = deps.options?.inboundDomain || 'inbound.twomiah.com'
+  const inboundDomain = deps.options?.inboundDomain || env.INBOUND_PARSE_HOSTNAME || 'parse.twomiah.com'
   const contactType = deps.options?.contactType || 'lead'
   const maxLimit = deps.options?.maxLimit || 100
   const app = new Hono()
 
-  // The prefix the Factory's inbound-email router matches: first 8 chars of the FACTORY tenant id. Falls back to the
-  // company id only where TENANT_ID is unset (local dev) — there the Factory router isn't in the path anyway.
-  const inboundPrefix = (companyId: string) => String(env.TENANT_ID || companyId).slice(0, 8).toLowerCase()
-  const inboundAddress = (companyId: string, platform: string) => `leads+${inboundPrefix(companyId)}-${platform}@${inboundDomain}`
-  const prefixMatches = (companyId: string, prefix: string) => prefix === inboundPrefix(companyId) || companyId.startsWith(prefix)
+  // The Factory's /inbound-parse router identifies the tenant from the full FACTORY tenant id (dashes stripped, 32 hex).
+  // Falls back to the company id only where TENANT_ID is unset (local dev) — there the Factory isn't in the path anyway.
+  const inboundTenantKey = (companyId: string) => String(env.TENANT_ID || companyId).replace(/-/g, '').toLowerCase()
+  const inboundAddress = (companyId: string, platform: string) => `${inboundTenantKey(companyId)}-leads-${platform}@${inboundDomain}`
   // Build from FRONTEND_URL (https, real host). c.req.url is http:// behind Render's TLS-terminating proxy.
   const webhookBase = (c: any) => String(env.FRONTEND_URL || c.req.url.replace(/\/api\/leads\/.*$/, '')).replace(/\/+$/, '').replace(/^http:\/\//, 'https://')
   const webhookUrlFor = (c: any, platform: string) => `${webhookBase(c)}/api/leads/inbound/webhook/${platform}`
@@ -122,12 +120,11 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     if (!safeEqual(got, key)) return c.json({ error: 'Unauthorized' }, 401)
     const body = await readInboundBody(c)
     if (!body) return c.json({ error: 'Invalid body' }, 400)
-    const to = String(body.to || body.envelope?.to?.[0] || '')
-    const m = to.match(ADDRESS_RE)
-    if (!m) return c.json({ error: 'Invalid inbound address' }, 400)
-    const [, prefix, platform] = m
-    const candidates = await db.select().from(t.leadSource).where(eq(t.leadSource.platform, platform))
-    const source = candidates.find((s: any) => s.enabled && prefixMatches(s.companyId, prefix))
+    // The Factory already resolved the tenant from the recipient address; this backend holds one company.
+    const platform = String(body.platform || '')
+    if (!PLATFORM_RE.test(platform)) return c.json({ error: 'Invalid lead platform' }, 400)
+    const [source] = await db.select().from(t.leadSource)
+      .where(and(eq(t.leadSource.platform, platform), eq(t.leadSource.enabled, true))).limit(1)
     if (!source) return c.json({ error: 'Source not found or disabled' }, 404)
     const parsed = parseLeadEmail(platform, String(body.subject || ''), String(body.text || ''), String(body.html || ''))
     const row = await storeLead(source, platform, parsed, body)
