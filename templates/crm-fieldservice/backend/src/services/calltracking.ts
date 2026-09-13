@@ -55,16 +55,17 @@ export async function createTrackingNumber(companyId: string, data: {
  * Get tracking numbers
  */
 export async function getTrackingNumbers(companyId: string, { source, active = true }: { source?: string; active?: boolean | null } = {}) {
-  let whereClause = `company_id = '${companyId}'`;
-  if (source) whereClause += ` AND source = '${source}'`;
-  if (active !== null) whereClause += ` AND active = ${active}`;
+  const conds = [sql`company_id = ${companyId}`];
+  if (source) conds.push(sql`source = ${source}`);
+  if (active !== null) conds.push(sql`active = ${active}`);
+  const where = sql.join(conds, sql` AND `);
 
-  return rows(await db.execute(sql.raw(`
+  return rows(await db.execute(sql`
     SELECT tn.*, (SELECT COUNT(*) FROM call_log cl WHERE cl.tracking_number_id = tn.id)::int as call_count
     FROM tracking_number tn
-    WHERE ${whereClause}
+    WHERE ${where}
     ORDER BY source ASC
-  `)));
+  `));
 }
 
 /**
@@ -201,32 +202,35 @@ export async function getCalls(companyId: string, {
   page?: number;
   limit?: number;
 } = {}) {
-  let whereClause = `cl.company_id = '${companyId}'`;
-  if (source) whereClause += ` AND cl.source = '${source}'`;
-  if (status) whereClause += ` AND cl.status = '${status}'`;
-  if (contactId) whereClause += ` AND cl.contact_id = '${contactId}'`;
-  if (firstTimeOnly) whereClause += ` AND cl.first_time_caller = true`;
-  if (startDate) whereClause += ` AND cl.start_time >= '${new Date(startDate).toISOString()}'`;
-  if (endDate) whereClause += ` AND cl.start_time <= '${new Date(endDate).toISOString()}'`;
+  const conds = [sql`cl.company_id = ${companyId}`];
+  if (source) conds.push(sql`cl.source = ${source}`);
+  if (status) conds.push(sql`cl.status = ${status}`);
+  if (contactId) conds.push(sql`cl.contact_id = ${contactId}`);
+  if (firstTimeOnly) conds.push(sql`cl.first_time_caller = true`);
+  if (startDate) conds.push(sql`cl.start_time >= ${new Date(startDate)}`);
+  if (endDate) conds.push(sql`cl.start_time <= ${new Date(endDate)}`);
+  const where = sql.join(conds, sql` AND `);
 
-  const offset = (page - 1) * limit;
+  const pageN = Number.isFinite(Number(page)) && Number(page) > 0 ? Math.floor(Number(page)) : 1;
+  const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 50;
+  const offset = (pageN - 1) * limitN;
 
-  const callData = rows(await db.execute(sql.raw(`
+  const callData = rows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
       c.id as contact_id_ref, c.name as contact_name
     FROM call_log cl
     LEFT JOIN tracking_number tn ON cl.tracking_number_id = tn.id
     LEFT JOIN contact c ON cl.contact_id = c.id
-    WHERE ${whereClause}
+    WHERE ${where}
     ORDER BY cl.start_time DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `)));
-  const total = Number(rows(await db.execute(sql.raw(`
-    SELECT COUNT(*)::int as total FROM call_log cl WHERE ${whereClause}
-  `)))[0]?.total || 0);
+    LIMIT ${limitN} OFFSET ${offset}
+  `));
+  const total = Number(rows(await db.execute(sql`
+    SELECT COUNT(*)::int as total FROM call_log cl WHERE ${where}
+  `))[0]?.total || 0);
 
-  return { data: callData, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+  return { data: callData, pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) } };
 }
 
 /**
@@ -351,32 +355,33 @@ function mapTwilioStatus(status: string): string {
  * Get call attribution report
  */
 export async function getAttributionReport(companyId: string, { startDate, endDate }: { startDate?: string; endDate?: string } = {}) {
-  let whereClause = `company_id = '${companyId}'`;
-  if (startDate) whereClause += ` AND start_time >= '${new Date(startDate).toISOString()}'`;
-  if (endDate) whereClause += ` AND start_time <= '${new Date(endDate).toISOString()}'`;
+  const dateConds = [sql`company_id = ${companyId}`];
+  if (startDate) dateConds.push(sql`start_time >= ${new Date(startDate)}`);
+  if (endDate) dateConds.push(sql`start_time <= ${new Date(endDate)}`);
+  const whereClause = sql.join(dateConds, sql` AND `);
 
-  const bySource = rows(await db.execute(sql.raw(`
+  const bySource = rows(await db.execute(sql`
     SELECT source, COUNT(*)::int as call_count, COALESCE(SUM(duration), 0)::int as total_duration
     FROM call_log WHERE ${whereClause}
     GROUP BY source
-  `)));
+  `));
 
-  const totals = rows(await db.execute(sql.raw(`
+  const totals = rows(await db.execute(sql`
     SELECT COUNT(*)::int as total_calls, COALESCE(SUM(duration), 0)::int as total_duration, COALESCE(AVG(duration), 0)::int as avg_duration
     FROM call_log WHERE ${whereClause}
-  `)))[0] as any;
+  `))[0] as any;
 
-  const firstTimers = Number(rows(await db.execute(sql.raw(`
+  const firstTimers = Number(rows(await db.execute(sql`
     SELECT COUNT(*)::int as cnt FROM call_log WHERE ${whereClause} AND first_time_caller = true
-  `)))[0]?.cnt || 0);
+  `))[0]?.cnt || 0);
 
-  const leads = Number(rows(await db.execute(sql.raw(`
+  const leads = Number(rows(await db.execute(sql`
     SELECT COUNT(*)::int as cnt FROM call_log WHERE ${whereClause} AND is_lead = true
-  `)))[0]?.cnt || 0);
+  `))[0]?.cnt || 0);
 
-  const leadValue = Number(rows(await db.execute(sql.raw(`
+  const leadValue = Number(rows(await db.execute(sql`
     SELECT COALESCE(SUM(lead_value), 0)::numeric as total_value FROM call_log WHERE ${whereClause} AND is_lead = true
-  `)))[0]?.total_value || 0);
+  `))[0]?.total_value || 0);
 
   return {
     bySource: bySource.map((s: any) => ({
@@ -400,13 +405,14 @@ export async function getAttributionReport(companyId: string, { startDate, endDa
  * Get call volume by hour/day
  */
 export async function getCallVolumeReport(companyId: string, { startDate, endDate, groupBy = 'day' }: { startDate?: string; endDate?: string; groupBy?: string } = {}) {
-  let whereClause = `company_id = '${companyId}'`;
-  if (startDate) whereClause += ` AND start_time >= '${new Date(startDate).toISOString()}'`;
-  if (endDate) whereClause += ` AND start_time <= '${new Date(endDate).toISOString()}'`;
+  const dateConds = [sql`company_id = ${companyId}`];
+  if (startDate) dateConds.push(sql`start_time >= ${new Date(startDate)}`);
+  if (endDate) dateConds.push(sql`start_time <= ${new Date(endDate)}`);
+  const whereClause = sql.join(dateConds, sql` AND `);
 
-  const calls = rows(await db.execute(sql.raw(`
+  const calls = rows(await db.execute(sql`
     SELECT start_time, duration, status FROM call_log WHERE ${whereClause}
-  `)));
+  `));
 
   const grouped: Record<string, { calls: number; answered: number; missed: number; duration: number }> = {};
 

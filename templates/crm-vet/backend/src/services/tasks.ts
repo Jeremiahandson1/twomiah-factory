@@ -3,17 +3,25 @@
  *
  * Simple task management.
  *
- * NOTE: The schema does not include a `task` table. This module uses raw SQL
- * via Drizzle's sql helper for the task table.
+ * Every query is parameterized (Drizzle `sql` bound values); the sort column and direction are allow-listed. Previously
+ * getTasks/updateTask/getTaskStats built SQL by string interpolation and ran it through sql.raw — an authenticated user
+ * could inject via ?status=/?search=/?sortBy= and a JSON body (proven live: `?status=x' OR '1'='1` returned every row),
+ * and an apostrophe in a title 500'd the update. UPDATE/DELETE now also carry company_id in the WHERE, not just a prior
+ * SELECT.
  */
 
 import { db } from '../../db/index.ts'
 import { user, project, job, contact } from '../../db/schema.ts'
-import { eq, and, sql, count, lte, gte, not, desc, asc } from 'drizzle-orm'
+import { eq, and, sql, count } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
   return Array.isArray(result) ? result : (result?.rows || [])
+}
+
+const SORT_COLUMNS: Record<string, string> = {
+  due_date: 'due_date', dueDate: 'due_date', created_at: 'created_at', createdAt: 'created_at',
+  priority: 'priority', status: 'status', title: 'title',
 }
 
 /**
@@ -96,27 +104,27 @@ export async function getTasks(
     sortOrder?: string
   } = {}
 ) {
-  const conditions: string[] = [`t.company_id = '${companyId}'`]
+  const conditions = [sql`t.company_id = ${companyId}`]
+  if (assignedToId) conditions.push(sql`t.assigned_to_id = ${assignedToId}`)
+  if (createdById) conditions.push(sql`t.created_by_id = ${createdById}`)
+  if (projectId) conditions.push(sql`t.project_id = ${projectId}`)
+  if (jobId) conditions.push(sql`t.job_id = ${jobId}`)
+  if (contactId) conditions.push(sql`t.contact_id = ${contactId}`)
+  if (status) conditions.push(sql`t.status = ${status}`)
+  if (priority) conditions.push(sql`t.priority = ${priority}`)
+  if (dueBefore) conditions.push(sql`t.due_date <= ${new Date(dueBefore)}`)
+  if (dueAfter) conditions.push(sql`t.due_date >= ${new Date(dueAfter)}`)
+  if (search) { const like = `%${search}%`; conditions.push(sql`(t.title ILIKE ${like} OR t.description ILIKE ${like})`) }
+  const where = sql.join(conditions, sql` AND `)
 
-  if (assignedToId) conditions.push(`t.assigned_to_id = '${assignedToId}'`)
-  if (createdById) conditions.push(`t.created_by_id = '${createdById}'`)
-  if (projectId) conditions.push(`t.project_id = '${projectId}'`)
-  if (jobId) conditions.push(`t.job_id = '${jobId}'`)
-  if (contactId) conditions.push(`t.contact_id = '${contactId}'`)
-  if (status) conditions.push(`t.status = '${status}'`)
-  if (priority) conditions.push(`t.priority = '${priority}'`)
-  if (dueBefore) conditions.push(`t.due_date <= '${new Date(dueBefore).toISOString()}'`)
-  if (dueAfter) conditions.push(`t.due_date >= '${new Date(dueAfter).toISOString()}'`)
-  if (search) conditions.push(`(t.title ILIKE '%${search}%' OR t.description ILIKE '%${search}%')`)
+  // Allow-listed identifier + direction — never interpolate request text into the query shape.
+  const sortCol = SORT_COLUMNS[sortBy] || 'due_date'
+  const order = String(sortOrder).toLowerCase() === 'desc' ? sql`DESC` : sql`ASC`
+  const pageN = Number.isFinite(Number(page)) && Number(page) > 0 ? Math.floor(Number(page)) : 1
+  const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 50
+  const offset = (pageN - 1) * limitN
 
-  const where = conditions.join(' AND ')
-  const offset = (page - 1) * limit
-
-  // Map sort fields
-  const sortCol = sortBy === 'dueDate' ? 'due_date' : sortBy
-  const order = sortOrder === 'desc' ? 'DESC' : 'ASC'
-
-  const data = rows(await db.execute(sql.raw(`
+  const data = rows(await db.execute(sql`
     SELECT t.*,
       json_build_object('id', au.id, 'firstName', au.first_name, 'lastName', au.last_name) as assigned_to,
       json_build_object('id', cu.id, 'firstName', cu.first_name, 'lastName', cu.last_name) as created_by,
@@ -130,15 +138,24 @@ export async function getTasks(
     LEFT JOIN job j ON j.id = t.job_id
     LEFT JOIN contact c ON c.id = t.contact_id
     WHERE ${where}
-    ORDER BY t.${sortCol} ${order} NULLS LAST
-    LIMIT ${limit} OFFSET ${offset}
-  `)))
+    ORDER BY ${sql.raw('t.' + sortCol)} ${order} NULLS LAST
+    LIMIT ${limitN} OFFSET ${offset}
+  `))
 
-  const [{ count: total }] = rows(await db.execute(sql.raw(`SELECT count(*)::int as count FROM task t WHERE ${where}`)))
+  const [{ count: total }] = rows(await db.execute(sql`SELECT count(*)::int as count FROM task t WHERE ${where}`))
+
+  // Raw SQL returns snake_case (due_date, created_at, assigned_to_id, …); the UI
+  // reads camelCase, so a task's date showed blank. Convert top-level keys.
+  const toCamel = (s: string) => s.replace(/_([a-z])/g, (_m: string, ch: string) => ch.toUpperCase())
+  const camelData = (data as any[]).map((row) => {
+    const out: Record<string, any> = {}
+    for (const [k, v] of Object.entries(row)) out[toCamel(k)] = v
+    return out
+  })
 
   return {
-    data,
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    data: camelData,
+    pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) },
   }
 }
 
@@ -174,31 +191,26 @@ export async function updateTask(taskId: string, companyId: string, data: any) {
   `))
   if (!existing) return null
 
-  const sets: string[] = []
-
-  if (data.title !== undefined) sets.push(`title = '${data.title}'`)
-  if (data.description !== undefined) sets.push(`description = '${data.description}'`)
-  if (data.dueDate !== undefined) sets.push(`due_date = ${data.dueDate ? `'${new Date(data.dueDate).toISOString()}'` : 'NULL'}`)
-  if (data.priority !== undefined) sets.push(`priority = '${data.priority}'`)
+  const sets: any[] = []
+  if (data.title !== undefined) sets.push(sql`title = ${data.title}`)
+  if (data.description !== undefined) sets.push(sql`description = ${data.description}`)
+  if (data.dueDate !== undefined) sets.push(sql`due_date = ${data.dueDate ? new Date(data.dueDate) : null}`)
+  if (data.priority !== undefined) sets.push(sql`priority = ${data.priority}`)
   if (data.status !== undefined) {
-    sets.push(`status = '${data.status}'`)
-    if (data.status === 'completed') {
-      sets.push(`completed_at = '${new Date().toISOString()}'`)
-    } else {
-      sets.push(`completed_at = NULL`)
-    }
+    sets.push(sql`status = ${data.status}`)
+    sets.push(sql`completed_at = ${data.status === 'completed' ? new Date() : null}`)
   }
-  if (data.assignedToId !== undefined) sets.push(`assigned_to_id = ${data.assignedToId ? `'${data.assignedToId}'` : 'NULL'}`)
-  if (data.projectId !== undefined) sets.push(`project_id = ${data.projectId ? `'${data.projectId}'` : 'NULL'}`)
-  if (data.jobId !== undefined) sets.push(`job_id = ${data.jobId ? `'${data.jobId}'` : 'NULL'}`)
-  if (data.contactId !== undefined) sets.push(`contact_id = ${data.contactId ? `'${data.contactId}'` : 'NULL'}`)
-  if (data.checklist !== undefined) sets.push(`checklist = '${JSON.stringify(data.checklist)}'`)
+  if (data.assignedToId !== undefined) sets.push(sql`assigned_to_id = ${data.assignedToId || null}`)
+  if (data.projectId !== undefined) sets.push(sql`project_id = ${data.projectId || null}`)
+  if (data.jobId !== undefined) sets.push(sql`job_id = ${data.jobId || null}`)
+  if (data.contactId !== undefined) sets.push(sql`contact_id = ${data.contactId || null}`)
+  if (data.checklist !== undefined) sets.push(sql`checklist = ${JSON.stringify(data.checklist)}`)
 
   if (sets.length === 0) return existing
 
-  const [updated] = rows(await db.execute(sql.raw(`
-    UPDATE task SET ${sets.join(', ')} WHERE id = '${taskId}' RETURNING *
-  `)))
+  const [updated] = rows(await db.execute(sql`
+    UPDATE task SET ${sql.join(sets, sql`, `)} WHERE id = ${taskId} AND company_id = ${companyId} RETURNING *
+  `))
 
   return updated
 }
@@ -216,7 +228,7 @@ export async function toggleTaskComplete(taskId: string, companyId: string) {
 
   const [updated] = rows(await db.execute(sql`
     UPDATE task SET status = ${newStatus}, completed_at = ${newStatus === 'completed' ? new Date() : null}
-    WHERE id = ${taskId} RETURNING *
+    WHERE id = ${taskId} AND company_id = ${companyId} RETURNING *
   `))
 
   return updated
@@ -239,7 +251,7 @@ export async function toggleChecklistItem(taskId: string, companyId: string, ite
   })
 
   const [updated] = rows(await db.execute(sql`
-    UPDATE task SET checklist = ${JSON.stringify(checklist)} WHERE id = ${taskId} RETURNING *
+    UPDATE task SET checklist = ${JSON.stringify(checklist)} WHERE id = ${taskId} AND company_id = ${companyId} RETURNING *
   `))
 
   return updated
@@ -254,7 +266,7 @@ export async function deleteTask(taskId: string, companyId: string): Promise<boo
   `))
   if (!task) return false
 
-  await db.execute(sql`DELETE FROM task WHERE id = ${taskId}`)
+  await db.execute(sql`DELETE FROM task WHERE id = ${taskId} AND company_id = ${companyId}`)
   return true
 }
 
@@ -299,13 +311,13 @@ export async function getOverdueTasks(companyId: string, userId: string) {
  * Get task stats for a user
  */
 export async function getTaskStats(companyId: string, userId: string) {
-  const base = `company_id = '${companyId}' AND assigned_to_id = '${userId}'`
-
+  const scope = sql`company_id = ${companyId} AND assigned_to_id = ${userId}`
+  const now = new Date()
   const [totalRes, completedRes, pendingRes, overdueRes] = await Promise.all([
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base}`)),
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status = 'completed'`)),
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status != 'completed'`)),
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status != 'completed' AND due_date < '${new Date().toISOString()}'`)),
+    db.execute(sql`SELECT count(*)::int as count FROM task WHERE ${scope}`),
+    db.execute(sql`SELECT count(*)::int as count FROM task WHERE ${scope} AND status = 'completed'`),
+    db.execute(sql`SELECT count(*)::int as count FROM task WHERE ${scope} AND status != 'completed'`),
+    db.execute(sql`SELECT count(*)::int as count FROM task WHERE ${scope} AND status != 'completed' AND due_date < ${now}`),
   ])
   const total = rows(totalRes)[0]?.count || 0
   const completed = rows(completedRes)[0]?.count || 0

@@ -101,20 +101,21 @@ export async function getOptions(
   companyId: string,
   { categoryId, search, active = true }: { categoryId?: string; search?: string; active?: boolean | null } = {}
 ) {
-  const conditions: string[] = [`so.company_id = '${companyId}'`]
-  if (categoryId) conditions.push(`so.category_id = '${categoryId}'`)
-  if (active !== null) conditions.push(`so.active = ${active}`)
+  const conditions = [sql`so.company_id = ${companyId}`]
+  if (categoryId) conditions.push(sql`so.category_id = ${categoryId}`)
+  if (active !== null) conditions.push(sql`so.active = ${active}`)
   if (search) {
-    conditions.push(`(so.name ILIKE '%${search}%' OR so.manufacturer ILIKE '%${search}%' OR so.model ILIKE '%${search}%')`)
+    const like = `%${search}%`
+    conditions.push(sql`(so.name ILIKE ${like} OR so.manufacturer ILIKE ${like} OR so.model ILIKE ${like})`)
   }
 
-  return rows(await db.execute(sql.raw(`
+  return rows(await db.execute(sql`
     SELECT so.*, json_build_object('name', sc.name) as category
     FROM selection_option so
     LEFT JOIN selection_category sc ON sc.id = so.category_id
-    WHERE ${conditions.join(' AND ')}
+    WHERE ${sql.join(conditions, sql` AND `)}
     ORDER BY sc.sort_order ASC, so.name ASC
-  `)))
+  `))
 }
 
 // ============================================

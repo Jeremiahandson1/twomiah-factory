@@ -16,7 +16,7 @@ import {
   teamMember,
   user,
 } from '../../db/schema.ts';
-import { eq, and, gte, lte, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, gte, lte, asc, desc, sql, type SQL } from 'drizzle-orm';
 
 // Field definitions for each entity type
 interface FieldDef {
@@ -60,7 +60,7 @@ function getValue(obj: Record<string, unknown>, path: string): unknown {
 
 const ENTITY_CONFIGS: Record<string, {
   fields: FieldDef[];
-  query: (companyId: string, where: string, limit: number) => string;
+  query: (companyId: string, where: SQL, limit: number) => SQL;
 }> = {
   contacts: {
     fields: [
@@ -80,7 +80,7 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'created_at', label: 'Created', format: formatDate },
     ],
     query: (companyId, where, limit) =>
-      `SELECT * FROM contact WHERE company_id = '${companyId}' ${where} ORDER BY name ASC LIMIT ${limit}`,
+      sql`SELECT * FROM contact WHERE company_id = ${companyId} ${where} ORDER BY name ASC LIMIT ${limit}`,
   },
 
   projects: {
@@ -103,7 +103,7 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'created_at', label: 'Created', format: formatDate },
     ],
     query: (companyId, where, limit) =>
-      `SELECT p.*, c.name as contact_name FROM project p LEFT JOIN contact c ON p.contact_id = c.id WHERE p.company_id = '${companyId}' ${where} ORDER BY p.created_at DESC LIMIT ${limit}`,
+      sql`SELECT p.*, c.name as contact_name FROM project p LEFT JOIN contact c ON p.contact_id = c.id WHERE p.company_id = ${companyId} ${where} ORDER BY p.created_at DESC LIMIT ${limit}`,
   },
 
   jobs: {
@@ -123,12 +123,12 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'created_at', label: 'Created', format: formatDate },
     ],
     query: (companyId, where, limit) =>
-      `SELECT j.*, p.name as project_name, c.name as contact_name, CONCAT(u.first_name, ' ', u.last_name) as assigned_to_name
+      sql`SELECT j.*, p.name as project_name, c.name as contact_name, CONCAT(u.first_name, ' ', u.last_name) as assigned_to_name
        FROM job j
        LEFT JOIN project p ON j.project_id = p.id
        LEFT JOIN contact c ON j.contact_id = c.id
        LEFT JOIN "user" u ON j.assigned_to_id = u.id
-       WHERE j.company_id = '${companyId}' ${where}
+       WHERE j.company_id = ${companyId} ${where}
        ORDER BY j.created_at DESC LIMIT ${limit}`,
   },
 
@@ -150,11 +150,11 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'created_at', label: 'Created', format: formatDate },
     ],
     query: (companyId, where, limit) =>
-      `SELECT q.*, c.name as contact_name, p.name as project_name
+      sql`SELECT q.*, c.name as contact_name, p.name as project_name
        FROM quote q
        LEFT JOIN contact c ON q.contact_id = c.id
        LEFT JOIN project p ON q.project_id = p.id
-       WHERE q.company_id = '${companyId}' ${where}
+       WHERE q.company_id = ${companyId} ${where}
        ORDER BY q.created_at DESC LIMIT ${limit}`,
   },
 
@@ -176,11 +176,11 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'created_at', label: 'Created', format: formatDate },
     ],
     query: (companyId, where, limit) =>
-      `SELECT i.*, c.name as contact_name, p.name as project_name
+      sql`SELECT i.*, c.name as contact_name, p.name as project_name
        FROM invoice i
        LEFT JOIN contact c ON i.contact_id = c.id
        LEFT JOIN project p ON i.project_id = p.id
-       WHERE i.company_id = '${companyId}' ${where}
+       WHERE i.company_id = ${companyId} ${where}
        ORDER BY i.created_at DESC LIMIT ${limit}`,
   },
 
@@ -196,12 +196,12 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'project_name', label: 'Project' },
     ],
     query: (companyId, where, limit) =>
-      `SELECT te.*, CONCAT(u.first_name, ' ', u.last_name) as employee_name, j.title as job_title, p.name as project_name
+      sql`SELECT te.*, CONCAT(u.first_name, ' ', u.last_name) as employee_name, j.title as job_title, p.name as project_name
        FROM time_entry te
        LEFT JOIN "user" u ON te.user_id = u.id
        LEFT JOIN job j ON te.job_id = j.id
        LEFT JOIN project p ON te.project_id = p.id
-       WHERE te.company_id = '${companyId}' ${where}
+       WHERE te.company_id = ${companyId} ${where}
        ORDER BY te.date DESC LIMIT ${limit}`,
   },
 
@@ -217,11 +217,11 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'job_title', label: 'Job' },
     ],
     query: (companyId, where, limit) =>
-      `SELECT e.*, p.name as project_name, j.title as job_title
+      sql`SELECT e.*, p.name as project_name, j.title as job_title
        FROM expense e
        LEFT JOIN project p ON e.project_id = p.id
        LEFT JOIN job j ON e.job_id = j.id
-       WHERE e.company_id = '${companyId}' ${where}
+       WHERE e.company_id = ${companyId} ${where}
        ORDER BY e.date DESC LIMIT ${limit}`,
   },
 
@@ -238,7 +238,7 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'skills', label: 'Skills', format: (v: any) => (Array.isArray(v) ? v : []).join(', ') },
     ],
     query: (companyId, where, limit) =>
-      `SELECT * FROM team_member WHERE company_id = '${companyId}' ${where} ORDER BY name ASC LIMIT ${limit}`,
+      sql`SELECT * FROM team_member WHERE company_id = ${companyId} ${where} ORDER BY name ASC LIMIT ${limit}`,
   },
 
   'audit-logs': {
@@ -252,36 +252,30 @@ const ENTITY_CONFIGS: Record<string, {
       { key: 'ip_address', label: 'IP Address' },
     ],
     query: (companyId, where, limit) =>
-      `SELECT * FROM audit_log WHERE company_id = '${companyId}' ${where} ORDER BY created_at DESC LIMIT ${limit}`,
+      sql`SELECT * FROM audit_log WHERE company_id = ${companyId} ${where} ORDER BY created_at DESC LIMIT ${limit}`,
   },
 };
 
 /**
  * Build where clause from filters
  */
-function buildWhere(filters: Record<string, unknown>): string {
-  const clauses: string[] = [];
+function buildWhere(filters: Record<string, unknown>): SQL {
+  const clauses: SQL[] = [];
 
-  if (filters.status) {
-    clauses.push(`status = '${filters.status}'`);
-  }
-  if (filters.type) {
-    clauses.push(`type = '${filters.type}'`);
-  }
-  if (filters.startDate) {
-    clauses.push(`created_at >= '${new Date(filters.startDate as string).toISOString()}'`);
-  }
-  if (filters.endDate) {
-    clauses.push(`created_at <= '${new Date(filters.endDate as string).toISOString()}'`);
-  }
-  if (filters.contactId) {
-    clauses.push(`contact_id = '${filters.contactId}'`);
-  }
-  if (filters.projectId) {
-    clauses.push(`project_id = '${filters.projectId}'`);
-  }
+  if (filters.status) clauses.push(sql`status = ${filters.status}`);
+  if (filters.type) clauses.push(sql`type = ${filters.type}`);
+  if (filters.startDate) clauses.push(sql`created_at >= ${new Date(filters.startDate as string)}`);
+  if (filters.endDate) clauses.push(sql`created_at <= ${new Date(filters.endDate as string)}`);
+  if (filters.contactId) clauses.push(sql`contact_id = ${filters.contactId}`);
+  if (filters.projectId) clauses.push(sql`project_id = ${filters.projectId}`);
 
-  return clauses.length > 0 ? 'AND ' + clauses.join(' AND ') : '';
+  return clauses.length > 0 ? sql`AND ${sql.join(clauses, sql` AND `)}` : sql``;
+}
+
+/** Export row cap: a positive integer, defaulting to 10000 and capped at 100000. */
+function exportLimit(v: unknown): number {
+  const n = Math.floor(Number(v));
+  return Number.isFinite(n) && n > 0 ? Math.min(100000, n) : 10000;
 }
 
 /**
@@ -314,9 +308,9 @@ export async function exportToCSV(entityType: string, companyId: string, filters
   }
 
   const where = buildWhere(filters);
-  const limit = (filters.limit as number) || 10000;
+  const limit = exportLimit(filters.limit);
 
-  const result = await db.execute(sql.raw(config.query(companyId, where, limit)));
+  const result = await db.execute(config.query(companyId, where, limit));
   const data = (result as any).rows || result;
 
   // Build CSV
@@ -354,9 +348,9 @@ export async function exportToExcel(entityType: string, companyId: string, filte
   }
 
   const where = buildWhere(filters);
-  const limit = (filters.limit as number) || 10000;
+  const limit = exportLimit(filters.limit);
 
-  const result = await db.execute(sql.raw(config.query(companyId, where, limit)));
+  const result = await db.execute(config.query(companyId, where, limit));
   const data = (result as any).rows || result;
 
   // Build TSV

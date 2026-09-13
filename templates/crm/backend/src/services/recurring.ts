@@ -293,27 +293,29 @@ export async function getRecurringInvoices(
   companyId: string,
   { status, contactId, page = 1, limit = 25 }: { status?: string; contactId?: string; page?: number; limit?: number }
 ) {
-  const conditions: string[] = [`ri.company_id = '${companyId}'`]
-  if (status) conditions.push(`ri.status = '${status}'`)
-  if (contactId) conditions.push(`ri.contact_id = '${contactId}'`)
-  const where = conditions.join(' AND ')
-  const offset = (page - 1) * limit
+  const conditions = [sql`ri.company_id = ${companyId}`]
+  if (status) conditions.push(sql`ri.status = ${status}`)
+  if (contactId) conditions.push(sql`ri.contact_id = ${contactId}`)
+  const where = sql.join(conditions, sql` AND `)
+  const pageN = Number.isFinite(Number(page)) && Number(page) > 0 ? Math.floor(Number(page)) : 1
+  const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 25
+  const offset = (pageN - 1) * limitN
 
-  const data = rows(await db.execute(sql.raw(`
+  const data = rows(await db.execute(sql`
     SELECT ri.*, row_to_json(c.*) as contact, row_to_json(p.*) as project
     FROM recurring_invoice ri
     LEFT JOIN contact c ON c.id = ri.contact_id
     LEFT JOIN project p ON p.id = ri.project_id
     WHERE ${where}
     ORDER BY ri.created_at DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `)))
+    LIMIT ${limitN} OFFSET ${offset}
+  `))
 
-  const [{ count: total }] = rows(await db.execute(sql.raw(`SELECT count(*)::int as count FROM recurring_invoice ri WHERE ${where}`)))
+  const [{ count: total }] = rows(await db.execute(sql`SELECT count(*)::int as count FROM recurring_invoice ri WHERE ${where}`))
 
   return {
     data,
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) },
   }
 }
 
@@ -382,20 +384,21 @@ export async function updateRecurringInvoice(id: string, companyId: string, data
     Object.assign(data, { subtotal, taxRate, taxAmount, discount, total })
   }
 
-  // Build SET clause dynamically
-  const sets: string[] = []
-  if (data.frequency !== undefined) sets.push(`frequency = '${data.frequency}'`)
-  if (data.autoSend !== undefined) sets.push(`auto_send = ${data.autoSend}`)
-  if (data.status !== undefined) sets.push(`status = '${data.status}'`)
-  if (data.subtotal !== undefined) sets.push(`subtotal = ${data.subtotal}`)
-  if (data.taxRate !== undefined) sets.push(`tax_rate = ${data.taxRate}`)
-  if (data.taxAmount !== undefined) sets.push(`tax_amount = ${data.taxAmount}`)
-  if (data.discount !== undefined) sets.push(`discount = ${data.discount}`)
-  if (data.total !== undefined) sets.push(`total = ${data.total}`)
-  if (data.notes !== undefined) sets.push(`notes = '${data.notes}'`)
+  // Build SET clause dynamically — parameterized (numbers coerced, so a string in a numeric field can't inject).
+  const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+  const sets: any[] = []
+  if (data.frequency !== undefined) sets.push(sql`frequency = ${data.frequency}`)
+  if (data.autoSend !== undefined) sets.push(sql`auto_send = ${!!data.autoSend}`)
+  if (data.status !== undefined) sets.push(sql`status = ${data.status}`)
+  if (data.subtotal !== undefined) sets.push(sql`subtotal = ${num(data.subtotal)}`)
+  if (data.taxRate !== undefined) sets.push(sql`tax_rate = ${num(data.taxRate)}`)
+  if (data.taxAmount !== undefined) sets.push(sql`tax_amount = ${num(data.taxAmount)}`)
+  if (data.discount !== undefined) sets.push(sql`discount = ${num(data.discount)}`)
+  if (data.total !== undefined) sets.push(sql`total = ${num(data.total)}`)
+  if (data.notes !== undefined) sets.push(sql`notes = ${data.notes}`)
 
   if (sets.length > 0) {
-    await db.execute(sql.raw(`UPDATE recurring_invoice SET ${sets.join(', ')} WHERE id = '${id}'`))
+    await db.execute(sql`UPDATE recurring_invoice SET ${sql.join(sets, sql`, `)} WHERE id = ${id} AND company_id = ${companyId}`)
   }
 
   return getRecurringInvoice(id, companyId)
@@ -474,9 +477,9 @@ async function getRecurringStats(companyId: string) {
 
 /** Stub for updateRecurringStatus - route expects this */
 async function updateRecurringStatus(id: string, status: string, opts?: { nextRunDate?: Date }) {
-  const sets = [`status = '${status}'`]
-  if (opts?.nextRunDate) sets.push(`next_run_date = '${opts.nextRunDate.toISOString()}'`)
-  const [updated] = rows(await db.execute(sql.raw(`UPDATE recurring_invoice SET ${sets.join(', ')} WHERE id = '${id}' RETURNING *`)))
+  const sets = [sql`status = ${status}`]
+  if (opts?.nextRunDate) sets.push(sql`next_run_date = ${opts.nextRunDate}`)
+  const [updated] = rows(await db.execute(sql`UPDATE recurring_invoice SET ${sql.join(sets, sql`, `)} WHERE id = ${id} RETURNING *`))
   return updated
 }
 
