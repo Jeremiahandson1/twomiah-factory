@@ -1,15 +1,38 @@
-# Lead Inbox — SendGrid Inbound Parse Setup
+# Lead Inbox — inbound routing setup
 
 ## Overview
 
-The Lead Inbox receives leads from external platforms (Angi, Thumbtack, HomeAdvisor, Google LSA, Houzz) via two mechanisms:
+The Lead Inbox (shared module `packages/tenant-backend/src/leads` + `packages/tenant-ui/src/leads`, one implementation for
+every CRM) receives leads from external platforms via two mechanisms:
 
-1. **Email parsing** — Platforms forward lead notification emails to `leads+{companyId}-{platform}@inbound.twomiah.com`, which SendGrid Inbound Parse routes to our webhook
-2. **Direct webhooks** — Platforms that support webhooks send JSON payloads directly to `{tenant-url}/api/leads/inbound/webhook/{platform}`
+1. **Email parsing** — a platform forwards its lead-notification email to the tenant's inbound address
+   `leads+{tenantIdPrefix}-{platform}@inbound.twomiah.com`. SendGrid Inbound Parse posts it to the Factory, the Factory
+   routes it to the right tenant and forwards it to the tenant's `/api/leads/inbound/email`.
+2. **Direct webhooks** — Zapier / Make / any platform that can POST sends JSON or form-encoded payloads to
+   `{tenant-url}/api/leads/inbound/webhook/{platform}?secret={webhookSecret}`.
 
-## DNS Configuration (one-time)
+Which platforms a vertical offers lives in each template's `frontend/src/leadsConfig.ts` (labels, colours, setup steps —
+also the source of the Integrations-page guides) and `backend/src/routes/leads.ts` (`options.platforms`, the allow-list).
+The trades set (Angi, HomeAdvisor, Thumbtack, Google LSA, Houzz) has platform-specific email parsers; every other platform
+uses the generic label-based parser (`Name:`, `Phone:`, `Email:`, `Message:` …).
 
-Add an MX record for the `inbound.twomiah.com` subdomain:
+## Addressing and security
+
+- **Inbound address prefix = first 8 chars of the FACTORY tenant id** (the tenant's `TENANT_ID` env). The Factory's
+  router matches on that. (Before 2026-09-13 the CRM handed out the CRM *company* id prefix, which the Factory could
+  never match — inbound email never routed for any tenant. Existing `lead_source` rows self-heal on the next
+  `GET /api/leads/sources`.)
+- **`/inbound/email` requires `X-Factory-Key`** = the tenant's `FACTORY_SYNC_KEY` (the same key used for
+  `sync-features`). The Factory sends `tenants.factory_sync_key`. Without the key the tenant answers 401; with the env
+  unset it answers 503.
+- **`/inbound/webhook/:platform` requires the per-source secret** (`?secret=` or `x-webhook-secret` header). There is no
+  `company_id` fallback any more. The Lead Sources page shows the webhook URL with the secret already appended.
+- A lead source can be added once per platform; unknown platform ids are refused (400).
+
+## DNS configuration (one-time) — NOT DONE as of 2026-09-13
+
+`inbound.twomiah.com` has **no DNS record** today (`Resolve-DnsName inbound.twomiah.com -Type MX` → name does not exist),
+so the email half cannot receive mail until this is added:
 
 ```
 Type: MX
@@ -18,90 +41,46 @@ Priority: 10
 Value: mx.sendgrid.net
 ```
 
-This tells mail servers to route all email addressed to `*@inbound.twomiah.com` to SendGrid.
+## SendGrid Inbound Parse configuration (one-time)
 
-## SendGrid Inbound Parse Configuration (one-time)
+1. SendGrid → Settings → Inbound Parse → "Add Host & URL"
+2. Receiving Domain: `inbound.twomiah.com`
+3. Destination URL: `https://twomiah-factory-api.onrender.com/api/v1/factory/public/inbound-email`
+4. "POST the raw, full MIME message": No (parsed mode); "Check incoming emails for spam": Yes
 
-1. Log in to SendGrid → Settings → Inbound Parse
-2. Click "Add Host & URL"
-3. Configure:
-   - **Receiving Domain**: `inbound.twomiah.com`
-   - **Destination URL**: `https://twomiah-factory-api.onrender.com/api/v1/factory/inbound-email`
-   - **Check "POST the raw, full MIME message"**: No (use parsed mode)
-   - **Check "Check incoming emails for spam"**: Yes
-4. Save
+## Factory router
 
-## Factory API Inbound Email Router
+`apps/api/src/routes/factory/intake.ts` → `POST /public/inbound-email` accepts SendGrid's form-encoded or JSON post,
+extracts the tenant-id prefix + platform from the `To:` address, finds the tenant whose id starts with the prefix, and
+forwards `{to, from, subject, text, html}` as JSON to `{render_backend_url}/api/leads/inbound/email` with
+`X-Factory-Key: {factory_sync_key}`.
 
-The factory API at `/api/v1/factory/inbound-email` receives the parsed email from SendGrid, extracts the company ID prefix and platform from the `To:` address, then forwards the payload to the correct tenant's `/api/leads/inbound/email` endpoint.
+## Per-tenant setup (tenant admin, in the CRM)
 
-The To address format is: `leads+{companyIdPrefix}-{platform}@inbound.twomiah.com`
-
-Example: `leads+abc12345-angi@inbound.twomiah.com` routes to the tenant whose company ID starts with `abc12345`, platform `angi`.
-
-## Per-Tenant Setup (done in CRM by tenant admin)
-
-1. Go to **Lead Sources** in the CRM sidebar
-2. Click **Add Source** and select a platform (Angi, HomeAdvisor, Thumbtack, Google LSA, Houzz)
-3. The system generates:
-   - An inbound email address for that platform
-   - A webhook URL with a unique secret
-4. Follow the platform-specific setup instructions shown in the UI
-
-## Platform-Specific Setup Instructions
-
-### Angi (Angie's List)
-1. Log in to your Angi for Pros account
-2. Go to Settings > Lead Notifications > Email
-3. Set your notification email to the inbound address shown in the CRM
-4. Angi will forward all new lead emails to your CRM
-
-### HomeAdvisor
-1. Log in to your HomeAdvisor Pro account
-2. Go to My Account > Notification Preferences
-3. Add the inbound email address as a notification recipient
-4. Enable "New Lead" email notifications
-
-### Thumbtack
-1. Log in to your Thumbtack Pro account
-2. Go to Settings > Notifications
-3. Add the inbound email to receive lead notifications
-4. Alternatively, set up email forwarding from your registered email
-
-### Google Local Services Ads (LSA)
-1. Google LSA leads arrive via phone calls and messages
-2. Set up email forwarding from your Google LSA notification email
-3. Forward all "New lead" emails to the inbound address
-4. Alternatively, use the webhook URL with Zapier or Make
-
-### Houzz
-1. Log in to your Houzz Pro account
-2. Go to Settings > Email Notifications
-3. Forward lead notification emails to the inbound address
-4. Houzz does not support direct webhooks — email forwarding is recommended
+1. **Lead Sources** in the sidebar (feature `lead_inbox`) → **Add Source** → pick a platform
+2. The card shows the inbound email address, the webhook URL (secret included) and the setup steps for that platform
+3. Leads land in **Lead Inbox**; Call / Text mark them contacted; **Convert to Contact** links an existing contact with
+   the same email or phone instead of creating a duplicate, and refuses a second convert
 
 ## Testing
 
-To test the email parsing pipeline:
-
 ```bash
-# Simulate an Angi lead email via SendGrid Inbound Parse
+# Tenant endpoint directly (needs the tenant's FACTORY_SYNC_KEY and the FACTORY tenant id prefix)
 curl -X POST https://{tenant-url}/api/leads/inbound/email \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "leads+abc12345-angi@inbound.twomiah.com",
-    "from": "notifications@angi.com",
-    "subject": "New Lead from Angi: John Smith - Roof Replacement",
-    "text": "Customer: John Smith\nPhone: (555) 123-4567\nEmail: john@example.com\nService: Roof Replacement\nLocation: Dallas, TX 75201\nDescription: Need full roof replacement after hail damage"
-  }'
-```
+  -H "Content-Type: application/json" -H "X-Factory-Key: {FACTORY_SYNC_KEY}" \
+  -d '{"to":"leads+{tenantIdPrefix}-angi@inbound.twomiah.com","from":"notifications@angi.com",
+       "subject":"New Lead from Angi: John Smith - Roof Replacement",
+       "text":"Customer: John Smith\nPhone: (555) 123-4567\nEmail: john@example.com\nService: Roof Replacement\nLocation: Dallas, TX"}'
 
-```bash
-# Simulate a Thumbtack webhook
+# Through the Factory router (what SendGrid does)
+curl -X POST https://twomiah-factory-api.onrender.com/api/v1/factory/public/inbound-email \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "to=leads+{tenantIdPrefix}-angi@inbound.twomiah.com" --data-urlencode "subject=New Lead" \
+  --data-urlencode "text=Customer: Jane Doe
+Phone: (555) 987-6543"
+
+# Webhook (Zapier / Make shape)
 curl -X POST "https://{tenant-url}/api/leads/inbound/webhook/thumbtack?secret={webhookSecret}" \
   -H "Content-Type: application/json" \
-  -d '{
-    "customer": { "name": "Jane Doe", "email": "jane@example.com", "phone": "(555) 987-6543" },
-    "request": { "category": "Roof Repair", "location": "Austin, TX", "budget": "$5,000-$10,000", "details": "Leaking roof in master bedroom" }
-  }'
+  -d '{"customer":{"name":"Jane Doe","email":"jane@example.com","phone":"(555) 987-6543"},"request":{"category":"Roof Repair","location":"Austin, TX","details":"Leaking roof"}}'
 ```

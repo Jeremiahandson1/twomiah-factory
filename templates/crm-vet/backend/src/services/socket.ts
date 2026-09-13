@@ -66,6 +66,8 @@ export const EVENTS = {
   INVOICE_PAID: 'invoice:paid',
   PAYMENT_RECEIVED: 'payment:received',
   REFRESH: 'data:refresh',
+  LEAD_CREATED: 'lead:created',
+  LEAD_UPDATED: 'lead:updated',
 } as const
 
 export const emitToCompany = (companyId: string, event: string, data: any) => {

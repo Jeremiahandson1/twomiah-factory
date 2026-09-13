@@ -110,3 +110,7 @@ export type { QuickBooksService, QuickBooksServiceDeps, QuickBooksRoutesDeps, Qu
 export { createReviewsService, createReviewsRoutes, generateGoogleReviewLink } from './integrations/reviews'
 export type { ReviewsService, ReviewsServiceDeps, ReviewsRoutesDeps, ReviewsTables } from './integrations/reviews'
 export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService } from './portal/portal'
+
+// Lead Inbox — inbound leads (Factory-forwarded email + secret-locked webhooks), lead sources, convert-to-contact; one implementation for every CRM.
+export { createLeadsRoutes, parseLeadEmail, parseWebhookPayload, readInboundBody, TRADES_LEAD_PLATFORMS, LEAD_STATUSES } from './leads/leads'
+export type { LeadsDeps, LeadsOptions, LeadsTables, ParsedLead } from './leads/leads'

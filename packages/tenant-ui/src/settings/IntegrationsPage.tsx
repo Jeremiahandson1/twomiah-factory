@@ -9,18 +9,12 @@ import {
   RefreshCw, Globe, ChevronRight, Phone, Search, Eye, EyeOff, Copy, Send,
 } from 'lucide-react'
 import type { SettingsApi, IntegrationsConfig, LeadSourceGuide } from './integrationsTypes'
+import { leadSourceGuides } from '../leads/types'
 
-export const DEFAULT_LEAD_SOURCES: LeadSourceGuide[] = [
-  { id: 'angi', title: "Angi's List / HomeAdvisor", description: 'Automatically pull leads from Angi into your CRM lead inbox.', tone: 'emerald', steps: [
-    'Log into your Angi Pro account at pro.angi.com', 'Go to Settings > Integrations or API access', 'Generate an API key or enable lead forwarding to your CRM webhook',
-    'Copy the webhook URL from your CRM (Lead Inbox > Settings > Inbound Webhook)', 'New leads will automatically flow into your Lead Inbox' ] },
-  { id: 'thumbtack', title: 'Thumbtack', description: 'Pull Thumbtack leads directly into your CRM.', tone: 'blue', steps: [
-    'Log into your Thumbtack Pro account', 'Go to your profile settings and look for integrations or lead forwarding', 'Set up email forwarding to your CRM inbound email address',
-    'Or use Zapier to connect Thumbtack to your CRM webhook', 'Leads will appear in your Lead Inbox automatically' ] },
-  { id: 'google_lsa', title: 'Google Local Services Ads', description: 'Import Google LSA leads into your CRM automatically.', tone: 'indigo', steps: [
-    'Go to your Google Local Services Ads dashboard', 'Navigate to Settings > Lead delivery', 'Enable webhook or email lead delivery',
-    'Enter your CRM webhook URL or inbound email address', 'New LSA leads will appear in your Lead Inbox' ] },
-]
+// The guides are the SAME vocabulary the Lead Sources page offers (one list per vertical — the template derives
+// config.leadSources from its leadsConfig). Before: a second, hand-written list here pointed users at a
+// "Lead Inbox > Settings > Inbound Webhook" screen that does not exist.
+export const DEFAULT_LEAD_SOURCES: LeadSourceGuide[] = leadSourceGuides()
 
 interface Status {
   quickbooks: { connected: boolean; configured?: boolean; companyName: string | null; lastSync: string | null; syncEnabled?: boolean }

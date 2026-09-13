@@ -1,8 +1,10 @@
 // Vertical vocabulary for the shared Settings → Integrations / Import / Migrate and Reviews pages
 // (packages/tenant-ui/src/settings, vendored into this tenant as ./shared). Behaviour lives there; only the words live here.
 import type { IntegrationsConfig, ImportConfig, MigrationConfig, ReviewsConfig } from './shared'
+import { leadSourceGuides } from './shared'
+import { leadsConfig } from './leadsConfig'
 
-export const integrationsConfig: IntegrationsConfig = { copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send appointment reminders and updates to pet owners and staff.', email: 'Send invoices, receipts and reminders by email.' } }
+export const integrationsConfig: IntegrationsConfig = { leadSources: leadSourceGuides(leadsConfig.platforms), copy: { quickbooks: 'Sync invoices, payments and clients with your books.', sms: 'Send appointment reminders and updates to pet owners and staff.', email: 'Send invoices, receipts and reminders by email.' } }
 
 export const importConfig: ImportConfig = {
     intro: 'Import clients, products and invoices from CSV files',
