@@ -13,6 +13,7 @@ import AdmZip from 'adm-zip'
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3'
 import { verticalFor } from '../config/industryRouting'
 import { seatsForPlan } from '../config/planSeats'
+import { quickbooksTenantEnv, QBO_ENVIRONMENT_KEYS } from './quickbooksEnv'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
 import * as resend from './resend'
@@ -753,7 +754,7 @@ async function createRenderStaticSite(config: {
 //     with it the salon owner clicks "Connect Stripe" and onboards their own Stripe account (standard
 //     Connect), so card payments and deposits work without Twomiah touching the tenant. A key the
 //     customer supplied themselves (integrations.stripe.secretKey) always wins.
-//   • QUICKBOOKS_CLIENT_ID / _SECRET — the Factory's Intuit app (QBO_* in the Factory env).
+//   • QuickBooks — the Factory's Intuit app, both spellings from one decision (services/quickbooksEnv.ts).
 //   • API_URL / BACKEND_URL — OAuth callbacks and SMS status webhooks need the backend's own URL.
 // Nothing here is a tenant secret: the values are the Factory's own credentials, scoped by Stripe
 // Connect / Intuit OAuth to the account the owner connects. (SALON-C5)
@@ -764,15 +765,15 @@ export function platformIntegrationEnv(backendUrl: string, opts: { customerHasSt
     out.push({ key: 'STRIPE_SECRET_KEY', value: process.env.STRIPE_SECRET_KEY })
     if (process.env.STRIPE_PUBLISHABLE_KEY) out.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: process.env.STRIPE_PUBLISHABLE_KEY })
   }
-  if (process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET) {
-    out.push({ key: 'QUICKBOOKS_CLIENT_ID', value: process.env.QBO_CLIENT_ID })
-    out.push({ key: 'QUICKBOOKS_CLIENT_SECRET', value: process.env.QBO_CLIENT_SECRET })
-    out.push({ key: 'QUICKBOOKS_ENVIRONMENT', value: process.env.QBO_ENVIRONMENT || 'production' })
-  }
+  out.push(...quickbooksTenantEnv(backendUrl))
   return out
 }
 
-/** Existing tenant: add the platform integration env vars it is missing (never overwrite a value that is set). */
+/**
+ * Existing tenant: add the platform integration env vars it is missing. Never overwrites a value that is set —
+ * except the two QuickBooks environment flags (QBO_SANDBOX / QUICKBOOKS_ENVIRONMENT), which are not tenant
+ * secrets and must track the Factory: tenants deployed before quickbooksEnv.ts got QBO_SANDBOX=true by default.
+ */
 export async function refreshPlatformIntegrationEnv(serviceId: string): Promise<{ added: string[]; error?: string }> {
   try {
     const svcRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId, { headers: renderHeaders() })
@@ -781,8 +782,9 @@ export async function refreshPlatformIntegrationEnv(serviceId: string): Promise<
     const backendUrl: string = svc?.serviceDetails?.url || (svc?.slug ? 'https://' + svc.slug + '.onrender.com' : '')
     const envRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars?limit=100', { headers: renderHeaders() })
     if (!envRes.ok) return { added: [], error: 'env lookup ' + envRes.status }
-    const existing = new Set(((await envRes.json()) as any[]).map((e: any) => (e.envVar || e).key))
-    const wanted = platformIntegrationEnv(backendUrl, { customerHasStripeKey: existing.has('STRIPE_SECRET_KEY') }).filter(v => !existing.has(v.key))
+    const current = new Map<string, string>(((await envRes.json()) as any[]).map((e: any) => { const v = e.envVar || e; return [String(v.key), String(v.value ?? '')] }))
+    const desired = platformIntegrationEnv(backendUrl, { customerHasStripeKey: current.has('STRIPE_SECRET_KEY') })
+    const wanted = desired.filter(v => !current.has(v.key) || (QBO_ENVIRONMENT_KEYS.includes(v.key) && current.get(v.key) !== v.value))
     if (!wanted.length) return { added: [] }
     const ok = await updateRenderEnvVars(serviceId, wanted)
     return { added: wanted.map(v => v.key), error: ok ? undefined : 'some env vars failed' }
@@ -1241,14 +1243,9 @@ export async function deployCustomer(
           if (storeFromEmail) backendEnvVars.push({ key: 'FACTORY_FROM_EMAIL', value: storeFromEmail })
         }
 
-        // QuickBooks: factory-level credentials flow to each tenant CRM; the redirect
-        // URI is the tenant's own backend host (must also be registered in the Intuit app).
-        if (process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET) {
-          backendEnvVars.push({ key: 'QBO_CLIENT_ID', value: process.env.QBO_CLIENT_ID })
-          backendEnvVars.push({ key: 'QBO_CLIENT_SECRET', value: process.env.QBO_CLIENT_SECRET })
-          backendEnvVars.push({ key: 'QBO_REDIRECT_URI', value: `https://${crmApiName}.onrender.com/api/quickbooks/callback` })
-          backendEnvVars.push({ key: 'QBO_SANDBOX', value: process.env.QBO_SANDBOX || 'true' })
-        }
+        // QuickBooks: factory-level credentials flow to each tenant CRM — one decision for both spellings
+        // and the environment (services/quickbooksEnv.ts); the redirect URI is the tenant's own backend host.
+        backendEnvVars.push(...quickbooksTenantEnv(`https://${crmApiName}.onrender.com`))
 
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)
