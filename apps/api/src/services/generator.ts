@@ -585,7 +585,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ENABLE_SANDATA_EVV}}': 'false',
     '{{ENABLE_GUSTO}}': 'false',
     '{{ENABLE_WORCS}}': 'false',
-    // Unread by the 7 consolidated CRMs (removed from their .env.template); crm-roof / crm-homecare / crm-automotive still carry the token.
+    // Read by nothing. Only crm-automotive (parked, not modified) still carries this placeholder; every other .env.template dropped it.
     '{{ADS_ENABLED}}': config.features?.paid_ads ? 'true' : 'false',
     // Always empty: the only valid key is the one twomiah-ads issues when deploy.ts registers the tenant (set on Render as
     // ADS_API_KEY). A random value here was committed in the tenant's .env and, if registration failed, sent to the service.

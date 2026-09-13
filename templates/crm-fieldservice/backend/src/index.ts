@@ -89,7 +89,7 @@ import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
 import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
-import adsRoutes from './routes/ads.ts'
+import adsRoutes, { adsConnector } from './routes/ads.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
@@ -294,6 +294,7 @@ app.post('/api/internal/sync-features', async (c) => {
   const [comp] = await db.select().from(company).limit(1)
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
+  adsConnector.onFeaturesChanged(updated.enabledFeatures) // Factory switched paid_ads on after deploy → register with Twomiah Ads (not awaited)
   return c.json({ success: true, features: updated.enabledFeatures })
 })
 

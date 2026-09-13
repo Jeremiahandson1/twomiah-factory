@@ -46,6 +46,12 @@ export function AdsPage({ api, toast, config }: { api: AdsApi; toast: AdsToast; 
   useEffect(() => { loadOverview() }, [loadOverview])
   const connected = !!overview?.configured
   useEffect(() => { if (!loading && !connected && tab !== 'experiments') setTab('experiments') }, [loading, connected, tab])
+  const [connecting, setConnecting] = useState(false)
+  const connect = async () => {
+    setConnecting(true)
+    try { await api.post('/api/ads/connect'); toast.success('Twomiah Ads connected'); setLoading(true); await loadOverview(); setTab('overview') }
+    catch (e) { toast.error(errMsg(e, 'Could not connect Twomiah Ads')) } finally { setConnecting(false) }
+  }
 
   const tabs: Array<{ id: Tab; label: string; icon: any }> = [
     ...(connected ? [{ id: 'overview' as Tab, label: 'Overview', icon: BarChart3 }, { id: 'campaigns' as Tab, label: 'Campaigns', icon: Target }, { id: 'recommendations' as Tab, label: 'Recommendations', icon: Lightbulb }] : []),
@@ -65,7 +71,10 @@ export function AdsPage({ api, toast, config }: { api: AdsApi; toast: AdsToast; 
           {!loadErr && !connected && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
               <p className="font-semibold">Twomiah Ads isn't connected for this account yet.</p>
-              <p className="mt-1">Campaigns, performance and recommendations show up here once your account is registered with Twomiah Ads. Contact Twomiah support to get set up. A/B tests on your website work now.</p>
+              <p className="mt-1">Campaigns, performance and recommendations show up here once this account is registered with Twomiah Ads. Connecting only registers the account: no campaign is created and nothing is spent. A/B tests on your website work now.</p>
+              {can.admin
+                ? <Button className="mt-3" disabled={connecting} onClick={connect}>{connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link className="w-4 h-4" />}{connecting ? 'Connecting…' : 'Connect Twomiah Ads'}</Button>
+                : <p className="mt-2">Ask an owner or admin to connect it.</p>}
             </div>
           )}
           <div className="flex gap-1 border-b border-gray-200 dark:border-slate-800 overflow-x-auto">

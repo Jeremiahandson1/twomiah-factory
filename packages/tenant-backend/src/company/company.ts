@@ -21,6 +21,8 @@ export interface CompanyDeps {
   /** this template's id in the feature registry, e.g. 'crm-salon' */
   template: string
   options?: { roles?: string[] }
+  /** Called (not awaited) after a successful feature save with the saved list — e.g. the Ads connector registers the tenant when paid_ads turns on. */
+  onFeaturesChanged?: (features: string[]) => void
 }
 
 export const COMPANY_SECRETS = ['twilioAuthToken', 'twilioAccountSid', 'stripeCustomerId', 'sendgridApiKey', 'smtpPassword'] as const
@@ -95,6 +97,7 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     const next = [...new Set([...offered.filter((f) => f.core).map((f) => f.id), ...(features as string[])])]
     const [row] = await db.update(t.company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
+    try { deps.onFeaturesChanged?.(next) } catch (e: any) { console.warn('[Features] onFeaturesChanged failed:', e?.message || e) }
     return c.json(sanitizeCompany(row))
   })
 
