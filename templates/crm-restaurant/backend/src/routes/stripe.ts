@@ -14,10 +14,18 @@ const app = new Hono();
 // ============================================
 
 app.post('/webhook', async (c) => {
+  // Stripe signs the RAW body; parsing it first (as this file once did) can never verify. No secret → 503, not a 500.
+  if (!process.env.STRIPE_WEBHOOK_SECRET) return c.json({ error: 'Stripe webhook secret not configured' }, 503);
   const signature = c.req.header('stripe-signature');
+  if (!signature) return c.json({ error: 'Missing stripe-signature header' }, 400);
   const rawBody = await c.req.text();
 
-  const event = await stripeService.constructWebhookEvent(rawBody, signature);
+  let event;
+  try {
+    event = await stripeService.constructWebhookEvent(rawBody, signature);
+  } catch (err: any) {
+    return c.json({ error: 'Invalid Stripe signature' }, 400);
+  }
   const result = await stripeService.handleWebhook(event);
 
   console.log(`Stripe webhook ${event.type}:`, result);

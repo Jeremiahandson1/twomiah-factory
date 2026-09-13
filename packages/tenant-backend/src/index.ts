@@ -95,4 +95,18 @@ export type { AuthDeps, AuthOptions, AuthTables } from './auth/auth'
 
 // Customer portal — token-link routes for customers / collaborators / service customers, one implementation for every CRM.
 export { createPortalRoutes, PORTAL_QUOTE_HIDDEN, PORTAL_INVOICE_HIDDEN } from './portal/portal'
+
+// Integrations — two-way SMS (Twilio, signature-checked webhooks), QuickBooks Online (signed OAuth state), Google review
+// requests, and the messaging-usage wallet gate; one implementation for every CRM.
+export { reportSmsUsage, walletSufficient } from './integrations/messagingUsage'
+export { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioSignatureFor, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioConfigured, TWIML_EMPTY } from './integrations/twilio'
+export { createIntegrationsRoutes } from './integrations/integrations'
+export type { IntegrationsRoutesDeps } from './integrations/integrations'
+export type { TwilioConfig } from './integrations/twilio'
+export { createSmsService, createSmsRoutes } from './integrations/sms'
+export type { SmsService, SmsServiceDeps, SmsRoutesDeps, SmsTables, SmsUsage } from './integrations/sms'
+export { createQuickBooksService, createQuickBooksRoutes } from './integrations/quickbooks'
+export type { QuickBooksService, QuickBooksServiceDeps, QuickBooksRoutesDeps, QuickBooksTables, QuickBooksOptions } from './integrations/quickbooks'
+export { createReviewsService, createReviewsRoutes, generateGoogleReviewLink } from './integrations/reviews'
+export type { ReviewsService, ReviewsServiceDeps, ReviewsRoutesDeps, ReviewsTables } from './integrations/reviews'
 export type { PortalDeps, PortalTables, PortalOptions, PortalSelectionsService, PortalFileService } from './portal/portal'

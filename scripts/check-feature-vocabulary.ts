@@ -93,6 +93,9 @@ for (const t of ACTIVE) {
       }
       for (const m of line.matchAll(/\b(?:hasFeature|useFeature|requireFeature)\(['"]([^'"]+)['"]\)/g)) add(m[1], where)
       for (const m of line.matchAll(/\bfeatureKey:\s*['"]([^'"]+)['"]/g)) add(m[1], where)
+      // backend gates on the company's enabledFeatures array — `enabledFeatures.includes('review_requests')` was
+      // dead for months because that id never existed (the registry id is google_reviews)
+      if (/enabledFeatures/.test(line)) for (const m of line.matchAll(/\.includes\(['"]([a-z][a-z0-9_]*)['"]\)/g)) add(m[1], where)
     })
   }
   const notOffered: string[] = []
