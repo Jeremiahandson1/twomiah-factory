@@ -99,7 +99,9 @@ export { createPortalRoutes, PORTAL_QUOTE_HIDDEN, PORTAL_INVOICE_HIDDEN } from '
 // Integrations — two-way SMS (Twilio, signature-checked webhooks), QuickBooks Online (signed OAuth state), Google review
 // requests, and the messaging-usage wallet gate; one implementation for every CRM.
 export { reportSmsUsage, walletSufficient } from './integrations/messagingUsage'
-export { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioSignatureFor, twilioClient, twilioConfigFromEnv, twilioConfigured, TWIML_EMPTY } from './integrations/twilio'
+export { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioSignatureFor, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioConfigured, TWIML_EMPTY } from './integrations/twilio'
+export { createIntegrationsRoutes } from './integrations/integrations'
+export type { IntegrationsRoutesDeps } from './integrations/integrations'
 export type { TwilioConfig } from './integrations/twilio'
 export { createSmsService, createSmsRoutes } from './integrations/sms'
 export type { SmsService, SmsServiceDeps, SmsRoutesDeps, SmsTables, SmsUsage } from './integrations/sms'

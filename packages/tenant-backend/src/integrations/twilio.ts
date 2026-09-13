@@ -28,6 +28,29 @@ export function twilioConfigFromEnv(): TwilioConfig {
 }
 export const twilioConfigured = (cfg: TwilioConfig) => !!(cfg.accountSid && cfg.authToken && (cfg.from || cfg.messagingServiceSid))
 
+/**
+ * The Twilio account a company texts from. Settings → Integrations stores the company's own account in
+ * company.integrations (twilioAccountSid / twilioAuthToken / twilioPhoneNumber); older rows carry the same
+ * three as columns; the platform account (TWILIO_* env) is the fallback. Before this the SMS service only
+ * ever read the env, so a company's own Twilio account was saved and then ignored.
+ */
+export function twilioConfigFor(companyRow: any): TwilioConfig {
+  const j = (companyRow?.integrations || {}) as any
+  const env = twilioConfigFromEnv()
+  const own = {
+    accountSid: j.twilioAccountSid || companyRow?.twilioAccountSid || undefined,
+    authToken: j.twilioAuthToken || companyRow?.twilioAuthToken || undefined,
+    from: j.twilioPhoneNumber || companyRow?.twilioPhoneNumber || undefined,
+  }
+  if (own.accountSid && own.authToken) return { accountSid: own.accountSid, authToken: own.authToken, from: own.from || env.from, messagingServiceSid: undefined }
+  return { ...env, from: own.from || env.from }
+}
+/** Every number a company row claims (column + integrations JSON), E.164. */
+export function companyTwilioNumbers(companyRow: any): string[] {
+  const j = (companyRow?.integrations || {}) as any
+  return [companyRow?.twilioPhoneNumber, j.twilioPhoneNumber].filter(Boolean).map((n: string) => formatPhoneE164(n))
+}
+
 let _client: any = null
 let _clientKey = ''
 /** Twilio REST client built on first use (module-load construction crashed boots with empty env). */

@@ -8,7 +8,7 @@
 // (→ 500) and mounted the public click-tracking route BEHIND authenticate (customers' links → 401).
 import { Hono } from 'hono'
 import { eq, and, lte, gte, isNull, count, sql } from 'drizzle-orm'
-import { twilioClient, twilioConfigFromEnv, twilioSender, type TwilioConfig } from './twilio'
+import { twilioClient, twilioConfigFor, twilioSender, type TwilioConfig } from './twilio'
 
 export interface ReviewsTables { reviewRequest: any; company: any; contact: any; job?: any }
 export interface ReviewsServiceDeps {
@@ -32,7 +32,8 @@ export const generateGoogleReviewLink = (placeId: string) => `https://search.goo
 export function createReviewsService(deps: ReviewsServiceDeps) {
   const { db, tables: t } = deps
   const report = deps.usage?.reportSmsUsage || (() => {})
-  const cfg = () => deps.twilio || twilioConfigFromEnv()
+  /** The company's own Twilio account (Settings → Integrations) or the platform's. */
+  const cfgFor = (companyRow: any): TwilioConfig => deps.twilio || twilioConfigFor(companyRow)
   const apiBase = () => deps.apiBaseUrl || process.env.API_BASE_URL || process.env.FRONTEND_URL || ''
   const trackingUrl = (requestId: string) => `${apiBase()}/api/reviews/track/${requestId}/click`
   const firstName = (name: any) => String(name || '').split(' ')[0] || 'there'
@@ -97,10 +98,11 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     return request
   }
 
-  async function sendReviewSms(phoneNumber: string, { contactName, companyName, reviewLink, template }: { contactName: string; companyName: string; reviewLink: string; template: string }) {
-    const client = await twilioClient(cfg())
+  async function sendReviewSms(companyRow: any, phoneNumber: string, { contactName, companyName, reviewLink, template }: { contactName: string; companyName: string; reviewLink: string; template: string }) {
+    const conf = cfgFor(companyRow)
+    const client = await twilioClient(conf)
     const message = template.split('{firstName}').join(contactName).split('{companyName}').join(companyName).split('{trackingUrl}').join(reviewLink)
-    const result = await client.messages.create({ body: message, ...twilioSender(cfg()), to: phoneNumber })
+    const result = await client.messages.create({ body: message, ...twilioSender(conf), to: phoneNumber })
     report(Number(result.numSegments) || 1, result.sid)
     return { messageId: result.sid, status: result.status }
   }
@@ -141,7 +143,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     const results: { sms: any; email: any } = { sms: null, email: null }
     const phone = contactRow.mobile || contactRow.phone
     if ((channel === 'sms' || channel === 'both') && phone) {
-      try { results.sms = await sendReviewSms(phone, { contactName: firstName(contactRow.name), companyName: companyRow?.name || '', reviewLink: url, template: settings.reviewSmsTemplate || DEFAULT_SMS_TEMPLATE }) }
+      try { results.sms = await sendReviewSms(companyRow, phone, { contactName: firstName(contactRow.name), companyName: companyRow?.name || '', reviewLink: url, template: settings.reviewSmsTemplate || DEFAULT_SMS_TEMPLATE }) }
       catch (error: any) { console.error('[Reviews] SMS send error:', error?.message); results.sms = { error: error?.message } }
     }
     if ((channel === 'email' || channel === 'both') && contactRow.email) {
@@ -173,7 +175,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
             let sent = false
             const phone = ct?.mobile || ct?.phone
             if ((channel === 'sms' || channel === 'both') && phone) {
-              try { await sendReviewSms(phone, { contactName: firstName(ct?.name), companyName: comp.name || '', reviewLink: url, template: settings.reviewSmsTemplate || DEFAULT_SMS_TEMPLATE }); sent = true }
+              try { await sendReviewSms(comp, phone, { contactName: firstName(ct?.name), companyName: comp.name || '', reviewLink: url, template: settings.reviewSmsTemplate || DEFAULT_SMS_TEMPLATE }); sent = true }
               catch (e: any) { console.error('[Reviews] SMS failed', request.id, e?.message) }
             }
             if ((channel === 'email' || channel === 'both') && ct?.email) {
@@ -212,7 +214,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     const url = trackingUrl(request.id)
     const phone = ct.mobile || ct.phone
     if (phone && (request.channel === 'sms' || request.channel === 'both')) {
-      try { await sendReviewSms(phone, { contactName: firstName(ct.name), companyName: comp.name || '', reviewLink: url, template: FOLLOW_UP_SMS_TEMPLATE }) } catch (e: any) { console.error('[Reviews] Follow-up SMS failed:', e?.message) }
+      try { await sendReviewSms(comp, phone, { contactName: firstName(ct.name), companyName: comp.name || '', reviewLink: url, template: FOLLOW_UP_SMS_TEMPLATE }) } catch (e: any) { console.error('[Reviews] Follow-up SMS failed:', e?.message) }
     }
     if (ct.email && (request.channel === 'email' || request.channel === 'both')) {
       try { await sendReviewEmail(ct.email, { contactName: ct.name || 'Valued Customer', companyName: comp.name || '', jobTitle: '', reviewLink: url }) } catch (e: any) { console.error('[Reviews] Follow-up email failed:', e?.message) }

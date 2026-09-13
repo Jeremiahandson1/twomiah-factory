@@ -7,7 +7,7 @@
 // and every version parsed Twilio's form-encoded webhook with c.req.json() → the text was dropped with a 200.
 import { Hono } from 'hono'
 import { eq, and, or, ilike, desc, asc, count, sum, sql, gt } from 'drizzle-orm'
-import { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
+import { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
 export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any }
 export interface SmsUsage { reportSmsUsage: (segments: number, twilioSid?: string) => void; walletSufficient: () => Promise<boolean> }
@@ -27,9 +27,31 @@ export interface SmsServiceDeps {
 export function createSmsService(deps: SmsServiceDeps) {
   const { db, tables: t } = deps
   const usage: SmsUsage = deps.usage || { reportSmsUsage: () => {}, walletSufficient: async () => true }
-  const cfg = () => deps.twilio || twilioConfigFromEnv()
+  /** The account this company texts from: its own (Settings → Integrations) or the platform's (env). */
+  const cfgFor = async (companyId: string): Promise<TwilioConfig> => {
+    if (deps.twilio) return deps.twilio
+    const [row] = await db.select().from(t.company).where(eq(t.company.id, companyId)).limit(1)
+    return twilioConfigFor(row)
+  }
+  /** The company a Twilio number belongs to (column or Settings → Integrations value). */
+  async function findCompanyByTwilioNumber(number: string | undefined) {
+    if (!number) return null
+    const e164 = formatPhoneE164(number)
+    const [row] = await db.select().from(t.company).where(or(
+      eq(t.company.twilioPhoneNumber, number), eq(t.company.twilioPhoneNumber, e164),
+      sql`${t.company.integrations}->>'twilioPhoneNumber' in (${number}, ${e164})`,
+    )).limit(1)
+    return row || null
+  }
+  /** Which auth token must have signed a webhook for these params (the receiving company's own, else the platform's). */
+  async function webhookAuthToken(params: Record<string, string>): Promise<string | undefined> {
+    const ours = [params.To, params.From].filter(Boolean)
+    for (const n of ours) { const row = await findCompanyByTwilioNumber(n); if (row) { const c = twilioConfigFor(row); if (c.authToken) return c.authToken } }
+    return (deps.twilio || twilioConfigFromEnv()).authToken
+  }
 
   async function sendSMS(companyId: string, { contactId, toPhone, message, userId, jobId }: { contactId?: string; toPhone?: string; message: string; userId?: string; jobId?: string; templateId?: string }) {
+    const cfg = async () => cfgFor(companyId)
     if (!toPhone && contactId) {
       const [contactRow] = await db.select().from(t.contact).where(eq(t.contact.id, contactId))
       if (!contactRow?.phone && !contactRow?.mobile) throw new Error('Contact has no phone number')
@@ -50,11 +72,12 @@ export function createSmsService(deps: SmsServiceDeps) {
     let errorMessage: string | null = null
     try {
       if (!(await usage.walletSufficient())) throw new Error('Messaging paused: usage wallet is empty — top up to resume.')
-      const client = await twilioClient(cfg())
+      const conf = await cfg()
+      const client = await twilioClient(conf)
       twilioResponse = await client.messages.create({
         body: message,
         to: formattedPhone,
-        ...twilioSender(cfg()),
+        ...twilioSender(conf),
         statusCallback: `${deps.apiBaseUrl || process.env.API_BASE_URL || ''}/api/sms/webhook/status`,
       })
     } catch (error: any) {
@@ -76,7 +99,7 @@ export function createSmsService(deps: SmsServiceDeps) {
   async function handleIncomingSMS(data: { From: string; Body: string; MessageSid: string; To: string }) {
     const { From, Body, MessageSid, To } = data
     if (!From || !To) return null
-    const [comp] = await db.select().from(t.company).where(or(eq(t.company.twilioPhoneNumber, To), eq(t.company.twilioPhoneNumber, formatPhoneE164(To))))
+    const comp = await findCompanyByTwilioNumber(To)
     if (!comp) { console.error('No company found for Twilio number:', To); return null }
     const formattedPhone = formatPhoneE164(From)
 
@@ -280,7 +303,7 @@ export function createSmsService(deps: SmsServiceDeps) {
   return {
     sendSMS, handleIncomingSMS, handleStatusUpdate, getConversations, getConversation, archiveConversation, linkToContact,
     createTemplate, getTemplates, updateTemplate, deleteTemplate, applyTemplateVariables, createAutoResponder, getAutoResponders,
-    sendBulkSMS, sendJobUpdate, getUnreadCount,
+    sendBulkSMS, sendJobUpdate, getUnreadCount, findCompanyByTwilioNumber, webhookAuthToken, twilioConfigFor: cfgFor,
   }
 }
 export type SmsService = ReturnType<typeof createSmsService>
@@ -302,16 +325,18 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   const twiml = (c: any, status = 200) => c.text(TWIML_EMPTY, status, { 'Content-Type': 'text/xml' })
 
   // ── Webhooks (Twilio, no session) — signature-checked, form-encoded
+  // The signing token is the receiving company's own Twilio auth token when it configured one, else the platform's.
+  const tokenFor = async (params: Record<string, string>) => deps.twilioAuthToken || (await sms.webhookAuthToken(params))
   app.post('/webhook/incoming', async (c) => {
     const params = await parseTwilioBody(c)
-    const v = verifyTwilioRequest(c, params, deps.twilioAuthToken)
+    const v = verifyTwilioRequest(c, params, await tokenFor(params))
     if (!v.ok) { console.warn('[sms] rejected inbound webhook:', v.reason); return twiml(c, 403) }
     try { await sms.handleIncomingSMS(params as any) } catch (error: any) { console.error('SMS webhook error:', error?.message) }
     return twiml(c, 200)
   })
   app.post('/webhook/status', async (c) => {
     const params = await parseTwilioBody(c)
-    const v = verifyTwilioRequest(c, params, deps.twilioAuthToken)
+    const v = verifyTwilioRequest(c, params, await tokenFor(params))
     if (!v.ok) { console.warn('[sms] rejected status webhook:', v.reason); return c.body(null, 403) }
     try { await sms.handleStatusUpdate(params as any) } catch (error: any) { console.error('SMS status webhook error:', error?.message) }
     return c.body(null, 200)
@@ -320,23 +345,23 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   app.use('*', authenticate)
 
   app.get('/conversations', async (c) => {
-    const user = c.get('user') as any
+    const user = (c as any).get('user')
     const q = c.req.query()
     return c.json(await sms.getConversations(user.companyId, {
       status: q.status, unreadOnly: q.unreadOnly === 'true', search: q.search, contactId: q.contactId || undefined,
       page: parseInt(q.page || '1') || 1, limit: Math.min(200, parseInt(q.limit || '50') || 50),
     }))
   })
-  app.get('/unread-count', async (c) => c.json({ count: await sms.getUnreadCount((c.get('user') as any).companyId) }))
+  app.get('/unread-count', async (c) => c.json({ count: await sms.getUnreadCount(((c as any).get('user')).companyId) }))
   app.get('/conversations/:id', async (c) => {
-    const conversation = await sms.getConversation(c.req.param('id'), (c.get('user') as any).companyId)
+    const conversation = await sms.getConversation(c.req.param('id'), ((c as any).get('user')).companyId)
     return conversation ? c.json(conversation) : c.json({ error: 'Conversation not found' }, 404)
   })
-  app.post('/conversations/:id/archive', async (c) => { await sms.archiveConversation(c.req.param('id'), (c.get('user') as any).companyId); return c.json({ success: true }) })
+  app.post('/conversations/:id/archive', async (c) => { await sms.archiveConversation(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
   app.post('/conversations/:id/link', async (c) => {
     const { contactId } = await c.req.json().catch(() => ({}))
     if (!contactId) return c.json({ error: 'contactId is required' }, 400)
-    await sms.linkToContact(c.req.param('id'), (c.get('user') as any).companyId, contactId)
+    await sms.linkToContact(c.req.param('id'), ((c as any).get('user')).companyId, contactId)
     return c.json({ success: true })
   })
 
@@ -347,7 +372,7 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     return c.json(result)
   }
   app.post('/send', async (c) => {
-    const user = c.get('user') as any
+    const user = (c as any).get('user')
     const { contactId, toPhone, message, jobId, templateId } = await c.req.json().catch(() => ({}))
     if (!message) return c.json({ error: 'Message is required' }, 400)
     if (!contactId && !toPhone) return c.json({ error: 'contactId or toPhone is required' }, 400)
@@ -355,7 +380,7 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     catch (e: any) { return c.json({ error: e?.message || 'Text could not be sent' }, 400) }
   })
   app.post('/conversations/:id/reply', async (c) => {
-    const user = c.get('user') as any
+    const user = (c as any).get('user')
     const { message } = await c.req.json().catch(() => ({}))
     if (!message) return c.json({ error: 'Message is required' }, 400)
     const conversation = await sms.getConversation(c.req.param('id'), user.companyId)
@@ -365,14 +390,14 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     catch (e: any) { return c.json({ error: e?.message || 'Text could not be sent' }, 400) }
   })
   app.post('/bulk', requirePermission('contacts:update'), async (c) => {
-    const user = c.get('user') as any
+    const user = (c as any).get('user')
     const { contactIds, message, templateId } = await c.req.json().catch(() => ({}))
     if (!contactIds?.length) return c.json({ error: 'contactIds array is required' }, 400)
     if (!message) return c.json({ error: 'Message is required' }, 400)
     return c.json(await sms.sendBulkSMS(user.companyId, { contactIds, message, templateId, userId: user.userId }))
   })
   app.post('/job-update/:jobId', async (c) => {
-    const user = c.get('user') as any
+    const user = (c as any).get('user')
     const { updateType } = await c.req.json().catch(() => ({}))
     if (!['scheduled', 'on_way', 'on_my_way', 'started', 'on_site', 'completed', 'reminder'].includes(updateType)) return c.json({ error: 'Invalid updateType' }, 400)
     const result = await sms.sendJobUpdate(user.companyId, c.req.param('jobId'), updateType)
@@ -380,27 +405,27 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   })
   /** Settings → Integrations "send a test text" (admin). */
   app.post('/test', requireAdmin, async (c) => {
-    const user = c.get('user') as any
+    const user = (c as any).get('user')
     const { to } = await c.req.json().catch(() => ({}))
     if (!to || String(to).replace(/\D/g, '').length < 7) return c.json({ error: 'Enter a valid phone number' }, 400)
     try { return sendResult(c, await sms.sendSMS(user.companyId, { toPhone: String(to), message: 'Test message from your CRM — texting is set up correctly.', userId: user.userId })) }
     catch (e: any) { return c.json({ error: e?.message || 'Text could not be sent' }, 400) }
   })
 
-  app.get('/templates', async (c) => c.json(await sms.getTemplates((c.get('user') as any).companyId, { category: c.req.query('category') })))
+  app.get('/templates', async (c) => c.json(await sms.getTemplates(((c as any).get('user')).companyId, { category: c.req.query('category') })))
   app.post('/templates', async (c) => {
     const body = await c.req.json().catch(() => ({}))
     if (!body?.name || !body?.message) return c.json({ error: 'name and message are required' }, 400)
-    return c.json(await sms.createTemplate((c.get('user') as any).companyId, body), 201)
+    return c.json(await sms.createTemplate(((c as any).get('user')).companyId, body), 201)
   })
-  app.put('/templates/:id', async (c) => { await sms.updateTemplate(c.req.param('id'), (c.get('user') as any).companyId, await c.req.json().catch(() => ({}))); return c.json({ success: true }) })
-  app.delete('/templates/:id', async (c) => { await sms.deleteTemplate(c.req.param('id'), (c.get('user') as any).companyId); return c.json({ success: true }) })
+  app.put('/templates/:id', async (c) => { await sms.updateTemplate(c.req.param('id'), ((c as any).get('user')).companyId, await c.req.json().catch(() => ({}))); return c.json({ success: true }) })
+  app.delete('/templates/:id', async (c) => { await sms.deleteTemplate(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
 
-  app.get('/auto-responders', async (c) => c.json(await sms.getAutoResponders((c.get('user') as any).companyId)))
+  app.get('/auto-responders', async (c) => c.json(await sms.getAutoResponders(((c as any).get('user')).companyId)))
   app.post('/auto-responders', async (c) => {
     const body = await c.req.json().catch(() => ({}))
     if (!body?.name || !body?.trigger || !body?.message) return c.json({ error: 'name, trigger and message are required' }, 400)
-    return c.json(await sms.createAutoResponder((c.get('user') as any).companyId, body), 201)
+    return c.json(await sms.createAutoResponder(((c as any).get('user')).companyId, body), 201)
   })
 
   return app

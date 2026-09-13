@@ -30,10 +30,11 @@ export interface QuickBooksServiceDeps { db: any; tables: QuickBooksTables; opti
 export function createQuickBooksService(deps: QuickBooksServiceDeps) {
   const { db, tables: t } = deps
   const o = deps.options || {}
-  const CLIENT_ID = () => o.clientId ?? process.env.QBO_CLIENT_ID
-  const CLIENT_SECRET = () => o.clientSecret ?? process.env.QBO_CLIENT_SECRET
-  const REDIRECT_URI = () => o.redirectUri ?? process.env.QBO_REDIRECT_URI
-  const USE_SANDBOX = () => o.sandbox ?? process.env.QBO_SANDBOX === 'true'
+  // The Factory injects both spellings (QBO_* and QUICKBOOKS_*); QBO_REDIRECT_URI points at /api/quickbooks/callback.
+  const CLIENT_ID = () => o.clientId ?? process.env.QBO_CLIENT_ID ?? process.env.QUICKBOOKS_CLIENT_ID
+  const CLIENT_SECRET = () => o.clientSecret ?? process.env.QBO_CLIENT_SECRET ?? process.env.QUICKBOOKS_CLIENT_SECRET
+  const REDIRECT_URI = () => o.redirectUri ?? process.env.QBO_REDIRECT_URI ?? process.env.QUICKBOOKS_REDIRECT_URI ?? (process.env.API_URL || process.env.API_BASE_URL ? `${process.env.API_URL || process.env.API_BASE_URL}/api/quickbooks/callback` : undefined)
+  const USE_SANDBOX = () => o.sandbox ?? (process.env.QBO_SANDBOX !== undefined ? process.env.QBO_SANDBOX === 'true' : (process.env.QUICKBOOKS_ENVIRONMENT || 'production') !== 'production')
   const stateSecret = () => o.stateSecret || process.env.QBO_STATE_SECRET || process.env.JWT_SECRET || ''
   const customerType = o.customerType || 'client'
   const configured = () => !!(CLIENT_ID() && CLIENT_SECRET() && REDIRECT_URI())
