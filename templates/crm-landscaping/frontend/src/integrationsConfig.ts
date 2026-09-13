@@ -1,0 +1,19 @@
+// Vertical vocabulary for the shared Settings → Integrations / Import / Migrate and Reviews pages
+// (packages/tenant-ui/src/settings, vendored into this tenant as ./shared). Behaviour lives there; only the words live here.
+import type { IntegrationsConfig, ImportConfig, MigrationConfig, ReviewsConfig } from './shared'
+
+export const integrationsConfig: IntegrationsConfig = {}
+
+export const importConfig: ImportConfig = {
+    types: [
+      { id: 'contacts', label: 'Contacts', description: 'Import customers, vendors, and leads' },
+      { id: 'projects', label: 'Projects', description: 'Import project records', feature: 'projects' },
+      { id: 'jobs', label: 'Service Visits', description: 'Import work orders and service visits', feature: 'jobs' },
+      { id: 'products', label: 'Products/Services', description: 'Import products and service items' },
+      { id: 'invoices', label: 'Invoices', description: 'Import invoices and open balances from Jobber, HousecallPro or QuickBooks' },
+    ],
+  }
+
+export const migrationConfig: MigrationConfig = { entityLabels: { jobs: 'Service Visits & Work Orders' } }
+
+export const reviewsConfig: ReviewsConfig = {}
