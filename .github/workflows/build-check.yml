@@ -55,6 +55,17 @@ jobs:
       - name: Every feature id a template gates on must exist in packages/tenant-backend/src/featureRegistry.ts
         run: bun run scripts/check-feature-vocabulary.ts
 
+  permission-vocabulary:
+    name: permissions — every gated resource is in the role matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Every resource gated in a route must be granted to a role in BASE_ROLE_PERMISSIONS (or owner-only by design)
+        run: bun run scripts/check-permission-vocabulary.ts
+
   shared-deps:
     name: shared packages — deps declared by every template
     runs-on: ubuntu-latest
