@@ -68,14 +68,15 @@ export async function createFormTemplate(companyId: string, data: {
  * Get form templates
  */
 export async function getFormTemplates(companyId: string, { category, active = true }: { category?: string; active?: boolean | null } = {}) {
-  let whereClause = `company_id = '${companyId}'`;
-  if (category) whereClause += ` AND category = '${category}'`;
-  if (active !== null) whereClause += ` AND active = ${active}`;
+  const conds = [sql`company_id = ${companyId}`];
+  if (category) conds.push(sql`category = ${category}`);
+  if (active !== null) conds.push(sql`active = ${active}`);
+  const where = sql.join(conds, sql` AND `);
 
-  const result = await db.execute(sql.raw(`
-    SELECT * FROM form_template WHERE ${whereClause}
+  const result = await db.execute(sql`
+    SELECT * FROM form_template WHERE ${where}
     ORDER BY category ASC, name ASC
-  `));
+  `);
   return (result as any).rows || result;
 }
 
@@ -257,21 +258,22 @@ export async function getSubmissions(companyId: string, { jobId, projectId, cont
   contactId?: string;
   templateId?: string;
 } = {}) {
-  let whereClause = `fs.company_id = '${companyId}'`;
-  if (jobId) whereClause += ` AND fs.job_id = '${jobId}'`;
-  if (projectId) whereClause += ` AND fs.project_id = '${projectId}'`;
-  if (contactId) whereClause += ` AND fs.contact_id = '${contactId}'`;
-  if (templateId) whereClause += ` AND fs.template_id = '${templateId}'`;
+  const conds = [sql`fs.company_id = ${companyId}`];
+  if (jobId) conds.push(sql`fs.job_id = ${jobId}`);
+  if (projectId) conds.push(sql`fs.project_id = ${projectId}`);
+  if (contactId) conds.push(sql`fs.contact_id = ${contactId}`);
+  if (templateId) conds.push(sql`fs.template_id = ${templateId}`);
+  const where = sql.join(conds, sql` AND `);
 
-  const result = await db.execute(sql.raw(`
+  const result = await db.execute(sql`
     SELECT fs.*, ft.name as template_name, ft.category as template_category, ft.fields as template_fields,
       u.first_name as submitted_by_first_name, u.last_name as submitted_by_last_name
     FROM form_submission fs
     LEFT JOIN form_template ft ON fs.template_id = ft.id
     LEFT JOIN "user" u ON fs.submitted_by_id = u.id
-    WHERE ${whereClause}
+    WHERE ${where}
     ORDER BY fs.submitted_at DESC
-  `));
+  `);
   return (result as any).rows || result;
 }
 

@@ -233,32 +233,35 @@ export async function getEntityActivity(companyId: string, entityType: string, e
  * Get recent activity for company (feed)
  */
 export async function getActivityFeed(companyId: string, { limit = 50, page = 1, entityTypes = null }: { limit?: number; page?: number; entityTypes?: string[] | null } = {}) {
-  let whereClause = `a.company_id = '${companyId}'`;
+  const conds = [sql`a.company_id = ${companyId}`];
   if (entityTypes?.length) {
-    whereClause += ` AND a.entity_type IN (${entityTypes.map(t => `'${t}'`).join(',')})`;
+    conds.push(sql`a.entity_type IN (${sql.join(entityTypes.map((t) => sql`${t}`), sql`, `)})`);
   }
+  const whereClause = sql.join(conds, sql` AND `);
 
-  const offset = (page - 1) * limit;
+  const pageN = Number.isFinite(Number(page)) && Number(page) > 0 ? Math.floor(Number(page)) : 1;
+  const limitN = Number.isFinite(Number(limit)) && Number(limit) > 0 ? Math.min(200, Math.floor(Number(limit))) : 50;
+  const offset = (pageN - 1) * limitN;
 
-  const result = await db.execute(sql.raw(`
+  const result = await db.execute(sql`
     SELECT a.*, u.id as user_id_ref, u.first_name, u.last_name
     FROM activity a
     LEFT JOIN "user" u ON a.user_id = u.id
     WHERE ${whereClause}
     ORDER BY a.created_at DESC
-    LIMIT ${limit} OFFSET ${offset}
-  `));
+    LIMIT ${limitN} OFFSET ${offset}
+  `);
 
-  const countResult = await db.execute(sql.raw(`
+  const countResult = await db.execute(sql`
     SELECT COUNT(*)::int as total FROM activity a WHERE ${whereClause}
-  `));
+  `);
 
   const activities = (result as any).rows || result;
   const total = Number(((countResult as any).rows || countResult)[0]?.total || 0);
 
   return {
     activities,
-    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) },
   };
 }
 

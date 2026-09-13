@@ -76,13 +76,13 @@ export async function getAssembly(assemblyId: string, companyId: string) {
  * Get all assemblies
  */
 export async function getAssemblies(companyId: string, { category, active = true }: { category?: string; active?: boolean | null } = {}) {
-  const conditions: string[] = [`ta.company_id = '${companyId}'`]
-  if (category) conditions.push(`ta.category = '${category}'`)
-  if (active !== null) conditions.push(`ta.active = ${active}`)
+  const conditions = [sql`ta.company_id = ${companyId}`]
+  if (category) conditions.push(sql`ta.category = ${category}`)
+  if (active !== null) conditions.push(sql`ta.active = ${active}`)
 
-  const assemblies = rows(await db.execute(sql.raw(`
-    SELECT ta.* FROM takeoff_assembly ta WHERE ${conditions.join(' AND ')} ORDER BY ta.category ASC, ta.name ASC
-  `)))
+  const assemblies = rows(await db.execute(sql`
+    SELECT ta.* FROM takeoff_assembly ta WHERE ${sql.join(conditions, sql` AND `)} ORDER BY ta.category ASC, ta.name ASC
+  `))
 
   // Load materials for each
   for (const assembly of assemblies) {
@@ -98,18 +98,19 @@ export async function getAssemblies(companyId: string, { category, active = true
  * Update assembly
  */
 export async function updateAssembly(assemblyId: string, companyId: string, data: any) {
-  const sets: string[] = []
-  if (data.name !== undefined) sets.push(`name = '${data.name}'`)
-  if (data.description !== undefined) sets.push(`description = '${data.description}'`)
-  if (data.category !== undefined) sets.push(`category = '${data.category}'`)
-  if (data.wasteFactor !== undefined) sets.push(`waste_factor = ${data.wasteFactor}`)
-  if (data.active !== undefined) sets.push(`active = ${data.active}`)
+  const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+  const sets: any[] = []
+  if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
+  if (data.description !== undefined) sets.push(sql`description = ${data.description}`)
+  if (data.category !== undefined) sets.push(sql`category = ${data.category}`)
+  if (data.wasteFactor !== undefined) sets.push(sql`waste_factor = ${num(data.wasteFactor)}`)
+  if (data.active !== undefined) sets.push(sql`active = ${!!data.active}`)
 
   if (sets.length === 0) return
 
-  return db.execute(sql.raw(`
-    UPDATE takeoff_assembly SET ${sets.join(', ')} WHERE id = '${assemblyId}' AND company_id = '${companyId}'
-  `))
+  return db.execute(sql`
+    UPDATE takeoff_assembly SET ${sql.join(sets, sql`, `)} WHERE id = ${assemblyId} AND company_id = ${companyId}
+  `)
 }
 
 /**
@@ -327,17 +328,18 @@ export async function updateTakeoffItem(itemId: string, companyId: string, data:
   const merged = { ...item, ...data }
   const measurementValue = calculateMeasurement(merged, item.assembly?.measurement_type || 'area')
 
-  const sets: string[] = [`measurement_value = ${measurementValue}`]
-  if (data.length !== undefined) sets.push(`length = ${data.length}`)
-  if (data.width !== undefined) sets.push(`width = ${data.width}`)
-  if (data.height !== undefined) sets.push(`height = ${data.height}`)
-  if (data.quantity !== undefined) sets.push(`quantity = ${data.quantity}`)
-  if (data.name !== undefined) sets.push(`name = '${data.name}'`)
-  if (data.location !== undefined) sets.push(`location = '${data.location}'`)
-  if (data.notes !== undefined) sets.push(`notes = '${data.notes}'`)
-  if (data.wasteFactor !== undefined) sets.push(`waste_factor = ${data.wasteFactor}`)
+  const num = (v: any) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
+  const sets: any[] = [sql`measurement_value = ${num(measurementValue)}`]
+  if (data.length !== undefined) sets.push(sql`length = ${num(data.length)}`)
+  if (data.width !== undefined) sets.push(sql`width = ${num(data.width)}`)
+  if (data.height !== undefined) sets.push(sql`height = ${num(data.height)}`)
+  if (data.quantity !== undefined) sets.push(sql`quantity = ${num(data.quantity)}`)
+  if (data.name !== undefined) sets.push(sql`name = ${data.name}`)
+  if (data.location !== undefined) sets.push(sql`location = ${data.location}`)
+  if (data.notes !== undefined) sets.push(sql`notes = ${data.notes}`)
+  if (data.wasteFactor !== undefined) sets.push(sql`waste_factor = ${num(data.wasteFactor)}`)
 
-  await db.execute(sql.raw(`UPDATE takeoff_item SET ${sets.join(', ')} WHERE id = '${itemId}'`))
+  await db.execute(sql`UPDATE takeoff_item SET ${sql.join(sets, sql`, `)} WHERE id = ${itemId} AND company_id = ${companyId}`)
   await calculateItemMaterials(itemId, companyId)
 
   return getTakeoffItem(itemId)
