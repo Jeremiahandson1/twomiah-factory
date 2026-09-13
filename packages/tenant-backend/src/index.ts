@@ -144,3 +144,8 @@ export type { TasksService, TasksServiceDeps, TasksRoutesDeps } from './tasks/ta
 // fs/landscaping link equipment to contact/site/location/jobs via options.
 export { createEquipmentService, createEquipmentRoutes } from './equipment/equipment'
 export type { EquipmentService, EquipmentServiceDeps, EquipmentRoutesDeps, EquipmentTables, EquipmentOptions } from './equipment/equipment'
+
+// Service Agreements / memberships — plans, agreements, visits, autopay billing, recurrence job-generation
+// (crm, crm-fieldservice, crm-landscaping). fs/landscaping enable the recurrence endpoints via routes' `recurrence`.
+export { createAgreementsService, createAgreementsRoutes } from './agreements/agreements'
+export type { AgreementsService, AgreementsServiceDeps, AgreementsRoutesDeps, AgreementsTables, AgreementsStripe } from './agreements/agreements'

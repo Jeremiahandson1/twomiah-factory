@@ -101,3 +101,7 @@ export type { TasksApi, TasksPageProps } from './tasks/types'
 // Equipment — asset tracking page (crm, crm-fieldservice, crm-landscaping); fs/lnd add contact/site/linked-jobs via config.
 export { default as EquipmentPage } from './equipment/EquipmentPage'
 export type { EquipmentApi, EquipmentConfig, EquipmentPageProps } from './equipment/types'
+
+// Service Agreements — plans, agreements, visits, autopay; fs/landscaping add recurrence auto-scheduling via config.
+export { default as AgreementsPage } from './agreements/AgreementsPage'
+export type { AgreementsApi, AgreementsConfig, AgreementsPageProps } from './agreements/types'
