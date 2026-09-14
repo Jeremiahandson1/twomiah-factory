@@ -35,8 +35,13 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
           setLoading(false)
           return
         }
-        // A real 401 (or other auth failure): the session is genuinely invalid.
-        console.error('Auth check failed (session invalid):', err)
+        // An expired/invalid session is the normal "please sign in again" flow (e.g. an overnight token
+        // expiry — a 401, or the client's own 'Session expired' throw after a revoked refresh). It is not
+        // an application error, so don't log it at ERROR with a stack (that was the only error-level output
+        // the app produced and it buried real errors). Anything else non-transient stays at error.
+        const expiredSession = status === 401 || (err as Error)?.message === 'Session expired'
+        if (expiredSession) console.info('Session ended — please sign in again.')
+        else console.error('Auth check failed:', err)
         api.clearTokens()
         setUser(null)
         setCompany(null)
