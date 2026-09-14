@@ -51,17 +51,34 @@ export default function ReportsPage() {
 
   const headers = { Authorization: `Bearer ${token}` };
 
+  // Reports needs every job to compute pipeline totals. The API caps limit at 500, so a single
+  // ?limit=1000 request 400'd and the page silently rendered zeros on a tenant with live jobs.
+  // Page through at the allowed limit instead, so any job count is covered and the numbers are real.
+  const fetchAllJobs = async () => {
+    const all: any[] = [];
+    for (let page = 1; ; page++) {
+      const r = await fetch(`/api/jobs?limit=500&page=${page}`, { headers });
+      if (!r.ok) throw new Error('jobs request failed');
+      const d = await r.json();
+      if (Array.isArray(d)) { all.push(...d); break; }
+      const rows = d.data || [];
+      all.push(...rows);
+      const pages = d.pagination?.pages ?? 1;
+      if (page >= pages || rows.length === 0) break;
+    }
+    return all;
+  };
+
   const load = useCallback(async () => {
     try {
-      const [jobsRes, usersRes, crewsRes] = await Promise.all([
-        fetch('/api/jobs?limit=1000', { headers }),
+      const [jobsAll, usersRes, crewsRes] = await Promise.all([
+        fetchAllJobs(),
         fetch('/api/users', { headers }),
         fetch('/api/crews', { headers }),
       ]);
-      const jobsData = await jobsRes.json();
       const usersData = await usersRes.json();
       const crewsData = await crewsRes.json();
-      setJobs(Array.isArray(jobsData) ? jobsData : jobsData.data || []);
+      setJobs(jobsAll);
       setUsers(Array.isArray(usersData) ? usersData : usersData.data || []);
       setCrews(Array.isArray(crewsData) ? crewsData : crewsData.data || []);
     } catch {
