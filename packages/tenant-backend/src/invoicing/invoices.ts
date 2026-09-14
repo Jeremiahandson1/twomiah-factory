@@ -74,6 +74,22 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], invoiceId: string) => it
   invoiceId,
 }))
 
+// Once per process, heal invoices whose STORED status drifted during an earlier broken-refund build —
+// a fully-refunded invoice must read 'refunded' and a fully-paid one 'paid', but that window left some
+// stuck on 'partial'/'sent', mislabelling them in the list and the status filter. Only the unambiguous
+// cases are corrected (never void/draft, never a genuinely partial or unpaid row), keyed off the amounts
+// the way recomputeStatus() does, so it is safe and idempotent. Boot runs db/migrate.ts first (which
+// waits for the DB), so the DB is reachable by the time these routes are constructed.
+let invoiceStatusReconciled = false
+async function reconcileInvoiceStatuses(db: any, invoice: any) {
+  if (invoiceStatusReconciled) return
+  await db.execute(sql`UPDATE ${invoice} SET status = 'refunded', updated_at = now()
+    WHERE status NOT IN ('void', 'draft', 'refunded') AND total::numeric > 0 AND coalesce(amount_refunded, 0)::numeric >= total::numeric`)
+  await db.execute(sql`UPDATE ${invoice} SET status = 'paid', updated_at = now()
+    WHERE status NOT IN ('void', 'draft', 'paid', 'refunded') AND total::numeric > 0 AND amount_paid::numeric >= total::numeric AND coalesce(amount_refunded, 0)::numeric < total::numeric`)
+  invoiceStatusReconciled = true
+}
+
 export function createInvoiceRoutes(deps: InvoiceDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, sendInvoiceEmail, loadPdf } = deps
   const openStatuses = deps.options?.openStatuses || DEFAULT_OPEN_STATUSES
@@ -84,6 +100,9 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   const derive = (inv: any) => deriveStatus(inv, openStatuses)
 
   const app = new Hono()
+  // Self-heal drifted invoice statuses on boot (see reconcileInvoiceStatuses). Fire-and-forget so it
+  // can never delay or fail server startup; idempotent, so re-running is a no-op once statuses are clean.
+  void reconcileInvoiceStatuses(db, t.invoice).catch(() => {})
   app.use('*', authenticate)
 
   const companySettings = async (companyId: string) => {
