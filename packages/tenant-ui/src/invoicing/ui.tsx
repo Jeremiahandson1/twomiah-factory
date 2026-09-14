@@ -209,7 +209,10 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
             {!loading && data.length === 0 && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyMessage}</td></tr>}
             {!loading && data.map(row => (
               <tr key={row.id} onClick={onRowClick ? () => onRowClick(row) : undefined} className={`text-gray-900 dark:text-slate-100 ${onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : ''}`}>
-                {columns.map(c => <td key={c.key} className={`px-4 py-3 ${c.className || ''}`}>{c.render ? c.render((row as any)[c.key], row) : String((row as any)[c.key] ?? '-')}</td>)}
+                {/* Bound cell content so one pathological value (e.g. a 300-char contact name) wraps
+                    instead of stretching its column and pushing every other column off-screen. Normal
+                    content is far under the cap, so ordinary tables are unaffected. */}
+                {columns.map(c => <td key={c.key} className={`px-4 py-3 ${c.className || ''}`}><div className="max-w-[480px] break-words">{c.render ? c.render((row as any)[c.key], row) : String((row as any)[c.key] ?? '-')}</div></td>)}
                 {actions.length > 0 && (
                   <td className="px-2 py-3 text-right" onClick={e => e.stopPropagation()}>
                     <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"><MoreVertical className="w-4 h-4" /></button>
