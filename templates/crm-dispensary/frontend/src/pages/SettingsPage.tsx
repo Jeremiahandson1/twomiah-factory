@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox } from 'lucide-react';
+import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox, CreditCard, Plug } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -282,6 +282,14 @@ export default function SettingsPage() {
             </button>
           ))}
           <div className="border-t my-3 pt-3">
+            <button onClick={() => navigate('/crm/settings/billing')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+              <CreditCard className="w-5 h-5" />
+              Billing &amp; Payments
+            </button>
+            <button onClick={() => navigate('/crm/settings/integrations')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
+              <Plug className="w-5 h-5" />
+              Integrations
+            </button>
             <button onClick={() => navigate('/crm/settings/features')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 dark:text-slate-400">
               <ToggleLeft className="w-5 h-5" />
               Features
