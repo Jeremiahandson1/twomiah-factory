@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { appointment, patient, contact, user } from '../../db/schema.ts'
-import { eq, and, gte, lte, ne, desc } from 'drizzle-orm'
+import { eq, and, gte, lte, ne, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -29,14 +29,21 @@ function parseWhen(v: any): Date | null {
 // appointment for the same provider whose [start,end) overlaps the new one.
 // Returns the first clashing row, or null. Callers may override with
 // body.allowConflict for the rare intentional double-book.
+// Thrown inside the booking transaction so a detected clash rolls back the write and is answered as a
+// 409 after the transaction unwinds. One advisory lock per business serialises the whole check-then-write
+// so two staff saving the same provider slot at once can't both pass the overlap scan. (vet double-book race)
+class ApptConflict extends Error { constructor(public payload: any) { super('appointment conflict') } }
+const apptLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':appt'}))`)
+
 async function findProviderConflict(
   companyId: string,
   providerId: string,
   start: Date,
   end: Date,
-  ignoreId?: string
+  ignoreId?: string,
+  exec: any = db
 ) {
-  const rows = await db.select().from(appointment).where(and(
+  const rows = await exec.select().from(appointment).where(and(
     eq(appointment.companyId, companyId),
     eq(appointment.providerId, providerId),
     ne(appointment.status, 'cancelled'),
@@ -98,31 +105,38 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const status = body.status || 'scheduled'
   if (!APPT_STATUSES.includes(status)) return c.json({ error: `Invalid status. Expected one of: ${APPT_STATUSES.join(', ')}` }, 400)
 
-  if (body.providerId && !body.allowConflict) {
-    const effEnd = end || new Date(start.getTime() + DEFAULT_APPT_MINUTES * 60000)
-    const clash = await findProviderConflict(currentUser.companyId, body.providerId, start, effEnd)
-    if (clash) {
-      return c.json({
-        error: 'This provider already has an appointment in that time slot.',
-        conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
-      }, 409)
-    }
+  const effEnd = end || new Date(start.getTime() + DEFAULT_APPT_MINUTES * 60000)
+  let created
+  try {
+    created = await db.transaction(async (tx: any) => {
+      await apptLock(tx, currentUser.companyId)
+      if (body.providerId && !body.allowConflict) {
+        const clash = await findProviderConflict(currentUser.companyId, body.providerId, start, effEnd, undefined, tx)
+        if (clash) throw new ApptConflict({
+          error: 'This provider already has an appointment in that time slot.',
+          conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
+        })
+      }
+      const [row] = await tx.insert(appointment).values({
+        id: createId(),
+        patientId: body.patientId || null,
+        ownerId: body.ownerId || null,
+        providerId: body.providerId || null,
+        type,
+        status,
+        room: body.room || null,
+        reason: body.reason || null,
+        startTime: start,
+        endTime: end,
+        notes: body.notes || null,
+        companyId: currentUser.companyId,
+      }).returning()
+      return row
+    })
+  } catch (e: any) {
+    if (e instanceof ApptConflict) return c.json(e.payload, 409)
+    throw e
   }
-
-  const [created] = await db.insert(appointment).values({
-    id: createId(),
-    patientId: body.patientId || null,
-    ownerId: body.ownerId || null,
-    providerId: body.providerId || null,
-    type,
-    status,
-    room: body.room || null,
-    reason: body.reason || null,
-    startTime: start,
-    endTime: end,
-    notes: body.notes || null,
-    companyId: currentUser.companyId,
-  }).returning()
 
   await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
@@ -169,17 +183,24 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 
   const effProvider = 'providerId' in updates ? updates.providerId : existing.providerId
   const effStatus = 'status' in updates ? updates.status : existing.status
-  if (effProvider && effStatus !== 'cancelled' && !body.allowConflict) {
-    const clash = await findProviderConflict(currentUser.companyId, effProvider, effStart, effEnd, id)
-    if (clash) {
-      return c.json({
-        error: 'This provider already has an appointment in that time slot.',
-        conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
-      }, 409)
-    }
+  let updated
+  try {
+    updated = await db.transaction(async (tx: any) => {
+      await apptLock(tx, currentUser.companyId)
+      if (effProvider && effStatus !== 'cancelled' && !body.allowConflict) {
+        const clash = await findProviderConflict(currentUser.companyId, effProvider, effStart, effEnd, id, tx)
+        if (clash) throw new ApptConflict({
+          error: 'This provider already has an appointment in that time slot.',
+          conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
+        })
+      }
+      const [row] = await tx.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
+      return row
+    })
+  } catch (e: any) {
+    if (e instanceof ApptConflict) return c.json(e.payload, 409)
+    throw e
   }
-
-  const [updated] = await db.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
   return c.json(updated)
@@ -205,7 +226,9 @@ app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
   return c.json(updated)
 })
 
-// DELETE /appointments/:id — there was no way to remove a mistaken booking.
+// DELETE /appointments/:id — "Cancel" from the calendar. Soft-cancel (status='cancelled'), never a
+// hard delete: the visit stays on the patient's history and in reporting, and the provider's slot frees
+// up. An already-cancelled row is left as-is (idempotent). (vet cancel kept history — #112 missed vet)
 app.delete('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
@@ -214,11 +237,15 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .where(and(eq(appointment.id, id), eq(appointment.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Appointment not found' }, 404)
+  if (existing.status === 'cancelled') return c.json(existing)
 
-  await db.delete(appointment).where(eq(appointment.id, id))
-  await audit.log({ action: 'delete', entity: 'appointment', entityId: id, metadata: existing, req: { user: currentUser } })
+  const [updated] = await db.update(appointment)
+    .set({ status: 'cancelled', updatedAt: new Date() })
+    .where(eq(appointment.id, id))
+    .returning()
+  await audit.log({ action: 'cancel', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
-  return c.json({ success: true })
+  return c.json(updated)
 })
 
 export default app

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { event, eventSpace, eventMenuItem, eventTimeline, eventPayment, menuPackage, contact, company, user } from '../../db/schema.ts'
-import { eq, and, gte, lte, ne, or, ilike, desc, asc, inArray } from 'drizzle-orm'
+import { eq, and, gte, lte, ne, or, ilike, desc, asc, inArray, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -44,8 +44,14 @@ function eventValidationError(gc: any, gcf: any, start: any, end: any): string |
   return null
 }
 
-async function findClash(companyId: string, spaceId: string, eventDate: string, ignoreId?: string) {
-  const rows = await db.select().from(event)
+// Thrown inside the booking transaction so a detected clash rolls back the write and is answered as a
+// 409 after it unwinds. One advisory lock per business serialises the whole check-then-write, so two
+// coordinators holding the same space+date at the same instant can't both pass findClash. (space race)
+class SpaceClash extends Error { constructor(public payload: any) { super('space clash') } }
+const eventLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':event'}))`)
+
+async function findClash(companyId: string, spaceId: string, eventDate: string, ignoreId?: string, exec: any = db) {
+  const rows = await exec.select().from(event)
     .where(and(
       eq(event.companyId, companyId),
       eq(event.spaceId, spaceId),
@@ -168,32 +174,41 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (vErr) return c.json({ error: vErr }, 400)
 
   const status = body.status || 'enquiry'
-  if (body.spaceId && HELD.includes(status)) {
-    const clash = await findClash(currentUser.companyId, body.spaceId, body.eventDate)
-    if (clash) return c.json({ error: `That space is already held on ${body.eventDate} by "${clash.name}"`, conflictId: clash.id }, 409)
+  let created
+  try {
+    created = await db.transaction(async (tx: any) => {
+      await eventLock(tx, currentUser.companyId)
+      if (body.spaceId && HELD.includes(status)) {
+        const clash = await findClash(currentUser.companyId, body.spaceId, body.eventDate, undefined, tx)
+        if (clash) throw new SpaceClash({ error: `That space is already held on ${body.eventDate} by "${clash.name}"`, conflictId: clash.id })
+      }
+      const [row] = await tx.insert(event).values({
+        id: createId(),
+        contactId: body.contactId || null,
+        spaceId: body.spaceId || null,
+        coordinatorId: body.coordinatorId || null,
+        name: body.name.trim(),
+        eventType: body.eventType || 'private_dining',
+        status,
+        eventDate: body.eventDate,
+        startTime: body.startTime || null,
+        endTime: body.endTime || null,
+        guestCount: body.guestCount ?? null,
+        guestCountFinal: body.guestCountFinal ?? null,
+        quotedTotal: body.quotedTotal ?? null,
+        depositRequired: body.depositRequired ?? null,
+        source: body.source || null,
+        dietaryRequirements: body.dietaryRequirements || null,
+        setupNotes: body.setupNotes || null,
+        notes: body.notes || null,
+        companyId: currentUser.companyId,
+      }).returning()
+      return row
+    })
+  } catch (e: any) {
+    if (e instanceof SpaceClash) return c.json(e.payload, 409)
+    throw e
   }
-
-  const [created] = await db.insert(event).values({
-    id: createId(),
-    contactId: body.contactId || null,
-    spaceId: body.spaceId || null,
-    coordinatorId: body.coordinatorId || null,
-    name: body.name.trim(),
-    eventType: body.eventType || 'private_dining',
-    status,
-    eventDate: body.eventDate,
-    startTime: body.startTime || null,
-    endTime: body.endTime || null,
-    guestCount: body.guestCount ?? null,
-    guestCountFinal: body.guestCountFinal ?? null,
-    quotedTotal: body.quotedTotal ?? null,
-    depositRequired: body.depositRequired ?? null,
-    source: body.source || null,
-    dietaryRequirements: body.dietaryRequirements || null,
-    setupNotes: body.setupNotes || null,
-    notes: body.notes || null,
-    companyId: currentUser.companyId,
-  }).returning()
 
   await audit.log({ action: 'create', entity: 'event', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
@@ -236,12 +251,21 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const nextSpace = 'spaceId' in updates ? updates.spaceId : existing.spaceId
   const nextDate = updates.eventDate ?? existing.eventDate
   const nextStatus = 'status' in updates ? updates.status : existing.status
-  if (nextSpace && HELD.includes(nextStatus)) {
-    const clash = await findClash(currentUser.companyId, nextSpace, nextDate, id)
-    if (clash) return c.json({ error: `That space is already held on ${nextDate} by "${clash.name}"`, conflictId: clash.id }, 409)
+  let updated
+  try {
+    updated = await db.transaction(async (tx: any) => {
+      await eventLock(tx, currentUser.companyId)
+      if (nextSpace && HELD.includes(nextStatus)) {
+        const clash = await findClash(currentUser.companyId, nextSpace, nextDate, id, tx)
+        if (clash) throw new SpaceClash({ error: `That space is already held on ${nextDate} by "${clash.name}"`, conflictId: clash.id })
+      }
+      const [row] = await tx.update(event).set(updates).where(eq(event.id, id)).returning()
+      return row
+    })
+  } catch (e: any) {
+    if (e instanceof SpaceClash) return c.json(e.payload, 409)
+    throw e
   }
-
-  const [updated] = await db.update(event).set(updates).where(eq(event.id, id)).returning()
   await audit.log({ action: 'update', entity: 'event', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(updated)
