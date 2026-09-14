@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { repairOrder, contact, unit, salesLead, serviceSalesAlert, user } from '../../db/schema.ts'
+import { repairOrder, contact, unit, salesLead, serviceSalesAlert, user, invoice, invoiceLineItem } from '../../db/schema.ts'
 import { eq, and, count, desc, isNull } from 'drizzle-orm'
+import { nextNumber, calcTotals, round2 } from '../shared/index.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, emitToUser, EVENTS } from '../services/socket.ts'
@@ -101,6 +102,46 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   await audit.log({ action: 'update', entity: 'repair_order', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'repair_order' })
 
+  // Closing an RO bills it: create a linked invoice itemised from its services so the service
+  // department actually collects (before this, closing an RO produced no invoice at all). Idempotent —
+  // only the first close of an RO that has a customer creates one.
+  let billedInvoice: any = null
+  if (body.status === 'closed' && existing.status !== 'closed' && !existing.invoiceId && updated.customerId) {
+    const services: any[] = Array.isArray(updated.services) ? updated.services : []
+    let lines = services.map((s: any) => ({
+      description: String(s?.description || 'Service'),
+      quantity: 1,
+      unitPrice: round2((Number(s?.laborCost) || 0) + (Number(s?.partsCost) || 0)),
+    }))
+    const svcSubtotal = lines.reduce((n, l) => n + l.unitPrice, 0)
+    if (lines.length === 0 || svcSubtotal <= 0) {
+      const fallback = round2(Number(updated.actualTotal ?? updated.estimatedTotal ?? 0))
+      lines = [{ description: updated.roNumber ? `Repair Order ${updated.roNumber}` : 'Repair order', quantity: 1, unitPrice: fallback }]
+    }
+    const totals = calcTotals(lines, 0, 0)
+    try {
+      billedInvoice = await db.transaction(async (tx: any) => {
+        const number = await nextNumber(tx, invoice, invoice.number, invoice.companyId, currentUser.companyId, { prefix: 'INV', pad: 0, seed: 1000 })
+        const [inv] = await tx.insert(invoice).values({
+          number, status: 'sent', companyId: currentUser.companyId, contactId: updated.customerId,
+          subtotal: String(totals.subtotal), taxRate: '0', taxAmount: '0', discount: '0', total: String(totals.total),
+          dueDate: new Date(Date.now() + 30 * 86400000), sentAt: new Date(),
+          notes: updated.roNumber ? `Auto-generated from Repair Order ${updated.roNumber}` : 'Auto-generated from a repair order',
+        }).returning()
+        await tx.insert(invoiceLineItem).values(lines.map((l, i) => ({
+          invoiceId: inv.id, description: l.description, quantity: String(l.quantity),
+          unitPrice: String(l.unitPrice), total: String(round2(l.quantity * l.unitPrice)), sortOrder: i,
+        })))
+        await tx.update(repairOrder).set({ invoiceId: inv.id, updatedAt: new Date() }).where(eq(repairOrder.id, id))
+        return inv
+      })
+      emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'invoice' })
+    } catch (err) {
+      // Don't fail the close if billing hiccups; surface it in logs, RO is still closed.
+      console.error('RO auto-invoice failed', err)
+    }
+  }
+
   // Service status text: notify the customer on a customer-facing status change.
   if (body.status && body.status !== existing.status && RO_STATUS_TEXT[body.status] && updated.customerId) {
     try {
@@ -118,7 +159,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     } catch { /* never block the RO update on an SMS failure */ }
   }
 
-  return c.json(updated)
+  return c.json(billedInvoice ? { ...updated, invoiceId: billedInvoice.id, invoice: billedInvoice } : updated)
 })
 
 // POST /repair-orders/:id/check-in — THE SERVICE-TO-SALES BRIDGE
