@@ -43,12 +43,20 @@ async function resolveEnd(companyId: string, startTime: Date, serviceId: string 
   return new Date(startTime.getTime() + minutes * 60000)
 }
 
+// Thrown inside the booking transaction so a detected clash rolls back the insert/update and is
+// answered as a 409 (with conflictId) after the transaction unwinds. (SALON double-book race)
+class ApptConflict extends Error { constructor(public payload: any) { super('appointment conflict') } }
+// One mutex per business for the whole check-then-write: two staff saving the same chair/stylist slot
+// at the same instant are serialised, so the overlap scan an insert relies on can't be raced. Held only
+// for the few ms of the check + write, released at commit.
+const apptLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':appt'}))`)
+
 // A stylist can only be in one chair at a time. Overlap is start < otherEnd &&
 // end > otherStart; cancelled/no-show rows free the slot back up.
-async function findConflict(companyId: string, stylistId: string, start: Date, end: Date, ignoreId?: string) {
+async function findConflict(companyId: string, stylistId: string, start: Date, end: Date, ignoreId?: string, exec: any = db) {
   // Bound the scan to the surrounding day — a candidate overlap must start
   // before our end, and no salon service runs longer than 24h.
-  const rows = await db.select().from(appointment)
+  const rows = await exec.select().from(appointment)
     .where(and(
       eq(appointment.companyId, companyId),
       eq(appointment.stylistId, stylistId),
@@ -66,10 +74,10 @@ async function findConflict(companyId: string, stylistId: string, start: Date, e
 
 // A chair/room is a physical resource too: two clients booked into "Chair 2" at the same time is a
 // double-book even with no stylist assigned. Station names are compared trimmed + case-insensitive. (SALON-H10)
-async function findStationConflict(companyId: string, station: string, start: Date, end: Date, ignoreId?: string) {
+async function findStationConflict(companyId: string, station: string, start: Date, end: Date, ignoreId?: string, exec: any = db) {
   const wanted = station.trim().toLowerCase()
   if (!wanted) return undefined
-  const rows = await db.select().from(appointment)
+  const rows = await exec.select().from(appointment)
     .where(and(
       eq(appointment.companyId, companyId),
       lte(appointment.startTime, end),
@@ -179,28 +187,37 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (endTime.getTime() <= startTime.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
   if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return c.json({ error: 'An appointment cannot run longer than 12 hours.' }, 400)
 
-  if (body.stylistId) {
-    const clash = await findConflict(currentUser.companyId, body.stylistId, startTime, endTime)
-    if (clash) return c.json({ error: 'That stylist is already booked at this time', conflictId: clash.id }, 409)
+  let created
+  try {
+    created = await db.transaction(async (tx: any) => {
+      await apptLock(tx, currentUser.companyId)
+      if (body.stylistId) {
+        const clash = await findConflict(currentUser.companyId, body.stylistId, startTime, endTime, undefined, tx)
+        if (clash) throw new ApptConflict({ error: 'That stylist is already booked at this time', conflictId: clash.id })
+      }
+      if (body.station) {
+        const clash = await findStationConflict(currentUser.companyId, String(body.station), startTime, endTime, undefined, tx)
+        if (clash) throw new ApptConflict({ error: `${String(body.station).trim()} is already booked at this time`, conflictId: clash.id })
+      }
+      const [row] = await tx.insert(appointment).values({
+        id: createId(),
+        contactId: body.contactId || null,
+        stylistId: body.stylistId || null,
+        serviceId,
+        status: body.status || 'scheduled',
+        station: body.station || null,
+        startTime,
+        endTime,
+        quotedPrice: body.quotedPrice ?? null,
+        notes: body.notes || null,
+        companyId: currentUser.companyId,
+      }).returning()
+      return row
+    })
+  } catch (e: any) {
+    if (e instanceof ApptConflict) return c.json(e.payload, 409)
+    throw e
   }
-  if (body.station) {
-    const clash = await findStationConflict(currentUser.companyId, String(body.station), startTime, endTime)
-    if (clash) return c.json({ error: `${String(body.station).trim()} is already booked at this time`, conflictId: clash.id }, 409)
-  }
-
-  const [created] = await db.insert(appointment).values({
-    id: createId(),
-    contactId: body.contactId || null,
-    stylistId: body.stylistId || null,
-    serviceId,
-    status: body.status || 'scheduled',
-    station: body.station || null,
-    startTime,
-    endTime,
-    quotedPrice: body.quotedPrice ?? null,
-    notes: body.notes || null,
-    companyId: currentUser.companyId,
-  }).returning()
 
   await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
@@ -245,17 +262,26 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   if (nextEnd.getTime() <= nextStart.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
   if (nextEnd.getTime() - nextStart.getTime() > MAX_APPT_MS) return c.json({ error: 'An appointment cannot run longer than 12 hours.' }, 400)
 
-  if (nextStylist && !CANCELLED.includes(nextStatus)) {
-    const clash = await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id)
-    if (clash) return c.json({ error: 'That stylist is already booked at this time', conflictId: clash.id }, 409)
-  }
   const nextStation = 'station' in updates ? updates.station : existing.station
-  if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
-    const clash = await findStationConflict(currentUser.companyId, String(nextStation), nextStart, nextEnd, id)
-    if (clash) return c.json({ error: `${String(nextStation).trim()} is already booked at this time`, conflictId: clash.id }, 409)
+  let updated
+  try {
+    updated = await db.transaction(async (tx: any) => {
+      await apptLock(tx, currentUser.companyId)
+      if (nextStylist && !CANCELLED.includes(nextStatus)) {
+        const clash = await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx)
+        if (clash) throw new ApptConflict({ error: 'That stylist is already booked at this time', conflictId: clash.id })
+      }
+      if (nextStation && !CANCELLED.includes(nextStatus) && nextStatus !== 'completed') {
+        const clash = await findStationConflict(currentUser.companyId, String(nextStation), nextStart, nextEnd, id, tx)
+        if (clash) throw new ApptConflict({ error: `${String(nextStation).trim()} is already booked at this time`, conflictId: clash.id })
+      }
+      const [row] = await tx.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
+      return row
+    })
+  } catch (e: any) {
+    if (e instanceof ApptConflict) return c.json(e.payload, 409)
+    throw e
   }
-
-  const [updated] = await db.update(appointment).set(updates).where(eq(appointment.id, id)).returning()
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
   if (nextStatus !== existing.status) await syncOnlineBooking(id, nextStatus)

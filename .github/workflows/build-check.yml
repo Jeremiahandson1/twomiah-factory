@@ -87,3 +87,14 @@ jobs:
           bun-version: latest
       - name: A refunded deposit reopens the balance; a refund on a fully-paid invoice never creates one
         run: bun run scripts/check-money-model.ts
+
+  appointment-guards:
+    name: scheduling — double-book writes atomic, cancel keeps history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: salon/vet/restaurant conflict check+write is transactional and cancel is a soft status
+        run: bun run scripts/check-appointment-guards.ts
