@@ -3876,6 +3876,7 @@ export const repairOrder = pgTable('repair_order', {
   actualTotal: decimal('actual_total', { precision: 10, scale: 2 }),
   notes: text('notes'),
   completedAt: timestamp('completed_at'),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }), // set when the RO is closed → billed
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
