@@ -11,6 +11,17 @@ app.use('*', authenticate)
 
 const BILLING_MODES = ['per_push', 'per_event', 'per_inch', 'seasonal'] as const
 
+// A rate/decimal column, coerced for storage. Blank optional fields arrive from the form as '' — which
+// `?? default` does NOT catch, so it used to reach the numeric column verbatim and 500 the whole save
+// with no field named. Treat ''/whitespace/non-numeric/negative as the default; otherwise store the
+// number. A per_push contract legitimately leaves per_event/per_inch/seasonal/salt blank → they become 0.
+const rate = (v: unknown, dflt = '0'): string => {
+  const s = String(v ?? '').trim()
+  if (s === '') return dflt
+  const num = Number(s)
+  return Number.isFinite(num) && num >= 0 ? String(num) : dflt
+}
+
 interface ContractRates {
   billingMode: string
   perPushRate: string | number
@@ -68,12 +79,12 @@ app.post('/contracts', requirePermission('invoices:create'), async (c) => {
     siteId: String(body.siteId),
     contactId: body.contactId ?? null,
     billingMode,
-    perPushRate: String(body.perPushRate ?? '0'),
-    perEventRate: String(body.perEventRate ?? '0'),
-    perInchRate: String(body.perInchRate ?? '0'),
-    seasonalRate: String(body.seasonalRate ?? '0'),
-    triggerDepthInches: String(body.triggerDepthInches ?? '2'),
-    saltRate: String(body.saltRate ?? '0'),
+    perPushRate: rate(body.perPushRate),
+    perEventRate: rate(body.perEventRate),
+    perInchRate: rate(body.perInchRate),
+    seasonalRate: rate(body.seasonalRate),
+    triggerDepthInches: rate(body.triggerDepthInches, '2'),
+    saltRate: rate(body.saltRate),
     status: body.status ?? 'active',
     notes: body.notes ?? null,
   }).returning()
@@ -87,7 +98,7 @@ app.put('/contracts/:id', requirePermission('invoices:update'), async (c) => {
   const body = await c.req.json()
   const patch: Record<string, unknown> = { updatedAt: new Date() }
   for (const k of ['perPushRate', 'perEventRate', 'perInchRate', 'seasonalRate', 'triggerDepthInches', 'saltRate']) {
-    if (body[k] != null) patch[k] = String(body[k])
+    if (body[k] !== undefined) patch[k] = rate(body[k], k === 'triggerDepthInches' ? '2' : '0')
   }
   if (body.billingMode && BILLING_MODES.includes(body.billingMode)) patch.billingMode = body.billingMode
   if (body.status) patch.status = body.status
