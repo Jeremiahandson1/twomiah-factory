@@ -11,7 +11,18 @@ const BASE_STATUSES = ['draft', 'sent', 'partial', 'paid', 'overdue', 'refunded'
 const blankLine = (): LineItemInput => ({ description: '', quantity: 1, unitPrice: 0 })
 
 const netPaid = (r: Row) => Number(r.amountPaid || 0) - Number(r.amountRefunded || 0)
-const balanceOf = (r: Row) => (['void', 'refunded'].includes(r.status) ? 0 : Math.max(0, Number(r.total) - Number(r.amountPaid || 0)))
+// What the customer still owes. Prefer the server's `balance` — it already nets refunds and applies the
+// void / fully-paid / fully-returned rules (see invoiceBalance on the backend), so the list matches the
+// detail page to the cent. Fall back to the SAME rule locally for a row not yet refetched from the API.
+// The old form (total − amountPaid) ignored refunds, so a refunded deposit read short in the list only.
+const balanceOf = (r: Row) => {
+  if (r.balance != null && r.balance !== '') return Math.max(0, Number(r.balance) || 0)
+  const total = Number(r.total) || 0, paid = Number(r.amountPaid || 0), refunded = Number(r.amountRefunded || 0)
+  if (r.status === 'void') return 0
+  if (total > 0 && refunded >= total - 0.005) return 0
+  if (paid >= total - 0.005) return 0
+  return Math.max(0, total - (paid - refunded))
+}
 
 export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProps) {
   const cfg = resolveConfig(config)
