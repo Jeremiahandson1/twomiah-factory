@@ -58,11 +58,20 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   }
 
   const saveCompany = async () => {
+    // Billing defaults live in company.settings (used by quotes/invoices). (Wrench QA W-5 / W-8)
+    const { defaultTaxRate, paymentTermsDays, ...fields } = form
+    // Validate and REFUSE bad money input — don't silently clamp it to a default. Clamping turned a typo
+    // like -5 into 0 (Math.max(0, …)) and saved it with a success toast, quietly destroying the stored
+    // 7.5% rate / net-30 terms (FS + RV tax-rate finding). Blank = the sensible default (no tax / net 30).
+    const taxRaw = String(defaultTaxRate).trim()
+    const taxNum = taxRaw === '' ? 0 : Number(taxRaw)
+    if (!Number.isFinite(taxNum) || taxNum < 0 || taxNum > 100) { toast.error('Enter a sales tax rate between 0 and 100 (leave blank for none).'); return }
+    const termsRaw = String(paymentTermsDays).trim()
+    const termsNum = termsRaw === '' ? 30 : Number(termsRaw)
+    if (!Number.isFinite(termsNum) || !Number.isInteger(termsNum) || termsNum < 0 || termsNum > 365) { toast.error('Payment terms must be a whole number of days between 0 and 365.'); return }
     setSaving(true)
     try {
-      // Billing defaults live in company.settings (used by quotes/invoices). (Wrench QA W-5 / W-8)
-      const { defaultTaxRate, paymentTermsDays, ...fields } = form
-      const settings = { ...(company?.settings || {}), defaultTaxRate: Math.min(100, Math.max(0, Number(defaultTaxRate) || 0)), paymentTermsDays: Math.max(0, Math.floor(Number(paymentTermsDays))) || 30 }
+      const settings = { ...(company?.settings || {}), defaultTaxRate: taxNum, paymentTermsDays: termsNum }
       const payload: any = { ...fields, settings }
       if (!showLicense) delete payload.licenseNumber
       const updated = await api.put('/api/company', payload)

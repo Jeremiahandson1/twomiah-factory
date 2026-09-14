@@ -153,3 +153,14 @@ jobs:
           bun-version: latest
       - name: /slots must step by the advertised grid and honour the booking window
         run: bun run scripts/check-booking-availability.ts
+
+  settings-money-validation:
+    name: Settings tax/terms are validated, not silently clamped
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: a bad tax rate / term must be refused, never coerced to a default that wipes the stored value
+        run: bun run scripts/check-settings-money-validation.ts
