@@ -55,7 +55,12 @@ export function createCompanyRoutes(deps: CompanyDeps) {
   app.put('/', requireAdmin, async (c) => {
     const currentUser = c.get('user') as any
     const schema = z.object({
-      name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(),
+      name: z.string().trim().min(2, 'Company name must be at least 2 characters.').optional(),
+      email: z.string().email().optional(),
+      // A phone is optional, but if given it must read like one — 7–15 digits (formatting chars allowed).
+      // "abcdefghij" and other junk used to save and then print on every invoice.
+      phone: z.string().trim().optional().refine(v => !v || (v.replace(/\D/g, '').length >= 7 && v.replace(/\D/g, '').length <= 15), 'Enter a valid phone number (7–15 digits).'),
+      address: z.string().optional(),
       city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(),
       website: z.string().optional(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional(),
     })
