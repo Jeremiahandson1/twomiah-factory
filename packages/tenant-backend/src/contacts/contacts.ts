@@ -14,7 +14,7 @@
 //   - portal tokens are never returned, on any route (list/get already stripped; create/update leaked)
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
+import { eq, ne, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 
 export const DEFAULT_CONTACT_TYPES = ['lead', 'client', 'subcontractor', 'vendor']
 
@@ -313,9 +313,32 @@ export function createContactRoutes(deps: ContactDeps) {
   app.put('/:id', requirePermission('contacts:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
-    const data = contactSchema.partial().parse(normaliseBody(await c.req.json()))
+    const body = normaliseBody(await c.req.json())
+    const data = contactSchema.partial().parse(body)
     const existing = await findOwned(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Contact not found' }, 404)
+
+    // Same duplicate guard as create, but scoped to the fields THIS edit changes and excluding this record —
+    // editing a contact's email/phone to one another contact already owns was allowed (the guard was create-only).
+    if (duplicateCheck && !body.allowDuplicate) {
+      const conds: any[] = []
+      if (data.email !== undefined && data.email) conds.push(sql`lower(${t.contact.email}) = ${data.email}`)
+      const phones = [data.phone, data.mobile]
+        .filter((p: unknown) => p !== undefined)
+        .map((p: unknown) => String(p || '').replace(/\D/g, ''))
+        .filter((p: string) => p.length >= 7)
+        .map((p: string) => '%' + p.slice(-10))
+      for (const p of phones) {
+        conds.push(sql`regexp_replace(coalesce(${t.contact.phone}, ''), '\\D', '', 'g') like ${p}`)
+        conds.push(sql`regexp_replace(coalesce(${t.contact.mobile}, ''), '\\D', '', 'g') like ${p}`)
+      }
+      if (conds.length) {
+        const [dupe] = await db.select({ id: t.contact.id, name: t.contact.name }).from(t.contact)
+          .where(and(eq(t.contact.companyId, currentUser.companyId), ne(t.contact.id, id), or(...conds))).limit(1)
+        if (dupe) return c.json({ error: `${dupe.name} already has this email or phone number. Open that record, or save anyway.`, existingId: dupe.id, duplicate: true }, 409)
+      }
+    }
+
     const [updated] = await db.update(t.contact).set({ ...data, updatedAt: new Date() }).where(eq(t.contact.id, id)).returning()
     const safe = stripPortal(updated)
     emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safe)

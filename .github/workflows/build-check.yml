@@ -208,3 +208,14 @@ jobs:
           bun-version: latest
       - name: due >= issue on both paths; issue date settable; no today-based guard
         run: bun run scripts/check-invoice-datewindow.ts
+
+  contact-dup-update:
+    name: Contact duplicate check runs on update too
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: editing email/phone to another contact's is caught (excluding self)
+        run: bun run scripts/check-contact-dup-update.ts
