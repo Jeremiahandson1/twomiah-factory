@@ -194,7 +194,7 @@ export default function EventDetailPage() {
             >
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50">Edit</button>
+            <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">Edit</button>
             <button
               onClick={() => openPrintable(`/api/events/${ev.id}/beo`)}
               className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm"
@@ -255,7 +255,7 @@ export default function EventDetailPage() {
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.menuTotal)}</p>
             {heads > 0 && <p className="text-xs text-gray-400">{money2(Number(totals.menuTotal || 0) / heads)} / head</p>}
           </div>
-          <div className={`border rounded-lg p-3 ${Number(totals.outstanding || 0) > 0 ? 'bg-amber-50 border-amber-200' : ''}`}>
+          <div className={`border rounded-lg p-3 ${Number(totals.outstanding || 0) > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-700' : ''}`}>
             <p className="text-xs text-gray-400 uppercase">Outstanding</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.outstanding)}</p>
             <p className="text-xs text-gray-400">{money2(totals.paid)} paid</p>
