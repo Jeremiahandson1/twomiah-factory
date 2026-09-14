@@ -31,12 +31,16 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   if (loading) return <div className="p-8 text-gray-500 dark:text-slate-400">Loading…</div>
   if (error || !invoice) return <div className="p-8 text-center"><p className="text-red-600 mb-3">{error || 'Invoice not found'}</p><Button variant="secondary" onClick={load}>Retry</Button></div>
 
-  // Net of refunds (professional model): what's still owed is total − money actually kept (paid −
-  // refunded), so a refunded deposit reopens the balance. Only a void or fully-returned sale is closed.
-  const netPaid = Number(invoice.amountPaid || 0) - Number(invoice.amountRefunded || 0)
+  // Refund model, both halves (mirrors invoiceBalance in invoicing/money.ts): a refunded DEPOSIT on a
+  // not-fully-paid invoice reopens the balance; a refund on a FULLY-PAID invoice is a return/goodwill and
+  // never creates one. Only void or a fully-returned sale is closed.
+  const total = Number(invoice.total) || 0
+  const paidGross = Number(invoice.amountPaid || 0)
+  const netPaid = paidGross - Number(invoice.amountRefunded || 0)
   const closed = invoice.status === 'void' || invoice.status === 'refunded'
-  const balance = closed ? 0 : Math.max(0, Number(invoice.total) - netPaid)
-  const credit = closed ? 0 : Math.max(0, netPaid - Number(invoice.total))
+  const fullyPaid = paidGross >= total - 0.005
+  const balance = closed || fullyPaid ? 0 : Math.max(0, total - netPaid)
+  const credit = closed ? 0 : Math.max(0, netPaid - total)
   const overdue = balance > 0 && !!invoice.dueDate && isPastDay(invoice.dueDate) && !['draft'].includes(invoice.status)
 
   const run = async (fn: () => Promise<unknown>, ok: string, fail: string) => { setBusy(true); try { await fn(); toast.success(ok); await load(); return true } catch (e) { toast.error(errMsg(e, fail)); return false } finally { setBusy(false) } }

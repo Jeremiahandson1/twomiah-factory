@@ -76,9 +76,9 @@ export function createReportingService(deps: ReportingDeps) {
       .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
       .where(and(eq(t.invoice.companyId, companyId), ...inRange(t.payment.paidAt, range)))
     // Balances are a point-in-time figure — what is owed right now, whatever the period picker says.
-    const [out] = await db.select({ total: sql<string>`coalesce(sum(greatest(${t.invoice.total}::numeric - ${t.invoice.amountPaid}::numeric, 0)), 0)`, count: count() })
+    const [out] = await db.select({ total: sql<string>`coalesce(sum(CASE WHEN ${t.invoice.amountPaid}::numeric >= ${t.invoice.total}::numeric THEN 0 ELSE greatest(${t.invoice.total}::numeric - (${t.invoice.amountPaid}::numeric - COALESCE(${t.invoice.amountRefunded}::numeric, 0)), 0) END), 0)`, count: count() })
       .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), isOpen))
-    const [over] = await db.select({ total: sql<string>`coalesce(sum(greatest(${t.invoice.total}::numeric - ${t.invoice.amountPaid}::numeric, 0)), 0)`, count: count() })
+    const [over] = await db.select({ total: sql<string>`coalesce(sum(CASE WHEN ${t.invoice.amountPaid}::numeric >= ${t.invoice.total}::numeric THEN 0 ELSE greatest(${t.invoice.total}::numeric - (${t.invoice.amountPaid}::numeric - COALESCE(${t.invoice.amountRefunded}::numeric, 0)), 0) END), 0)`, count: count() })
       .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), isOpen, isNotNull(t.invoice.dueDate), lt(t.invoice.dueDate, new Date())))
     const invoiced = r2(num(inv.total)), collected = r2(num(col.total))
     return {

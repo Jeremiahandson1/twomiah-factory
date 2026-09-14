@@ -3,6 +3,7 @@
 // built on their own tables; this is the one the three job-based CRMs used to carry as identical copies.
 import { Hono } from 'hono'
 import { eq, and, gte, lt, count, desc, inArray, sql } from 'drizzle-orm'
+import { invoiceBalance } from '../invoicing/money'
 
 export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any }
 export interface JobsDashboardDeps {
@@ -38,7 +39,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       safe(() => db.select({ value: count() }).from(t.job)
         .where(and(eq(t.job.companyId, companyId), eq(t.job.status, 'completed'), gte(t.job.completedAt, today), lt(t.job.completedAt, tomorrow))), [{ value: 0 }]),
       safe(() => db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(eq(t.quote.companyId, companyId)), [] as any[]),
-      safe(() => db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, companyId)), [] as any[]),
+      safe(() => db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, companyId)), [] as any[]),
     ])
 
     const byStatus = (rows: any[]) => Object.fromEntries(rows.map(r => [r.status, Number(r.c)]))
@@ -63,7 +64,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       invoiceStats.totalValue = r2(invoiceStats.totalValue + num(inv.total))
       if (inv.status === 'paid') { invoiceStats.paid++; continue }
       if (open.includes(inv.status)) {
-        const balance = Math.max(0, num(inv.total) - num(inv.amountPaid))
+        const balance = invoiceBalance(inv)
         invoiceStats.outstanding++
         invoiceStats.outstandingValue = r2(invoiceStats.outstandingValue + balance)
         if (inv.dueDate && new Date(inv.dueDate) < now) { invoiceStats.overdue++; invoiceStats.overdueValue = r2(invoiceStats.overdueValue + balance) }
@@ -94,7 +95,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
         .from(t.job).where(eq(t.job.companyId, companyId)).orderBy(desc(t.job.updatedAt)).limit(5), [] as any[]),
       safe(() => db.select({ id: t.quote.id, number: t.quote.number, name: t.quote.name, status: t.quote.status, total: t.quote.total, updatedAt: t.quote.updatedAt })
         .from(t.quote).where(eq(t.quote.companyId, companyId)).orderBy(desc(t.quote.updatedAt)).limit(5), [] as any[]),
-      safe(() => db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, dueDate: t.invoice.dueDate, updatedAt: t.invoice.updatedAt })
+      safe(() => db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, updatedAt: t.invoice.updatedAt })
         .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), sql`${t.invoice.status} <> 'draft'`)).orderBy(desc(t.invoice.updatedAt)).limit(5), [] as any[]),
     ])
     const now = new Date()
@@ -102,7 +103,7 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       recentJobs,
       recentQuotes,
       recentInvoices: recentInvoices.map((inv: any) => {
-        const balance = ISSUED.includes(inv.status) ? 0 : Math.max(0, num(inv.total) - num(inv.amountPaid))
+        const balance = ISSUED.includes(inv.status) ? 0 : invoiceBalance(inv)
         const status = open.includes(inv.status) && inv.dueDate && new Date(inv.dueDate) < now ? 'overdue' : inv.status
         return { ...inv, balance: r2(balance), status }
       }),
