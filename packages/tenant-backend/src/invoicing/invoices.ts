@@ -25,8 +25,6 @@ export interface InvoiceOptions {
   numbering?: NumberingOptions
   /** payment.tipAmount exists and gratuity is recorded on payments (salon). */
   tips?: boolean
-  /** Refuse a due date earlier than today on create (RV H-07). */
-  rejectPastDueOnCreate?: boolean
   /** Require at least this many line items on create (landscaping used 1). */
   minLineItems?: number
   /** Maximum page size for the list. */
@@ -57,6 +55,9 @@ const invoiceSchema = z.object({
   projectId: optionalId,
   // '' and null clear the date; the route validates the string (a blank used to reach Postgres as '' → 500)
   dueDate: z.union([z.string(), z.null()]).optional(),
+  // Issue date is settable (defaults to today) so historical / backdated invoices can be entered; it is
+  // never null (the column is notNull).
+  issueDate: z.string().optional(),
   taxRate: z.number().min(0).max(100).optional(),
   discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
@@ -207,14 +208,22 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const due = normalizeDateInput(data.dueDate)
     if (due.error) return c.json({ error: `Due date: ${due.error}` }, 400)
     const dueDate = due.value ?? dueDateFromTerms(settings)
-    if (deps.options?.rejectPastDueOnCreate && due.value) { const today = new Date(); today.setHours(0, 0, 0, 0); if (due.value < today) return c.json({ error: 'Due date cannot be before the issue date' }, 400) }
+    // Issue date defaults to today but is settable, so backdated / migrated invoices can be entered.
+    const issue = normalizeDateInput(data.issueDate)
+    if (issue.error) return c.json({ error: `Issue date: ${issue.error}` }, 400)
+    const issueDate = issue.value ?? new Date()
+    // A due date before the ISSUE date is always invalid — that is what the old rejectPastDueOnCreate guard
+    // meant, but it compared against TODAY, so it wrongly rejected a legitimately overdue/backdated invoice
+    // and accepted a genuinely backwards one (whose issue date it had silently stamped to today). Compare the
+    // two dates the invoice actually carries. (RV due-date guard.)
+    if (dueDate < issueDate) return c.json({ error: 'Due date cannot be before the issue date.' }, 400)
 
     const { lineItems, ...rest } = data
     const result = await db.transaction(async (tx: any) => {
       const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, cid, numbering)
       const [created] = await tx.insert(t.invoice).values({
         contactId: rest.contactId, projectId: rest.projectId, notes: rest.notes, terms: rest.terms,
-        number, companyId: cid, dueDate,
+        number, companyId: cid, dueDate, issueDate,
         subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(),
         discount: totals.effectiveDiscount.toString(), total: totals.total.toString(), amountPaid: '0',
       }).returning()
@@ -239,6 +248,13 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
     const due = normalizeDateInput(data.dueDate)
     if (due.error) return c.json({ error: `Due date: ${due.error}` }, 400)
+    const issue = normalizeDateInput(data.issueDate)
+    if (issue.error) return c.json({ error: `Issue date: ${issue.error}` }, 400)
+    // Enforce due >= issue on edit too (PUT skipped the guard). Compare the dates the invoice WILL carry:
+    // whichever of issue/due this edit changes, falling back to the stored value.
+    const effIssue = issue.value ?? (existing.issueDate ? new Date(existing.issueDate as any) : null)
+    const effDue = due.value !== undefined ? due.value : (existing.dueDate ? new Date(existing.dueDate as any) : null)
+    if (effDue && effIssue && effDue < effIssue) return c.json({ error: 'Due date cannot be before the issue date.' }, 400)
 
     // Totals are recomputed whenever anything that feeds them changes — lines, tax rate or discount.
     // (Changing only the tax rate used to leave the stored total at the old rate.)
@@ -251,6 +267,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const update: Record<string, any> = { updatedAt: new Date() }
     for (const k of ['contactId', 'projectId', 'notes', 'terms'] as const) if (data[k] !== undefined) update[k] = data[k]
     if (due.value !== undefined) update.dueDate = due.value
+    if (issue.value != null) update.issueDate = issue.value
     if (recompute && lines) {
       const taxRate = data.taxRate ?? Number(existing.taxRate)
       const discount = data.discount ?? Number(existing.discount)

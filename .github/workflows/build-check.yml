@@ -197,3 +197,14 @@ jobs:
           bun-version: latest
       - name: quantity + unit price must clamp at the input so display == payload
         run: bun run scripts/check-lineitem-nonneg.ts
+
+  invoice-datewindow:
+    name: Invoice due date validated vs issue date (create + update)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: due >= issue on both paths; issue date settable; no today-based guard
+        run: bun run scripts/check-invoice-datewindow.ts

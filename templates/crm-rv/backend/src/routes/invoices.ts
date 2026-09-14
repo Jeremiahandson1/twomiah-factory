@@ -18,5 +18,5 @@ export default createInvoiceRoutes({
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
-  options: { numbering: { prefix: 'INV', pad: 0, seed: 1000 }, rejectPastDueOnCreate: true },
+  options: { numbering: { prefix: 'INV', pad: 0, seed: 1000 } },
 })
