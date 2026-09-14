@@ -26,13 +26,46 @@ export const rawSubtotal = (items: LineInput[]) => round2(items.reduce((s, i) =>
 /** Statuses that mean "billed and still collectable". 'open' is a salon in-chair sale (owed, never emailed). */
 export const DEFAULT_OPEN_STATUSES = ['sent', 'open', 'viewed', 'partial']
 
+// ── Refund model (the professional / QuickBooks / Stripe convention) ─────────────────────────────
+// amountPaid and amountRefunded are both GROSS ledgers. What the customer still owes is the total
+// minus the money you actually KEPT (paid − refunded). A refund therefore returns money AND the
+// invoice's total stays owed — so refunding a *deposit* correctly reopens the balance, while a sale
+// that is refunded *in full* (refunded ≥ total) is a closed return and owes nothing. "Customer backed
+// out" is a void; "give money back without reopening" is a credit/price reduction (lower the total).
+export const netCollected = (inv: { amountPaid: any; amountRefunded?: any }) =>
+  round2(Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
+
+/** What the customer still owes. Void or fully-returned (refunded ≥ total) → 0; else total − net, floored. */
+export function invoiceBalance(inv: { status?: string; total: any; amountPaid: any; amountRefunded?: any }): number {
+  if (inv.status === 'void') return 0
+  const total = Number(inv.total) || 0
+  if (round2(Number(inv.amountRefunded || 0)) >= total - 0.005 && total > 0) return 0
+  return round2(Math.max(0, total - netCollected(inv)))
+}
+
+/**
+ * Stored status after a payment or refund. 'refunded' is terminal and means the WHOLE invoice value
+ * was returned — not merely that all collected money went back (a returned deposit still owes for the
+ * work, so it drops back to 'sent'). Never overrides void or draft.
+ */
+export function recomputeStatus(inv: { total: any; amountPaid: any; amountRefunded?: any }, prevStatus: string, openFallback = 'sent'): string {
+  if (prevStatus === 'void' || prevStatus === 'draft') return prevStatus
+  const total = Number(inv.total) || 0
+  const refunded = round2(Number(inv.amountRefunded || 0))
+  const net = netCollected(inv)
+  if (total > 0 && refunded >= total - 0.005) return 'refunded' // the whole sale was returned
+  if (net >= total - 0.005 && total > 0) return 'paid'
+  if (net > 0.005) return 'partial'
+  return openFallback // nothing (net) collected — billed and owed again
+}
+
 /**
  * "Overdue" is derived, never stored: billed, not fully paid, past its due date. Computed at read
  * time so the list, the stats, the dashboard and Reports agree without a job flipping statuses.
  */
-export function isOverdue(inv: { status: string; dueDate: Date | string | null; total: any; amountPaid: any }, openStatuses: string[] = DEFAULT_OPEN_STATUSES): boolean {
+export function isOverdue(inv: { status: string; dueDate: Date | string | null; total: any; amountPaid: any; amountRefunded?: any }, openStatuses: string[] = DEFAULT_OPEN_STATUSES): boolean {
   if (!openStatuses.includes(inv.status) || !inv.dueDate) return false
-  if (Number(inv.total) - Number(inv.amountPaid) <= 0.005) return false
+  if (invoiceBalance(inv) <= 0.005) return false
   return new Date(inv.dueDate as any) < new Date()
 }
 export const deriveStatus = (inv: any, openStatuses: string[] = DEFAULT_OPEN_STATUSES) => (isOverdue(inv, openStatuses) ? 'overdue' : inv.status)

@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, notInArray } from 'drizzle-orm'
-import { nextNumber } from '../invoicing/money'
+import { nextNumber, invoiceBalance } from '../invoicing/money'
 
 export interface PortalTables {
   contact: any; company: any; user: any
@@ -231,7 +231,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       : [{ value: 0 }]
     const [quoteCount] = await db.select({ value: count() }).from(t.quote).where(and(eq(t.quote.contactId, contact.id), inArray(t.quote.status, QUOTE_RESPONDABLE)))
     const [invoiceCount] = await db.select({ value: count() }).from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN)))
-    const [balance] = await db.select({ total: sql<string>`COALESCE(SUM(${t.invoice.total} - ${t.invoice.amountPaid}), 0)` }).from(t.invoice)
+    const [balance] = await db.select({ total: sql<string>`COALESCE(SUM(GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0)))), 0)` }).from(t.invoice)
       .where(and(eq(t.invoice.contactId, contact.id), inArray(t.invoice.status, ['sent', 'open', 'viewed', 'partial', 'overdue'])))
     return c.json({
       contact: { name: contact.name, email: contact.email, type: contact.type || 'client' },
@@ -362,10 +362,10 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   app.get('/p/:token/invoices', portalAuth, async (c) => {
     const { contact } = P(c)
-    // Balance mirrors the invoicing module: a void or fully-refunded sale owes nothing (the customer
-    // saw a "$60 owed" on a refunded invoice while the owner side showed it closed — they disagreed,
-    // and the panel's own lines didn't sum). amountPaid is gross, so a partial refund never reopens it.
-    const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, balance: sql<string>`CASE WHEN ${t.invoice.status} IN ('void','refunded') THEN 0 ELSE GREATEST(0, ${t.invoice.total} - ${t.invoice.amountPaid}) END`, dueDate: t.invoice.dueDate, createdAt: t.invoice.createdAt })
+    // Balance mirrors the invoicing module (net of refunds): void or a fully-returned sale (refunded ≥
+    // total) owes nothing; otherwise total − money actually kept (paid − refunded). A refunded *deposit*
+    // therefore reopens the balance, matching the owner side to the cent.
+    const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, balance: sql<string>`CASE WHEN ${t.invoice.status} = 'void' OR COALESCE(${t.invoice.amountRefunded}, 0) >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END`, dueDate: t.invoice.dueDate, createdAt: t.invoice.createdAt })
       .from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN))).orderBy(desc(t.invoice.createdAt))
     return c.json(rows)
   })
@@ -381,7 +381,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const [p] = await db.select({ name: t.project.name, number: t.project.number }).from(t.project).where(eq(t.project.id, found.projectId)).limit(1)
       projectInfo = p || null
     }
-    const balance = ['void', 'refunded'].includes(found.status) ? 0 : Math.max(0, Number(found.total) - Number(found.amountPaid))
+    const balance = invoiceBalance(found)
     return c.json({ ...found, balance, lineItems, payments, project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone, address: company.address } })
   })
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, async (c) => {

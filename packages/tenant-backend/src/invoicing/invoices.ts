@@ -6,7 +6,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
-import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, deriveStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 
 export interface InvoiceTables {
   invoice: any
@@ -126,7 +126,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const lineItemMap: Record<string, any[]> = {}; lineItems.forEach((li: any) => { (lineItemMap[li.invoiceId] ||= []).push(li) })
     const paymentMap: Record<string, any[]> = {}; payments.forEach((p: any) => { (paymentMap[p.invoiceId] ||= []).push(p) })
 
-    const rows = data.map((inv: any) => ({ ...inv, status: derive(inv), contact: inv.contactId ? contactMap[inv.contactId] || null : null, lineItems: lineItemMap[inv.id] || [], payments: paymentMap[inv.id] || [] }))
+    const rows = data.map((inv: any) => ({ ...inv, status: derive(inv), balance: invoiceBalance(inv), contact: inv.contactId ? contactMap[inv.contactId] || null : null, lineItems: lineItemMap[inv.id] || [], payments: paymentMap[inv.id] || [] }))
     return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
@@ -144,7 +144,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       stats[s] = (stats[s] || 0) + 1
       if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') {
         stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
-        stats.outstanding = round2(stats.outstanding + Math.max(0, Number(inv.total) - Number(inv.amountPaid)))
+        stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
       }
       if (inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
     }
@@ -165,7 +165,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       db.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder)),
       db.select().from(t.payment).where(eq(t.payment.invoiceId, id)).orderBy(desc(t.payment.paidAt)),
     ])
-    const balance = ['void', 'refunded'].includes(found.status) ? 0 : round2(Math.max(0, Number(found.total) - Number(found.amountPaid || 0)))
+    const balance = invoiceBalance(found)
     return c.json({ ...found, status: derive(found), balance, contact: ct[0] || null, project: pr[0] || null, quote: qt[0] || null, lineItems, payments })
   })
 
@@ -290,7 +290,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     }
     if (!recipientEmail) return c.json({ error: 'This invoice has no contact email address to send to. Add an email to the contact first.' }, 400)
     const [co] = await db.select().from(t.company).where(eq(t.company.id, cid)).limit(1)
-    const balance = round2(Math.max(0, Number(found.total) - Number(found.amountPaid || 0)))
+    const balance = invoiceBalance(found)
     try {
       await sendInvoiceEmail(recipientEmail, {
         invoiceNumber: found.number, companyName: co?.name || 'Your provider', companyEmail: co?.email || '', contactName,
@@ -326,15 +326,16 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
       if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void and cannot take payments.' } }; return }
       if (row.status === 'refunded') { outcome = { status: 400, body: { error: 'This sale was refunded. Start a new invoice to charge the client again.' } }; return }
-      const balanceDue = round2(Number(row.total) - Number(row.amount_paid))
+      // Owed is net of refunds: if a deposit was refunded the balance reopened, and a payment may cover it.
+      const balanceDue = invoiceBalance({ status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded })
       if (amount > balanceDue + 0.005) { outcome = { status: 400, body: { error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` } }; return }
       const values: any = { invoiceId: id, amount: amount.toString(), method: data.method, reference: data.reference, notes: data.notes }
       if (tips) values.tipAmount = tipAmount.toString()
       const [newPayment] = await tx.insert(t.payment).values(values).returning()
       const newAmountPaid = round2(Number(row.amount_paid) + amount)
-      const newBalance = round2(Number(row.total) - newAmountPaid)
+      const newBalance = invoiceBalance({ status: row.status, total: row.total, amountPaid: newAmountPaid, amountRefunded: row.amount_refunded })
       // A draft may take a payment (a walk-in pays at the desk before anything is emailed); the payment issues it.
-      const newStatus = newBalance <= 0.005 ? 'paid' : newAmountPaid > 0 ? 'partial' : row.status
+      const newStatus = recomputeStatus({ total: row.total, amountPaid: newAmountPaid, amountRefunded: row.amount_refunded }, row.status === 'draft' ? 'sent' : row.status)
       await tx.update(t.invoice).set({ amountPaid: newAmountPaid.toString(), status: newStatus, paidAt: newBalance <= 0.005 ? new Date() : null, updatedAt: new Date() }).where(eq(t.invoice.id, id))
       outcome = { status: 201, body: newPayment, row, newBalance, newStatus }
     })
@@ -395,7 +396,10 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       const method = data.method || last?.method || 'other'
       const [refund] = await tx.insert(t.payment).values({ invoiceId: id, amount: (-amount).toString(), method, reference: data.reference || null, notes: data.notes || 'Refund' }).returning()
       const newRefunded = round2(refunded + amount)
-      const newStatus = newRefunded >= paid - 0.005 ? 'refunded' : row.status
+      // 'refunded' (closed, $0 owed) only when the WHOLE sale is returned (refunded ≥ total). Refunding a
+      // deposit (refunded ≥ paid but < total) reopens the balance — the work is still owed — so the invoice
+      // drops back to its billed state, not 'refunded'. (professional refund model)
+      const newStatus = recomputeStatus({ total: row.total, amountPaid: row.amount_paid, amountRefunded: newRefunded }, row.status)
       const [updated] = await tx.update(t.invoice).set({ amountRefunded: newRefunded.toString(), status: newStatus, updatedAt: new Date() }).where(eq(t.invoice.id, id)).returning()
       outcome = { status: 200, body: { refund, invoice: updated } }
     })
