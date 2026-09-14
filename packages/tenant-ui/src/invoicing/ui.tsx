@@ -252,8 +252,8 @@ export function LineItemsEditor({ items, onChange }: { items: { description: str
           {items.map((li, i) => (
             <tr key={i}>
               <td className="px-3 py-2"><input value={li.description} onChange={e => update(i, { description: e.target.value })} placeholder="Description" className={inputCls} /></td>
-              <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={li.quantity} onChange={e => update(i, { quantity: Number(e.target.value) })} className={inputCls} /></td>
-              <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={li.unitPrice} onChange={e => update(i, { unitPrice: Number(e.target.value) })} className={inputCls} /></td>
+              <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={li.quantity} onChange={e => update(i, { quantity: Math.max(0, Number(e.target.value) || 0) })} className={inputCls} /></td>
+              <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={li.unitPrice} onChange={e => update(i, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} className={inputCls} /></td>
               <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
               <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700" aria-label="Remove line"><X className="w-4 h-4" /></button></td>
             </tr>

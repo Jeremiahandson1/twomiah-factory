@@ -186,3 +186,14 @@ jobs:
           bun-version: latest
       - name: status is a bounded enum and scheduledTime is HH:MM
         run: bun run scripts/check-jobs-input.ts
+
+  lineitem-nonneg:
+    name: Line-item quantity/price clamp to >= 0
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: quantity + unit price must clamp at the input so display == payload
+        run: bun run scripts/check-lineitem-nonneg.ts
