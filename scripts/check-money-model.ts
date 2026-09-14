@@ -76,6 +76,17 @@ structural.push(
   [/amountRefunded/.test(balanceOfBody), 'InvoicesPage balanceOf fallback must net refunds (reference amountRefunded)'],
 )
 
+// Void must refuse a refunded invoice. Void guards by NET money (amountPaid − amountRefunded), so a
+// fully-refunded invoice nets 0 and once slipped through — refiling a real, reversed sale as "never
+// issued" and skewing the refunded/void counts (contractor M24). 'refunded' is terminal for every other
+// mutation (edit/send/payment); the void handler must reject it too, before the net-money check.
+const invRouteSrc = readFileSync(new URL('../packages/tenant-backend/src/invoicing/invoices.ts', import.meta.url), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+const voidBody = (invRouteSrc.match(/\/:id\/void'[\s\S]{0,900}?\/:id\/refund'/) || invRouteSrc.match(/\/:id\/void'[\s\S]{0,900}/) || [''])[0]
+structural.push(
+  [/status === 'refunded'/.test(voidBody), "the void handler must reject a 'refunded' invoice (a reversed sale can't be voided)"],
+)
+
 let sFail = 0
 for (const [ok, msg] of structural) { if (!ok) { sFail++; console.error(`FAIL (structural): ${msg}`) } }
 if (sFail) { console.error(`\nmoney model: ${sFail} structural check(s) FAILED`); process.exit(1) }

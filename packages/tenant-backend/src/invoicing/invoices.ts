@@ -378,6 +378,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       const row = (locked.rows || locked)[0]
       if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
       if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is already void.' } }; return }
+      // A refunded sale is its own terminal state: money genuinely moved (collected, then returned) and the
+      // refund ledger records the reversal. Voiding it would refile a real transaction as "never issued" and
+      // corrupt the refunded/void counts. Void is for invoices that never kept money — refund is terminal,
+      // like it already is for edit / send / payment. (Contractor M24.)
+      if (row.status === 'refunded') { outcome = { status: 400, body: { error: 'This sale was refunded — the refund already records the reversal, so it cannot be voided.' } }; return }
       const paid = round2(Number(row.amount_paid) - Number(row.amount_refunded || 0))
       if (paid > 0.005) { outcome = { status: 400, body: { error: `This invoice has $${paid.toFixed(2)} in payments that were not refunded. Refund them first, then void.` } }; return }
       const note = body.reason ? `Voided: ${String(body.reason).slice(0, 500)}` : 'Voided'
