@@ -169,6 +169,12 @@ app.get('/:id', async (c) => {
 })
 
 // Create product (manager+)
+// Per-unit weight → grams (the canonical weight_grams the compliance/limit math reads).
+function toGrams(weight: number, unit?: string): number {
+  const factor = unit === 'oz' ? 28.3495 : unit === 'mg' ? 0.001 : 1 // g / ml / each treated as grams
+  return Math.round(weight * factor * 1000) / 1000
+}
+
 app.post('/', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const data = productSchema.parse(stripNulls(await c.req.json()))
@@ -189,6 +195,10 @@ app.post('/', requireRole('manager'), async (c) => {
   }
   // `unit` is a form field; the column is unit_type (Drizzle: unitType).
   if ('unit' in values) { values.unitType = values.unit; delete values.unit }
+  // Persist the canonical per-unit grams so the purchase-limit math (which reads weight_grams) works.
+  // Without this a UI-created flower had weight_grams null → every order rang up 0.00 oz and blew past
+  // the legal limit. (compliance)
+  if (data.weight != null) values.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
 
   const [created] = await db.insert(product).values(values).returning()
 
@@ -218,6 +228,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
   if (data.price != null) updateData.price = String(data.price)
   if (data.costPrice != null) updateData.costPrice = String(data.costPrice)
   if ('unit' in updateData) { updateData.unitType = updateData.unit; delete updateData.unit }
+  if (data.weight != null) updateData.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
 
   const [updated] = await db.update(product).set(updateData).where(eq(product.id, id)).returning()
 
