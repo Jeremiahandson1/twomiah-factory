@@ -104,7 +104,7 @@ export default function MenusPage() {
                   const open = expanded.has(p.id);
                   const courses = p.courses || [];
                   return (
-                    <div key={p.id} className={`bg-white rounded-xl border ${p.active ? '' : 'opacity-60'}`}>
+                    <div key={p.id} className={`bg-white dark:bg-slate-900 dark:border-slate-800 rounded-xl border ${p.active ? '' : 'opacity-60'}`}>
                       <div className="p-4 flex items-center gap-4 flex-wrap">
                         <button
                           onClick={() => toggle(p.id)}
