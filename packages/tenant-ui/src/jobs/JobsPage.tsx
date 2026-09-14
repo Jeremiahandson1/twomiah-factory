@@ -57,7 +57,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   useEffect(() => {
     api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
-    if (cfg.assignee) api.get('/api/team').then((r: any) => setTeam(r?.data || (Array.isArray(r) ? r : []))).catch(() => setTeam([]))
+    // Assignable staff are login USERS (job.assignedToId → user.id), not the crew roster — GET /api/team
+    // drops users once a roster member exists, which erased everyone from the picker. (F-14 / assignee)
+    if (cfg.assignee) api.get('/api/team/assignable').then((r: any) => setTeam(r?.data || (Array.isArray(r) ? r : []))).catch(() => setTeam([]))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [search, statusFilter])

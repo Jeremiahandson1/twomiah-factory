@@ -78,6 +78,18 @@ export function createTeamRoutes(deps: TeamDeps) {
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.max(1, Math.ceil(Number(total) / limit)) } })
   })
 
+  // Assignable staff = the login USERS a job/appointment's assignedToId can point at. This is NOT the
+  // crew roster (team_member): the roster can hold non-login people and different ids, and once it has a
+  // row GET / stops falling back to users — which used to make every login user vanish from the "Assigned
+  // To" picker the moment one roster member was added. Pickers must read this, never GET /. (F-14 / assignee)
+  app.get('/assignable', requirePermission('team:read'), async (c) => {
+    const user = (c as any).get('user')
+    const rows = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, role: t.user.role, isActive: t.user.isActive })
+      .from(t.user).where(and(eq(t.user.companyId, user.companyId), eq(t.user.isActive, true))).orderBy(asc(t.user.firstName))
+    const data = rows.map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, role: u.role, active: u.isActive }))
+    return c.json({ data })
+  })
+
   app.get('/:id', requirePermission('team:read'), async (c) => {
     const user = (c as any).get('user')
     const [member] = await db.select().from(t.teamMember).where(and(eq(t.teamMember.id, c.req.param('id')), eq(t.teamMember.companyId, user.companyId))).limit(1)
