@@ -35,6 +35,7 @@ const initialFormData = {
   cbdPercent: '',
   price: '',
   costPrice: '',
+  weight: '',
   stock: '',
   unit: 'gram',
   sku: '',
@@ -132,6 +133,8 @@ export default function ProductsPage() {
         cbdPercent: formData.cbdPercent ? parseFloat(formData.cbdPercent) : null,
         price: parseFloat(formData.price),
         costPrice: formData.costPrice ? parseFloat(formData.costPrice) : null,
+        weight: formData.weight ? parseFloat(formData.weight) : undefined,
+        weightUnit: 'g',
         stockQuantity: formData.stock ? parseInt(formData.stock) : 0,
       });
       toast.success('Product created');
@@ -380,6 +383,19 @@ export default function ProductsPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="18.00"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Weight per unit (g)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.weight}
+              onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
+              placeholder="3.5"
+            />
+            <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">Cannabis flower/concentrate: counts toward the customer's legal purchase limit.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Stock Quantity</label>
