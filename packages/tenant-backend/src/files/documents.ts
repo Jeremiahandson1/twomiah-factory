@@ -32,7 +32,6 @@ export interface DocumentDeps {
   }
 }
 
-const IMAGE_MAX = 2000
 const THUMB = 200
 const str = (v: unknown, max = 500) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined)
 const idOrNull = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
@@ -64,24 +63,22 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     return doc || null
   }
 
-  /** Store an upload, making images web-sized with a thumbnail. Returns the columns to write. */
+  /** Store an upload as-is (a Document keeps its original bytes/type/name), plus a thumbnail for images. */
   async function storeUpload(file: File, companyId: string) {
     const uploaded = await storage.saveFile(file, companyId, 'documents')
-    let key = uploaded.path
+    const key = uploaded.path
     let thumbKey: string | null = null
-    let mimeType = uploaded.mimetype
+    // A document is preserved exactly as uploaded — a PNG contract must come back a PNG, not a re-encoded
+    // JPEG, and the row must report the bytes ACTUALLY stored. Transcoding the main file in place left the
+    // record showing the original size (24× the JPEG served) under the original .png name. We only add a
+    // thumbnail beside it for the list view.
     if (uploaded.mimetype.startsWith('image/') && uploaded.mimetype !== 'image/gif') {
-      try {
-        // web-sized JPEG in place (the row records what is actually stored) + a thumbnail beside it
-        key = await storage.processImage(key, { width: IMAGE_MAX, height: IMAGE_MAX })
-        mimeType = 'image/jpeg'
-        thumbKey = await storage.generateThumbnail(key, THUMB)
-      } catch { /* the original still stands; no thumbnail */ }
+      try { thumbKey = await storage.generateThumbnail(key, THUMB) } catch { /* no thumbnail; the original still stands */ }
     }
     return {
       filename: path.basename(key),
       originalName: uploaded.originalname,
-      mimeType,
+      mimeType: uploaded.mimetype,
       size: uploaded.size,
       path: key,
       url: storage.getFileUrl(key, companyId),
@@ -126,10 +123,13 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     if (!key.startsWith(`${companyId}/`)) return c.json({ error: 'Forbidden' }, 403)
     const obj = await storage.getObject(key)
     if (!obj) return c.json({ error: 'Not found' }, 404)
-    const inline = INLINE_IMAGE_TYPES.includes(obj.contentType)
+    // Preview inline for images and PDFs (both magic-byte verified on upload) so the preview pane can render
+    // them; PDFs were forced to application/octet-stream, which made the preview pane blank. Everything else
+    // still downloads as an opaque attachment with nosniff, so an uploaded HTML/script can't run inline.
+    const inline = INLINE_IMAGE_TYPES.includes(obj.contentType) || obj.contentType === 'application/pdf'
     c.header('Content-Type', inline ? obj.contentType : 'application/octet-stream')
     c.header('X-Content-Type-Options', 'nosniff')
-    if (!inline) c.header('Content-Disposition', 'attachment')
+    c.header('Content-Disposition', inline ? 'inline' : 'attachment')
     c.header('Cache-Control', 'private, max-age=86400')
     return c.body(obj.body)
   })

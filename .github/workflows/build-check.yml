@@ -219,3 +219,14 @@ jobs:
           bun-version: latest
       - name: editing email/phone to another contact's is caught (excluding self)
         run: bun run scripts/check-contact-dup-update.ts
+
+  document-fidelity:
+    name: Documents keep original bytes; PDFs preview inline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: no main-file transcode; row records stored bytes; PDF served inline
+        run: bun run scripts/check-document-fidelity.ts
