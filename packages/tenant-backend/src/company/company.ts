@@ -70,7 +70,16 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       if (money.defaultTaxRate != null && money.defaultTaxRate !== '') { const r = Number(money.defaultTaxRate); if (!Number.isFinite(r) || r < 0 || r > 100) return c.json({ error: 'Default sales tax rate must be between 0 and 100.' }, 400) }
       for (const k of ['paymentTermsDays', 'defaultPaymentTerms']) if (money[k] != null && money[k] !== '') { const d = Number(money[k]); if (!Number.isFinite(d) || d < 0 || d > 365) return c.json({ error: 'Payment terms must be between 0 and 365 days.' }, 400) }
     }
-    const [row] = await db.update(t.company).set({ ...data, updatedAt: new Date() }).where(eq(t.company.id, currentUser.companyId)).returning()
+    // MERGE a partial settings object into the stored one — never replace it. A caller sending only
+    // { settings: { defaultTaxRate } } used to overwrite the whole JSON blob, wiping plan, seat limit,
+    // payment terms and onboarding flags. The UI sends the full object (safe either way); any partial
+    // writer (or a future one) must not destroy the rest. (settings-blob wipe)
+    const updates: any = { ...data, updatedAt: new Date() }
+    if (data.settings && typeof data.settings === 'object') {
+      const [cur] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
+      updates.settings = { ...((cur?.settings as any) || {}), ...data.settings }
+    }
+    const [row] = await db.update(t.company).set(updates).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)
     return c.json(sanitizeCompany(row))
   })

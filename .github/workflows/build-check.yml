@@ -120,3 +120,14 @@ jobs:
           bun-version: latest
       - name: the "Assigned To" picker reads /api/team/assignable (login users)
         run: bun run scripts/check-assignee-source.ts
+
+  company-settings-merge:
+    name: PUT /api/company merges settings, never replaces the blob
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: a partial settings write can't wipe plan/seat-limit/terms/onboarding
+        run: bun run scripts/check-company-settings-merge.ts
