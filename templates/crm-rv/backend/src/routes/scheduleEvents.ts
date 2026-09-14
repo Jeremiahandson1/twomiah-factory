@@ -101,13 +101,17 @@ app.patch('/:id', async (c) => {
   return c.json(row)
 })
 
-// DELETE /:id
+// DELETE /:id — "Cancel appointment". Soft-cancel (status='cancelled'), never a hard delete: the
+// appointment stays on the calendar greyed out and in history. Idempotent on an already-cancelled row.
 app.delete('/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(scheduleEvent)
+  const [row] = await db.update(scheduleEvent)
+    .set({ status: 'cancelled', updatedAt: new Date() })
     .where(and(eq(scheduleEvent.id, id), eq(scheduleEvent.companyId, currentUser.companyId)))
-  return c.json({ message: 'Appointment deleted' })
+    .returning()
+  if (!row) return c.json({ error: 'Appointment not found' }, 404)
+  return c.json(row)
 })
 
 export default app
