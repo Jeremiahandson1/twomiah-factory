@@ -175,3 +175,14 @@ jobs:
           bun-version: latest
       - name: the same-tech/slot check + write must share one transaction under the job lock
         run: bun run scripts/check-job-doublebook.ts
+
+  jobs-input:
+    name: Job status/time are validated (no junk buckets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: status is a bounded enum and scheduledTime is HH:MM
+        run: bun run scripts/check-jobs-input.ts

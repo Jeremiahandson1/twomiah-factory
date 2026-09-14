@@ -47,6 +47,12 @@ export interface JobDeps {
 
 export const JOB_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
 export const OPEN_JOB_STATUSES = ['scheduled', 'pending', 'confirmed']
+// Every job status any template actually uses: the FE default set (scheduled/dispatched/in_progress/
+// completed/cancelled), the open statuses (pending/confirmed), and the import mapper's on_hold. No template
+// configures a status outside this union, so validating against it rejects junk like "banana" (which
+// otherwise reached the dashboard as a real bucket and was dropped from Reports, 168 vs 169) without
+// breaking a real status. If a vertical ever needs its own set, thread it through JobOptions.
+export const JOB_STATUSES = ['scheduled', 'pending', 'confirmed', 'dispatched', 'in_progress', 'on_hold', 'completed', 'cancelled'] as const
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 
@@ -68,10 +74,12 @@ export function createJobRoutes(deps: JobDeps) {
     contactId: z.string().optional().transform(emptyToUndef as any),
     assignedToId: z.string().optional().transform(emptyToUndef as any),
     priority: z.enum(JOB_PRIORITIES).default('normal'),
-    // Statuses are tenant-configurable (the dispatch board PUTs them), so any non-empty string.
-    status: z.string().min(1).optional(),
+    // Constrained to the known status union (see JOB_STATUSES) — the dispatch board only ever sets these,
+    // and a free-form string let "banana" through to the dashboard and Reports.
+    status: z.enum(JOB_STATUSES).optional(),
     scheduledDate: z.string().optional().refine(validDate, { message: 'Invalid scheduled date' }),
-    scheduledTime: z.string().optional(),
+    // A scheduled time must be HH:MM (24-hour) — "25:99" was stored verbatim. Empty is allowed (unscheduled).
+    scheduledTime: z.string().optional().refine((v: string | undefined) => !v || /^([01]\d|2[0-3]):[0-5]\d$/.test(v), { message: 'Time must be HH:MM (24-hour).' }),
     // The edit form posts the decimal string the API returned ("4.00"), or "" when blank.
     estimatedHours: z.preprocess((v) => (v === '' || v === null || v === undefined ? undefined : v), z.coerce.number().min(0, 'Estimated hours cannot be negative').optional()),
     address: cleanText().optional(),
