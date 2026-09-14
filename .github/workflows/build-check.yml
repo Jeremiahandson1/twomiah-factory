@@ -109,3 +109,14 @@ jobs:
           bun-version: latest
       - name: kiosk company is scoped to the owner account, not `company LIMIT 1`
         run: bun run scripts/check-kiosk-tenant-isolation.ts
+
+  assignee-source:
+    name: jobs assignee picker resolves login users, not the roster
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: the "Assigned To" picker reads /api/team/assignable (login users)
+        run: bun run scripts/check-assignee-source.ts
