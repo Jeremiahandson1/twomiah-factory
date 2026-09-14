@@ -30,7 +30,21 @@ async function resolveCompanyId(locationId?: string | null): Promise<string | nu
     const row = rows(r)?.[0]
     if (row?.company_id) return row.company_id
   }
-  const r = await db.execute(sql`SELECT id FROM company LIMIT 1`)
+  // A tenant DB should hold exactly ONE company, but an older seed run can leave a demo company (with
+  // its own products) behind. `SELECT id FROM company LIMIT 1` then returned an ARBITRARY row — which
+  // once served a stranger's menu on the kiosk and dropped every order into the wrong company. Resolve
+  // the REAL tenant deterministically: the company that owns the owner/admin account. A seed-only demo
+  // company has no users, so it can never win. Oldest owner first, so the result is stable.
+  const owned = await db.execute(sql`
+    SELECT c.id FROM company c
+    JOIN "user" u ON u.company_id = c.id
+    WHERE u.role IN ('owner', 'admin')
+    ORDER BY u.created_at ASC
+    LIMIT 1`)
+  const ownedId = rows(owned)?.[0]?.id
+  if (ownedId) return ownedId
+  // Last resort (a DB with no owner/admin yet): the oldest company, deterministically.
+  const r = await db.execute(sql`SELECT id FROM company ORDER BY created_at ASC LIMIT 1`)
   return rows(r)?.[0]?.id ?? null
 }
 
