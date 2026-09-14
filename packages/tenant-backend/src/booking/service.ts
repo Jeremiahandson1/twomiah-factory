@@ -289,6 +289,7 @@ export function createBookingService(deps: BookingDeps) {
     serviceId?: string; date: string; time: string
     firstName: string; lastName: string; email: string
     phone?: string; address?: string; city?: string; state?: string; zip?: string; notes?: string
+    petName?: string; petSpecies?: string
   }
 
   async function createBooking(companyId: string, data: BookingInput) {
@@ -334,6 +335,7 @@ export function createBookingService(deps: BookingDeps) {
         companyId, contactId: theContact.id, start, end, durationMinutes,
         serviceName: service?.name || null, serviceRef: service?.menuServiceId || null,
         price: service ? service.price : null, customerNotes: data.notes?.trim() || null, pendingDeposit: depositRequired,
+        petName: data.petName?.trim() || null, petSpecies: data.petSpecies?.trim() || null,
       })
 
       const code = confirmationCode()
