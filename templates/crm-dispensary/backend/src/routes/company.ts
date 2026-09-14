@@ -40,17 +40,29 @@ app.put('/', requireAdmin, async (c) => {
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
   const data = schema.parse(body) as any
-  // tax_rate is a text column — the Settings form saved it but the schema dropped
-  // it, so Settings/company/POS disagreed on the rate. Persist it as a string.
-  if (data.taxRate !== undefined) data.taxRate = String(data.taxRate)
-  if (data.localTaxRate !== undefined) data.localTaxRate = String(data.localTaxRate)
-  if (data.exciseTaxRate !== undefined) data.exciseTaxRate = String(data.exciseTaxRate)
+  // tax_rate columns are text — validate the RATE before storing. A negative rate silently zeroed the
+  // register (−5% → $22 on a $20 order) and 9999% saved fine; both reach the POS. Reject anything outside
+  // 0–100%, and coerce blank → '0'. (dispensary negative/oversized tax)
+  for (const k of ['taxRate', 'localTaxRate', 'exciseTaxRate'] as const) {
+    if (data[k] !== undefined) {
+      const r = Number(data[k])
+      if (!Number.isFinite(r) || r < 0 || r > 100) return c.json({ error: 'Tax rates must be between 0 and 100%.' }, 400)
+      data[k] = String(r)
+    }
+  }
   if (data.purchaseLimitOz !== undefined) {
     const n = Number(data.purchaseLimitOz)
     if (!Number.isFinite(n) || n <= 0 || n > 16) return c.json({ error: 'purchaseLimitOz must be a number between 0 and 16 (oz flower-equivalent per transaction)' }, 400)
     data.purchaseLimitOz = String(n)
   }
-  const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
+  // MERGE a partial settings object into the stored one — never replace it (see the shared company route:
+  // a partial write used to wipe the whole blob). The UI sends the full object; any partial writer must not.
+  const updates: any = { ...data, updatedAt: new Date() }
+  if (data.settings && typeof data.settings === 'object') {
+    const [cur] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+    updates.settings = { ...((cur?.settings as any) || {}), ...data.settings }
+  }
+  const [result] = await db.update(company).set(updates).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(sanitizeCompany(result))
 })
