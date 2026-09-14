@@ -92,7 +92,7 @@ export default function DashboardPage() {
       {/* Headline: money owed. This is the number a venue loses track of. */}
       <Link
         to="/crm/events"
-        className={`block rounded-xl border p-5 transition hover:shadow-md ${overdue > 0 ? 'bg-red-50 border-red-200' : 'bg-white'}`}
+        className={`block rounded-xl border p-5 transition hover:shadow-md ${overdue > 0 ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-900/40' : 'bg-white dark:bg-slate-900 dark:border-slate-800'}`}
       >
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
