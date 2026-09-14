@@ -898,7 +898,26 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     }
   }
 
+  // The amount check above ran against an UNLOCKED read, so five refunds fired at the same instant
+  // all saw refundedAmount 0, all passed, and all wrote — $75 refunded against a $25 order. Re-read
+  // the order row inside the transaction with FOR UPDATE and re-validate: the lock serialises the
+  // callers, and any that would push the cumulative refund past the total is rolled back. (money race)
+  let raceReject: { status: number; body: any } | null = null
+  try {
   await db.transaction(async (tx) => {
+    const locked: any = await tx.execute(sql`SELECT refunded_amount, status FROM orders WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`)
+    const lr = (locked.rows || locked)[0]
+    if (lr && !['completed', 'partially_refunded'].includes(String(lr.status))) {
+      raceReject = { status: 400, body: { error: 'This order was just refunded by another action — nothing left to refund.' } }
+      throw new Error('__REFUND_RACE__')
+    }
+    const lockedRefunded = round2(Number(lr?.refunded_amount ?? 0) || 0)
+    if (round2(lockedRefunded + refundAmount) > orderTotal + 0.005) {
+      const remain = round2(Math.max(0, orderTotal - lockedRefunded))
+      raceReject = { status: 400, body: { error: `Cannot refund $${refundAmount.toFixed(2)} — only $${remain.toFixed(2)} of the $${orderTotal.toFixed(2)} total remains refundable`, remainingRefundable: remain, alreadyRefunded: lockedRefunded, orderTotal } }
+      throw new Error('__REFUND_RACE__')
+    }
+
     // Record returned units per line
     for (const r of refundPlan) {
       await tx.update(orderItem)
@@ -972,6 +991,10 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       `)
     }
   })
+  } catch (e: any) {
+    if (e?.message === '__REFUND_RACE__' && raceReject) return c.json((raceReject as any).body, (raceReject as any).status)
+    throw e
+  }
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,
