@@ -28,5 +28,11 @@ for (const t of targets) {
   if (hardDelete.test(src)) fail(`${t.file}: cancel hard-deletes ${t.deleteVar} — must set status='cancelled' to keep history`)
 }
 
+// RV calendar appointments (schedule-events): "Cancel" must soft-cancel (status='cancelled'), never a
+// hard delete — the row stays on the calendar greyed and in history. (RV has no double-book guard yet,
+// so only the hard-delete rule is asserted here.)
+const rvSched = readFileSync(new URL('crm-rv/backend/src/routes/scheduleEvents.ts', base), 'utf8')
+if (/db\.delete\(\s*scheduleEvent\s*\)/.test(rvSched)) fail(`crm-rv/backend/src/routes/scheduleEvents.ts: cancel hard-deletes scheduleEvent — must set status='cancelled' to keep history`)
+
 if (failed) { console.error(`\nappointment guards: ${failed} check(s) FAILED`); process.exit(1) }
-console.log(`appointment guards: salon/vet/restaurant double-book writes are atomic and cancel keeps history`)
+console.log(`appointment guards: salon/vet/restaurant/rv cancels keep history; salon/vet/restaurant writes are atomic`)

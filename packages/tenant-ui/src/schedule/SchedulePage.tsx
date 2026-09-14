@@ -8,7 +8,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react'
-import { Button, Modal, Field, inputCls, errMsg } from '../invoicing/ui'
+import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import { resolveScheduleConfig } from './types'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
 
@@ -56,7 +56,9 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
 
   const jobsFor = (d: Date) => jobs.filter((j) => j.scheduledDate && String(j.scheduledDate).slice(0, 10) === localKey(d))
   const bookingsFor = (d: Date) => bookings.filter((b) => b.startAt && localKey(new Date(b.startAt)) === localKey(d) && b.status !== 'cancelled')
-  const eventsFor = (d: Date) => events.filter((e) => e.start && localKey(new Date(e.start)) === localKey(d) && e.status !== 'cancelled')
+  // Cancelled appointments stay on the calendar (greyed), the way cancelled jobs do — hiding them made
+  // a cancel look like the record had vanished.
+  const eventsFor = (d: Date) => events.filter((e) => e.start && localKey(new Date(e.start)) === localKey(d))
   const isToday = (d: Date) => localKey(d) === localKey(new Date())
   const shift = (n: number) => { const d = new Date(currentDate); d.setDate(d.getDate() + n); setCurrentDate(d) }
 
@@ -136,7 +138,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     </div>
                   ))}
                   {eventsFor(day).map((e) => (
-                    <div key={e.id} onClick={() => setEditEvent(e)} title="Click to edit or cancel" className="p-2 rounded text-xs bg-indigo-50 border-l-2 border-indigo-500 dark:bg-indigo-900/20 text-gray-900 dark:text-slate-100 cursor-pointer hover:shadow-sm">
+                    <div key={e.id} onClick={() => setEditEvent(e)} title="Click to edit or cancel" className={`p-2 rounded text-xs cursor-pointer hover:shadow-sm ${e.status === 'cancelled' ? 'bg-gray-50 border-l-2 border-gray-300 opacity-60 text-gray-500 line-through dark:bg-slate-800 dark:text-slate-400' : 'bg-indigo-50 border-l-2 border-indigo-500 dark:bg-indigo-900/20 text-gray-900 dark:text-slate-100'}`}>
                       <p className="font-medium truncate">{e.title}</p>
                       <p className="text-gray-500 truncate dark:text-slate-400">{e.allDay ? 'All day' : timeOf(e.start)}{e.type ? ' · ' + e.type.replace(/_/g, ' ') : ''}</p>
                     </div>
@@ -172,6 +174,7 @@ function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: 
   })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
   const submit = async () => {
     if (!form.title.trim()) { toast.error('A title is required'); return }
     const start = new Date(`${form.date}T${form.startTime}:00`), end = new Date(`${form.date}T${form.endTime}:00`)
@@ -185,13 +188,16 @@ function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: 
       onSaved()
     } catch (err) { toast.error(errMsg(err, `Failed to ${editing ? 'update' : 'create'} appointment`)) } finally { setSaving(false) }
   }
+  // Confirmation is a ConfirmModal, not window.confirm — the native dialog blocks the whole tab (a
+  // headless/automated session can't dismiss it, so the cancel appeared to hang and never fired).
   const remove = async () => {
-    if (!editing || !confirm('Cancel this appointment? It will be removed from the calendar.')) return
+    if (!editing) return
     setDeleting(true)
-    try { await api.delete(`/api/schedule-events/${event!.id}`); toast.success('Appointment cancelled'); onSaved() }
+    try { await api.delete(`/api/schedule-events/${event!.id}`); toast.success('Appointment cancelled'); setConfirmCancel(false); onSaved() }
     catch (err) { toast.error(errMsg(err, 'Failed to cancel appointment')) } finally { setDeleting(false) }
   }
   return (
+    <>
     <Modal isOpen onClose={onClose} title={editing ? 'Edit Appointment' : 'New Appointment'} size="md">
       <div className="space-y-4">
         <Field label="Title *"><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Test drive — John Smith" className={inputCls} /></Field>
@@ -203,7 +209,7 @@ function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: 
         </div>
         <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
         <div className="flex justify-between gap-2 pt-2">
-          <div>{editing && <Button variant="danger" onClick={remove} disabled={deleting}>{deleting ? 'Cancelling…' : 'Cancel appointment'}</Button>}</div>
+          <div>{editing && <Button variant="danger" onClick={() => setConfirmCancel(true)} disabled={deleting}>{deleting ? 'Cancelling…' : 'Cancel appointment'}</Button>}</div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={onClose}>Close</Button>
             <Button onClick={submit} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save' : 'Create'}</Button>
@@ -211,6 +217,11 @@ function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: 
         </div>
       </div>
     </Modal>
+    <ConfirmModal isOpen={confirmCancel} onClose={() => setConfirmCancel(false)} onConfirm={remove}
+      title="Cancel appointment"
+      message="This appointment will be marked cancelled and greyed out on the calendar — its record is kept, not deleted."
+      confirmText="Cancel appointment" />
+    </>
   )
 }
 
