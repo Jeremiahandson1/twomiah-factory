@@ -29,6 +29,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   const [dragJob, setDragJob] = useState<ScheduleJob | null>(null)
   const [dragOverKey, setDragOverKey] = useState<string | null>(null)
   const [newFor, setNewFor] = useState<Date | null>(null)
+  const [editEvent, setEditEvent] = useState<ScheduleEvent | null>(null)
 
   const { start, end } = weekOf(currentDate)
   const days = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d })
@@ -135,7 +136,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     </div>
                   ))}
                   {eventsFor(day).map((e) => (
-                    <div key={e.id} className="p-2 rounded text-xs bg-indigo-50 border-l-2 border-indigo-500 dark:bg-indigo-900/20 text-gray-900 dark:text-slate-100" title={e.notes || e.title}>
+                    <div key={e.id} onClick={() => setEditEvent(e)} title="Click to edit or cancel" className="p-2 rounded text-xs bg-indigo-50 border-l-2 border-indigo-500 dark:bg-indigo-900/20 text-gray-900 dark:text-slate-100 cursor-pointer hover:shadow-sm">
                       <p className="font-medium truncate">{e.title}</p>
                       <p className="text-gray-500 truncate dark:text-slate-400">{e.allDay ? 'All day' : timeOf(e.start)}{e.type ? ' · ' + e.type.replace(/_/g, ' ') : ''}</p>
                     </div>
@@ -152,14 +153,25 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
         </div>
       )}
 
-      {cfg.events && newFor && <NewAppointment api={api} toast={toast} date={newFor} types={cfg.eventTypes} onClose={() => setNewFor(null)} onSaved={() => { setNewFor(null); load() }} />}
+      {cfg.events && newFor && <AppointmentModal api={api} toast={toast} date={newFor} types={cfg.eventTypes} onClose={() => setNewFor(null)} onSaved={() => { setNewFor(null); load() }} />}
+      {cfg.events && editEvent && <AppointmentModal api={api} toast={toast} date={new Date(editEvent.start)} event={editEvent} types={cfg.eventTypes} onClose={() => setEditEvent(null)} onSaved={() => { setEditEvent(null); load() }} />}
     </div>
   )
 }
 
-function NewAppointment({ api, toast, date, types, onClose, onSaved }: { api: SchedulePageProps['api']; toast: SchedulePageProps['toast']; date: Date; types: Array<{ value: string; label: string }>; onClose: () => void; onSaved: () => void }) {
-  const [form, setForm] = useState({ title: '', type: types[0]?.value || 'appointment', date: localKey(date), startTime: '09:00', endTime: '10:00', notes: '' })
+function AppointmentModal({ api, toast, date, event, types, onClose, onSaved }: { api: SchedulePageProps['api']; toast: SchedulePageProps['toast']; date: Date; event?: ScheduleEvent | null; types: Array<{ value: string; label: string }>; onClose: () => void; onSaved: () => void }) {
+  const hhmm = (iso?: string | null, fallback = '09:00') => { if (!iso) return fallback; const d = new Date(iso); return isNaN(d.getTime()) ? fallback : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+  const editing = !!event
+  const [form, setForm] = useState({
+    title: event?.title || '',
+    type: event?.type || types[0]?.value || 'appointment',
+    date: localKey(event?.start ? new Date(event.start) : date),
+    startTime: hhmm(event?.start, '09:00'),
+    endTime: hhmm(event?.end, '10:00'),
+    notes: event?.notes || '',
+  })
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const submit = async () => {
     if (!form.title.trim()) { toast.error('A title is required'); return }
     const start = new Date(`${form.date}T${form.startTime}:00`), end = new Date(`${form.date}T${form.endTime}:00`)
@@ -167,12 +179,20 @@ function NewAppointment({ api, toast, date, types, onClose, onSaved }: { api: Sc
     if (end < start) { toast.error('End time cannot be before start time'); return }
     setSaving(true)
     try {
-      await api.post('/api/schedule-events', { title: form.title.trim(), type: form.type, start: start.toISOString(), end: end.toISOString(), notes: form.notes || undefined })
-      toast.success('Appointment created'); onSaved()
-    } catch (err) { toast.error(errMsg(err, 'Failed to create appointment')) } finally { setSaving(false) }
+      const payload = { title: form.title.trim(), type: form.type, start: start.toISOString(), end: end.toISOString(), notes: form.notes || undefined }
+      if (editing) { await api.put(`/api/schedule-events/${event!.id}`, payload); toast.success('Appointment updated') }
+      else { await api.post('/api/schedule-events', payload); toast.success('Appointment created') }
+      onSaved()
+    } catch (err) { toast.error(errMsg(err, `Failed to ${editing ? 'update' : 'create'} appointment`)) } finally { setSaving(false) }
+  }
+  const remove = async () => {
+    if (!editing || !confirm('Cancel this appointment? It will be removed from the calendar.')) return
+    setDeleting(true)
+    try { await api.delete(`/api/schedule-events/${event!.id}`); toast.success('Appointment cancelled'); onSaved() }
+    catch (err) { toast.error(errMsg(err, 'Failed to cancel appointment')) } finally { setDeleting(false) }
   }
   return (
-    <Modal isOpen onClose={onClose} title="New Appointment" size="md">
+    <Modal isOpen onClose={onClose} title={editing ? 'Edit Appointment' : 'New Appointment'} size="md">
       <div className="space-y-4">
         <Field label="Title *"><input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Test drive — John Smith" className={inputCls} /></Field>
         <Field label="Type"><select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className={inputCls}>{types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
@@ -182,9 +202,12 @@ function NewAppointment({ api, toast, date, types, onClose, onSaved }: { api: Sc
           <Field label="End"><input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className={inputCls} /></Field>
         </div>
         <Field label="Notes"><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? 'Saving…' : 'Create'}</Button>
+        <div className="flex justify-between gap-2 pt-2">
+          <div>{editing && <Button variant="danger" onClick={remove} disabled={deleting}>{deleting ? 'Cancelling…' : 'Cancel appointment'}</Button>}</div>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={onClose}>Close</Button>
+            <Button onClick={submit} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save' : 'Create'}</Button>
+          </div>
         </div>
       </div>
     </Modal>
