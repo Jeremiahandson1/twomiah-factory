@@ -20,8 +20,6 @@ export interface ReportingTables {
 }
 
 export interface ReportingOptions {
-  /** Invoice statuses that are billed and collectable. Default sent/open/viewed/partial. */
-  openStatuses?: string[]
   /** Upper bound for the monthly trend. Default 36. */
   maxMonths?: number
 }
@@ -61,10 +59,14 @@ export function parseRange(startDate?: string, endDate?: string): DateRange {
 
 export function createReportingService(deps: ReportingDeps) {
   const { db, tables: t } = deps
-  const open = deps.options?.openStatuses || ['sent', 'open', 'viewed', 'partial']
   const maxMonths = deps.options?.maxMonths || 36
   const issued = sql`${t.invoice.status} NOT IN (${sql.join(ISSUED.map(s => sql`${s}`), sql`, `)})`
-  const isOpen = inArray(t.invoice.status, open)
+  // Per-invoice balance — identical to invoiceBalance() and the invoicing /stats endpoint so every
+  // screen shows the same outstanding figure: fully paid → 0, else total − (paid − refunded) floored
+  // at 0. It is summed over `issued` (only draft/void/refunded excluded), NOT a narrower "open" set —
+  // otherwise legacy rows stored as status='overdue' silently drop out of outstanding AND overdue and
+  // the dashboard disagrees with Reports / the invoice list. See scripts/check-money-model.ts.
+  const balanceExpr = sql`CASE WHEN ${t.invoice.amountPaid}::numeric >= ${t.invoice.total}::numeric THEN 0 ELSE greatest(${t.invoice.total}::numeric - (${t.invoice.amountPaid}::numeric - COALESCE(${t.invoice.amountRefunded}::numeric, 0)), 0) END`
   const inRange = (col: any, range: DateRange) => [range.gte ? gte(col, range.gte) : undefined, range.lte ? lte(col, range.lte) : undefined].filter(Boolean) as any[]
 
   // ---------------------------------------------------------------- revenue
@@ -76,10 +78,10 @@ export function createReportingService(deps: ReportingDeps) {
       .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
       .where(and(eq(t.invoice.companyId, companyId), ...inRange(t.payment.paidAt, range)))
     // Balances are a point-in-time figure — what is owed right now, whatever the period picker says.
-    const [out] = await db.select({ total: sql<string>`coalesce(sum(CASE WHEN ${t.invoice.amountPaid}::numeric >= ${t.invoice.total}::numeric THEN 0 ELSE greatest(${t.invoice.total}::numeric - (${t.invoice.amountPaid}::numeric - COALESCE(${t.invoice.amountRefunded}::numeric, 0)), 0) END), 0)`, count: count() })
-      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), isOpen))
-    const [over] = await db.select({ total: sql<string>`coalesce(sum(CASE WHEN ${t.invoice.amountPaid}::numeric >= ${t.invoice.total}::numeric THEN 0 ELSE greatest(${t.invoice.total}::numeric - (${t.invoice.amountPaid}::numeric - COALESCE(${t.invoice.amountRefunded}::numeric, 0)), 0) END), 0)`, count: count() })
-      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), isOpen, isNotNull(t.invoice.dueDate), lt(t.invoice.dueDate, new Date())))
+    const [out] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
+      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued))
+    const [over] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
+      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued, isNotNull(t.invoice.dueDate), lt(t.invoice.dueDate, new Date())))
     const invoiced = r2(num(inv.total)), collected = r2(num(col.total))
     return {
       invoiced, invoiceCount: Number(inv.count),
