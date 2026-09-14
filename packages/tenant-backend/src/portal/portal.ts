@@ -13,7 +13,7 @@ import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, notInArray } from 'drizzle-orm'
-import { nextNumber, invoiceBalance } from '../invoicing/money'
+import { nextNumber, invoiceBalance, deriveStatus } from '../invoicing/money'
 
 export interface PortalTables {
   contact: any; company: any; user: any
@@ -367,7 +367,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     // therefore reopens the balance, matching the owner side to the cent.
     const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, balance: sql<string>`CASE WHEN ${t.invoice.status} = 'void' OR COALESCE(${t.invoice.amountRefunded}, 0) >= ${t.invoice.total} OR ${t.invoice.amountPaid} >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END`, dueDate: t.invoice.dueDate, createdAt: t.invoice.createdAt })
       .from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN))).orderBy(desc(t.invoice.createdAt))
-    return c.json(rows)
+    // Show "overdue" (derived from due date + balance), matching the owner side — a past-due invoice
+    // used to still read "sent" here. deriveStatus only flips open+past-due+owing rows; the rest pass through.
+    return c.json(rows.map(r => ({ ...r, status: deriveStatus(r) })))
   })
   app.get('/p/:token/invoices/:invoiceId', portalAuth, async (c) => {
     const { contact, company } = P(c)
@@ -382,7 +384,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       projectInfo = p || null
     }
     const balance = invoiceBalance(found)
-    return c.json({ ...found, balance, lineItems, payments, project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone, address: company.address } })
+    return c.json({ ...found, status: deriveStatus(found), balance, lineItems, payments, project: projectInfo, company: { name: company.name, email: company.email, phone: company.phone, address: company.address } })
   })
   app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, async (c) => {
     const { contact } = P(c)
