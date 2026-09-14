@@ -35,7 +35,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const from = start.toISOString(), to = end.toISOString()
+    // Jobs store scheduledDate at UTC midnight, so a Sunday job sits at 00:00Z — but local Sunday
+    // midnight is 05:00-06:00Z, so `start.toISOString()` began the window AFTER the job and dropped it
+    // from both its own week and the week before (fs / salon Sunday service calls vanished). Begin the
+    // fetch at UTC midnight of the week's Sunday date to include those; `to` stays the local end so a
+    // late-Saturday-local booking (a real instant) is still fetched. Placement filters by local day.
+    const from = localKey(start) + 'T00:00:00.000Z', to = end.toISOString()
     const [j, b, x, e] = await Promise.all([
       api.get('/api/jobs', { startDate: from, endDate: to, limit: 500 }).then((r: any) => r?.data || []).catch((err: unknown) => { toast.error(errMsg(err, 'Failed to load jobs')); return [] }),
       api.get('/api/booking', { from, to, limit: 500 }).then((r: any) => (r?.data || []).map((row: any): ScheduleBooking => ({ id: row.id, startAt: row.scheduledDate, status: row.status, customerName: row.customerName, serviceName: row.serviceName, customerAddress: row.customerAddress ?? null, source: 'crm' }))).catch(() => []),
