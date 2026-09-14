@@ -86,6 +86,8 @@ export interface BookingOptions {
   requireAddress?: boolean
   /** The widget asks for a phone number. Default true. */
   requirePhone?: boolean
+  /** Require the pet's name server-side (vet), so a raw API call can't create a pet-less booking. Default false. */
+  requirePet?: boolean
   /** contact.type for a brand-new booker. Trades: 'lead'. Salon: 'client'. Default 'lead'. */
   contactType?: string
   /** Fallback zone when booking_settings.timezone is unset. Default America/Chicago. */
