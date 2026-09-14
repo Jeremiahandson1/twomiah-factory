@@ -65,7 +65,18 @@ const structural: Array<[boolean, string]> = [
   [(reportSrc.match(/coalesce\(sum\(\$\{balanceExpr\}\)/g) || []).length >= 2, 'both outstanding and overdue must sum balanceExpr'],
   [!/\{balanceExpr\}\), 0\)`[\s\S]{0,220}?isOpen/.test(reportSrc), 'the balance sums must be filtered by `issued`, not `isOpen`'],
 ]
+// The shared invoice LIST once computed its Balance column as (total − amountPaid), ignoring refunds and
+// the server's own `balance` — so a refunded deposit read short in the list while the detail page was
+// right ("one surface behind"). Assert the list's balanceOf prefers the server balance and nets refunds.
+const invSrc = readFileSync(new URL('../packages/tenant-ui/src/invoicing/InvoicesPage.tsx', import.meta.url), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+const balanceOfBody = (invSrc.match(/const\s+balanceOf\b[\s\S]{0,600}/) || [''])[0]
+structural.push(
+  [/r\.balance/.test(balanceOfBody), 'InvoicesPage balanceOf must use the server-provided r.balance (net of refunds)'],
+  [/amountRefunded/.test(balanceOfBody), 'InvoicesPage balanceOf fallback must net refunds (reference amountRefunded)'],
+)
+
 let sFail = 0
 for (const [ok, msg] of structural) { if (!ok) { sFail++; console.error(`FAIL (structural): ${msg}`) } }
 if (sFail) { console.error(`\nmoney model: ${sFail} structural check(s) FAILED`); process.exit(1) }
-console.log(`money model: outstanding is summed over \`issued\` in one place (dashboard == Reports == /stats)`)
+console.log(`money model: outstanding summed over \`issued\` (dashboard == Reports == /stats); invoice list balance nets refunds`)
