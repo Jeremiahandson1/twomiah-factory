@@ -37,6 +37,25 @@ export function useTheme() {
   return { theme, setTheme, toggle, isDark: theme === 'dark' || (theme === 'system' && getSystemTheme() === 'dark') }
 }
 
+// Reactive read of the ACTUAL applied theme — the `dark` class on <html> that Tailwind's
+// class strategy toggles. Unlike useTheme() (which keeps its own local copy of the setting),
+// this tracks the single source of truth and updates live no matter which component flipped it,
+// so a leaf page that colours itself from JS (inline styles) never goes stale after a toggle.
+export function useIsDark(): boolean {
+  const [dark, setDark] = useState<boolean>(() =>
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark'))
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const el = document.documentElement
+    const update = () => setDark(el.classList.contains('dark'))
+    update()
+    const obs = new MutationObserver(update)
+    obs.observe(el, { attributes: true, attributeFilter: ['class'] })
+    return () => obs.disconnect()
+  }, [])
+  return dark
+}
+
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia(query).matches : false))
   useEffect(() => {

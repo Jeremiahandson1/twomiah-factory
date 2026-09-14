@@ -8,6 +8,7 @@ import { Inbox, Phone, MessageSquare, UserPlus, XCircle, Search, RefreshCw, Cloc
 import { Link } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
 import { TRADES_LEAD_PLATFORMS } from './types'
+import { useLeadPalette } from './theme'
 
 interface LeadStats {
   stats: { platform: string; leadsReceived: number; conversionRate: number; avgResponseTimeMin: number | null }[]
@@ -23,6 +24,7 @@ const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallba
 const hexBg = (hex: string) => hex + '1f' // ~12% tint of the platform colour
 
 export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi; toast?: LeadsToast; config?: LeadsConfig; subscribe?: LeadsSubscribe }) {
+  const c = useLeadPalette()
   const platforms: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   const jobTypeLabel = config?.jobTypeLabel || 'Job Type'
   const subtitle = config?.inboxSubtitle || 'All inbound leads from external sources in one place'
@@ -89,31 +91,31 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
     return p ? { bg: hexBg(p.color), text: p.color, label: p.label } : { bg: '#f5f5f5', text: '#616161', label: platform ? platform.replace(/_/g, ' ') : 'Other' }
   }
   const statusStyle = (status: string) => STATUS_COLORS[status] || STATUS_COLORS.new
-  const btn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ padding: '8px 16px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, ...extra })
+  const btn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ padding: '8px 16px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, ...extra })
 
   return (
-    <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto' }} data-testid="lead-inbox-shared">
+    <div style={{ padding: '24px', maxWidth: 1200, margin: '0 auto', color: c.text }} data-testid="lead-inbox-shared">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Inbox size={24} /> Lead Inbox</h1>
-          <p style={{ color: '#666', marginTop: 4, fontSize: 14 }}>{subtitle}</p>
+          <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>{subtitle}</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowStats(!showStats)} style={btn({ background: showStats ? '#f0f0f0' : '#fff' })}><TrendingUp size={14} /> Stats</button>
+          <button onClick={() => setShowStats(!showStats)} style={btn({ background: showStats ? c.activeBtn : c.surface })}><TrendingUp size={14} /> Stats</button>
           <button onClick={() => { fetchLeads(); fetchStats() }} style={btn()}><RefreshCw size={14} /> Refresh</button>
         </div>
       </div>
 
       {error && (
-        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: 16, borderRadius: 8, background: '#fdecea', color: '#b71c1c', fontSize: 13 }}>
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', marginBottom: 16, borderRadius: 8, background: c.errBg, color: c.errText, fontSize: 13 }}>
           <AlertCircle size={16} /> {error}
         </div>
       )}
 
       {showStats && stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-          <div style={{ padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 12, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total (30d)</div>
+          <div style={{ padding: 16, background: c.surface, borderRadius: 8, border: `1px solid ${c.border}` }}>
+            <div style={{ fontSize: 12, color: c.muted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total (30d)</div>
             <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>{stats.totals.total}</div>
             <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 12 }}>
               <span style={{ color: '#1565c0' }}>{stats.totals.new} new</span>
@@ -124,10 +126,10 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
           {stats.stats.map((s) => {
             const info = sourceInfo(s.platform)
             return (
-              <div key={s.platform} style={{ padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+              <div key={s.platform} style={{ padding: 16, background: c.surface, borderRadius: 8, border: `1px solid ${c.border}` }}>
                 <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: info.bg, color: info.text }}>{info.label}</span>
                 <div style={{ fontSize: 22, fontWeight: 700, marginTop: 8 }}>{s.leadsReceived} leads</div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, color: '#666' }}>
+                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, color: c.muted }}>
                   <span>{s.conversionRate}% conv.</span>
                   {s.avgResponseTimeMin !== null && <span>{s.avgResponseTimeMin}min avg resp.</span>}
                 </div>
@@ -139,28 +141,28 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#999' }} />
+          <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: c.faint }} />
           <input type="text" placeholder="Search leads..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            style={{ width: '100%', padding: '8px 12px 8px 34px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }} />
+            style={{ width: '100%', padding: '8px 12px 8px 34px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text }} />
         </div>
-        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}>
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} style={{ padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text }}>
           <option value="">All Statuses</option>
           <option value="new">New</option>
           <option value="contacted">Contacted</option>
           <option value="converted">Converted</option>
           <option value="dismissed">Dismissed</option>
         </select>
-        <select value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); setPage(1) }} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}>
+        <select value={sourceFilter} onChange={(e) => { setSourceFilter(e.target.value); setPage(1) }} style={{ padding: '8px 12px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, fontSize: 14, background: c.surface, color: c.text }}>
           <option value="">All Sources</option>
           {platforms.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
       </div>
 
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <div style={{ background: c.surface, borderRadius: 8, border: `1px solid ${c.border}`, overflow: 'hidden' }}>
         {loading && leads.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>Loading leads...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: c.faint }}>Loading leads...</div>
         ) : leads.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+          <div style={{ padding: 40, textAlign: 'center', color: c.faint }}>
             <Inbox size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
             <div style={{ fontSize: 16, fontWeight: 600 }}>{error ? 'Leads could not be loaded' : (statusFilter || sourceFilter || search) ? 'No leads match these filters' : 'No leads yet'}</div>
             {!error && !(statusFilter || sourceFilter || search) && (
@@ -176,44 +178,44 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
             const isExpanded = expandedLead === lead.id
             const tel = (lead.phone || '').replace(/\D/g, '')
             return (
-              <div key={lead.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+              <div key={lead.id} style={{ borderBottom: `1px solid ${c.divider}` }}>
                 <div onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
-                  style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: isExpanded ? '#fafafa' : 'transparent' }}>
+                  style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', background: isExpanded ? c.hover : 'transparent' }}>
                   <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: srcInfo.bg, color: srcInfo.text, whiteSpace: 'nowrap', minWidth: 80, textAlign: 'center' }}>{srcInfo.label}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{lead.homeownerName}</span>
-                      {lead.jobType && <span style={{ fontSize: 12, color: '#666' }}>- {lead.jobType}</span>}
+                      {lead.jobType && <span style={{ fontSize: 12, color: c.muted }}>- {lead.jobType}</span>}
                     </div>
-                    <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#999', marginTop: 2, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 12, fontSize: 12, color: c.faint, marginTop: 2, flexWrap: 'wrap' }}>
                       {lead.location && <span>{lead.location}</span>}
                       {lead.budget && <span>Budget: {lead.budget}</span>}
                       {lead.phone && <span>{lead.phone}</span>}
                     </div>
                   </div>
                   <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: st.bg, color: st.text, textTransform: 'capitalize' }}>{lead.status}</span>
-                  <span style={{ fontSize: 12, color: '#999', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {timeAgo(lead.receivedAt)}</span>
-                  <ChevronDown size={16} style={{ color: '#999', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  <span style={{ fontSize: 12, color: c.faint, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={12} /> {timeAgo(lead.receivedAt)}</span>
+                  <ChevronDown size={16} style={{ color: c.faint, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </div>
 
                 {isExpanded && (
-                  <div style={{ padding: '0 16px 16px', borderTop: '1px solid #f0f0f0' }}>
+                  <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${c.divider}` }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: '12px 0', fontSize: 13 }}>
                       <div>
-                        <div style={{ color: '#999', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Contact</div>
+                        <div style={{ color: c.faint, fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Contact</div>
                         <div><strong>Name:</strong> {lead.homeownerName}</div>
                         {lead.email && <div><strong>Email:</strong> {lead.email}</div>}
                         {lead.phone && <div><strong>Phone:</strong> {lead.phone}</div>}
                         {lead.location && <div><strong>Location:</strong> {lead.location}</div>}
                       </div>
                       <div>
-                        <div style={{ color: '#999', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Details</div>
+                        <div style={{ color: c.faint, fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Details</div>
                         {lead.jobType && <div><strong>{jobTypeLabel}:</strong> {lead.jobType}</div>}
                         {lead.budget && <div><strong>Budget:</strong> {lead.budget}</div>}
                         {lead.description && <div style={{ marginTop: 4, whiteSpace: 'pre-wrap' }}>{lead.description}</div>}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid #f0f0f0', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: `1px solid ${c.divider}`, flexWrap: 'wrap' }}>
                       {tel && (
                         <a href={`tel:${tel}`} onClick={(e) => { e.stopPropagation(); if (lead.status === 'new') updateStatus(lead.id, 'contacted') }}
                           style={{ padding: '6px 14px', borderRadius: 6, background: '#2e7d32', color: '#fff', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}>
@@ -239,13 +241,13 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
                       )}
                       {lead.status !== 'dismissed' && lead.status !== 'converted' && (
                         <button disabled={busy === `${lead.id}:dismissed`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'dismissed') }}
-                          style={{ padding: '6px 14px', borderRadius: 6, background: '#f5f5f5', color: '#999', border: '1px solid #e0e0e0', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.mutedBtnBg, color: c.faint, border: `1px solid ${c.border}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <XCircle size={14} /> Dismiss
                         </button>
                       )}
                       {lead.status === 'dismissed' && (
                         <button disabled={busy === `${lead.id}:new`} onClick={(e) => { e.stopPropagation(); updateStatus(lead.id, 'new') }}
-                          style={{ padding: '6px 14px', borderRadius: 6, background: '#fff', color: '#1565c0', border: '1px solid #90caf9', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.surface, color: '#1565c0', border: '1px solid #90caf9', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                           <RefreshCw size={14} /> Reopen
                         </button>
                       )}

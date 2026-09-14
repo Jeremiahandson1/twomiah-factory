@@ -131,3 +131,14 @@ jobs:
           bun-version: latest
       - name: a partial settings write can't wipe plan/seat-limit/terms/onboarding
         run: bun run scripts/check-company-settings-merge.ts
+
+  lead-inbox-theme:
+    name: Lead Inbox + Lead Sources stay dark-mode safe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: inline-styled lead pages must colour from useLeadPalette(), never hardcode a light palette
+        run: bun run scripts/check-lead-inbox-theme.ts
