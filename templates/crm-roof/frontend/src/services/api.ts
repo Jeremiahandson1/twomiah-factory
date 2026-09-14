@@ -354,10 +354,13 @@ class ApiClient {
     update: (data) => this.request('/api/company', { method: 'PUT', body: JSON.stringify(data) }),
     updateFeatures: (features) => this.request('/api/company/features', { method: 'PUT', body: JSON.stringify({ features }) }),
     featureCatalog: () => this.get('/api/company/features/catalog'),
-    users: () => this.get('/api/company/users'),
-    createUser: (data) => this.request('/api/company/users', { method: 'POST', body: JSON.stringify(data) }),
-    updateUser: (id, data) => this.request(`/api/company/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-    deleteUser: (id) => this.request(`/api/company/users/${id}`, { method: 'DELETE' }),
+    // The server serves user management at /api/users (not /api/company/users, which 404s). Settings
+    // already fetches /api/users directly; these client helpers pointed at the dead path. Deactivate
+    // via PUT { isActive: false } — there is no DELETE route.
+    users: () => this.get('/api/users?includeInactive=1'),
+    createUser: (data) => this.request('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+    updateUser: (id, data) => this.request(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    deleteUser: (id) => this.request(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify({ isActive: false }) }),
   };
 
   // Dashboard
