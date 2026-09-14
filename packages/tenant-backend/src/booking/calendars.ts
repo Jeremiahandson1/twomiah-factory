@@ -65,6 +65,9 @@ export function appointmentCalendar(appointment: any, opts: {
   defaults?: Record<string, unknown>
   /** the table serviceColumn points at (salon service_menu) — its `name` becomes the booking's service name in the owner's list */
   serviceTable?: any
+  /** vet: when the booking carries a petName, create a linked patient (owner = the booking's contact) and
+   *  point the appointment's linkColumn (patientId) at it, so the visit has a real chart from the start. */
+  patient?: { table: any; ownerColumn: string; linkColumn: string; nameColumn?: string; speciesColumn?: string }
 }): BookingCalendar {
   const inactive = ['cancelled', 'no_show']
   const statusFor = (s: BookingStatus) => s === 'pending' ? 'scheduled' : s
@@ -91,6 +94,15 @@ export function appointmentCalendar(appointment: any, opts: {
       if (opts.serviceColumn && i.serviceRef) values[opts.serviceColumn] = i.serviceRef
       if (opts.reasonColumn) values[opts.reasonColumn] = i.serviceName || 'Online booking'
       if (opts.priceColumn && i.price != null && i.price > 0) values[opts.priceColumn] = String(i.price)
+      // Vet: turn the booked pet into a real patient chart, linked to the owner, so staff can pull the
+      // record and bill the visit instead of finding patientId = null. (VET booking-no-pet)
+      if (opts.patient && i.petName && String(i.petName).trim()) {
+        const p = opts.patient
+        const pv: Record<string, unknown> = { companyId: i.companyId, [p.ownerColumn]: i.contactId, [p.nameColumn || 'name']: String(i.petName).trim() }
+        if (p.speciesColumn && i.petSpecies && String(i.petSpecies).trim()) pv[p.speciesColumn] = String(i.petSpecies).trim()
+        const [pr] = await exec.insert(p.table).values(pv).returning({ id: p.table.id })
+        if (pr?.id) values[p.linkColumn] = pr.id
+      }
       const [row] = await exec.insert(appointment).values(values).returning({ id: appointment.id })
       return { id: row.id, label: null }
     },

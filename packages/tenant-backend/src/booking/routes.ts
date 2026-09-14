@@ -20,6 +20,10 @@ const bookingSchema = z.object({
   state: z.string().optional(),
   zip: z.string().optional(),
   notes: z.string().max(2000).optional(),
+  // Vet: the animal being booked. Optional here (other verticals never send them); the vet widget makes
+  // pet name required, and the appointment calendar turns it into a linked patient record. (VET booking-no-pet)
+  petName: z.string().trim().max(120).optional(),
+  petSpecies: z.string().trim().max(80).optional(),
 })
 
 /**

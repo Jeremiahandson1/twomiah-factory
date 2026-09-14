@@ -194,6 +194,13 @@
         form.appendChild(el('input', { name: 'address', required: 'required' }));
       }
 
+      // The animal being booked — without this the appointment lands with no patient and staff can't
+      // pull a chart or bill the visit. Pet name is required; species is optional.
+      form.appendChild(el('label', null, "Pet's name"));
+      form.appendChild(el('input', { name: 'petName', required: 'required', placeholder: 'e.g. Bella' }));
+      form.appendChild(el('label', null, 'Species (optional)'));
+      form.appendChild(el('input', { name: 'petSpecies', placeholder: 'Dog, cat, …' }));
+
       form.appendChild(el('label', null, 'Anything we should know?'));
       form.appendChild(el('textarea', { name: 'notes', rows: '3' }));
 
@@ -219,6 +226,8 @@
           email: (data.get('email') || '').trim(),
           phone: (data.get('phone') || '').trim() || undefined,
           address: (data.get('address') || '').trim() || undefined,
+          petName: (data.get('petName') || '').trim() || undefined,
+          petSpecies: (data.get('petSpecies') || '').trim() || undefined,
           notes: (data.get('notes') || '').trim() || undefined,
         };
 

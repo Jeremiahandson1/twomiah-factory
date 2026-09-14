@@ -3,7 +3,7 @@
 // and its notification/deposit services in; behaviour lives in one place for every CRM.
 import { createBookingRoutes, appointmentCalendar } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { company, contact, bookingSettings, bookableService, onlineBooking, appointment } from '../../db/schema.ts'
+import { company, contact, bookingSettings, bookableService, onlineBooking, appointment, patient } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { sendRaw } from '../services/email.ts'
 import { sendSMS } from '../services/sms.ts'
@@ -12,7 +12,11 @@ export default createBookingRoutes({
   db,
   tables: { company, contact, bookingSettings, bookableService, onlineBooking },
   authenticate,
-  calendar: appointmentCalendar(appointment, { contactColumn: 'ownerId', reasonColumn: 'reason', defaults: { type: 'wellness' } }),
+  calendar: appointmentCalendar(appointment, {
+    contactColumn: 'ownerId', reasonColumn: 'reason', defaults: { type: 'wellness' },
+    // Public booking captures the pet → create a linked patient chart so the visit isn't ownerless.
+    patient: { table: patient, ownerColumn: 'ownerId', linkColumn: 'patientId', nameColumn: 'name', speciesColumn: 'species' },
+  }),
   options: {
     requireAddress: false,
     contactType: 'client',

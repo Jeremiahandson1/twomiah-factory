@@ -37,6 +37,9 @@ export interface BookingCalendar {
     customerNotes: string | null
     /** the booking still owes a deposit — the trades hold the job as 'pending' */
     pendingDeposit: boolean
+    /** vet: the animal being booked — the appointment calendar creates a linked patient from it */
+    petName?: string | null
+    petSpecies?: string | null
   }): Promise<CalendarEntry>
   /** Mirror a booking status onto the calendar row. */
   setStatus(exec: any, id: string, status: BookingStatus): Promise<void>
