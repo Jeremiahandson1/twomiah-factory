@@ -1,6 +1,7 @@
 // Money rules shared by invoices and quotes in every CRM template. One implementation, vendored into
 // each tenant (see ../index.ts). Nothing here knows a vertical; callers inject their Drizzle tables.
-import { eq, sql } from 'drizzle-orm'
+// drizzle-orm is imported lazily inside nextNumber() only, so the pure money helpers (invoiceBalance,
+// recomputeStatus, calcTotals, …) can be imported and unit-tested without pulling drizzle-orm.
 
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
@@ -35,12 +36,24 @@ export const DEFAULT_OPEN_STATUSES = ['sent', 'open', 'viewed', 'partial']
 export const netCollected = (inv: { amountPaid: any; amountRefunded?: any }) =>
   round2(Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
 
-/** What the customer still owes. Void or fully-returned (refunded ≥ total) → 0; else total − net, floored. */
+/**
+ * What the customer still owes. The rule has TWO halves and both must hold:
+ *  - A DEPOSIT refunded on a not-fully-paid invoice REOPENS the balance (the work is still owed):
+ *      total $200, paid $50, refunded $50 → owes $200;  paid $50, refunded $20 → owes $170.
+ *  - A refund on an invoice that was FULLY PAID is a return/goodwill and NEVER creates a balance
+ *      (the customer already settled; money handed back is the business's choice):
+ *      total $200, paid $200, refunded $50 → owes $0.
+ * So the key is whether it was ever fully paid (amountPaid ≥ total), NOT net-of-refunds alone.
+ * Void or a fully-returned sale (refunded ≥ total) owe nothing.
+ */
 export function invoiceBalance(inv: { status?: string; total: any; amountPaid: any; amountRefunded?: any }): number {
   if (inv.status === 'void') return 0
   const total = Number(inv.total) || 0
-  if (round2(Number(inv.amountRefunded || 0)) >= total - 0.005 && total > 0) return 0
-  return round2(Math.max(0, total - netCollected(inv)))
+  const paid = Number(inv.amountPaid || 0)
+  const refunded = round2(Number(inv.amountRefunded || 0))
+  if (total > 0 && refunded >= total - 0.005) return 0   // whole sale returned
+  if (paid >= total - 0.005) return 0                     // fully paid: a later refund is a return, never reopens
+  return round2(Math.max(0, total - (paid - refunded)))  // deposit/partial: a refund reopens what's owed
 }
 
 /**
@@ -51,12 +64,13 @@ export function invoiceBalance(inv: { status?: string; total: any; amountPaid: a
 export function recomputeStatus(inv: { total: any; amountPaid: any; amountRefunded?: any }, prevStatus: string, openFallback = 'sent'): string {
   if (prevStatus === 'void' || prevStatus === 'draft') return prevStatus
   const total = Number(inv.total) || 0
+  const paid = Number(inv.amountPaid || 0)
   const refunded = round2(Number(inv.amountRefunded || 0))
   const net = netCollected(inv)
   if (total > 0 && refunded >= total - 0.005) return 'refunded' // the whole sale was returned
-  if (net >= total - 0.005 && total > 0) return 'paid'
+  if (paid >= total - 0.005 && total > 0) return 'paid'         // fully paid; a partial refund does not un-pay it
   if (net > 0.005) return 'partial'
-  return openFallback // nothing (net) collected — billed and owed again
+  return openFallback // only a deposit was collected and then refunded — billed and owed again
 }
 
 /**
@@ -108,6 +122,7 @@ export function normalizeDateInput(v: unknown): { value?: Date | null; error?: s
  */
 export async function nextNumber(tx: any, table: any, numberColumn: any, companyColumn: any, companyId: string, opts: { prefix: string; pad?: number; seed?: number }): Promise<string> {
   const { prefix, pad = 5, seed = 0 } = opts
+  const { eq, sql } = await import('drizzle-orm')
   await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':' + prefix}))`)
   const rows: Array<{ number: string | null }> = await tx.select({ number: numberColumn }).from(table).where(eq(companyColumn, companyId))
   const re = new RegExp(`^${prefix}-(\\d+)$`)

@@ -231,7 +231,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       : [{ value: 0 }]
     const [quoteCount] = await db.select({ value: count() }).from(t.quote).where(and(eq(t.quote.contactId, contact.id), inArray(t.quote.status, QUOTE_RESPONDABLE)))
     const [invoiceCount] = await db.select({ value: count() }).from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN)))
-    const [balance] = await db.select({ total: sql<string>`COALESCE(SUM(GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0)))), 0)` }).from(t.invoice)
+    const [balance] = await db.select({ total: sql<string>`COALESCE(SUM(CASE WHEN ${t.invoice.amountPaid} >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END), 0)` }).from(t.invoice)
       .where(and(eq(t.invoice.contactId, contact.id), inArray(t.invoice.status, ['sent', 'open', 'viewed', 'partial', 'overdue'])))
     return c.json({
       contact: { name: contact.name, email: contact.email, type: contact.type || 'client' },
@@ -365,7 +365,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     // Balance mirrors the invoicing module (net of refunds): void or a fully-returned sale (refunded ≥
     // total) owes nothing; otherwise total − money actually kept (paid − refunded). A refunded *deposit*
     // therefore reopens the balance, matching the owner side to the cent.
-    const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, balance: sql<string>`CASE WHEN ${t.invoice.status} = 'void' OR COALESCE(${t.invoice.amountRefunded}, 0) >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END`, dueDate: t.invoice.dueDate, createdAt: t.invoice.createdAt })
+    const rows = await db.select({ id: t.invoice.id, number: t.invoice.number, status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, balance: sql<string>`CASE WHEN ${t.invoice.status} = 'void' OR COALESCE(${t.invoice.amountRefunded}, 0) >= ${t.invoice.total} OR ${t.invoice.amountPaid} >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END`, dueDate: t.invoice.dueDate, createdAt: t.invoice.createdAt })
       .from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN))).orderBy(desc(t.invoice.createdAt))
     return c.json(rows)
   })

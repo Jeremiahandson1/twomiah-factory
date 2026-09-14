@@ -76,3 +76,14 @@ jobs:
           bun-version: latest
       - name: Every bare import in packages/tenant-ui + tenant-backend is in the package.json of every template that vendors them
         run: bun run scripts/check-shared-deps.ts
+
+  money-model:
+    name: invoice refund model — both halves hold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: A refunded deposit reopens the balance; a refund on a fully-paid invoice never creates one
+        run: bun run scripts/check-money-model.ts
