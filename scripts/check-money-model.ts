@@ -87,6 +87,16 @@ structural.push(
   [/status === 'refunded'/.test(voidBody), "the void handler must reject a 'refunded' invoice (a reversed sale can't be voided)"],
 )
 
+// The salon dashboard has its own outstanding tile (not the shared reporting service). It once summed
+// total − amountPaid, ignoring refunds, so a part-paid-then-refunded invoice read short and ONLY the
+// dashboard disagreed with the list / /stats / Reports (BL1a). It must net refunds like balanceExpr.
+const salonDash = readFileSync(new URL('../templates/crm-salon/backend/src/routes/dashboard.ts', import.meta.url), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+const owingBody = (salonDash.match(/outstandingValue[\s\S]{0,400}/) || [''])[0]
+structural.push(
+  [/amountRefunded/.test(owingBody), 'salon dashboard outstanding must net refunds (reference amountRefunded), matching the shared balance model'],
+)
+
 let sFail = 0
 for (const [ok, msg] of structural) { if (!ok) { sFail++; console.error(`FAIL (structural): ${msg}`) } }
 if (sFail) { console.error(`\nmoney model: ${sFail} structural check(s) FAILED`); process.exit(1) }

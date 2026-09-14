@@ -77,8 +77,16 @@ app.get('/stats', async (c) => {
   }
 
   // What clients still owe — the portal home showed $0 because it read a key this dashboard never set. (SALON-M14)
-  const owing = await safe(() => db.select({ total: invoice.total, amountPaid: invoice.amountPaid }).from(invoice).where(and(eq(invoice.companyId, companyId), sql`${invoice.status} IN ('open', 'sent', 'viewed', 'partial', 'overdue')`)), [] as { total: string; amountPaid: string }[])
-  const outstandingValue = Math.round((owing as any[]).reduce((sum: number, r: any) => sum + Math.max(0, Number(r.total) - Number(r.amountPaid || 0)), 0) * 100) / 100
+  // Outstanding MUST use the same balance model as the invoice list / /stats / Reports, or the dashboard
+  // disagrees: fully paid → 0 (a goodwill refund never reopens), else total − (paid − refunded) floored at 0
+  // (a deposit refund reopens the balance). Summing total − amountPaid ignored refunds, so a part-paid-then-
+  // refunded invoice read short and only the dashboard was out of line. Set = issued (not draft/void/refunded),
+  // matching reporting.ts's balanceExpr. (BL1a dashboard reconciliation — see scripts/check-money-model.ts)
+  const owing = await safe(() => db.select({ total: invoice.total, amountPaid: invoice.amountPaid, amountRefunded: invoice.amountRefunded }).from(invoice).where(and(eq(invoice.companyId, companyId), sql`${invoice.status} NOT IN ('draft', 'void', 'refunded')`)), [] as { total: string; amountPaid: string; amountRefunded: string }[])
+  const outstandingValue = Math.round((owing as any[]).reduce((sum: number, r: any) => {
+    const total = Number(r.total), paid = Number(r.amountPaid || 0), refunded = Number(r.amountRefunded || 0)
+    return sum + (paid >= total ? 0 : Math.max(0, total - (paid - refunded)))
+  }, 0) * 100) / 100
   return c.json({
     invoices: { outstandingValue },
     contacts: clientRows[0]?.value ?? 0,
