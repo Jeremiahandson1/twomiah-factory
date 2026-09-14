@@ -183,20 +183,29 @@ export default function JobDetailPage() {
   const uploadPhotos = async (files: FileList) => {
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('category', photoTab);
-      Array.from(files).forEach((f) => formData.append('photos', f));
-      const res = await fetch(`/api/jobs/${id}/photos`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      if (!res.ok) throw new Error();
-      const newPhotos = await res.json();
-      setPhotos((prev) => [...prev, ...(Array.isArray(newPhotos) ? newPhotos : [newPhotos])]);
-      toast.success('Photos uploaded');
-    } catch {
-      toast.error('Failed to upload photos');
+      // The API takes ONE file per request under the field `photo`, tagged with `photoType`.
+      // This used to POST `photos` (plural) + `category`, so every upload 400'd silently and
+      // nothing ever appeared under a tab. Send each file as its own `photo` + `photoType`.
+      const created: any[] = [];
+      for (const f of Array.from(files)) {
+        const formData = new FormData();
+        formData.append('photo', f);
+        formData.append('photoType', photoTab);
+        const res = await fetch(`/api/jobs/${id}/photos`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (!res.ok) {
+          const msg = await res.json().catch(() => null);
+          throw new Error(msg?.error || 'upload failed');
+        }
+        created.push(await res.json());
+      }
+      setPhotos((prev) => [...prev, ...created]);
+      toast.success(created.length > 1 ? `${created.length} photos uploaded` : 'Photo uploaded');
+    } catch (err) {
+      toast.error(err instanceof Error && err.message !== 'upload failed' ? err.message : 'Failed to upload photos');
     } finally {
       setUploading(false);
     }
@@ -241,7 +250,7 @@ export default function JobDetailPage() {
   const daysOpen = daysSince(job.createdAt);
   const statusColor = STATUS_COLORS[job.status] || 'bg-gray-100 text-gray-700';
   const typeColor = JOB_TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-700';
-  const filteredPhotos = photos.filter((p) => p.category === photoTab);
+  const filteredPhotos = photos.filter((p) => (p.photoType ?? p.category) === photoTab);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
