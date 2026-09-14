@@ -142,3 +142,14 @@ jobs:
           bun-version: latest
       - name: inline-styled lead pages must colour from useLeadPalette(), never hardcode a light palette
         run: bun run scripts/check-lead-inbox-theme.ts
+
+  booking-availability:
+    name: Booking slot list matches the validator (grid + window)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: /slots must step by the advertised grid and honour the booking window
+        run: bun run scripts/check-booking-availability.ts

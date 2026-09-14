@@ -220,7 +220,14 @@ export function createBookingService(deps: BookingDeps) {
 
   async function slotsFor(settings: Settings, date: string, service: CatalogService | null, companyId: string, exec: any) {
     const tz = settings.timezone
-    const slotDuration = service?.durationMinutes || settings.slotDurationMinutes
+    // Start times step by the tenant's advertised slot grid (stable, independent of which service the
+    // customer picks). The booked service's own duration only decides how long a slot is OCCUPIED — how
+    // far before close it must fit, and how it overlaps existing bookings. Stepping the grid by the
+    // service duration instead made the advertised times shift per service, so /slots (called without a
+    // serviceId → grid of the slot setting) offered times the validator (called with the service → grid
+    // of the service duration) then refused, and vice-versa. That was the salon B1 / vet booking blocker.
+    const stepMin = settings.slotDurationMinutes
+    const occupyMin = service?.durationMinutes || settings.slotDurationMinutes
     const capacity = settings.concurrentBookings
     const noon = zonedWallTimeToUtc(date, '12:00', tz)
     if (Number.isNaN(noon.getTime())) throw new BookingError('That date is not valid.')
@@ -230,7 +237,7 @@ export function createBookingService(deps: BookingDeps) {
 
     const open = hmToMinutes(isHm(day.start) ? day.start : '09:00'), close = hmToMinutes(isHm(day.end) ? day.end : '17:00')
     const slots: Array<{ time: string; minutes: number; available: boolean }> = []
-    for (let m = open; m + slotDuration <= close; m += slotDuration) slots.push({ time: minutesToHm(m), minutes: m, available: true })
+    for (let m = open; m + occupyMin <= close; m += stepMin) slots.push({ time: minutesToHm(m), minutes: m, available: true })
 
     // Every active calendar entry that touches this business-local day.
     const dayStart = zonedWallTimeToUtc(date, '00:00', tz)
@@ -243,7 +250,7 @@ export function createBookingService(deps: BookingDeps) {
       windows.push({ s: sp.minutes, e: ep ? (ep.date === date ? ep.minutes : 24 * 60) : sp.minutes + 60 })
     }
     for (const slot of slots) {
-      const overlapping = windows.filter(w => slot.minutes < w.e && slot.minutes + slotDuration > w.s).length
+      const overlapping = windows.filter(w => slot.minutes < w.e && slot.minutes + occupyMin > w.s).length
       if (overlapping >= capacity) slot.available = false
     }
 
@@ -258,6 +265,15 @@ export function createBookingService(deps: BookingDeps) {
     if (!isIsoDate(date)) throw new BookingError('Date must be YYYY-MM-DD.')
     await expireStaleDepositHolds(companyId)
     const settings = await getSettings(companyId)
+    // Only advertise slots inside the same window createBooking will accept. A past date, or one beyond
+    // maxDaysOut, has no bookable times — so the slot list must offer none, otherwise the widget shows a
+    // normal-looking day, the customer fills the whole form, and the validator then refuses it. That was
+    // the N7 regression: the 30-day window landed on createBooking but not on the availability endpoint.
+    const tz = settings.timezone
+    if (date < tzParts(new Date(), tz).date) return []
+    const maxDaysOut = settings.maxDaysOut || 30
+    const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + maxDaysOut)
+    if (date > tzParts(maxDate, tz).date) return []
     let service: CatalogService | null = null
     if (serviceId) {
       service = await catalog.resolve(companyId, serviceId, exec)
