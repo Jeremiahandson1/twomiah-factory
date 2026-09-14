@@ -98,3 +98,14 @@ jobs:
           bun-version: latest
       - name: salon/vet/restaurant conflict check+write is transactional and cancel is a soft status
         run: bun run scripts/check-appointment-guards.ts
+
+  kiosk-tenant-isolation:
+    name: dispensary kiosk resolves its own company, never an arbitrary row
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: kiosk company is scoped to the owner account, not `company LIMIT 1`
+        run: bun run scripts/check-kiosk-tenant-isolation.ts
