@@ -164,3 +164,14 @@ jobs:
           bun-version: latest
       - name: a bad tax rate / term must be refused, never coerced to a default that wipes the stored value
         run: bun run scripts/check-settings-money-validation.ts
+
+  job-doublebook:
+    name: Job conflict check is atomic (no double-booking race)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: the same-tech/slot check + write must share one transaction under the job lock
+        run: bun run scripts/check-job-doublebook.ts

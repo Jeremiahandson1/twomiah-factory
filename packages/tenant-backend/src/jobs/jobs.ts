@@ -12,7 +12,7 @@
 //     ignored ?search=), and related rows are fetched by id instead of the whole company
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray } from 'drizzle-orm'
+import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
 import { sniffType, baseMime } from '../files/storage'
 
@@ -94,7 +94,12 @@ export function createJobRoutes(deps: JobDeps) {
   // blocked its slot; manual New-Job / edit did not, so a dispatcher could stack two jobs on one tech
   // at 10:00 with no warning. Only fires when assignee, date and time are all set; cancelled/completed
   // jobs never conflict. Same-day different-time and same-time different-people are both allowed.
-  const assigneeConflict = async (companyId: string, assignedToId?: string, scheduledDate?: any, scheduledTime?: string, excludeId?: string) => {
+  // Serialises job create/update per company so two concurrent writes can't both pass the conflict check
+  // and stack two jobs on one tech at the same slot (FS double-booking race). Same coarse pattern as the
+  // salon/vet appointment lock (#116); job volume is low, so a per-company lock is simplest and safe.
+  const jobLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':job'}))`)
+
+  const assigneeConflict = async (companyId: string, assignedToId?: string, scheduledDate?: any, scheduledTime?: string, excludeId?: string, exec: any = db) => {
     if (!assignedToId || !scheduledDate || !scheduledTime) return null
     const dayStart = new Date(scheduledDate); if (isNaN(dayStart.getTime())) return null
     dayStart.setUTCHours(0, 0, 0, 0)
@@ -105,7 +110,7 @@ export function createJobRoutes(deps: JobDeps) {
       notInArray(t.job.status, ['cancelled', 'completed']),
     ]
     if (excludeId) conds.push(ne(t.job.id, excludeId))
-    const [dupe] = await db.select({ id: t.job.id, number: t.job.number }).from(t.job).where(and(...conds)).limit(1)
+    const [dupe] = await exec.select({ id: t.job.id, number: t.job.number }).from(t.job).where(and(...conds)).limit(1)
     return dupe || null
   }
   const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter(Boolean) as string[])]
@@ -234,9 +239,14 @@ export function createJobRoutes(deps: JobDeps) {
   app.post('/', async (c) => {
     const currentUser = c.get('user') as any
     const data: any = jobSchema.parse(await c.req.json())
-    const clash = await assigneeConflict(currentUser.companyId, data.assignedToId, data.scheduledDate, data.scheduledTime)
-    if (clash) return c.json({ error: `That person is already booked at this time on ${clash.number}. Pick another time or assignee.`, conflictId: clash.id }, 409)
+    // Conflict check + insert run in ONE transaction under the per-company job lock, so two concurrent
+    // New-Job requests for the same tech/slot can't both pass the check and double-book (the check ran
+    // outside the write before, so a race stacked two jobs at 10:00). (FS double-booking race)
+    let clash: any = null
     const created = await db.transaction(async (tx: any) => {
+      await jobLock(tx, currentUser.companyId)
+      clash = await assigneeConflict(currentUser.companyId, data.assignedToId, data.scheduledDate, data.scheduledTime, undefined, tx)
+      if (clash) return null
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
         ...data,
@@ -248,6 +258,7 @@ export function createJobRoutes(deps: JobDeps) {
       }).returning()
       return row
     })
+    if (clash) return c.json({ error: `That person is already booked at this time on ${clash.number}. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
     return c.json(result, 201)
@@ -266,14 +277,22 @@ export function createJobRoutes(deps: JobDeps) {
     const effAssignee = data.assignedToId !== undefined ? data.assignedToId : existing.assignedToId
     const effDate = data.scheduledDate !== undefined ? data.scheduledDate : existing.scheduledDate
     const effTime = data.scheduledTime !== undefined ? data.scheduledTime : existing.scheduledTime
-    const clash = await assigneeConflict(currentUser.companyId, effAssignee, effDate, effTime, id)
+    // Re-check + update in one transaction under the same per-company job lock, so a concurrent write
+    // (create or edit) can't sneak the same tech/slot in between the check and the update.
+    let clash: any = null
+    const updated = await db.transaction(async (tx: any) => {
+      await jobLock(tx, currentUser.companyId)
+      clash = await assigneeConflict(currentUser.companyId, effAssignee, effDate, effTime, id, tx)
+      if (clash) return null
+      const [row] = await tx.update(t.job).set({
+        ...data,
+        scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : undefined,
+        estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : undefined,
+        updatedAt: new Date(),
+      }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
+      return row
+    })
     if (clash) return c.json({ error: `That person is already booked at this time on ${clash.number}. Pick another time or assignee.`, conflictId: clash.id }, 409)
-    const [updated] = await db.update(t.job).set({
-      ...data,
-      scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : undefined,
-      estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : undefined,
-      updatedAt: new Date(),
-    }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
     const [result] = await withRelations([updated], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, result)
     return c.json(result)
