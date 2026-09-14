@@ -12,7 +12,7 @@
 //     ignored ?search=), and related rows are fetched by id instead of the whole company
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, gte, lt, lte, count, asc, desc, or, ilike, inArray } from 'drizzle-orm'
+import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
 import { sniffType, baseMime } from '../files/storage'
 
@@ -88,6 +88,25 @@ export function createJobRoutes(deps: JobDeps) {
   const findOwned = async (id: string, companyId: string) => {
     const [row] = await db.select().from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1)
     return row
+  }
+
+  // Reject assigning the same person two live jobs at the same date + time. Online booking already
+  // blocked its slot; manual New-Job / edit did not, so a dispatcher could stack two jobs on one tech
+  // at 10:00 with no warning. Only fires when assignee, date and time are all set; cancelled/completed
+  // jobs never conflict. Same-day different-time and same-time different-people are both allowed.
+  const assigneeConflict = async (companyId: string, assignedToId?: string, scheduledDate?: any, scheduledTime?: string, excludeId?: string) => {
+    if (!assignedToId || !scheduledDate || !scheduledTime) return null
+    const dayStart = new Date(scheduledDate); if (isNaN(dayStart.getTime())) return null
+    dayStart.setUTCHours(0, 0, 0, 0)
+    const dayEnd = new Date(dayStart.getTime() + 86400000)
+    const conds = [
+      eq(t.job.companyId, companyId), eq(t.job.assignedToId, assignedToId), eq(t.job.scheduledTime, scheduledTime),
+      gte(t.job.scheduledDate, dayStart), lt(t.job.scheduledDate, dayEnd),
+      notInArray(t.job.status, ['cancelled', 'completed']),
+    ]
+    if (excludeId) conds.push(ne(t.job.id, excludeId))
+    const [dupe] = await db.select({ id: t.job.id, number: t.job.number }).from(t.job).where(and(...conds)).limit(1)
+    return dupe || null
   }
   const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter(Boolean) as string[])]
 
@@ -215,6 +234,8 @@ export function createJobRoutes(deps: JobDeps) {
   app.post('/', async (c) => {
     const currentUser = c.get('user') as any
     const data: any = jobSchema.parse(await c.req.json())
+    const clash = await assigneeConflict(currentUser.companyId, data.assignedToId, data.scheduledDate, data.scheduledTime)
+    if (clash) return c.json({ error: `That person is already booked at this time on ${clash.number}. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const created = await db.transaction(async (tx: any) => {
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
@@ -239,7 +260,14 @@ export function createJobRoutes(deps: JobDeps) {
     // optional string fields reject null, so map null → undefined (clearing a field uses '').
     const raw = (await c.req.json().catch(() => null)) ?? {}
     const data: any = jobSchema.partial().parse(Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v])))
-    if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
+    const existing = await findOwned(id, currentUser.companyId)
+    if (!existing) return c.json({ error: 'Job not found' }, 404)
+    // Check the resulting assignee/date/time (only the fields the edit changed override the existing).
+    const effAssignee = data.assignedToId !== undefined ? data.assignedToId : existing.assignedToId
+    const effDate = data.scheduledDate !== undefined ? data.scheduledDate : existing.scheduledDate
+    const effTime = data.scheduledTime !== undefined ? data.scheduledTime : existing.scheduledTime
+    const clash = await assigneeConflict(currentUser.companyId, effAssignee, effDate, effTime, id)
+    if (clash) return c.json({ error: `That person is already booked at this time on ${clash.number}. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const [updated] = await db.update(t.job).set({
       ...data,
       scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : undefined,
