@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, Navigate } from 'react-router-dom';
 import { Home, Briefcase, Receipt, PenTool, FileSignature, LogOut, Menu, X } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -29,10 +29,12 @@ export default function PortalLayout() {
     navigate('/portal/login');
   };
 
+  // Redirect declaratively. Calling navigate() during render doesn't reliably fire, so /portal
+  // rendered `null` — a blank white page — for any visitor without a saved token. <Navigate> sends
+  // them to the working login instead.
   const token = localStorage.getItem('portalToken');
   if (!token) {
-    navigate('/portal/login');
-    return null;
+    return <Navigate to="/portal/login" replace />;
   }
 
   return (
