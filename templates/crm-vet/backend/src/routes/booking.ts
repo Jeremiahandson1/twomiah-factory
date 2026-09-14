@@ -20,6 +20,7 @@ export default createBookingRoutes({
   options: {
     requireAddress: false,
     contactType: 'client',
+    requirePet: true,
     notify: {
       email: ({ to, subject, html }) => sendRaw({ to, subject, html }),
       sms: (companyId, { toPhone, message }) => sendSMS(companyId, { toPhone, message }),

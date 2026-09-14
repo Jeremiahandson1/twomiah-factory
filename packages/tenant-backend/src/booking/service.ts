@@ -28,6 +28,7 @@ export function createBookingService(deps: BookingDeps) {
   const catalog = o.catalog || createWidgetCatalog(db, { bookableService: t.bookableService })
   const requirePhone = o.requirePhone !== false
   const requireAddress = o.requireAddress === true
+  const requirePet = o.requirePet === true
   const contactType = o.contactType || 'lead'
   const defaultTz = o.defaultTimezone || 'America/Chicago'
   const maxConcurrent = o.maxConcurrent || 20
@@ -300,8 +301,14 @@ export function createBookingService(deps: BookingDeps) {
     if (!settings.enabled) throw new BookingError('Online booking is not enabled.')
     const tz = settings.timezone
     if (date < tzParts(new Date(), tz).date) throw new BookingError('That date is in the past.')
+    // Honour the booking window server-side, not only in the widget's date picker — a raw API call could
+    // otherwise book months past maxDaysOut.
+    const maxDaysOut = settings.maxDaysOut || 30
+    const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + maxDaysOut)
+    if (date > tzParts(maxDate, tz).date) throw new BookingError(`Please choose a date within ${maxDaysOut} days.`)
     if (requirePhone && !data.phone?.trim()) throw new BookingError('Phone number is required.')
     if (requireAddress && !data.address?.trim()) throw new BookingError('Address is required.')
+    if (requirePet && !data.petName?.trim()) throw new BookingError("The pet's name is required.")
     if (serviceId && !(await catalog.resolve(companyId, serviceId))) throw new BookingError('That service is not available for online booking.')
     const email = data.email.trim().toLowerCase()
     const fullName = `${data.firstName} ${data.lastName}`.trim()
