@@ -216,31 +216,40 @@ app.post('/:id/payment', async (c) => {
   const paymentSchema = z.object({ amount: z.number().positive() })
   const data = paymentSchema.parse(await c.req.json())
 
-  const [existing] = await db.select().from(invoice)
-    .where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId)))
-    .limit(1)
-  if (!existing) return c.json({ error: 'Invoice not found' }, 404)
+  // Balance check and write happen in ONE transaction with the invoice row locked
+  // (SELECT ... FOR UPDATE). Two payments sent at the same instant used to both read the
+  // same balance, both pass the check and both write — the later write overwrote the
+  // earlier, so $120 paid recorded only $60. The lock serialises them: the second waits,
+  // re-reads the now-updated balance, and is rejected if it exceeds what's left.
+  let outcome: { status: number; body: any } = { status: 500, body: { error: 'Payment failed' } }
+  await db.transaction(async (tx: any) => {
+    const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`)
+    const row = (locked.rows || locked)[0]
+    if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
 
-  // Don't accept a payment larger than what's owed (a fat-fingered 999,999 on
-  // an $8,400 invoice went straight through).
-  const balanceDue = Number(existing.total) - Number(existing.amountPaid)
-  if (data.amount > balanceDue + 0.005) {
-    return c.json({ error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }, 400)
-  }
+    // Don't accept a payment larger than what's owed (a fat-fingered 999,999 on
+    // an $8,400 invoice went straight through).
+    const balanceDue = Number(row.total) - Number(row.amount_paid)
+    if (data.amount > balanceDue + 0.005) {
+      outcome = { status: 400, body: { error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` } }
+      return
+    }
 
-  const newAmountPaid = Number(existing.amountPaid) + data.amount
-  const newBalance = Number(existing.total) - newAmountPaid
-  const isPaidInFull = newBalance <= 0
+    const newAmountPaid = Number(row.amount_paid) + data.amount
+    const newBalance = Number(row.total) - newAmountPaid
+    const isPaidInFull = newBalance <= 0
 
-  const [updated] = await db.update(invoice).set({
-    amountPaid: newAmountPaid.toString(),
-    balance: Math.max(0, newBalance).toString(),
-    status: isPaidInFull ? 'paid' : 'partial',
-    paidAt: isPaidInFull ? new Date() : undefined,
-    updatedAt: new Date(),
-  }).where(eq(invoice.id, id)).returning()
+    const [updated] = await tx.update(invoice).set({
+      amountPaid: newAmountPaid.toString(),
+      balance: Math.max(0, newBalance).toString(),
+      status: isPaidInFull ? 'paid' : 'partial',
+      paidAt: isPaidInFull ? new Date() : undefined,
+      updatedAt: new Date(),
+    }).where(eq(invoice.id, id)).returning()
+    outcome = { status: 200, body: updated }
+  })
 
-  return c.json(updated)
+  return c.json(outcome.body, outcome.status as any)
 })
 
 export default app
