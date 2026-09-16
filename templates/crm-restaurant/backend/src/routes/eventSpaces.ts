@@ -16,6 +16,22 @@ import { createId } from '@paralleldrive/cuid2'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Capacities and money can't go negative — minimumSpend -500 / hireFee -250 saved
+// (201). Same rule and wording as event menu lines (H-01). Runs on create and update.
+const NON_NEGATIVE = [
+  ['seatedCapacity', 'Seated capacity'],
+  ['standingCapacity', 'Standing capacity'],
+  ['minimumSpend', 'Minimum spend'],
+  ['hireFee', 'Hire fee'],
+] as const
+function negativeFieldError(values: any): string | null {
+  for (const [k, label] of NON_NEGATIVE) {
+    const v = values[k]
+    if (v !== null && v !== undefined && (!Number.isFinite(Number(v)) || Number(v) < 0)) return `${label} cannot be negative`
+  }
+  return null
+}
+
 // GET /event-spaces — ?includeInactive=1
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -38,6 +54,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (typeof body.name !== 'string' || !body.name.trim()) {
     return c.json({ error: 'name is required' }, 400)
   }
+  const vErr = negativeFieldError(body)
+  if (vErr) return c.json({ error: vErr }, 400)
 
   const [created] = await db.insert(eventSpace).values({
     id: createId(),
@@ -73,6 +91,8 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['name', 'description', 'seatedCapacity', 'standingCapacity', 'minimumSpend', 'hireFee', 'amenities', 'photo', 'active'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  const vErr = negativeFieldError(updates)
+  if (vErr) return c.json({ error: vErr }, 400)
 
   const [updated] = await db.update(eventSpace).set(updates).where(eq(eventSpace.id, id)).returning()
   await audit.log({ action: 'update', entity: 'event_space', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })

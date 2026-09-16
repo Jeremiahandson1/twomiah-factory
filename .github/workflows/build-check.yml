@@ -241,3 +241,14 @@ jobs:
           bun-version: latest
       - name: rules/calls unwrap { data }; updateRule sets only editable columns
         run: bun run scripts/check-roof-ai-receptionist-read.ts
+
+  events-nonneg:
+    name: Events catalog and edits refuse negative money
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: spaces/packages POST+PUT, menu-line/payment PUT, CSV import refuse negatives
+        run: bun run scripts/check-events-nonneg.ts

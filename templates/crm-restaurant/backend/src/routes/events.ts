@@ -375,6 +375,13 @@ app.put('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) => 
   const EDITABLE = ['name', 'perPerson', 'quantity', 'unitPrice', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  // Same guard as POST — the edit path let a line go negative after it was added (H-01).
+  if (updates.unitPrice !== null && updates.unitPrice !== undefined && (!Number.isFinite(Number(updates.unitPrice)) || Number(updates.unitPrice) < 0)) {
+    return c.json({ error: 'Unit price cannot be negative' }, 400)
+  }
+  if (updates.quantity !== undefined && updates.quantity !== null && (!Number.isFinite(Number(updates.quantity)) || Number(updates.quantity) < 0)) {
+    return c.json({ error: 'Quantity cannot be negative' }, 400)
+  }
 
   const [updated] = await db.update(eventMenuItem).set(updates).where(eq(eventMenuItem.id, lineId)).returning()
   await audit.log({ action: 'update', entity: 'event_menu_item', entityId: lineId, changes: audit.diff(existing, updated), req: { user: currentUser } })
@@ -525,6 +532,13 @@ app.put('/:id/payments/:paymentId', requirePermission('contacts:update'), async 
   const EDITABLE = ['label', 'amount', 'dueDate', 'paidAt', 'method', 'reference', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  // Same guard as POST — editing a scheduled payment could set a zero/negative amount.
+  if ('amount' in updates) {
+    const amt = Number(updates.amount)
+    if (updates.amount === null || updates.amount === '' || !Number.isFinite(amt) || amt <= 0) {
+      return c.json({ error: 'Amount must be a positive number' }, 400)
+    }
+  }
   // paidAt: a truthy value stamps now unless an explicit date came in; false/null clears it.
   if ('paidAt' in updates) {
     updates.paidAt = updates.paidAt ? new Date(updates.paidAt === true ? Date.now() : updates.paidAt) : null

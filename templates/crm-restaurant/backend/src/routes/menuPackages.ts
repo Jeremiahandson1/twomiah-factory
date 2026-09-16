@@ -17,6 +17,21 @@ import { createId } from '@paralleldrive/cuid2'
 const app = new Hono()
 app.use('*', authenticate)
 
+// A negative per-head price saved (201) and would subtract from every event the
+// package is added to. Same rule and wording as event menu lines (H-01). Runs on
+// create and update.
+const NON_NEGATIVE = [
+  ['pricePerPerson', 'Price per person'],
+  ['minGuests', 'Minimum guests'],
+] as const
+function negativeFieldError(values: any): string | null {
+  for (const [k, label] of NON_NEGATIVE) {
+    const v = values[k]
+    if (v !== null && v !== undefined && (!Number.isFinite(Number(v)) || Number(v) < 0)) return `${label} cannot be negative`
+  }
+  return null
+}
+
 // GET /menu-packages — ?category=, ?includeInactive=1
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -41,6 +56,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (typeof body.name !== 'string' || !body.name.trim()) {
     return c.json({ error: 'name is required' }, 400)
   }
+  const vErr = negativeFieldError(body)
+  if (vErr) return c.json({ error: vErr }, 400)
 
   const [created] = await db.insert(menuPackage).values({
     id: createId(),
@@ -75,6 +92,8 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['name', 'description', 'category', 'pricePerPerson', 'minGuests', 'courses', 'dietaryNotes', 'active'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  const vErr = negativeFieldError(updates)
+  if (vErr) return c.json({ error: vErr }, 400)
 
   const [updated] = await db.update(menuPackage).set(updates).where(eq(menuPackage.id, id)).returning()
   await audit.log({ action: 'update', entity: 'menu_package', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })

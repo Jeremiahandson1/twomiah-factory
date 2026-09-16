@@ -1017,6 +1017,10 @@ export async function importSpaces(csvContent: string, companyId: string, option
         minimumSpend: parseDecimal(getValue(row, ...SPACE_COLUMN_MAP.minimumSpend))?.toString() ?? null,
         hireFee: parseDecimal(getValue(row, ...SPACE_COLUMN_MAP.hireFee))?.toString() ?? null,
       }
+      // Same rule as POST /event-spaces — capacities and money can't be negative.
+      const negative = ([['seatedCapacity', 'Seated capacity'], ['standingCapacity', 'Standing capacity'], ['minimumSpend', 'Minimum spend'], ['hireFee', 'Hire fee']] as const)
+        .find(([k]) => spaceData[k] !== null && Number(spaceData[k]) < 0)
+      if (negative) { results.errors.push({ line: lineNum, error: `${negative[1]} cannot be negative` }); results.skipped++; continue }
       if (!dryRun) {
         const [created] = await db.insert(eventSpace).values(spaceData).returning()
         results.records.push({ line: lineNum, id: created.id, name: created.name })
@@ -1060,6 +1064,10 @@ export async function importMenus(csvContent: string, companyId: string, options
         minGuests: minG ? parseInt(minG, 10) || null : null,
         dietaryNotes: getValue(row, ...MENU_COLUMN_MAP.dietaryNotes),
       }
+      // Same rule as POST /menu-packages — price and minimum can't be negative.
+      const negative = ([['pricePerPerson', 'Price per person'], ['minGuests', 'Minimum guests']] as const)
+        .find(([k]) => menuData[k] !== null && Number(menuData[k]) < 0)
+      if (negative) { results.errors.push({ line: lineNum, error: `${negative[1]} cannot be negative` }); results.skipped++; continue }
       if (!dryRun) {
         const [created] = await db.insert(menuPackage).values(menuData).returning()
         results.records.push({ line: lineNum, id: created.id, name: created.name })
