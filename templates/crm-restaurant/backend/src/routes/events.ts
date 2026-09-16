@@ -1,12 +1,14 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { event, eventSpace, eventMenuItem, eventTimeline, eventPayment, menuPackage, contact, company, user } from '../../db/schema.ts'
-import { eq, and, gte, lte, ne, or, ilike, desc, asc, inArray, sql } from 'drizzle-orm'
+import { eq, and, gte, lte, ne, or, ilike, desc, asc, inArray, isNotNull, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { deriveStatus, round2 } from '../shared/index.ts'
+import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice, backfillEventInvoices } from '../services/eventLedger.ts'
 
 /**
  * Events — the booking, and everything hanging off it.
@@ -26,9 +28,16 @@ import { createId } from '@paralleldrive/cuid2'
  * A space can only host one live event per date. HELD lists the statuses that
  * hold the room; enquiries deliberately do NOT, because two people asking
  * about the same Saturday is normal and must not block either of them.
+ *
+ * Money lives on the event's invoice (services/eventLedger.ts): these routes keep
+ * the schedule and keep the invoice in step with the menu; payments, refunds and
+ * voids are recorded on the invoice itself (/api/invoices/:id/...).
  */
 
 const app = new Hono()
+// Move any payments recorded on event_payment before the ledger lived on invoices. Once per process,
+// idempotent, fire-and-forget so it can never delay or fail startup.
+void backfillEventInvoices().catch((err) => console.error('[events] invoice backfill failed', err))
 app.use('*', authenticate)
 
 const HELD = ['tentative', 'confirmed', 'completed']
@@ -68,19 +77,25 @@ function lineTotal(l: { perPerson: boolean; quantity: number; unitPrice: string 
   return Number(l.unitPrice || 0) * Number(l.quantity || 0)
 }
 
-async function loadTotals(companyId: string, eventId: string) {
-  const menu = await db.select().from(eventMenuItem)
-    .where(and(eq(eventMenuItem.eventId, eventId), eq(eventMenuItem.companyId, companyId)))
-    .orderBy(asc(eventMenuItem.createdAt))
-  const payments = await db.select().from(eventPayment)
-    .where(and(eq(eventPayment.eventId, eventId), eq(eventPayment.companyId, companyId)))
-    .orderBy(asc(eventPayment.dueDate))
-
-  const menuTotal = menu.reduce((s, l) => s + lineTotal(l as any), 0)
-  const paid = payments.filter(p => p.paidAt).reduce((s, p) => s + Number(p.amount || 0), 0)
-  const scheduled = payments.reduce((s, p) => s + Number(p.amount || 0), 0)
-  return { menu, payments, menuTotal, paid, scheduled, outstanding: menuTotal - paid }
+// A room's hire fee is charged as its own menu line (spaceId set), priced when the room is booked.
+// Moving rooms swaps the line; hand-typed lines are never touched. Runs inside the booking transaction.
+async function syncHireLine(tx: any, companyId: string, ev: { id: string; spaceId: string | null }) {
+  const auto = await tx.select().from(eventMenuItem)
+    .where(and(eq(eventMenuItem.eventId, ev.id), eq(eventMenuItem.companyId, companyId), isNotNull(eventMenuItem.spaceId)))
+  const keep = auto.find((l: any) => l.spaceId === ev.spaceId)
+  for (const l of auto) if (l !== keep) await tx.delete(eventMenuItem).where(eq(eventMenuItem.id, l.id))
+  if (keep || !ev.spaceId) return
+  const [space] = await tx.select().from(eventSpace).where(and(eq(eventSpace.id, ev.spaceId), eq(eventSpace.companyId, companyId))).limit(1)
+  if (!space || !(Number(space.hireFee) > 0)) return
+  await tx.insert(eventMenuItem).values({
+    id: createId(), eventId: ev.id, spaceId: space.id, name: `Room hire — ${space.name}`,
+    perPerson: false, quantity: 1, unitPrice: space.hireFee, companyId,
+  })
 }
+
+// A ledger rule refused the write (it rolled back): answer with its message and status.
+const ledgerError = (c: any, e: unknown) => (e instanceof LedgerError ? c.json({ error: e.message }, e.status) : null)
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 
@@ -148,16 +163,19 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     .where(and(eq(eventTimeline.eventId, id), eq(eventTimeline.companyId, currentUser.companyId)))
     .orderBy(asc(eventTimeline.sortOrder), asc(eventTimeline.time))
 
-  const { menu, payments, menuTotal, paid, outstanding } = await loadTotals(currentUser.companyId, id)
+  const ledger = await loadEventLedger(currentUser.companyId, id)
+  const inv: any = ledger?.invoice
 
   return c.json({
     event: ev,
     client: client || null,
     space: space || null,
-    menu,
+    menu: ledger?.menu || [],
     timeline,
-    payments,
-    totals: { menuTotal, paid, outstanding, quoted: Number(ev.quotedTotal || 0) },
+    // The schedule, each installment with what the invoice has covered of it (state/paidAmount).
+    payments: ledger?.payments || [],
+    invoice: inv ? { id: inv.id, number: inv.number, status: deriveStatus(inv), dueDate: inv.dueDate, total: inv.total, taxAmount: inv.taxAmount, amountPaid: inv.amountPaid, amountRefunded: inv.amountRefunded, sentAt: inv.sentAt } : null,
+    totals: ledger?.totals,
   })
 })
 
@@ -203,6 +221,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
         notes: body.notes || null,
         companyId: currentUser.companyId,
       }).returning()
+      await syncHireLine(tx, currentUser.companyId, row)
       return row
     })
   } catch (e: any) {
@@ -260,10 +279,23 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
         if (clash) throw new SpaceClash({ error: `That space is already held on ${nextDate} by "${clash.name}"`, conflictId: clash.id })
       }
       const [row] = await tx.update(event).set(updates).where(eq(event.id, id)).returning()
+      if ((existing.spaceId || null) !== (row.spaceId || null)) await syncHireLine(tx, currentUser.companyId, row)
+      // Leaving the book closes the invoice (void, or deposit retained — body.keepDeposit); anything else
+      // keeps the invoice in step with the event (quote, room, client, due date).
+      if (EXIT_STATUSES.includes(row.status) && !EXIT_STATUSES.includes(existing.status)) {
+        await closeEventInvoice(tx, currentUser.companyId, id, body.keepDeposit === true)
+      } else {
+        const synced = await syncEventInvoice(tx, currentUser.companyId, id)
+        if (synced?.inv && synced.inv.status !== 'void' && !row.contactId) {
+          throw new LedgerError(`This event is billed on invoice ${synced.inv.number}, which needs a client. Choose a client instead of removing it.`)
+        }
+      }
       return row
     })
   } catch (e: any) {
     if (e instanceof SpaceClash) return c.json(e.payload, 409)
+    const refused = ledgerError(c, e)
+    if (refused) return refused
     throw e
   }
   await audit.log({ action: 'update', entity: 'event', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
@@ -271,7 +303,8 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   return c.json(updated)
 })
 
-// DELETE /events/:id — cancel, keeping the row so win/loss stays measurable.
+// DELETE /events/:id — cancel, keeping the row so win/loss stays measurable. ?keepDeposit=1 closes the
+// invoice at what was collected; with money collected and no choice made, 409 (refund it first).
 app.delete('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
@@ -281,10 +314,21 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Event not found' }, 404)
 
-  const [updated] = await db.update(event)
-    .set({ status: 'cancelled', updatedAt: new Date() })
-    .where(eq(event.id, id))
-    .returning()
+  let updated
+  try {
+    updated = await db.transaction(async (tx: any) => {
+      const [row] = await tx.update(event)
+        .set({ status: 'cancelled', updatedAt: new Date() })
+        .where(eq(event.id, id))
+        .returning()
+      if (!EXIT_STATUSES.includes(existing.status)) await closeEventInvoice(tx, currentUser.companyId, id, c.req.query('keepDeposit') === '1')
+      return row
+    })
+  } catch (e: any) {
+    const refused = ledgerError(c, e)
+    if (refused) return refused
+    throw e
+  }
 
   await audit.log({ action: 'update', entity: 'event', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
@@ -341,19 +385,30 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
     return c.json({ error: 'Quantity cannot be negative' }, 400)
   }
 
-  const [created] = await db.insert(eventMenuItem).values({
-    id: createId(),
-    eventId,
-    packageId: body.packageId || null,
-    name,
-    perPerson,
-    // Per-head lines default to the event's head count so the quote follows the
-    // guest number instead of being re-typed every time it moves.
-    quantity: body.quantity ?? (perPerson ? (ev.guestCountFinal ?? ev.guestCount ?? 1) : 1),
-    unitPrice,
-    notes: body.notes || null,
-    companyId: currentUser.companyId,
-  }).returning()
+  let created
+  try {
+    created = await db.transaction(async (tx: any) => {
+      const [row] = await tx.insert(eventMenuItem).values({
+        id: createId(),
+        eventId,
+        packageId: body.packageId || null,
+        name,
+        perPerson,
+        // Per-head lines default to the event's head count so the quote follows the
+        // guest number instead of being re-typed every time it moves.
+        quantity: body.quantity ?? (perPerson ? (ev.guestCountFinal ?? ev.guestCount ?? 1) : 1),
+        unitPrice,
+        notes: body.notes || null,
+        companyId: currentUser.companyId,
+      }).returning()
+      await syncEventInvoice(tx, currentUser.companyId, eventId)
+      return row
+    })
+  } catch (e: any) {
+    const refused = ledgerError(c, e)
+    if (refused) return refused
+    throw e
+  }
 
   await audit.log({ action: 'create', entity: 'event_menu_item', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
@@ -383,7 +438,18 @@ app.put('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) => 
     return c.json({ error: 'Quantity cannot be negative' }, 400)
   }
 
-  const [updated] = await db.update(eventMenuItem).set(updates).where(eq(eventMenuItem.id, lineId)).returning()
+  let updated
+  try {
+    updated = await db.transaction(async (tx: any) => {
+      const [row] = await tx.update(eventMenuItem).set(updates).where(eq(eventMenuItem.id, lineId)).returning()
+      await syncEventInvoice(tx, currentUser.companyId, eventId)
+      return row
+    })
+  } catch (e: any) {
+    const refused = ledgerError(c, e)
+    if (refused) return refused
+    throw e
+  }
   await audit.log({ action: 'update', entity: 'event_menu_item', entityId: lineId, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(updated)
@@ -400,7 +466,16 @@ app.delete('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) 
     .limit(1)
   if (!existing) return c.json({ error: 'Menu line not found' }, 404)
 
-  await db.delete(eventMenuItem).where(eq(eventMenuItem.id, lineId))
+  try {
+    await db.transaction(async (tx: any) => {
+      await tx.delete(eventMenuItem).where(eq(eventMenuItem.id, lineId))
+      await syncEventInvoice(tx, currentUser.companyId, eventId)
+    })
+  } catch (e: any) {
+    const refused = ledgerError(c, e)
+    if (refused) return refused
+    throw e
+  }
   await audit.log({ action: 'delete', entity: 'event_menu_item', entityId: lineId, metadata: existing, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json({ success: true })
@@ -472,8 +547,19 @@ app.delete('/:id/timeline/:lineId', requirePermission('contacts:update'), async 
   return c.json({ success: true })
 })
 
-// POST /events/:id/payments
-app.post('/:id/payments', requirePermission('contacts:update'), async (c) => {
+// The schedule can't promise more than the invoice bills. Checked after the invoice is in step with the
+// menu/quote, inside the same transaction.
+function scheduleExceedsInvoice(inv: any, schedule: any[], ignoreId: string | null | undefined, amount: number): string | null {
+  const total = round2(Number(inv.total))
+  if (total <= 0.005) return 'Add menu lines or a quoted total before scheduling payments — there is nothing to bill yet.'
+  const scheduled = round2(schedule.filter((p: any) => p.id !== ignoreId).reduce((s: number, p: any) => s + Number(p.amount || 0), 0) + amount)
+  if (scheduled > total + 0.005) return `Scheduled payments would total $${scheduled.toFixed(2)} — more than the event's invoice total of $${total.toFixed(2)}.`
+  return null
+}
+
+// POST /events/:id/payments — schedule an installment. Raises the event's invoice on the first one.
+// Recording that it was PAID happens on the invoice (POST /api/invoices/:id/payments).
+app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const eventId = c.req.param('id')
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -483,42 +569,45 @@ app.post('/:id/payments', requirePermission('contacts:update'), async (c) => {
   if (body.amount === undefined || body.amount === null || body.amount === '') {
     return c.json({ error: 'amount is required' }, 400)
   }
-  // Money must be a positive number and can't exceed what's still owed — an
-  // unchecked $999,999 against a $2,332 event flipped outstanding negative (H-01).
+  // Money must be a positive number (H-01); the schedule total is checked against the invoice below.
   const amt = Number(body.amount)
   if (!Number.isFinite(amt) || amt <= 0) {
     return c.json({ error: 'Amount must be a positive number' }, 400)
   }
-  const { menuTotal, paid } = await loadTotals(currentUser.companyId, eventId)
-  // Total commitment = the menu, or the quoted total if the menu isn't built yet
-  // (so a deposit can still be scheduled at enquiry). Fall back to a sanity
-  // ceiling only when there's no total at all.
-  const totalDue = Math.max(Number(menuTotal), Number(ev.quotedTotal || 0))
-  const remaining = totalDue > 0 ? totalDue - Number(paid) : 10_000_000
-  if (amt > remaining + 0.005) {
-    return c.json({ error: `Payment exceeds the balance due — ${remaining.toFixed(2)} remaining` }, 400)
-  }
+  if (body.dueDate && !DATE_RE.test(body.dueDate)) return c.json({ error: 'dueDate must be YYYY-MM-DD' }, 400)
 
-  const [created] = await db.insert(eventPayment).values({
-    id: createId(),
-    eventId,
-    label: (typeof body.label === 'string' && body.label.trim()) || 'Payment',
-    amount: body.amount,
-    dueDate: body.dueDate || null,
-    paidAt: body.paidAt ? new Date(body.paidAt) : null,
-    method: body.method || null,
-    reference: body.reference || null,
-    notes: body.notes || null,
-    companyId: currentUser.companyId,
-  }).returning()
+  let created
+  try {
+    created = await db.transaction(async (tx: any) => {
+      await ensureEventInvoice(tx, currentUser.companyId, eventId)
+      const synced = await syncEventInvoice(tx, currentUser.companyId, eventId)
+      const tooMuch = scheduleExceedsInvoice(synced!.inv, synced!.schedule, null, amt)
+      if (tooMuch) throw new LedgerError(tooMuch)
+      const [row] = await tx.insert(eventPayment).values({
+        id: createId(),
+        eventId,
+        label: (typeof body.label === 'string' && body.label.trim()) || 'Payment',
+        amount: round2(amt).toString(),
+        dueDate: body.dueDate || null,
+        notes: body.notes || null,
+        companyId: currentUser.companyId,
+      }).returning()
+      await syncEventInvoice(tx, currentUser.companyId, eventId, { linesToo: false })
+      return row
+    })
+  } catch (e: any) {
+    const refused = ledgerError(c, e)
+    if (refused) return refused
+    throw e
+  }
 
   await audit.log({ action: 'create', entity: 'event_payment', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(created, 201)
 })
 
-// PUT /events/:id/payments/:paymentId — marking paid is a PUT with paidAt.
-app.put('/:id/payments/:paymentId', requirePermission('contacts:update'), async (c) => {
+// PUT /events/:id/payments/:paymentId — change an installment's label, amount or due date.
+app.put('/:id/payments/:paymentId', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const eventId = c.req.param('id')
   const paymentId = c.req.param('paymentId')
@@ -529,7 +618,8 @@ app.put('/:id/payments/:paymentId', requirePermission('contacts:update'), async 
     .limit(1)
   if (!existing) return c.json({ error: 'Payment not found' }, 404)
 
-  const EDITABLE = ['label', 'amount', 'dueDate', 'paidAt', 'method', 'reference', 'notes'] as const
+  // The schedule only: whether it is paid comes from the invoice, so paidAt/method/reference are not editable.
+  const EDITABLE = ['label', 'amount', 'dueDate', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   // Same guard as POST — editing a scheduled payment could set a zero/negative amount.
@@ -538,20 +628,38 @@ app.put('/:id/payments/:paymentId', requirePermission('contacts:update'), async 
     if (updates.amount === null || updates.amount === '' || !Number.isFinite(amt) || amt <= 0) {
       return c.json({ error: 'Amount must be a positive number' }, 400)
     }
+    updates.amount = round2(amt).toString()
   }
-  // paidAt: a truthy value stamps now unless an explicit date came in; false/null clears it.
-  if ('paidAt' in updates) {
-    updates.paidAt = updates.paidAt ? new Date(updates.paidAt === true ? Date.now() : updates.paidAt) : null
-  }
+  if (updates.dueDate && !DATE_RE.test(updates.dueDate)) return c.json({ error: 'dueDate must be YYYY-MM-DD' }, 400)
+  if ('label' in updates && !(typeof updates.label === 'string' && updates.label.trim())) return c.json({ error: 'label is required' }, 400)
 
-  const [updated] = await db.update(eventPayment).set(updates).where(eq(eventPayment.id, paymentId)).returning()
+  let updated
+  try {
+    updated = await db.transaction(async (tx: any) => {
+      if ('amount' in updates) {
+        const synced = await syncEventInvoice(tx, currentUser.companyId, eventId)
+        if (synced?.inv) {
+          const tooMuch = scheduleExceedsInvoice(synced.inv, synced.schedule, paymentId, Number(updates.amount))
+          if (tooMuch) throw new LedgerError(tooMuch)
+        }
+      }
+      const [row] = await tx.update(eventPayment).set(updates).where(eq(eventPayment.id, paymentId)).returning()
+      await syncEventInvoice(tx, currentUser.companyId, eventId, { linesToo: false })
+      return row
+    })
+  } catch (e: any) {
+    const refused = ledgerError(c, e)
+    if (refused) return refused
+    throw e
+  }
   await audit.log({ action: 'update', entity: 'event_payment', entityId: paymentId, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json(updated)
 })
 
-// DELETE /events/:id/payments/:paymentId
-app.delete('/:id/payments/:paymentId', requirePermission('contacts:update'), async (c) => {
+// DELETE /events/:id/payments/:paymentId — drop an installment from the schedule. Money already collected
+// stays on the invoice; only the due date moves.
+app.delete('/:id/payments/:paymentId', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const eventId = c.req.param('id')
   const paymentId = c.req.param('paymentId')
@@ -561,7 +669,10 @@ app.delete('/:id/payments/:paymentId', requirePermission('contacts:update'), asy
     .limit(1)
   if (!existing) return c.json({ error: 'Payment not found' }, 404)
 
-  await db.delete(eventPayment).where(eq(eventPayment.id, paymentId))
+  await db.transaction(async (tx: any) => {
+    await tx.delete(eventPayment).where(eq(eventPayment.id, paymentId))
+    await syncEventInvoice(tx, currentUser.companyId, eventId, { linesToo: false })
+  })
   await audit.log({ action: 'delete', entity: 'event_payment', entityId: paymentId, metadata: existing, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
   return c.json({ success: true })
@@ -589,7 +700,11 @@ app.get('/:id/beo', requirePermission('contacts:read'), async (c) => {
   const timeline = await db.select().from(eventTimeline)
     .where(and(eq(eventTimeline.eventId, id), eq(eventTimeline.companyId, u.companyId)))
     .orderBy(asc(eventTimeline.sortOrder), asc(eventTimeline.time))
-  const { menu, payments, menuTotal, paid, outstanding } = await loadTotals(u.companyId, id)
+  const ledger = await loadEventLedger(u.companyId, id)
+  const menu: any[] = ledger?.menu || []
+  const payments = ledger?.payments || []
+  const { menuTotal, paid, outstanding } = ledger!.totals
+  const STATE_LABEL: Record<string, string> = { paid: 'Paid', part_paid: 'Part paid', unpaid: 'Due', refunded: 'Refunded', void: 'Void' }
 
   const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
   const money = (n: any) => '$' + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -657,8 +772,8 @@ app.get('/:id/beo', requirePermission('contacts:read'), async (c) => {
 
   <h2>Payments</h2>
   ${payments.length ? `<table class="grid">
-    <tr><th>Stage</th><th>Due</th><th>Paid</th><th class="num">Amount</th></tr>
-    ${payments.map(p => `<tr><td>${esc(p.label)}</td><td>${esc(p.dueDate || '—')}</td><td>${p.paidAt ? new Date(p.paidAt).toISOString().slice(0, 10) : '—'}</td><td class="num">${money(p.amount)}</td></tr>`).join('')}
+    <tr><th>Stage</th><th>Due</th><th>Status</th><th class="num">Amount</th></tr>
+    ${payments.map(p => `<tr><td>${esc(p.label)}</td><td>${esc(p.dueDate || '—')}</td><td>${esc(STATE_LABEL[p.state] || p.state)}${p.state === 'part_paid' ? ` (${money(p.paidAmount)})` : ''}</td><td class="num">${money(p.amount)}</td></tr>`).join('')}
     <tr><td colspan="3" class="num"><strong>Paid to date</strong></td><td class="num"><strong>${money(paid)}</strong></td></tr>
     <tr><td colspan="3" class="num"><strong>Outstanding</strong></td><td class="num"><strong>${money(outstanding)}</strong></td></tr>
   </table>` : '<p style="color:#888;font-size:13px;">No payment schedule recorded.</p>'}

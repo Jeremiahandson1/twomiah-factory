@@ -8,15 +8,23 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import emailService from '../services/email.ts'
+import { INVOICE_NUMBERING, syncEventInvoiceDueDate } from '../services/eventLedger.ts'
 
 export default createInvoiceRoutes({
   db,
   tables: { invoice, invoiceLineItem, payment, contact, project, quote, company },
   authenticate,
   requirePermission,
-  emitToCompany,
+  emitToCompany: (companyId, event, data) => {
+    emitToCompany(companyId, event, data)
+    // A payment, refund, void or edit on an event's invoice moves its due date to the next installment
+    // not yet covered (services/eventLedger.ts). A no-op for invoices that don't belong to an event.
+    const invoiceId = event === EVENTS.PAYMENT_RECEIVED ? data?.invoiceId : event === EVENTS.INVOICE_UPDATED ? data?.id : null
+    if (invoiceId) void syncEventInvoiceDueDate(invoiceId).catch((err) => console.error('[events] invoice due-date sync failed', err))
+  },
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
-  options: {},
+  // The same numbering constant event invoices are raised with (the shared default, stated once).
+  options: { numbering: INVOICE_NUMBERING },
 })

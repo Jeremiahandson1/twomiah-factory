@@ -37,9 +37,9 @@ for (const [name, src, cols] of [
 
 // (2) events: menu line + payment edits carry the same guards as their POSTs.
 const menuPut = handler(events, 'put', '/:id/menu/:lineId')
-if (!/'Unit price cannot be negative'[\s\S]*'Quantity cannot be negative'[\s\S]*db\.update/.test(menuPut)) fail('PUT /:id/menu/:lineId must refuse negative unitPrice and quantity before update')
+if (!/'Unit price cannot be negative'[\s\S]*'Quantity cannot be negative'[\s\S]*(db|tx)\.update/.test(menuPut)) fail('PUT /:id/menu/:lineId must refuse negative unitPrice and quantity before update')
 const payPut = handler(events, 'put', '/:id/payments/:paymentId')
-if (!/'Amount must be a positive number'[\s\S]*db\.update/.test(payPut)) fail('PUT /:id/payments/:paymentId must refuse a non-positive amount before update')
+if (!/'Amount must be a positive number'[\s\S]*(db|tx)\.update/.test(payPut)) fail('PUT /:id/payments/:paymentId must refuse a non-positive amount before update')
 
 // (3) CSV import applies the same rule before insert.
 const impSpaces = imp.slice(imp.indexOf('export async function importSpaces'), imp.indexOf('export async function importMenus'))

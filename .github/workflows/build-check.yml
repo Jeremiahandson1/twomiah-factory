@@ -263,3 +263,14 @@ jobs:
           bun-version: latest
       - name: no toISOString() day-slicing; paid badge + overdue use localDay()
         run: bun run scripts/check-events-local-dates.ts
+
+  events-ledger:
+    name: Events money lives on the invoice (one ledger)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: schedule-only event_payment; shared invoice writes; dashboard == Reports; due-date hooks
+        run: bun run scripts/check-events-ledger.ts

@@ -12,6 +12,7 @@ import Stripe from 'stripe'
 import { db } from '../../db/index.ts'
 import { contact, invoice, payment, company } from '../../db/schema.ts'
 import { eq, sql } from 'drizzle-orm'
+import { syncEventInvoiceDueDate } from './eventLedger.ts'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
@@ -441,6 +442,9 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
     })
     .where(eq(invoice.id, invoiceRow.id))
 
+  // If this invoice carries an event's money, move its due date to the next unpaid installment.
+  await syncEventInvoiceDueDate(invoiceRow.id).catch((err) => console.error('[events] invoice due-date sync failed', err))
+
   return {
     handled: true,
     paymentId: paymentRow.id,
@@ -546,6 +550,8 @@ export async function createRefund(paymentRow: any, amount: number | null = null
     .update(invoice)
     .set({ amountRefunded: String(newRefunded), status: newRefunded >= paid - 0.005 ? 'refunded' : invoiceRow.status, updatedAt: new Date() } as any)
     .where(eq(invoice.id, paymentRow.invoiceId))
+
+  await syncEventInvoiceDueDate(paymentRow.invoiceId).catch((err) => console.error('[events] invoice due-date sync failed', err))
 
   return refund
 }
