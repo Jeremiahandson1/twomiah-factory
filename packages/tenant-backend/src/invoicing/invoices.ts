@@ -75,6 +75,57 @@ const toRow = (items: z.infer<typeof lineItemSchema>[], invoiceId: string) => it
   invoiceId,
 }))
 
+export type InvoiceLine = z.infer<typeof lineItemSchema>
+
+/**
+ * The one write path for a new invoice and its lines, used by POST / and by any record that raises its
+ * own invoice (events). Runs inside the caller's transaction — numbering takes an advisory lock. The
+ * caller has already validated the values; totals always come from calcTotals.
+ */
+export async function insertInvoice(
+  tx: any, t: InvoiceTables, numbering: NumberingOptions,
+  v: { companyId: string; contactId: string; projectId?: string; notes?: string; terms?: string; dueDate: Date; issueDate: Date; taxRate: number; discount?: number; status?: string },
+  lineItems: InvoiceLine[],
+) {
+  const totals = calcTotals(lineItems, v.taxRate, v.discount ?? 0)
+  const { dueDate, issueDate } = v
+  const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, v.companyId, numbering)
+  const [created] = await tx.insert(t.invoice).values({
+    contactId: v.contactId, projectId: v.projectId, notes: v.notes, terms: v.terms,
+    number, companyId: v.companyId, dueDate, issueDate,
+    subtotal: totals.subtotal.toString(), taxRate: String(v.taxRate), taxAmount: totals.taxAmount.toString(),
+    discount: totals.effectiveDiscount.toString(), total: totals.total.toString(), amountPaid: '0',
+    ...(v.status ? { status: v.status } : {}),
+  }).returning()
+  const items = lineItems.length ? await tx.insert(t.invoiceLineItem).values(toRow(lineItems, created.id)).returning() : []
+  return { ...created, lineItems: items }
+}
+
+/**
+ * New totals + status when an invoice's lines, tax rate or discount change. Refuses a total below the
+ * money already collected (refund or void instead). Shared by PUT /:id and any record that keeps an
+ * invoice in step with its own lines (events).
+ */
+export function retotalInvoice(existing: { amountPaid: any; status: string }, lines: InvoiceLine[], taxRate: number, discount: number): { error: string } | { fields: Record<string, string> } {
+  const calc = calcTotals(lines, taxRate, discount)
+  const paid = Number(existing.amountPaid)
+  if (calc.total < paid - 0.005) return { error: `This invoice already has $${paid.toFixed(2)} in payments; the total can't be lowered below that. Refund or void instead.` }
+  // amountPaid is gross (refunds live in amountRefunded), so a partially refunded, fully paid invoice stays 'paid'.
+  return {
+    fields: {
+      subtotal: calc.subtotal.toString(), taxRate: String(taxRate), taxAmount: calc.taxAmount.toString(),
+      discount: calc.effectiveDiscount.toString(), total: calc.total.toString(),
+      status: paid >= calc.total - 0.005 ? 'paid' : paid > 0 ? 'partial' : existing.status,
+    },
+  }
+}
+
+/** Replace an invoice's lines inside the caller's transaction; returns the new rows. */
+export async function replaceInvoiceLines(tx: any, t: InvoiceTables, invoiceId: string, lines: InvoiceLine[]) {
+  await tx.delete(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, invoiceId))
+  return lines.length ? await tx.insert(t.invoiceLineItem).values(toRow(lines, invoiceId)).returning() : []
+}
+
 // Once per process, heal invoices whose STORED status drifted during an earlier broken-refund build —
 // a fully-refunded invoice must read 'refunded' and a fully-paid one 'paid', but that window left some
 // stuck on 'partial'/'sent', mislabelling them in the list and the status filter. Only the unambiguous
@@ -202,7 +253,6 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
     const settings = await companySettings(cid)
     const taxRate = data.taxRate ?? defaultTaxRateFrom(settings)
-    const totals = calcTotals(data.lineItems, taxRate, data.discount)
     // Due date: what the form sent, else the company's payment terms (Settings → Company). Never null:
     // an invoice with no due date could never become overdue.
     const due = normalizeDateInput(data.dueDate)
@@ -219,17 +269,10 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (dueDate < issueDate) return c.json({ error: 'Due date cannot be before the issue date.' }, 400)
 
     const { lineItems, ...rest } = data
-    const result = await db.transaction(async (tx: any) => {
-      const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, cid, numbering)
-      const [created] = await tx.insert(t.invoice).values({
-        contactId: rest.contactId, projectId: rest.projectId, notes: rest.notes, terms: rest.terms,
-        number, companyId: cid, dueDate, issueDate,
-        subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(),
-        discount: totals.effectiveDiscount.toString(), total: totals.total.toString(), amountPaid: '0',
-      }).returning()
-      const items = lineItems.length ? await tx.insert(t.invoiceLineItem).values(toRow(lineItems, created.id)).returning() : []
-      return { ...created, lineItems: items }
-    })
+    const result = await db.transaction((tx: any) => insertInvoice(tx, t, numbering, {
+      companyId: cid, contactId: data.contactId!, projectId: rest.projectId, notes: rest.notes, terms: rest.terms,
+      dueDate, issueDate, taxRate, discount: data.discount,
+    }, lineItems))
     emitToCompany(cid, EVENTS.INVOICE_CREATED, result)
     return c.json(result, 201)
   })
@@ -274,22 +317,15 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       if (lines.length < minLineItems) return c.json({ error: 'Add at least one line item.' }, 400)
       const subtotalRaw = rawSubtotal(lines)
       if (discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
-      const calc = calcTotals(lines, taxRate, discount)
-      const paid = Number(existing.amountPaid)
-      if (calc.total < paid - 0.005) return c.json({ error: `This invoice already has $${paid.toFixed(2)} in payments; the total can't be lowered below that. Refund or void instead.` }, 400)
-      // amountPaid is gross (refunds live in amountRefunded), so a partially refunded, fully paid invoice stays 'paid'.
-      Object.assign(update, {
-        subtotal: calc.subtotal.toString(), taxRate: String(taxRate), taxAmount: calc.taxAmount.toString(),
-        discount: calc.effectiveDiscount.toString(), total: calc.total.toString(),
-        status: paid >= calc.total - 0.005 ? 'paid' : paid > 0 ? 'partial' : existing.status,
-      })
+      const retotal = retotalInvoice(existing, lines, taxRate, discount)
+      if ('error' in retotal) return c.json({ error: retotal.error }, 400)
+      Object.assign(update, retotal.fields)
     }
     const result = await db.transaction(async (tx: any) => {
       const [updated] = await tx.update(t.invoice).set(update).where(eq(t.invoice.id, id)).returning()
       let items: any[]
       if (data.lineItems !== undefined) {
-        await tx.delete(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id))
-        items = data.lineItems.length ? await tx.insert(t.invoiceLineItem).values(toRow(data.lineItems, id)).returning() : []
+        items = await replaceInvoiceLines(tx, t, id, data.lineItems)
       } else items = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder))
       return { ...updated, lineItems: items }
     })
