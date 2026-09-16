@@ -126,6 +126,76 @@ export async function replaceInvoiceLines(tx: any, t: InvoiceTables, invoiceId: 
   return lines.length ? await tx.insert(t.invoiceLineItem).values(toRow(lines, invoiceId)).returning() : []
 }
 
+export interface RecordPaymentInput {
+  invoiceId: string
+  /** Company scope. The invoice routes always pass it; a Stripe webhook names the invoice by id alone. */
+  companyId?: string
+  /** Whole cents (round2'd by the caller). */
+  amount: number
+  method: string
+  reference?: string | null
+  notes?: string | null
+  /** Gratuity (salon) — written only when the template records tips. */
+  tipAmount?: number
+  /** When the money actually arrived (Stripe's timestamp). Omitted → the column default (now). */
+  paidAt?: Date
+  /**
+   * Money a processor already collected (a Stripe webhook) is recorded even above the balance — the
+   * model settles paid > total at a $0 balance. Interactive payments keep the balance ceiling.
+   */
+  allowOverpayment?: boolean
+  /**
+   * A processor retries deliveries: when a payment on this invoice already carries `reference`, return it
+   * instead of inserting a second one. The invoice row lock serialises concurrent retries.
+   */
+  idempotentByReference?: boolean
+}
+
+export type RecordPaymentOutcome =
+  | { ok: true; payment: any; row: any; newBalance: number; newStatus: string; duplicate: boolean }
+  | { ok: false; status: 400 | 404; error: string }
+
+/**
+ * The one way money is recorded on an invoice — POST /:id/payments and the Stripe webhook both come
+ * through here. Balance check and write in ONE transaction with the invoice row locked: two payments
+ * (or a payment and a refund) sent at the same instant cannot both pass the check.
+ */
+export async function recordInvoicePayment(db: any, t: { invoice: any; payment: any }, tips: boolean, input: RecordPaymentInput): Promise<RecordPaymentOutcome> {
+  const { invoiceId: id, amount } = input
+  let outcome: RecordPaymentOutcome = { ok: false, status: 400, error: 'Payment failed' }
+  await db.transaction(async (tx: any) => {
+    const locked: any = input.companyId
+      ? await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${input.companyId} FOR UPDATE`)
+      : await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} FOR UPDATE`)
+    const row = (locked.rows || locked)[0]
+    if (!row) { outcome = { ok: false, status: 404, error: 'Invoice not found' }; return }
+    if (row.status === 'void') { outcome = { ok: false, status: 400, error: 'This invoice is void and cannot take payments.' }; return }
+    if (row.status === 'refunded') { outcome = { ok: false, status: 400, error: 'This sale was refunded. Start a new invoice to charge the client again.' }; return }
+    if (input.idempotentByReference && input.reference) {
+      const [existing] = await tx.select().from(t.payment).where(and(eq(t.payment.invoiceId, id), eq(t.payment.reference, input.reference))).limit(1)
+      if (existing) {
+        const balance = invoiceBalance({ status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded })
+        outcome = { ok: true, payment: existing, row, newBalance: balance, newStatus: row.status, duplicate: true }
+        return
+      }
+    }
+    // Owed is net of refunds: if a deposit was refunded the balance reopened, and a payment may cover it.
+    const balanceDue = invoiceBalance({ status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded })
+    if (!input.allowOverpayment && amount > balanceDue + 0.005) { outcome = { ok: false, status: 400, error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }; return }
+    const values: any = { invoiceId: id, amount: amount.toString(), method: input.method, reference: input.reference, notes: input.notes }
+    if (tips) values.tipAmount = (input.tipAmount ?? 0).toString()
+    if (input.paidAt) values.paidAt = input.paidAt
+    const [newPayment] = await tx.insert(t.payment).values(values).returning()
+    const newAmountPaid = round2(Number(row.amount_paid) + amount)
+    const newBalance = invoiceBalance({ status: row.status, total: row.total, amountPaid: newAmountPaid, amountRefunded: row.amount_refunded })
+    // A draft may take a payment (a walk-in pays at the desk before anything is emailed); the payment issues it.
+    const newStatus = recomputeStatus({ total: row.total, amountPaid: newAmountPaid, amountRefunded: row.amount_refunded }, row.status === 'draft' ? 'sent' : row.status)
+    await tx.update(t.invoice).set({ amountPaid: newAmountPaid.toString(), status: newStatus, paidAt: newBalance <= 0.005 ? new Date() : null, updatedAt: new Date() }).where(eq(t.invoice.id, id))
+    outcome = { ok: true, payment: newPayment, row, newBalance, newStatus, duplicate: false }
+  })
+  return outcome
+}
+
 // Once per process, heal invoices whose STORED status drifted during an earlier broken-refund build —
 // a fully-refunded invoice must read 'refunded' and a fully-paid one 'paid', but that window left some
 // stuck on 'partial'/'sent', mislabelling them in the list and the status filter. Only the unambiguous
@@ -389,32 +459,12 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const tipAmount = tips ? round2(data.tipAmount || 0) : 0
     if (tips && tipAmount > Math.max(amount * 5, 100)) return c.json({ error: `A $${tipAmount.toFixed(2)} tip on a $${amount.toFixed(2)} payment looks wrong — check the amount.` }, 400)
 
-    // Balance check and write in ONE transaction with the row locked: two payments (or a payment and a
-    // refund) sent at the same instant cannot both pass the check.
-    let outcome: { status: number; body: any; row?: any; newBalance?: number; newStatus?: string } = { status: 500, body: { error: 'Payment failed' } }
-    await db.transaction(async (tx: any) => {
-      const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`)
-      const row = (locked.rows || locked)[0]
-      if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
-      if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void and cannot take payments.' } }; return }
-      if (row.status === 'refunded') { outcome = { status: 400, body: { error: 'This sale was refunded. Start a new invoice to charge the client again.' } }; return }
-      // Owed is net of refunds: if a deposit was refunded the balance reopened, and a payment may cover it.
-      const balanceDue = invoiceBalance({ status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded })
-      if (amount > balanceDue + 0.005) { outcome = { status: 400, body: { error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` } }; return }
-      const values: any = { invoiceId: id, amount: amount.toString(), method: data.method, reference: data.reference, notes: data.notes }
-      if (tips) values.tipAmount = tipAmount.toString()
-      const [newPayment] = await tx.insert(t.payment).values(values).returning()
-      const newAmountPaid = round2(Number(row.amount_paid) + amount)
-      const newBalance = invoiceBalance({ status: row.status, total: row.total, amountPaid: newAmountPaid, amountRefunded: row.amount_refunded })
-      // A draft may take a payment (a walk-in pays at the desk before anything is emailed); the payment issues it.
-      const newStatus = recomputeStatus({ total: row.total, amountPaid: newAmountPaid, amountRefunded: row.amount_refunded }, row.status === 'draft' ? 'sent' : row.status)
-      await tx.update(t.invoice).set({ amountPaid: newAmountPaid.toString(), status: newStatus, paidAt: newBalance <= 0.005 ? new Date() : null, updatedAt: new Date() }).where(eq(t.invoice.id, id))
-      outcome = { status: 201, body: newPayment, row, newBalance, newStatus }
-    })
-    if (outcome.status !== 201) return c.json(outcome.body, outcome.status as any)
+    // The locked, refund-aware write lives in recordInvoicePayment (shared with the Stripe webhook).
+    const outcome = await recordInvoicePayment(db, t, tips, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, tipAmount })
+    if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.PAYMENT_RECEIVED, { invoiceId: id, invoiceNumber: outcome.row.number, amount, newBalance: outcome.newBalance, status: outcome.newStatus })
     if (outcome.newStatus === 'paid') emitToCompany(currentUser.companyId, EVENTS.INVOICE_PAID, { id, number: outcome.row.number, total: outcome.row.total })
-    return c.json(outcome.body, 201)
+    return c.json(outcome.payment, 201)
   })
 
   // ---------------------------------------------------------------- void

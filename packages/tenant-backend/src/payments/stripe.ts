@@ -15,6 +15,8 @@
 import { Hono } from 'hono'
 import Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
+import { recordInvoicePayment } from '../invoicing/invoices'
+import { round2 } from '../invoicing/money'
 
 export interface StripeTables {
   contact: any
@@ -516,50 +518,41 @@ export function createStripeService(deps: StripeServiceDeps) {
       return { handled: false }
     }
 
-    const [invoiceRow] = await db.select().from(invoice).where(eq(invoice.id, invoice_id))
+    const amount = round2(paymentIntent.amount / 100)
 
-    if (!invoiceRow) {
-      console.error(`Invoice not found: ${invoice_id}`)
-      return { handled: false, error: 'Invoice not found' }
+    // Recorded through the same locked, refund-aware write as POST /api/invoices/:id/payments — once per
+    // PaymentIntent (Stripe retries deliveries), at Stripe's timestamp, and for what Stripe actually
+    // collected even if that is above the balance (the model settles paid > total at $0). A void or
+    // refunded invoice is refused like an interactive payment: the money was still taken, so it is
+    // logged for a person to refund or re-invoice. (#155)
+    const outcome = await recordInvoicePayment(db, { invoice, payment }, false, {
+      invoiceId: invoice_id,
+      amount,
+      method: 'card',
+      reference: paymentIntent.id,
+      notes: `Stripe payment - ${paymentIntent.payment_method_types?.join(', ') || 'card'}`,
+      paidAt: paymentIntent.created ? new Date(paymentIntent.created * 1000) : new Date(),
+      allowOverpayment: true,
+      idempotentByReference: true,
+    })
+
+    if (!outcome.ok) {
+      console.error(`[Stripe] Payment ${paymentIntent.id} for invoice ${invoice_id} NOT recorded: ${outcome.error}`)
+      return { handled: false, error: outcome.error, invoiceId: invoice_id, paymentIntentId: paymentIntent.id }
+    }
+    if (outcome.duplicate) {
+      console.log(`[Stripe] Payment ${paymentIntent.id} already recorded on invoice ${invoice_id} — retry ignored`)
+      return { handled: true, duplicate: true, paymentId: outcome.payment.id, invoiceId: invoice_id, amount, newStatus: outcome.newStatus }
     }
 
-    const amount = paymentIntent.amount / 100
-
-    // Create payment record
-    const [paymentRow] = await db
-      .insert(payment)
-      .values({
-        invoiceId: invoiceRow.id,
-        amount: String(amount),
-        method: 'card',
-        reference: paymentIntent.id,
-        paidAt: new Date(),
-        notes: `Stripe payment - ${paymentIntent.payment_method_types?.join(', ') || 'card'}`,
-      })
-      .returning()
-
-    // Update invoice
-    const newAmountPaid = Number(invoiceRow.amountPaid) + amount
-    const newBalance = Number(invoiceRow.total) - newAmountPaid
-    const newStatus = newBalance <= 0 ? 'paid' : 'partial'
-
-    await db
-      .update(invoice)
-      .set({
-        amountPaid: String(newAmountPaid),
-        status: newStatus,
-        ...(newStatus === 'paid' ? { paidAt: new Date() } : {}),
-      })
-      .where(eq(invoice.id, invoiceRow.id))
-
-    if (afterInvoicePayment) await afterInvoicePayment(invoiceRow.id).catch((err) => console.error('[events] invoice due-date sync failed', err))
+    if (afterInvoicePayment) await afterInvoicePayment(invoice_id).catch((err) => console.error('[events] invoice due-date sync failed', err))
 
     return {
       handled: true,
-      paymentId: paymentRow.id,
-      invoiceId: invoiceRow.id,
+      paymentId: outcome.payment.id,
+      invoiceId: invoice_id,
       amount,
-      newStatus,
+      newStatus: outcome.newStatus,
     }
   }
 

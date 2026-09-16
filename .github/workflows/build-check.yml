@@ -318,3 +318,14 @@ jobs:
           bun-version: latest
       - name: every Stripe money call scoped; /factory-event; Factory connect-webhook + registration + schema
         run: bun run scripts/check-connect-charging.ts
+
+  webhook-payment-core:
+    name: Route and Stripe webhook record money through one core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: recordInvoicePayment is locked, refund-aware, idempotent; webhook has no own math
+        run: bun run scripts/check-webhook-payment-core.ts
