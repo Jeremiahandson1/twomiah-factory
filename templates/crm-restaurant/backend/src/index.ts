@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
+import { requireEnabledFeature } from './middleware/enabledFeature.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
@@ -191,6 +192,17 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // API routes
 if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+
+// Modules outside this tenant's enabled features are refused at the API, not just hidden in the menu —
+// the families the events UI already bounces (App.tsx FeatureGate / shellConfig routeGates). Email
+// marketing is gated inside its own routes so the public unsubscribe/tracking links stay open. (T15 M5)
+app.use('/api/projects', authenticate, requireEnabledFeature('projects'))
+app.use('/api/projects/*', authenticate, requireEnabledFeature('projects'))
+app.use('/api/jobs', authenticate, requireEnabledFeature('jobs'))
+app.use('/api/jobs/*', authenticate, requireEnabledFeature('jobs'))
+app.use('/api/quotes', authenticate, requireEnabledFeature('quotes'))
+app.use('/api/quotes/*', authenticate, requireEnabledFeature('quotes'))
+
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)

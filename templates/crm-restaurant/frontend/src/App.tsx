@@ -150,7 +150,7 @@ function App() {
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="marketing" element={<MarketingPage />} />
+                    <Route path="marketing" element={<FeatureGate feature="email_marketing"><MarketingPage /></FeatureGate>} />
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<FeatureGate feature="reports"><ReportsDashboard /></FeatureGate>} />
                     <Route path="reviews" element={<ReviewsPage />} />

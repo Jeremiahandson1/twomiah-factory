@@ -406,3 +406,14 @@ jobs:
           bun-version: latest
       - name: DELETE + PUT {active:false} answer 409 with the count; UI shows the reason
         run: bun run scripts/check-events-retire-guard.ts
+
+  enabled-feature-gates:
+    name: Switched-off modules are refused at the API (one shared gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: shared createEnabledFeatureGate; events gates projects/jobs/quotes + email marketing; processor + sidebar honour the switch
+        run: bun run scripts/check-enabled-feature-gates.ts

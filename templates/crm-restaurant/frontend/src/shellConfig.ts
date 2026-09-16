@@ -14,7 +14,8 @@ const NAV: NavItem[] = [
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
   { to: '/crm/team', icon: Users, label: 'Team' },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'] },
-  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
+  // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own item above. (T15 M5)
+  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'] },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'] },
@@ -33,5 +34,6 @@ export const SHELL: ShellConfig = {
   '/crm/jobs': ['jobs'],
   '/crm/quotes': ['quotes'],
   '/crm/schedule': ['scheduling'],
+  '/crm/marketing': ['email_marketing'],
   },
 };

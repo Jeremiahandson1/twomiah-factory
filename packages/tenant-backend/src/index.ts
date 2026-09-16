@@ -90,6 +90,8 @@ export { createMessagingBillingRoutes, fetchMessagingBillingStatus } from './mes
 export type { MessagingBillingStatus } from './messagingBilling'
 
 // Auth — bearer middleware, the role → permission matrix, and the login/refresh/me/password routes, one implementation for every CRM.
+export { createEnabledFeatureGate } from './enabledFeature'
+export type { EnabledFeatureDeps, EnabledFeatureGate } from './enabledFeature'
 export { createAuthMiddleware } from './auth/middleware'
 export type { AuthMiddlewareDeps, AuthUserContext } from './auth/middleware'
 export { createPermissions, ROLE_HIERARCHY, BASE_ROLE_PERMISSIONS } from './auth/permissions'

@@ -23,12 +23,22 @@ export interface MarketingServiceDeps {
   sendRaw: (m: MailMessage) => Promise<any>
   /** process.env by default: API_BASE_URL / FRONTEND_URL for pixel, click and unsubscribe links. */
   env?: Record<string, string | undefined>
+  /**
+   * The tenant's Settings › Features switch. When given, the processor does not send a campaign or a
+   * drip whose company has switched Email Marketing off since it was scheduled. (T15 M5)
+   */
+  isFeatureEnabled?: (companyId: string, featureId: string) => Promise<boolean>
 }
 export interface MarketingRoutesDeps {
   service: MarketingService
   authenticate: any
   requirePermission: (permission: string) => any
   escapeHtml: (v: unknown) => string
+  /**
+   * requireEnabledFeature('email_marketing') from the template's enabled-feature gate. Applied to every
+   * authenticated route; the public tracking / unsubscribe links are exempt. (T15 M5)
+   */
+  featureGate?: any
 }
 
 export class MarketingError extends Error { constructor(message: string, public status: number) { super(message) } }
@@ -66,7 +76,7 @@ function personalize(content: string, c: any): string {
 const camelSequence = (s: any) => s ? ({ ...s, companyId: s.company_id ?? s.companyId, createdAt: s.created_at ?? s.createdAt, updatedAt: s.updated_at ?? s.updatedAt, steps: parseSteps(s.steps), enrollmentCount: Number(s.enrollment_count ?? s.enrollmentCount ?? 0), activeEnrollments: Number(s.active_enrollments ?? s.activeEnrollments ?? 0) }) : s
 
 export function createMarketingService(deps: MarketingServiceDeps) {
-  const { db, tables: t, sendRaw } = deps
+  const { db, tables: t, sendRaw, isFeatureEnabled } = deps
   const env = deps.env || process.env
   const publicBase = () => String(env.API_BASE_URL || env.FRONTEND_URL || '').replace(/\/$/, '')
 
@@ -236,6 +246,11 @@ export function createMarketingService(deps: MarketingServiceDeps) {
     const due = await db.select().from(t.campaign).where(and(eq(t.campaign.status, 'scheduled'), sql`${t.campaign.scheduledDate} <= NOW()`))
     let sent = 0
     for (const row of due) {
+      // Scheduled before the owner switched Email Marketing off: hold it, say why, send nothing. (T15 M5)
+      if (isFeatureEnabled && !(await isFeatureEnabled(row.companyId, 'email_marketing'))) {
+        await db.update(t.campaign).set({ status: 'failed', lastError: 'Email Marketing is switched off for this account (Settings › Features)' }).where(eq(t.campaign.id, row.id)).catch(() => {})
+        continue
+      }
       try { await db.update(t.campaign).set({ status: 'draft' }).where(eq(t.campaign.id, row.id)); sent += (await sendCampaign(row.id, row.companyId)).sent }
       catch (err: any) { console.error('[Marketing] Scheduled campaign failed:', row.id, err.message); await db.update(t.campaign).set({ status: 'failed', lastError: String(err?.message || err) }).where(eq(t.campaign.id, row.id)).catch(() => {}) }
     }
@@ -302,6 +317,8 @@ export function createMarketingService(deps: MarketingServiceDeps) {
       WHERE se.status = 'active' AND ds.active = true AND se.next_email_at <= NOW()`))
     let sent = 0
     for (const e of due) {
+      // The company switched Email Marketing off: leave the enrollment where it is, send nothing. (T15 M5)
+      if (isFeatureEnabled && !(await isFeatureEnabled(e.company_id, 'email_marketing'))) continue
       if (e.email_opt_out || !e.email) { await db.execute(sql`UPDATE sequence_enrollment SET status = 'unsubscribed' WHERE id = ${e.id}`); continue }
       const steps = parseSteps(e.steps)
       const step = steps.find((s: any) => Number(s.stepNumber) === Number(e.current_step))
@@ -418,11 +435,13 @@ const sequenceSchema = z.object({
   steps: z.array(z.object({ delayDays: z.any(), delayHours: z.any(), subject: z.any(), body: z.any(), templateId: z.any().optional() })).max(30),
 })
 
-export function createMarketingRoutes({ service: m, authenticate, requirePermission, escapeHtml }: MarketingRoutesDeps) {
+export function createMarketingRoutes({ service: m, authenticate, requirePermission, escapeHtml, featureGate }: MarketingRoutesDeps) {
   const app = new Hono()
   // Tracking pixels, click redirects and unsubscribe links are opened from a mail client with no session.
   const PUBLIC = /\/(track|unsubscribe)\//
   app.use('*', async (c, next) => (PUBLIC.test(c.req.path) ? next() : authenticate(c, next)))
+  // Email Marketing switched off refuses the module at the API too (403 FEATURE_NOT_ENABLED); links stay open.
+  if (featureGate) app.use('*', async (c, next) => (PUBLIC.test(c.req.path) ? next() : featureGate(c, next)))
   const user = (c: any) => (c as any).get('user')
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid request', details: err.flatten().fieldErrors }, 400)
   const guarded = (fn: (c: any) => Promise<Response>) => async (c: any) => {
