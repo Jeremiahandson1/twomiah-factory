@@ -285,3 +285,14 @@ jobs:
           bun-version: latest
       - name: services/routes stripe.ts are glue over packages/tenant-backend payments/stripe.ts
         run: bun run scripts/check-shared-stripe.ts
+
+  shared-bulk:
+    name: Bulk operations have one implementation (7 CRMs are glue)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: services/bulk.ts is glue over packages/tenant-backend bulk/bulk.ts
+        run: bun run scripts/check-shared-bulk.ts
