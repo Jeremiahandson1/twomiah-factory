@@ -362,3 +362,14 @@ jobs:
           bun-version: latest
       - name: webhook mirrors the confirm onto the job (pending → scheduled), same mapping as a manual confirm
         run: bun run scripts/check-booking-deposit-confirms-job.ts
+
+  bulk-markpaid:
+    name: Bulk mark-paid writes payment rows through the payment core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: bulkMarkInvoicesPaid records the refund-aware balance via recordInvoicePayment; glue passes payment
+        run: bun run scripts/check-bulk-markpaid.ts

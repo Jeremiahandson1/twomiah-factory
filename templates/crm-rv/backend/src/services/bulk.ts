@@ -3,11 +3,11 @@
 // in one place for every CRM.
 import { createBulkService } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { contact, project, job, invoice, quote, timeEntry } from '../../db/schema.ts'
+import { contact, project, job, invoice, quote, timeEntry, payment } from '../../db/schema.ts'
 
 const service = createBulkService({
   db,
-  tables: { contact, project, job, invoice, quote, timeEntry },
+  tables: { contact, project, job, invoice, quote, timeEntry, payment },
 })
 
 export const {

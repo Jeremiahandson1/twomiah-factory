@@ -7,6 +7,8 @@
  */
 
 import { eq, and, inArray, sql } from 'drizzle-orm';
+import { recordInvoicePayment } from '../invoicing/invoices';
+import { invoiceBalance } from '../invoicing/money';
 
 export interface BulkTables {
   contact: any
@@ -15,6 +17,8 @@ export interface BulkTables {
   invoice: any
   quote: any
   timeEntry: any
+  /** payment ledger — bulk "mark paid" records what was owed through the shared payment core (#159) */
+  payment: any
 }
 
 export interface BulkServiceDeps {
@@ -23,7 +27,7 @@ export interface BulkServiceDeps {
 }
 
 export function createBulkService(deps: BulkServiceDeps) {
-  const { db, tables: { contact, project, job, invoice, quote, timeEntry } } = deps
+  const { db, tables: { contact, project, job, invoice, quote, timeEntry, payment } } = deps
 
   // ============================================
   // CONTACTS
@@ -190,7 +194,14 @@ export function createBulkService(deps: BulkServiceDeps) {
     return sent;
   }
 
-  async function bulkMarkInvoicesPaid(companyId: string, invoiceIds: string[]): Promise<number> {
+  /**
+   * Mark billed invoices paid by recording what each still owes as a payment — through the same locked,
+   * refund-aware core as "Record Payment" and the Stripe webhook, so a payment row exists for Reports and
+   * the ledger, and a refunded deposit (balance reopened) is settled for what is actually owed. Once this
+   * set amountPaid = total with no payment row. An invoice already settled (or void / refunded) by the
+   * time it is locked is skipped and not counted. (#159)
+   */
+  async function bulkMarkInvoicesPaid(companyId: string, invoiceIds: string[], opts: { method?: string; notes?: string } = {}): Promise<number> {
     const invoices = await db.select()
       .from(invoice)
       .where(and(
@@ -201,14 +212,14 @@ export function createBulkService(deps: BulkServiceDeps) {
 
     let updated = 0;
     for (const inv of invoices) {
-      await db.update(invoice)
-        .set({
-          status: 'paid',
-          amountPaid: inv.total,
-          paidAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(invoice.id, inv.id));
+      const amount = invoiceBalance(inv);
+      if (amount <= 0.005) continue;
+      const outcome = await recordInvoicePayment(db, { invoice, payment }, false, {
+        invoiceId: inv.id, companyId, amount,
+        method: opts.method || 'other',
+        notes: opts.notes || 'Marked paid in bulk',
+      });
+      if (!outcome.ok) { console.warn(`[Bulk] Invoice ${inv.number} not marked paid: ${outcome.error}`); continue; }
       updated++;
     }
     return updated;

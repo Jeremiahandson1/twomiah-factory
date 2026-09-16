@@ -24,7 +24,7 @@ for (const t of TEMPLATES) {
   const glue = read(`templates/${t}/backend/src/services/bulk.ts`)
   if (!/createBulkService\(/.test(glue) || !/from '\.\.\/shared\/index\.ts'/.test(glue)) fail(`${t}/services/bulk.ts must build the service with createBulkService from ../shared`)
   if (/db\.(update|delete|select)\(/.test(glue)) fail(`${t}/services/bulk.ts carries its own bulk logic — it must be glue only`)
-  if (!/tables: \{ contact, project, job, invoice, quote, timeEntry \}/.test(glue)) fail(`${t}/services/bulk.ts must pass the six tables`)
+  if (!/tables: \{ contact, project, job, invoice, quote, timeEntry, payment \}/.test(glue)) fail(`${t}/services/bulk.ts must pass the seven tables (payment for bulk mark-paid, #159)`)
   for (const f of FUNCTIONS) if (!glue.includes(f)) fail(`${t}/services/bulk.ts must re-export ${f}`)
   if (!/export default service/.test(glue)) fail(`${t}/services/bulk.ts must default-export the service (routes/bulk.ts uses bulk.<fn>)`)
 }
