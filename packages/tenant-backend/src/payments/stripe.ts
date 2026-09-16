@@ -503,6 +503,7 @@ export function createStripeService(deps: StripeServiceDeps) {
       // A payment can land AFTER the hold expired and the slot was released.
       // Resurrect only when the exact window is still clear and in the future —
       // otherwise refund, so nobody pays for a slot that no longer exists.
+      let resurrected = false
       if (bk.status === 'cancelled' || bk.deposit_status === 'expired') {
         const slotFree = await lateDepositSlotFree(bk)
         if (!slotFree) {
@@ -523,6 +524,7 @@ export function createStripeService(deps: StripeServiceDeps) {
         } else {
           await db.execute(sql`UPDATE job SET status = 'scheduled', updated_at = NOW() WHERE id = ${bk.job_id}`)
         }
+        resurrected = true
         console.log('[Stripe] Late deposit but the slot is still free — booking resurrected:', booking_id)
       }
 
@@ -531,6 +533,14 @@ export function createStripeService(deps: StripeServiceDeps) {
         SET deposit_status = 'paid', deposit_paid_at = NOW(), status = 'confirmed', updated_at = NOW()
         WHERE id = ${booking_id}
       `)
+      // The trades hold a deposit-required booking's job as 'pending' (jobCalendar.create). A confirmed
+      // booking is a scheduled job — the same mapping the owner's manual confirm uses
+      // (jobCalendar.setStatus 'confirmed' → 'scheduled') — guarded so a job the owner already moved on
+      // is never reset. A resurrected booking's job was just set above. Appointment calendars create
+      // the appointment scheduled from the start and are left alone. (#158)
+      if (options.bookingCalendarKind === 'job' && !resurrected && bk.job_id) {
+        await db.execute(sql`UPDATE job SET status = 'scheduled', updated_at = NOW() WHERE id = ${bk.job_id} AND status = 'pending'`)
+      }
       console.log('[Stripe] Booking deposit paid:', booking_id, paidAmount)
       return { handled: true, booking_id }
     }

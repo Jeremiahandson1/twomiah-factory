@@ -351,3 +351,14 @@ jobs:
           bun-version: latest
       - name: intents carry invoice_id via payment_intent_data; charges use the refund-aware balance; no inv.balance
         run: bun run scripts/check-checkout-recording.ts
+
+  booking-deposit-confirms-job:
+    name: A cleared booking deposit schedules the pending job
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: webhook mirrors the confirm onto the job (pending → scheduled), same mapping as a manual confirm
+        run: bun run scripts/check-booking-deposit-confirms-job.ts
