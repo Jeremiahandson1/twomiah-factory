@@ -43,6 +43,8 @@ export { round2, calcTotals, isOverdue, deriveStatus, DEFAULT_OPEN_STATUSES, def
 
 // Online booking — one implementation for every CRM; the template injects its tables + the calendar it books onto.
 export { createBookingRoutes, externalBookingsProxy } from './booking/routes'
+export { createStripeService, createStripeRoutes } from './payments/stripe'
+export type { StripeService, StripeServiceDeps, StripeServiceOptions, StripeRoutesDeps, StripeTables } from './payments/stripe'
 export { createBookingService } from './booking/service'
 export type { BookingService } from './booking/service'
 export { jobCalendar, appointmentCalendar } from './booking/calendars'

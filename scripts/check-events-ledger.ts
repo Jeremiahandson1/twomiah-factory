@@ -61,7 +61,11 @@ if (/eventPayment\.paidAt/.test(dashboard)) fail('events dashboard must not read
 // (5) money moving on the invoice moves the event invoice's due date.
 if (!/syncEventInvoiceDueDate/.test(invoicesGlue) || !/PAYMENT_RECEIVED/.test(invoicesGlue) || !/INVOICE_UPDATED/.test(invoicesGlue)) fail('routes/invoices.ts must call syncEventInvoiceDueDate on PAYMENT_RECEIVED and INVOICE_UPDATED')
 if (!/numbering:\s*INVOICE_NUMBERING/.test(invoicesGlue)) fail('routes/invoices.ts must pass the same INVOICE_NUMBERING event invoices use')
-if ((stripe.match(/syncEventInvoiceDueDate\(/g) || []).length < 2) fail('stripe.ts must sync the event invoice due date after a webhook payment AND a Stripe refund')
+// Since #151 the Stripe logic is shared: the restaurant glue passes the hook as afterInvoicePayment and the
+// shared module fires it after a webhook payment AND after a Stripe refund.
+if (!/afterInvoicePayment:\s*syncEventInvoiceDueDate/.test(stripe)) fail('restaurant services/stripe.ts must pass afterInvoicePayment: syncEventInvoiceDueDate')
+const sharedStripe = strip(readFileSync(new URL('../packages/tenant-backend/src/payments/stripe.ts', import.meta.url), 'utf8'))
+if ((sharedStripe.match(/await afterInvoicePayment\(/g) || []).length < 2) fail('shared payments/stripe.ts must call afterInvoicePayment after a webhook payment AND after a Stripe refund')
 
 // (6) schema + migration.
 if (!/eventId:\s*text\('event_id'\)\.references\(\(\) => event\.id/.test(schema)) fail("schema: invoice.eventId → event.id")

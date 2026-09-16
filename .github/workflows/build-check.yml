@@ -274,3 +274,14 @@ jobs:
           bun-version: latest
       - name: schedule-only event_payment; shared invoice writes; dashboard == Reports; due-date hooks
         run: bun run scripts/check-events-ledger.ts
+
+  shared-stripe:
+    name: Stripe has one implementation (7 CRMs are glue)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: services/routes stripe.ts are glue over packages/tenant-backend payments/stripe.ts
+        run: bun run scripts/check-shared-stripe.ts
