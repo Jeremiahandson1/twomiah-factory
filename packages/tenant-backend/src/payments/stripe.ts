@@ -15,7 +15,7 @@
 import { Hono } from 'hono'
 import Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
-import { recordInvoicePayment } from '../invoicing/invoices'
+import { recordInvoicePayment, recordInvoiceRefund } from '../invoicing/invoices'
 import { round2 } from '../invoicing/money'
 
 export interface StripeTables {
@@ -410,6 +410,8 @@ export function createStripeService(deps: StripeServiceDeps) {
         return handlePaymentFailed(event.data.object as Stripe.PaymentIntent)
       case 'checkout.session.completed':
         return handleCheckoutComplete(event.data.object as Stripe.Checkout.Session)
+      case 'charge.refunded':
+        return handleChargeRefunded(event.data.object as Stripe.Charge, stripeAccount)
       default:
         console.log(`Unhandled Stripe event: ${event.type}`)
         return { handled: false }
@@ -575,6 +577,45 @@ export function createStripeService(deps: StripeServiceDeps) {
     return { handled: true }
   }
 
+  /**
+   * A refund issued anywhere — the Stripe dashboard, this CRM's own refund call — arrives here as
+   * charge.refunded carrying the charge's cumulative refund total. The refunds themselves are listed
+   * from Stripe (charge.refunds is not included by default on this API version) and each one is
+   * recorded on the invoice once, by refund id, through the shared refund core — so a refund this CRM
+   * issued itself is not counted twice and a retried delivery writes nothing. A charge with no invoice
+   * payment behind it (a booking deposit auto-refunded on an expired hold) is not an error. (#156)
+   */
+  async function handleChargeRefunded(charge: Stripe.Charge, stripeAccount: string | null = null) {
+    const paymentIntentId = typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id
+    if (!paymentIntentId) {
+      console.log('[Stripe] Refund on a charge without a PaymentIntent:', charge.id)
+      return { handled: false }
+    }
+    const [paymentRow] = await db.select().from(payment).where(and(eq(payment.reference, paymentIntentId), sql`${payment.amount}::numeric > 0`)).limit(1)
+    if (!paymentRow) {
+      console.log('[Stripe] Refund on a charge with no invoice payment behind it:', charge.id, paymentIntentId)
+      return { handled: false, paymentIntentId }
+    }
+    const listed = await stripe!.refunds.list({ payment_intent: paymentIntentId, limit: 100 }, requestOpts(stripeAccount))
+    let recorded = 0
+    let duplicates = 0
+    const errors: string[] = []
+    for (const refund of listed.data) {
+      // Money that never went back is not a refund; pending card refunds settle on their own.
+      if (refund.status === 'failed' || refund.status === 'canceled') continue
+      const outcome = await recordStripeRefund(refund, paymentRow)
+      if (!outcome.ok) {
+        console.error(`[Stripe] Refund ${refund.id} on invoice ${paymentRow.invoiceId} NOT recorded: ${outcome.error}`)
+        errors.push(`${refund.id}: ${outcome.error}`)
+        continue
+      }
+      if (outcome.duplicate) duplicates++
+      else recorded++
+    }
+    if (recorded > 0 && afterInvoicePayment) await afterInvoicePayment(paymentRow.invoiceId).catch((err) => console.error('[events] invoice due-date sync failed', err))
+    return { handled: true, invoiceId: paymentRow.invoiceId, paymentIntentId, recorded, duplicates, ...(errors.length ? { errors } : {}) }
+  }
+
   // ============================================
   // PAYMENT LINKS
   // ============================================
@@ -623,39 +664,66 @@ export function createStripeService(deps: StripeServiceDeps) {
   // REFUNDS
   // ============================================
 
+  /** A payment row this CRM recorded from Stripe: a positive amount referencing the PaymentIntent. */
+  const isStripePayment = (paymentRow: any) =>
+    typeof paymentRow?.reference === 'string' && paymentRow.reference.startsWith('pi_') && Number(paymentRow.amount) > 0
+
   /**
-   * Create refund for a payment
+   * Record one Stripe Refund on the invoice its payment belongs to — the same negative ledger row,
+   * amountRefunded and recomputeStatus as a refund typed in by hand (so a refunded deposit reopens the
+   * balance and only a fully returned sale reads 'refunded'), dated at Stripe's timestamp, refunded the
+   * way the money came in, once per refund id.
    */
-  async function createRefund(paymentRow: any, amount: number | null = null) {
-    if (!paymentRow.reference) {
-      throw new Error('Payment was not made through Stripe')
-    }
+  async function recordStripeRefund(refund: Stripe.Refund, paymentRow: any) {
+    return recordInvoiceRefund(db, { invoice, payment }, {
+      invoiceId: paymentRow.invoiceId,
+      amount: round2(refund.amount / 100),
+      method: paymentRow.method || 'card',
+      reference: refund.id,
+      notes: refund.reason ? `Stripe refund (${String(refund.reason).replace(/_/g, ' ')})` : 'Stripe refund',
+      paidAt: refund.created ? new Date(refund.created * 1000) : new Date(),
+      idempotentByReference: true,
+    })
+  }
+
+  /**
+   * Refund (part of) a Stripe payment: issued on Stripe, scoped to the account the payment was taken
+   * on, then recorded on the invoice through the shared refund core. The ledger is checked BEFORE
+   * Stripe is asked, so a refund the invoice cannot take is never issued; a write refused after Stripe
+   * already refunded (a payment landing in between) is logged and the charge.refunded delivery records
+   * it — the refund id makes that idempotent. `amount` null = the whole payment. (#156)
+   */
+  async function createRefund(paymentRow: any, amount: number | null = null): Promise<
+    | { ok: true; refund: Stripe.Refund; invoice: any; recorded: boolean; duplicate: boolean }
+    | { ok: false; status: 400 | 404; error: string }
+  > {
+    if (!isStripePayment(paymentRow)) return { ok: false, status: 400, error: 'Payment was not made through Stripe' }
 
     // The invoice is read first so the refund can be scoped to the account the payment was taken on.
-    const [invoiceRow] = await db.select().from(invoice).where(eq(invoice.id, paymentRow.invoiceId))
-    const stripeAccount = await connectedAccountFor(invoiceRow?.companyId)
+    const [invoiceRow] = await db.select().from(invoice).where(eq(invoice.id, paymentRow.invoiceId)).limit(1)
+    if (!invoiceRow) return { ok: false, status: 404, error: 'Invoice not found' }
+    const collected = round2(Number(paymentRow.amount))
+    const requested = amount == null ? collected : round2(Number(amount))
+    if (!(requested > 0)) return { ok: false, status: 400, error: 'Refund amount must be at least $0.01' }
+    if (requested > collected + 0.005) return { ok: false, status: 400, error: `Refund exceeds this payment — $${collected.toFixed(2)} was collected on it.` }
+    const net = round2(Number(invoiceRow.amountPaid || 0) - Number(invoiceRow.amountRefunded || 0))
+    if (net <= 0.005) return { ok: false, status: 400, error: 'Everything collected on this invoice has already been refunded.' }
+    if (requested > net + 0.005) return { ok: false, status: 400, error: `Refund exceeds what was collected — $${net.toFixed(2)} still refundable on this invoice.` }
 
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const refund = await stripe!.refunds.create({
       payment_intent: paymentRow.reference,
-      amount: amount ? Math.round(amount * 100) : undefined,
+      amount: Math.round(requested * 100),
     }, requestOpts(stripeAccount))
 
-    // Update invoice balance
-    const refundAmount = refund.amount / 100
+    const outcome = await recordStripeRefund(refund, paymentRow)
+    if (!outcome.ok) {
+      console.error(`[Stripe] Refund ${refund.id} on invoice ${paymentRow.invoiceId} issued but NOT recorded: ${outcome.error}`)
+      return { ok: true, refund, invoice: null, recorded: false, duplicate: false }
+    }
+    if (!outcome.duplicate && afterInvoicePayment) await afterInvoicePayment(paymentRow.invoiceId).catch((err) => console.error('[events] invoice due-date sync failed', err))
 
-    // Same model as a manual refund: a negative ledger row, amountRefunded goes up, amountPaid stays
-    // gross, and only a full refund changes the status. The sale is never reopened as a balance due.
-    const paid = Number(invoiceRow.amountPaid || 0)
-    const newRefunded = Math.round((Number((invoiceRow as any).amountRefunded || 0) + refundAmount) * 100) / 100
-    await db.insert(payment).values({ invoiceId: paymentRow.invoiceId, amount: (-refundAmount).toString(), method: 'stripe', reference: refund.id, notes: 'Stripe refund' } as any)
-    await db
-      .update(invoice)
-      .set({ amountRefunded: String(newRefunded), status: newRefunded >= paid - 0.005 ? 'refunded' : invoiceRow.status, updatedAt: new Date() } as any)
-      .where(eq(invoice.id, paymentRow.invoiceId))
-
-    if (afterInvoicePayment) await afterInvoicePayment(paymentRow.invoiceId).catch((err) => console.error('[events] invoice due-date sync failed', err))
-
-    return refund
+    return { ok: true, refund, invoice: outcome.invoice, recorded: !outcome.duplicate, duplicate: outcome.duplicate }
   }
 
   // ============================================
@@ -948,10 +1016,15 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
   // REFUNDS
   // ============================================
 
-  // Create refund
+  // Refund a Stripe payment (whole payment when `amount` is omitted). Issued on Stripe and recorded on
+  // the invoice through the shared refund core. (#156)
   app.post('/refund', requirePermission('payments:delete'), async (c) => {
     const user = c.get('user') as any
-    const { paymentId, amount } = await c.req.json()
+    const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+    const { paymentId } = body
+    if (!paymentId || typeof paymentId !== 'string') return c.json({ error: 'paymentId is required' }, 400)
+    const amount = body.amount == null ? null : Number(body.amount)
+    if (amount !== null && !(Number.isFinite(amount) && amount > 0)) return c.json({ error: 'Refund amount must be at least $0.01' }, 400)
 
     const [pay] = await db.select().from(payment).where(eq(payment.id, paymentId)).limit(1)
 
@@ -966,24 +1039,22 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       return c.json({ error: 'Invoice not found' }, 404)
     }
 
-    if (!pay.stripePaymentIntentId) {
-      return c.json({ error: 'Payment was not made through Stripe' }, 400)
-    }
-
-    const refund = await stripeService.createRefund(pay, amount)
+    const result = await stripeService.createRefund(pay, amount)
+    if (!result.ok) return c.json({ error: result.error }, result.status)
 
     audit.log({
       action: 'REFUND',
       entity: 'payment',
       entityId: pay.id,
-      metadata: { amount: refund.amount / 100, invoiceId: inv.id },
+      metadata: { amount: result.refund.amount / 100, invoiceId: inv.id },
       req: c.req,
     })
 
     return c.json({
       success: true,
-      refundId: refund.id,
-      amount: refund.amount / 100,
+      refundId: result.refund.id,
+      amount: result.refund.amount / 100,
+      invoice: result.invoice,
     })
   })
 

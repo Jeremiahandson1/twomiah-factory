@@ -196,6 +196,74 @@ export async function recordInvoicePayment(db: any, t: { invoice: any; payment: 
   return outcome
 }
 
+export interface RecordRefundInput {
+  invoiceId: string
+  /** Company scope. The invoice routes always pass it; a Stripe webhook names the invoice by id alone. */
+  companyId?: string
+  /** Whole cents (round2'd by the caller). */
+  amount: number
+  /** Omitted → how the money came in (the most recent positive payment's method), else 'other'. */
+  method?: string | null
+  reference?: string | null
+  notes?: string | null
+  /** When the money actually went back (Stripe's timestamp). Omitted → the column default (now). */
+  paidAt?: Date
+  /**
+   * A processor retries deliveries and may also report a refund this CRM issued itself: when a refund on
+   * this invoice already carries `reference`, return it instead of inserting a second one.
+   */
+  idempotentByReference?: boolean
+}
+
+export type RecordRefundOutcome =
+  | { ok: true; refund: any; invoice: any; row: any; newStatus: string; duplicate: boolean }
+  | { ok: false; status: 400 | 404; error: string }
+
+/**
+ * The one way a refund is recorded on an invoice — POST /:id/refund and the Stripe refund paths (the
+ * owner's refund call and the charge.refunded webhook) all come through here. A refund is its own
+ * ledger event: a negative payment row plus amountRefunded. amountPaid stays gross, so the sale stays
+ * paid and a refund never reopens a balance the client must settle again — except a refunded DEPOSIT
+ * on a not-fully-paid invoice, which reopens what is still owed (recomputeStatus). Row-locked like
+ * recordInvoicePayment so a payment and a refund at the same instant cannot both pass the check.
+ */
+export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: any }, input: RecordRefundInput): Promise<RecordRefundOutcome> {
+  const { invoiceId: id, amount } = input
+  let outcome: RecordRefundOutcome = { ok: false, status: 400, error: 'Refund failed' }
+  await db.transaction(async (tx: any) => {
+    const locked: any = input.companyId
+      ? await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${input.companyId} FOR UPDATE`)
+      : await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} FOR UPDATE`)
+    const row = (locked.rows || locked)[0]
+    if (!row) { outcome = { ok: false, status: 404, error: 'Invoice not found' }; return }
+    if (row.status === 'void') { outcome = { ok: false, status: 400, error: 'This invoice is void.' }; return }
+    if (input.idempotentByReference && input.reference) {
+      const [existing] = await tx.select().from(t.payment).where(and(eq(t.payment.invoiceId, id), eq(t.payment.reference, input.reference))).limit(1)
+      if (existing) { outcome = { ok: true, refund: existing, invoice: null, row, newStatus: row.status, duplicate: true }; return }
+    }
+    const paid = round2(Number(row.amount_paid))
+    const refunded = round2(Number(row.amount_refunded || 0))
+    const net = round2(paid - refunded)
+    if (paid <= 0.005) { outcome = { ok: false, status: 400, error: 'This invoice has no payments to refund.' }; return }
+    if (net <= 0.005) { outcome = { ok: false, status: 400, error: 'Everything collected on this invoice has already been refunded.' }; return }
+    if (amount > net + 0.005) { outcome = { ok: false, status: 400, error: `Refund exceeds what was collected — $${net.toFixed(2)} still refundable on this invoice.` }; return }
+    // Default to how the money came in — the most recent positive payment's method.
+    const [last] = await tx.select({ method: t.payment.method }).from(t.payment).where(and(eq(t.payment.invoiceId, id), sql`${t.payment.amount}::numeric > 0`)).orderBy(desc(t.payment.paidAt)).limit(1)
+    const method = input.method || last?.method || 'other'
+    const values: any = { invoiceId: id, amount: (-amount).toString(), method, reference: input.reference || null, notes: input.notes || 'Refund' }
+    if (input.paidAt) values.paidAt = input.paidAt
+    const [refund] = await tx.insert(t.payment).values(values).returning()
+    const newRefunded = round2(refunded + amount)
+    // 'refunded' (closed, $0 owed) only when the WHOLE sale is returned (refunded ≥ total). Refunding a
+    // deposit (refunded ≥ paid but < total) reopens the balance — the work is still owed — so the invoice
+    // drops back to its billed state, not 'refunded'. (professional refund model)
+    const newStatus = recomputeStatus({ total: row.total, amountPaid: row.amount_paid, amountRefunded: newRefunded }, row.status)
+    const [updated] = await tx.update(t.invoice).set({ amountRefunded: newRefunded.toString(), status: newStatus, updatedAt: new Date() }).where(eq(t.invoice.id, id)).returning()
+    outcome = { ok: true, refund, invoice: updated, row, newStatus, duplicate: false }
+  })
+  return outcome
+}
+
 // Once per process, heal invoices whose STORED status drifted during an earlier broken-refund build —
 // a fully-refunded invoice must read 'refunded' and a fully-paid one 'paid', but that window left some
 // stuck on 'partial'/'sent', mislabelling them in the list and the status filter. Only the unambiguous
@@ -506,32 +574,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional() })
     const data = refundSchema.parse(await c.req.json())
     const amount = round2(data.amount)
-    let outcome: { status: number; body: any } = { status: 500, body: { error: 'Refund failed' } }
-    await db.transaction(async (tx: any) => {
-      const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${currentUser.companyId} FOR UPDATE`)
-      const row = (locked.rows || locked)[0]
-      if (!row) { outcome = { status: 404, body: { error: 'Invoice not found' } }; return }
-      if (row.status === 'void') { outcome = { status: 400, body: { error: 'This invoice is void.' } }; return }
-      const paid = round2(Number(row.amount_paid))
-      const refunded = round2(Number(row.amount_refunded || 0))
-      const net = round2(paid - refunded)
-      if (paid <= 0.005) { outcome = { status: 400, body: { error: 'This invoice has no payments to refund.' } }; return }
-      if (net <= 0.005) { outcome = { status: 400, body: { error: 'Everything collected on this invoice has already been refunded.' } }; return }
-      if (amount > net + 0.005) { outcome = { status: 400, body: { error: `Refund exceeds what was collected — $${net.toFixed(2)} still refundable on this invoice.` } }; return }
-      // Default to how the money came in — the most recent positive payment's method.
-      const [last] = await tx.select({ method: t.payment.method }).from(t.payment).where(and(eq(t.payment.invoiceId, id), sql`${t.payment.amount}::numeric > 0`)).orderBy(desc(t.payment.paidAt)).limit(1)
-      const method = data.method || last?.method || 'other'
-      const [refund] = await tx.insert(t.payment).values({ invoiceId: id, amount: (-amount).toString(), method, reference: data.reference || null, notes: data.notes || 'Refund' }).returning()
-      const newRefunded = round2(refunded + amount)
-      // 'refunded' (closed, $0 owed) only when the WHOLE sale is returned (refunded ≥ total). Refunding a
-      // deposit (refunded ≥ paid but < total) reopens the balance — the work is still owed — so the invoice
-      // drops back to its billed state, not 'refunded'. (professional refund model)
-      const newStatus = recomputeStatus({ total: row.total, amountPaid: row.amount_paid, amountRefunded: newRefunded }, row.status)
-      const [updated] = await tx.update(t.invoice).set({ amountRefunded: newRefunded.toString(), status: newStatus, updatedAt: new Date() }).where(eq(t.invoice.id, id)).returning()
-      outcome = { status: 200, body: { refund, invoice: updated } }
-    })
-    if (outcome.status === 200) emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.body.invoice)
-    return c.json(outcome.body, outcome.status as any)
+    // The locked write lives in recordInvoiceRefund (shared with the Stripe refund paths).
+    const outcome = await recordInvoiceRefund(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes })
+    if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
+    emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
+    return c.json({ refund: outcome.refund, invoice: outcome.invoice })
   })
 
   // ---------------------------------------------------------------- pdf

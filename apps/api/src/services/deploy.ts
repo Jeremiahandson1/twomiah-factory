@@ -91,7 +91,8 @@ async function ensureStripeWebhookEndpoint(secretKey: string, webhookUrl: string
     }
     const body = new URLSearchParams()
     body.set('url', webhookUrl)
-    for (const ev of ['payment_intent.succeeded', 'payment_intent.payment_failed', 'checkout.session.completed']) body.append('enabled_events[]', ev)
+    // The events the tenant Stripe module handles (packages/tenant-backend/src/payments/stripe.ts handleWebhook).
+    for (const ev of ['payment_intent.succeeded', 'payment_intent.payment_failed', 'checkout.session.completed', 'charge.refunded']) body.append('enabled_events[]', ev)
     const createRes = await sh('/webhook_endpoints', { method: 'POST', body: body.toString() })
     const created = await createRes.json() as any
     if (!createRes.ok) return { error: created?.error?.message || ('create failed: ' + createRes.status) }

@@ -30,7 +30,7 @@ const mode = secretKey.startsWith('sk_live_') ? 'LIVE' : 'TEST'
 const factoryUrl = (process.env.FACTORY_PUBLIC_URL || 'https://twomiah-factory-api.onrender.com').replace(/\/$/, '')
 const webhookUrl = factoryUrl + '/api/v1/factory/stripe/connect-webhook'
 // The events the tenant Stripe module handles (packages/tenant-backend/src/payments/stripe.ts handleWebhook).
-const EVENTS = ['payment_intent.succeeded', 'payment_intent.payment_failed', 'checkout.session.completed']
+const EVENTS = ['payment_intent.succeeded', 'payment_intent.payment_failed', 'checkout.session.completed', 'charge.refunded']
 
 const sh = (p: string, init?: RequestInit) => fetch('https://api.stripe.com/v1' + p, {
   ...init,

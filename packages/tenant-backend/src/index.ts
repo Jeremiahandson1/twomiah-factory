@@ -35,8 +35,8 @@ export {
 export type { FeatureDef } from './featureRegistry'
 
 // Invoices + quotes — one implementation for every CRM; the template injects its tables and services.
-export { createInvoiceRoutes, insertInvoice, retotalInvoice, replaceInvoiceLines, recordInvoicePayment } from './invoicing/invoices'
-export type { InvoiceDeps, InvoiceOptions, InvoiceTables, InvoiceLine, RecordPaymentInput, RecordPaymentOutcome } from './invoicing/invoices'
+export { createInvoiceRoutes, insertInvoice, retotalInvoice, replaceInvoiceLines, recordInvoicePayment, recordInvoiceRefund } from './invoicing/invoices'
+export type { InvoiceDeps, InvoiceOptions, InvoiceTables, InvoiceLine, RecordPaymentInput, RecordPaymentOutcome, RecordRefundInput, RecordRefundOutcome } from './invoicing/invoices'
 export { createQuoteRoutes } from './invoicing/quotes'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
 export { round2, calcTotals, isOverdue, deriveStatus, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, normalizeDateInput, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'

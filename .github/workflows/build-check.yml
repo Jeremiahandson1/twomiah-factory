@@ -329,3 +329,14 @@ jobs:
           bun-version: latest
       - name: recordInvoicePayment is locked, refund-aware, idempotent; webhook has no own math
         run: bun run scripts/check-webhook-payment-core.ts
+
+  stripe-refunds:
+    name: Stripe refunds record through the shared refund core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: recordInvoiceRefund shared by route + owner refund + charge.refunded; endpoints subscribed
+        run: bun run scripts/check-stripe-refunds.ts
