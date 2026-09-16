@@ -151,10 +151,14 @@ export function createStripeService(deps: StripeServiceDeps) {
       automatic_payment_methods: { enabled: true },
     })
 
+    // publishableKey: what the browser initialises Stripe.js with. The portal's payment form refused to
+    // render without it ("Card payments are not set up yet") — the booking-deposit and setup-intent
+    // responses already carried it; the invoice path never did. (#153)
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       amount: paymentIntent.amount,
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
     }
   }
 
@@ -190,6 +194,7 @@ export function createStripeService(deps: StripeServiceDeps) {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       amount: paymentIntent.amount,
+      publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
     }
   }
 

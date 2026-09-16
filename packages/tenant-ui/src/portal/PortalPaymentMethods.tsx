@@ -37,7 +37,7 @@ export function PortalPaymentMethods() {
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error || 'Card setup is unavailable')
       if (!body.publishableKey) throw new Error('Card payments are not set up yet. Please contact us.')
-      setStripe(await getStripe(body.publishableKey))
+      setStripe(await getStripe(body.publishableKey, body.stripeAccount))
       setClientSecret(body.clientSecret)
       setAdding(true)
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not start card setup') }

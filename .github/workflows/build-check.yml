@@ -296,3 +296,14 @@ jobs:
           bun-version: latest
       - name: services/bulk.ts is glue over packages/tenant-backend bulk/bulk.ts
         run: bun run scripts/check-shared-bulk.ts
+
+  portal-payment-init:
+    name: Portal card payments can initialise Stripe.js
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: payment/setup intents return publishableKey; portal forwards stripeAccount to loadStripe
+        run: bun run scripts/check-portal-payment-init.ts

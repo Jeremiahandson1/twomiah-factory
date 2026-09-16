@@ -6,10 +6,14 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 import { CreditCard, Lock, Loader2, Check, AlertCircle } from 'lucide-react'
 import { API_URL } from './PortalContext'
 
+// One Stripe.js instance per publishable key + connected account. A business that took payments through
+// "Connect Stripe" charges on its own connected account, and Stripe.js must be told which one or it
+// rejects that account's client secrets; a business on its own keys passes no account.
 const stripeByKey = new Map<string, Promise<Stripe | null>>()
-export const getStripe = (publishableKey: string) => {
-  let p = stripeByKey.get(publishableKey)
-  if (!p) { p = loadStripe(publishableKey); stripeByKey.set(publishableKey, p) }
+export const getStripe = (publishableKey: string, stripeAccount?: string | null) => {
+  const cacheKey = `${publishableKey}|${stripeAccount || ''}`
+  let p = stripeByKey.get(cacheKey)
+  if (!p) { p = loadStripe(publishableKey, stripeAccount ? { stripeAccount } : undefined); stripeByKey.set(cacheKey, p) }
   return p
 }
 
@@ -29,7 +33,7 @@ export function PortalPaymentForm({ invoiceId, amount, portalToken, onSuccess, o
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(body.error || 'Could not start the payment')
         if (!body.publishableKey) throw new Error('Card payments are not set up yet. Please contact us to pay another way.')
-        const s = await getStripe(body.publishableKey)
+        const s = await getStripe(body.publishableKey, body.stripeAccount)
         if (cancelled) return
         setStripe(s)
         setClientSecret(body.clientSecret)
