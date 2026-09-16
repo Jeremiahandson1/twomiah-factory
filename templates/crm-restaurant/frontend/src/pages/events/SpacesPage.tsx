@@ -52,8 +52,9 @@ export default function SpacesPage() {
     try {
       await api.delete('/api/event-spaces', s.id);
       load();
-    } catch {
-      alert('Failed to retire space');
+    } catch (err) {
+      // a room with upcoming bookings is refused with the count — show that, not a generic failure
+      alert((err as Error).message || 'Failed to retire space');
     }
   };
 

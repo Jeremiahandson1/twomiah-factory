@@ -395,3 +395,14 @@ jobs:
           bun-version: latest
       - name: validateEventInput + createEvent (lock, clash) used by POST/PUT/import; status/type lists == UI
         run: bun run scripts/check-events-input.ts
+
+  events-retire-guard:
+    name: Rooms / packages in use by upcoming bookings cannot be retired
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: DELETE + PUT {active:false} answer 409 with the count; UI shows the reason
+        run: bun run scripts/check-events-retire-guard.ts

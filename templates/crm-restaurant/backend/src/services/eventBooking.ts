@@ -3,9 +3,11 @@
 // (createEvent: the per-business lock, the room-clash check, the row, the room-hire line). The importer
 // once inserted straight into the table with none of this, so a CSV could double-book a room and save
 // dates, times, guest counts, money and types the form refuses (T15 B1/H4, M1–M4). (#162)
-import { and, eq, inArray, ne, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, gte, inArray, notInArray, ne, isNotNull, sql, count, countDistinct } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import { db } from '../../db/index.ts'
 import { event, eventSpace, eventMenuItem } from '../../db/schema.ts'
+import { EXIT_STATUSES } from './eventLedger.ts'
 
 // The lists the frontend offers (pages/events/EventsPage.tsx STATUSES / EVENT_TYPES) — pinned equal by
 // scripts/check-events-input.ts, so a status or type is one vocabulary end to end.
@@ -148,3 +150,30 @@ export async function createEvent(tx: any, companyId: string, body: Record<strin
   await syncHireLine(tx, companyId, row)
   return row
 }
+
+// ── Retiring what upcoming bookings still use ───────────────────────────────────────────────────
+// Rooms and packages are retired (active = false), never deleted, so history keeps them. But a room
+// that still holds upcoming bookings, or a package still on upcoming menus, vanishes from every picker
+// the moment it is retired — those bookings must be moved first. (T15 H1)
+// "Upcoming" is the dashboard's rule: dated today (UTC calendar day) or later.
+export const todayUtc = () => new Date().toISOString().slice(0, 10)
+// A room is held by tentative/confirmed bookings (the same statuses that block a clash today).
+const UPCOMING_HOLDS = ['tentative', 'confirmed']
+
+/** Upcoming bookings (today or later, tentative/confirmed) still in this room. */
+export async function upcomingEventsUsingSpace(companyId: string, spaceId: string): Promise<number> {
+  const [row] = await db.select({ value: count() }).from(event)
+    .where(and(eq(event.companyId, companyId), eq(event.spaceId, spaceId), gte(event.eventDate, todayUtc()), inArray(event.status, UPCOMING_HOLDS)))
+  return Number(row?.value || 0)
+}
+
+/** Upcoming events (today or later, not lost/cancelled) with this package on their menu. */
+export async function upcomingEventsUsingPackage(companyId: string, packageId: string): Promise<number> {
+  const [row] = await db.select({ value: countDistinct(eventMenuItem.eventId) }).from(eventMenuItem)
+    .innerJoin(event, eq(event.id, eventMenuItem.eventId))
+    .where(and(eq(eventMenuItem.companyId, companyId), eq(eventMenuItem.packageId, packageId), gte(event.eventDate, todayUtc()), notInArray(event.status, EXIT_STATUSES)))
+  return Number(row?.value || 0)
+}
+
+export const retireSpaceRefusal = (name: string, n: number) => `"${name}" still has ${n} upcoming booking${n === 1 ? '' : 's'} — move ${n === 1 ? 'it' : 'them'} to another room first.`
+export const retirePackageRefusal = (name: string, n: number) => `"${name}" is on the menu of ${n} upcoming event${n === 1 ? '' : 's'} — change ${n === 1 ? 'its menu' : 'their menus'} first.`

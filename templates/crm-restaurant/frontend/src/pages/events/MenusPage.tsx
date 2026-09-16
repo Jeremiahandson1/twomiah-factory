@@ -57,8 +57,9 @@ export default function MenusPage() {
     try {
       await api.delete('/api/menu-packages', p.id);
       load();
-    } catch {
-      alert('Failed to retire package');
+    } catch (err) {
+      // a package on upcoming menus is refused with the count — show that, not a generic failure
+      alert((err as Error).message || 'Failed to retire package');
     }
   };
 

@@ -7,6 +7,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { upcomingEventsUsingPackage, retirePackageRefusal } from '../services/eventBooking.ts'
 
 /**
  * Catering packages — priced per head, which is how every banquet quote is
@@ -94,6 +95,11 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   const vErr = negativeFieldError(updates)
   if (vErr) return c.json({ error: vErr }, 400)
+  // Retiring through the edit form is the same act as DELETE: refused while upcoming menus use it. (T15 H1)
+  if (updates.active === false && existing.active) {
+    const n = await upcomingEventsUsingPackage(currentUser.companyId, existing.id)
+    if (n > 0) return c.json({ error: retirePackageRefusal(existing.name, n), upcomingEvents: n }, 409)
+  }
 
   const [updated] = await db.update(menuPackage).set(updates).where(eq(menuPackage.id, id)).returning()
   await audit.log({ action: 'update', entity: 'menu_package', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
@@ -101,7 +107,8 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   return c.json(updated)
 })
 
-// DELETE /menu-packages/:id — retire, so booked events keep their package name.
+// DELETE /menu-packages/:id — retire, so booked events keep their package name. A package still on
+// upcoming menus cannot be retired until those menus change (409 with the count). (T15 H1)
 app.delete('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
@@ -110,6 +117,9 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .where(and(eq(menuPackage.id, id), eq(menuPackage.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Package not found' }, 404)
+
+  const n = await upcomingEventsUsingPackage(currentUser.companyId, existing.id)
+  if (n > 0) return c.json({ error: retirePackageRefusal(existing.name, n), upcomingEvents: n }, 409)
 
   const [updated] = await db.update(menuPackage)
     .set({ active: false, updatedAt: new Date() })

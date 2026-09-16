@@ -7,6 +7,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { upcomingEventsUsingSpace, retireSpaceRefusal } from '../services/eventBooking.ts'
 
 /**
  * Event spaces — the rooms you can sell, with the two numbers every enquiry
@@ -93,6 +94,11 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   const vErr = negativeFieldError(updates)
   if (vErr) return c.json({ error: vErr }, 400)
+  // Retiring through the edit form is the same act as DELETE: refused while upcoming bookings hold the room. (T15 H1)
+  if (updates.active === false && existing.active) {
+    const n = await upcomingEventsUsingSpace(currentUser.companyId, existing.id)
+    if (n > 0) return c.json({ error: retireSpaceRefusal(existing.name, n), upcomingEvents: n }, 409)
+  }
 
   const [updated] = await db.update(eventSpace).set(updates).where(eq(eventSpace.id, id)).returning()
   await audit.log({ action: 'update', entity: 'event_space', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
@@ -101,7 +107,8 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 })
 
 // DELETE /event-spaces/:id — soft delete. Past events reference the space, so a
-// hard delete would blank the room out of the history.
+// hard delete would blank the room out of the history. A room that still holds
+// upcoming bookings cannot be retired until they are moved (409 with the count). (T15 H1)
 app.delete('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
@@ -110,6 +117,9 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .where(and(eq(eventSpace.id, id), eq(eventSpace.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Space not found' }, 404)
+
+  const n = await upcomingEventsUsingSpace(currentUser.companyId, existing.id)
+  if (n > 0) return c.json({ error: retireSpaceRefusal(existing.name, n), upcomingEvents: n }, 409)
 
   const [updated] = await db.update(eventSpace)
     .set({ active: false, updatedAt: new Date() })
