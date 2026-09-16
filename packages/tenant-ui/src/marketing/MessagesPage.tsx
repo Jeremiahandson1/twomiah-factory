@@ -171,19 +171,28 @@ function Thread({ api, toast, messages, loading, conversationId, onSent }: { api
 
 function NewMessageModal({ api, toast, contactsPath, onClose, onSent }: { api: MarketingApi; toast: MarketingToast; contactsPath: string; onClose: () => void; onSent: (conv: any) => void }) {
   const [to, setTo] = useState('')
+  const [contactId, setContactId] = useState<string | null>(null)
   const [body, setBody] = useState('')
   const [contacts, setContacts] = useState<Array<{ id: string; name: string; phone?: string | null; mobile?: string | null }>>([])
   const [matches, setMatches] = useState<typeof contacts>([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { api.get(contactsPath, { limit: 100 }).then((d: any) => setContacts(d?.data || [])).catch(() => setContacts([])) }, [api, contactsPath])
-  const onType = (v: string) => { setTo(v); setMatches(v.length >= 2 ? contacts.filter((c) => (c.name || '').toLowerCase().includes(v.toLowerCase()) || (c.phone || '').includes(v) || (c.mobile || '').includes(v)).slice(0, 5) : []) }
+  // Typing again after picking a contact is a new destination — drop the link so the thread is not filed under the wrong person.
+  const onType = (v: string) => { setTo(v); setContactId(null); setMatches(v.length >= 2 ? contacts.filter((c) => (c.name || '').toLowerCase().includes(v.toLowerCase()) || (c.phone || '').includes(v) || (c.mobile || '').includes(v)).slice(0, 5) : []) }
   const send = async () => {
     const digits = to.replace(/\D/g, '')
     if (digits.length < 10) { setError('Enter a 10-digit phone number or pick a contact'); return }
     if (!body.trim()) { setError('Type a message'); return }
     setSending(true); setError('')
-    try { const r = await api.post('/api/sms/send', { to, body: body.trim() }); toast.success('Message sent'); onSent(r?.conversation) }
+    // POST /api/sms/send takes { toPhone | contactId, message } — the same contract the contact page and the
+    // thread reply use. This form sent { to, body } (never accepted: "Message is required") since it was written.
+    try {
+      const r = await api.post('/api/sms/send', { toPhone: to, ...(contactId ? { contactId } : {}), message: body.trim() })
+      toast.success('Message sent')
+      // the route answers with the message row; its conversationId is the thread to open
+      onSent(r?.conversationId ? { id: r.conversationId } : null)
+    }
     catch (e) { setError(errMsg(e, 'Failed to send message')) }
     finally { setSending(false) }
   }
@@ -200,7 +209,7 @@ function NewMessageModal({ api, toast, contactsPath, onClose, onSent }: { api: M
               <input type="text" value={to} onChange={(e) => onType(e.target.value)} placeholder="Phone number or contact name" className={inputCls} />
               {matches.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg dark:bg-slate-900 dark:border-slate-700">
-                  {matches.map((c) => <button key={c.id} type="button" onClick={() => { setTo(c.mobile || c.phone || ''); setMatches([]) }} className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-800"><p className="font-medium text-gray-900 dark:text-slate-100">{c.name}</p><p className="text-sm text-gray-500 dark:text-slate-400">{fmtPhone(c.mobile || c.phone)}</p></button>)}
+                  {matches.map((c) => <button key={c.id} type="button" onClick={() => { setTo(c.mobile || c.phone || ''); setContactId(c.id); setMatches([]) }} className="w-full px-4 py-2 text-left hover:bg-gray-50 dark:hover:bg-slate-800"><p className="font-medium text-gray-900 dark:text-slate-100">{c.name}</p><p className="text-sm text-gray-500 dark:text-slate-400">{fmtPhone(c.mobile || c.phone)}</p></button>)}
                 </div>
               )}
             </div>
