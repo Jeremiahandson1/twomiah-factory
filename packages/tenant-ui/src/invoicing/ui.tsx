@@ -39,7 +39,48 @@ export const calcTotals = (items: { quantity: number; unitPrice: number }[], tax
   const taxAmount = round2(taxable * (Math.max(0, Number(taxRate) || 0) / 100))
   return { subtotal, effectiveDiscount, taxAmount, total: round2(subtotal - effectiveDiscount + taxAmount), discountTooBig: Number(discount) > subtotal + 0.005 }
 }
+/**
+ * What the server will refuse, in the server's words (invoicing lineItemSchema / invoiceSchema), so the
+ * form can say it before sending and never send it. A negative is shown as typed and named — it is
+ * never quietly turned into a positive amount.
+ */
+export const moneyInputError = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number): string | null => {
+  for (const li of items) {
+    if (Number(li.quantity) < 0) return 'Quantity cannot be negative'
+    if (Number(li.unitPrice) < 0) return 'Price cannot be negative'
+  }
+  if (Number(taxRate) < 0 || Number(taxRate) > 100) return 'Tax rate must be between 0 and 100'
+  if (Number(discount) < 0) return 'Discount cannot be negative'
+  return null
+}
 export const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
+
+/**
+ * A number field that keeps what the user is typing. A controlled <input type="number"> whose value is
+ * rewritten on every keystroke turns "-" into "0" and "-50" into "050" — the #140 clamp did exactly that
+ * (T15 M6). The text stays the user's; the value is reported only when the text is a finite number
+ * (blank reports 0), and a bad value is refused at save time by moneyInputError, never rewritten.
+ */
+export function NumberInput({ value, onValue, ...rest }: { value: number; onValue: (n: number) => void } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'>) {
+  const [text, setText] = useState(String(value))
+  const reported = useRef(value)
+  // A change from outside (form reset, an edit opened) replaces the text; the user's own edits never do.
+  useEffect(() => { if (value !== reported.current) { reported.current = value; setText(String(value)) } }, [value])
+  return (
+    <input
+      type="number"
+      {...rest}
+      value={text}
+      onChange={e => {
+        const t = e.target.value
+        setText(t)
+        if (t.trim() === '') { reported.current = 0; onValue(0); return }
+        const n = Number(t)
+        if (Number.isFinite(n)) { reported.current = n; onValue(n) }
+      }}
+    />
+  )
+}
 
 /** Authenticated file download (PDFs). A plain <a href> would hit the API without the bearer token. */
 export async function downloadFile(path: string, filename: string) {
@@ -244,6 +285,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
 // ---------------------------------------------------------------- line item editor (shared by invoices + quotes)
 export function LineItemsEditor({ items, onChange }: { items: { description: string; quantity: number; unitPrice: number }[]; onChange: (items: { description: string; quantity: number; unitPrice: number }[]) => void }) {
   const update = (i: number, patch: Partial<{ description: string; quantity: number; unitPrice: number }>) => onChange(items.map((li, idx) => (idx === i ? { ...li, ...patch } : li)))
+  const lineError = moneyInputError(items, 0, 0)
   return (
     <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
       <table className="w-full text-sm">
@@ -252,14 +294,15 @@ export function LineItemsEditor({ items, onChange }: { items: { description: str
           {items.map((li, i) => (
             <tr key={i}>
               <td className="px-3 py-2"><input value={li.description} onChange={e => update(i, { description: e.target.value })} placeholder="Description" className={inputCls} /></td>
-              <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={li.quantity} onChange={e => update(i, { quantity: Math.max(0, Number(e.target.value) || 0) })} className={inputCls} /></td>
-              <td className="px-3 py-2"><input type="number" min="0" step="0.01" value={li.unitPrice} onChange={e => update(i, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} className={inputCls} /></td>
+              <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Quantity" value={li.quantity} onValue={n => update(i, { quantity: n })} className={inputCls} /></td>
+              <td className="px-3 py-2"><NumberInput min="0" step="0.01" aria-label="Unit price" value={li.unitPrice} onValue={n => update(i, { unitPrice: n })} className={inputCls} /></td>
               <td className="px-3 py-2 text-right text-gray-900 dark:text-slate-100">{money(round2((Number(li.quantity) || 0) * (Number(li.unitPrice) || 0)))}</td>
               <td className="px-1"><button type="button" onClick={() => onChange(items.filter((_, idx) => idx !== i))} className="p-1 text-red-500 hover:text-red-700" aria-label="Remove line"><X className="w-4 h-4" /></button></td>
             </tr>
           ))}
         </tbody>
       </table>
+      {lineError && <p role="alert" className="px-3 py-1 text-xs text-red-600 dark:text-red-300 border-t border-gray-200 dark:border-slate-700">{lineError}</p>}
       <div className="p-2 border-t border-gray-200 dark:border-slate-700"><button type="button" onClick={() => onChange([...items, { description: '', quantity: 1, unitPrice: 0 }])} className="text-sm text-orange-600 hover:text-orange-700">+ Add line</button></div>
     </div>
   )

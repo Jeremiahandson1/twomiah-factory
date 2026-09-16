@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, DollarSign, Ban, RotateCcw } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
-import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money } from './ui'
+import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError } from './ui'
 
 type Row = Record<string, any> & { id: string }
 interface InvoiceForm { contactId: string; projectId: string; dueDate: string; taxRate: number; discount: number; notes: string; lineItems: LineItemInput[] }
@@ -86,10 +86,13 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
 
   const totals = calcTotals(form.lineItems, form.taxRate, form.discount)
   const linesForSave = form.lineItems.filter(li => li.description.trim())
+  // a negative or out-of-range number is named and blocks the save — never rewritten, never sent
+  const inputError = moneyInputError(form.lineItems, form.taxRate, form.discount)
 
   const handleSave = async () => {
     if (!form.contactId) { toast.error(`Select a ${cfg.clientLabel.toLowerCase()} for this invoice`); return }
     if (linesForSave.length === 0) { toast.error('Add at least one line item'); return }
+    if (inputError) { toast.error(inputError); return }
     if (totals.discountTooBig) { toast.error('Discount cannot exceed the subtotal'); return }
     setSaving(true)
     try {
@@ -165,10 +168,10 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
           </div>
           <Field label="Line Items"><LineItemsEditor items={form.lineItems} onChange={items => setForm({ ...form, lineItems: items })} /></Field>
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="Tax Rate (%)"><input type="number" min="0" max="100" step="0.01" value={form.taxRate} onChange={e => setForm({ ...form, taxRate: Number(e.target.value) })} className={inputCls} /></Field>
-            <Field label="Discount ($)"><input type="number" min="0" step="0.01" value={form.discount} onChange={e => setForm({ ...form, discount: Number(e.target.value) })} className={inputCls} /></Field>
+            <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm({ ...form, taxRate: n })} className={inputCls} /></Field>
+            <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm({ ...form, discount: n })} className={inputCls} /></Field>
           </div>
-          <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined} />
+          <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
           <Field label="Notes"><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving || totals.discountTooBig}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Create invoice'}</Button></div>
