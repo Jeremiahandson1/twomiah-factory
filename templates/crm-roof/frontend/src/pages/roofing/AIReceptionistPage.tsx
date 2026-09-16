@@ -18,14 +18,16 @@ interface Rule {
   created_at: string
 }
 
+// /api/calltracking/calls is raw SQL (node-postgres, no case transform), so
+// rows carry the call_log column names verbatim.
 interface CallRecord {
   id: string
-  type: string
-  from_number: string
-  to_number: string
-  duration: number
+  direction: string | null
+  caller_number: string | null
+  duration: number | null
   status: string
-  ai_summary?: string
+  ai_summary?: string | null
+  start_time: string | null
   created_at: string
 }
 
@@ -73,6 +75,7 @@ export default function AIReceptionistPage() {
   const [tab, setTab] = useState<'rules' | 'calls' | 'settings'>('rules')
   const [rules, setRules] = useState<Rule[]>([])
   const [calls, setCalls] = useState<CallRecord[]>([])
+  const [callsTotal, setCallsTotal] = useState(0)
   const [settings, setSettings] = useState<Settings>(defaultSettings)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -84,27 +87,38 @@ export default function AIReceptionistPage() {
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
+  // Both list endpoints return the standard envelope: rules → { data },
+  // calls → { data, pagination }.
   const loadRules = useCallback(async () => {
     try {
       const res = await fetch('/api/ai-receptionist/rules', { headers })
-      const data = await res.json()
-      setRules(Array.isArray(data) ? data : data.rules || [])
+      const body = await res.json()
+      setRules(res.ok && Array.isArray(body?.data) ? body.data : [])
     } catch { /* ignore */ }
   }, [token])
 
   const loadSettings = useCallback(async () => {
     try {
       const res = await fetch('/api/ai-receptionist/settings', { headers })
+      if (!res.ok) return
       const data = await res.json()
-      if (data) setSettings({ ...defaultSettings, ...data })
+      // greetingText/forwardingNumber are nullable columns; keep the inputs controlled.
+      if (data) setSettings({
+        ...defaultSettings,
+        ...data,
+        greetingText: data.greetingText ?? '',
+        forwardingNumber: data.forwardingNumber ?? '',
+      })
     } catch { /* ignore */ }
   }, [token])
 
   const loadCalls = useCallback(async () => {
     try {
       const res = await fetch('/api/calltracking/calls', { headers })
-      const data = await res.json()
-      setCalls(Array.isArray(data) ? data : data.calls || [])
+      const body = await res.json()
+      const list = res.ok && Array.isArray(body?.data) ? body.data : []
+      setCalls(list)
+      setCallsTotal(res.ok ? Number(body?.pagination?.total ?? list.length) : 0)
     } catch { /* ignore */ }
   }, [token])
 
@@ -181,7 +195,7 @@ export default function AIReceptionistPage() {
 
   // Stats
   const activeRulesCount = rules.filter(r => r.isActive).length
-  const recentCallsCount = calls.length
+  const recentCallsCount = callsTotal
 
   if (loading) {
     return (
@@ -336,8 +350,8 @@ export default function AIReceptionistPage() {
                 <tbody>
                   {calls.map(call => (
                     <tr key={call.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                      <td className="px-4 py-3 capitalize">{call.type}</td>
-                      <td className="px-4 py-3 text-slate-300 font-mono">{call.from_number}</td>
+                      <td className="px-4 py-3 capitalize">{call.direction || '--'}</td>
+                      <td className="px-4 py-3 text-slate-300 font-mono">{call.caller_number || '--'}</td>
                       <td className="px-4 py-3 text-slate-300">
                         {call.duration ? `${Math.floor(call.duration / 60)}:${String(call.duration % 60).padStart(2, '0')}` : '--'}
                       </td>
@@ -353,7 +367,7 @@ export default function AIReceptionistPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-300 max-w-xs truncate">{call.ai_summary || '--'}</td>
                       <td className="px-4 py-3 text-slate-400 whitespace-nowrap">
-                        {format(new Date(call.created_at), 'MMM d, yyyy h:mm a')}
+                        {format(new Date(call.start_time || call.created_at), 'MMM d, yyyy h:mm a')}
                       </td>
                     </tr>
                   ))}

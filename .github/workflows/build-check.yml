@@ -230,3 +230,14 @@ jobs:
           bun-version: latest
       - name: no main-file transcode; row records stored bytes; PDF served inline
         run: bun run scripts/check-document-fidelity.ts
+
+  roof-ai-receptionist-read:
+    name: Roof AI Receptionist reads its list envelopes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: rules/calls unwrap { data }; updateRule sets only editable columns
+        run: bun run scripts/check-roof-ai-receptionist-read.ts

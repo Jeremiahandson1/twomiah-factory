@@ -61,8 +61,14 @@ export async function updateRule(ruleId: string, companyId: string, data: Partia
   isActive: boolean
   keywordMatch: string
 }>) {
+  // Only editable columns reach .set(): the UI toggle PUTs the whole row back,
+  // and a JSON createdAt string crashes drizzle's timestamp mapper (500), while
+  // id/companyId must never be rewritable from the body.
+  const editable = ['name', 'trigger', 'channel', 'messageTemplate', 'delayMinutes', 'isActive', 'keywordMatch'] as const
+  const patch: Record<string, unknown> = {}
+  for (const key of editable) if (data[key] !== undefined) patch[key] = data[key]
   const [rule] = await db.update(aiReceptionistRule)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...patch, updatedAt: new Date() })
     .where(and(eq(aiReceptionistRule.id, ruleId), eq(aiReceptionistRule.companyId, companyId)))
     .returning()
   return rule
