@@ -16,7 +16,7 @@ import { Hono } from 'hono'
 import Stripe from 'stripe'
 import { eq, and, sql } from 'drizzle-orm'
 import { recordInvoicePayment, recordInvoiceRefund } from '../invoicing/invoices'
-import { round2 } from '../invoicing/money'
+import { round2, invoiceBalance } from '../invoicing/money'
 
 export interface StripeTables {
   contact: any
@@ -71,6 +71,14 @@ export function createStripeService(deps: StripeServiceDeps) {
     return typeof acct === 'string' && acct ? acct : null
   }
   const requestOpts = (stripeAccount: string | null | undefined) => (stripeAccount ? { stripeAccount } : undefined)
+
+  /**
+   * What the customer still owes on an invoice — the refund model every other path uses
+   * (invoicing/money.ts invoiceBalance): a refunded deposit reopens the balance, a fully paid sale
+   * owes nothing even after a partial refund, void owes nothing. The five charge paths once used
+   * total − amountPaid, which charged a reopened balance short and a settled sale again. (#157)
+   */
+  const invoiceOwed = (invoiceRow: any) => invoiceBalance(invoiceRow)
 
   // ============================================
   // CUSTOMER MANAGEMENT
@@ -158,7 +166,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
 
-    const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
+    const balance = invoiceOwed(invoiceRow)
     const amount = Math.round(balance * 100)
 
     if (amount <= 0) {
@@ -202,7 +210,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
 
     const amountCents = Math.round(amount * 100)
-    const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
+    const balance = invoiceOwed(invoiceRow)
     const maxAmount = Math.round(balance * 100)
 
     if (amountCents <= 0) throw new Error('Amount must be greater than 0')
@@ -253,7 +261,8 @@ export function createStripeService(deps: StripeServiceDeps) {
   ) {
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
-    const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
+    const balance = invoiceOwed(invoiceRow)
+    if (Math.round(balance * 100) <= 0) throw new Error('Invoice has no balance due')
 
     const session = await stripe!.checkout.sessions.create({
       customer: customer.id,
@@ -278,6 +287,17 @@ export function createStripeService(deps: StripeServiceDeps) {
         invoice_id: invoiceRow.id,
         invoice_number: invoiceRow.number,
         company_id: invoiceRow.companyId,
+      },
+      // The customer's payment is a PaymentIntent Stripe creates for the session; it is what
+      // payment_intent.succeeded delivers, and it only knows the invoice if told here. Session
+      // metadata alone left every Checkout payment unrecorded. (#157)
+      payment_intent_data: {
+        metadata: {
+          invoice_id: invoiceRow.id,
+          invoice_number: invoiceRow.number,
+          company_id: invoiceRow.companyId,
+          kind: 'checkout',
+        },
       },
     }, requestOpts(stripeAccount))
 
@@ -375,7 +395,7 @@ export function createStripeService(deps: StripeServiceDeps) {
     if (!stripe) throw new Error('Stripe is not configured')
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const customer = await getOrCreateCustomer(contactRow, stripeAccount)
-    const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid || 0)
+    const balance = invoiceOwed(invoiceRow)
     const amount = Math.round(balance * 100)
     if (amount <= 0) throw new Error('Invoice has no balance due')
 
@@ -572,6 +592,9 @@ export function createStripeService(deps: StripeServiceDeps) {
   /**
    * Handle checkout session complete
    */
+  // Informational only: the money is recorded by payment_intent.succeeded for the PaymentIntent the
+  // session created (it carries the invoice via payment_intent_data — #157). Recording here as well
+  // would count the same payment twice.
   async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     console.log('Checkout completed:', session.id)
     return { handled: true }
@@ -625,7 +648,8 @@ export function createStripeService(deps: StripeServiceDeps) {
    */
   async function createPaymentLink(invoiceRow: any) {
     const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
-    const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
+    const balance = invoiceOwed(invoiceRow)
+    if (Math.round(balance * 100) <= 0) throw new Error('Invoice has no balance due')
 
     const product = await stripe!.products.create({
       name: `Invoice ${invoiceRow.number}`,
@@ -642,6 +666,16 @@ export function createStripeService(deps: StripeServiceDeps) {
       metadata: {
         invoice_id: invoiceRow.id,
         invoice_number: invoiceRow.number,
+      },
+      // Same as Checkout: the PaymentIntent behind a link payment must carry the invoice, or the
+      // payment_intent.succeeded delivery has nothing to record it on. (#157)
+      payment_intent_data: {
+        metadata: {
+          invoice_id: invoiceRow.id,
+          invoice_number: invoiceRow.number,
+          company_id: invoiceRow.companyId,
+          kind: 'payment_link',
+        },
       },
       after_completion: {
         type: 'redirect',
@@ -933,8 +967,9 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       return c.json({ error: 'Invoice has no contact' }, 400)
     }
 
+    // inv.balance is not a column (it was always undefined, so the partial path never ran) — #157
     let result
-    if (amount && amount < Number(inv.balance)) {
+    if (amount && amount < invoiceBalance(inv)) {
       result = await stripeService.createPartialPaymentIntent(inv, contactRow, amount)
     } else {
       result = await stripeService.createPaymentIntent(inv, contactRow)
@@ -972,6 +1007,14 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       ? await db.select().from(contact).where(eq(contact.id, inv.contactId)).limit(1)
       : [null]
 
+    if (!contactRow) {
+      return c.json({ error: 'Invoice has no contact' }, 400)
+    }
+
+    if (invoiceBalance(inv) <= 0) {
+      return c.json({ error: 'Invoice has no balance due' }, 400)
+    }
+
     const result = await stripeService.createCheckoutSession(inv, contactRow, {
       successUrl: `${process.env.FRONTEND_URL}/invoices/${inv.id}?payment=success`,
       cancelUrl: `${process.env.FRONTEND_URL}/invoices/${inv.id}?payment=cancelled`,
@@ -995,7 +1038,8 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       return c.json({ error: 'Invoice not found' }, 404)
     }
 
-    if (Number(inv.balance) <= 0) {
+    // inv.balance is not a column — this check never fired, so a paid invoice could get a $0 link. (#157)
+    if (invoiceBalance(inv) <= 0) {
       return c.json({ error: 'Invoice has no balance due' }, 400)
     }
 
@@ -1107,8 +1151,9 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
       return c.json({ error: 'Invoice not found' }, 404)
     }
 
+    // inv.balance is not a column (the partial path never ran) — #157
     let result
-    if (amount && amount < Number(inv.balance)) {
+    if (amount && amount < invoiceBalance(inv)) {
       result = await stripeService.createPartialPaymentIntent(inv, contactRow, amount)
     } else {
       result = await stripeService.createPaymentIntent(inv, contactRow)

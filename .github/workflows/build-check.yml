@@ -340,3 +340,14 @@ jobs:
           bun-version: latest
       - name: recordInvoiceRefund shared by route + owner refund + charge.refunded; endpoints subscribed
         run: bun run scripts/check-stripe-refunds.ts
+
+  checkout-recording:
+    name: Checkout / Payment Link payments reach the invoice
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: intents carry invoice_id via payment_intent_data; charges use the refund-aware balance; no inv.balance
+        run: bun run scripts/check-checkout-recording.ts
