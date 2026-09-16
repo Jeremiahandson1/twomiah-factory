@@ -35,7 +35,7 @@ if (!/reference: refund\.id/.test(rec) || !/idempotentByReference: true/.test(re
 if (!/paidAt: refund\.created \? new Date\(refund\.created \* 1000\)/.test(rec)) fail("Stripe refunds must be dated at Stripe's timestamp")
 if (!/method: paymentRow\.method/.test(rec)) fail('a Stripe refund goes back the way the money came in (the payment row\'s method)')
 
-const cr = stripe.slice(stripe.indexOf('async function createRefund('), stripe.indexOf('async function createConnectAccount('))
+const cr = stripe.slice(stripe.indexOf('async function createRefund('), stripe.indexOf('async function constructWebhookEvent('))
 if (/newRefunded >= paid/.test(cr) || /status: newRefunded/.test(cr) || /db\s*\.insert\(payment\)/.test(cr) || /db\s*\.update\(invoice\)/.test(cr)) fail('createRefund must not keep its own status math or ledger writes')
 if (!/recordStripeRefund\(refund, paymentRow\)/.test(cr)) fail('createRefund must record through recordStripeRefund')
 const ask = cr.indexOf('refunds.create('); const check = cr.indexOf('still refundable on this invoice')
@@ -50,7 +50,7 @@ if (!/recordStripeRefund\(refund, paymentRow\)/.test(hook)) fail('handleChargeRe
 if (!/refund\.status === 'failed' \|\| refund\.status === 'canceled'/.test(hook)) fail('handleChargeRefunded must skip failed / canceled refunds')
 if (!/outcome\.duplicate/.test(hook)) fail('handleChargeRefunded must report an already-recorded refund as a duplicate')
 
-const rt = stripe.slice(stripe.indexOf("app.post('/refund'"), stripe.indexOf("app.get('/account-status'"))
+const rt = stripe.slice(stripe.indexOf("app.post('/refund'"), stripe.indexOf("app.post('/portal/payment-intent'"))
 if (/stripePaymentIntentId/.test(rt)) fail('POST /refund must not check pay.stripePaymentIntentId (no such column — the route was always 400)')
 if (!/stripeService\.createRefund\(pay, amount\)/.test(rt) || !/if \(!result\.ok\) return c\.json\(\{ error: result\.error \}, result\.status\)/.test(rt)) fail('POST /refund must answer the service\'s refusal with its status')
 

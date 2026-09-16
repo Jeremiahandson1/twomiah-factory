@@ -770,69 +770,10 @@ export function createStripeService(deps: StripeServiceDeps) {
     return { ok: true, refund, invoice: outcome.invoice, recorded: !outcome.duplicate, duplicate: outcome.duplicate }
   }
 
-  // ============================================
-  // CONNECT (for marketplace/platform)
-  // ============================================
-
-  /**
-   * Create Stripe Connect account for a company
-   */
-  async function createConnectAccount(companyRow: any) {
-    const account = await stripe!.accounts.create({
-      type: 'express',
-      country: 'US',
-      email: companyRow.email,
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      business_type: 'company',
-      company: { name: companyRow.name },
-      metadata: { company_id: companyRow.id },
-    })
-
-    // Save in company settings
-    const [existing] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyRow.id))
-    const settings = (existing?.settings as any) || {}
-    settings.stripeAccountId = account.id
-
-    await db.update(company).set({ settings }).where(eq(company.id, companyRow.id))
-
-    return account
-  }
-
-  /**
-   * Create account link for onboarding
-   */
-  async function createAccountLink(companyRow: any) {
-    const settings = (companyRow.settings as any) || {}
-    if (!settings.stripeAccountId) {
-      await createConnectAccount(companyRow)
-    }
-
-    const accountLink = await stripe!.accountLinks.create({
-      account: settings.stripeAccountId,
-      refresh_url: `${process.env.FRONTEND_URL}/settings/payments?refresh=true`,
-      return_url: `${process.env.FRONTEND_URL}/settings/payments?success=true`,
-      type: 'account_onboarding',
-    })
-
-    return accountLink
-  }
-
-  /**
-   * Get Connect account status
-   */
-  async function getAccountStatus(stripeAccountId: string) {
-    const account = await stripe!.accounts.retrieve(stripeAccountId)
-
-    return {
-      chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
-      detailsSubmitted: account.details_submitted,
-      requirements: account.requirements,
-    }
-  }
+  // Connect onboarding (Standard account, company.integrations.stripeAccountId) lives in
+  // ../integrations/integrations.ts — Settings → Integrations → Connect Stripe. The Express-account
+  // functions that once sat here wrote a second id to company.settings that nothing read, and their
+  // routes could never report "connected". Removed in #160; connectedAccountFor above is the one reader.
 
   // ============================================
   // UTILITIES
@@ -865,9 +806,6 @@ export function createStripeService(deps: StripeServiceDeps) {
     handleWebhook,
     createPaymentLink,
     createRefund,
-    createConnectAccount,
-    createAccountLink,
-    getAccountStatus,
     constructWebhookEvent,
     getPublishableKey,
     // every named export is also reachable from the default import — routes call stripeService.<fn>()
@@ -1112,33 +1050,8 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     })
   })
 
-  // ============================================
-  // CONNECT (Platform Features)
-  // ============================================
-
-  // Get account status
-  app.get('/account-status', requirePermission('settings:read'), async (c) => {
-    const user = c.get('user') as any
-
-    const [comp] = await db.select().from(company).where(eq(company.id, user.companyId)).limit(1)
-
-    if (!(comp as any).stripeAccountId) {
-      return c.json({ connected: false })
-    }
-
-    const status = await stripeService.getAccountStatus((comp as any).stripeAccountId)
-    return c.json({ connected: true, ...status })
-  })
-
-  // Create/get onboarding link
-  app.post('/onboarding', requirePermission('settings:update'), async (c) => {
-    const user = c.get('user') as any
-
-    const [comp] = await db.select().from(company).where(eq(company.id, user.companyId)).limit(1)
-
-    const accountLink = await stripeService.createAccountLink(comp)
-    return c.json({ url: accountLink.url })
-  })
+  // Connect status / onboarding: /api/integrations/stripe/* (integrations.ts). The /account-status and
+  // /onboarding routes that sat here read a column that does not exist and were removed in #160.
 
   // ============================================
   // PORTAL PAYMENTS (Public with token)
