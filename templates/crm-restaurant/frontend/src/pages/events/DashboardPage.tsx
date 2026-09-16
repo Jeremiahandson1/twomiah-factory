@@ -5,7 +5,7 @@ import {
   Users, Inbox, AlertTriangle,
 } from 'lucide-react';
 import api from '../../services/api';
-import { STATUS_COLORS, fmtEventDate, prettyType } from './EventsPage';
+import { STATUS_COLORS, fmtEventDate, prettyType, localDay } from './EventsPage';
 
 /**
  * Twomiah Events — dashboard.
@@ -35,7 +35,7 @@ function money(v: number | string | undefined | null): string {
   return `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 function isOverdue(dueDate?: string): boolean {
-  return !!dueDate && dueDate < new Date().toISOString().slice(0, 10);
+  return !!dueDate && dueDate < localDay();
 }
 
 export default function DashboardPage() {

@@ -252,3 +252,14 @@ jobs:
           bun-version: latest
       - name: spaces/packages POST+PUT, menu-line/payment PUT, CSV import refuse negatives
         run: bun run scripts/check-events-nonneg.ts
+
+  events-local-dates:
+    name: Events pages show local calendar days
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: no toISOString() day-slicing; paid badge + overdue use localDay()
+        run: bun run scripts/check-events-local-dates.ts

@@ -55,6 +55,13 @@ export function fmtEventDate(s?: string): string {
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+// The viewer's calendar day as YYYY-MM-DD. toISOString() is UTC, which in US
+// evenings is already tomorrow — a 9:30pm payment read "Paid" the next day and a
+// payment due today showed overdue.
+export function localDay(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
   return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;

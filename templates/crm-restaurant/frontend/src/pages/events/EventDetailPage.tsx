@@ -5,7 +5,7 @@ import {
   UtensilsCrossed, Clock, Wallet, AlertTriangle, ExternalLink, Trash2, Check,
 } from 'lucide-react';
 import api from '../../services/api';
-import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType } from './EventsPage';
+import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType, localDay } from './EventsPage';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { openPrintable } from '../../lib/printable';
 
@@ -67,7 +67,7 @@ function lineTotal(l: MenuLine): number {
 }
 function isOverdue(dueDate?: string, paidAt?: string | null): boolean {
   if (paidAt || !dueDate) return false;
-  return dueDate < new Date().toISOString().slice(0, 10);
+  return dueDate < localDay();
 }
 
 type Tab = 'menu' | 'runsheet' | 'money';
@@ -434,7 +434,7 @@ export default function EventDetailPage() {
                       <td className="px-4 py-3">
                         {p.paidAt ? (
                           <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                            Paid {new Date(p.paidAt).toISOString().slice(0, 10)}
+                            Paid {localDay(new Date(p.paidAt))}
                           </span>
                         ) : (
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Scheduled</span>
