@@ -314,9 +314,12 @@ export const invoice = pgTable('invoice', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').unique().references(() => quote.id, { onDelete: 'set null' }),
+  // Events: the one invoice that carries an event's money (deposits, balance). One per event.
+  eventId: text('event_id').references(() => event.id, { onDelete: 'set null' }),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
+  uniqueIndex('invoice_event_id_idx').on(t.eventId),
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {
@@ -3817,6 +3820,9 @@ export const eventMenuItem = pgTable('event_menu_item', {
   quantity: integer('quantity').default(1).notNull(),      // heads when perPerson, else units
   unitPrice: decimal('unit_price', { precision: 10, scale: 2 }),
   notes: text('notes'),
+  // Set only on the room-hire line added from a space's hire fee, so it can be replaced when the
+  // event moves rooms. Hand-typed lines leave it null.
+  spaceId: text('space_id').references(() => eventSpace.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -3844,9 +3850,10 @@ export const eventTimeline = pgTable('event_timeline', {
   index('event_timeline_event_id_idx').on(t.eventId),
 ])
 
-// Deposit + balance schedule. Separate from the shared invoice table on
-// purpose: a banquet is billed in stages against dates agreed months ahead,
-// and "what is overdue across the whole event book" has to be one query.
+// Deposit + balance SCHEDULE: what is due, and when. The money itself lives on the event's invoice
+// (invoice.eventId) — an installment is paid when the invoice has collected enough to cover it and
+// every earlier one. paidAt/method/reference are legacy: written before the ledger moved onto
+// invoices, read once by the backfill, never written again.
 export const eventPayment = pgTable('event_payment', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   eventId: text('event_id').notNull().references(() => event.id, { onDelete: 'cascade' }),
