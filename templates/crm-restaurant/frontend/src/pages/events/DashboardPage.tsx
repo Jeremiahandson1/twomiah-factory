@@ -18,7 +18,7 @@ interface Stats {
   contacts?: number;
   pipeline?: Pipeline;
   events?: { upcoming30?: number; thisMonth?: number; bookedValue?: number };
-  payments?: { overdue?: number; outstanding?: number };
+  payments?: { overdue?: number; overdueCount?: number; outstanding?: number };
   byType?: Record<string, number>;
   bySpace?: { spaceId?: string; name?: string; events?: number }[];
 }
@@ -28,7 +28,7 @@ interface UpcomingRow {
   guestCount?: number; guestCountFinal?: number; spaceName?: string; clientName?: string;
   coordinatorFirstName?: string; coordinatorLastName?: string;
 }
-interface DueRow { id: string; label?: string; amount?: number | string; dueDate?: string; eventId?: string; eventName?: string; clientName?: string }
+interface DueRow { id: string; label?: string; amount?: number | string; paidAmount?: number; state?: 'unpaid' | 'part_paid'; dueDate?: string; eventId?: string; eventName?: string; clientName?: string }
 interface Activity { newEnquiries?: EnquiryRow[]; upcomingEvents?: UpcomingRow[]; duePayments?: DueRow[] }
 
 function money(v: number | string | undefined | null): string {
@@ -89,9 +89,9 @@ export default function DashboardPage() {
         <p className="text-gray-500 dark:text-slate-400">Events overview</p>
       </div>
 
-      {/* Headline: money owed. This is the number a venue loses track of. */}
+      {/* Headline: money owed. This is the number a venue loses track of. Same figures as Reports. */}
       <Link
-        to="/crm/events"
+        to="/crm/invoices"
         className={`block rounded-xl border p-5 transition hover:shadow-md ${overdue > 0 ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-900/40' : 'bg-white dark:bg-slate-900 dark:border-slate-800'}`}
       >
         <div className="flex items-center justify-between gap-4">
@@ -105,7 +105,9 @@ export default function DashboardPage() {
                 {money(overdue)}
                 <span className="text-base font-medium text-gray-500 dark:text-slate-400"> · {money(payments.outstanding)} outstanding</span>
               </p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">Deposits and balances past their due date</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                {Number(payments.overdueCount || 0) > 0 ? `${payments.overdueCount} invoice${payments.overdueCount === 1 ? '' : 's'} past due` : 'Nothing past due'} — event deposits and balances included
+              </p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-gray-400" />
@@ -264,6 +266,7 @@ export default function DashboardPage() {
                     <p className={`text-xs flex items-center gap-1 ${isOverdue(p.dueDate) ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
                       {isOverdue(p.dueDate) && <AlertTriangle className="w-3 h-3" />}
                       {p.label}{p.dueDate ? ` · due ${p.dueDate}` : ' · no due date'}
+                      {p.state === 'part_paid' ? ` · ${money(p.paidAmount)} paid` : ''}
                     </p>
                   </Link>
                 </li>

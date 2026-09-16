@@ -70,5 +70,13 @@ const menuItemTable = schema.slice(schema.indexOf('export const eventMenuItem'),
 if (!/spaceId:\s*text\('space_id'\)\.references\(\(\) => eventSpace\.id/.test(menuItemTable)) fail('schema: event_menu_item.spaceId (room-hire line marker)')
 if (!/"0023_event_invoice_ledger"/.test(journal)) fail('migration journal must include 0023_event_invoice_ledger')
 
+// (7) the event page records money on the invoice, never on the schedule row.
+const detailPage = strip(readFileSync(new URL('../templates/crm-restaurant/frontend/src/pages/events/EventDetailPage.tsx', import.meta.url), 'utf8'))
+if (/paidAt/.test(detailPage)) fail('EventDetailPage must not send or read paidAt — installment paid state comes from the invoice')
+if (!/api\.post\(`\/api\/invoices\/\$\{invoiceId\}\/payments`/.test(detailPage)) fail('EventDetailPage must record payments via POST /api/invoices/:id/payments')
+if (!/keepDeposit/.test(detailPage)) fail('EventDetailPage must ask keep-deposit when an event with money collected is cancelled/lost')
+const invoicingCfg = readFileSync(new URL('../templates/crm-restaurant/frontend/src/invoicingConfig.ts', import.meta.url), 'utf8')
+if (!/extraInvoiceStatuses:\s*\['open'\]/.test(invoicingCfg)) fail("restaurant invoicingConfig must list the 'open' status event invoices use")
+
 if (failed) { console.error(`\nevents ledger: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('events ledger: event money lives on the invoice — schedule only on event_payment, shared invoice writes, dashboard == Reports')

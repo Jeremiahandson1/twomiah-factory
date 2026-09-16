@@ -8,10 +8,15 @@ import api from '../../services/api';
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType, localDay } from './EventsPage';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { openPrintable } from '../../lib/printable';
+import { PAYMENT_METHODS } from '../../shared';
 
 /**
  * The event file — GET /api/events/:id returns
- * { event, client, space, menu[], timeline[], payments[], totals }.
+ * { event, client, space, menu[], timeline[], payments[], invoice, totals }.
+ *
+ * Money lives on the event's invoice (one ledger with Reports): payments[] is the schedule, each
+ * installment with what the invoice has covered of it; recording a payment, refunding or sending
+ * happens on the invoice (/api/invoices/:id/...).
  *
  * Three tabs because three different people use this page: sales works the
  * menu and the money, the coordinator works the run of show, and the kitchen
@@ -43,10 +48,14 @@ interface EventFull {
 }
 interface Client { id?: string; name?: string; email?: string; phone?: string; mobile?: string }
 interface Space { id?: string; name?: string; seatedCapacity?: number; standingCapacity?: number; minimumSpend?: number | string }
-interface MenuLine { id: string; name?: string; perPerson?: boolean; quantity?: number; unitPrice?: number | string; notes?: string; packageId?: string }
+interface MenuLine { id: string; name?: string; perPerson?: boolean; quantity?: number; unitPrice?: number | string; notes?: string; packageId?: string; spaceId?: string | null }
 interface TimelineLine { id: string; time?: string; title?: string; department?: string; details?: string; sortOrder?: number }
-interface PaymentLine { id: string; label?: string; amount?: number | string; dueDate?: string; paidAt?: string | null; method?: string; reference?: string }
-interface Totals { menuTotal?: number; paid?: number; outstanding?: number; quoted?: number }
+type InstallmentState = 'paid' | 'part_paid' | 'unpaid' | 'refunded' | 'void';
+interface PaymentLine { id: string; label?: string; amount?: number; dueDate?: string | null; paidAmount?: number; state?: InstallmentState }
+interface EventInvoice { id: string; number?: string; status?: string; dueDate?: string | null; total?: number | string; taxAmount?: number | string; amountPaid?: number | string; amountRefunded?: number | string; sentAt?: string | null }
+// menuTotal = every line (room hire included); fbTotal = food & beverage only (minimum spend). When
+// invoiced, total/tax/paid/refunded/outstanding are the invoice's; before that, the estimate.
+interface Totals { menuTotal?: number; fbTotal?: number; quoted?: number; invoiced?: boolean; total?: number; tax?: number; paid?: number; refunded?: number; outstanding?: number }
 interface Detail {
   event?: EventFull;
   client?: Client | null;
@@ -54,6 +63,7 @@ interface Detail {
   menu?: MenuLine[];
   timeline?: TimelineLine[];
   payments?: PaymentLine[];
+  invoice?: EventInvoice | null;
   totals?: Totals;
 }
 interface PackageOption { id: string; name?: string; pricePerPerson?: number | string; minGuests?: number; category?: string }
@@ -65,9 +75,9 @@ function money2(v: number | string | undefined | null): string {
 function lineTotal(l: MenuLine): number {
   return Number(l.unitPrice || 0) * Number(l.quantity || 0);
 }
-function isOverdue(dueDate?: string, paidAt?: string | null): boolean {
-  if (paidAt || !dueDate) return false;
-  return dueDate < localDay();
+function isOverdue(p: PaymentLine): boolean {
+  if (!p.dueDate || (p.state !== 'unpaid' && p.state !== 'part_paid')) return false;
+  return p.dueDate < localDay();
 }
 
 type Tab = 'menu' | 'runsheet' | 'money';
@@ -81,6 +91,7 @@ export default function EventDetailPage() {
   const [showMenu, setShowMenu] = useState<boolean>(false);
   const [showTimeline, setShowTimeline] = useState<boolean>(false);
   const [showPayment, setShowPayment] = useState<boolean>(false);
+  const [recordFor, setRecordFor] = useState<PaymentLine | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -99,12 +110,23 @@ export default function EventDetailPage() {
 
   const setStatus = async (status: string) => {
     if (!id) return;
+    const body: Record<string, unknown> = { status };
+    // Leaving the book with money collected: keep it as a retained deposit (the invoice closes at what
+    // came in), or stop here and refund it on the invoice first.
+    const collected = Number(detail.totals?.paid || 0);
+    const leaving = (status === 'cancelled' || status === 'lost') && detail.event?.status !== 'cancelled' && detail.event?.status !== 'lost';
+    if (leaving && collected > 0) {
+      const keep = confirm(`${money2(collected)} has been collected for this event.\n\nOK — keep it as a retained deposit and close invoice ${detail.invoice?.number || ''}.\nCancel — stop, so you can refund it on the invoice first.`);
+      if (!keep) { load(); return; }
+      body.keepDeposit = true;
+    }
     try {
-      await api.put(`/api/events/${id}`, { status });
+      await api.put(`/api/events/${id}`, body);
       load();
     } catch (err) {
-      // A 409 here is the double-book guard: another event already holds the room.
+      // A 409 here is the double-book guard (another event holds the room) or money still to settle.
       alert((err as Error).message || 'Failed to change status');
+      load();
     }
   };
 
@@ -115,16 +137,6 @@ export default function EventDetailPage() {
       load();
     } catch {
       alert('Failed to remove');
-    }
-  };
-
-  const markPaid = async (p: PaymentLine) => {
-    if (!id) return;
-    try {
-      await api.put(`/api/events/${id}/payments/${p.id}`, { paidAt: new Date().toISOString() });
-      load();
-    } catch (err) {
-      alert((err as Error).message || 'Failed to mark paid');
     }
   };
 
@@ -155,8 +167,10 @@ export default function EventDetailPage() {
 
   // The minimum-spend check is the whole reason a venue takes private events —
   // showing it here means nobody has to work it out on a calculator mid-call.
+  // Minimum spend is food & beverage — the room-hire line doesn't count toward it.
   const minSpend = Number(space?.minimumSpend || 0);
-  const belowMinimum = minSpend > 0 && Number(totals.menuTotal || 0) < minSpend;
+  const fbTotal = Number(totals.fbTotal || 0);
+  const belowMinimum = minSpend > 0 && fbTotal < minSpend;
 
   // Warn when the guest count exceeds the room — 200 guests in a 55-standing room
   // saved silently before (M-02). A warning, not a hard block, mirrors the
@@ -220,8 +234,8 @@ export default function EventDetailPage() {
             <div>
               <p className="font-semibold">Below minimum spend</p>
               <p className="text-sm">
-                {space?.name} has a {money2(minSpend)} minimum. This event is at {money2(totals.menuTotal)} —
-                {' '}{money2(minSpend - Number(totals.menuTotal || 0))} short.
+                {space?.name} has a {money2(minSpend)} food &amp; beverage minimum. This event is at {money2(fbTotal)} —
+                {' '}{money2(minSpend - fbTotal)} short.
               </p>
             </div>
           </div>
@@ -252,13 +266,15 @@ export default function EventDetailPage() {
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs text-gray-400 uppercase">F&amp;B Total</p>
-            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.menuTotal)}</p>
-            {heads > 0 && <p className="text-xs text-gray-400">{money2(Number(totals.menuTotal || 0) / heads)} / head</p>}
+            <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(fbTotal)}</p>
+            {heads > 0 && <p className="text-xs text-gray-400">{money2(fbTotal / heads)} / head</p>}
           </div>
           <div className={`border rounded-lg p-3 ${Number(totals.outstanding || 0) > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-700' : ''}`}>
             <p className="text-xs text-gray-400 uppercase">Outstanding</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.outstanding)}</p>
-            <p className="text-xs text-gray-400">{money2(totals.paid)} paid</p>
+            <p className="text-xs text-gray-400">
+              {totals.invoiced ? `${money2(totals.paid)} paid of ${money2(totals.total)}` : 'estimate — not invoiced yet'}
+            </p>
           </div>
         </div>
 
@@ -406,8 +422,28 @@ export default function EventDetailPage() {
               <Plus className="w-4 h-4" /> Schedule Payment
             </button>
           </div>
+          {detail.invoice && (
+            <div className="bg-white rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 dark:bg-slate-900">
+              <div>
+                <p className="text-xs text-gray-400 uppercase">Invoice</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">
+                  {detail.invoice.number}
+                  <span className="ml-2 text-xs capitalize bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{detail.invoice.status}</span>
+                </p>
+                <p className="text-xs text-gray-500 dark:text-slate-400">
+                  {money2(totals.total)} total{Number(totals.tax || 0) > 0 ? ` incl. ${money2(totals.tax)} tax` : ''} · {money2(totals.paid)} paid
+                  {Number(totals.refunded || 0) > 0 ? ` · ${money2(totals.refunded)} refunded` : ''} · {money2(totals.outstanding)} outstanding
+                </p>
+              </div>
+              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700">
+                Send, refund or view invoice <ExternalLink className="w-4 h-4" />
+              </Link>
+            </div>
+          )}
           {payments.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No payment schedule yet</div>
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
+              No payment schedule yet{!client ? ' — add a client first; the invoice is raised to them' : ''}
+            </div>
           ) : (
             <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full text-sm">
@@ -422,31 +458,30 @@ export default function EventDetailPage() {
                 </thead>
                 <tbody className="divide-y">
                   {payments.map((p) => (
-                    <tr key={p.id} className={isOverdue(p.dueDate, p.paidAt) ? 'bg-red-50' : ''}>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
-                        {p.label}
-                        {p.method && <span className="block text-xs text-gray-400 font-normal">{p.method}{p.reference ? ` · ${p.reference}` : ''}</span>}
-                      </td>
-                      <td className={`px-4 py-3 ${isOverdue(p.dueDate, p.paidAt) ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
-                        {p.dueDate || '—'}{isOverdue(p.dueDate, p.paidAt) ? ' (overdue)' : ''}
+                    <tr key={p.id} className={isOverdue(p) ? 'bg-red-50 dark:bg-red-900/20' : ''}>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">{p.label}</td>
+                      <td className={`px-4 py-3 ${isOverdue(p) ? 'text-red-700 font-medium' : 'text-gray-600 dark:text-slate-400'}`}>
+                        {p.dueDate || '—'}{isOverdue(p) ? ' (overdue)' : ''}
                       </td>
                       <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(p.amount)}</td>
                       <td className="px-4 py-3">
-                        {p.paidAt ? (
-                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                            Paid {localDay(new Date(p.paidAt))}
-                          </span>
+                        {p.state === 'paid' ? (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Paid</span>
+                        ) : p.state === 'part_paid' ? (
+                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">{money2(p.paidAmount)} paid</span>
+                        ) : p.state === 'refunded' || p.state === 'void' ? (
+                          <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{p.state}</span>
                         ) : (
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Scheduled</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {!p.paidAt && (
-                          <button onClick={() => markPaid(p)} className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 mr-3">
-                            <Check className="w-3 h-3" /> Mark paid
+                        {detail.invoice && (p.state === 'unpaid' || p.state === 'part_paid') && (
+                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 mr-3">
+                            <Check className="w-3 h-3" /> Record payment
                           </button>
                         )}
-                        <button onClick={() => removeLine('payments', p.id)} className="text-gray-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => removeLine('payments', p.id)} className="text-gray-400 hover:text-red-600" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}
@@ -465,7 +500,24 @@ export default function EventDetailPage() {
       {showEdit && <EditEventModal event={ev} onSave={() => { setShowEdit(false); load(); }} onClose={() => setShowEdit(false)} />}
       {showMenu && <MenuLineModal eventId={ev.id} heads={heads} onSave={() => { setShowMenu(false); load(); }} onClose={() => setShowMenu(false)} />}
       {showTimeline && <TimelineModal eventId={ev.id} nextOrder={timeline.length + 1} onSave={() => { setShowTimeline(false); load(); }} onClose={() => setShowTimeline(false)} />}
-      {showPayment && <PaymentModal eventId={ev.id} suggested={Number(totals.outstanding || 0)} onSave={() => { setShowPayment(false); load(); }} onClose={() => setShowPayment(false)} />}
+      {showPayment && (
+        <PaymentModal
+          eventId={ev.id}
+          // What's still unscheduled: the invoice (or estimate) total less the installments already planned.
+          suggested={Math.max(0, Number(totals.total || 0) - payments.reduce((s, p) => s + Number(p.amount || 0), 0))}
+          onSave={() => { setShowPayment(false); load(); }}
+          onClose={() => setShowPayment(false)}
+        />
+      )}
+      {recordFor && detail.invoice && (
+        <RecordPaymentModal
+          invoiceId={detail.invoice.id}
+          installment={recordFor}
+          balance={Number(totals.outstanding || 0)}
+          onSave={() => { setRecordFor(null); load(); }}
+          onClose={() => setRecordFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -818,17 +870,15 @@ function TimelineModal({ eventId, nextOrder, onSave, onClose }: { eventId: strin
 
 /* ---------------- Payment ---------------- */
 
+// Schedule an installment (what is due, and when). The first one raises the event's invoice.
 function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string; suggested: number; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     label: 'Deposit',
-    amount: suggested > 0 ? String(suggested) : '',
+    amount: suggested > 0 ? suggested.toFixed(2) : '',
     dueDate: '',
-    method: '',
-    reference: '',
-    paidNow: false,
   });
-  const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -839,9 +889,6 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
         label: form.label.trim() || 'Payment',
         amount: Number(form.amount),
         dueDate: form.dueDate || null,
-        paidAt: form.paidNow ? new Date().toISOString() : null,
-        method: form.method || null,
-        reference: form.reference || null,
       });
       onSave();
     } catch (err) {
@@ -868,23 +915,63 @@ function PaymentModal({ eventId, suggested, onSave, onClose }: { eventId: string
           <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Due date</label>
           <input type="date" value={form.dueDate} onChange={(e) => set('dueDate', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
         </div>
-        <div className="flex items-center gap-2">
-          <input id="paidNow" type="checkbox" checked={form.paidNow} onChange={(e) => set('paidNow', e.target.checked)} className="w-4 h-4" />
-          <label htmlFor="paidNow" className="text-sm font-medium text-gray-700 dark:text-slate-200">Already paid</label>
-        </div>
-        {form.paidNow && (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Method</label>
-              <input type="text" value={form.method} onChange={(e) => set('method', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Card, transfer, cash" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reference</label>
-              <input type="text" value={form.reference} onChange={(e) => set('reference', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
-            </div>
-          </div>
-        )}
+        <p className="text-xs text-gray-500 dark:text-slate-400">Already paid? Schedule it, then use Record payment on the row.</p>
         <FormButtons saving={saving} onClose={onClose} label="Schedule" />
+      </form>
+    </ModalShell>
+  );
+}
+
+/* ---------------- Record payment (on the invoice) ---------------- */
+
+// Money received against an installment is recorded on the event's invoice — the same endpoint as the
+// Invoices page, so it counts in Reports and follows the refund rules.
+function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }: { invoiceId: string; installment: PaymentLine; balance: number; onSave: () => void; onClose: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const due = Math.max(0, Math.min(Number(installment.amount || 0) - Number(installment.paidAmount || 0), balance));
+  const [form, setForm] = useState({ amount: due > 0 ? due.toFixed(2) : '', method: 'card', reference: '' });
+  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.amount === '' || !(Number(form.amount) > 0)) { alert('Enter the amount received'); return; }
+    setSaving(true);
+    try {
+      await api.post(`/api/invoices/${invoiceId}/payments`, {
+        amount: Number(form.amount),
+        method: form.method,
+        reference: form.reference || undefined,
+        notes: installment.label || undefined,
+      });
+      onSave();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to record payment');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title={`Record payment — ${installment.label || 'Payment'}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount received ($) <span className="text-red-500">*</span></label>
+            <input type="number" step="any" min="0" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
+            <p className="text-xs text-gray-400 mt-1">{money2(balance)} outstanding on the invoice</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Method</label>
+            <select value={form.method} onChange={(e) => set('method', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+              {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Reference</label>
+          <input type="text" value={form.reference} onChange={(e) => set('reference', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Card last 4, cheque no., transfer ref" />
+        </div>
+        <FormButtons saving={saving} onClose={onClose} label="Record" />
       </form>
     </ModalShell>
   );
