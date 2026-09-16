@@ -65,7 +65,12 @@ for (const p of ['packages/tenant-ui/src/invoicing/InvoicesPage.tsx', 'packages/
   const s = raw(p)
   if (/issued in your payment processor/.test(s)) fail(`${p} still tells the owner card refunds are only issued in the processor`)
   if (!/Card refunds issued in Stripe are recorded here automatically/.test(s)) fail(`${p} must say Stripe refunds are recorded automatically (so they are not entered twice)`)
+  // and which half of the refund model applies to THIS invoice (events T15 B2: the one-size sentence read as re-billing)
+  if (!/refundEffectNote\(/.test(s)) fail(`${p} refund modal must show refundEffectNote(total, amountPaid)`)
+  if (/The sale stays paid; the refund is recorded on its own line/.test(s)) fail(`${p} still carries the one-size refund sentence`)
 }
+const uiSrc = raw('packages/tenant-ui/src/invoicing/ui.tsx')
+if (!/paid in full: the refund is recorded on its own line and never reopens a balance/.test(uiSrc) || !/part-paid: the refunded amount is owed again, so the balance due goes up by what you refund/.test(uiSrc)) fail('ui.tsx refundEffectNote must state both halves of the refund model')
 
 if (failed) { console.error(`\nstripe refunds: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('stripe refunds: route, owner refund and charge.refunded record through one locked, idempotent refund core; endpoints subscribed')

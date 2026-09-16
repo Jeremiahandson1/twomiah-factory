@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, Ban, RotateCcw, RefreshCw } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
-import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, inputCls, isPastDay, money } from './ui'
+import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, inputCls, isPastDay, money, refundEffectNote } from './ui'
 
 type Inv = Record<string, any>
 
@@ -174,7 +174,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
 
       <Modal isOpen={refundOpen} onClose={() => setRefundOpen(false)} title="Record Refund" size="sm">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-slate-400">The sale stays paid; the refund is recorded on its own line. Card refunds issued in Stripe are recorded here automatically — record only refunds made outside Stripe (cash, check…) so nothing is counted twice.</p>
+          <p className="text-sm text-gray-600 dark:text-slate-400">{refundEffectNote(invoice.total, invoice.amountPaid)} Card refunds issued in Stripe are recorded here automatically — record only refunds made outside Stripe (cash, check…) so nothing is counted twice.</p>
           <Field label="Amount *" hint={`${money(netPaid)} refundable`}><input type="number" step="0.01" min="0.01" value={refund.amount} onChange={e => setRefund({ ...refund, amount: e.target.value })} className={inputCls} /></Field>
           <Field label="Method" hint="Leave as-is to refund the way the money came in."><select value={refund.method} onChange={e => setRefund({ ...refund, method: e.target.value })} className={inputCls}><option value="">Same as payment</option>{PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></Field>
           <Field label="Reference"><input value={refund.reference} onChange={e => setRefund({ ...refund, reference: e.target.value })} className={inputCls} /></Field>

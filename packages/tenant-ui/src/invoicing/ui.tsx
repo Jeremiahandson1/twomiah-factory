@@ -53,6 +53,18 @@ export const moneyInputError = (items: { quantity: number; unitPrice: number }[]
   if (Number(discount) < 0) return 'Discount cannot be negative'
   return null
 }
+/**
+ * What a refund does to THIS invoice's balance — the two halves of the refund model (invoicing/money.ts
+ * invoiceBalance), said before the owner records one. A fully paid sale stays paid and a refund never
+ * reopens a balance; a part-paid invoice owes the refunded amount again (a returned deposit reopens
+ * what is still due). The old one-size sentence read as "re-billing" on a part-paid invoice (events T15 B2).
+ */
+export const refundEffectNote = (total: unknown, amountPaid: unknown): string => {
+  const fullyPaid = Number(amountPaid || 0) >= (Number(total) || 0) - 0.005
+  return fullyPaid
+    ? 'This sale is paid in full: the refund is recorded on its own line and never reopens a balance.'
+    : 'This invoice is part-paid: the refunded amount is owed again, so the balance due goes up by what you refund. To reduce what the client owes instead, edit the invoice.'
+}
 export const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 
 /**
