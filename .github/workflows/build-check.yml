@@ -415,5 +415,5 @@ jobs:
       - uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
-      - name: shared createEnabledFeatureGate; events gates projects/jobs/quotes + email marketing; processor + sidebar honour the switch
+      - name: shared createEnabledFeatureGate (id or any-of list); every CRM gates its sidebar-gated families at the mount + email marketing in-route; processor + sidebar honour the switch; cross-module lookups tolerant
         run: bun run scripts/check-enabled-feature-gates.ts

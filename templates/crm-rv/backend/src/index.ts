@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
+import { requireEnabledFeature } from './middleware/enabledFeature.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
@@ -202,6 +203,16 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // API routes
 if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+
+// Modules outside this tenant's enabled features are refused at the API, not just hidden in the menu —
+// the families the sidebar gates (shellConfig `features`; the shared shell already bounces the URL). A
+// list means any of those features unlocks the family, exactly as the sidebar reads it. Email marketing
+// is gated inside its own routes so the public unsubscribe/tracking links stay open. (SALON-M1 → #167)
+app.use('/api/warranties', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/warranties/*', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/inventory', authenticate, requireEnabledFeature(['inventory', 'parts_tracking']))
+app.use('/api/inventory/*', authenticate, requireEnabledFeature(['inventory', 'parts_tracking']))
+
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)

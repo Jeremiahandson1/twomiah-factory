@@ -2,7 +2,10 @@
 // gate and the Factory all use (company.enabledFeatures, the switches the owner sees in Settings ›
 // Features). The plan-based requireFeature() in each template's featureGate.ts is a different axis.
 // Hiding a module in the menu used to leave its API wide open (POST /api/projects still created
-// projects — SALON-M1); the salon carried this gate alone until #165 made it the shared one.
+// projects — SALON-M1); the salon carried this gate alone until #165 made it the shared one, and #167
+// put it in front of every sidebar-gated family fleet-wide. A list of ids means ANY of them unlocks
+// the family — the same reading the sidebar gives an item's `features` (e.g. /api/inventory serves
+// both Inventory and Parts Inventory).
 import type { Context, Next } from 'hono'
 import { eq } from 'drizzle-orm'
 
@@ -24,13 +27,18 @@ export function createEnabledFeatureGate({ db, tables: { company } }: EnabledFea
     return list
   }
 
-  const isFeatureEnabled = async (companyId: string, featureId: string) => (await enabledFeaturesFor(companyId)).includes(featureId)
+  /** One id: is it on. A list: is ANY of them on. */
+  const isFeatureEnabled = async (companyId: string, feature: string | string[]) => {
+    const list = await enabledFeaturesFor(companyId)
+    return (Array.isArray(feature) ? feature : [feature]).some((f) => list.includes(f))
+  }
 
-  function requireEnabledFeature(featureId: string) {
+  function requireEnabledFeature(feature: string | string[]) {
+    const ids = Array.isArray(feature) ? feature : [feature]
     return async (c: Context, next: Next) => {
       const u = c.get('user') as any
       if (!u?.companyId) return c.json({ error: 'Authentication required' }, 401)
-      if (!(await isFeatureEnabled(u.companyId, featureId))) return c.json({ error: 'This module is not enabled for your account.', code: 'FEATURE_NOT_ENABLED', feature: featureId }, 403)
+      if (!(await isFeatureEnabled(u.companyId, ids))) return c.json({ error: 'This module is not enabled for your account.', code: 'FEATURE_NOT_ENABLED', feature: ids[0], ...(ids.length > 1 ? { features: ids } : {}) }, 403)
       await next()
     }
   }

@@ -53,7 +53,8 @@ export default function BillsPage() {
         api.bills.list({ page, limit: 25 }),
         api.contacts.list({ limit: 200 }),
         api.jobs.list({ limit: 100 }),
-        api.purchaseOrders.list({ limit: 100 }),
+        // Purchase Orders is its own module; switched off it answers 403 and a bill simply links to no PO.
+        api.purchaseOrders.list({ limit: 100 }).catch(() => ({ data: [] })),
         api.bills.summary(),
       ]);
       const res = resRaw as Record<string, unknown>;

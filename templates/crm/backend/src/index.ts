@@ -16,6 +16,7 @@ import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
+import { requireEnabledFeature } from './middleware/enabledFeature.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
@@ -229,6 +230,58 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // API routes
 if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+
+// Modules outside this tenant's enabled features are refused at the API, not just hidden in the menu —
+// the families the sidebar gates (shellConfig `features`; the shared shell already bounces the URL). A
+// list means any of those features unlocks the family, exactly as the sidebar reads it. Email marketing
+// is gated inside its own routes so the public unsubscribe/tracking links stay open. (SALON-M1 → #167)
+app.use('/api/projects', authenticate, requireEnabledFeature('projects'))
+app.use('/api/projects/*', authenticate, requireEnabledFeature('projects'))
+app.use('/api/tasks', authenticate, requireEnabledFeature('projects'))
+app.use('/api/tasks/*', authenticate, requireEnabledFeature('projects'))
+app.use('/api/purchase-orders', authenticate, requireEnabledFeature('purchase_orders'))
+app.use('/api/purchase-orders/*', authenticate, requireEnabledFeature('purchase_orders'))
+app.use('/api/bills', authenticate, requireEnabledFeature('vendor_bills'))
+app.use('/api/bills/*', authenticate, requireEnabledFeature('vendor_bills'))
+app.use('/api/rfis', authenticate, requireEnabledFeature('rfis'))
+app.use('/api/rfis/*', authenticate, requireEnabledFeature('rfis'))
+app.use('/api/submittals', authenticate, requireEnabledFeature('submittals'))
+app.use('/api/submittals/*', authenticate, requireEnabledFeature('submittals'))
+app.use('/api/lien-waivers', authenticate, requireEnabledFeature('lien_waivers'))
+app.use('/api/lien-waivers/*', authenticate, requireEnabledFeature('lien_waivers'))
+app.use('/api/draw-schedules', authenticate, requireEnabledFeature('draw_schedules'))
+app.use('/api/draw-schedules/*', authenticate, requireEnabledFeature('draw_schedules'))
+app.use('/api/aia-forms', authenticate, requireEnabledFeature('aia_forms'))
+app.use('/api/aia-forms/*', authenticate, requireEnabledFeature('aia_forms'))
+app.use('/api/gantt-charts', authenticate, requireEnabledFeature('gantt_charts'))
+app.use('/api/gantt-charts/*', authenticate, requireEnabledFeature('gantt_charts'))
+app.use('/api/change-orders', authenticate, requireEnabledFeature('change_orders'))
+app.use('/api/change-orders/*', authenticate, requireEnabledFeature('change_orders'))
+app.use('/api/punch-lists', authenticate, requireEnabledFeature('punch_lists'))
+app.use('/api/punch-lists/*', authenticate, requireEnabledFeature('punch_lists'))
+app.use('/api/daily-logs', authenticate, requireEnabledFeature('daily_logs'))
+app.use('/api/daily-logs/*', authenticate, requireEnabledFeature('daily_logs'))
+app.use('/api/inspections', authenticate, requireEnabledFeature('inspections'))
+app.use('/api/inspections/*', authenticate, requireEnabledFeature('inspections'))
+app.use('/api/bids', authenticate, requireEnabledFeature('bid_management'))
+app.use('/api/bids/*', authenticate, requireEnabledFeature('bid_management'))
+app.use('/api/takeoffs', authenticate, requireEnabledFeature('takeoff_tools'))
+app.use('/api/takeoffs/*', authenticate, requireEnabledFeature('takeoff_tools'))
+app.use('/api/selections', authenticate, requireEnabledFeature('selections'))
+app.use('/api/selections/*', authenticate, requireEnabledFeature('selections'))
+app.use('/api/fleet', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/fleet/*', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/inventory', authenticate, requireEnabledFeature('inventory'))
+app.use('/api/inventory/*', authenticate, requireEnabledFeature('inventory'))
+app.use('/api/equipment', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/equipment/*', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/agreements', authenticate, requireEnabledFeature('service_agreements'))
+app.use('/api/agreements/*', authenticate, requireEnabledFeature('service_agreements'))
+app.use('/api/warranties', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/warranties/*', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
+app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
+
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)

@@ -38,7 +38,8 @@ export default function PunchListsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [resRaw, projResRaw] = await Promise.all([api.punchLists.list({ page, limit: 25 }), api.projects.list({ limit: 100 })]);
+      // Projects is its own module; switched off it answers 403 and the page simply offers no project.
+      const [resRaw, projResRaw] = await Promise.all([api.punchLists.list({ page, limit: 25 }), api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))]);
       const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
       const items = (res.data as Record<string, unknown>[]).map((d: Record<string, unknown>) => d.punchListItem ? { ...(d.punchListItem as Record<string, unknown>), project: d.project } : d);
       setData(items); setPagination(res.pagination as PaginationData | null); setProjects(projRes.data as Record<string, unknown>[]);

@@ -41,7 +41,8 @@ export default function RFIsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [resRaw, projResRaw] = await Promise.all([api.rfis.list({ page, limit: 25 }), api.projects.list({ limit: 100 })]);
+      // Projects is its own module; switched off it answers 403 and the page simply offers no project.
+      const [resRaw, projResRaw] = await Promise.all([api.rfis.list({ page, limit: 25 }), api.projects.list({ limit: 100 }).catch(() => ({ data: [] }))]);
       const res = resRaw as Record<string, unknown>; const projRes = projResRaw as Record<string, unknown>;
       setData(res.data as Record<string, unknown>[]); setPagination(res.pagination as PaginationData | null); setProjects(projRes.data as Record<string, unknown>[]);
     } catch (err) { toast.error('Failed to load RFIs'); }

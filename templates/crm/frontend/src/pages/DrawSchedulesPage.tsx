@@ -32,7 +32,8 @@ export default function DrawSchedulesPage() {
   useEffect(() => { load(); }, []);
   const load = async () => {
     try {
-      const [{ data }, projRes] = await Promise.all([api.get('/api/draw-schedules'), api.get('/api/projects')]);
+      // Projects is its own module; switched off it answers 403 and the page simply offers no project.
+      const [{ data }, projRes] = await Promise.all([api.get('/api/draw-schedules'), api.get('/api/projects').catch(() => ({ data: [] }))]);
       setSchedules(data || []); setProjects(projRes.data || projRes || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };

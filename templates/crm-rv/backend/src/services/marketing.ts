@@ -4,8 +4,11 @@ import { createMarketingService } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { campaign, contact, emailLog } from '../../db/schema.ts'
 import { sendRaw } from './email.ts'
+import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 
-const marketing = createMarketingService({ db, tables: { campaign, contact, emailLog }, sendRaw })
+// isFeatureEnabled: a campaign or drip due after Email Marketing was switched off is not sent (T15 M5).
+// Here the drips are also the Follow-Up product (follow_up_sequences): either switch keeps them sending.
+const marketing = createMarketingService({ db, tables: { campaign, contact, emailLog }, sendRaw, isFeatureEnabled: (companyId) => isFeatureEnabled(companyId, ['email_marketing', 'follow_up_sequences']) })
 
 export const startMarketingProcessor = () => marketing.startMarketingProcessor()
 export default marketing

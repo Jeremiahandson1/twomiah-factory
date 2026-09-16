@@ -31,7 +31,8 @@ export default function LienWaiversPage() {
   useEffect(() => { load(); }, []);
   const load = async () => {
     try {
-      const [{ data }, projRes] = await Promise.all([api.get('/api/lien-waivers'), api.get('/api/projects')]);
+      // Projects is its own module; switched off it answers 403 and the page simply offers no project.
+      const [{ data }, projRes] = await Promise.all([api.get('/api/lien-waivers'), api.get('/api/projects').catch(() => ({ data: [] }))]);
       setWaivers(data || []); setProjects(projRes.data || projRes || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };

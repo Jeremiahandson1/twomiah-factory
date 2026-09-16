@@ -28,7 +28,8 @@ export default function AiaFormsPage() {
   useEffect(() => { load(); }, []);
   const load = async () => {
     try {
-      const [{ data }, projRes] = await Promise.all([api.get('/api/aia-forms'), api.get('/api/projects')]);
+      // Projects is its own module; switched off it answers 403 and the page simply offers no project.
+      const [{ data }, projRes] = await Promise.all([api.get('/api/aia-forms'), api.get('/api/projects').catch(() => ({ data: [] }))]);
       setForms(data || []); setProjects(projRes.data || projRes || []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };

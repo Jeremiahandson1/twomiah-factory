@@ -64,7 +64,8 @@ export default function SubmittalsPage() {
     try {
       const [{ data }, projRes] = await Promise.all([
         api.get('/api/submittals'),
-        api.get('/api/projects'),
+        // Projects is its own module; switched off it answers 403 and the page simply offers no project.
+        api.get('/api/projects').catch(() => ({ data: [] })),
       ]);
       setSubmittals(data || []);
       setProjects(projRes.data || projRes || []);

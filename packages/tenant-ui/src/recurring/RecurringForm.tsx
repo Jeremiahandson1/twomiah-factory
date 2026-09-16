@@ -90,7 +90,8 @@ export default function RecurringForm({ api }: RecurringPageProps) {
     try {
       const [contactsRes, projectsRes] = await Promise.all([
         api.get('/api/contacts?type=client&limit=200'),
-        api.get('/api/projects?limit=200'),
+        // Projects is its own module; switched off it answers 403 and the form simply offers no project.
+        api.get('/api/projects?limit=200').catch(() => ({ data: [] })),
       ]);
       setContacts((contactsRes as Record<string, unknown>).data as Record<string, unknown>[] || []);
       setProjects((projectsRes as Record<string, unknown>).data as Record<string, unknown>[] || []);

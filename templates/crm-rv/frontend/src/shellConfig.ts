@@ -42,7 +42,10 @@ const NAV: NavItem[] = [
   // Customers & Marketing
   { to: '/crm/contacts', icon: Users, label: 'Contacts', section: 'Customers & Marketing' },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'], section: 'Customers & Marketing' },
-  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'], section: 'Customers & Marketing' },
+  // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own item above. Its drips
+  // tab is also the Follow-Up product, so either switch keeps the page reachable (the shell checks the first
+  // entry for a path) — the API gate reads the pair the same way. (T15 M5 → #167)
+  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing', 'follow_up_sequences'], section: 'Customers & Marketing' },
   { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing' },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },

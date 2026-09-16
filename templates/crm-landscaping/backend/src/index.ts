@@ -93,6 +93,7 @@ import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import onboardingRoutes from './routes/onboarding.ts'
 import mediaRoutes from './routes/media.ts'
 import { authenticate } from './middleware/auth.ts'
+import { requireEnabledFeature } from './middleware/enabledFeature.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -197,6 +198,36 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // API routes
 if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+
+// Modules outside this tenant's enabled features are refused at the API, not just hidden in the menu —
+// the families the sidebar gates (shellConfig `features`; the shared shell already bounces the URL). A
+// list means any of those features unlocks the family, exactly as the sidebar reads it. Email marketing
+// is gated inside its own routes so the public unsubscribe/tracking links stay open. (SALON-M1 → #167)
+app.use('/api/fleet', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/fleet/*', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/locations', authenticate, requireEnabledFeature('multi_location'))
+app.use('/api/locations/*', authenticate, requireEnabledFeature('multi_location'))
+app.use('/api/commissions', authenticate, requireEnabledFeature('commission_tracking'))
+app.use('/api/commissions/*', authenticate, requireEnabledFeature('commission_tracking'))
+app.use('/api/inventory', authenticate, requireEnabledFeature(['inventory', 'parts_tracking']))
+app.use('/api/inventory/*', authenticate, requireEnabledFeature(['inventory', 'parts_tracking']))
+app.use('/api/equipment', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/equipment/*', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/agreements', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/agreements/*', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/maintenance-contracts', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/maintenance-contracts/*', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/warranties', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/warranties/*', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
+app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
+app.use('/api/recurring-routes', authenticate, requireEnabledFeature('recurring_routes'))
+app.use('/api/recurring-routes/*', authenticate, requireEnabledFeature('recurring_routes'))
+app.use('/api/area-pricing', authenticate, requireEnabledFeature('area_pricing'))
+app.use('/api/area-pricing/*', authenticate, requireEnabledFeature('area_pricing'))
+app.use('/api/snow', authenticate, requireEnabledFeature('snow_billing'))
+app.use('/api/snow/*', authenticate, requireEnabledFeature('snow_billing'))
+
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)
