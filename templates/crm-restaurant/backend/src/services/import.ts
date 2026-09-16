@@ -12,6 +12,8 @@ import { parse } from 'csv-parse/sync'
 import { db } from '../../db/index.ts'
 import { contact, project, job, user, pricebookItem, invoice, invoiceLineItem, payment, event, eventSpace, menuPackage } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc } from 'drizzle-orm'
+// Events go through the same rules and the same booking write as the form (#162).
+import { EVENT_TYPES, HELD, SpaceClash, createEvent, findClash, validateEventInput } from './eventBooking.ts'
 
 /**
  * Parse CSV content
@@ -926,8 +928,16 @@ export async function importEvents(csvContent: string, companyId: string, option
     try {
       const name = getValue(row, ...EVENT_COLUMN_MAP.name)
       if (!name) { results.errors.push({ line: lineNum, error: 'Event name is required' }); results.skipped++; continue }
-      const eventDateVal = parseDate(getValue(row, ...EVENT_COLUMN_MAP.eventDate))
+      // The date as written when it is already YYYY-MM-DD (so 2027-02-30 is refused as not a real day instead
+      // of being slid to March 2 by Date parsing); other spellings (09/12/2026) are parsed and normalised.
+      const rawDate = getValue(row, ...EVENT_COLUMN_MAP.eventDate)
+      const parsedDate = rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? parseDate(rawDate) : null
+      const eventDateVal = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : parsedDate ? parsedDate.toISOString().slice(0, 10) : null
       if (!eventDateVal) { results.errors.push({ line: lineNum, error: 'Event date is required (YYYY-MM-DD)' }); results.skipped++; continue }
+      const rawType = getValue(row, ...EVENT_COLUMN_MAP.eventType)
+      if (rawType && !(EVENT_TYPES as readonly string[]).includes(rawType.toLowerCase().trim())) {
+        results.errors.push({ line: lineNum, error: `Event type must be one of: ${EVENT_TYPES.join(', ')}` }); results.skipped++; continue
+      }
 
       // Resolve (or create) the client contact.
       let contactId: string | null = null
@@ -957,14 +967,13 @@ export async function importEvents(csvContent: string, companyId: string, option
 
       const guests = getValue(row, ...EVENT_COLUMN_MAP.guestCount)
       const eventData = {
-        companyId,
         name,
-        eventType: getValue(row, ...EVENT_COLUMN_MAP.eventType) || 'private_dining',
+        eventType: rawType ? rawType.toLowerCase().trim() : 'private_dining',
         status: mapEventStatus(getValue(row, ...EVENT_COLUMN_MAP.status)),
         eventDate: eventDateVal,
         startTime: getValue(row, ...EVENT_COLUMN_MAP.startTime),
         endTime: getValue(row, ...EVENT_COLUMN_MAP.endTime),
-        guestCount: guests ? parseInt(guests, 10) || null : null,
+        guestCount: guests ? (Number.isFinite(parseInt(guests, 10)) ? parseInt(guests, 10) : null) : null,
         quotedTotal: parseDecimal(getValue(row, ...EVENT_COLUMN_MAP.quotedTotal))?.toString() ?? null,
         depositRequired: parseDecimal(getValue(row, ...EVENT_COLUMN_MAP.depositRequired))?.toString() ?? null,
         dietaryRequirements: getValue(row, ...EVENT_COLUMN_MAP.dietaryRequirements),
@@ -973,11 +982,29 @@ export async function importEvents(csvContent: string, companyId: string, option
         spaceId,
       }
 
+      // The form's rules, row by row: a bad date, time, guest count, money or status is a row error with
+      // the form's message — never a silent fix-up or a saved impossibility. (T15 H4)
+      const vErr = validateEventInput(eventData)
+      if (vErr) { results.errors.push({ line: lineNum, error: vErr }); results.skipped++; continue }
+
       if (!dryRun) {
-        const [created] = await db.insert(event).values(eventData).returning()
+        // The booking write the form uses: lock, room-clash check, row, room-hire line. A held room is a
+        // row error, the other rows still import. (T15 B1)
+        let created: any
+        try {
+          created = await db.transaction((tx: any) => createEvent(tx, companyId, eventData))
+        } catch (e: any) {
+          if (e instanceof SpaceClash) { results.errors.push({ line: lineNum, error: e.payload.error }); results.skipped++; continue }
+          throw e
+        }
         results.records.push({ line: lineNum, id: created.id, name: created.name })
       } else {
-        results.records.push({ line: lineNum, data: eventData })
+        // preview: report a room that is already held, without taking the lock
+        if (spaceId && HELD.includes(eventData.status)) {
+          const clash = await findClash(db, companyId, spaceId, eventDateVal)
+          if (clash) { results.errors.push({ line: lineNum, error: `That space is already held on ${eventDateVal} by "${clash.name}"` }); results.skipped++; continue }
+        }
+        results.records.push({ line: lineNum, data: { ...eventData, companyId } })
       }
       results.imported++
     } catch (error: any) {

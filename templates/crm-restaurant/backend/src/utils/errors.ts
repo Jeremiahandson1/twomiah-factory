@@ -26,6 +26,7 @@ export const errorHandler = (err: Error, c: Context) => {
       case '22P02':
       case '22003':
       case '22007':
+      case '22008': // date/time field value out of range (2026-13-45) — the routes validate first; this is the belt (#162)
       case '23514': return c.json({ error: 'Invalid input — please check the values entered' }, 400)
       case '23503': return c.json({ error: 'Referenced record does not exist' }, 400)
     }

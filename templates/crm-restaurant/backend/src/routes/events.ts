@@ -9,6 +9,8 @@ import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { deriveStatus, round2 } from '../shared/index.ts'
 import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice, backfillEventInvoices } from '../services/eventLedger.ts'
+// What an event may hold and how a booking is written — shared with the CSV importer (#162).
+import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput } from '../services/eventBooking.ts'
 
 /**
  * Events — the booking, and everything hanging off it.
@@ -40,62 +42,13 @@ const app = new Hono()
 void backfillEventInvoices().catch((err) => console.error('[events] invoice backfill failed', err))
 app.use('*', authenticate)
 
-const HELD = ['tentative', 'confirmed', 'completed']
-
-// Server-side event validation — the API accepted end-before-start, negative and
-// absurd guest counts, and persisted them (only the widget validated). (F5)
-function eventValidationError(gc: any, gcf: any, start: any, end: any): string | null {
-  const n = (v: any) => (v === '' || v == null ? null : Number(v))
-  const g = n(gc), gf = n(gcf)
-  if (g != null && (isNaN(g) || g < 0 || g > 1000000)) return 'Guest count must be between 0 and 1,000,000.'
-  if (gf != null && (isNaN(gf) || gf < 0 || gf > 1000000)) return 'Final guest count must be between 0 and 1,000,000.'
-  if (start && end && String(end) <= String(start)) return 'End time must be after the start time.'
-  return null
-}
-
-// Thrown inside the booking transaction so a detected clash rolls back the write and is answered as a
-// 409 after it unwinds. One advisory lock per business serialises the whole check-then-write, so two
-// coordinators holding the same space+date at the same instant can't both pass findClash. (space race)
-class SpaceClash extends Error { constructor(public payload: any) { super('space clash') } }
-const eventLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':event'}))`)
-
-async function findClash(companyId: string, spaceId: string, eventDate: string, ignoreId?: string, exec: any = db) {
-  const rows = await exec.select().from(event)
-    .where(and(
-      eq(event.companyId, companyId),
-      eq(event.spaceId, spaceId),
-      eq(event.eventDate, eventDate),
-      inArray(event.status, HELD),
-      ...(ignoreId ? [ne(event.id, ignoreId)] : []),
-    ))
-    .limit(1)
-  return rows[0]
-}
-
 // Line total: per-head lines multiply by the head count on the line.
 function lineTotal(l: { perPerson: boolean; quantity: number; unitPrice: string | null }): number {
   return Number(l.unitPrice || 0) * Number(l.quantity || 0)
 }
 
-// A room's hire fee is charged as its own menu line (spaceId set), priced when the room is booked.
-// Moving rooms swaps the line; hand-typed lines are never touched. Runs inside the booking transaction.
-async function syncHireLine(tx: any, companyId: string, ev: { id: string; spaceId: string | null }) {
-  const auto = await tx.select().from(eventMenuItem)
-    .where(and(eq(eventMenuItem.eventId, ev.id), eq(eventMenuItem.companyId, companyId), isNotNull(eventMenuItem.spaceId)))
-  const keep = auto.find((l: any) => l.spaceId === ev.spaceId)
-  for (const l of auto) if (l !== keep) await tx.delete(eventMenuItem).where(eq(eventMenuItem.id, l.id))
-  if (keep || !ev.spaceId) return
-  const [space] = await tx.select().from(eventSpace).where(and(eq(eventSpace.id, ev.spaceId), eq(eventSpace.companyId, companyId))).limit(1)
-  if (!space || !(Number(space.hireFee) > 0)) return
-  await tx.insert(eventMenuItem).values({
-    id: createId(), eventId: ev.id, spaceId: space.id, name: `Room hire — ${space.name}`,
-    perPerson: false, quantity: 1, unitPrice: space.hireFee, companyId,
-  })
-}
-
 // A ledger rule refused the write (it rolled back): answer with its message and status.
 const ledgerError = (c: any, e: unknown) => (e instanceof LedgerError ? c.json({ error: e.message }, e.status) : null)
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 
@@ -183,47 +136,12 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
-  if (typeof body.name !== 'string' || !body.name.trim()) return c.json({ error: 'name is required' }, 400)
-  if (typeof body.eventDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.eventDate)) {
-    return c.json({ error: 'eventDate is required as YYYY-MM-DD' }, 400)
-  }
-
-  const vErr = eventValidationError(body.guestCount, body.guestCountFinal, body.startTime, body.endTime)
+  const vErr = validateEventInput(body)
   if (vErr) return c.json({ error: vErr }, 400)
 
-  const status = body.status || 'enquiry'
   let created
   try {
-    created = await db.transaction(async (tx: any) => {
-      await eventLock(tx, currentUser.companyId)
-      if (body.spaceId && HELD.includes(status)) {
-        const clash = await findClash(currentUser.companyId, body.spaceId, body.eventDate, undefined, tx)
-        if (clash) throw new SpaceClash({ error: `That space is already held on ${body.eventDate} by "${clash.name}"`, conflictId: clash.id })
-      }
-      const [row] = await tx.insert(event).values({
-        id: createId(),
-        contactId: body.contactId || null,
-        spaceId: body.spaceId || null,
-        coordinatorId: body.coordinatorId || null,
-        name: body.name.trim(),
-        eventType: body.eventType || 'private_dining',
-        status,
-        eventDate: body.eventDate,
-        startTime: body.startTime || null,
-        endTime: body.endTime || null,
-        guestCount: body.guestCount ?? null,
-        guestCountFinal: body.guestCountFinal ?? null,
-        quotedTotal: body.quotedTotal ?? null,
-        depositRequired: body.depositRequired ?? null,
-        source: body.source || null,
-        dietaryRequirements: body.dietaryRequirements || null,
-        setupNotes: body.setupNotes || null,
-        notes: body.notes || null,
-        companyId: currentUser.companyId,
-      }).returning()
-      await syncHireLine(tx, currentUser.companyId, row)
-      return row
-    })
+    created = await db.transaction((tx: any) => createEvent(tx, currentUser.companyId, body))
   } catch (e: any) {
     if (e instanceof SpaceClash) return c.json(e.payload, 409)
     throw e
@@ -251,18 +169,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     'source', 'lostReason', 'dietaryRequirements', 'setupNotes', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
-  if (updates.eventDate && !/^\d{4}-\d{2}-\d{2}$/.test(updates.eventDate)) {
-    return c.json({ error: 'eventDate must be YYYY-MM-DD' }, 400)
-  }
 
-  // Validate against the effective values (incoming update falling back to existing),
-  // so editing just one of start/end still re-checks the pair. (F5)
-  const vErr = eventValidationError(
-    'guestCount' in updates ? updates.guestCount : existing.guestCount,
-    'guestCountFinal' in updates ? updates.guestCountFinal : existing.guestCountFinal,
-    'startTime' in updates ? updates.startTime : existing.startTime,
-    'endTime' in updates ? updates.endTime : existing.endTime,
-  )
+  // The same rules as a create, against the effective values (incoming update falling back to existing),
+  // so editing just one of start/end still re-checks the pair. (F5, #162)
+  const vErr = validateEventInput(updates, existing)
   if (vErr) return c.json({ error: vErr }, 400)
 
   // Moving the date, changing the room, or promoting an enquiry to tentative
@@ -275,7 +185,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     updated = await db.transaction(async (tx: any) => {
       await eventLock(tx, currentUser.companyId)
       if (nextSpace && HELD.includes(nextStatus)) {
-        const clash = await findClash(currentUser.companyId, nextSpace, nextDate, id, tx)
+        const clash = await findClash(tx, currentUser.companyId, nextSpace, nextDate, id)
         if (clash) throw new SpaceClash({ error: `That space is already held on ${nextDate} by "${clash.name}"`, conflictId: clash.id })
       }
       const [row] = await tx.update(event).set(updates).where(eq(event.id, id)).returning()
