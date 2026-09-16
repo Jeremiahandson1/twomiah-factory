@@ -52,16 +52,41 @@ export function createStripeService(deps: StripeServiceDeps) {
     : null
 
   // ============================================
+  // CONNECTED ACCOUNT
+  // ============================================
+
+  /**
+   * A business that clicked "Connect Stripe" (Settings → Integrations) takes payments on its own
+   * connected account — the id the shared integrations module stores in
+   * company.integrations.stripeAccountId. Every Stripe call about that business's money carries it,
+   * so the charge lands in their Stripe account, not the platform's. A business on its own keys has
+   * no connected account and its calls carry nothing (byte-identical to before #154).
+   */
+  async function connectedAccountFor(companyId: string | null | undefined): Promise<string | null> {
+    if (!companyId) return null
+    const [row] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, companyId)).limit(1)
+    const acct = (row?.integrations as any)?.stripeAccountId
+    return typeof acct === 'string' && acct ? acct : null
+  }
+  const requestOpts = (stripeAccount: string | null | undefined) => (stripeAccount ? { stripeAccount } : undefined)
+
+  // ============================================
   // CUSTOMER MANAGEMENT
   // ============================================
 
   /**
-   * Create or get Stripe customer for a contact
+   * Create or get Stripe customer for a contact.
+   * The id lives in customFields (that is where it is saved below — the old check read a
+   * contactRow.stripeCustomerId column that does not exist, so every payment created a new customer
+   * and orphaned the cards saved on the last one). A customer belongs to the Stripe account it was
+   * created on, so an id saved under a different account is treated as absent.
    */
-  async function getOrCreateCustomer(contactRow: any) {
-    if (contactRow.stripeCustomerId) {
+  async function getOrCreateCustomer(contactRow: any, stripeAccount: string | null = null) {
+    const saved = (contactRow.customFields as any) || {}
+    const savedAccount = (saved.stripeCustomerAccount as string | null) || null
+    if (saved.stripeCustomerId && savedAccount === (stripeAccount || null)) {
       try {
-        const customer = await stripe!.customers.retrieve(contactRow.stripeCustomerId)
+        const customer = await stripe!.customers.retrieve(saved.stripeCustomerId, requestOpts(stripeAccount))
         if (!(customer as any).deleted) {
           return customer
         }
@@ -87,12 +112,13 @@ export function createStripeService(deps: StripeServiceDeps) {
         contact_id: contactRow.id,
         company_id: contactRow.companyId,
       },
-    })
+    }, requestOpts(stripeAccount))
 
-    // Save Stripe customer ID to contact custom fields
+    // Save Stripe customer ID to contact custom fields (with the account it belongs to)
     const [existing] = await db.select({ customFields: contact.customFields }).from(contact).where(eq(contact.id, contactRow.id))
     const fields = (existing?.customFields as any) || {}
     fields.stripeCustomerId = customer.id
+    fields.stripeCustomerAccount = stripeAccount || null
 
     await db
       .update(contact)
@@ -106,16 +132,17 @@ export function createStripeService(deps: StripeServiceDeps) {
    * Update Stripe customer
    */
   async function updateCustomer(contactRow: any) {
+    const stripeAccount = await connectedAccountFor(contactRow.companyId)
     const fields = (contactRow.customFields as any) || {}
-    if (!fields.stripeCustomerId) {
-      return getOrCreateCustomer(contactRow)
+    if (!fields.stripeCustomerId || ((fields.stripeCustomerAccount as string | null) || null) !== (stripeAccount || null)) {
+      return getOrCreateCustomer(contactRow, stripeAccount)
     }
 
     return stripe!.customers.update(fields.stripeCustomerId, {
       email: contactRow.email,
       name: contactRow.name,
       phone: contactRow.phone,
-    })
+    }, requestOpts(stripeAccount))
   }
 
   // ============================================
@@ -126,7 +153,8 @@ export function createStripeService(deps: StripeServiceDeps) {
    * Create payment intent for an invoice
    */
   async function createPaymentIntent(invoiceRow: any, contactRow: any) {
-    const customer = await getOrCreateCustomer(contactRow)
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
+    const customer = await getOrCreateCustomer(contactRow, stripeAccount)
 
     const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
     const amount = Math.round(balance * 100)
@@ -149,16 +177,18 @@ export function createStripeService(deps: StripeServiceDeps) {
       // Keep the card on file so recurring agreements can be charged later.
       setup_future_usage: 'off_session',
       automatic_payment_methods: { enabled: true },
-    })
+    }, requestOpts(stripeAccount))
 
     // publishableKey: what the browser initialises Stripe.js with. The portal's payment form refused to
     // render without it ("Card payments are not set up yet") — the booking-deposit and setup-intent
-    // responses already carried it; the invoice path never did. (#153)
+    // responses already carried it; the invoice path never did. (#153) stripeAccount: the connected
+    // account Stripe.js must be initialised with, null on a business's own keys. (#154)
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       amount: paymentIntent.amount,
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+      stripeAccount,
     }
   }
 
@@ -166,7 +196,8 @@ export function createStripeService(deps: StripeServiceDeps) {
    * Create payment intent for partial payment
    */
   async function createPartialPaymentIntent(invoiceRow: any, contactRow: any, amount: number) {
-    const customer = await getOrCreateCustomer(contactRow)
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
+    const customer = await getOrCreateCustomer(contactRow, stripeAccount)
 
     const amountCents = Math.round(amount * 100)
     const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
@@ -188,21 +219,22 @@ export function createStripeService(deps: StripeServiceDeps) {
         partial_payment: 'true',
       },
       automatic_payment_methods: { enabled: true },
-    })
+    }, requestOpts(stripeAccount))
 
     return {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       amount: paymentIntent.amount,
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+      stripeAccount,
     }
   }
 
   /**
    * Retrieve payment intent
    */
-  async function getPaymentIntent(paymentIntentId: string) {
-    return stripe!.paymentIntents.retrieve(paymentIntentId)
+  async function getPaymentIntent(paymentIntentId: string, stripeAccount: string | null = null) {
+    return stripe!.paymentIntents.retrieve(paymentIntentId, requestOpts(stripeAccount))
   }
 
   // ============================================
@@ -217,7 +249,8 @@ export function createStripeService(deps: StripeServiceDeps) {
     contactRow: any,
     { successUrl, cancelUrl }: { successUrl: string; cancelUrl: string }
   ) {
-    const customer = await getOrCreateCustomer(contactRow)
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
+    const customer = await getOrCreateCustomer(contactRow, stripeAccount)
     const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
 
     const session = await stripe!.checkout.sessions.create({
@@ -244,7 +277,7 @@ export function createStripeService(deps: StripeServiceDeps) {
         invoice_number: invoiceRow.number,
         company_id: invoiceRow.companyId,
       },
-    })
+    }, requestOpts(stripeAccount))
 
     return { sessionId: session.id, url: session.url }
   }
@@ -265,7 +298,8 @@ export function createStripeService(deps: StripeServiceDeps) {
     description?: string
   }) {
     if (!stripe) throw new Error('Stripe is not configured')
-    const customer = await getOrCreateCustomer(params.contactRow)
+    const stripeAccount = await connectedAccountFor(params.companyId)
+    const customer = await getOrCreateCustomer(params.contactRow, stripeAccount)
 
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(params.amount * 100),
@@ -279,12 +313,13 @@ export function createStripeService(deps: StripeServiceDeps) {
         contact_id: params.contactRow.id,
         kind: 'booking_deposit',
       },
-    })
+    }, requestOpts(stripeAccount))
 
     return {
       paymentIntentId: intent.id,
       clientSecret: intent.client_secret,
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+      stripeAccount,
     }
   }
 
@@ -295,26 +330,30 @@ export function createStripeService(deps: StripeServiceDeps) {
    */
   async function createSetupIntent(contactRow: any) {
     if (!stripe) throw new Error('Stripe is not configured')
-    const customer = await getOrCreateCustomer(contactRow)
+    const stripeAccount = await connectedAccountFor(contactRow.companyId)
+    const customer = await getOrCreateCustomer(contactRow, stripeAccount)
     const intent = await stripe.setupIntents.create({
       customer: customer.id,
       usage: 'off_session',
       metadata: { contact_id: contactRow.id, company_id: contactRow.companyId },
-    })
+    }, requestOpts(stripeAccount))
     return {
       clientSecret: intent.client_secret,
       setupIntentId: intent.id,
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+      stripeAccount,
     }
   }
 
-  /** Cards this customer has already given us. */
+  /** Cards this customer has already given us (on the account the customer was created on). */
   async function listSavedPaymentMethods(contactRow: any) {
     if (!stripe) return []
     const fields = (contactRow.customFields as any) || {}
     const customerId = fields.stripeCustomerId
     if (!customerId) return []
-    const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' })
+    const stripeAccount = await connectedAccountFor(contactRow.companyId)
+    if (((fields.stripeCustomerAccount as string | null) || null) !== (stripeAccount || null)) return []
+    const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' }, requestOpts(stripeAccount))
     return methods.data.map((m) => ({
       id: m.id,
       brand: m.card?.brand,
@@ -332,7 +371,8 @@ export function createStripeService(deps: StripeServiceDeps) {
    */
   async function chargeInvoiceOffSession(invoiceRow: any, contactRow: any, paymentMethodId: string) {
     if (!stripe) throw new Error('Stripe is not configured')
-    const customer = await getOrCreateCustomer(contactRow)
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
+    const customer = await getOrCreateCustomer(contactRow, stripeAccount)
     const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid || 0)
     const amount = Math.round(balance * 100)
     if (amount <= 0) throw new Error('Invoice has no balance due')
@@ -352,15 +392,18 @@ export function createStripeService(deps: StripeServiceDeps) {
         contact_id: contactRow.id,
         kind: 'agreement_autopay',
       },
-    })
+    }, requestOpts(stripeAccount))
 
     return { paymentIntentId: intent.id, status: intent.status }
   }
 
   async function handleWebhook(event: Stripe.Event) {
+    // A connected-account event carries the account it happened on; anything we do back to Stripe for
+    // it (the late-deposit refund) must be scoped to that account.
+    const stripeAccount = ((event as any).account as string | undefined) || null
     switch (event.type) {
       case 'payment_intent.succeeded':
-        return handlePaymentSuccess(event.data.object as Stripe.PaymentIntent)
+        return handlePaymentSuccess(event.data.object as Stripe.PaymentIntent, stripeAccount)
       case 'payment_intent.payment_failed':
         return handlePaymentFailed(event.data.object as Stripe.PaymentIntent)
       case 'checkout.session.completed':
@@ -414,7 +457,7 @@ export function createStripeService(deps: StripeServiceDeps) {
   /**
    * Handle successful payment
    */
-  async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
+  async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent, stripeAccount: string | null = null) {
     const { invoice_id, booking_id } = paymentIntent.metadata
 
     // Booking deposit: confirm the booking — with the late-payment guard.
@@ -440,7 +483,7 @@ export function createStripeService(deps: StripeServiceDeps) {
         const slotFree = await lateDepositSlotFree(bk)
         if (!slotFree) {
           try {
-            await stripe!.refunds.create({ payment_intent: paymentIntent.id })
+            await stripe!.refunds.create({ payment_intent: paymentIntent.id }, requestOpts(stripeAccount))
           } catch (err: any) {
             // A Stripe retry of this webhook hits an already-refunded intent —
             // that is success, not failure. Anything else must surface so the
@@ -547,17 +590,18 @@ export function createStripeService(deps: StripeServiceDeps) {
    * Create a payment link for an invoice
    */
   async function createPaymentLink(invoiceRow: any) {
+    const stripeAccount = await connectedAccountFor(invoiceRow.companyId)
     const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid)
 
     const product = await stripe!.products.create({
       name: `Invoice ${invoiceRow.number}`,
-    })
+    }, requestOpts(stripeAccount))
 
     const price = await stripe!.prices.create({
       product: product.id,
       unit_amount: Math.round(balance * 100),
       currency: 'usd',
-    })
+    }, requestOpts(stripeAccount))
 
     const paymentLink = await stripe!.paymentLinks.create({
       line_items: [{ price: price.id, quantity: 1 }],
@@ -571,7 +615,7 @@ export function createStripeService(deps: StripeServiceDeps) {
           url: `${process.env.FRONTEND_URL}/portal/payment-success?invoice=${invoiceRow.number}`,
         },
       },
-    })
+    }, requestOpts(stripeAccount))
 
     // Save payment link (store in notes or a custom field since schema has no stripePaymentLink column)
     await db
@@ -594,13 +638,16 @@ export function createStripeService(deps: StripeServiceDeps) {
       throw new Error('Payment was not made through Stripe')
     }
 
+    // The invoice is read first so the refund can be scoped to the account the payment was taken on.
+    const [invoiceRow] = await db.select().from(invoice).where(eq(invoice.id, paymentRow.invoiceId))
+    const stripeAccount = await connectedAccountFor(invoiceRow?.companyId)
+
     const refund = await stripe!.refunds.create({
       payment_intent: paymentRow.reference,
       amount: amount ? Math.round(amount * 100) : undefined,
-    })
+    }, requestOpts(stripeAccount))
 
     // Update invoice balance
-    const [invoiceRow] = await db.select().from(invoice).where(eq(invoice.id, paymentRow.invoiceId))
     const refundAmount = refund.amount / 100
 
     // Same model as a manual refund: a negative ledger row, amountRefunded goes up, amountPaid stays
@@ -703,6 +750,7 @@ export function createStripeService(deps: StripeServiceDeps) {
   }
 
   return {
+    connectedAccountFor,
     getOrCreateCustomer,
     updateCustomer,
     createPaymentIntent,
@@ -768,6 +816,24 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
     return c.json({ received: true, ...result })
   })
 
+  // Connect tenants: Stripe delivers connected-account events to the Factory's Connect endpoint, which
+  // forwards each one here over the signed Factory→tenant channel (same X-Factory-Key as
+  // /api/internal/sync-subscription). A business on its own keys keeps its direct /webhook. (#154)
+  app.post('/factory-event', async (c) => {
+    const syncKey = process.env.FACTORY_SYNC_KEY
+    if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+    if ((c.req.header('X-Factory-Key') || '') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+    const body = await c.req.json().catch(() => null)
+    const event = body?.event
+    if (!event || typeof event !== 'object' || typeof event.type !== 'string' || !event.data?.object) {
+      return c.json({ error: 'event with type and data.object is required' }, 400)
+    }
+    const result = await stripeService.handleWebhook(event)
+
+    console.log(`Stripe connect event ${event.type}:`, result)
+    return c.json({ received: true, ...result })
+  })
+
   // All other routes require authentication — except the customer-portal ones, which carry the portal token in
   // the body and are called by customers who have no login.
   app.use('*', async (c, next) => (c.req.path.includes('/portal/') ? next() : authenticate(c, next)))
@@ -818,7 +884,8 @@ export function createStripeRoutes(deps: StripeRoutesDeps) {
 
   // Get payment intent status
   app.get('/payment-intent/:id', async (c) => {
-    const paymentIntent = await stripeService.getPaymentIntent(c.req.param('id'))
+    const user = c.get('user') as any
+    const paymentIntent = await stripeService.getPaymentIntent(c.req.param('id'), await stripeService.connectedAccountFor(user.companyId))
     return c.json({
       status: paymentIntent.status,
       amount: paymentIntent.amount,

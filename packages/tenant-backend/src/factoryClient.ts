@@ -18,6 +18,7 @@ interface FullFactoryApiClient extends FactoryApiClient {
   getSubscription(): Promise<TenantSubscription>
   getBillingPortalLink(): Promise<{ url: string | null; reason?: string }>
   registerAds(): Promise<{ apiKey: string; adsUrl?: string; created: boolean }>
+  registerStripeAccount(accountId: string | null): Promise<{ success: boolean }>
 }
 
 function env(name: string): string {
@@ -83,6 +84,11 @@ export function createFactoryApiClient(): FullFactoryApiClient {
     // Twomiah Ads: register this tenant (or get the key its Render service already holds). No campaign is created.
     async registerAds() {
       return call('POST', tenantBase() + '/ads/register')
+    },
+    // Stripe Connect: which connected account this business collects on, so the Factory can forward
+    // that account's webhooks to this tenant. Null after a disconnect.
+    async registerStripeAccount(accountId) {
+      return call('POST', tenantBase() + '/stripe-connect', { accountId })
     },
   }
 }

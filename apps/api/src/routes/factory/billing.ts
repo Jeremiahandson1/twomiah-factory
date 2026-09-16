@@ -2,6 +2,7 @@ import { authenticate, supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
 import { pushSubscriptionToTenant } from '../../services/tenantSubscription'
+import { forwardConnectEvent, responseStatusFor } from '../../services/connectWebhook'
 import { notifyBillingPastDue, notifyMessagingEnabled } from '../../services/email'
 import { portalUrlFor } from '../../lib/portal'
 import { PRODUCTS, getProductDefaults } from '../../config/pricing'
@@ -159,6 +160,31 @@ factory.post('/customers/:id/checkout/deploy-service', requireRole('owner', 'adm
   }
 })
 
+
+// ─── Stripe Connect Webhook ─────────────────────────────────────────────────
+// Events on tenants' connected accounts (a business that clicked "Connect Stripe" collects on its own
+// account). Verified with the Connect endpoint's own secret, then forwarded to the owning tenant —
+// see services/connectWebhook.ts for the routing and the retry semantics of each response code.
+factory.post('/stripe/connect-webhook', async (c) => {
+  let event: any
+  try {
+    const body = await c.req.text()
+    const sig = c.req.header('stripe-signature')
+    if (!sig) return c.json({ error: 'Missing signature' }, 400)
+    event = await factoryStripe.verifyConnectWebhookSignature(body, sig)
+  } catch (err: any) {
+    console.error('[StripeConnect] Webhook signature verification failed:', err.message)
+    return c.json({ error: 'Signature verification failed' }, 400)
+  }
+  const result = await forwardConnectEvent(event, {
+    findTenantByAccount: async (accountId) => {
+      const { data } = await supabase.from('tenants').select('id, slug, render_backend_url, factory_sync_key').eq('stripe_connect_account_id', accountId).limit(1).maybeSingle()
+      return data || null
+    },
+  })
+  if (result.status !== 'forwarded') console.warn('[StripeConnect]', event.type, event.account, result)
+  return c.json({ received: true, ...result }, responseStatusFor(result) as any)
+})
 
 // ─── Stripe Webhook ─────────────────────────────────────────────────────────
 factory.post('/stripe/webhook', async (c) => {

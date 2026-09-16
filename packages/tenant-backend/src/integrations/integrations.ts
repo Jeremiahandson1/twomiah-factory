@@ -17,12 +17,30 @@ export interface IntegrationsRoutesDeps {
   quickbooks: QuickBooksService
   /** Stripe SDK instance (null when STRIPE_SECRET_KEY is unset). */
   stripe?: any
+  /**
+   * Tells the Factory which connected Stripe account this business collects on, so connected-account
+   * webhooks can be forwarded to this tenant (Factory → /api/stripe/factory-event). Null clears it.
+   */
+  factoryApiClient?: { registerStripeAccount(accountId: string | null): Promise<unknown> }
   frontendUrl?: string
 }
 
 export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
   const { db, tables: t, authenticate, requireAdmin, quickbooks: qb } = deps
   const app = new Hono()
+  // Register the connected account with the Factory, never blocking the request. Once per process per
+  // account id: /status re-registers a business that connected before this existed, without spamming.
+  const registered = new Set<string>()
+  const registerStripeAccount = (accountId: string | null, force = false) => {
+    if (!deps.factoryApiClient) return
+    const key = accountId || '(none)'
+    if (!force && registered.has(key)) return
+    registered.add(key)
+    deps.factoryApiClient.registerStripeAccount(accountId).catch((e: any) => {
+      registered.delete(key)
+      console.error('[integrations] Stripe account registration with the Factory failed:', e?.message)
+    })
+  }
   const frontend = () => deps.frontendUrl || process.env.FRONTEND_URL || ''
   const settingsUrl = (q: string) => `${frontend()}/settings/integrations?${q}`
   const loadCompany = async (companyId: string) => { const [row] = await db.select().from(t.company).where(eq(t.company.id, companyId)).limit(1); return row }
@@ -81,6 +99,7 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
     if (integrations.stripeAccountId && deps.stripe) {
       try { const account = await deps.stripe.accounts.retrieve(integrations.stripeAccountId); stripeStatus = { connected: true, accountId: account.id, chargesEnabled: !!account.charges_enabled, configured: true } }
       catch { stripeStatus = { connected: false, accountId: null, chargesEnabled: false, configured: true } }
+      if (stripeStatus.connected) registerStripeAccount(integrations.stripeAccountId)
     }
 
     const qbStatus = await qb.getConnectionStatus(u.companyId)
@@ -130,12 +149,14 @@ export function createIntegrationsRoutes(deps: IntegrationsRoutesDeps) {
         accountId = account.id
         await patchIntegrations(u.companyId, (j) => ({ ...j, stripeAccountId: accountId }))
       }
+      registerStripeAccount(accountId, true)
       const accountLink = await deps.stripe.accountLinks.create({ account: accountId, refresh_url: `${frontend()}/crm/settings/integrations?stripe=refresh`, return_url: `${frontend()}/crm/settings/integrations?stripe=success`, type: 'account_onboarding' })
       return c.json({ connectUrl: accountLink.url })
     } catch (e: any) { return c.json({ error: e?.message || 'Stripe could not start onboarding' }, 502) }
   })
   app.post('/stripe/disconnect', requireAdmin, async (c) => {
     await patchIntegrations(user(c).companyId, (j) => { delete j.stripeAccountId; return j })
+    registerStripeAccount(null, true)
     return c.json({ success: true })
   })
 

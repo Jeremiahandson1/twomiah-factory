@@ -181,6 +181,35 @@ factory.post('/customers/:id/ads/register', async (c) => {
   }
 })
 
+// ─── Stripe Connect account (tenant → factory, X-Factory-Key auth) ──────────
+// The tenant reports the connected account it collects on (company.integrations.stripeAccountId);
+// the Connect webhook receiver (billing.ts) uses it to route that account's events back to the tenant.
+// null clears it (Settings → Integrations → Disconnect).
+factory.post('/customers/:id/stripe-connect', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant, error } = await supabase.from('tenants').select('id, slug, factory_sync_key, stripe_connect_account_id').eq('id', tenantId).single()
+    if (error && error.code !== 'PGRST116') { console.error('[StripeConnect] tenant lookup failed:', error.message); return c.json({ error: 'Lookup failed' }, 500) }
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const body = parsed.data
+    const accountId = body.accountId === null || body.accountId === undefined ? null : String(body.accountId)
+    if (accountId !== null && !/^acct_[A-Za-z0-9]+$/.test(accountId)) return c.json({ error: 'accountId must be a Stripe account id (acct_…) or null' }, 400)
+    if ((tenant.stripe_connect_account_id || null) !== accountId) {
+      const { error: upErr } = await supabase.from('tenants').update({ stripe_connect_account_id: accountId }).eq('id', tenantId)
+      if (upErr) { console.error('[StripeConnect] update failed:', upErr.message); return c.json({ error: 'Update failed' }, 500) }
+      await logTenantAudit(tenantId, 'stripe_connect', { stripe_connect_account_id: { old: tenant.stripe_connect_account_id || null, new: accountId } }, 'tenant', accountId ? 'Connected account registered' : 'Connected account cleared')
+      console.log('[StripeConnect]', tenant.slug, accountId ? 'registered ' + accountId : 'cleared')
+    }
+    return c.json({ success: true })
+  } catch (err: any) {
+    console.error('[StripeConnect] register failed:', err.message)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 // ─── Offboard status (tenant → factory, X-Factory-Key auth) ────────────────
 factory.get('/customers/:id/offboard/status', async (c) => {
   try {

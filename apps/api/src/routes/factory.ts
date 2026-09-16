@@ -30,6 +30,8 @@ factory.use('*', async (c, next) => {
     pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures
     || c.req.path.includes('/public/')
     || c.req.path.includes('/stripe/webhook')
+    // Stripe's Connect endpoint (connected-account events, verified by its own signing secret in billing.ts).
+    || c.req.path.endsWith('/stripe/connect-webhook')
     || c.req.path.includes('/internal/')
     || c.req.path.includes('/calendar/')
     // GBP OAuth broker (/gbp/google/auth + /gbp/google/callback): Google redirects
@@ -66,6 +68,8 @@ factory.use('*', async (c, next) => {
     || /\/customers\/[0-9a-f-]{36}\/(subscription|billing-portal-link)$/i.test(c.req.path)
     // Twomiah Ads registration after deploy: the tenant CRM calls it with X-Factory-Key (checked in lifecycle.ts).
     || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/ads\/register$/i.test(c.req.path))
+    // Stripe Connect: the tenant CRM reports its connected account with X-Factory-Key (checked in lifecycle.ts).
+    || (c.req.method === 'POST' && /\/customers\/[0-9a-f-]{36}\/stripe-connect$/i.test(c.req.path))
   ) return next()
   return authenticate(c, next)
 })

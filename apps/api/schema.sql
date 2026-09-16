@@ -49,6 +49,10 @@ create table if not exists tenants (
   -- Stripe
   stripe_customer_id     text,
   stripe_subscription_id text,
+  -- Stripe Connect: the connected account the tenant's business collects card payments on (registered by
+  -- the tenant CRM via POST /customers/:id/stripe-connect; routes Connect webhooks back to the tenant).
+  -- See migrations/2026-09-16_tenants_stripe_connect_account.sql.
+  stripe_connect_account_id text,
 
   -- Trial tracking (30-day free trial, no credit card required)
   trial_ends_at            timestamptz,
@@ -101,6 +105,7 @@ create index if not exists idx_tenants_billing_status on tenants(billing_status)
 create index if not exists idx_tenants_billing_type on tenants(billing_type);
 create index if not exists idx_tenants_billing_composite on tenants(billing_type, billing_status);
 create index if not exists idx_tenants_stripe_subscription on tenants(stripe_subscription_id);
+create index if not exists idx_tenants_stripe_connect_account on tenants(stripe_connect_account_id) where stripe_connect_account_id is not null;
 create index if not exists idx_tenants_trial_ends_at on tenants(trial_ends_at) where trial_ends_at is not null;
 
 

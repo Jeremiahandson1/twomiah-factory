@@ -307,3 +307,14 @@ jobs:
           bun-version: latest
       - name: payment/setup intents return publishableKey; portal forwards stripeAccount to loadStripe
         run: bun run scripts/check-portal-payment-init.ts
+
+  connect-charging:
+    name: Connect businesses are charged on their own account
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: every Stripe money call scoped; /factory-event; Factory connect-webhook + registration + schema
+        run: bun run scripts/check-connect-charging.ts

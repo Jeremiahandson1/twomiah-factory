@@ -434,6 +434,18 @@ export async function verifyWebhookSignature(payload: string | Buffer, signature
   return await stripe.webhooks.constructEventAsync(payload, signature, secret)
 }
 
+/**
+ * Verify a Stripe CONNECT webhook (events on connected accounts, delivered to the platform). A Connect
+ * endpoint has its own signing secret — STRIPE_CONNECT_WEBHOOK_SECRET, printed by
+ * scripts/register-connect-webhook.ts when it creates the endpoint.
+ */
+export async function verifyConnectWebhookSignature(payload: string | Buffer, signature: string): Promise<Stripe.Event> {
+  if (!stripe) throw new Error('Stripe not configured')
+  const secret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET
+  if (!secret) throw new Error('Stripe Connect webhook secret not configured (set STRIPE_CONNECT_WEBHOOK_SECRET)')
+  return await stripe.webhooks.constructEventAsync(payload, signature, secret)
+}
+
 export function isConfigured(): boolean {
   return !!stripe
 }
@@ -652,6 +664,7 @@ export default {
   reactivateSubscription,
   handleFactoryWebhook,
   verifyWebhookSignature,
+  verifyConnectWebhookSignature,
   isConfigured,
   getPublishableKey,
   getPriceId,
