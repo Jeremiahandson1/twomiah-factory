@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { unit, salesLead, repairOrder, invoice, contact, user } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { precomputedTotals, fixReportTotals } from '../services/aiReportTotals.ts'
 
 // AI Reports — the dealer asks a plain-English question and Claude answers over
 // the tenant's real CRM data (inventory, sales pipeline, service, invoices).
@@ -46,6 +47,7 @@ app.post('/generate', async (c) => {
   const today = new Date().toISOString().slice(0, 10)
   const dataContext = [
     `TODAY: ${today}`,
+    `=== PRECOMPUTED TOTALS (exact — copy counts and totals from here; money in dollars) ===\n${JSON.stringify(precomputedTotals(units, leads, ros, invoices))}`,
     `=== INVENTORY / UNITS (${units.length}) ===\n${JSON.stringify(units)}`,
     `=== SALES PIPELINE / LEADS (${leads.length}) ===\n${JSON.stringify(leads)}`,
     `=== SERVICE / REPAIR ORDERS (${ros.length}) ===\n${JSON.stringify(ros)}`,
@@ -54,7 +56,7 @@ app.post('/generate', async (c) => {
     `=== TEAM / USERS (${users.length}) ===\n${JSON.stringify(users)}`,
   ].join('\n\n')
 
-  const system = `You are the dealership's data analyst, built into its CRM (an RV / powersports / marine dealership). Answer the manager's question using ONLY the data provided below. Correlate records by their IDs: salesLead.contactId→contact.id, salesLead.unitId→unit.id, salesLead.assignedTo→user.id, repairOrder.customerId→contact.id, invoice.contactId→contact.id. Be specific and quantitative — cite real numbers, dollar amounts (with $), counts, names, and dates. Money fields are strings; parse them as numbers. Sales stages: closed_won = sold, closed_lost = lost; everything else is still open. If the data genuinely can't answer the question, say so plainly and name what's missing. Format the answer as a clean, scannable Markdown report: a one-line bold headline answer first, then supporting bullets or a small table, then 1–2 short "what this means" insight callouts. Keep it tight and useful — a busy GM is reading it.`
+  const system = `You are the dealership's data analyst, built into its CRM (an RV / powersports / marine dealership). Answer the manager's question using ONLY the data provided below. Correlate records by their IDs: salesLead.contactId→contact.id, salesLead.unitId→unit.id, salesLead.assignedTo→user.id, repairOrder.customerId→contact.id, invoice.contactId→contact.id. Be specific and quantitative — cite real numbers, dollar amounts (with $), counts, names, and dates. Money fields are strings; parse them as numbers. Sales stages: closed_won = sold, closed_lost = lost; everything else is still open. For any count or total, use the PRECOMPUTED TOTALS section (exact, grouped by status / category / condition / stage) — do not add up numbers yourself. When a table has a Total row, it must equal the sum of the rows shown in that table. If the data genuinely can't answer the question, say so plainly and name what's missing. Format the answer as a clean, scannable Markdown report: a one-line bold headline answer first, then supporting bullets or a small table, then 1–2 short "what this means" insight callouts. Keep it tight and useful — a busy GM is reading it.`
 
   let res: Response
   try {
@@ -68,9 +70,13 @@ app.post('/generate', async (c) => {
   if (!res.ok) { const t = await res.text().catch(() => ''); return c.json({ error: 'AI error (' + res.status + '): ' + t.slice(0, 300) }, 502) }
   const data: any = await res.json().catch(() => ({}))
   reportAiUsage(data?.usage?.input_tokens, data?.usage?.output_tokens, data?.model)
-  const report = data?.content?.[0]?.text || 'No response generated.'
+  const raw = data?.content?.[0]?.text || 'No response generated.'
+  const checked = fixReportTotals(raw)
+  const report = checked.corrections.length
+    ? `${checked.report}\n\n**Note:** ${checked.corrections.length === 1 ? 'a total' : `${checked.corrections.length} totals`} in this report didn't add up and ${checked.corrections.length === 1 ? 'was' : 'were'} recalculated from the rows shown (${checked.corrections.map((x) => `${x.wrong} → ${x.right}`).join(', ')}).`
+    : checked.report
   return c.json({
-    report, question, generatedAt: new Date().toISOString(),
+    report, question, generatedAt: new Date().toISOString(), totalsCorrected: checked.corrections,
     rowsAnalyzed: { units: units.length, leads: leads.length, service: ros.length, invoices: invoices.length, contacts: contacts.length },
   })
 })

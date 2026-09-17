@@ -516,3 +516,14 @@ jobs:
           bun-version: latest
       - name: Send text → POST /api/sms/send (contactId), Sent ✓ only on success, errors shown; email = mailto, no send claim
         run: bun run scripts/check-rv-ai-responder-send.ts
+
+  rv-ai-report-totals:
+    name: RV AI Reports totals are precomputed and every table total is re-added before it is shown
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: precomputedTotals in the model context + instruction; fixReportTotals corrects wrong Total rows and repeats, with a note; pure helper behaviour on the T19 shape
+        run: bun run scripts/check-rv-ai-report-totals.ts
