@@ -28,11 +28,13 @@ interface DashboardStats {
     available?: number;
     byStatus?: Partial<Record<string, number>>;
     byCategory?: Partial<Record<string, number>>;
+    availableByCategory?: Partial<Record<string, number>>;
   };
   sales?: {
     openLeads?: number;
     leadsThisMonth?: number;
     closedWonThisMonth?: number;
+    closedLostThisMonth?: number;
     closeRate?: number;
   };
   service?: {
@@ -139,7 +141,10 @@ export default function DashboardPage() {
   const inventory = stats?.inventory || {};
   const sales = stats?.sales || {};
   const service = stats?.service || {};
-  const byCategory = inventory.byCategory || {};
+  // the panel sits under the "available" tile, so it counts units for sale now — not sold ones (RV T19 L7)
+  const byCategory = inventory.availableByCategory || {};
+  // this month's close rate, with the won/lost it comes from; "—" when nothing closed this month (RV T19 L9)
+  const decidedThisMonth = num(sales.closedWonThisMonth) + num(sales.closedLostThisMonth);
 
   const recentUnits = activity?.recentUnits || [];
   const recentLeads = activity?.recentLeads || [];
@@ -199,9 +204,9 @@ export default function DashboardPage() {
               <div className="font-semibold text-gray-900 dark:text-slate-100">{num(sales.closedWonThisMonth)}</div>
               <div className="text-gray-400">won (mo)</div>
             </div>
-            <div>
-              <div className="font-semibold text-gray-900 dark:text-slate-100">{pct(sales.closeRate)}</div>
-              <div className="text-gray-400">close</div>
+            <div title={`This month: ${num(sales.closedWonThisMonth)} won, ${num(sales.closedLostThisMonth)} lost`}>
+              <div className="font-semibold text-gray-900 dark:text-slate-100">{decidedThisMonth > 0 ? pct(sales.closeRate) : '—'}</div>
+              <div className="text-gray-400">close (mo) · {num(sales.closedLostThisMonth)} lost</div>
             </div>
           </div>
         </Link>
@@ -254,7 +259,7 @@ export default function DashboardPage() {
         {/* Inventory by category */}
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Inventory by category</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-slate-100">Available by category</h2>
             <Link to="/crm/units" className="text-xs text-orange-600 hover:underline">View all</Link>
           </div>
           {categoryRows.length === 0 ? (

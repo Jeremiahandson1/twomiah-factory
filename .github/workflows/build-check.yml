@@ -648,3 +648,14 @@ jobs:
           bun-version: latest
       - name: "year 1900..next year, category and condition from the lists, checked before fetch"
         run: bun run scripts/check-rv-trade-appraisal.ts
+
+  rv-dashboard:
+    name: "RV dashboard counts units for sale by category and labels the monthly close rate"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "availableByCategory + closedLostThisMonth in stats; panel and close cell use them"
+        run: bun run scripts/check-rv-dashboard.ts

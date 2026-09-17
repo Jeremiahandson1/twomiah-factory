@@ -23,10 +23,13 @@ app.get('/stats', async (c) => {
     try { return await fn() } catch { return fallback }
   }
 
-  const [contactRows, unitsByStatus, unitsByCategory, openLeadRows, leadsThisMonthRows, closedWonRows, closedLostRows, openRoRows, rosThisMonthRows, revenueRows] = await Promise.all([
+  const [contactRows, unitsByStatus, unitsByCategory, availableByCategoryRows, openLeadRows, leadsThisMonthRows, closedWonRows, closedLostRows, openRoRows, rosThisMonthRows, revenueRows] = await Promise.all([
     safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }]),
     safe(() => db.select({ status: unit.status, c: count() }).from(unit).where(eq(unit.companyId, companyId)).groupBy(unit.status), [] as { status: string; c: number }[]),
     safe(() => db.select({ category: unit.category, c: count() }).from(unit).where(eq(unit.companyId, companyId)).groupBy(unit.category), [] as { category: string; c: number }[]),
+    // what is for sale now, by category — the dashboard panel under the "available" tile (byCategory counts every
+    // unit, sold ones included). (RV T19 L7)
+    safe(() => db.select({ category: unit.category, c: count() }).from(unit).where(and(eq(unit.companyId, companyId), eq(unit.status, 'available'))).groupBy(unit.category), [] as { category: string; c: number }[]),
     safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), sql`${salesLead.stage} NOT IN ('closed_won', 'closed_lost')`)), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), gte(salesLead.createdAt, startOfMonth), lt(salesLead.createdAt, startOfNextMonth))), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), eq(salesLead.stage, 'closed_won'), gte(salesLead.closedAt, startOfMonth), lt(salesLead.closedAt, startOfNextMonth))), [{ value: 0 }]),
@@ -51,10 +54,13 @@ app.get('/stats', async (c) => {
     : 0
   const revenueThisMonth = revenueRows.reduce((s: number, r: any) => s + Number(r.amt || 0), 0)
 
+  const availableByCategory = Object.fromEntries(availableByCategoryRows.map(u => [u.category, Number(u.c)]))
+
   return c.json({
     contacts: contactRows[0]?.value ?? 0,
-    inventory: { total: totalUnits, available: byStatus['available'] || 0, byStatus, byCategory },
-    sales: { openLeads: openLeadRows[0]?.value ?? 0, leadsThisMonth, closedWonThisMonth, closeRate },
+    inventory: { total: totalUnits, available: byStatus['available'] || 0, byStatus, byCategory, availableByCategory },
+    // closeRate is this month's; the lost count is sent so the card can say so (RV T19 L9)
+    sales: { openLeads: openLeadRows[0]?.value ?? 0, leadsThisMonth, closedWonThisMonth, closedLostThisMonth: Number(closedLostThisMonth), closeRate },
     service: { openRepairOrders: openRoRows[0]?.value ?? 0, repairOrdersThisMonth: rosThisMonthRows[0]?.value ?? 0, revenueThisMonth },
   })
 })
