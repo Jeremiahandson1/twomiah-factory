@@ -96,6 +96,20 @@ async function importedCount(companyId: string): Promise<number> {
   } catch { return 0 }
 }
 
+/**
+ * One catalog part by part number (and OEM when given) — from the dealer's imported catalog when they have one, else
+ * the demo catalog, exactly as /search chooses. Used to price parts orders on the server. (RV T19 L3)
+ */
+export async function findCatalogPart(companyId: string, partNumber: string, oem?: string): Promise<OemPart | null> {
+  if ((await importedCount(companyId)) > 0) {
+    const conds: any[] = [eq(catalogPart.companyId, companyId), eq(catalogPart.partNumber, partNumber)]
+    if (oem) conds.push(eq(catalogPart.oem, oem))
+    const [row] = await db.select().from(catalogPart).where(and(...conds)).limit(1)
+    return row ? rowToPart(row) : null
+  }
+  return MOCK.find((p) => p.partNumber === partNumber && (!oem || p.oem === oem)) || null
+}
+
 app.get('/search', async (c) => {
   const companyId = (c.get('user') as any).companyId
   const q = c.req.query('q') || ''

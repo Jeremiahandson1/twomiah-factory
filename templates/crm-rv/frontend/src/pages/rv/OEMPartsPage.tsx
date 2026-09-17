@@ -35,11 +35,13 @@ export default function OEMPartsPage() {
   useEffect(() => { run(); }, [oem, category]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [ordered, setOrdered] = useState<Record<string, string>>({});
+  // The server prices the order from the catalog; the result (or why it wasn't placed) is shown. (RV T19 L3)
   async function order(p: any) {
     try {
-      const r = await api.post('/api/parts-orders/create', { item: { partNumber: p.partNumber, name: p.name, price: p.price, qty: 1 } });
+      const r = await api.post('/api/parts-orders/create', { item: { partNumber: p.partNumber, oem: p.oem, qty: 1 } });
       if (r?.order?.poNumber) setOrdered((o) => ({ ...o, [p.partNumber]: r.order.poNumber }));
-    } catch { /* ignore */ }
+      else alert(r?.order?.reason || 'The order was not placed.');
+    } catch (e: any) { alert(e?.message || 'The order could not be placed.'); }
   }
 
   async function onFile(e: ChangeEvent<HTMLInputElement>) {
