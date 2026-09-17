@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { eventSpace } from '../../db/schema.ts'
-import { eq, and, asc } from 'drizzle-orm'
+import { eq, and, asc, ne, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -28,9 +28,20 @@ const NON_NEGATIVE = [
 function negativeFieldError(values: any): string | null {
   for (const [k, label] of NON_NEGATIVE) {
     const v = values[k]
-    if (v !== null && v !== undefined && (!Number.isFinite(Number(v)) || Number(v) < 0)) return `${label} cannot be negative`
+    if (v === null || v === undefined) continue
+    if (!Number.isFinite(Number(v))) return `${label} must be a number` // "abc" is not negative, it is not a number (T16 L5)
+    if (Number(v) < 0) return `${label} cannot be negative`
   }
   return null
+}
+
+// Two live rooms with the same name can't be told apart in any picker — a second "The Cellar" saved
+// while the first was still active. A retired room's name may be reused. (T16 L4)
+async function sameNameSpace(companyId: string, name: string, ignoreId?: string) {
+  const rows = await db.select({ id: eventSpace.id, name: eventSpace.name }).from(eventSpace)
+    .where(and(eq(eventSpace.companyId, companyId), eq(eventSpace.active, true), sql`lower(${eventSpace.name}) = lower(${name})`, ...(ignoreId ? [ne(eventSpace.id, ignoreId)] : [])))
+    .limit(1)
+  return rows[0]
 }
 
 // GET /event-spaces — ?includeInactive=1
@@ -57,6 +68,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   }
   const vErr = negativeFieldError(body)
   if (vErr) return c.json({ error: vErr }, 400)
+  const dupe = await sameNameSpace(currentUser.companyId, body.name.trim())
+  if (dupe) return c.json({ error: `A space named "${dupe.name}" already exists.`, existingId: dupe.id }, 409)
 
   const [created] = await db.insert(eventSpace).values({
     id: createId(),
@@ -94,6 +107,12 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   const vErr = negativeFieldError(updates)
   if (vErr) return c.json({ error: vErr }, 400)
+  if ('name' in updates) {
+    if (typeof updates.name !== 'string' || !updates.name.trim()) return c.json({ error: 'name is required' }, 400)
+    updates.name = updates.name.trim()
+    const dupe = await sameNameSpace(currentUser.companyId, updates.name, existing.id)
+    if (dupe) return c.json({ error: `A space named "${dupe.name}" already exists.`, existingId: dupe.id }, 409)
+  }
   // Retiring through the edit form is the same act as DELETE: refused while upcoming bookings hold the room. (T15 H1)
   if (updates.active === false && existing.active) {
     const n = await upcomingEventsUsingSpace(currentUser.companyId, existing.id)

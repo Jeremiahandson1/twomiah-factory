@@ -26,5 +26,7 @@ export default createInvoiceRoutes({
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
   // The same numbering constant event invoices are raised with (the shared default, stated once).
-  options: { numbering: INVOICE_NUMBERING },
+  // minLineItems: a hand-raised invoice needs a line — a $0 invoice with nothing on it saved as INV-00052 (T16 L6).
+  // Event invoices are raised by the ledger service, not this route, so they are unaffected.
+  options: { numbering: INVOICE_NUMBERING, minLineItems: 1 },
 })

@@ -504,7 +504,8 @@ export default function EventDetailPage() {
         <PaymentModal
           eventId={ev.id}
           // What's still unscheduled: the invoice (or estimate) total less the installments already planned.
-          suggested={Math.max(0, Number(totals.total || 0) - payments.reduce((s, p) => s + Number(p.amount || 0), 0))}
+          // what is not yet scheduled, and never more than is still owed — $700 already paid used to be ignored (T16 L14)
+          suggested={Math.max(0, Math.min(Number(totals.total || 0) - payments.reduce((s, p) => s + Number(p.amount || 0), 0), Number(totals.outstanding ?? totals.total ?? 0)))}
           onSave={() => { setShowPayment(false); load(); }}
           onClose={() => setShowPayment(false)}
         />

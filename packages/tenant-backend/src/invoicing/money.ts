@@ -109,6 +109,13 @@ export function dueDateFromTerms(settings: any, from: Date = new Date()): Date {
 export function normalizeDateInput(v: unknown): { value?: Date | null; error?: string } {
   if (v === undefined) return {}
   if (v === null || v === '') return { value: null }
+  // A date-only string must name a real calendar day: JS parses 2026-02-30 as March 2, so a Feb 30 due
+  // date used to slide forward silently (and then fail as "before the issue date"). (T16 L5)
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y, m, d] = v.split('-').map(Number)
+    const dt = new Date(Date.UTC(y, m - 1, d))
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return { error: `${v} is not a real calendar date.` }
+  }
   const d = new Date(String(v))
   if (isNaN(d.getTime())) return { error: 'Enter a valid date.' }
   return { value: d }

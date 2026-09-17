@@ -38,6 +38,14 @@ for (const [name, src, cols] of [
 // (2) events: menu line + payment edits carry the same guards as their POSTs.
 const menuPut = handler(events, 'put', '/:id/menu/:lineId')
 if (!/'Unit price cannot be negative'[\s\S]*'Quantity cannot be negative'[\s\S]*(db|tx)\.update/.test(menuPut)) fail('PUT /:id/menu/:lineId must refuse negative unitPrice and quantity before update')
+// "abc" is not negative, it is not a number — said so on every path (T16 L5)
+const menuPost = handler(events, 'post', '/:id/menu')
+for (const [name, src] of [['POST /:id/menu', menuPost], ['PUT /:id/menu/:lineId', menuPut]] as const) {
+  if (!/'Unit price must be a number'/.test(src) || !/'Quantity must be a number'/.test(src)) fail(`${name} must say "must be a number" for a non-numeric price/quantity`)
+}
+for (const [name, src] of [['eventSpaces', spaces], ['menuPackages', menus]] as const) {
+  if (!/return `\$\{label\} must be a number`[\s\S]*return `\$\{label\} cannot be negative`/.test(src)) fail(`${name}: negativeFieldError must distinguish "must be a number" from "cannot be negative"`)
+}
 const payPut = handler(events, 'put', '/:id/payments/:paymentId')
 if (!/'Amount must be a positive number'[\s\S]*(db|tx)\.update/.test(payPut)) fail('PUT /:id/payments/:paymentId must refuse a non-positive amount before update')
 

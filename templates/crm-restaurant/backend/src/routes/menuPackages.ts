@@ -28,7 +28,9 @@ const NON_NEGATIVE = [
 function negativeFieldError(values: any): string | null {
   for (const [k, label] of NON_NEGATIVE) {
     const v = values[k]
-    if (v !== null && v !== undefined && (!Number.isFinite(Number(v)) || Number(v) < 0)) return `${label} cannot be negative`
+    if (v === null || v === undefined) continue
+    if (!Number.isFinite(Number(v))) return `${label} must be a number` // "abc" is not negative, it is not a number (T16 L5)
+    if (Number(v) < 0) return `${label} cannot be negative`
   }
   return null
 }

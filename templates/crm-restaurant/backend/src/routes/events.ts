@@ -288,12 +288,11 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
 
   // Reject negative money/quantities — a -$50 line was accepted and subtracted
   // from the total (H-01).
-  if (unitPrice !== null && unitPrice !== undefined && (!Number.isFinite(Number(unitPrice)) || Number(unitPrice) < 0)) {
-    return c.json({ error: 'Unit price cannot be negative' }, 400)
-  }
-  if (body.quantity !== undefined && body.quantity !== null && (!Number.isFinite(Number(body.quantity)) || Number(body.quantity) < 0)) {
-    return c.json({ error: 'Quantity cannot be negative' }, 400)
-  }
+  // Say which it is: "abc" is not a number, -50 is negative (T16 L5).
+  if (unitPrice !== null && unitPrice !== undefined && !Number.isFinite(Number(unitPrice))) return c.json({ error: 'Unit price must be a number' }, 400)
+  if (unitPrice !== null && unitPrice !== undefined && Number(unitPrice) < 0) return c.json({ error: 'Unit price cannot be negative' }, 400)
+  if (body.quantity !== undefined && body.quantity !== null && !Number.isFinite(Number(body.quantity))) return c.json({ error: 'Quantity must be a number' }, 400)
+  if (body.quantity !== undefined && body.quantity !== null && Number(body.quantity) < 0) return c.json({ error: 'Quantity cannot be negative' }, 400)
 
   let created
   try {
@@ -340,13 +339,11 @@ app.put('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) => 
   const EDITABLE = ['name', 'perPerson', 'quantity', 'unitPrice', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
-  // Same guard as POST — the edit path let a line go negative after it was added (H-01).
-  if (updates.unitPrice !== null && updates.unitPrice !== undefined && (!Number.isFinite(Number(updates.unitPrice)) || Number(updates.unitPrice) < 0)) {
-    return c.json({ error: 'Unit price cannot be negative' }, 400)
-  }
-  if (updates.quantity !== undefined && updates.quantity !== null && (!Number.isFinite(Number(updates.quantity)) || Number(updates.quantity) < 0)) {
-    return c.json({ error: 'Quantity cannot be negative' }, 400)
-  }
+  // Same guard as POST — the edit path let a line go negative after it was added (H-01); "abc" is not a number (T16 L5).
+  if (updates.unitPrice !== null && updates.unitPrice !== undefined && !Number.isFinite(Number(updates.unitPrice))) return c.json({ error: 'Unit price must be a number' }, 400)
+  if (updates.unitPrice !== null && updates.unitPrice !== undefined && Number(updates.unitPrice) < 0) return c.json({ error: 'Unit price cannot be negative' }, 400)
+  if (updates.quantity !== undefined && updates.quantity !== null && !Number.isFinite(Number(updates.quantity))) return c.json({ error: 'Quantity must be a number' }, 400)
+  if (updates.quantity !== undefined && updates.quantity !== null && Number(updates.quantity) < 0) return c.json({ error: 'Quantity cannot be negative' }, 400)
 
   let updated
   try {
@@ -545,6 +542,12 @@ app.put('/:id/payments/:paymentId', requirePermission('invoices:update'), async 
   }
   if (updates.dueDate && !DATE_RE.test(updates.dueDate)) return c.json({ error: 'dueDate must be YYYY-MM-DD' }, 400)
   if ('label' in updates && !(typeof updates.label === 'string' && updates.label.trim())) return c.json({ error: 'label is required' }, 400)
+  // Money already recorded against this installment can't be edited away — the amount stays at or above
+  // what the invoice has covered of it. (T16 L7)
+  if ('amount' in updates) {
+    const covered = (await loadEventLedger(currentUser.companyId, eventId))?.payments.find((p: any) => p.id === paymentId)
+    if (covered && Number(updates.amount) < covered.paidAmount - 0.005) return c.json({ error: `"${existing.label}" already has $${covered.paidAmount.toFixed(2)} recorded against it — the amount can't go below that. Refund on the invoice first.` }, 409)
+  }
 
   let updated
   try {
@@ -581,6 +584,10 @@ app.delete('/:id/payments/:paymentId', requirePermission('invoices:update'), asy
     .where(and(eq(eventPayment.id, paymentId), eq(eventPayment.eventId, eventId), eq(eventPayment.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Payment not found' }, 404)
+  // An installment the invoice has already covered (in part or in full) stays on the schedule until that
+  // money is refunded — deleting it used to answer 200 and silently re-spread the payment. (T16 L7)
+  const covered = (await loadEventLedger(currentUser.companyId, eventId))?.payments.find((p: any) => p.id === paymentId)
+  if (covered && covered.paidAmount > 0.005) return c.json({ error: `"${existing.label}" already has $${covered.paidAmount.toFixed(2)} recorded against it — refund it on the invoice before removing it from the schedule.` }, 409)
 
   await db.transaction(async (tx: any) => {
     await tx.delete(eventPayment).where(eq(eventPayment.id, paymentId))
@@ -616,7 +623,7 @@ app.get('/:id/beo', requirePermission('contacts:read'), async (c) => {
   const ledger = await loadEventLedger(u.companyId, id)
   const menu: any[] = ledger?.menu || []
   const payments = ledger?.payments || []
-  const { menuTotal, paid, outstanding } = ledger!.totals
+  const { menuTotal, fbTotal, paid, outstanding } = ledger!.totals
   const STATE_LABEL: Record<string, string> = { paid: 'Paid', part_paid: 'Part paid', unpaid: 'Due', refunded: 'Refunded', void: 'Void' }
 
   const esc = (s: any) => String(s ?? '').replace(/[<>&]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] as string))
@@ -672,7 +679,9 @@ app.get('/:id/beo', requirePermission('contacts:read'), async (c) => {
   ${menu.length ? `<table class="grid">
     <tr><th>Item</th><th>Basis</th><th class="num">Qty</th><th class="num">Unit</th><th class="num">Total</th></tr>
     ${menu.map(l => `<tr><td>${esc(l.name)}${l.notes ? `<br><span class="dept">${esc(l.notes)}</span>` : ''}</td><td>${l.perPerson ? 'per person' : 'flat'}</td><td class="num">${l.quantity}</td><td class="num">${money(l.unitPrice)}</td><td class="num">${money(lineTotal(l as any))}</td></tr>`).join('')}
-    <tr><td colspan="4" class="num"><strong>Food &amp; beverage total</strong></td><td class="num"><strong>${money(menuTotal)}</strong></td></tr>
+    <tr><td colspan="4" class="num"><strong>Food &amp; beverage total</strong></td><td class="num"><strong>${money(fbTotal)}</strong></td></tr>${menuTotal > fbTotal + 0.005 ? `
+    <tr><td colspan="4" class="num">Room hire</td><td class="num">${money(menuTotal - fbTotal)}</td></tr>
+    <tr><td colspan="4" class="num"><strong>Menu total</strong></td><td class="num"><strong>${money(menuTotal)}</strong></td></tr>` : ''}
   </table>` : '<p style="color:#888;font-size:13px;">No menu lines recorded.</p>'}
 
   <h2>Run of Show</h2>

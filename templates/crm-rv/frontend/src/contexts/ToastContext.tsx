@@ -54,8 +54,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     const original = window.alert;
     window.alert = (message?: any) => {
       const msg = message == null ? '' : String(message);
-      const isError = /fail|error|invalid|unable|cannot|can.t|denied|wrong|not found|required|must /i.test(msg);
-      addToast(msg, isError ? 'error' : 'info');
+      // Failure words, or a refusal phrased as a fact ("already held", "no longer", "exceeds") — and anything
+      // else too, since these alerts are validation and save failures; only a plain confirmation reads as
+      // info. A room clash used to show as a blue info toast. (T16 L13)
+      const looksFailed = /fail|error|invalid|unable|cannot|can.t|could not|couldn|denied|wrong|not found|required|must |already|no longer|exceed|refused|not allowed|too /i.test(msg);
+      const looksDone = /\b(saved|sent|copied|done|updated|created|added|removed|scheduled|success|complete)\b/i.test(msg);
+      addToast(msg, looksFailed || !looksDone ? 'error' : 'info');
     };
     return () => { window.alert = original; };
   }, [addToast]);
