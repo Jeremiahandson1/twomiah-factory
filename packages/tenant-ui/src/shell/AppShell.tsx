@@ -10,6 +10,7 @@ import { GlobalSearch } from './GlobalSearch'
 import { TrialBanner } from './TrialBanner'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { AppShellProps, NavItem } from './types'
+import { blockedRoute } from './routeGate'
 
 // react-router's <NavLink> as JSX fails TS2786 in the typed templates (a second @types/react copy is
 // resolved from the packages path), so links are plain anchors driven by the router hooks.
@@ -52,11 +53,10 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
       ...config.nav.filter((i) => !i.external).map((i) => ({ to: i.to, label: i.label, features: i.features })),
       ...Object.entries(config.routeGates || {}).map(([to, features]) => ({ to, label: to.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), features })),
     ]
-    const match = candidates
+    const matches = candidates
       .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
-      .sort((a, b) => b.to.length - a.to.length)[0]
-    if (!match) return null
-    return match.features!.some((f) => hasFeature(f)) ? null : match
+      .sort((a, b) => b.to.length - a.to.length)
+    return blockedRoute(matches, hasFeature)
   }, [location.pathname, hasFeature, config.nav, config.routeGates])
 
   useEffect(() => { if (isMobile) setSidebarOpen(false) }, [location, isMobile])

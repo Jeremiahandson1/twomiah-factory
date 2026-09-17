@@ -19,11 +19,12 @@ const TEMPLATE_CATEGORIES = ['general', 'followup', 'promotion', 'newsletter', '
 const statusCls: Record<string, string> = { sent: 'bg-green-100 text-green-700', scheduled: 'bg-blue-100 text-blue-700', sending: 'bg-yellow-100 text-yellow-700', failed: 'bg-red-100 text-red-700', draft: 'bg-gray-100 text-gray-700' }
 const fmtWhen = (v?: string | null) => (v ? new Date(v).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '')
 
-export function MarketingPage({ api, toast, config }: { api: MarketingApi; toast: MarketingToast; config?: MarketingConfig }) {
+export function MarketingPage({ api, toast, config, showCampaigns = true }: { api: MarketingApi; toast: MarketingToast; config?: MarketingConfig; showCampaigns?: boolean }) {
   // Visibility is decided by the template's sidebar/route gates exactly as before this page was shared — the page
   // itself shows all three tabs. (The registry offers email_marketing only to contractor/fieldservice/landscaping while
   // the sidebar also shows Marketing on events/rv/salon/vet; that product decision is flagged, not changed here.)
-  const showCampaigns = true
+  // A template whose page is also another product (RV Follow-Up) passes showCampaigns=false when email marketing is
+  // off, leaving only the sequences tab. (RV T19 M6)
   const showSequences = true
   const seqLabel = config?.sequencesLabel || 'Drip Sequences'
   const tabs: Array<{ id: Tab; label: string; icon: any }> = [
@@ -39,7 +40,7 @@ export function MarketingPage({ api, toast, config }: { api: MarketingApi; toast
   return (
     <div className="space-y-6" data-testid="marketing-page-shared">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{config?.title || 'Marketing'}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{config?.title || (showCampaigns ? 'Marketing' : seqLabel)}</h1>
         <p className="text-gray-500 dark:text-slate-400">{config?.subtitle || (showCampaigns ? 'Email campaigns and automated follow-ups' : 'Automated follow-up emails')}</p>
       </div>
       {stats && (

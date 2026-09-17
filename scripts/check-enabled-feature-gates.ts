@@ -66,20 +66,32 @@ const campaigns = mkt.slice(mkt.indexOf('async function processScheduledCampaign
 if (!/isFeatureEnabled && !\(await isFeatureEnabled\(row\.companyId, 'email_marketing'\)\)/.test(campaigns)) fail('processScheduledCampaigns must skip a company that switched Email Marketing off')
 const drips = mkt.slice(mkt.indexOf('async function processDripEmails('), mkt.indexOf('function startMarketingProcessor('))
 if (!/isFeatureEnabled && !\(await isFeatureEnabled\(e\.company_id, 'email_marketing'\)\)/.test(drips)) fail('processDripEmails must skip a company that switched Email Marketing off')
-// every template wires it; on RV the same page is also the Follow-Up product, so either switch keeps it open
+// every template wires it; on RV the same page is also the Follow-Up product, so either switch keeps the module (and
+// its drips) open — but email campaigns and templates need email_marketing itself, at the API, in the processor and
+// in the sidebar, where "Marketing" and "Follow-Up" are separate entries the shell reads as any-of. (RV T19 M6)
 const MARKETING_ARG: Record<string, string> = { 'crm-rv': "['email_marketing', 'follow_up_sequences']" }
 for (const t of TEMPLATES) {
   const a = MARKETING_ARG[t] || "'email_marketing'"
   const routesGlue = read(`templates/${t}/backend/src/routes/marketing.ts`)
   if (!routesGlue.includes(`featureGate: requireEnabledFeature(${a})`)) fail(`${t} routes/marketing.ts must pass featureGate: requireEnabledFeature(${a})`)
+  if (t === 'crm-rv' && !routesGlue.includes("campaignsGate: requireEnabledFeature('email_marketing')")) fail('crm-rv routes/marketing.ts must gate campaigns and templates on email_marketing (campaignsGate)')
   const svcGlue = read(`templates/${t}/backend/src/services/marketing.ts`)
   if (!/from '\.\.\/middleware\/enabledFeature\.ts'/.test(svcGlue)) fail(`${t} services/marketing.ts must import isFeatureEnabled from the enabled-feature gate`)
-  const wired = MARKETING_ARG[t] ? svcGlue.includes(`isFeatureEnabled: (companyId) => isFeatureEnabled(companyId, ${a})`) : /isFeatureEnabled \}\)/.test(svcGlue)
-  if (!wired) fail(`${t} services/marketing.ts must pass isFeatureEnabled for ${a}`)
+  const wired = MARKETING_ARG[t]
+    ? svcGlue.includes('isFeatureEnabled: (companyId, featureId) => isFeatureEnabled(companyId, featureId)') && svcGlue.includes(`sequencesEnabled: (companyId) => isFeatureEnabled(companyId, ${a})`)
+    : /isFeatureEnabled \}\)/.test(svcGlue)
+  if (!wired) fail(`${t} services/marketing.ts must pass isFeatureEnabled${MARKETING_ARG[t] ? ' (campaigns: the feature asked for) and sequencesEnabled for ' + a : ''}`)
   const shell = read(`templates/${t}/frontend/src/shellConfig.ts`)
-  const sidebar = MARKETING_ARG[t] || "['email_marketing']"
-  if (!shell.includes(`to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ${sidebar}`)) fail(`${t} sidebar Marketing must gate on ${sidebar}`)
+  if (!shell.includes("to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing']")) fail(`${t} sidebar Marketing must gate on ['email_marketing']`)
   if (t === 'crm-rv' && !shell.includes("to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences']")) fail('crm-rv sidebar must keep the Follow-Up item on follow_up_sequences')
+}
+const mktRoutes = mkt.slice(mkt.indexOf('export function createMarketingRoutes('))
+if (!/if \(campaignsGate\) for \(const p of \['\/campaigns', '\/campaigns\/\*', '\/templates', '\/templates\/\*', '\/audience\/\*'\]\) app\.use\(p, campaignsGate\)/.test(mktRoutes)) fail('the shared marketing routes must apply campaignsGate to campaigns, templates and audience')
+if (!/if \(sequencesEnabled \? !\(await sequencesEnabled\(e\.company_id\)\) : isFeatureEnabled && !\(await isFeatureEnabled\(e\.company_id, 'email_marketing'\)\)\) continue/.test(drips)) fail('processDripEmails must use sequencesEnabled when a template provides it')
+{
+  let gate = ''
+  try { gate = read('packages/tenant-ui/src/shell/routeGate.ts') } catch { /* missing → fails below */ }
+  if (!/samePath\.some\(\(i\) => \(i\.features \|\| \[\]\)\.some\(\(f\) => hasFeature\(f\)\)\)/.test(gate)) fail('the shell route gate (shell/routeGate.ts) must allow a path when any menu entry for it is enabled')
 }
 // events frontend: the route bounces too (the other templates rely on the shared shell's URL gate)
 const app = read('templates/crm-restaurant/frontend/src/App.tsx')
