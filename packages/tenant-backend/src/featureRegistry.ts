@@ -108,7 +108,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // -> banquet event order. Scoped to the private-events side of a restaurant,
   // NOT a POS or covers system. Every id here gates exactly one sidebar item or
   // tab in the template; nothing is listed that the app doesn't act on.
-  { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline and calendar, with per-space double-book protection', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
+  { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline with per-space double-book protection', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
   { id: 'event_spaces', name: 'Spaces', description: 'Bookable rooms with seated/standing capacity, minimum spend and hire fees', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
   { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with structured courses, choices and guest minimums', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
   { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Minute-by-minute banquet event order the kitchen and floor work from, printable', category: 'Private Events & Catering', core: true, templates: ['crm-restaurant'] },
@@ -141,7 +141,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Marketing
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof'] },
-  { id: 'google_reviews', name: 'Google Reviews', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
+  { id: 'google_reviews', name: 'Review Requests', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
   { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'] },
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
 

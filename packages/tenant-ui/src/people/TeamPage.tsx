@@ -72,7 +72,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
       {fromLogins && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
           <Users className="w-4 h-4 mt-0.5 shrink-0" />
-          <span>No roster yet — these are your login users (read-only here, managed under Settings → Users). Add a member to start your own roster with trades, departments and rates.</span>
+          <span>No roster yet — these are your login users (read-only here, managed under Settings → Users). Add a member to start your own roster with roles, departments and rates.</span>
         </div>
       )}
       <DataTable<Member> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No team members yet."

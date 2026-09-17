@@ -146,7 +146,7 @@ export default function DashboardPage() {
         <Link to="/crm/spaces" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500 dark:text-slate-400">Confirmed</p>
-            <DoorOpen className="w-5 h-5 text-teal-500" />
+            <DoorOpen className="w-5 h-5 text-orange-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.confirmed || 0}</p>
           <p className="text-xs text-gray-400">{pipeline.tentative || 0} tentative</p>
@@ -175,7 +175,7 @@ export default function DashboardPage() {
       {bySpace.length > 0 && (
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
-            <DoorOpen className="w-4 h-4 text-teal-500" /> Space Utilisation
+            <DoorOpen className="w-4 h-4 text-orange-500" /> Space Utilisation
             <span className="text-xs text-gray-400 font-normal">upcoming held events</span>
           </h2>
           <ul className="space-y-3">
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                   <span className="text-gray-600 dark:text-slate-400">{s.events} event{s.events === 1 ? '' : 's'}</span>
                 </div>
                 <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
-                  <div className="h-full bg-teal-500" style={{ width: `${Math.round((Number(s.events || 0) / topSpace) * 100)}%` }} />
+                  <div className="h-full bg-orange-500" style={{ width: `${Math.round((Number(s.events || 0) / topSpace) * 100)}%` }} />
                 </div>
               </li>
             ))}

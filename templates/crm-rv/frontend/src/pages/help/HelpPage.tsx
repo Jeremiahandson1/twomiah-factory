@@ -119,13 +119,13 @@ export default function HelpPage() {
   if (view === 'article' && selected) {
     return (
       <div className="p-6 max-w-3xl mx-auto">
-        <button onClick={() => { setView('browse'); setSelected(null); }} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm mb-4">
+        <button onClick={() => { setView('browse'); setSelected(null); }} className="flex items-center gap-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white text-sm mb-4">
           <ArrowLeft size={16} /> Back to Help
         </button>
-        {selected.category && <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded mb-2 inline-block">{selected.category}</span>}
-        <h1 className="text-xl font-bold text-white mb-4">{selected.title}</h1>
+        {selected.category && <span className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded mb-2 inline-block">{selected.category}</span>}
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{selected.title}</h1>
         <div className="prose prose-invert prose-sm max-w-none">
-          <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">{selected.content}</div>
+          <div className="text-gray-700 dark:text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">{selected.content}</div>
         </div>
       </div>
     );
@@ -135,7 +135,7 @@ export default function HelpPage() {
   if (view === 'ai-chat') {
     return (
       <div className="p-6 max-w-2xl mx-auto">
-        <button onClick={() => setView('browse')} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm mb-4">
+        <button onClick={() => setView('browse')} className="flex items-center gap-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white text-sm mb-4">
           <ArrowLeft size={16} /> Back
         </button>
         <div className="flex items-center gap-2 mb-4">
@@ -167,7 +167,7 @@ export default function HelpPage() {
           </div>
         </div>
         <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">
-          Can't find an answer? <a href="/crm/support" className="text-blue-400 hover:underline">Submit a support ticket</a>
+          Can't find an answer? <a href="/crm/support" className="text-blue-600 dark:text-blue-400 hover:underline">Submit a support ticket</a>
         </p>
       </div>
     );
@@ -179,8 +179,8 @@ export default function HelpPage() {
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <button onClick={() => setView('browse')} className="text-gray-400 hover:text-white"><ArrowLeft size={18} /></button>
-            <h1 className="text-lg font-bold text-white">Manage Help Articles</h1>
+            <button onClick={() => setView('browse')} className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"><ArrowLeft size={18} /></button>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Manage Help Articles</h1>
           </div>
           <button onClick={() => setEditArticle({ title: '', content: '', category: '', isFaq: false, sortOrder: 0 })}
             className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm">
@@ -245,10 +245,10 @@ export default function HelpPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-white">Help Center</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Help Center</h1>
         <div className="flex gap-2">
           <button onClick={() => setView('ai-chat')}
-            className="flex items-center gap-1.5 px-3 py-2 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded-lg text-sm">
+            className="flex items-center gap-1.5 px-3 py-2 bg-purple-600/20 text-purple-700 dark:text-purple-400 hover:bg-purple-600/30 rounded-lg text-sm">
             <Bot size={16} /> Ask AI
           </button>
           {isAdmin && (
@@ -280,7 +280,7 @@ export default function HelpPage() {
       {/* FAQ Accordion */}
       {faqs.length > 0 && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Frequently Asked Questions</h2>
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Frequently Asked Questions</h2>
           <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden divide-y divide-gray-800">
             {faqs.map(faq => (
               <div key={faq.id}>
@@ -301,7 +301,7 @@ export default function HelpPage() {
       )}
 
       {/* Knowledge Base Articles */}
-      <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">
+      <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
         {search ? 'Search Results' : 'Knowledge Base'}
       </h2>
       {loading ? (
@@ -309,8 +309,8 @@ export default function HelpPage() {
       ) : kbArticles.length === 0 ? (
         <div className="border border-dashed border-gray-700 rounded-xl p-12 text-center">
           <BookOpen size={32} className="text-gray-600 mx-auto mb-3 dark:text-slate-400" />
-          <p className="text-gray-400 text-sm">{search ? 'No matching articles found' : 'No help articles yet'}</p>
-          <button onClick={() => setView('ai-chat')} className="mt-3 text-purple-400 hover:underline text-sm">Try asking our AI assistant</button>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">{search ? 'No matching articles found' : 'No help articles yet'}</p>
+          <button onClick={() => setView('ai-chat')} className="mt-3 text-purple-700 dark:text-purple-400 hover:underline text-sm">Try asking our AI assistant</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

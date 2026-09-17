@@ -69,7 +69,7 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
           <button
             type="button"
             onClick={() => { setOpen(true); }}
-            className="text-xs text-teal-600 hover:text-teal-700"
+            className="text-xs text-orange-600 hover:text-orange-700"
           >
             Change
           </button>
@@ -109,7 +109,7 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
                         {[c.phone, c.email].filter(Boolean).join(' · ')}
                       </span>
                     </span>
-                    {value === c.id && <Check className="w-4 h-4 text-teal-600" />}
+                    {value === c.id && <Check className="w-4 h-4 text-orange-600" />}
                   </button>
                 ))
               )}

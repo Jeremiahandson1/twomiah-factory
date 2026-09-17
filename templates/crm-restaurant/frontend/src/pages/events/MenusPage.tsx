@@ -80,11 +80,11 @@ export default function MenusPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <UtensilsCrossed className="w-6 h-6 text-teal-600" /> Catering Menus
+            <UtensilsCrossed className="w-6 h-6 text-orange-600" /> Catering Menus
           </h1>
           <p className="text-gray-500 dark:text-slate-400">Packages priced per head, with their courses and minimums</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
           <Plus className="w-4 h-4" /> New Package
         </button>
       </div>
@@ -271,7 +271,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
                 <button
                   type="button"
                   onClick={() => setCourses((rows) => [...rows, { course: '', options: '' }])}
-                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700"
+                  className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
                 >
                   <Plus className="w-3 h-3" /> Add course
                 </button>
@@ -313,7 +313,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Package'}
               </button>
             </div>

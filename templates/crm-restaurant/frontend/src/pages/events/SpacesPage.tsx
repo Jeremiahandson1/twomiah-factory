@@ -63,11 +63,11 @@ export default function SpacesPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-            <DoorOpen className="w-6 h-6 text-teal-600" /> Spaces
+            <DoorOpen className="w-6 h-6 text-orange-600" /> Spaces
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you can sell, who it holds, what it has to spend</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
           <Plus className="w-4 h-4" /> New Space
         </button>
       </div>
@@ -103,7 +103,7 @@ export default function SpacesPage() {
 
               <div className="mt-3 space-y-1 text-sm">
                 <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
-                  <Wallet className="w-4 h-4 text-teal-500" />
+                  <Wallet className="w-4 h-4 text-orange-500" />
                   <span className="font-semibold">{money(s.minimumSpend)}</span>
                   <span className="text-gray-400">minimum spend</span>
                 </p>
@@ -113,7 +113,7 @@ export default function SpacesPage() {
               {(s.amenities || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-3">
                   {(s.amenities || []).map((a, i) => (
-                    <span key={i} className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">{a}</span>
+                    <span key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full">{a}</span>
                   ))}
                 </div>
               )}
@@ -229,7 +229,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
                     key={a}
                     type="button"
                     onClick={() => toggleAmenity(a)}
-                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    className={`text-xs px-2 py-1 rounded-full border ${amenities.includes(a) ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
                   >
                     {a}
                   </button>
@@ -242,7 +242,7 @@ function SpaceModal({ space, onSave, onClose }: { space: Space | null; onSave: (
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Space'}
               </button>
             </div>

@@ -69,7 +69,7 @@ const CRM_REGISTRY = [
     { id: 'salon_memberships', name: 'Memberships & Packages', description: 'Recurring memberships and prepaid visit packages', core: false },
   ]},
   { category: 'Private Events & Catering', features: [
-    { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline and calendar with double-book protection', core: true },
+    { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline with double-book protection', core: true },
     { id: 'event_spaces', name: 'Spaces', description: 'Rooms with capacities, minimum spend and hire fees', core: true },
     { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with courses, choices and guest minimums', core: true },
     { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Printable banquet event order for the kitchen and floor', core: true },
@@ -130,7 +130,7 @@ const CRM_REGISTRY = [
   ]},
   { category: 'Marketing', features: [
     { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', core: false },
-    { id: 'google_reviews', name: 'Google Reviews', description: 'Review request automation', core: false },
+    { id: 'google_reviews', name: 'Review Requests', description: 'Review request automation', core: false },
     { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', core: false },
     { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', core: false },
   ]},

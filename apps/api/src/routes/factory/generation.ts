@@ -339,7 +339,7 @@ factory.get('/features', (c) => {
       ]},
       { category: 'Marketing', features: [
         { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management, lead tracking, monthly ROI reports' },
-        { id: 'google_reviews', name: 'Google Reviews', description: 'Review request automation' },
+        { id: 'google_reviews', name: 'Review Requests', description: 'Review request automation' },
         { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters' },
         { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking' },
       ]},

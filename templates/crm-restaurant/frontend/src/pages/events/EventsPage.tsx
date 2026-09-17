@@ -114,7 +114,7 @@ export default function EventsPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Events</h1>
           <p className="text-gray-500 dark:text-slate-400">Every enquiry, booking and party in one place</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
           <Plus className="w-4 h-4" /> New Enquiry
         </button>
       </div>
@@ -133,13 +133,13 @@ export default function EventsPage() {
         <div className="flex border rounded-lg overflow-hidden">
           <button
             onClick={() => setView('pipeline')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'pipeline' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
           >
             <LayoutGrid className="w-4 h-4" /> Pipeline
           </button>
           <button
             onClick={() => setView('list')}
-            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            className={`flex items-center gap-1 px-3 py-2 text-sm ${view === 'list' ? 'bg-orange-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
           >
             <List className="w-4 h-4" /> List
           </button>
@@ -233,7 +233,7 @@ function ListView({ events }: { events: EventRow[] }) {
                 {e.startTime && <span className="block text-xs text-gray-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}
               </td>
               <td className="px-4 py-3">
-                <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">{e.name || 'Untitled'}</Link>
+                <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:text-slate-100">{e.name || 'Untitled'}</Link>
                 <span className="block text-xs text-gray-400 capitalize">{prettyType(e.eventType)}</span>
               </td>
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.clientName || '—'}</td>
@@ -390,7 +390,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Create'}
               </button>
             </div>

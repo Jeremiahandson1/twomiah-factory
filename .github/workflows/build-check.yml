@@ -428,3 +428,14 @@ jobs:
           bun-version: latest
       - name: onPayment hook in the shared payment core; bookOnDeposit on both money paths; packageFloor on add + edit; merged Team list; coordinator = login user; confirmEventRisks in both forms
         run: bun run scripts/check-events-booking-rules.ts
+
+  ui-consistency:
+    name: UI consistency (search at every width, readable Help page, brand colour, unique feature names)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: header search button not hidden below md; Help headings/body readable and identical across templates; no hard-coded teal on events pages; no two features share a name; no trend arrow on a rate
+        run: bun run scripts/check-ui-consistency.ts

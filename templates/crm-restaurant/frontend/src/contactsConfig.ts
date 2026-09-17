@@ -2,6 +2,13 @@
 import type { ContactsConfig } from './shared'
 
 export const CONTACTS: ContactsConfig = {
+  // A venue deals with clients and their vendors (florists, DJs, photographers) — not construction
+  // subcontractors. An existing contact of another type still shows its own label. (T16/T17 L10)
+  types: [
+    { value: 'lead', label: 'Lead' },
+    { value: 'client', label: 'Client' },
+    { value: 'vendor', label: 'Vendor' },
+  ],
   gateByFeature: true,
   sections: { projects: true, quotes: true, events: true, portal: true },
   quickActions: [

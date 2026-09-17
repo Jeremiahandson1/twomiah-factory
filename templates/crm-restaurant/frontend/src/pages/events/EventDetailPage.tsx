@@ -153,7 +153,7 @@ export default function EventDetailPage() {
   if (!ev) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-        Event not found. <Link to="/crm/events" className="text-teal-600">Back to events</Link>
+        Event not found. <Link to="/crm/events" className="text-orange-600">Back to events</Link>
       </div>
     );
   }
@@ -212,7 +212,7 @@ export default function EventDetailPage() {
             <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-700">Edit</button>
             <button
               onClick={() => openPrintable(`/api/events/${ev.id}/beo`)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm"
+              className="flex items-center gap-1 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
             >
               <ExternalLink className="w-4 h-4" /> Print BEO
             </button>
@@ -285,7 +285,7 @@ export default function EventDetailPage() {
             {client ? (
               <>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
-                  {ev.contactId ? <Link to={`/crm/contacts`} className="hover:text-teal-600">{client.name}</Link> : client.name}
+                  {ev.contactId ? <Link to={`/crm/contacts`} className="hover:text-orange-600">{client.name}</Link> : client.name}
                 </p>
                 {(client.mobile || client.phone) && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Phone className="w-3 h-3" /> {client.mobile || client.phone}</p>}
                 {client.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {client.email}</p>}
@@ -327,7 +327,7 @@ export default function EventDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === t.id ? 'border-orange-600 text-orange-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             {t.icon} {t.label}
@@ -340,7 +340,7 @@ export default function EventDetailPage() {
       {tab === 'menu' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowMenu(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => setShowMenu(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
               <Plus className="w-4 h-4" /> Add Line
             </button>
           </div>
@@ -391,7 +391,7 @@ export default function EventDetailPage() {
       {tab === 'runsheet' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowTimeline(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => setShowTimeline(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
               <Plus className="w-4 h-4" /> Add Step
             </button>
           </div>
@@ -419,7 +419,7 @@ export default function EventDetailPage() {
       {tab === 'money' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => setShowPayment(true)} className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm">
               <Plus className="w-4 h-4" /> Schedule Payment
             </button>
           </div>
@@ -436,7 +436,7 @@ export default function EventDetailPage() {
                   {Number(totals.refunded || 0) > 0 ? ` · ${money2(totals.refunded)} refunded` : ''} · {money2(totals.outstanding)} outstanding
                 </p>
               </div>
-              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700">
+              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700">
                 Send, refund or view invoice <ExternalLink className="w-4 h-4" />
               </Link>
             </div>
@@ -478,7 +478,7 @@ export default function EventDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {detail.invoice && (p.state === 'unpaid' || p.state === 'part_paid') && (
-                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 mr-3">
+                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 mr-3">
                             <Check className="w-3 h-3" /> Record payment
                           </button>
                         )}
@@ -547,7 +547,7 @@ function FormButtons({ saving, onClose, label = 'Save' }: { saving: boolean; onC
   return (
     <div className="flex gap-3 pt-2">
       <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-      <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+      <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50">
         {saving ? 'Saving...' : label}
       </button>
     </div>

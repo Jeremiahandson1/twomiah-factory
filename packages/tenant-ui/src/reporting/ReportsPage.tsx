@@ -1,7 +1,7 @@
 // Reports & Analytics — one page for every CRM. The period picker drives every number on the page;
 // balances (outstanding / overdue) are point-in-time and say so.
 import React, { useEffect, useState } from 'react'
-import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, FileText, Loader2, TrendingDown, TrendingUp, Users } from 'lucide-react'
+import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, FileText, Loader2, Users } from 'lucide-react'
 import { StatusBadge, dateOnly, inputCls, money } from '../invoicing/ui'
 import type { ReportsPageProps } from './types'
 import { resolveReportingConfig } from './types'
@@ -191,7 +191,8 @@ function Metric({ title, value, subtitle, icon: Icon, color, trend, trendLabel, 
     <div className={`bg-white dark:bg-slate-900 rounded-xl border p-5 ${alert ? 'border-orange-300 dark:border-orange-700' : 'border-gray-200 dark:border-slate-800'}`}>
       <div className="flex items-start justify-between">
         <div className={`p-2 rounded-lg ${colors[color]}`}><Icon className="w-5 h-5" /></div>
-        {trend !== undefined && <div className={`flex items-center gap-1 text-sm ${trend >= 50 ? 'text-green-600 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{trend >= 50 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}<span>{trend}%</span></div>}
+        {/* A rate for this period, not a change over time — no up/down arrow (T16/T17 L9). */}
+        {trend !== undefined && <div className={`text-sm font-medium ${trend >= 50 ? 'text-green-600 dark:text-green-300' : 'text-orange-600 dark:text-orange-300'}`}>{trend}%</div>}
       </div>
       <div className="mt-3">
         <p className={`text-sm font-medium ${muted}`}>{title}</p>
