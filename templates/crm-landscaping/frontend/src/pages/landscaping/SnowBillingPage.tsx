@@ -73,6 +73,20 @@ export default function SnowBillingPage() {
     } catch (e: any) { toast.error(e?.message || 'Failed to log event'); }
   };
 
+  // Unbilled visits → one draft invoice to the site's customer (T14 H5: the charge had no way to be billed).
+  const [billing, setBilling] = useState<string | null>(null);
+  const billContract = async (ct: any, amount: number) => {
+    if (!confirm(`Create a draft invoice for the $${amount.toFixed(2)} of unbilled snow visits at ${ct.siteName || 'this site'}?`)) return;
+    setBilling(ct.id);
+    try {
+      const res = await api.post(`/api/snow/contracts/${ct.id}/bill`, {});
+      toast.success(`Draft invoice ${res.invoice?.number} created for ${res.billedVisits} visit${res.billedVisits === 1 ? '' : 's'} — review and send it from Invoices`);
+      if (selected?.id === ct.id) openContract(ct);
+      load();
+    } catch (e: any) { toast.error(e?.message || 'Failed to bill this contract'); }
+    finally { setBilling(null); }
+  };
+
   const sumFor = (id: string) => summary.find(s => s.contractId === id) || {};
 
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin" /></div>;
@@ -120,6 +134,12 @@ export default function SnowBillingPage() {
                   <div className="text-right">
                     <div className="text-sm font-semibold text-green-700">${Number(sm.unbilledTotal || 0).toFixed(2)}</div>
                     <div className="text-xs text-gray-400">unbilled • {sm.events || 0} events</div>
+                    {Number(sm.unbilledTotal || 0) > 0 && (
+                      <button onClick={(e) => { e.stopPropagation(); billContract(ct, Number(sm.unbilledTotal)); }} disabled={billing === ct.id}
+                        className="mt-1 mr-2 text-xs bg-green-600 text-white rounded px-2 py-1 disabled:opacity-50">
+                        {billing === ct.id ? 'Billing…' : `Bill $${Number(sm.unbilledTotal).toFixed(2)}`}
+                      </button>
+                    )}
                     <button onClick={(e) => { e.stopPropagation(); removeContract(ct.id); }} className="text-red-500 mt-1"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </div>
