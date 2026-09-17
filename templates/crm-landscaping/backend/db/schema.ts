@@ -1156,6 +1156,7 @@ export const serviceAgreement = pgTable('service_agreement', {
   lastBilledAt: timestamp('last_billed_at'),
   nextBillDate: timestamp('next_bill_date'),
   autopayLastError: text('autopay_last_error'),
+  renewalNoticeSentFor: timestamp('renewal_notice_sent_for'), // the end date the last renewal notice was sent for
   billingFrequency: text('billing_frequency').default('monthly').notNull(),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   terms: text('terms'),

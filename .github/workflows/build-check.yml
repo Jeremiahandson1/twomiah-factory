@@ -714,3 +714,14 @@ jobs:
           bun-version: latest
       - name: "Check agreements list relations, expiry and scoped create/edit"
         run: bun run scripts/check-agreements.ts
+
+  agreement-renewal-notice:
+    name: "Agreement renewal notice guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check customers are emailed once before an auto-renew agreement renews"
+        run: bun run scripts/check-agreement-renewal-notice.ts

@@ -32,6 +32,8 @@ export interface AgreementsTables {
   job: any
   invoice: any
   invoiceLineItem: any
+  /** For the renewal notice (company name, email, phone). Optional: without it no notices are sent. */
+  company?: any
 }
 export interface AgreementsStripe {
   listSavedPaymentMethods: (contactRow: any) => Promise<Array<{ id: string }>>
@@ -43,6 +45,14 @@ export interface AgreementsServiceDeps {
   stripe: AgreementsStripe
   /** The template's audit service — automatic renewals and expiries are logged when given. */
   audit?: { log: (entry: any) => any }
+  /** Emails the customer before an auto-renew agreement renews (template 'agreementRenewalNotice'). Optional. */
+  sendRenewalNotice?: (to: string, data: Record<string, unknown>) => Promise<unknown>
+}
+
+/** Days before an auto-renew agreement's end date that the customer is told it will renew: 30 for terms of a year or
+ *  more, 14 for 3–11 months, none for shorter (month-to-month) terms — they aren't a new commitment each month. */
+export function renewalNoticeDays(termMonths: number): number {
+  return termMonths >= 12 ? 30 : termMonths >= 3 ? 14 : 0
 }
 
 /** An auto-renew agreement is renewed if its end date passed at most this many days ago (the worker runs every 12h);
@@ -99,8 +109,8 @@ function advanceDate(current: Date, rule: { frequency: string; dayOfMonth?: numb
 }
 
 export function createAgreementsService(deps: AgreementsServiceDeps) {
-  const { db, tables, stripe, audit } = deps
-  const { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem } = tables
+  const { db, tables, stripe, audit, sendRenewalNotice } = deps
+  const { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem, company } = tables
 
   // ---- plans ----
   async function getPlans(companyId: string, { active }: { active?: boolean | null } = {}) {
@@ -433,9 +443,57 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return inv
   }
 
+  // Tell customers before an auto-renew agreement renews (renewalNoticeDays ahead). One notice per term: the end date
+  // it was sent for is claimed on the row first (so two runs can't both send), and released again if the email fails
+  // so the next run retries. A customer with no email address is logged once instead. Worker/billing-run only —
+  // never on a page read.
+  async function sendRenewalNotices(companyId?: string) {
+    let sent = 0, failed = 0, skipped = 0
+    if (!sendRenewalNotice || !company) return { sent, failed, skipped }
+    const now = Date.now()
+    const due = await db.select().from(serviceAgreement).where(and(
+      companyId ? eq(serviceAgreement.companyId, companyId) : undefined,
+      eq(serviceAgreement.status, 'active'), eq(serviceAgreement.renewalType, 'auto'),
+      gte(serviceAgreement.endDate, new Date(now)), lte(serviceAgreement.endDate, new Date(now + 30 * 86400000)),
+      sql`(${serviceAgreement.renewalNoticeSentFor} IS NULL OR ${serviceAgreement.renewalNoticeSentFor} <> ${serviceAgreement.endDate})`,
+    ))
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
+    for (const agr of due) {
+      const end = new Date(agr.endDate)
+      const termMonths = agreementTermMonths(agr.startDate, agr.endDate)
+      const days = renewalNoticeDays(termMonths)
+      if (!days || end.getTime() - now > days * 86400000) continue
+      const [claimed] = await db.update(serviceAgreement).set({ renewalNoticeSentFor: end }).where(and(
+        eq(serviceAgreement.id, agr.id), eq(serviceAgreement.status, 'active'),
+        sql`(${serviceAgreement.renewalNoticeSentFor} IS NULL OR ${serviceAgreement.renewalNoticeSentFor} <> ${serviceAgreement.endDate})`,
+      )).returning()
+      if (!claimed) continue
+      const [ct] = await db.select().from(contact).where(and(eq(contact.id, agr.contactId), eq(contact.companyId, agr.companyId))).limit(1)
+      const logNotice = (metadata: Record<string, unknown>) => audit?.log({ action: 'renewal_notice', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId, metadata: { renewalDate: end, ...metadata } })
+      if (!ct?.email) { skipped++; logNotice({ sent: false, reason: 'customer has no email address' }); continue }
+      const [co] = await db.select().from(company).where(eq(company.id, agr.companyId)).limit(1)
+      const newEnd = new Date(end); newEnd.setMonth(newEnd.getMonth() + termMonths)
+      try {
+        await sendRenewalNotice(ct.email, {
+          contactName: ct.name, companyName: co?.name || '', companyEmail: co?.email || '', companyPhone: co?.phone || '',
+          agreementName: agr.name, agreementNumber: agr.number, amount: agr.amount, billingFrequency: agr.billingFrequency,
+          renewalDate: fmt(end), newEndDate: fmt(newEnd),
+        })
+        sent++
+        logNotice({ sent: true, to: ct.email })
+      } catch (err: any) {
+        failed++
+        await db.update(serviceAgreement).set({ renewalNoticeSentFor: agr.renewalNoticeSentFor ?? null }).where(eq(serviceAgreement.id, agr.id))
+        console.error('[Agreements] Renewal notice failed:', agr.id, err?.message || err)
+      }
+    }
+    return { sent, failed, skipped }
+  }
+
   async function processDueAgreements(companyId?: string) {
     // renew (or expire) agreements that just ended first, so a renewed agreement's next period is billed on time
     await settleEndedAgreements(companyId)
+    const renewalNotices = await sendRenewalNotices(companyId)
     const due = await getAgreementsDueForBilling(companyId)
     let invoiced = 0, charged = 0
     const failures: Array<{ agreementId: string; error: string }> = []
@@ -461,7 +519,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
         console.error('[Agreements] Billing failed:', agreement.id, err?.message || err)
       }
     }
-    return { due: due.length, invoiced, charged, failures }
+    return { due: due.length, invoiced, charged, failures, renewalNotices }
   }
 
   function startBillingProcessor() {

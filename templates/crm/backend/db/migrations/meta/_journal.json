@@ -162,6 +162,13 @@
       "when": 1791400600000,
       "tag": "0022_procurement_doc_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791400700000,
+      "tag": "0023_agreement_renewal_notice",
+      "breakpoints": true
     }
   ]
 }

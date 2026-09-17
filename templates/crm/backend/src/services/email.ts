@@ -482,6 +482,28 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     `,
     text: `Low Stock Alert: ${data.itemName} is at ${data.currentStock} units (reorder point: ${data.reorderPoint}). View inventory at ${APP_URL}/crm/inventory`,
   }),
+  // Sent before an auto-renew service agreement renews (the agreements worker, 30 days ahead for yearly terms,
+  // 14 for 3–11 months; month-to-month agreements get none). Says what renews, when, for how much, and how to cancel.
+  agreementRenewalNotice: (data) => ({
+    subject: `Your ${data.agreementName} renews on ${data.renewalDate}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1></div>
+        <div class="content">
+          <h2>Your agreement renews soon</h2>
+          <p>Hi ${data.contactName},</p>
+          <p>Your <strong>${data.agreementName}</strong> (${data.agreementNumber}) is set to renew automatically on <strong>${data.renewalDate}</strong> for another term, through ${data.newEndDate}.</p>
+          <div class="highlight">
+            <p style="margin:0;"><strong>Amount:</strong> $${Number(data.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${data.billingFrequency}</p>
+          </div>
+          <p>No action is needed to keep your service. If you don't want it to renew, reply to this email or contact us${data.companyPhone ? ` at ${data.companyPhone}` : ''}${data.companyEmail ? `${data.companyPhone ? ' or' : ' at'} ${data.companyEmail}` : ''} before ${data.renewalDate}.</p>
+        </div>
+        <div class="footer">${data.companyName}<br>${data.companyEmail || ''}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, your ${data.agreementName} (${data.agreementNumber}) renews automatically on ${data.renewalDate} through ${data.newEndDate} at $${data.amount} ${data.billingFrequency}. To cancel, reply to this email or contact ${data.companyName}${data.companyPhone ? ` at ${data.companyPhone}` : ''} before ${data.renewalDate}.`,
+  }),
 };
 
 // ============================================
