@@ -61,17 +61,38 @@ export function createSmsService(deps: SmsServiceDeps) {
     if (!toPhone) throw new Error('Phone number required')
     const formattedPhone = formatPhoneE164(toPhone)
 
+    // A refused send is not a send: with the usage wallet empty nothing is attempted, so no thread is
+    // opened and no message row is written — the caller just gets the refusal. A carrier failure after a
+    // real attempt is still recorded as a failed message in the thread. (T16 N2)
+    if (!(await usage.walletSufficient())) return { status: 'failed', errorMessage: 'Messaging paused: usage wallet is empty — top up to resume.', refused: true } as any
+
+    // The thread belongs to the person whose number this is (digits compared, so "(608) 555-0166" matches
+    // +16085550166) — the same match the inbound webhook makes — so a text typed to a number is filed
+    // under the contact, not left as a bare number. (T16 N2)
+    if (!contactId) {
+      const last10 = formattedPhone.replace(/\D/g, '').slice(-10)
+      const [byPhone] = await db.select({ id: t.contact.id }).from(t.contact)
+        .where(and(eq(t.contact.companyId, companyId), or(
+          sql`regexp_replace(coalesce(${t.contact.mobile}, ''), '\\D', '', 'g') like ${'%' + last10}`,
+          sql`regexp_replace(coalesce(${t.contact.phone}, ''), '\\D', '', 'g') like ${'%' + last10}`,
+        )))
+        .limit(1)
+      contactId = byPhone?.id
+    }
+
     let [conversation] = await db.select().from(t.smsConversation)
       .where(and(eq(t.smsConversation.companyId, companyId), eq(t.smsConversation.phoneNumber, formattedPhone)))
     if (!conversation) {
       ;[conversation] = await db.insert(t.smsConversation).values({ companyId, phoneNumber: formattedPhone, contactId: contactId || null, status: 'active' }).returning()
+    } else if (!conversation.contactId && contactId) {
+      await db.update(t.smsConversation).set({ contactId }).where(eq(t.smsConversation.id, conversation.id))
+      conversation.contactId = contactId
     }
 
     let twilioResponse: any
     let status = 'sent'
     let errorMessage: string | null = null
     try {
-      if (!(await usage.walletSufficient())) throw new Error('Messaging paused: usage wallet is empty — top up to resume.')
       const conf = await cfg()
       const client = await twilioClient(conf)
       twilioResponse = await client.messages.create({

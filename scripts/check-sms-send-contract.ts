@@ -17,6 +17,15 @@ if (!/const \{ contactId, toPhone, message, jobId, templateId \} = await c\.req\
 if (!/if \(!message\) return c\.json\(\{ error: 'Message is required' \}, 400\)/.test(route)) fail('POST /api/sms/send must require message')
 if (!/if \(!contactId && !toPhone\) return c\.json/.test(route)) fail('POST /api/sms/send must require contactId or toPhone')
 
+// the send itself: a wallet refusal opens no thread and writes no row; a text to a bare number is filed
+// under the contact whose number it is (digits compared, like the inbound webhook) (T16 N2)
+const send = sms.slice(sms.indexOf('async function sendSMS('), sms.indexOf('async function handleIncomingSMS('))
+const walletAt = send.indexOf('usage.walletSufficient()'), threadAt = send.indexOf('db.insert(t.smsConversation)')
+if (walletAt < 0 || threadAt < 0 || walletAt > threadAt) fail('sendSMS must check the usage wallet BEFORE opening a conversation')
+if (!/refused: true/.test(send.slice(walletAt, threadAt))) fail('sendSMS must answer a wallet refusal without writing a message row (refused: true)')
+if (!/regexp_replace\(coalesce\(\$\{t\.contact\.mobile\}, ''\), '\\\\D', '', 'g'\) like/.test(send)) fail('sendSMS must resolve the contact by phone digits when none was given')
+if (!/else if \(!conversation\.contactId && contactId\)/.test(send)) fail('sendSMS must link an existing unlinked conversation to the contact it finds')
+
 // every frontend sender in the shared UI
 const senders: Array<[string, RegExp]> = [
   ['packages/tenant-ui/src/marketing/MessagesPage.tsx', /api\.post\('\/api\/sms\/send', \{ toPhone: to, \.\.\.\(contactId \? \{ contactId \} : \{\}\), message: body\.trim\(\) \}\)/],
