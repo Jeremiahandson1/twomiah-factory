@@ -560,3 +560,14 @@ jobs:
           bun-version: latest
       - name: category enum, stock/year/make/model required, VIN format; PUT parses unitUpdateSchema; pricing warnings; LISTABLE = available; pending only on explicit export
         run: bun run scripts/check-rv-unit-validation.ts
+
+  rv-lead-rules:
+    name: RV sales leads have a real stage, company-owned references and no open duplicates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "leadRefusal in create/edit tx before writes — stage enum 400; contact/unit/salesperson company-scoped 404; open duplicate 409 under contact lock"
+        run: bun run scripts/check-rv-lead-rules.ts

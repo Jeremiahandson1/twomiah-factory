@@ -101,6 +101,42 @@ app.get('/stats', requirePermission('contacts:read'), async (c) => {
   return c.json({ total: leads.length, byStage, bySource })
 })
 
+// ---- Lead stage, references and duplicates (RV T19 M2) ----
+// A lead's stage is one of the pipeline stages; its contact, unit and salesperson belong to the company; and a
+// contact can't hold two open leads on the same unit (or two open leads with no unit). Checked under a lock on the
+// contact so two identical leads created together can't both be saved. (T19: stage "banana" was saved; the same
+// contact + unit could be added again; another company's unit id was accepted)
+export const LEAD_STAGES = ['new', 'contacted', 'demo', 'desking', 'closed_won', 'closed_lost'] as const
+const isOpenStage = (s: string) => s !== 'closed_won' && s !== 'closed_lost'
+
+async function leadRefusal(tx: any, companyId: string, next: { contactId: unknown; unitId: string | null; assignedTo: unknown; stage: unknown }, check: { refs: boolean; duplicate: boolean }, selfId: string | null | undefined) {
+  if (!(LEAD_STAGES as readonly string[]).includes(next.stage as string)) return { status: 400 as const, error: `Stage must be one of: ${LEAD_STAGES.join(', ')}` }
+  if (!check.refs && !check.duplicate) return null
+  if (typeof next.contactId !== 'string' || !next.contactId) return { status: 400 as const, error: 'Contact is required' }
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`lead:${companyId}:${next.contactId}`}))`)
+  const [ct] = await tx.select({ id: contact.id, name: contact.name }).from(contact).where(and(eq(contact.id, next.contactId), eq(contact.companyId, companyId))).limit(1)
+  if (!ct) return { status: 404 as const, error: 'Contact not found' }
+  if (next.unitId) {
+    const [u] = await tx.select({ id: unit.id }).from(unit).where(and(eq(unit.id, next.unitId), eq(unit.companyId, companyId))).limit(1)
+    if (!u) return { status: 404 as const, error: 'Unit not found' }
+  }
+  if (next.assignedTo) {
+    const [rep] = await tx.select({ id: user.id }).from(user).where(and(eq(user.id, String(next.assignedTo)), eq(user.companyId, companyId))).limit(1)
+    if (!rep) return { status: 404 as const, error: 'Salesperson not found' }
+  }
+  if (check.duplicate && isOpenStage(next.stage as string)) {
+    const [dupe] = await tx.select({ id: salesLead.id }).from(salesLead).where(and(
+      eq(salesLead.companyId, companyId),
+      eq(salesLead.contactId, next.contactId),
+      next.unitId ? eq(salesLead.unitId, next.unitId) : sql`${salesLead.unitId} is null`,
+      sql`${salesLead.stage} not in ('closed_won', 'closed_lost')`,
+      selfId ? ne(salesLead.id, selfId) : undefined,
+    )).limit(1)
+    if (dupe) return { status: 409 as const, error: `${ct.name} already has an open lead ${next.unitId ? 'on this unit' : 'with no unit'}.`, existingLeadId: dupe.id }
+  }
+  return null
+}
+
 // POST /sales-leads
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
@@ -110,6 +146,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const stage = body.stage || 'new'
   const unitId = body.unitId || null
   const outcome = await db.transaction(async (tx: any) => {
+    const invalid = await leadRefusal(tx, currentUser.companyId, { contactId: body.contactId, unitId, assignedTo: body.assignedTo, stage }, { refs: true, duplicate: true }, null)
+    if (invalid) return { refusal: invalid }
     if (stage === SOLD && unitId) {
       const refusal = await sellUnit(tx, currentUser.companyId, unitId, null)
       if (refusal) return { refusal }
@@ -162,7 +200,18 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const isSold = nextStage === SOLD && !!nextUnitId
   const sameSale = wasSold && isSold && nextUnitId === existing.unitId
 
+  const nextContactId = 'contactId' in body ? body.contactId : existing.contactId
+  const nextAssignedTo = 'assignedTo' in body ? body.assignedTo || null : existing.assignedTo
+  // an empty picker value clears the link (it was written as "" and failed as a foreign key)
+  if ('unitId' in body) updates.unitId = nextUnitId
+  if ('assignedTo' in body) updates.assignedTo = nextAssignedTo
+  const refsChanged = ('contactId' in body && body.contactId !== existing.contactId) || ('unitId' in body && nextUnitId !== existing.unitId) || ('assignedTo' in body && nextAssignedTo !== existing.assignedTo)
+  // an existing duplicate can still move between open stages; only a new contact/unit or reopening a closed lead is checked
+  const duplicateCheck = refsChanged || (!isOpenStage(existing.stage) && isOpenStage(nextStage))
+
   const outcome = await db.transaction(async (tx: any) => {
+    const invalid = await leadRefusal(tx, currentUser.companyId, { contactId: nextContactId, unitId: nextUnitId, assignedTo: nextAssignedTo, stage: nextStage }, { refs: refsChanged, duplicate: duplicateCheck }, id)
+    if (invalid) return { refusal: invalid }
     // sell first: a refusal returns before anything is written
     if (isSold && !sameSale) {
       const refusal = await sellUnit(tx, currentUser.companyId, nextUnitId, id)
