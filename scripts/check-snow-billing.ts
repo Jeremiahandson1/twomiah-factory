@@ -27,6 +27,19 @@ else {
 // numbering must match this CRM's invoices: routes/invoices.ts sets no numbering (shared default INV-00001)
 if (/numbering/.test(inv)) { if (!inv.includes("numbering: { prefix: 'INV', pad: 5, seed: 0 }")) fail('snow billing numbering no longer matches routes/invoices.ts numbering') }
 if (!/const INVOICE_NUMBERING = \{ prefix: 'INV', pad: 5, seed: 0 \}/.test(r)) fail('snow billing must number invoices like the shared default (INV, pad 5)')
+// input: a blank optional rate still means "not set", but junk is refused with the field named, and the site must be
+// this company's (T14 N1: "per_banana" stored as per_push, "abc" stored as 0.00, any siteId accepted)
+if (!/export function snowContractInputError/.test(r) || !/export function snowEventInputError/.test(r)) fail('snow input validators are missing')
+if (!/Billing mode must be one of: \$\{BILLING_MODES\.join\(', '\)\}\./.test(r)) fail('an unknown billing mode must be refused by name')
+if (!/must be a number from 0 to 1,000,000\./.test(r) || !/if \(v === undefined \|\| v === null \|\| String\(v\)\.trim\(\) === ''\) continue/.test(r)) fail('rates: blank stays "not set", junk is refused')
+if (!/Pushes must be a whole number from 0 to 100\./.test(r) || !/Snowfall must be a number of inches from 0 to 120\./.test(r) || !/Serviced date must be a valid date\./.test(r)) fail('visit fields must be checked')
+for (const [route, fn] of [["app.post('/contracts'", 'snowContractInputError'], ["app.put('/contracts/:id'", 'snowContractInputError'], ["app.post('/events'", 'snowEventInputError']] as const) {
+  const i = r.indexOf(route)
+  const body = i < 0 ? '' : r.slice(i, r.indexOf('\n})\n', i))
+  if (!body.includes(`${fn}(body)`) || !/return c\.json\(\{ error: bad/.test(body)) fail(`${route} must refuse bad input with 400`)
+}
+if (!/eq\(site\.id, String\(body\.siteId\)\), eq\(site\.companyId, user\.companyId\)/.test(r) || !/'Site not found' \}, 404\)/.test(r)) fail("a contract's site must belong to the company")
+
 const page = read('templates/crm-landscaping/frontend/src/pages/landscaping/SnowBillingPage.tsx')
 if (!/api\.post\(`\/api\/snow\/contracts\/\$\{ct\.id\}\/bill`, \{\}\)/.test(page) || !/Number\(sm\.unbilledTotal \|\| 0\) > 0 &&/.test(page)) fail('the Snow Billing page must offer Bill for a contract with unbilled charges')
 if (failed) { console.error(`\nsnow billing: ${failed} check(s) FAILED`); process.exit(1) }

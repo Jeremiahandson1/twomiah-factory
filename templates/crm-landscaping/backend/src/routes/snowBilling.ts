@@ -26,6 +26,49 @@ const rate = (v: unknown, dflt = '0'): string => {
   return Number.isFinite(num) && num >= 0 ? String(num) : dflt
 }
 
+const RATE_FIELDS: Array<[string, string]> = [
+  ['perPushRate', 'Per-push rate'], ['perEventRate', 'Per-event rate'], ['perInchRate', 'Per-inch rate'],
+  ['seasonalRate', 'Seasonal rate'], ['saltRate', 'Salt rate'], ['triggerDepthInches', 'Trigger depth'],
+]
+
+/**
+ * What a snow contract may be saved with. A blank optional field still means "not set" (per_push contracts leave the
+ * other rates empty), but a value that isn't a number, or a billing mode that isn't one of ours, is refused with the
+ * field named instead of being silently stored as 0 / per_push. (Landscaping T14 N1: "per_banana" was saved as
+ * per_push and a rate of "abc" as 0.00, both 201)
+ */
+export function snowContractInputError(body: any): string | null {
+  if (body.billingMode !== undefined && body.billingMode !== '' && !BILLING_MODES.includes(body.billingMode)) {
+    return `Billing mode must be one of: ${BILLING_MODES.join(', ')}.`
+  }
+  for (const [key, label] of RATE_FIELDS) {
+    const v = body[key]
+    if (v === undefined || v === null || String(v).trim() === '') continue
+    const n = Number(v)
+    if (!Number.isFinite(n) || n < 0 || n > 1_000_000) return `${label} must be a number from 0 to 1,000,000.`
+  }
+  if (body.status !== undefined && body.status !== '' && !['active', 'paused', 'ended'].includes(body.status)) {
+    return 'Status must be one of: active, paused, ended.'
+  }
+  return null
+}
+
+/** What a logged visit may be saved with: whole pushes, real snowfall, a real date. */
+export function snowEventInputError(body: any): string | null {
+  if (body.pushes !== undefined && body.pushes !== null && String(body.pushes).trim() !== '') {
+    const p = Number(body.pushes)
+    if (!Number.isInteger(p) || p < 0 || p > 100) return 'Pushes must be a whole number from 0 to 100.'
+  }
+  if (body.snowfallInches !== undefined && body.snowfallInches !== null && String(body.snowfallInches).trim() !== '') {
+    const i = Number(body.snowfallInches)
+    if (!Number.isFinite(i) || i < 0 || i > 120) return 'Snowfall must be a number of inches from 0 to 120.'
+  }
+  if (body.servicedAt !== undefined && body.servicedAt !== null && String(body.servicedAt).trim() !== '' && isNaN(new Date(body.servicedAt).getTime())) {
+    return 'Serviced date must be a valid date.'
+  }
+  return null
+}
+
 interface ContractRates {
   billingMode: string
   perPushRate: string | number
@@ -76,7 +119,11 @@ app.get('/contracts', requirePermission('invoices:read'), async (c) => {
 app.post('/contracts', requirePermission('invoices:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
-  if (!body.siteId) return c.json({ error: 'siteId is required' }, 400)
+  if (!body.siteId) return c.json({ error: 'Pick the site this contract covers.' }, 400)
+  const bad = snowContractInputError(body)
+  if (bad) return c.json({ error: bad }, 400)
+  const [siteRow] = await db.select({ id: site.id }).from(site).where(and(eq(site.id, String(body.siteId)), eq(site.companyId, user.companyId))).limit(1)
+  if (!siteRow) return c.json({ error: 'Site not found' }, 404)
   const billingMode = BILLING_MODES.includes(body.billingMode) ? body.billingMode : 'per_push'
   const [contract] = await db.insert(snowContract).values({
     companyId: user.companyId,
@@ -100,6 +147,8 @@ app.put('/contracts/:id', requirePermission('invoices:update'), async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
   const body = await c.req.json()
+  const bad = snowContractInputError(body)
+  if (bad) return c.json({ error: bad }, 400)
   const patch: Record<string, unknown> = { updatedAt: new Date() }
   for (const k of ['perPushRate', 'perEventRate', 'perInchRate', 'seasonalRate', 'triggerDepthInches', 'saltRate']) {
     if (body[k] !== undefined) patch[k] = rate(body[k], k === 'triggerDepthInches' ? '2' : '0')
@@ -136,7 +185,9 @@ app.get('/events', requirePermission('invoices:read'), async (c) => {
 app.post('/events', requirePermission('invoices:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
-  if (!body.snowContractId) return c.json({ error: 'snowContractId is required' }, 400)
+  if (!body.snowContractId) return c.json({ error: 'Pick the contract this visit is for.' }, 400)
+  const badEvent = snowEventInputError(body)
+  if (badEvent) return c.json({ error: badEvent }, 400)
 
   const [contract] = await db.select().from(snowContract)
     .where(and(eq(snowContract.id, body.snowContractId), eq(snowContract.companyId, user.companyId)))
