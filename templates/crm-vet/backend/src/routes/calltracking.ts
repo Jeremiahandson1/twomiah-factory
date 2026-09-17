@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import calltracking from '../services/calltracking.ts'
 
@@ -51,6 +52,9 @@ function mapProviderPayload(provider: string, payload: any) {
 
 // Apply auth to remaining routes
 app.use('*', authenticate)
+// Call Tracking off for this tenant → its own endpoints are refused, not just hidden in the menu. Registered after
+// the provider webhooks above, which stay public so inbound calls keep working. (Landscaping T14 M4 → #206)
+app.use('*', requireEnabledFeature('call_tracking'))
 
 // ============================================
 // TRACKING NUMBERS

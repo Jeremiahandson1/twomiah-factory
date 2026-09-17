@@ -57,6 +57,21 @@ for (const t of TEMPLATES) {
   for (const fam of NEVER_AT_MOUNT) if (new RegExp(`app\\.use\\('/api/${fam}(/\\*)?', authenticate, requireEnabledFeature\\(`).test(idx)) fail(`${t} index.ts blanket-gates /api/${fam}, which has public sub-routes — gate inside its routes instead`)
 }
 
+// call tracking / AI receptionist: never gated at the mount (the phone providers' webhooks are public), so each
+// route file gates its OWN authenticated endpoints — the gate sits right after its `app.use('*', authenticate)`,
+// with the webhooks registered above it. (Landscaping T14 M4: both answered with data while switched off)
+for (const t of TEMPLATES) {
+  for (const [file, feature] of [['calltracking', 'call_tracking'], ['aiReceptionist', 'ai_receptionist']] as const) {
+    let src = ''
+    try { src = read(`templates/${t}/backend/src/routes/${file}.ts`) } catch { continue } // template without the module
+    const authAt = src.indexOf("app.use('*', authenticate)"), gateAt = src.indexOf(`app.use('*', requireEnabledFeature('${feature}'))`)
+    if (gateAt < 0) { fail(`${t} ${file}.ts must refuse its own endpoints when ${feature} is off`); continue }
+    if (authAt < 0 || gateAt < authAt) fail(`${t} ${file}.ts must gate after authenticate (the webhooks above it stay public)`)
+    const webhookAt = src.indexOf("app.post('/webhook")
+    if (webhookAt >= 0 && webhookAt > gateAt) fail(`${t} ${file}.ts registers a webhook after the gate — it would stop being public`)
+  }
+}
+
 // email marketing: gated inside the shared routes, public links exempt; processor honours the switch
 const mkt = read('packages/tenant-backend/src/marketing/marketing.ts')
 if (!/featureGate\?: any/.test(mkt)) fail('MarketingRoutesDeps must accept featureGate')

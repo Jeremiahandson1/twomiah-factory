@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import aiReceptionist from '../services/aiReceptionist.ts'
 
@@ -57,6 +58,9 @@ app.post('/webhook/status/:companyId', async (c) => {
 
 // ─── Authenticated Routes ───────────────────────────────────────────────────────
 app.use('*', authenticate)
+// AI Receptionist off for this tenant → its own endpoints are refused, not just hidden in the menu. Registered after
+// the provider webhooks above, which stay public so inbound calls keep working. (Landscaping T14 M4 → #206)
+app.use('*', requireEnabledFeature('ai_receptionist'))
 
 // ─── Rules CRUD ─────────────────────────────────────────────────────────────────
 
