@@ -681,3 +681,14 @@ jobs:
           bun-version: latest
       - name: "Check audit entries from callers passing userId/companyId are stored"
         run: bun run scripts/check-audit-direct-identity.ts
+
+  rv-desking-invalid-preview:
+    name: "RV desking invalid preview guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check Desking shows no totals from an invalid field"
+        run: bun run scripts/check-rv-desking-invalid-preview.ts

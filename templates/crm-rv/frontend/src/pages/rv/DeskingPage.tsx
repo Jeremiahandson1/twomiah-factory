@@ -57,6 +57,9 @@ export default function DeskingPage() {
   const { deal: d, errors } = parseDeal(raw);
   const hasErrors = Object.keys(errors).length > 0;
   const t = dealTotals(d);
+  // While a field is invalid the order and payments aren't calculated from it — "—" instead of a -5% tax line
+  // (RV T20 N2). Saving is already blocked until the fields are fixed.
+  const shown = (n: number) => (hasErrors ? '—' : money(n));
   const dirty = savedText !== JSON.stringify(raw);
   const setField = (k: keyof Deal, v: string) => { setRaw((s) => ({ ...s, [k]: v })); setStatus(null); };
 
@@ -86,7 +89,7 @@ export default function DeskingPage() {
   ];
   const otdRows: [string, number][] = [
     ['Selling price', t.sellingPrice], ['Accessories / add-ons', d.accessories],
-    [`Sales tax (${d.taxRate}% net of trade)`, t.tax], ['Fees (doc / freight / title / prep)', t.fees],
+    [errors.taxRate ? 'Sales tax (net of trade)' : `Sales tax (${d.taxRate}% net of trade)`, t.tax], ['Fees (doc / freight / title / prep)', t.fees],
   ];
   const leadLabel = (l: any) => `${l.customerName} — ${[l.unitYear, l.unitMake, l.unitModel].filter(Boolean).join(' ')} ${l.unitPrice ? `($${Number(l.unitPrice).toLocaleString()})` : ''}`;
   const missingOption = leadId && info && !leads.some((l) => l.id === leadId);
@@ -130,12 +133,13 @@ export default function DeskingPage() {
           <div className="bg-white text-gray-900 rounded-xl border shadow-sm p-4 dark:bg-slate-900 dark:text-slate-100">
             <div className="text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">Buyer's order</div>
             <div className="text-sm divide-y">
-              {otdRows.map(([l, v]) => (<div key={l} className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">{l}</span><span>{money(v)}</span></div>))}
-              <div className="flex justify-between py-2 font-bold text-base"><span>Out-the-door</span><span>{money(t.outTheDoor)}</span></div>
-              <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Down payment</span><span className="text-green-700">-{money(d.down)}</span></div>
-              {t.netTrade !== 0 && <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Net trade equity</span><span className={t.netTrade > 0 ? 'text-green-700' : ''}>{t.netTrade > 0 ? '-' : '+'}{money(Math.abs(t.netTrade))}</span></div>}
-              <div className="flex justify-between py-2 font-bold text-lg text-blue-800"><span>Amount to finance</span><span>{money(t.financed)}</span></div>
+              {otdRows.map(([l, v]) => (<div key={l} className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">{l}</span><span>{shown(v)}</span></div>))}
+              <div className="flex justify-between py-2 font-bold text-base"><span>Out-the-door</span><span>{shown(t.outTheDoor)}</span></div>
+              <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Down payment</span><span className="text-green-700">{hasErrors ? '—' : `-${money(d.down)}`}</span></div>
+              {!hasErrors && t.netTrade !== 0 && <div className="flex justify-between py-1.5"><span className="text-gray-600 dark:text-slate-400">Net trade equity</span><span className={t.netTrade > 0 ? 'text-green-700' : ''}>{t.netTrade > 0 ? '-' : '+'}{money(Math.abs(t.netTrade))}</span></div>}
+              <div className="flex justify-between py-2 font-bold text-lg text-blue-800"><span>Amount to finance</span><span>{shown(t.financed)}</span></div>
             </div>
+            {hasErrors && <p className="mt-2 text-xs text-red-600">Totals and payments show once the highlighted fields are fixed.</p>}
             {leadId && (
               <div className="mt-3 flex items-center gap-2 flex-wrap">
                 <button type="button" onClick={save} disabled={saving || loadingDeal || hasErrors || !dirty} className="px-3 py-1.5 rounded-lg bg-blue-700 text-white text-sm font-medium hover:bg-blue-800 disabled:opacity-50 inline-flex items-center gap-1.5">
@@ -151,7 +155,7 @@ export default function DeskingPage() {
             <div className="px-4 py-2 border-b text-sm font-semibold text-gray-700 dark:text-slate-200">Monthly payment</div>
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th className="px-4 py-2 text-left font-semibold">Term</th>{[6.99, 9.99, 12.99].map((a) => <th key={a} className="px-4 py-2 text-right font-semibold">{a}%</th>)}</tr></thead>
-              <tbody>{[48, 60, 72].map((m) => (<tr key={m} className="border-t"><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{m} mo</td>{[6.99, 9.99, 12.99].map((a) => <td key={a} className="px-4 py-2 text-right">{money(payment(t.financed, a, m))}</td>)}</tr>))}</tbody>
+              <tbody>{[48, 60, 72].map((m) => (<tr key={m} className="border-t"><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{m} mo</td>{[6.99, 9.99, 12.99].map((a) => <td key={a} className="px-4 py-2 text-right">{shown(payment(t.financed, a, m))}</td>)}</tr>))}</tbody>
             </table>
           </div>
         </div>
