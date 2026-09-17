@@ -538,3 +538,14 @@ jobs:
           bun-version: latest
       - name: rental_reservation + migration; no in-memory/made-up rows; server days/total; unit lock + overlap 409; status flow; revenue excludes cancelled; page books a real unit
         run: bun run scripts/check-rv-rentals.ts
+
+  rv-adf-import:
+    name: RV ADF import takes only real ADF leads and doesn't duplicate a resent lead
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: adf+prospect+customer identity required (400); fields from <customer>; advisory identity lock; open recent same-interest lead returned as duplicate
+        run: bun run scripts/check-rv-adf-import.ts

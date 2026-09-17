@@ -277,99 +277,135 @@ app.put('/:id/deal', requirePermission('contacts:update'), async (c) => {
 })
 
 // POST /sales-leads/import-adf — parse ADF/XML lead
+// Only a real ADF lead is imported: an <adf> document with a <prospect> whose <customer> has a name, email or phone.
+// Customer and vehicle fields are read from their own <customer> / <vehicle> blocks (not from the dealer's <vendor>
+// contact). Marketplaces resend ADF: a lead for the same contact and the same vehicle interest that is still open
+// and was imported in the last 30 days is returned as the existing lead (200, duplicate: true) instead of a second
+// lead. The import runs under a lock on the customer's identity, so two copies arriving together can't both create.
+// (RV T19 H6: the text "garbage" created an "Unknown" contact and lead; the same ADF twice created two leads)
+const ADF_DUPLICATE_DAYS = 30
+
+function parseAdf(xmlText: string) {
+  const decode = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&').trim()
+  const block = (xml: string, tag: string) => xml.match(new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))?.[1] ?? ''
+  const blocks = (xml: string, tag: string) => [...xml.matchAll(new RegExp(`<${tag}\\b([^>]*)>([\\s\\S]*?)</${tag}>`, 'gi'))].map((m) => ({ attrs: m[1], body: m[2] }))
+  const text = (xml: string, tag: string, attr?: string) => {
+    const m = xml.match(new RegExp(`<${tag}\\b[^>]*${attr ? `${attr}[^>]*` : ''}>([\\s\\S]*?)</${tag}>`, 'i'))
+    return m ? decode(m[1]) : ''
+  }
+
+  if (!/<adf\b/i.test(xmlText) || !/<prospect\b/i.test(xmlText)) return { error: "This isn't an ADF lead — expected an <adf> document with a <prospect>." }
+  const customer = block(xmlText, 'customer')
+  if (!customer) return { error: 'The ADF lead has no <customer>.' }
+
+  const first = text(customer, 'name', `part=["']first["']`)
+  const last = text(customer, 'name', `part=["']last["']`)
+  const full = text(customer, 'name', `part=["']full["']`) || (!first && !last ? text(customer, 'name') : '')
+  const name = [first, last].filter(Boolean).join(' ') || full
+  const emailRaw = text(customer, 'email').toLowerCase()
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw) ? emailRaw : ''
+  const phone = text(customer, 'phone')
+  const phoneDigits = phone.replace(/\D/g, '').slice(-10)
+  if (!name && !email && phoneDigits.length < 10) return { error: 'The ADF lead has no customer name, email or phone.' }
+
+  // the vehicle the customer wants (a trade-in vehicle is not the interest)
+  const vehicles = blocks(xmlText, 'vehicle')
+  const wanted = vehicles.find((v) => /interest=["'](buy|lease|test-drive)["']/i.test(v.attrs)) || vehicles.find((v) => !/interest=["']trade-in["']/i.test(v.attrs))
+  const yearText = wanted ? text(wanted.body, 'year') : ''
+  const year = /^\d{4}$/.test(yearText) ? Number(yearText) : null
+  const make = wanted ? text(wanted.body, 'make') : ''
+  const model = wanted ? text(wanted.body, 'model') : ''
+  return { name, email, phone, phoneDigits, year, make, model }
+}
+
 app.post('/import-adf', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
+  const companyId = currentUser.companyId
   const contentType = c.req.header('content-type') || ''
 
   let xmlText: string
   if (contentType.includes('xml') || contentType.includes('text/plain')) {
     xmlText = await c.req.text()
   } else {
-    const body = await c.req.json()
-    xmlText = body.xml || body.adf || ''
+    const body = await c.req.json().catch(() => ({} as any))
+    xmlText = typeof body.xml === 'string' ? body.xml : typeof body.adf === 'string' ? body.adf : ''
   }
 
   if (!xmlText) return c.json({ error: 'No ADF/XML content provided' }, 400)
+  const adf = parseAdf(xmlText)
+  if ('error' in adf) return c.json({ error: adf.error }, 400)
+  const { name, email, phone, phoneDigits, year, make, model } = adf
+  const interest = `ADF import: interested in ${year || ''} ${make} ${model}`.replace(/\s+/g, ' ').trim()
 
-  // Lightweight XML parsing — no dependencies
-  const getTag = (xml: string, tag: string, attr?: string): string => {
-    if (attr) {
-      const regex = new RegExp(`<${tag}[^>]*${attr}[^>]*>([^<]*)</${tag}>`, 'i')
-      const match = xml.match(regex)
-      return match?.[1]?.trim() || ''
+  const outcome = await db.transaction(async (tx: any) => {
+    // one import at a time per customer identity in this company
+    const identity = email || (phoneDigits.length === 10 ? phoneDigits : '') || name.toLowerCase()
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`adf:${companyId}:${identity}`}))`)
+
+    let contactRecord: any = null
+    if (email) {
+      ;[contactRecord] = await tx.select().from(contact)
+        .where(and(eq(contact.companyId, companyId), sql`lower(${contact.email}) = ${email}`)).limit(1)
     }
-    const regex = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, 'i')
-    const match = xml.match(regex)
-    return match?.[1]?.trim() || ''
-  }
+    if (!contactRecord && phoneDigits.length === 10) {
+      ;[contactRecord] = await tx.select().from(contact)
+        .where(and(eq(contact.companyId, companyId), sql`right(regexp_replace(coalesce(${contact.phone}, ''), '\\D', '', 'g'), 10) = ${phoneDigits}`)).limit(1)
+    }
+    let contactCreated = false
+    if (!contactRecord) {
+      ;[contactRecord] = await tx.insert(contact).values({
+        id: createId(),
+        name: name || email || phone,
+        email: email || undefined,
+        phone: phone || undefined,
+        type: 'lead',
+        source: 'adf_xml',
+        companyId,
+      }).returning()
+      contactCreated = true
+    }
 
-  // Parse ADF fields
-  const firstName = getTag(xmlText, 'name', 'part="first"') || getTag(xmlText, 'name', "part='first'")
-  const lastName = getTag(xmlText, 'name', 'part="last"') || getTag(xmlText, 'name', "part='last'")
-  const fullName = getTag(xmlText, 'name') // fallback if no parts
-  const name = (firstName && lastName) ? `${firstName} ${lastName}` : fullName || 'Unknown'
-  const email = getTag(xmlText, 'email')
-  const phone = getTag(xmlText, 'phone')
-  const uYear = getTag(xmlText, 'year')
-  const uMake = getTag(xmlText, 'make')
-  const uModel = getTag(xmlText, 'model')
+    // Try to match an available unit by year/make/model
+    let unitId: string | null = null
+    if (year && make && model) {
+      const [matched] = await tx.select().from(unit)
+        .where(and(eq(unit.companyId, companyId), eq(unit.year, year), sql`lower(${unit.make}) = ${make.toLowerCase()}`, sql`lower(${unit.modelName}) = ${model.toLowerCase()}`, eq(unit.status, 'available')))
+        .limit(1)
+      if (matched) unitId = matched.id
+    }
 
-  // Create or find contact
-  let contactRecord: any = null
-  if (email) {
-    const [existing] = await db.select().from(contact)
-      .where(and(eq(contact.email, email), eq(contact.companyId, currentUser.companyId)))
-      .limit(1)
-    contactRecord = existing
-  }
-  if (!contactRecord && phone) {
-    const [existing] = await db.select().from(contact)
-      .where(and(eq(contact.phone, phone), eq(contact.companyId, currentUser.companyId)))
-      .limit(1)
-    contactRecord = existing
-  }
-  if (!contactRecord) {
-    ;[contactRecord] = await db.insert(contact).values({
+    // the same lead sent again: an open ADF lead for this contact and this interest, imported recently
+    if (!contactCreated) {
+      const [existing] = await tx.select().from(salesLead).where(and(
+        eq(salesLead.companyId, companyId),
+        eq(salesLead.contactId, contactRecord.id),
+        eq(salesLead.source, 'adf_xml'),
+        sql`${salesLead.stage} not in ('closed_won', 'closed_lost')`,
+        sql`${salesLead.createdAt} > now() - make_interval(days => ${ADF_DUPLICATE_DAYS})`,
+        unitId ? eq(salesLead.unitId, unitId) : eq(salesLead.notes, interest),
+      )).limit(1)
+      if (existing) return { duplicate: true, contactRecord, lead: existing, unitId }
+    }
+
+    const [lead] = await tx.insert(salesLead).values({
       id: createId(),
-      name,
-      email: email || undefined,
-      phone: phone || undefined,
-      type: 'lead',
+      contactId: contactRecord.id,
+      unitId,
       source: 'adf_xml',
-      companyId: currentUser.companyId,
+      stage: 'new',
+      notes: interest,
+      companyId,
     }).returning()
+    return { duplicate: false, contactRecord, lead, unitId }
+  })
+
+  if (outcome.duplicate) {
+    return c.json({ success: true, duplicate: true, message: 'This ADF lead was already imported — the existing lead was kept.', contact: outcome.contactRecord, lead: outcome.lead, unitMatched: !!outcome.unitId })
   }
+  await audit.log({ action: 'create', entity: 'sales_lead', entityId: outcome.lead.id, metadata: { source: 'adf_xml', contact: outcome.contactRecord.name }, req: { user: currentUser } })
+  emitToCompany(companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
 
-  // Try to match unit by year/make/model
-  let unitId: string | null = null
-  if (uYear && uMake && uModel) {
-    const [matched] = await db.select().from(unit)
-      .where(and(
-        eq(unit.companyId, currentUser.companyId),
-        eq(unit.year, parseInt(uYear)),
-        eq(unit.make, uMake),
-        eq(unit.modelName, uModel),
-        eq(unit.status, 'available'),
-      ))
-      .limit(1)
-    if (matched) unitId = matched.id
-  }
-
-  // Create sales lead
-  const [lead] = await db.insert(salesLead).values({
-    id: createId(),
-    contactId: contactRecord.id,
-    unitId,
-    source: 'adf_xml',
-    stage: 'new',
-    notes: `ADF import: interested in ${uYear || ''} ${uMake || ''} ${uModel || ''}`.trim(),
-    companyId: currentUser.companyId,
-  }).returning()
-
-  await audit.log({ action: 'create', entity: 'sales_lead', entityId: lead.id, metadata: { source: 'adf_xml', contact: name }, req: { user: currentUser } })
-  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
-
-  return c.json({ success: true, contact: contactRecord, lead, unitMatched: !!unitId }, 201)
+  return c.json({ success: true, contact: outcome.contactRecord, lead: outcome.lead, unitMatched: !!outcome.unitId }, 201)
 })
 
 export default app

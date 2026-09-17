@@ -349,7 +349,9 @@ function AdfImportModal({ onSave, onClose }: AdfImportModalProps) {
     if (!xml.trim()) { alert('Paste ADF/XML content'); return; }
     setSaving(true);
     try {
-      await api.post('/api/sales-leads/import-adf', { xml });
+      const r = await api.post('/api/sales-leads/import-adf', { xml });
+      // a resent lead is recognised and the existing lead kept — say so rather than closing silently
+      if (r?.duplicate) alert(r.message || 'This ADF lead was already imported — the existing lead was kept.');
       onSave();
     } catch (err) {
       alert((err as Error).message || 'Failed to import ADF');
