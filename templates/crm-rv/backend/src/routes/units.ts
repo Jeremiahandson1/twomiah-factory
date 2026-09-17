@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { unit } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, ne } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -17,13 +17,24 @@ app.use('*', authenticate)
 // fields never legitimately contain markup.
 const noTags = z.string().transform(s => s.replace(/<[^>]*>/g, '')).optional()
 
+// A unit that goes to the public marketplace feed needs a real identity: a known category, a stock number, year, make
+// and model, and a VIN that is either a standard 17-character VIN or a 5–16 character serial number.
+// (RV T19 M1: blank make, blank stock number, category "banana" and VIN "123" went straight into the feed)
+export const UNIT_CATEGORIES = ['motorhome', 'towable', 'motorcycle', 'atv', 'utv', 'sxs', 'pwc', 'snowmobile', 'boat'] as const
+const requiredText = (label: string) => z.string({ required_error: `${label} is required` })
+  .transform(s => s.replace(/<[^>]*>/g, '').trim())
+  .refine(s => s.length > 0, `${label} is required`)
+
 const unitSchema = z.object({
-  category: z.string().min(1),
-  vin: z.string().min(1).max(17).optional(),
-  stockNumber: z.string().optional(),
-  year: z.number().int().min(1900).max(2030).optional(),
-  make: noTags,
-  modelName: noTags,
+  category: z.enum(UNIT_CATEGORIES, { errorMap: () => ({ message: `Category must be one of: ${UNIT_CATEGORIES.join(', ')}` }) }),
+  vin: z.string()
+    .transform(s => s.trim().toUpperCase())
+    .refine(v => /^[A-HJ-NPR-Z0-9]{17}$/.test(v) || /^[A-Z0-9]{5,16}$/.test(v), 'VIN must be a 17-character VIN (letters and digits, no I, O or Q) or a 5–16 character serial number')
+    .optional(),
+  stockNumber: requiredText('Stock number'),
+  year: z.number({ required_error: 'Year is required', invalid_type_error: 'Year must be a number' }).int().min(1900).max(2030),
+  make: requiredText('Make'),
+  modelName: requiredText('Model'),
   trim: noTags,
   exteriorColor: noTags,
   interiorColor: noTags,
@@ -74,6 +85,19 @@ const unitSchema = z.object({
   maxPersons: z.number().int().min(0).optional(),
   trailerIncluded: z.boolean().optional(),
 })
+// an edit validates the fields it sends with the same rules (it used to write the body unchecked)
+const unitUpdateSchema = unitSchema.partial()
+
+// Unusual but possible pricing is saved with a warning rather than refused (a markup over MSRP or selling below cost
+// can be deliberate).
+function priceWarnings(u: { msrp?: unknown; internetPrice?: unknown; cost?: unknown }): string[] {
+  const n = (v: unknown) => (v === '' || v == null ? null : Number(v))
+  const msrp = n(u.msrp), price = n(u.internetPrice), cost = n(u.cost)
+  const out: string[] = []
+  if (msrp && price != null && price > msrp * 2) out.push(`Internet price $${price.toLocaleString('en-US')} is more than double the MSRP ($${msrp.toLocaleString('en-US')}) — check it before it goes to the marketplaces.`)
+  if (cost != null && price != null && price > 0 && cost > price) out.push(`Cost $${cost.toLocaleString('en-US')} is above the internet price ($${price.toLocaleString('en-US')}).`)
+  return out
+}
 
 // GET /units — inventory list
 app.get('/', requirePermission('contacts:read'), async (c) => {
@@ -140,26 +164,35 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
   await audit.log({ action: 'create', entity: 'unit', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'unit' })
-  return c.json(created, 201)
+  const warnings = priceWarnings(created)
+  return c.json(warnings.length ? { ...created, warnings } : created, 201)
 })
 
 // PUT /units/:id
 app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const body = await c.req.json()
+  const body = unitUpdateSchema.parse(await c.req.json())
 
   const [existing] = await db.select().from(unit).where(and(eq(unit.id, id), eq(unit.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Unit not found' }, 404)
 
+  if (body.stockNumber !== undefined && body.stockNumber !== existing.stockNumber) {
+    const [dupe] = await db.select({ id: unit.id }).from(unit)
+      .where(and(eq(unit.companyId, currentUser.companyId), eq(unit.stockNumber, body.stockNumber), ne(unit.id, existing.id)))
+      .limit(1)
+    if (dupe) return c.json({ error: `Stock number "${body.stockNumber}" is already in use` }, 409)
+  }
+
   // Whitelist editable columns — never let companyId/id be reassigned from the body.
   const EDITABLE = ['category','condition','stockNumber','vin','year','make','modelName','trim','status','msrp','listedPrice','internetPrice','cost','photos','floorplanImg','description','features','exteriorColor','interiorColor','rvClass','towableType','lengthFt','sleeps','slideOuts','gvwr','dryWeight','hitchWeight','chassis','freshTankGal','greyTankGal','blackTankGal','generatorHours','awnings','fuelType','engine','engineCc','mileage','hours','transmission','drivetrain','hin','beamFt','draftFt','hullMaterial','engineType','engineCount','engineHp','fuelCapacityGal','maxPersons','trailerIncluded'] as const
   const updates: any = { updatedAt: new Date() }
-  for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  for (const k of EDITABLE) if (k in body && (body as any)[k] !== undefined) updates[k] = (body as any)[k]
   const [updated] = await db.update(unit).set(updates).where(eq(unit.id, id)).returning()
   await audit.log({ action: 'update', entity: 'unit', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'unit' })
-  return c.json(updated)
+  const warnings = priceWarnings(updated)
+  return c.json(warnings.length ? { ...updated, warnings } : updated)
 })
 
 // DELETE /units/:id

@@ -16,7 +16,11 @@ import { createId } from '@paralleldrive/cuid2'
  * The token lives on company.feedToken (rotatable).
  */
 
-const LISTABLE = ['available', 'pending']
+// What the public marketplace feed lists: units a buyer can actually buy. A pending unit (a sale in progress) is not
+// advertised; the dealer's own export can still include it explicitly with ?status=available,pending.
+// (RV T19 M1: pending units still appeared in the public feed)
+const LISTABLE = ['available']
+const EXPORTABLE = ['available', 'pending']
 
 function toListing(u: any) {
   return {
@@ -114,7 +118,7 @@ app.get('/feed', requirePermission('contacts:read'), async (c) => {
   const user = c.get('user') as any
   const format = (c.req.query('format') || 'json').toLowerCase()
   const statusParam = c.req.query('status')
-  const statuses = statusParam ? statusParam.split(',').filter(s => LISTABLE.includes(s)) : LISTABLE
+  const statuses = statusParam ? statusParam.split(',').filter(s => EXPORTABLE.includes(s)) : LISTABLE
   const listings = await buildFeed(user.companyId, statuses)
   return respondFeed(c, listings, format)
 })

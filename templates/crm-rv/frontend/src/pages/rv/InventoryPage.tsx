@@ -602,11 +602,9 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
     categoryKeys(category).forEach(addField);
 
     try {
-      if (unit) {
-        await api.put(`/api/units/${unit.id}`, payload);
-      } else {
-        await api.post('/api/units', payload);
-      }
+      const saved = unit ? await api.put(`/api/units/${unit.id}`, payload) : await api.post('/api/units', payload);
+      // unusual pricing is saved but flagged (e.g. far above MSRP, cost above price)
+      if (saved?.warnings?.length) alert(`Saved. Please check:\n\n${saved.warnings.join('\n')}`);
       onSave();
     } catch (err) {
       alert((err as Error).message || 'Failed to save unit');

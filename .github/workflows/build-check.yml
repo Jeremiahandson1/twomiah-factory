@@ -549,3 +549,14 @@ jobs:
           bun-version: latest
       - name: adf+prospect+customer identity required (400); fields from <customer>; advisory identity lock; open recent same-interest lead returned as duplicate
         run: bun run scripts/check-rv-adf-import.ts
+
+  rv-unit-validation:
+    name: RV units need a real identity, edits are validated, the public feed lists available units only
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: category enum, stock/year/make/model required, VIN format; PUT parses unitUpdateSchema; pricing warnings; LISTABLE = available; pending only on explicit export
+        run: bun run scripts/check-rv-unit-validation.ts
