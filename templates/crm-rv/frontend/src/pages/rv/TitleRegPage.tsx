@@ -16,7 +16,7 @@ export default function TitleRegPage() {
   const [live, setLive] = useState(false);
 
   useEffect(() => {
-    api.get('/api/ai-leads/inbox').then((r: any) => {
+    api.get('/api/ai-leads/inbox?stages=closed_won&limit=500').then((r: any) => {
       const ls = r.leads || []; setLeads(ls);
       const pre = new URLSearchParams(window.location.search).get('lead');
       if (pre && ls.find((l: any) => l.id === pre)) setLeadId(pre);

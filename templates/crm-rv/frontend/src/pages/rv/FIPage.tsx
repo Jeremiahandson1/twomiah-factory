@@ -29,7 +29,7 @@ export default function FIPage() {
   const picked = useRef('');
 
   useEffect(() => {
-    api.get('/api/ai-leads/inbox').then((r: any) => setLeads(r.leads || [])).catch(() => {});
+    api.get('/api/ai-leads/inbox?stages=new,contacted,demo,desking,closed_won&limit=500').then((r: any) => setLeads(r.leads || [])).catch(() => {});
     api.get('/api/fi/products').then((r: any) => setProducts(r.products || [])).catch(() => {});
     const pre = new URLSearchParams(window.location.search).get('lead');
     if (pre) pick(pre);

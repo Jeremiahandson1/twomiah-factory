@@ -28,7 +28,7 @@ export default function DeskingPage() {
   const picked = useRef('');
 
   useEffect(() => {
-    api.get('/api/ai-leads/inbox').then((r: any) => setLeads(r.leads || [])).catch(() => {});
+    api.get('/api/ai-leads/inbox?stages=new,contacted,demo,desking,closed_won&limit=500').then((r: any) => setLeads(r.leads || [])).catch(() => {});
     const pre = params.get('lead');
     if (pre) pick(pre);
     // eslint-disable-next-line react-hooks/exhaustive-deps

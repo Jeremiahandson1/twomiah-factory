@@ -2,8 +2,9 @@ import { Hono } from 'hono'
 import { reportAiUsage } from '../services/aiUsage'
 import { db } from '../../db/index.ts'
 import { salesLead, contact, unit, company, user } from '../../db/schema.ts'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { LEAD_STAGES } from './salesLeads.ts'
 
 // AI Lead Responder — for a fresh lead, Claude drafts a personalized, inventory-
 // aware first-touch email + SMS (the "<5-minute response" DP360's AI Advanced sells),
@@ -21,9 +22,21 @@ const UNIT_STATUS_NOTE: Record<string, string> = {
   in_service: 'in the service department and not for sale right now',
 }
 
-// GET /inbox — recent leads with customer + the unit they're interested in
+// GET /inbox — recent leads with customer + the unit they're interested in. With no options: the 30 newest leads (the
+// responder's inbox). The deal pickers (Desking, F&I, Title & Reg) pass ?stages=… and a larger ?limit= (max 500) and
+// get those stages, most recently active first — they had stopped at the 30 newest leads, so an older deal couldn't be
+// picked. (RV T20)
+const PICKER_MAX = 500
 app.get('/inbox', async (c) => {
   const u = c.get('user') as any
+  const stagesParam = c.req.query('stages')
+  const stages = stagesParam === undefined ? null : stagesParam.split(',').map((s) => s.trim()).filter(Boolean)
+  if (stages && (!stages.length || stages.some((s) => !(LEAD_STAGES as readonly string[]).includes(s)))) {
+    return c.json({ error: `stages must be from: ${LEAD_STAGES.join(', ')}` }, 400)
+  }
+  const limitParam = c.req.query('limit')
+  const limit = limitParam === undefined ? 30 : Number(limitParam)
+  if (!Number.isInteger(limit) || limit < 1 || limit > PICKER_MAX) return c.json({ error: `limit must be a whole number from 1 to ${PICKER_MAX}` }, 400)
   try {
     const rows = await db.select({
       id: salesLead.id, stage: salesLead.stage, source: salesLead.source, createdAt: salesLead.createdAt,
@@ -33,9 +46,9 @@ app.get('/inbox', async (c) => {
       .from(salesLead)
       .leftJoin(contact, eq(salesLead.contactId, contact.id))
       .leftJoin(unit, eq(salesLead.unitId, unit.id))
-      .where(eq(salesLead.companyId, u.companyId))
-      .orderBy(desc(salesLead.createdAt))
-      .limit(30)
+      .where(and(eq(salesLead.companyId, u.companyId), stages ? inArray(salesLead.stage, stages) : undefined))
+      .orderBy(stages ? desc(salesLead.updatedAt) : desc(salesLead.createdAt))
+      .limit(limit)
     return c.json({ leads: rows })
   } catch (e: any) { return c.json({ leads: [], error: e?.message }, 200) }
 })
