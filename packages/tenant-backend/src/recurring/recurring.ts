@@ -313,12 +313,32 @@ export function createRecurringService(deps: RecurringServiceDeps) {
     return true
   }
 
+  // The page shows Active / Paused / Total / Monthly revenue — total and the revenue were never returned, so those
+  // two tiles were blank. Monthly revenue is what the ACTIVE schedules bill per month. (Landscaping T14 L5)
   async function getRecurringStats(companyId: string) {
-    const [activeRes, pausedRes] = await Promise.all([
+    const [activeRes, pausedRes, totalRes, activeRows] = await Promise.all([
       db.execute(sql`SELECT count(*)::int as count FROM recurring_invoice WHERE company_id = ${companyId} AND status = 'active'`),
       db.execute(sql`SELECT count(*)::int as count FROM recurring_invoice WHERE company_id = ${companyId} AND status = 'paused'`),
+      db.execute(sql`SELECT count(*)::int as count FROM recurring_invoice WHERE company_id = ${companyId}`),
+      db.execute(sql`SELECT total, frequency FROM recurring_invoice WHERE company_id = ${companyId} AND status = 'active'`),
     ])
-    return { active: rows(activeRes)[0]?.count || 0, paused: rows(pausedRes)[0]?.count || 0 }
+    const perMonth = (frequency: string) => {
+      switch (String(frequency || '').toLowerCase()) {
+        case 'weekly': return 52 / 12
+        case 'biweekly': case 'bi-weekly': case 'fortnightly': return 26 / 12
+        case 'quarterly': return 1 / 3
+        case 'semiannual': case 'semi-annual': case 'semi_annual': return 1 / 6
+        case 'annual': case 'yearly': return 1 / 12
+        default: return 1 // monthly
+      }
+    }
+    const monthly = rows(activeRows).reduce((sum: number, r: any) => sum + (Number(r.total) || 0) * perMonth(r.frequency), 0)
+    return {
+      active: rows(activeRes)[0]?.count || 0,
+      paused: rows(pausedRes)[0]?.count || 0,
+      total: rows(totalRes)[0]?.count || 0,
+      monthlyRecurringRevenue: Math.round(monthly * 100) / 100,
+    }
   }
 
   async function updateRecurringStatus(id: string, status: string, opts?: { nextRunDate?: Date }) {

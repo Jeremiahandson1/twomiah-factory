@@ -7,7 +7,9 @@ import { dateOnly } from '../invoicing/ui'
 /** Date-only values (due dates, scheduled dates) rendered without the UTC-midnight day shift. */
 export const formatDate = (v: unknown): string => { if (!v) return ''; const s = dateOnly(v); return s === '-' ? '' : s }
 export const money = (n: unknown) => `$${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-export const moneyShort = (n: unknown) => `$${Number(n || 0).toLocaleString()}`
+// Money the customer is shown always carries its cents — this used to drop them, so a $824.60 quote read "$824.6".
+// (Landscaping T14 L1; the name is kept because the portal pages use it throughout.)
+export const moneyShort = money
 
 /** Hook-based link (react-router's <Link> does not type-check from the vendored package). */
 export function PLink({ to, className, children, onClick }: { to: string; className?: string; children: React.ReactNode; onClick?: () => void }) {

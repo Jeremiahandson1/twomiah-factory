@@ -769,3 +769,14 @@ jobs:
           bun-version: latest
       - name: "Check properties are managed via /api/sites and picked on both pages"
         run: bun run scripts/check-sites.ts
+
+  money-and-labels:
+    name: "Money and labels guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check portal cents, team rate, singular job label and recurring totals"
+        run: bun run scripts/check-money-and-labels.ts

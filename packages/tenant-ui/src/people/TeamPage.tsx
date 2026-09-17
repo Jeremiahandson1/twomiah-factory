@@ -61,7 +61,8 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'department', label: 'Department', render: (v: any) => v || '-' },
     { key: 'email', label: 'Email', render: (v: any) => v || '-' },
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },
-    { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' ? `$${Number(v)}/hr` : '-') },
+    // a rate is money: 28.5 is $28.50 an hour (T14 L2)
+    { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}/hr` : '-') },
     { key: 'active', label: 'Status', render: (v: any) => (v ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>) },
   ]
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })

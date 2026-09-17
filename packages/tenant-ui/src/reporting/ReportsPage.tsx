@@ -88,6 +88,8 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
         const quotes = data.quotes || { total: 0, approved: 0, conversionRate: 0 }
         const showJobs = cfg.jobs && !cfg.eventsPipeline && !cfg.dealership
         const chartsTwoUp = showJobs || cfg.eventsPipeline || cfg.dealership
+        // "1 jobs completed" reads wrong — a count of one takes the singular label (T14 L6)
+        const labelFor = (n: number) => (n === 1 ? cfg.jobsLabel.replace(/s$/, '') : cfg.jobsLabel).toLowerCase()
         // the conversion rate is approved ÷ decided (approved + rejected + expired); pending quotes don't count yet
         const decided = quotes.approved + (quotes.rejected || 0) + (quotes.expired || 0)
         const quoteSubtitle = quotes.rejected !== undefined
@@ -112,7 +114,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                 </>
               ) : (
                 <>
-                  {showJobs && <Metric title={`${cfg.jobsLabel} completed`} value={jobs.completed} subtitle={`${jobs.total} ${cfg.jobsLabel.toLowerCase()} in this period`} icon={Briefcase} color="blue" trend={jobs.completionRate} trendLabel="completion rate" />}
+                  {showJobs && <Metric title={`${cfg.jobsLabel} completed`} value={jobs.completed} subtitle={`${jobs.total} ${labelFor(jobs.total)} in this period`} icon={Briefcase} color="blue" trend={jobs.completionRate} trendLabel="completion rate" />}
                   {cfg.quotes && <Metric title="Quote conversion" value={`${quotes.conversionRate}%`} subtitle={quoteSubtitle} icon={FileText} color="purple" />}
                 </>
               )}
@@ -155,7 +157,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                           <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center"><Users className="w-4 h-4 text-orange-600 dark:text-orange-300" /></div>
                           <div>
                             <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{[m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ') || 'Team member'}</p>
-                            {showJobs && <p className={`text-xs ${muted}`}>{m.jobsCompleted} {cfg.jobsLabel.toLowerCase()} completed</p>}
+                            {showJobs && <p className={`text-xs ${muted}`}>{m.jobsCompleted} {labelFor(m.jobsCompleted)} completed</p>}
                           </div>
                         </div>
                         <p className="font-medium text-gray-900 dark:text-slate-100">{m.hoursWorked}h</p>
