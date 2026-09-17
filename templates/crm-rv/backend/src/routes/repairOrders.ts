@@ -20,6 +20,56 @@ const RO_STATUS_TEXT: Record<string, string> = {
   ready: 'is ready for pickup',
 }
 
+// ---- Repair order input rules (RV T19 M3) ----
+// Status is one of the shop statuses; estimated/actual totals and service labor/parts amounts are 0 or more; the
+// customer, unit and technician belong to the company. (T19: an RO with a -$50 estimate and status "banana" were
+// saved, and closing the -$50 RO created a $0.00 invoice marked Sent)
+export const RO_STATUSES = ['open', 'in_progress', 'waiting_parts', 'ready', 'closed'] as const
+const MAX_AMOUNT = 10_000_000
+
+function roInputError(body: any, isCreate: boolean): string | null {
+  if (isCreate || 'status' in body) {
+    const status = isCreate ? body.status || 'open' : body.status
+    if (!(RO_STATUSES as readonly string[]).includes(status)) return `Status must be one of: ${RO_STATUSES.join(', ')}`
+  }
+  for (const [k, label] of [['estimatedTotal', 'Estimated total'], ['actualTotal', 'Actual total']] as const) {
+    const v = body[k]
+    if (v === undefined || v === null || v === '') continue
+    const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN
+    if (!Number.isFinite(n) || n < 0 || n > MAX_AMOUNT) return `${label} must be an amount of 0 or more`
+  }
+  if (body.services !== undefined && body.services !== null) {
+    if (!Array.isArray(body.services)) return 'Services must be a list'
+    for (const s of body.services) {
+      if (typeof s === 'string') continue
+      if (!s || typeof s !== 'object') return 'Services must be a list of descriptions or service lines'
+      for (const k of ['laborHours', 'laborCost', 'partsCost']) {
+        if (s[k] === undefined || s[k] === null || s[k] === '') continue
+        const n = Number(s[k])
+        if (!Number.isFinite(n) || n < 0 || n > MAX_AMOUNT) return 'Service labor and parts amounts must be 0 or more'
+      }
+    }
+  }
+  return null
+}
+
+async function roRefError(companyId: string, refs: { customerId?: unknown; unitId?: unknown; technicianId?: unknown }): Promise<{ status: 400 | 404; error: string } | null> {
+  if (refs.customerId !== undefined) {
+    if (typeof refs.customerId !== 'string' || !refs.customerId) return { status: 400, error: 'Customer is required' }
+    const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, refs.customerId), eq(contact.companyId, companyId))).limit(1)
+    if (!ct) return { status: 404, error: 'Customer not found' }
+  }
+  if (refs.unitId) {
+    const [u] = await db.select({ id: unit.id }).from(unit).where(and(eq(unit.id, String(refs.unitId)), eq(unit.companyId, companyId))).limit(1)
+    if (!u) return { status: 404, error: 'Unit not found' }
+  }
+  if (refs.technicianId) {
+    const [t] = await db.select({ id: user.id }).from(user).where(and(eq(user.id, String(refs.technicianId)), eq(user.companyId, companyId))).limit(1)
+    if (!t) return { status: 404, error: 'Technician not found' }
+  }
+  return null
+}
+
 // GET /repair-orders — RO list
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -59,6 +109,11 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
 
+  const inputError = roInputError(body, true)
+  if (inputError) return c.json({ error: inputError }, 400)
+  const refError = await roRefError(currentUser.companyId, { customerId: body.customerId ?? null, unitId: body.unitId, technicianId: body.technicianId })
+  if (refError) return c.json({ error: refError.error }, refError.status)
+
   // Auto-generate RO number
   const [{ value: roCount }] = await db.select({ value: count() }).from(repairOrder).where(eq(repairOrder.companyId, currentUser.companyId))
   const roNumber = body.roNumber || `RO-${String(Number(roCount) + 1).padStart(5, '0')}`
@@ -92,10 +147,21 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const [existing] = await db.select().from(repairOrder).where(and(eq(repairOrder.id, id), eq(repairOrder.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Repair order not found' }, 404)
 
+  const inputError = roInputError(body, false)
+  if (inputError) return c.json({ error: inputError }, 400)
+  const refError = await roRefError(currentUser.companyId, {
+    customerId: 'customerId' in body && body.customerId !== existing.customerId ? body.customerId : undefined,
+    unitId: 'unitId' in body && body.unitId !== existing.unitId ? body.unitId : undefined,
+    technicianId: 'technicianId' in body && body.technicianId !== existing.technicianId ? body.technicianId : undefined,
+  })
+  if (refError) return c.json({ error: refError.error }, refError.status)
+
   // Whitelist editable columns — never let companyId/id be reassigned from the body.
   const EDITABLE = ['status', 'roNumber', 'writeUpDate', 'customerUnitInfo', 'services', 'advisorName', 'estimatedTotal', 'actualTotal', 'notes', 'completedAt', 'unitId', 'technicianId', 'customerId'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  // an empty amount or picker value clears the field (it was written as "" and failed in the database)
+  for (const k of ['estimatedTotal', 'actualTotal', 'unitId', 'technicianId'] as const) if (updates[k] === '') updates[k] = null
   if (body.status === 'closed' && !existing.completedAt) updates.completedAt = new Date()
 
   const [updated] = await db.update(repairOrder).set(updates).where(eq(repairOrder.id, id)).returning()
@@ -119,7 +185,8 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
       lines = [{ description: updated.roNumber ? `Repair Order ${updated.roNumber}` : 'Repair order', quantity: 1, unitPrice: fallback }]
     }
     const totals = calcTotals(lines, 0, 0)
-    try {
+    // nothing to collect (e.g. warranty work billed to the manufacturer): no customer invoice is sent
+    if (totals.total > 0) try {
       billedInvoice = await db.transaction(async (tx: any) => {
         const number = await nextNumber(tx, invoice, invoice.number, invoice.companyId, currentUser.companyId, { prefix: 'INV', pad: 0, seed: 1000 })
         const [inv] = await tx.insert(invoice).values({

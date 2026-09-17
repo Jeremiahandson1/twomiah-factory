@@ -75,8 +75,8 @@ export default function ServicePage() {
     setRows((prev) => prev.map((r) => (r.ro.id === id ? { ...r, ro: { ...r.ro, status } } : r)));
     try {
       await api.put(`/api/repair-orders/${id}`, { status });
-    } catch {
-      alert('Failed to update status');
+    } catch (err) {
+      alert((err as Error)?.message || 'Failed to update status');
       load();
     }
   };

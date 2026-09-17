@@ -571,3 +571,14 @@ jobs:
           bun-version: latest
       - name: "leadRefusal in create/edit tx before writes — stage enum 400; contact/unit/salesperson company-scoped 404; open duplicate 409 under contact lock"
         run: bun run scripts/check-rv-lead-rules.ts
+
+  rv-repair-orders:
+    name: "RV repair orders take real statuses and non-negative amounts; no $0 invoices"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "roInputError + roRefError before writes on create/edit; closing bills only when total > 0; Service page shows the refusal"
+        run: bun run scripts/check-rv-repair-orders.ts
