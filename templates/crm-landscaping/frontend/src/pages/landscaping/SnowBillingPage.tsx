@@ -3,6 +3,7 @@ import { formatDate } from '../../utils/date';
 import { Plus, Trash2, Snowflake, Loader2, CloudSnow } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { SitePicker, useSites } from './SitePicker';
 
 const MODES = [
   { value: 'per_push', label: 'Per Push' },
@@ -37,6 +38,7 @@ export default function SnowBillingPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<any>(EMPTY_CONTRACT);
   const [evForm, setEvForm] = useState<any>({ pushes: 1, snowfallInches: '', saltApplied: false, notes: '' });
+  const { sites, reloadSites } = useSites();
 
   const load = async () => {
     try {
@@ -60,7 +62,7 @@ export default function SnowBillingPage() {
   };
 
   const createContract = async () => {
-    if (!form.siteId) { toast.error('Site ID is required'); return; }
+    if (!form.siteId) { toast.error('Pick the property this contract covers'); return; }
     try {
       await api.post('/api/snow/contracts', form);
       toast.success('Contract created');
@@ -114,8 +116,8 @@ export default function SnowBillingPage() {
 
       {showForm && (
         <div className="bg-white border rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3 dark:bg-slate-900">
-          <Field id="snow-site" label="Site ID">
-            <input id="snow-site" className="w-full border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value })} />
+          <Field id="snow-site" label="Property" className="col-span-2">
+            <SitePicker id="snow-site" value={form.siteId} sites={sites} onAdded={reloadSites} onChange={(siteId) => setForm({ ...form, siteId })} />
           </Field>
           <Field id="snow-mode" label="Billing mode">
             <select id="snow-mode" className="w-full border rounded px-2 py-1.5 text-sm" value={form.billingMode} onChange={e => setForm({ ...form, billingMode: e.target.value })}>

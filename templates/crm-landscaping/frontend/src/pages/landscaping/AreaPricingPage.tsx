@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, Calculator, Loader2, Ruler } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { SitePicker, useSites } from './SitePicker';
 
 const AREA_FIELDS = [
   { value: 'lawnSqft', label: 'Lawn' },
@@ -21,6 +22,7 @@ export default function AreaPricingPage() {
   const [calc, setCalc] = useState({ siteId: '', serviceType: '' });
   const [calcResult, setCalcResult] = useState<any>(null);
   const [measure, setMeasure] = useState<any>({ siteId: '', lawnSqft: '', bedSqft: '', hardscapeSqft: '', drivewaySqft: '', lotSqft: '' });
+  const { sites, reloadSites } = useSites();
 
   const load = async () => {
     try {
@@ -48,7 +50,7 @@ export default function AreaPricingPage() {
   };
 
   const saveMeasurements = async () => {
-    if (!measure.siteId) { toast.error('Site ID required'); return; }
+    if (!measure.siteId) { toast.error('Pick a property first'); return; }
     try {
       await api.put(`/api/area-pricing/sites/${measure.siteId}/measurements`, { ...measure, measurementSource: 'manual' });
       toast.success('Measurements saved');
@@ -114,7 +116,10 @@ export default function AreaPricingPage() {
       <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">
         <h2 className="font-semibold mb-3">Set Property Measurements</h2>
         <div className="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
-          <input className="border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={measure.siteId} onChange={e => setMeasure({ ...measure, siteId: e.target.value })} />
+          <div className="col-span-2">
+            <label htmlFor="area-measure-site" className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Property</label>
+            <SitePicker id="area-measure-site" value={measure.siteId} sites={sites} onAdded={reloadSites} onChange={(siteId) => setMeasure({ ...measure, siteId })} />
+          </div>
           {['lawnSqft', 'bedSqft', 'hardscapeSqft', 'drivewaySqft', 'lotSqft'].map(f => (
             <input key={f} className="border rounded px-2 py-1.5 text-sm" type="number" placeholder={f.replace('Sqft', '') + ' sq ft'} value={measure[f]} onChange={e => setMeasure({ ...measure, [f]: e.target.value })} />
           ))}
@@ -126,7 +131,10 @@ export default function AreaPricingPage() {
       <section className="bg-white border rounded-lg p-5 dark:bg-slate-900">
         <h2 className="font-semibold mb-3 flex items-center gap-2"><Calculator className="w-5 h-5" /> Price a Service for a Property</h2>
         <div className="flex flex-wrap gap-2 items-end">
-          <input className="border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={calc.siteId} onChange={e => setCalc({ ...calc, siteId: e.target.value })} />
+          <div className="min-w-[16rem]">
+            <label htmlFor="area-quote-site" className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">Property</label>
+            <SitePicker id="area-quote-site" value={calc.siteId} sites={sites} onAdded={reloadSites} onChange={(siteId) => setCalc({ ...calc, siteId })} allowAdd={false} />
+          </div>
           <select className="border rounded px-2 py-1.5 text-sm" value={calc.serviceType} onChange={e => setCalc({ ...calc, serviceType: e.target.value })}>
             <option value="">Select service…</option>
             {rates.map(r => <option key={r.id} value={r.serviceType}>{r.serviceType}</option>)}

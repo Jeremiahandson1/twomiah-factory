@@ -68,6 +68,7 @@ import quickbooksRoutes from './routes/quickbooks.ts'
 import recurringRoutes from './routes/recurring.ts'
 import areaPricingRoutes from './routes/areaPricing.ts'
 import snowBillingRoutes from './routes/snowBilling.ts'
+import sitesRoutes from './routes/sites.ts'
 import recurringRouteBoardRoutes from './routes/recurringRoutes.ts'
 import reportingRoutes from './routes/reporting.ts'
 import reviewsRoutes from './routes/reviews.ts'
@@ -283,6 +284,8 @@ app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/recurring', recurringRoutes)
 app.route('/api/area-pricing', areaPricingRoutes)
 app.route('/api/snow', snowBillingRoutes)
+// Properties (sites) — what Snow & Ice Billing and Area Pricing are priced per (T14 M7)
+app.route('/api/sites', sitesRoutes)
 app.route('/api/recurring-routes', recurringRouteBoardRoutes)
 app.route('/api/reports', reportingRoutes)
 app.route('/api/reviews', reviewsRoutes)

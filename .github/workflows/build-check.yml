@@ -758,3 +758,14 @@ jobs:
           bun-version: latest
       - name: "Check Open Jobs counts open work and billed totals keep refunded sales"
         run: bun run scripts/check-dashboard-counts.ts
+
+  sites:
+    name: "Landscaping properties guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check properties are managed via /api/sites and picked on both pages"
+        run: bun run scripts/check-sites.ts
