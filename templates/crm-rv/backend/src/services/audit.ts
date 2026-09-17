@@ -48,6 +48,10 @@ interface AuditLogInput {
   entityName?: string;
   changes?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
+  // Who did it: pass req (user + ip/user-agent), or the user's ids directly — inventory, recurring invoices, bulk, import
+  // and migration pass userId/companyId, and without them company_id (NOT NULL) failed and the entry was lost.
+  userId?: string;
+  companyId?: string;
   req?: {
     user?: { userId?: string; email?: string; companyId?: string };
     ip?: string;
@@ -58,7 +62,7 @@ interface AuditLogInput {
 /**
  * Create audit log entry
  */
-export async function log({ action, entity, entityId, entityName, changes, metadata, req }: AuditLogInput): Promise<void> {
+export async function log({ action, entity, entityId, entityName, changes, metadata, userId, companyId, req }: AuditLogInput): Promise<void> {
   try {
     await db.insert(auditLog).values({
       action,
@@ -67,10 +71,10 @@ export async function log({ action, entity, entityId, entityName, changes, metad
       entityName: entityName || null,
       changes: changes || null,
       metadata: metadata || null,
-      userId: req?.user?.userId || null,
+      userId: req?.user?.userId || userId || null,
       userName: req?.user?.email || null,
       userEmail: req?.user?.email || null,
-      companyId: req?.user?.companyId || null,
+      companyId: req?.user?.companyId || companyId || null,
       ipAddress: (req?.ip || req?.headers?.['x-forwarded-for']) as string || null,
       userAgent: req?.headers?.['user-agent'] as string || null,
     });

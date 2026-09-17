@@ -670,3 +670,14 @@ jobs:
           bun-version: latest
       - name: "Check every shared-invoice CRM refuses an invoice with no line items"
         run: bun run scripts/check-invoice-min-lines.ts
+
+  audit-direct-identity:
+    name: "Audit direct identity guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check audit entries from callers passing userId/companyId are stored"
+        run: bun run scripts/check-audit-direct-identity.ts
