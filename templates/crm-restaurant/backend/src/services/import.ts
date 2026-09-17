@@ -13,7 +13,17 @@ import { db } from '../../db/index.ts'
 import { contact, project, job, user, pricebookItem, invoice, invoiceLineItem, payment, event, eventSpace, menuPackage } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc } from 'drizzle-orm'
 // Events go through the same rules and the same booking write as the form (#162).
-import { EVENT_TYPES, HELD, SpaceClash, createEvent, findClash, validateEventInput } from './eventBooking.ts'
+import { EVENT_STATUSES, EVENT_TYPES, HELD, SpaceClash, createEvent, findClash, validateEventInput } from './eventBooking.ts'
+import { z } from 'zod'
+
+// The contact form's email rule (shared contacts routes: z.string().email(), lower-cased) — an imported
+// contact is held to it too, so "t15import.example.com" is a row error, not a saved contact. (T16 N1)
+const EMAIL = z.string().email()
+const cleanEmail = (raw: string | null): { email: string | null; error?: string } => {
+  if (!raw) return { email: null }
+  const email = raw.toLowerCase().trim()
+  return EMAIL.safeParse(email).success ? { email } : { email: null, error: `"${raw}" is not a valid email address.` }
+}
 
 /**
  * Parse CSV content
@@ -906,15 +916,19 @@ const EVENT_COLUMN_MAP = {
   contactEmail: ['email', 'contact_email', 'customer_email'],
 }
 
-function mapEventStatus(status: string | null): string {
+// Our statuses plus the words other systems use for them. Anything else is a row error, never a silent
+// "Enquiry" — a CSV with status "banana" used to import as an enquiry. (T16 H4)
+function mapEventStatus(status: string | null): string | null {
   if (!status) return 'enquiry'
-  const s = status.toLowerCase()
-  if (s.includes('confirm') || s.includes('booked')) return 'confirmed'
+  const s = status.toLowerCase().trim()
+  if ((EVENT_STATUSES as readonly string[]).includes(s)) return s
+  if (s.includes('confirm') || s.includes('booked') || s.includes('definite')) return 'confirmed'
   if (s.includes('tentative') || s.includes('hold') || s.includes('pencil')) return 'tentative'
   if (s.includes('complete') || s.includes('done')) return 'completed'
   if (s.includes('lost')) return 'lost'
   if (s.includes('cancel')) return 'cancelled'
-  return 'enquiry'
+  if (s.includes('enquir') || s.includes('inquir') || s.includes('prospect') || s.includes('lead')) return 'enquiry'
+  return null
 }
 
 export async function importEvents(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
@@ -938,38 +952,45 @@ export async function importEvents(csvContent: string, companyId: string, option
       if (rawType && !(EVENT_TYPES as readonly string[]).includes(rawType.toLowerCase().trim())) {
         results.errors.push({ line: lineNum, error: `Event type must be one of: ${EVENT_TYPES.join(', ')}` }); results.skipped++; continue
       }
+      const status = mapEventStatus(getValue(row, ...EVENT_COLUMN_MAP.status))
+      if (!status) { results.errors.push({ line: lineNum, error: `Status must be one of: ${EVENT_STATUSES.join(', ')}.` }); results.skipped++; continue }
 
-      // Resolve (or create) the client contact.
+      // Resolve (or create) the client contact — as a client, with the contact form's email rule. The
+      // importer used to save type "customer" (not a type the app has, so no Contacts tile counted it)
+      // and any string as an email. (T16 N1)
       let contactId: string | null = null
       const contactName = getValue(row, ...EVENT_COLUMN_MAP.contactName)
-      const contactEmail = getValue(row, ...EVENT_COLUMN_MAP.contactEmail)
+      const { email: contactEmail, error: emailError } = cleanEmail(getValue(row, ...EVENT_COLUMN_MAP.contactEmail))
+      if (emailError) { results.errors.push({ line: lineNum, error: emailError }); results.skipped++; continue }
       if (contactName || contactEmail) {
         const conds = []
-        if (contactEmail) conds.push(eq(contact.email, contactEmail))
+        if (contactEmail) conds.push(ilike(contact.email, contactEmail))
         if (contactName) conds.push(eq(contact.name, contactName))
         const [existing] = await db.select({ id: contact.id }).from(contact)
           .where(and(eq(contact.companyId, companyId), or(...conds))).limit(1)
         if (existing) contactId = existing.id
         else if (createContacts && !dryRun) {
-          const [nc] = await db.insert(contact).values({ companyId, name: contactName || contactEmail!, email: contactEmail, type: 'customer' }).returning()
+          const [nc] = await db.insert(contact).values({ companyId, name: contactName || contactEmail!, email: contactEmail, type: 'client', source: 'import' }).returning()
           contactId = nc.id
         }
       }
 
-      // Resolve the space by name (optional).
+      // Resolve the space by name (optional). A room the venue doesn't have is a row error — the row used
+      // to import with no room, so a typo silently dropped the booking's space. (T16 H4)
       let spaceId: string | null = null
       const spaceName = getValue(row, ...EVENT_COLUMN_MAP.space)
       if (spaceName) {
         const [sp] = await db.select({ id: eventSpace.id }).from(eventSpace)
           .where(and(eq(eventSpace.companyId, companyId), ilike(eventSpace.name, spaceName))).limit(1)
-        if (sp) spaceId = sp.id
+        if (!sp) { results.errors.push({ line: lineNum, error: `Space "${spaceName}" not found — add it under Spaces first, or leave the column blank.` }); results.skipped++; continue }
+        spaceId = sp.id
       }
 
       const guests = getValue(row, ...EVENT_COLUMN_MAP.guestCount)
       const eventData = {
         name,
         eventType: rawType ? rawType.toLowerCase().trim() : 'private_dining',
-        status: mapEventStatus(getValue(row, ...EVENT_COLUMN_MAP.status)),
+        status,
         eventDate: eventDateVal,
         startTime: getValue(row, ...EVENT_COLUMN_MAP.startTime),
         endTime: getValue(row, ...EVENT_COLUMN_MAP.endTime),

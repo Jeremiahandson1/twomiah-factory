@@ -10,7 +10,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { deriveStatus, round2 } from '../shared/index.ts'
 import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice, backfillEventInvoices } from '../services/eventLedger.ts'
 // What an event may hold and how a booking is written — shared with the CSV importer (#162).
-import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput } from '../services/eventBooking.ts'
+import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput } from '../services/eventBooking.ts'
 
 /**
  * Events — the booking, and everything hanging off it.
@@ -399,8 +399,9 @@ app.post('/:id/timeline', requirePermission('contacts:update'), async (c) => {
 
   const ev = await ownEvent(currentUser.companyId, eventId)
   if (!ev) return c.json({ error: 'Event not found' }, 404)
-  if (typeof body.time !== 'string' || !body.time.trim()) return c.json({ error: 'time is required' }, 400)
-  if (typeof body.title !== 'string' || !body.title.trim()) return c.json({ error: 'title is required' }, 400)
+  // The same rules as the edit: a real HH:MM time, a title, a department from the list. (T16 M3)
+  const vErr = validateTimelineInput(body)
+  if (vErr) return c.json({ error: vErr }, 400)
 
   const [created] = await db.insert(eventTimeline).values({
     id: createId(),
@@ -429,6 +430,8 @@ app.put('/:id/timeline/:lineId', requirePermission('contacts:update'), async (c)
     .where(and(eq(eventTimeline.id, lineId), eq(eventTimeline.eventId, eventId), eq(eventTimeline.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Timeline line not found' }, 404)
+  const vErr = validateTimelineInput(body, existing)
+  if (vErr) return c.json({ error: vErr }, 400)
 
   const EDITABLE = ['time', 'title', 'department', 'details', 'sortOrder'] as const
   const updates: any = { updatedAt: new Date() }

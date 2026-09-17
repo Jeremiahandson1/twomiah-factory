@@ -1,15 +1,15 @@
-// Event booking rules — ONE set of them for everything that writes an event: POST /events, PUT /events/:id
+// Event booking rules â€” ONE set of them for everything that writes an event: POST /events, PUT /events/:id
 // and the CSV importer. What an event may hold (validateEventInput) and how a booking is written
 // (createEvent: the per-business lock, the room-clash check, the row, the room-hire line). The importer
 // once inserted straight into the table with none of this, so a CSV could double-book a room and save
-// dates, times, guest counts, money and types the form refuses (T15 B1/H4, M1–M4). (#162)
+// dates, times, guest counts, money and types the form refuses (T15 B1/H4, M1â€“M4). (#162)
 import { and, eq, gte, inArray, notInArray, ne, isNotNull, sql, count, countDistinct } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
 import { event, eventSpace, eventMenuItem } from '../../db/schema.ts'
 import { EXIT_STATUSES } from './eventLedger.ts'
 
-// The lists the frontend offers (pages/events/EventsPage.tsx STATUSES / EVENT_TYPES) — pinned equal by
+// The lists the frontend offers (pages/events/EventsPage.tsx STATUSES / EVENT_TYPES) â€” pinned equal by
 // scripts/check-events-input.ts, so a status or type is one vocabulary end to end.
 export const EVENT_STATUSES = ['enquiry', 'tentative', 'confirmed', 'completed', 'lost', 'cancelled'] as const
 export const EVENT_TYPES = ['private_dining', 'wedding', 'corporate', 'birthday', 'anniversary', 'funeral', 'christmas_party', 'other'] as const
@@ -20,8 +20,10 @@ export const EVENT_TYPES = ['private_dining', 'wedding', 'corporate', 'birthday'
 export const HELD = ['tentative', 'confirmed', 'completed']
 
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
+export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 export const MAX_EVENT_NAME = 200
+// Run-of-show departments â€” the frontend's list (EventDetailPage.tsx DEPARTMENTS), pinned equal by the guard.
+export const TIMELINE_DEPARTMENTS = ['floor', 'kitchen', 'bar', 'av', 'setup'] as const
 
 /** A YYYY-MM-DD string that is a real calendar day (2027-02-30 and 2026-13-45 are not). */
 export function isCalendarDate(v: unknown): boolean {
@@ -37,7 +39,7 @@ const has = (input: Record<string, any>, k: string) => k in input
 
 /**
  * The rules, on a create body or an update patch. `existing` supplies the other half of a pair (start/end
- * times, guest counts) when a patch changes only one of them — the same "effective values" check PUT
+ * times, guest counts) when a patch changes only one of them â€” the same "effective values" check PUT
  * always did. Returns the first problem as the message the form shows.
  */
 export function validateEventInput(input: Record<string, any>, existing?: Record<string, any> | null): string | null {
@@ -62,7 +64,7 @@ export function validateEventInput(input: Record<string, any>, existing?: Record
   const start = eff('startTime'), end = eff('endTime')
   if (start && end && String(end) <= String(start)) return 'End time must be after the start time.'
 
-  // Server-side event validation — the API accepted end-before-start, negative and absurd guest counts,
+  // Server-side event validation â€” the API accepted end-before-start, negative and absurd guest counts,
   // and persisted them (only the widget validated). (F5)
   const g = num(eff('guestCount')), gf = num(eff('guestCountFinal'))
   if (g != null && (isNaN(g) || g < 0 || g > 1000000)) return 'Guest count must be between 0 and 1,000,000.'
@@ -75,6 +77,27 @@ export function validateEventInput(input: Record<string, any>, existing?: Record
     if (isNaN(v)) return `${label} must be a number.`
     if (v < 0) return `${label} cannot be negative.`
   }
+  return null
+}
+
+/**
+ * The run-of-show rules, on a create body or an update patch: a real HH:MM time, a title, a department
+ * from the list. Run-of-show lines saved 99:99 and department "banana" while the event form refused
+ * both. (T16 M3)
+ */
+export function validateTimelineInput(input: Record<string, any>, existing?: Record<string, any> | null): string | null {
+  const creating = !existing
+  if (creating || has(input, 'time')) {
+    if (typeof input.time !== 'string' || !input.time.trim()) return 'time is required'
+    if (!TIME_RE.test(input.time.trim())) return 'Times must be HH:MM (24-hour clock).'
+  }
+  if (creating || has(input, 'title')) {
+    if (typeof input.title !== 'string' || !input.title.trim()) return 'title is required'
+  }
+  if (has(input, 'department') && input.department != null && input.department !== '' && !(TIMELINE_DEPARTMENTS as readonly string[]).includes(input.department)) {
+    return `Department must be one of: ${TIMELINE_DEPARTMENTS.join(', ')}.`
+  }
+  if (has(input, 'sortOrder') && input.sortOrder != null && !Number.isInteger(Number(input.sortOrder))) return 'sortOrder must be a whole number.'
   return null
 }
 
@@ -108,7 +131,7 @@ export async function syncHireLine(tx: any, companyId: string, ev: { id: string;
   const [space] = await tx.select().from(eventSpace).where(and(eq(eventSpace.id, ev.spaceId), eq(eventSpace.companyId, companyId))).limit(1)
   if (!space || !(Number(space.hireFee) > 0)) return
   await tx.insert(eventMenuItem).values({
-    id: createId(), eventId: ev.id, spaceId: space.id, name: `Room hire — ${space.name}`,
+    id: createId(), eventId: ev.id, spaceId: space.id, name: `Room hire â€” ${space.name}`,
     perPerson: false, quantity: 1, unitPrice: space.hireFee, companyId,
   })
 }
@@ -151,10 +174,10 @@ export async function createEvent(tx: any, companyId: string, body: Record<strin
   return row
 }
 
-// ── Retiring what upcoming bookings still use ───────────────────────────────────────────────────
+// â”€â”€ Retiring what upcoming bookings still use â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Rooms and packages are retired (active = false), never deleted, so history keeps them. But a room
 // that still holds upcoming bookings, or a package still on upcoming menus, vanishes from every picker
-// the moment it is retired — those bookings must be moved first. (T15 H1)
+// the moment it is retired â€” those bookings must be moved first. (T15 H1)
 // "Upcoming" is the dashboard's rule: dated today (UTC calendar day) or later.
 export const todayUtc = () => new Date().toISOString().slice(0, 10)
 // A room is held by tentative/confirmed bookings (the same statuses that block a clash today).
@@ -175,5 +198,5 @@ export async function upcomingEventsUsingPackage(companyId: string, packageId: s
   return Number(row?.value || 0)
 }
 
-export const retireSpaceRefusal = (name: string, n: number) => `"${name}" still has ${n} upcoming booking${n === 1 ? '' : 's'} — move ${n === 1 ? 'it' : 'them'} to another room first.`
-export const retirePackageRefusal = (name: string, n: number) => `"${name}" is on the menu of ${n} upcoming event${n === 1 ? '' : 's'} — change ${n === 1 ? 'its menu' : 'their menus'} first.`
+export const retireSpaceRefusal = (name: string, n: number) => `"${name}" still has ${n} upcoming booking${n === 1 ? '' : 's'} â€” move ${n === 1 ? 'it' : 'them'} to another room first.`
+export const retirePackageRefusal = (name: string, n: number) => `"${name}" is on the menu of ${n} upcoming event${n === 1 ? '' : 's'} â€” change ${n === 1 ? 'its menu' : 'their menus'} first.`
