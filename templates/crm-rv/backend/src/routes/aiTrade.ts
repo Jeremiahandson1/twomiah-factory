@@ -12,11 +12,20 @@ app.use('*', authenticate)
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
 const DISCLAIMER = 'AI market estimate based on typical 2026 US values — directional, not a book quote. Authoritative book + wholesale-auction values connect via J.D. Power / Price Digests (book) and NPA Value Guide Pro (auction).'
 
+// A unit the model can actually value: a real model year, a known category and condition — checked before any AI
+// call. (RV T19 L4: year 1800 / 3000 came back at about $21,000; category and condition "banana" were accepted)
+const CATEGORIES = ['motorhome', 'towable', 'motorcycle', 'atv', 'utv', 'sxs', 'pwc', 'snowmobile', 'boat']
+const CONDITIONS = ['excellent', 'good', 'fair', 'rough']
+
 app.post('/appraise', async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const make = String(body.make || '').trim()
   const model = String(body.model || '').trim()
   if (!make || !model) return c.json({ error: 'Enter at least a make and model.' }, 400)
+  const maxYear = new Date().getFullYear() + 1
+  if (body.year !== undefined && body.year !== null && body.year !== '' && !(Number.isInteger(body.year) && body.year >= 1900 && body.year <= maxYear)) return c.json({ error: `Year must be between 1900 and ${maxYear}.` }, 400)
+  if (body.category !== undefined && body.category !== null && body.category !== '' && !CATEGORIES.includes(body.category)) return c.json({ error: `Category must be one of: ${CATEGORIES.join(', ')}.` }, 400)
+  if (body.condition !== undefined && body.condition !== null && body.condition !== '' && !CONDITIONS.includes(body.condition)) return c.json({ error: `Condition must be one of: ${CONDITIONS.join(', ')}.` }, 400)
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return c.json({ error: 'AI isn’t configured yet (missing ANTHROPIC_API_KEY).' }, 503)

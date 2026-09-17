@@ -637,3 +637,14 @@ jobs:
           bun-version: latest
       - name: "findCatalogPart per item, catalog price and name, quantity 1-999, per-company list, Order button shows results"
         run: bun run scripts/check-rv-parts-orders.ts
+
+  rv-trade-appraisal:
+    name: "RV AI trade appraisal validates year, category and condition before the AI call"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "year 1900..next year, category and condition from the lists, checked before fetch"
+        run: bun run scripts/check-rv-trade-appraisal.ts
