@@ -183,6 +183,13 @@
       "when": 1791400600000,
       "tag": "0025_sales_lead_deal",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1791400700000,
+      "tag": "0026_rental_reservation",
+      "breakpoints": true
     }
   ]
 }

@@ -3863,6 +3863,33 @@ export const salesLead = pgTable('sales_lead', {
   index('sales_lead_contact_id_idx').on(t.contactId),
 ])
 
+// ==================== RENTALS ====================
+// A rental reservation on an inventory unit. Dates are the pick-up and return days; days and total are computed by
+// the server. A unit can't hold two reservations whose dates overlap (routes/rentals.ts, under a unit row lock).
+// unitLabel keeps the unit's description if the unit is later deleted. (RV T19 H5: rentals lived in server memory)
+
+export const rentalReservation = pgTable('rental_reservation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  unitLabel: text('unit_label').notNull(),
+  customerName: text('customer_name').notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  days: integer('days').notNull(),
+  dailyRate: decimal('daily_rate', { precision: 10, scale: 2 }).notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).notNull(),
+  status: text('status').default('reserved').notNull(), // reserved, out, returned, cancelled
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  unitId: text('unit_id').references(() => unit.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('rental_reservation_company_id_idx').on(t.companyId),
+  index('rental_reservation_unit_id_start_date_idx').on(t.unitId, t.startDate),
+])
+
 // ==================== REPAIR ORDERS ====================
 
 export const repairOrder = pgTable('repair_order', {

@@ -527,3 +527,14 @@ jobs:
           bun-version: latest
       - name: precomputedTotals in the model context + instruction; fixReportTotals corrects wrong Total rows and repeats, with a note; pure helper behaviour on the T19 shape
         run: bun run scripts/check-rv-ai-report-totals.ts
+
+  rv-rentals:
+    name: RV rentals are stored, validated and never double-booked
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: rental_reservation + migration; no in-memory/made-up rows; server days/total; unit lock + overlap 409; status flow; revenue excludes cancelled; page books a real unit
+        run: bun run scripts/check-rv-rentals.ts
