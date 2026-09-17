@@ -32,6 +32,7 @@ const NAV: NavItem[] = [
 
 export const SHELL: ShellConfig = {
   nav: NAV,
+  searchPlaceholder: 'Search patients, owners, invoices...',
   routeGates: {
 
   },

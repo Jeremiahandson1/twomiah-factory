@@ -43,6 +43,8 @@ export interface ShellConfig {
   }
   /** "Back to Portal" link at the top of the sidebar. Default true. */
   backToPortal?: boolean
+  /** The header search box's placeholder in this vertical's words. Default "Search contacts, jobs, invoices...". */
+  searchPlaceholder?: string
 }
 
 export interface AppShellProps {

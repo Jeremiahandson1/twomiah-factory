@@ -19,6 +19,12 @@ const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 const search = read('packages/tenant-ui/src/shell/GlobalSearch.tsx')
 if (/aria-label="Search \(Ctrl\+K\)"/.test(search) && /className="hidden md:flex[^"]*"[^>]*aria-label="Search \(Ctrl\+K\)"/.test(search)) fail('GlobalSearch: the header search button must not be hidden below md')
 if (!/<button type="button" onClick=\{\(\) => setIsOpen\(true\)\} className="flex items-center/.test(search)) fail('GlobalSearch: the header search button must render at every width')
+// the search placeholder speaks each vertical's words (events T18: "Search contacts, jobs, invoices" on an events venue)
+if (!/placeholder=\{placeholder\}/.test(search) || /placeholder="Search contacts, jobs, invoices\.\.\."/.test(search)) fail('GlobalSearch: the placeholder must come from the shell config, not be hard-coded')
+if (!/<GlobalSearch api=\{api\} placeholder=\{config\.searchPlaceholder\} \/>/.test(read('packages/tenant-ui/src/shell/AppShell.tsx'))) fail('AppShell must pass config.searchPlaceholder to GlobalSearch')
+for (const [t, words] of [['crm-restaurant', 'events'], ['crm-vet', 'patients'], ['crm-salon', 'services'], ['crm-fieldservice', 'service calls'], ['crm-landscaping', 'service calls']] as const) {
+  if (!new RegExp(`searchPlaceholder: 'Search [^']*${words}`).test(read(`templates/${t}/frontend/src/shellConfig.ts`))) fail(`${t} shellConfig must set a searchPlaceholder naming ${words}`)
+}
 
 // M7
 const HELP = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']

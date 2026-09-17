@@ -30,6 +30,7 @@ const NAV: NavItem[] = [
 
 export const SHELL: ShellConfig = {
   nav: NAV,
+  searchPlaceholder: 'Search events, contacts, invoices...',
   routeGates: {
   '/crm/jobs': ['jobs'],
   '/crm/quotes': ['quotes'],

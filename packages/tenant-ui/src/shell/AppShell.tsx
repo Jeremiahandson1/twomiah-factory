@@ -145,7 +145,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
               <Menu className="w-6 h-6" />
             </button>
 
-            <div className="flex-1 max-w-md ml-4"><GlobalSearch api={api} /></div>
+            <div className="flex-1 max-w-md ml-4"><GlobalSearch api={api} placeholder={config.searchPlaceholder} /></div>
 
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`} title={connected ? 'Connected' : 'Disconnected'} aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'} />
