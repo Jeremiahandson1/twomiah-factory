@@ -42,9 +42,17 @@ const notConfiguredLender: LenderProvider = {
 //   const lender = dealerTrackProvider // DealerTrack credit
 const lender: LenderProvider = notConfiguredLender
 
+// A credit application must make sense before it goes to a lender: an amount financed above $0, a term the F&I page
+// offers, and only products from the menu. (RV T19 L2: -$5, a 0-month term and product "banana" were accepted)
+const TERMS = [24, 36, 48, 60, 72, 84, 120, 144, 180, 240]
 app.post('/submit', async (c) => {
   const body = await c.req.json().catch(() => ({}))
   if (!body?.applicant?.name) return c.json({ error: 'Applicant name is required.' }, 400)
+  const amount = Number(body.amountFinanced)
+  if (typeof body.amountFinanced !== 'number' || !Number.isFinite(amount) || amount <= 0 || amount > 10_000_000) return c.json({ error: 'Amount financed must be more than $0.' }, 400)
+  if (!TERMS.includes(Number(body.term))) return c.json({ error: `Term must be one of: ${TERMS.join(', ')} months.` }, 400)
+  const products = body.products === undefined ? [] : body.products
+  if (!Array.isArray(products) || products.some((p: unknown) => typeof p !== 'string' || !PRODUCTS.some((x) => x.id === p))) return c.json({ error: `Products must be from the F&I menu: ${PRODUCTS.map((p) => p.id).join(', ')}.` }, 400)
   let result: any
   try { result = await lender.submit(body) } catch (e: any) { return c.json({ error: 'Credit-app submit failed: ' + (e?.message || e) }, 502) }
   return c.json({ result, provider: lender.name, live: lender.live, submittedAt: new Date().toISOString() })

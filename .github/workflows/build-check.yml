@@ -615,3 +615,14 @@ jobs:
           bun-version: latest
       - name: "sales-report endpoint (units sold, gross from desk, close rate, pipeline, service) + dealership mode; quote label approved of decided"
         run: bun run scripts/check-rv-dealer-reports.ts
+
+  rv-deal-jacket:
+    name: "RV title & registration for sold deals only; F&I credit apps validated"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "title-reg loads the company deal, refuses unsold, fee from desk, list scoped; F&I amount/term/products validated before lender submit"
+        run: bun run scripts/check-rv-deal-jacket.ts
