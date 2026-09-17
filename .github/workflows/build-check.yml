@@ -582,3 +582,14 @@ jobs:
           bun-version: latest
       - name: "roInputError + roRefError before writes on create/edit; closing bills only when total > 0; Service page shows the refusal"
         run: bun run scripts/check-rv-repair-orders.ts
+
+  inventory-items:
+    name: "Inventory items need a name and non-negative amounts; edits write only item fields"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "itemFields validation for create/update; updateItem never writes the raw body; PUT 404 for other companies; form shows refusals"
+        run: bun run scripts/check-inventory-items.ts

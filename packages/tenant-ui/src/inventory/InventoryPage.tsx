@@ -591,7 +591,7 @@ function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
       }
       onSave();
     } catch (error) {
-      alert('Failed to save item');
+      alert((error as Error)?.message || 'Failed to save item');
     } finally {
       setSaving(false);
     }

@@ -56,6 +56,47 @@ function positiveQuantity(v: unknown, label = 'Quantity'): number {
   return n
 }
 
+/**
+ * Validated item fields. On create every field gets a value (blank money/levels → 0); on update only the fields sent
+ * are returned, from an allow-list — the company and id can never be set from the request.
+ * (RV T19 M4: cost -$5, price -$10, reorder point -3 and a blank name were accepted; updateItem wrote the raw body)
+ */
+const ITEM_TEXT = ['description', 'category', 'unit', 'vendor', 'vendorPartNumber', 'barcode', 'imageUrl'] as const
+const ITEM_MONEY = [['unitCost', 'Unit cost'], ['unitPrice', 'Unit price']] as const
+const ITEM_LEVELS = [['minStockLevel', 'Minimum stock level'], ['reorderPoint', 'Reorder point'], ['reorderQuantity', 'Reorder quantity']] as const
+function itemFields(data: any, isCreate: boolean): Record<string, any> {
+  const d = data && typeof data === 'object' ? data : {}
+  const out: Record<string, any> = {}
+  if (isCreate || 'name' in d) {
+    const name = typeof d.name === 'string' ? d.name.trim() : ''
+    if (!name) throw new InventoryError('Item name is required', 400)
+    out.name = name
+  }
+  if ('sku' in d && typeof d.sku === 'string' && d.sku.trim()) out.sku = d.sku.trim()
+  for (const k of ITEM_TEXT) if (k in d) out[k] = d[k] == null ? null : String(d[k])
+  for (const [k, label] of ITEM_MONEY) {
+    if (!isCreate && !(k in d)) continue
+    const v = d[k]
+    const n = v === undefined || v === null || v === '' ? 0 : typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN
+    if (!Number.isFinite(n) || n < 0 || n > 10_000_000) throw new InventoryError(`${label} must be an amount of 0 or more`, 400)
+    out[k] = String(Math.round(n * 100) / 100)
+  }
+  for (const [k, label] of ITEM_LEVELS) {
+    if (!isCreate && !(k in d)) continue
+    const v = d[k]
+    const n = v === undefined || v === null || v === '' ? 0 : wholeNumber(v)
+    if (n === null || n < 0 || n > MAX_MOVE) throw new InventoryError(`${label} must be a whole number of 0 or more`, 400)
+    out[k] = n
+  }
+  if (isCreate) { out.unit = out.unit || 'each'; out.taxable = typeof d.taxable === 'boolean' ? d.taxable : true }
+  else {
+    if (typeof d.taxable === 'boolean') out.taxable = d.taxable
+    if (typeof d.active === 'boolean') out.active = d.active
+    if ('unit' in d && !out.unit) delete out.unit // unit is required in the table: an empty value keeps the current one
+  }
+  return out
+}
+
 export function createInventoryService(deps: InventoryServiceDeps) {
   const { db, tables, emailService } = deps
   const {
@@ -71,25 +112,13 @@ export function createInventoryService(deps: InventoryServiceDeps) {
  * Create inventory item
  */
 async function createItem(companyId: string, data: any) {
-  const sku = data.sku || await generateSku(companyId)
+  const fields = itemFields(data, true)
+  const sku = fields.sku || await generateSku(companyId)
 
   const [item] = await db.insert(inventoryItem).values({
     companyId,
+    ...fields,
     sku,
-    name: data.name,
-    description: data.description,
-    category: data.category,
-    unitCost: String(data.unitCost || 0),
-    unitPrice: String(data.unitPrice || 0),
-    unit: data.unit || 'each',
-    minStockLevel: data.minStockLevel || 0,
-    reorderPoint: data.reorderPoint || 0,
-    reorderQuantity: data.reorderQuantity || 0,
-    vendor: data.vendor,
-    vendorPartNumber: data.vendorPartNumber,
-    barcode: data.barcode,
-    imageUrl: data.imageUrl,
-    taxable: data.taxable ?? true,
     active: true,
   }).returning()
 
@@ -231,9 +260,12 @@ async function getItem(itemId: string, companyId: string) {
  * Update inventory item
  */
 async function updateItem(itemId: string, companyId: string, data: any) {
+  const fields = itemFields(data, false)
+  if (!Object.keys(fields).length) return []
   return db.update(inventoryItem)
-    .set(data)
+    .set(fields)
     .where(and(eq(inventoryItem.id, itemId), eq(inventoryItem.companyId, companyId)))
+    .returning()
 }
 
 /**
@@ -994,8 +1026,9 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   // Create item
   app.post('/items', requirePermission('inventory:create'), async (c) => {
     const user = c.get('user') as any
-    const body = await c.req.json()
-    const item = await service.createItem(user.companyId, body)
+    const body = await c.req.json().catch(() => ({}))
+    let item
+    try { item = await service.createItem(user.companyId, body) } catch (err) { return refused(c, err) }
 
     audit.log({
       action: 'INVENTORY_ITEM_CREATED',
@@ -1013,8 +1046,9 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   app.put('/items/:id', requirePermission('inventory:update'), async (c) => {
     const user = c.get('user') as any
     const id = c.req.param('id')
-    const body = await c.req.json()
-    await service.updateItem(id, user.companyId, body)
+    const body = await c.req.json().catch(() => ({}))
+    if (!(await service.getItem(id, user.companyId))) return c.json({ error: 'Item not found' }, 404)
+    try { await service.updateItem(id, user.companyId, body) } catch (err) { return refused(c, err) }
     const item = await service.getItem(id, user.companyId)
     return c.json(item)
   })
