@@ -6,7 +6,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi } from '../../db/schema.ts'
+import { contact, project, job, quote, invoice, document, teamMember, rfi, unit } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
 
 interface SearchResult {
@@ -37,9 +37,45 @@ export async function globalSearch(
   const perType = Math.ceil(limit / 6)
   const pattern = `%${searchTerm}%`
 
-  const searchTypes = types || ['contact', 'project', 'job', 'quote', 'invoice', 'document']
+  const searchTypes = types || ['unit', 'contact', 'project', 'job', 'quote', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
+
+  // Units — for a dealership the most searched records: stock number, VIN, make, model, trim or year. A result opens
+  // the Inventory page filtered to that unit (there is no per-unit page). (RV T19 M7: "Bennington" found nothing)
+  if (searchTypes.includes('unit')) {
+    searches.push(
+      db
+        .select({ id: unit.id, year: unit.year, make: unit.make, modelName: unit.modelName, trim: unit.trim, stockNumber: unit.stockNumber, vin: unit.vin, status: unit.status })
+        .from(unit)
+        .where(
+          and(
+            eq(unit.companyId, companyId),
+            or(
+              ilike(unit.stockNumber, pattern),
+              ilike(unit.vin, pattern),
+              ilike(unit.make, pattern),
+              ilike(unit.modelName, pattern),
+              ilike(unit.trim, pattern),
+              sql`cast(${unit.year} as text) like ${pattern}`
+            )
+          )
+        )
+        .orderBy(desc(unit.updatedAt))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'unit',
+            subtype: item.status,
+            id: item.id,
+            name: [item.year, item.make, item.modelName, item.trim].filter(Boolean).join(' ') || item.stockNumber || 'Unit',
+            description: [item.stockNumber ? `Stock ${item.stockNumber}` : '', item.status].filter(Boolean).join(' · '),
+            url: `/crm/units?search=${encodeURIComponent(item.stockNumber || item.vin || item.modelName || '')}`,
+            icon: 'caravan',
+          }))
+        )
+    )
+  }
 
   // Contacts
   if (searchTypes.includes('contact')) {

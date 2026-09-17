@@ -593,3 +593,14 @@ jobs:
           bun-version: latest
       - name: "itemFields validation for create/update; updateItem never writes the raw body; PUT 404 for other companies; form shows refusals"
         run: bun run scripts/check-inventory-items.ts
+
+  rv-search-units:
+    name: "RV global search finds inventory units"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "unit search (stock/VIN/make/model/trim/year) company-scoped, default type, gated on unit_inventory; result opens /crm/units?search="
+        run: bun run scripts/check-rv-search-units.ts

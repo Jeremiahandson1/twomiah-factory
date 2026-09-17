@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Caravan, Plus, Search, Loader2, Edit2, Trash2, X,
   ShieldAlert, Download, Tag, DollarSign, Link2, Copy, Check, RefreshCw,
@@ -121,7 +122,10 @@ export default function InventoryPage() {
   const { hasFeature } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [search, setSearch] = useState<string>('');
+  // a global-search result opens this page as /crm/units?search=<stock number> (RV T19 M7)
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState<string>(searchParams.get('search') || '');
+  useEffect(() => { const q = searchParams.get('search'); if (q !== null) setSearch(q); }, [searchParams]);
   const [category, setCategory] = useState<string>('');
   const [status, setStatus] = useState<string>('');
   const [showForm, setShowForm] = useState<boolean>(false);
