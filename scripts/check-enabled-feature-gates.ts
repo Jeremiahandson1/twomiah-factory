@@ -72,6 +72,13 @@ for (const t of TEMPLATES) {
   }
 }
 
+// the Schedule board is the Scheduling module: with it switched off the entry must leave the menu and the URL must be
+// blocked (T14 M5: the drag & drop board stayed fully usable). Salon and restaurant gate it through routeGates; RV's
+// schedule is its own module.
+for (const t of ['crm', 'crm-fieldservice', 'crm-landscaping']) {
+  if (!/\{ to: '\/crm\/schedule', icon: Calendar, label: 'Schedule', features: \['scheduling'\] \}/.test(read(`templates/${t}/frontend/src/shellConfig.ts`))) fail(`${t}: the Schedule entry must be gated on scheduling`)
+}
+
 // email marketing: gated inside the shared routes, public links exempt; processor honours the switch
 const mkt = read('packages/tenant-backend/src/marketing/marketing.ts')
 if (!/featureGate\?: any/.test(mkt)) fail('MarketingRoutesDeps must accept featureGate')

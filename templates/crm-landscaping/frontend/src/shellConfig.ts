@@ -10,7 +10,7 @@ const NAV: NavItem[] = [
   { to: '/crm/jobs', icon: Briefcase, label: 'Service Calls' },
   { to: '/crm/quotes', icon: FileText, label: 'Quotes' },
   { to: '/crm/invoices', icon: Receipt, label: 'Invoices' },
-  { to: '/crm/schedule', icon: Calendar, label: 'Schedule' },
+  { to: '/crm/schedule', icon: Calendar, label: 'Schedule', features: ['scheduling'] },
   { to: '/crm/time', icon: Clock, label: 'Time' },
   { to: '/crm/expenses', icon: DollarSign, label: 'Expenses' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents' },
