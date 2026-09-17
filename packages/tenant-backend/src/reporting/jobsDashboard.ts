@@ -56,12 +56,16 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
 
     // Open = issued and not settled. Drafts, void and refunded invoices are not money owed; the old
     // dashboard counted every non-paid invoice (void ones included) as "open" and summed their totals.
+    // What was BILLED (total / totalValue) is gross — a refunded sale was still invoiced, and is still
+    // counted here, exactly as Reports and the invoice /stats count it (T14 H4 → #204). Only draft and
+    // void never happened.
     const now = new Date()
     const invoiceStats = { total: 0, outstanding: 0, overdue: 0, paid: 0, totalValue: 0, outstandingValue: 0, overdueValue: 0 }
     for (const inv of invoices) {
-      if (ISSUED.includes(inv.status)) continue
+      if (inv.status === 'draft' || inv.status === 'void') continue
       invoiceStats.total++
       invoiceStats.totalValue = r2(invoiceStats.totalValue + num(inv.total))
+      if (ISSUED.includes(inv.status)) continue // refunded: billed, but nothing is owed and it is not "paid"
       if (inv.status === 'paid') { invoiceStats.paid++; continue }
       if (open.includes(inv.status)) {
         const balance = invoiceBalance(inv)
@@ -76,6 +80,9 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
       projects: { total: sumCounts(projectsByStatus), byStatus: byStatus(projectsByStatus) },
       jobs: {
         total: sumCounts(jobsByStatus),
+        // still to do: everything that isn't finished or called off — what an "open jobs" tile means.
+        // (Landscaping T14 M2: the portal's "Open Jobs" showed every job, completed and cancelled included)
+        open: sumCounts(jobsByStatus) - (byStatus(jobsByStatus).completed || 0) - (byStatus(jobsByStatus).cancelled || 0),
         byStatus: byStatus(jobsByStatus),
         today: sumCounts(todayRows),
         todayByStatus,

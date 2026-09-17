@@ -151,7 +151,7 @@ export default function CustomerPortal() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {([
               { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.open ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
               { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (

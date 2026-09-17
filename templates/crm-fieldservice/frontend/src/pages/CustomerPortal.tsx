@@ -117,7 +117,7 @@ export default function CustomerPortal() {
               // /api/dashboard/stats returns { contacts, jobs:{total}, quotes:{pending}, invoices:{totalValue} };
               // the old keys (contactCount/openJobCount/…) never existed, so every tile read 0.
               { label: 'Contacts', value: (stats as any).contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: (stats as any).jobs?.total ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Open Jobs', value: (stats as any).jobs?.open ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Pending Quotes', value: (stats as any).quotes?.pending ?? 0, icon: FileText, color: 'amber' },
               { label: 'Total Invoiced', value: `${Number((stats as any).invoices?.totalValue ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ].map((stat) => (

@@ -747,3 +747,14 @@ jobs:
           bun-version: latest
       - name: "Check landscaping snow visits bill to a locked draft invoice"
         run: bun run scripts/check-snow-billing.ts
+
+  dashboard-counts:
+    name: "Dashboard counts guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check Open Jobs counts open work and billed totals keep refunded sales"
+        run: bun run scripts/check-dashboard-counts.ts
