@@ -450,3 +450,14 @@ jobs:
           bun-version: latest
       - name: applyInvoiceCredit locked, capped at what is owed, re-totalled, recorded, no money moved; POST /:id/credit; Apply credit on the invoice page with a matching preview
         run: bun run scripts/check-invoice-credit.ts
+
+  search-feature-gates:
+    name: Search shows only what the tenant can open (in step with the API gates)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: each CRM's search TYPE_FEATURES agrees with index.ts (gated → same features, unmounted → hidden); search, quick search, Recent and ?types= filtered
+        run: bun run scripts/check-search-feature-gates.ts
