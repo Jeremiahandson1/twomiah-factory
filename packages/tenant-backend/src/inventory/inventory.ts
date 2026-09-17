@@ -36,6 +36,26 @@ export interface InventoryRoutesDeps {
   audit: InventoryAudit
 }
 
+// A refused stock movement: bad input (400), an item/location/record not in this company (404), or not enough on
+// hand (409). Routes answer with the message and status instead of a 500.
+export class InventoryError extends Error {
+  constructor(message: string, public status: 400 | 404 | 409) { super(message) }
+}
+
+const MAX_MOVE = 1_000_000
+
+/** A whole number (a number or integer text such as "4"), else null. */
+function wholeNumber(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*-?\d+\s*$/.test(v) ? Number(v) : NaN
+  return Number.isInteger(n) ? n : null
+}
+function positiveQuantity(v: unknown, label = 'Quantity'): number {
+  const n = wholeNumber(v)
+  if (n === null || n <= 0) throw new InventoryError(`${label} must be a whole number greater than zero`, 400)
+  if (n > MAX_MOVE) throw new InventoryError(`${label} is too large`, 400)
+  return n
+}
+
 export function createInventoryService(deps: InventoryServiceDeps) {
   const { db, tables, emailService } = deps
   const {
@@ -322,6 +342,67 @@ async function getStockLevel(itemId: string, locationId: string) {
   return result || null
 }
 
+// Every stock movement runs in one transaction on locked stock rows, after checking the item and locations belong to
+// the company: a movement that is refused part-way changes nothing, and two movements at once can't overwrite each
+// other. (RV T19 H2: a -2 transfer added 2 at the source, then failed at the destination and left the +2 behind)
+
+async function ownItem(exec: any, companyId: string, itemId: unknown) {
+  if (typeof itemId !== 'string' || !itemId) throw new InventoryError('Item is required', 400)
+  const [item] = await exec.select().from(inventoryItem)
+    .where(and(eq(inventoryItem.id, itemId), eq(inventoryItem.companyId, companyId))).limit(1)
+  if (!item) throw new InventoryError('Item not found', 404)
+  return item
+}
+
+async function ownLocation(exec: any, companyId: string, locationId: unknown, label = 'Location') {
+  if (typeof locationId !== 'string' || !locationId) throw new InventoryError(`${label} is required`, 400)
+  const [location] = await exec.select().from(inventoryLocation)
+    .where(and(eq(inventoryLocation.id, locationId), eq(inventoryLocation.companyId, companyId))).limit(1)
+  if (!location) throw new InventoryError(`${label} not found`, 404)
+  return location
+}
+
+/** The item's stock row at a location, created at 0 if missing, locked for this transaction. */
+async function lockStock(tx: any, itemId: string, locationId: string) {
+  await tx.insert(stockLevel).values({ itemId, locationId, quantity: 0 })
+    .onConflictDoNothing({ target: [stockLevel.itemId, stockLevel.locationId] })
+  const [row] = await tx.select().from(stockLevel)
+    .where(and(eq(stockLevel.itemId, itemId), eq(stockLevel.locationId, locationId))).limit(1).for('update')
+  return row
+}
+
+/** Move stock at one location inside a transaction: refuse going below zero, update, record the transaction. */
+async function moveStock(tx: any, companyId: string, {
+  itemId, location, quantity, reason, userId, jobId, cost, verb = 'remove',
+}: {
+  itemId: string; location: { id: string; name: string }; quantity: number
+  reason?: string; userId?: string; jobId?: string; cost?: number; verb?: string
+}) {
+  const existing = await lockStock(tx, itemId, location.id)
+  const newQuantity = existing.quantity + quantity
+  if (newQuantity < 0) {
+    throw new InventoryError(`Only ${existing.quantity} on hand at ${location.name} — can't ${verb} ${Math.abs(quantity)}.`, 409)
+  }
+  const [updated] = await tx.update(stockLevel)
+    .set({ quantity: newQuantity })
+    .where(eq(stockLevel.id, existing.id))
+    .returning()
+  await tx.insert(inventoryTransaction).values({
+    companyId,
+    itemId,
+    locationId: location.id,
+    type: quantity > 0 ? 'add' : 'remove',
+    quantity: Math.abs(quantity),
+    previousQuantity: existing.quantity,
+    newQuantity,
+    reason,
+    cost: cost ? String(cost) : undefined,
+    userId,
+    jobId,
+  })
+  return { updated, newQuantity }
+}
+
 /**
  * Adjust stock level (add or remove)
  */
@@ -342,46 +423,22 @@ async function adjustStock(companyId: string, {
   jobId?: string
   cost?: number
 }) {
-  // Get or create stock level
-  let existing = await getStockLevel(itemId, locationId)
+  const qty = wholeNumber(quantity)
+  if (qty === null || qty === 0) throw new InventoryError('Quantity must be a whole number other than zero', 400)
+  if (Math.abs(qty) > MAX_MOVE) throw new InventoryError('Quantity is too large', 400)
 
-  if (!existing) {
-    const [created] = await db.insert(stockLevel).values({
-      itemId,
-      locationId,
-      quantity: 0,
-    }).returning()
-    existing = created
-  }
-
-  const newQuantity = existing.quantity + quantity
-
-  if (newQuantity < 0) {
-    throw new Error('Insufficient stock')
-  }
-
-  // Update stock level
-  const [updated] = await db.update(stockLevel)
-    .set({ quantity: newQuantity })
-    .where(eq(stockLevel.id, existing.id))
-    .returning()
-
-  // Record transaction
-  await db.insert(inventoryTransaction).values({
-    companyId,
-    itemId,
-    locationId,
-    type: quantity > 0 ? 'add' : 'remove',
-    quantity: Math.abs(quantity),
-    previousQuantity: existing.quantity,
-    newQuantity,
-    reason,
-    cost: cost ? String(cost) : undefined,
-    userId,
-    jobId,
+  const { updated, newQuantity } = await db.transaction(async (tx: any) => {
+    await ownItem(tx, companyId, itemId)
+    const location = await ownLocation(tx, companyId, locationId)
+    return moveStock(tx, companyId, { itemId, location, quantity: qty, reason, userId, jobId, cost })
   })
 
-  // Check for low stock alert
+  await lowStockAlert(companyId, itemId, newQuantity)
+  return updated
+}
+
+/** Email company admins when a movement leaves an item at or below its reorder point (never blocks the movement). */
+async function lowStockAlert(companyId: string, itemId: string, newQuantity: number) {
   const [item] = await db.select()
     .from(inventoryItem)
     .where(eq(inventoryItem.id, itemId))
@@ -414,8 +471,6 @@ async function adjustStock(companyId: string, {
       // Email service may not be configured — don't block stock updates
     }
   }
-
-  return updated
 }
 
 /**
@@ -436,44 +491,45 @@ async function transferStock(companyId: string, {
   userId?: string
   notes?: string
 }) {
-  // Check source has enough
-  const sourceStock = await getStockLevel(itemId, fromLocationId)
-  if (!sourceStock || sourceStock.quantity < quantity) {
-    throw new Error('Insufficient stock at source location')
-  }
+  const qty = positiveQuantity(quantity)
+  if (fromLocationId === toLocationId) throw new InventoryError('Pick two different locations to transfer between', 400)
 
-  // Remove from source
-  await adjustStock(companyId, {
-    itemId,
-    locationId: fromLocationId,
-    quantity: -quantity,
-    reason: `Transfer to ${toLocationId}`,
-    userId,
+  const result = await db.transaction(async (tx: any) => {
+    await ownItem(tx, companyId, itemId)
+    const from = await ownLocation(tx, companyId, fromLocationId, 'From location')
+    const to = await ownLocation(tx, companyId, toLocationId, 'To location')
+    // lock both rows in a fixed order so two opposite transfers can't deadlock
+    for (const id of [from.id, to.id].sort()) await lockStock(tx, itemId, id)
+
+    // Remove from source
+    const out = await moveStock(tx, companyId, {
+      itemId, location: from, quantity: -qty, reason: `Transfer to ${toLocationId}`, userId, verb: 'move',
+    })
+
+    // Add to destination
+    const into = await moveStock(tx, companyId, {
+      itemId, location: to, quantity: qty, reason: `Transfer from ${fromLocationId}`, userId,
+    })
+
+    // Record transfer
+    const [transfer] = await tx.insert(inventoryTransfer).values({
+      companyId,
+      itemId,
+      fromLocationId,
+      toLocationId,
+      quantity: qty,
+      status: 'completed',
+      notes,
+      userId,
+      completedAt: new Date(),
+    }).returning()
+
+    return { transfer, fromQuantity: out.newQuantity, toQuantity: into.newQuantity }
   })
 
-  // Add to destination
-  await adjustStock(companyId, {
-    itemId,
-    locationId: toLocationId,
-    quantity,
-    reason: `Transfer from ${fromLocationId}`,
-    userId,
-  })
-
-  // Record transfer
-  const [transfer] = await db.insert(inventoryTransfer).values({
-    companyId,
-    itemId,
-    fromLocationId,
-    toLocationId,
-    quantity,
-    status: 'completed',
-    notes,
-    userId,
-    completedAt: new Date(),
-  }).returning()
-
-  return transfer
+  await lowStockAlert(companyId, itemId, result.fromQuantity)
+  await lowStockAlert(companyId, itemId, result.toQuantity)
+  return result.transfer
 }
 
 // ============================================
@@ -498,40 +554,45 @@ async function useOnJob(companyId: string, {
   userId?: string
   unitPrice?: number
 }) {
-  const [item] = await db.select()
-    .from(inventoryItem)
-    .where(eq(inventoryItem.id, itemId))
+  const qty = positiveQuantity(quantity)
 
-  if (!item) throw new Error('Item not found')
+  const { usage, newQuantity } = await db.transaction(async (tx: any) => {
+    const item = await ownItem(tx, companyId, itemId)
+    const location = await ownLocation(tx, companyId, locationId)
 
-  const itemUnitCost = Number(item.unitCost)
-  const itemUnitPrice = Number(item.unitPrice)
+    const itemUnitCost = Number(item.unitCost)
+    const itemUnitPrice = Number(item.unitPrice)
 
-  // Remove from inventory
-  await adjustStock(companyId, {
-    itemId,
-    locationId,
-    quantity: -quantity,
-    reason: 'Used on job',
-    userId,
-    jobId: jobIdParam,
-    cost: itemUnitCost * quantity,
+    // Remove from inventory
+    const moved = await moveStock(tx, companyId, {
+      itemId,
+      location,
+      quantity: -qty,
+      reason: 'Used on job',
+      userId,
+      jobId: jobIdParam,
+      cost: itemUnitCost * qty,
+      verb: 'use',
+    })
+
+    // Record usage
+    const [usage] = await tx.insert(inventoryUsage).values({
+      companyId,
+      jobId: jobIdParam,
+      itemId,
+      locationId,
+      quantity: qty,
+      unitCost: String(itemUnitCost),
+      unitPrice: String(unitPrice || itemUnitPrice),
+      totalCost: String(itemUnitCost * qty),
+      totalPrice: String((unitPrice || itemUnitPrice) * qty),
+      userId,
+    }).returning()
+
+    return { usage, newQuantity: moved.newQuantity }
   })
 
-  // Record usage
-  const [usage] = await db.insert(inventoryUsage).values({
-    companyId,
-    jobId: jobIdParam,
-    itemId,
-    locationId,
-    quantity,
-    unitCost: String(itemUnitCost),
-    unitPrice: String(unitPrice || itemUnitPrice),
-    totalCost: String(itemUnitCost * quantity),
-    totalPrice: String((unitPrice || itemUnitPrice) * quantity),
-    userId,
-  }).returning()
-
+  await lowStockAlert(companyId, itemId, newQuantity)
   return usage
 }
 
@@ -575,31 +636,42 @@ async function returnFromJob(companyId: string, {
   locationId: string
   userId?: string
 }) {
-  const [usage] = await db.select()
-    .from(inventoryUsage)
-    .where(and(eq(inventoryUsage.id, usageId), eq(inventoryUsage.companyId, companyId)))
+  const qty = positiveQuantity(returnQuantity, 'Return quantity')
+  if (typeof usageId !== 'string' || !usageId) throw new InventoryError('Usage record is required', 400)
 
-  if (!usage) throw new Error('Usage record not found')
-  if (returnQuantity > usage.quantity - (usage.returnedQuantity || 0)) {
-    throw new Error('Return quantity exceeds used quantity')
-  }
+  const { updated, newQuantity, itemId } = await db.transaction(async (tx: any) => {
+    const [usage] = await tx.select()
+      .from(inventoryUsage)
+      .where(and(eq(inventoryUsage.id, usageId), eq(inventoryUsage.companyId, companyId)))
+      .limit(1)
+      .for('update')
 
-  // Add back to inventory
-  await adjustStock(companyId, {
-    itemId: usage.itemId,
-    locationId,
-    quantity: returnQuantity,
-    reason: 'Returned from job',
-    userId,
-    jobId: usage.jobId,
+    if (!usage) throw new InventoryError('Usage record not found', 404)
+    if (qty > usage.quantity - (usage.returnedQuantity || 0)) {
+      throw new InventoryError('Return quantity exceeds used quantity', 400)
+    }
+    const location = await ownLocation(tx, companyId, locationId)
+
+    // Add back to inventory
+    const moved = await moveStock(tx, companyId, {
+      itemId: usage.itemId,
+      location,
+      quantity: qty,
+      reason: 'Returned from job',
+      userId,
+      jobId: usage.jobId,
+    })
+
+    // Update usage record
+    const [updated] = await tx.update(inventoryUsage)
+      .set({ returnedQuantity: (usage.returnedQuantity || 0) + qty })
+      .where(eq(inventoryUsage.id, usageId))
+      .returning()
+
+    return { updated, newQuantity: moved.newQuantity, itemId: usage.itemId }
   })
 
-  // Update usage record
-  const [updated] = await db.update(inventoryUsage)
-    .set({ returnedQuantity: (usage.returnedQuantity || 0) + returnQuantity })
-    .where(eq(inventoryUsage.id, usageId))
-    .returning()
-
+  await lowStockAlert(companyId, itemId, newQuantity)
   return updated
 }
 
@@ -698,51 +770,70 @@ async function receivePurchaseOrder(companyId: string, poId: string, {
   items: Array<{ poItemId: string; receivedQuantity: number }>
   userId?: string
 }) {
-  const [po] = await db.select()
-    .from(purchaseOrder)
-    .where(and(eq(purchaseOrder.id, poId), eq(purchaseOrder.companyId, companyId)))
+  if (!Array.isArray(receivedItems)) throw new InventoryError('items must be a list of { poItemId, receivedQuantity }', 400)
+  // a line received as 0 is simply not received this time; anything else must be a whole number above zero
+  const lines = receivedItems
+    .filter((r: any) => wholeNumber(r?.receivedQuantity) !== 0)
+    .map((r: any) => ({ poItemId: r?.poItemId, receivedQuantity: positiveQuantity(r?.receivedQuantity, 'Received quantity') }))
 
-  if (!po) throw new Error('Purchase order not found')
+  const { updated, moves } = await db.transaction(async (tx: any) => {
+    const [po] = await tx.select()
+      .from(purchaseOrder)
+      .where(and(eq(purchaseOrder.id, poId), eq(purchaseOrder.companyId, companyId)))
+      .limit(1)
+      .for('update')
 
-  const poItems = await db.select()
-    .from(purchaseOrderItem)
-    .where(eq(purchaseOrderItem.purchaseOrderId, poId))
+    if (!po) throw new InventoryError('Purchase order not found', 404)
 
-  for (const received of receivedItems) {
-    const poItem = poItems.find(i => i.id === received.poItemId)
-    if (!poItem) continue
+    const poItems = await tx.select()
+      .from(purchaseOrderItem)
+      .where(eq(purchaseOrderItem.purchaseOrderId, poId))
 
-    // Add to inventory
-    await adjustStock(companyId, {
-      itemId: poItem.itemId,
-      locationId: po.locationId,
-      quantity: received.receivedQuantity,
-      reason: `Received from PO ${po.number}`,
-      userId,
-      cost: Number(poItem.unitCost) * received.receivedQuantity,
-    })
+    const location = lines.length ? await ownLocation(tx, companyId, po.locationId) : null
+    const moves: { itemId: string; newQuantity: number }[] = []
 
-    // Update PO item
-    await db.update(purchaseOrderItem)
-      .set({ receivedQuantity: (poItem.receivedQuantity || 0) + received.receivedQuantity })
-      .where(eq(purchaseOrderItem.id, poItem.id))
-  }
+    for (const received of lines) {
+      const poItem = poItems.find((i: any) => i.id === received.poItemId)
+      if (!poItem) continue
 
-  // Check if fully received
-  const updatedPoItems = await db.select()
-    .from(purchaseOrderItem)
-    .where(eq(purchaseOrderItem.purchaseOrderId, poId))
+      // Add to inventory
+      const moved = await moveStock(tx, companyId, {
+        itemId: poItem.itemId,
+        location: location!,
+        quantity: received.receivedQuantity,
+        reason: `Received from PO ${po.number}`,
+        userId,
+        cost: Number(poItem.unitCost) * received.receivedQuantity,
+      })
+      moves.push({ itemId: poItem.itemId, newQuantity: moved.newQuantity })
 
-  const allReceived = updatedPoItems.every(i => i.receivedQuantity >= i.quantity)
+      // Update PO item
+      const [line] = await tx.update(purchaseOrderItem)
+        .set({ receivedQuantity: (poItem.receivedQuantity || 0) + received.receivedQuantity })
+        .where(eq(purchaseOrderItem.id, poItem.id))
+        .returning()
+      poItem.receivedQuantity = line.receivedQuantity
+    }
 
-  const [updated] = await db.update(purchaseOrder)
-    .set({
-      status: allReceived ? 'received' : 'partial',
-      receivedAt: allReceived ? new Date() : undefined,
-    })
-    .where(eq(purchaseOrder.id, poId))
-    .returning()
+    // Check if fully received
+    const updatedPoItems = await tx.select()
+      .from(purchaseOrderItem)
+      .where(eq(purchaseOrderItem.purchaseOrderId, poId))
 
+    const allReceived = updatedPoItems.every((i: any) => i.receivedQuantity >= i.quantity)
+
+    const [updated] = await tx.update(purchaseOrder)
+      .set({
+        status: allReceived ? 'received' : 'partial',
+        receivedAt: allReceived ? new Date() : undefined,
+      })
+      .where(eq(purchaseOrder.id, poId))
+      .returning()
+
+    return { updated, moves }
+  })
+
+  for (const m of moves) await lowStockAlert(companyId, m.itemId, m.newQuantity)
   return updated
 }
 
@@ -853,6 +944,12 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
   const { service, authenticate, requirePermission, audit } = deps
   const app = new Hono()
   app.use('*', authenticate)
+
+  // A refused stock movement answers with its message and status (400/404/409); anything else stays a 500.
+  const refused = (c: any, err: unknown) => {
+    if (err instanceof InventoryError) return c.json({ error: err.message }, err.status)
+    throw err
+  }
 
   // ============================================
   // ITEMS
@@ -975,13 +1072,16 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
       return c.json({ error: 'itemId, locationId, and quantity are required' }, 400)
     }
 
-    const result = await service.adjustStock(user.companyId, {
-      itemId,
-      locationId,
-      quantity: parseInt(quantity),
-      reason,
-      userId: user.userId,
-    })
+    let result
+    try {
+      result = await service.adjustStock(user.companyId, {
+        itemId,
+        locationId,
+        quantity,
+        reason,
+        userId: user.userId,
+      })
+    } catch (err) { return refused(c, err) }
 
     audit.log({
       action: quantity > 0 ? 'INVENTORY_ADDED' : 'INVENTORY_REMOVED',
@@ -1000,18 +1100,21 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     const user = c.get('user') as any
     const { itemId, fromLocationId, toLocationId, quantity, notes } = await c.req.json()
 
-    if (!itemId || !fromLocationId || !toLocationId || !quantity) {
+    if (!itemId || !fromLocationId || !toLocationId || quantity === undefined || quantity === null || quantity === '') {
       return c.json({ error: 'itemId, fromLocationId, toLocationId, and quantity are required' }, 400)
     }
 
-    const transfer = await service.transferStock(user.companyId, {
-      itemId,
-      fromLocationId,
-      toLocationId,
-      quantity: parseInt(quantity),
-      userId: user.userId,
-      notes,
-    })
+    let transfer
+    try {
+      transfer = await service.transferStock(user.companyId, {
+        itemId,
+        fromLocationId,
+        toLocationId,
+        quantity,
+        userId: user.userId,
+        notes,
+      })
+    } catch (err) { return refused(c, err) }
 
     audit.log({
       action: 'INVENTORY_TRANSFERRED',
@@ -1034,20 +1137,21 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     const user = c.get('user') as any
     const { jobId, itemId, locationId, quantity, unitPrice } = await c.req.json()
 
-    if (!jobId || !itemId || !locationId || !quantity) {
+    if (!jobId || !itemId || !locationId || quantity === undefined || quantity === null || quantity === '') {
       return c.json({ error: 'jobId, itemId, locationId, and quantity are required' }, 400)
     }
 
-    const usage = await service.useOnJob(user.companyId, {
-      jobId,
-      itemId,
-      locationId,
-      quantity: parseInt(quantity),
-      userId: user.userId,
-      unitPrice: unitPrice ? parseFloat(unitPrice) : undefined,
-    })
-
-    return c.json(usage)
+    try {
+      const usage = await service.useOnJob(user.companyId, {
+        jobId,
+        itemId,
+        locationId,
+        quantity,
+        userId: user.userId,
+        unitPrice: unitPrice ? parseFloat(unitPrice) : undefined,
+      })
+      return c.json(usage)
+    } catch (err) { return refused(c, err) }
   })
 
   // Get job usage
@@ -1063,14 +1167,15 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     const user = c.get('user') as any
     const { usageId, returnQuantity, locationId } = await c.req.json()
 
-    const result = await service.returnFromJob(user.companyId, {
-      usageId,
-      returnQuantity: parseInt(returnQuantity),
-      locationId,
-      userId: user.userId,
-    })
-
-    return c.json(result)
+    try {
+      const result = await service.returnFromJob(user.companyId, {
+        usageId,
+        returnQuantity,
+        locationId,
+        userId: user.userId,
+      })
+      return c.json(result)
+    } catch (err) { return refused(c, err) }
   })
 
   // ============================================
@@ -1118,10 +1223,13 @@ export function createInventoryRoutes(deps: InventoryRoutesDeps) {
     const id = c.req.param('id')
     const { items } = await c.req.json()
 
-    const po = await service.receivePurchaseOrder(user.companyId, id, {
-      items,
-      userId: user.userId,
-    })
+    let po
+    try {
+      po = await service.receivePurchaseOrder(user.companyId, id, {
+        items,
+        userId: user.userId,
+      })
+    } catch (err) { return refused(c, err) }
 
     audit.log({
       action: 'PURCHASE_ORDER_RECEIVED',

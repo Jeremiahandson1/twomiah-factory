@@ -483,3 +483,14 @@ jobs:
           bun-version: latest
       - name: sales_lead.deal + migration; GET/PUT /:id/deal scoped + validated; Desking saves/reloads via lib/deal; F&I = desked + products; no notes-JSON desk
         run: bun run scripts/check-rv-desked-deal.ts
+
+  inventory-stock-moves:
+    name: Inventory stock moves are validated, company-owned and all-or-nothing (crm, field service, landscaping, RV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: adjust/transfer/use/return/receive in one locked transaction via moveStock; quantity validated; item/location scoped; refusals 400/404/409
+        run: bun run scripts/check-inventory-stock-moves.ts
