@@ -42,5 +42,15 @@ if (!/eq\(site\.id, String\(body\.siteId\)\), eq\(site\.companyId, user\.company
 
 const page = read('templates/crm-landscaping/frontend/src/pages/landscaping/SnowBillingPage.tsx')
 if (!/api\.post\(`\/api\/snow\/contracts\/\$\{ct\.id\}\/bill`, \{\}\)/.test(page) || !/Number\(sm\.unbilledTotal \|\| 0\) > 0 &&/.test(page)) fail('the Snow Billing page must offer Bill for a contract with unbilled charges')
+// every field keeps a visible label — a placeholder vanishes as soon as the operator types (T14 M8)
+if (!/<label htmlFor=\{id\}/.test(page)) fail('the page needs a Field wrapper that labels its input')
+for (const id of ['snow-site', 'snow-mode', 'snow-per-push', 'snow-per-event', 'snow-per-inch', 'snow-seasonal', 'snow-trigger', 'snow-salt', 'snow-pushes', 'snow-inches', 'snow-notes']) {
+  if (!new RegExp(`<Field id="${id}" label="[^"]+"`).test(page) || !new RegExp(`id="${id}"[^>]*(value=|type=)`).test(page)) fail(`the ${id} field must be labelled`)
+}
+const forms = page.slice(page.indexOf('{showForm && ('), page.indexOf('Recent Events'))
+for (const m of forms.match(/<(input|select)\b[^>]*/g) || []) {
+  if (/type="checkbox"/.test(m)) continue // its own wrapping <label>
+  if (!/\bid="snow-/.test(m)) fail(`a snow form field has no labelled id: ${m.slice(0, 80)}`)
+}
 if (failed) { console.error(`\nsnow billing: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('snow billing: unbilled visits bill to one locked, numbered, taxed draft invoice; the page has the Bill button')

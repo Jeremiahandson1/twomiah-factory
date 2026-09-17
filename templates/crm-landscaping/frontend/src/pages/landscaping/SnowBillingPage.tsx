@@ -16,6 +16,17 @@ const EMPTY_CONTRACT = {
   seasonalRate: '', triggerDepthInches: '2', saltRate: '', notes: '',
 };
 
+// Every field keeps its name visible next to the box — a placeholder disappears as soon as the operator types,
+// which left the snow forms unlabelled once they started filling them in. (Landscaping T14 M8)
+function Field({ id, label, children, className = '' }: { id: string; label: string; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <label htmlFor={id} className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-400">{label}</label>
+      {children}
+    </div>
+  );
+}
+
 export default function SnowBillingPage() {
   const toast = useToast();
   const [contracts, setContracts] = useState<any[]>([]);
@@ -103,16 +114,32 @@ export default function SnowBillingPage() {
 
       {showForm && (
         <div className="bg-white border rounded-lg p-5 mb-6 grid grid-cols-2 md:grid-cols-4 gap-3 dark:bg-slate-900">
-          <input className="border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value })} />
-          <select className="border rounded px-2 py-1.5 text-sm" value={form.billingMode} onChange={e => setForm({ ...form, billingMode: e.target.value })}>
-            {MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
-          <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Per-push $" value={form.perPushRate} onChange={e => setForm({ ...form, perPushRate: e.target.value })} />
-          <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Per-event $" value={form.perEventRate} onChange={e => setForm({ ...form, perEventRate: e.target.value })} />
-          <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Per-inch $" value={form.perInchRate} onChange={e => setForm({ ...form, perInchRate: e.target.value })} />
-          <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Seasonal $" value={form.seasonalRate} onChange={e => setForm({ ...form, seasonalRate: e.target.value })} />
-          <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Trigger depth in" value={form.triggerDepthInches} onChange={e => setForm({ ...form, triggerDepthInches: e.target.value })} />
-          <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Salt $" value={form.saltRate} onChange={e => setForm({ ...form, saltRate: e.target.value })} />
+          <Field id="snow-site" label="Site ID">
+            <input id="snow-site" className="w-full border rounded px-2 py-1.5 text-sm" placeholder="Site ID" value={form.siteId} onChange={e => setForm({ ...form, siteId: e.target.value })} />
+          </Field>
+          <Field id="snow-mode" label="Billing mode">
+            <select id="snow-mode" className="w-full border rounded px-2 py-1.5 text-sm" value={form.billingMode} onChange={e => setForm({ ...form, billingMode: e.target.value })}>
+              {MODES.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </Field>
+          <Field id="snow-per-push" label="Per push ($)">
+            <input id="snow-per-push" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Per-push $" value={form.perPushRate} onChange={e => setForm({ ...form, perPushRate: e.target.value })} />
+          </Field>
+          <Field id="snow-per-event" label="Per event ($)">
+            <input id="snow-per-event" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Per-event $" value={form.perEventRate} onChange={e => setForm({ ...form, perEventRate: e.target.value })} />
+          </Field>
+          <Field id="snow-per-inch" label="Per inch ($)">
+            <input id="snow-per-inch" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Per-inch $" value={form.perInchRate} onChange={e => setForm({ ...form, perInchRate: e.target.value })} />
+          </Field>
+          <Field id="snow-seasonal" label="Seasonal ($)">
+            <input id="snow-seasonal" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Seasonal $" value={form.seasonalRate} onChange={e => setForm({ ...form, seasonalRate: e.target.value })} />
+          </Field>
+          <Field id="snow-trigger" label="Trigger depth (in)">
+            <input id="snow-trigger" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Trigger depth in" value={form.triggerDepthInches} onChange={e => setForm({ ...form, triggerDepthInches: e.target.value })} />
+          </Field>
+          <Field id="snow-salt" label="Salt ($)">
+            <input id="snow-salt" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Salt $" value={form.saltRate} onChange={e => setForm({ ...form, saltRate: e.target.value })} />
+          </Field>
           <button onClick={createContract} className="col-span-2 bg-blue-600 text-white rounded px-3 py-1.5 text-sm">Create Contract</button>
         </div>
       )}
@@ -154,12 +181,18 @@ export default function SnowBillingPage() {
             <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
               <h2 className="font-semibold flex items-center gap-2 mb-3"><CloudSnow className="w-5 h-5" /> Log Storm Visit</h2>
               <div className="grid grid-cols-2 gap-2">
-                <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Pushes" value={evForm.pushes} onChange={e => setEvForm({ ...evForm, pushes: e.target.value })} />
-                <input className="border rounded px-2 py-1.5 text-sm" type="number" placeholder="Snowfall in." value={evForm.snowfallInches} onChange={e => setEvForm({ ...evForm, snowfallInches: e.target.value })} />
+                <Field id="snow-pushes" label="Pushes">
+                  <input id="snow-pushes" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Pushes" value={evForm.pushes} onChange={e => setEvForm({ ...evForm, pushes: e.target.value })} />
+                </Field>
+                <Field id="snow-inches" label="Snowfall (in)">
+                  <input id="snow-inches" className="w-full border rounded px-2 py-1.5 text-sm" type="number" placeholder="Snowfall in." value={evForm.snowfallInches} onChange={e => setEvForm({ ...evForm, snowfallInches: e.target.value })} />
+                </Field>
                 <label className="flex items-center gap-2 text-sm col-span-2">
                   <input type="checkbox" checked={evForm.saltApplied} onChange={e => setEvForm({ ...evForm, saltApplied: e.target.checked })} /> Salt applied
                 </label>
-                <input className="border rounded px-2 py-1.5 text-sm col-span-2" placeholder="Notes" value={evForm.notes} onChange={e => setEvForm({ ...evForm, notes: e.target.value })} />
+                <Field id="snow-notes" label="Notes" className="col-span-2">
+                  <input id="snow-notes" className="w-full border rounded px-2 py-1.5 text-sm" placeholder="Notes" value={evForm.notes} onChange={e => setEvForm({ ...evForm, notes: e.target.value })} />
+                </Field>
               </div>
               <button onClick={logEvent} className="mt-3 w-full bg-blue-600 text-white rounded px-3 py-2 text-sm">Log Event</button>
 
