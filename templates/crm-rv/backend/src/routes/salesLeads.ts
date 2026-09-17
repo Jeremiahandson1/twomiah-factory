@@ -182,6 +182,100 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   return c.json(updated)
 })
 
+// ---- Desked deal (RV T19 H1) ----
+// Desking saves the deal's inputs on the lead, and F&I reads them back, so the numbers a salesperson desks are the
+// numbers F&I finances. The math lives in one place (frontend/src/lib/deal.ts); the server keeps the inputs sane:
+// no negative amounts, tax rate 0–25%, discount no larger than the selling price. (M5: a typed -5% tax became 5%)
+const DEAL_LABELS: Record<string, string> = {
+  price: 'Selling price', discount: 'Discount', accessories: 'Accessories / add-ons', tradeAllow: 'Trade allowance',
+  tradePayoff: 'Trade payoff', doc: 'Doc fee', freight: 'Freight / setup', titleReg: 'Title & reg', prep: 'Dealer prep',
+  down: 'Down payment', taxRate: 'Tax rate',
+}
+const DEAL_MONEY = ['price', 'discount', 'accessories', 'tradeAllow', 'tradePayoff', 'doc', 'freight', 'titleReg', 'prep', 'down']
+const DEAL_MAX = 10_000_000
+
+function dealInput(body: any): { deal: Record<string, number> } | { error: string } {
+  if (!body || typeof body !== 'object') return { error: 'Deal is required' }
+  const deal: Record<string, number> = {}
+  for (const k of [...DEAL_MONEY, 'taxRate']) {
+    const v = body[k]
+    if (typeof v !== 'number' || !Number.isFinite(v)) return { error: `${DEAL_LABELS[k]} must be a number` }
+    deal[k] = k === 'taxRate' ? Math.round(v * 1000) / 1000 : Math.round(v * 100) / 100
+  }
+  for (const k of DEAL_MONEY) {
+    if (deal[k] < 0) return { error: `${DEAL_LABELS[k]} can't be negative` }
+    if (deal[k] > DEAL_MAX) return { error: `${DEAL_LABELS[k]} is too large` }
+  }
+  if (deal.taxRate < 0 || deal.taxRate > 25) return { error: 'Tax rate must be between 0% and 25%' }
+  if (deal.discount > deal.price) return { error: "Discount can't be more than the selling price" }
+  return { deal }
+}
+
+// A desk saved by the old Pipeline "Deal Desk" modal lives as JSON in the lead's notes ({ dealDesk: {...} }).
+// Offer it as the starting point so no desked numbers are lost; it becomes the lead's deal once saved.
+function dealFromNotes(notes: string | null): Record<string, number> | null {
+  if (!notes) return null
+  let desk: any
+  try { desk = JSON.parse(notes)?.dealDesk } catch { return null }
+  if (!desk || typeof desk !== 'object') return null
+  const n = (v: unknown) => { const x = parseFloat(String(v ?? '')); return Number.isFinite(x) && x >= 0 ? x : 0 }
+  return {
+    price: n(desk.unitPrice), discount: 0, accessories: 0, tradeAllow: n(desk.tradeAllowance), tradePayoff: n(desk.tradePayoff),
+    doc: n(desk.docFees), freight: 0, titleReg: n(desk.titleFees), prep: 0, taxRate: Math.min(25, n(desk.taxRate)), down: n(desk.downPayment),
+  }
+}
+
+// GET /sales-leads/:id/deal — the lead, its unit and its saved deal (null until desked)
+app.get('/:id/deal', requirePermission('contacts:read'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const [row] = await db.select({
+    lead: salesLead,
+    contactName: contact.name, contactEmail: contact.email, contactPhone: contact.phone,
+    unitYear: unit.year, unitMake: unit.make, unitModelName: unit.modelName, unitStockNumber: unit.stockNumber,
+    unitStatus: unit.status, unitInternetPrice: unit.internetPrice, unitListedPrice: unit.listedPrice,
+  })
+    .from(salesLead)
+    .leftJoin(contact, eq(salesLead.contactId, contact.id))
+    .leftJoin(unit, eq(salesLead.unitId, unit.id))
+    .where(and(eq(salesLead.id, id), eq(salesLead.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!row) return c.json({ error: 'Lead not found' }, 404)
+  const saved = (row.lead.deal as Record<string, number> | null) || null
+  const legacy = saved ? null : dealFromNotes(row.lead.notes)
+  return c.json({
+    leadId: row.lead.id,
+    stage: row.lead.stage,
+    customerName: row.contactName,
+    email: row.contactEmail,
+    phone: row.contactPhone,
+    unit: row.lead.unitId ? {
+      id: row.lead.unitId, year: row.unitYear, make: row.unitMake, modelName: row.unitModelName, stockNumber: row.unitStockNumber,
+      status: row.unitStatus, price: Number(row.unitInternetPrice ?? row.unitListedPrice ?? 0) || 0,
+    } : null,
+    deal: saved || legacy,
+    dealSaved: !!saved,
+  })
+})
+
+// PUT /sales-leads/:id/deal — save the desked deal
+app.put('/:id/deal', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const parsed = dealInput(await c.req.json().catch(() => null))
+  if ('error' in parsed) return c.json({ error: parsed.error }, 400)
+
+  const [existing] = await db.select().from(salesLead).where(and(eq(salesLead.id, id), eq(salesLead.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Lead not found' }, 404)
+
+  const deal = { ...parsed.deal, savedAt: new Date().toISOString() }
+  const [updated] = await db.update(salesLead).set({ deal, updatedAt: new Date() })
+    .where(and(eq(salesLead.id, existing.id), eq(salesLead.companyId, currentUser.companyId))).returning()
+  await audit.log({ action: 'update', entity: 'sales_lead', entityId: existing.id, changes: audit.diff({ deal: existing.deal }, { deal: updated.deal }), req: { user: currentUser } })
+  emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
+  return c.json({ id: updated.id, deal: updated.deal })
+})
+
 // POST /sales-leads/import-adf — parse ADF/XML lead
 app.post('/import-adf', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any

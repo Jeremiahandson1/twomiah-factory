@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Upload, User, Phone, Mail, Calculator } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-import DealDeskModal from './DealDeskModal';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * RV Sales Pipeline — kanban over /api/sales-leads.
@@ -68,7 +68,7 @@ export default function SalesPipelinePage() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [showAdf, setShowAdf] = useState<boolean>(false);
-  const [deskLead, setDeskLead] = useState<LeadRow['lead'] | null>(null);
+  const navigate = useNavigate();
 
   const canDealDesk = hasFeature('deal_desk');
 
@@ -173,7 +173,7 @@ export default function SalesPipelinePage() {
                     {canDealDesk && (
                       <button
                         type="button"
-                        onClick={() => setDeskLead(row.lead)}
+                        onClick={() => navigate(`/crm/desking?lead=${row.lead.id}`)}
                         className="w-full flex items-center justify-center gap-1 text-xs text-orange-600 hover:text-orange-700 border border-orange-200 rounded px-2 py-1"
                       >
                         <Calculator className="w-3 h-3" /> Deal Desk
@@ -200,13 +200,6 @@ export default function SalesPipelinePage() {
 
       {showForm && <LeadFormModal onSave={() => { setShowForm(false); load(); }} onClose={() => setShowForm(false)} />}
       {showAdf && <AdfImportModal onSave={() => { setShowAdf(false); load(); }} onClose={() => setShowAdf(false)} />}
-      {deskLead && (
-        <DealDeskModal
-          lead={deskLead}
-          onClose={() => setDeskLead(null)}
-          onSaved={() => { setDeskLead(null); load(); }}
-        />
-      )}
     </div>
   );
 }

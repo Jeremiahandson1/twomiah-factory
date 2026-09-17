@@ -3846,6 +3846,7 @@ export const salesLead = pgTable('sales_lead', {
   stage: text('stage').default('new').notNull(), // new, contacted, demo, desking, closed_won, closed_lost
   notes: text('notes'),
   tradeInInfo: json('trade_in_info'), // { year, make, model, vin, value }
+  deal: json('deal'), // desked deal inputs — Desking saves, F&I reads (PUT /api/sales-leads/:id/deal)
   followUpDate: timestamp('follow_up_date'),
   closedAt: timestamp('closed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),

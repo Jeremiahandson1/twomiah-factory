@@ -637,7 +637,7 @@
         "routes": ["salesLeads.ts", "units.ts"]
       },
       "frontend": {
-        "pages": ["rv/DealDeskModal.tsx"],
+        "pages": ["rv/DeskingPage.tsx"],
         "features": ["SalesPipelinePage.tsx"]
       },
       "sidebar": null
@@ -647,7 +647,7 @@
         "routes": ["salesLeads.ts"]
       },
       "frontend": {
-        "features": ["SalesPipelinePage.tsx", "DealDeskModal.tsx"]
+        "features": ["SalesPipelinePage.tsx", "DeskingPage.tsx"]
       },
       "sidebar": null
     },

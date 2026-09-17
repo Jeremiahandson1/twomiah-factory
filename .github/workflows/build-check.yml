@@ -472,3 +472,14 @@ jobs:
           bun-version: latest
       - name: marking a deal Sold sells its unit in one locked transaction, a sold unit is refused, reopening frees it; pipeline labels + flag; seed
         run: bun run scripts/check-rv-sold-unit.ts
+
+  rv-desked-deal:
+    name: RV desked deal is saved once and F&I finances it (one calculation, same rules both sides)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: sales_lead.deal + migration; GET/PUT /:id/deal scoped + validated; Desking saves/reloads via lib/deal; F&I = desked + products; no notes-JSON desk
+        run: bun run scripts/check-rv-desked-deal.ts
