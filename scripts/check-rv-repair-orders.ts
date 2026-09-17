@@ -20,12 +20,18 @@ for (const [what, re] of [['customer', /eq\(contact\.id, refs\.customerId\), eq\
   if (!re.test(refs)) fail(`the ${what} must belong to the company`)
 }
 const post = r.slice(r.indexOf("app.post('/', requirePermission('contacts:create')"), r.indexOf("app.put('/:id'"))
-if (!/const inputError = roInputError\(body, true\)/.test(post) || !/const refError = await roRefError\(/.test(post) || post.indexOf('roRefError(') > post.indexOf('db.insert(repairOrder)')) fail('create must validate input and references before inserting')
+if (!/const inputError = roInputError\(body, true\)/.test(post) || !/const refError = await roRefError\(/.test(post) || post.indexOf('.insert(repairOrder)') < 0 || post.indexOf('roRefError(') > post.indexOf('.insert(repairOrder)')) fail('create must validate input and references before inserting')
 const put = r.slice(r.indexOf("app.put('/:id'"), r.indexOf("app.post('/:id/check-in'"))
 if (!/const inputError = roInputError\(body, false\)/.test(put) || !/const refError = await roRefError\(/.test(put) || put.indexOf('roRefError(') > put.indexOf('db.update(repairOrder)')) fail('edit must validate input and references before updating')
 if (!/if \(totals\.total > 0\) try \{/.test(put)) fail('closing an RO must not create an invoice when there is nothing to collect')
 
 if (!/alert\(\(err as Error\)\?\.message \|\| 'Failed to update status'\)/.test(read('templates/crm-rv/frontend/src/pages/rv/ServicePage.tsx'))) fail("the Service page must show the server's reason when a status change is refused")
+// L5: one number series from the shared helper, under a lock; a hand-entered number can't duplicate. L6: the unit
+// picker shows stock numbers.
+if (!/roNumber = await nextNumber\(tx, repairOrder, repairOrder\.roNumber, repairOrder\.companyId, currentUser\.companyId, \{ prefix: 'RO', pad: 0, seed: 1000 \}\)/.test(post)) fail('RO numbers must come from nextNumber in the RO-1001 series (RV T19 L5)')
+if (/count\(\) \}\)\.from\(repairOrder\)\.where\(eq\(repairOrder\.companyId, currentUser\.companyId\)\)/.test(post)) fail('RO numbers must not be derived from a row count')
+if (!/if \(taken\) return \{ taken: roNumber \}/.test(post)) fail('a hand-entered RO number already in use must be refused')
+if (!/u\.stockNumber \? `\(Stock \$\{u\.stockNumber\}\)` : ''/.test(read('templates/crm-rv/frontend/src/pages/rv/ServicePage.tsx'))) fail('the RO unit picker must show stock numbers (RV T19 L6)')
 
 if (failed) { console.error(`\nrv repair orders: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('rv repair orders: real statuses, non-negative amounts, company-owned references, no $0 invoices')

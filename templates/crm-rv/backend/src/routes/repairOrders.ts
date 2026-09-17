@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { repairOrder, contact, unit, salesLead, serviceSalesAlert, user, invoice, invoiceLineItem } from '../../db/schema.ts'
-import { eq, and, count, desc, isNull } from 'drizzle-orm'
+import { eq, and, count, desc, isNull, sql } from 'drizzle-orm'
 import { nextNumber, calcTotals, round2 } from '../shared/index.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -114,24 +114,37 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const refError = await roRefError(currentUser.companyId, { customerId: body.customerId ?? null, unitId: body.unitId, technicianId: body.technicianId })
   if (refError) return c.json({ error: refError.error }, refError.status)
 
-  // Auto-generate RO number
-  const [{ value: roCount }] = await db.select({ value: count() }).from(repairOrder).where(eq(repairOrder.companyId, currentUser.companyId))
-  const roNumber = body.roNumber || `RO-${String(Number(roCount) + 1).padStart(5, '0')}`
-
-  const [created] = await db.insert(repairOrder).values({
-    id: createId(),
-    roNumber,
-    customerId: body.customerId,
-    unitId: body.unitId || null,
-    customerUnitInfo: body.customerUnitInfo || null,
-    status: body.status || 'open',
-    services: body.services || [],
-    advisorName: body.advisorName || null,
-    technicianId: body.technicianId || null,
-    estimatedTotal: body.estimatedTotal || null,
-    notes: body.notes || null,
-    companyId: currentUser.companyId,
-  }).returning()
+  // RO number: the next in the RO-1001 series (the shared numbering helper, under a per-company lock) — not a row
+  // count, which produced RO-00009 next to the seeded RO-1004 and repeated numbers after deletes. A number given by
+  // hand must not already be in use. (RV T19 L5)
+  const customNumber = typeof body.roNumber === 'string' && body.roNumber.trim() ? body.roNumber.trim() : null
+  const outcome = await db.transaction(async (tx: any) => {
+    let roNumber = customNumber
+    if (roNumber) {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${currentUser.companyId + ':RO'}))`)
+      const [taken] = await tx.select({ id: repairOrder.id }).from(repairOrder).where(and(eq(repairOrder.companyId, currentUser.companyId), eq(repairOrder.roNumber, roNumber))).limit(1)
+      if (taken) return { taken: roNumber }
+    } else {
+      roNumber = await nextNumber(tx, repairOrder, repairOrder.roNumber, repairOrder.companyId, currentUser.companyId, { prefix: 'RO', pad: 0, seed: 1000 })
+    }
+    const [row] = await tx.insert(repairOrder).values({
+      id: createId(),
+      roNumber,
+      customerId: body.customerId,
+      unitId: body.unitId || null,
+      customerUnitInfo: body.customerUnitInfo || null,
+      status: body.status || 'open',
+      services: body.services || [],
+      advisorName: body.advisorName || null,
+      technicianId: body.technicianId || null,
+      estimatedTotal: body.estimatedTotal || null,
+      notes: body.notes || null,
+      companyId: currentUser.companyId,
+    }).returning()
+    return { row }
+  })
+  if ('taken' in outcome) return c.json({ error: `RO number ${outcome.taken} is already in use` }, 409)
+  const created = outcome.row
 
   await audit.log({ action: 'create', entity: 'repair_order', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'repair_order' })

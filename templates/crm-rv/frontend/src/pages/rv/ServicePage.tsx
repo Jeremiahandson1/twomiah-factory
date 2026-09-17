@@ -160,7 +160,7 @@ export default function ServicePage() {
 /* ---------------- New RO Modal ---------------- */
 
 interface ContactOption { id: string; name: string }
-interface UnitOption { id: string; year?: number; make?: string; modelName?: string }
+interface UnitOption { id: string; year?: number; make?: string; modelName?: string; stockNumber?: string | null }
 
 interface RoFormModalProps { onSave: () => void; onClose: () => void }
 
@@ -236,7 +236,8 @@ function RoFormModal({ onSave, onClose }: RoFormModalProps) {
               <select value={form.unitId} onChange={(e) => set('unitId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                 <option value="">Not in inventory — enter manually below</option>
                 {units.map((u) => (
-                  <option key={u.id} value={u.id}>{[u.year, u.make, u.modelName].filter(Boolean).join(' ') || u.id}</option>
+                  // the stock number tells identical units apart (RV T19 L6)
+                  <option key={u.id} value={u.id}>{[[u.year, u.make, u.modelName].filter(Boolean).join(' ') || 'Unit', u.stockNumber ? `(Stock ${u.stockNumber})` : ''].filter(Boolean).join(' ')}</option>
                 ))}
               </select>
             </div>
