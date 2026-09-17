@@ -18,5 +18,6 @@ export default createInvoiceRoutes({
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
-  options: { numbering: { prefix: 'INV', pad: 0, seed: 1000 } },
+  // minLineItems: an invoice needs at least one line — the invoice form already requires one, and the API created an empty $0 invoice when called directly (RV T19 L8; landscaping and events had it).
+  options: { numbering: { prefix: 'INV', pad: 0, seed: 1000 }, minLineItems: 1 },
 })

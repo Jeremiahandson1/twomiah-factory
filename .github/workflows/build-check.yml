@@ -659,3 +659,14 @@ jobs:
           bun-version: latest
       - name: "availableByCategory + closedLostThisMonth in stats; panel and close cell use them"
         run: bun run scripts/check-rv-dashboard.ts
+
+  invoice-min-lines:
+    name: "Invoice min line items guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check every shared-invoice CRM refuses an invoice with no line items"
+        run: bun run scripts/check-invoice-min-lines.ts
