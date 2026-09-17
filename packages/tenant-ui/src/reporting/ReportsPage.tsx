@@ -8,7 +8,7 @@ import { resolveReportingConfig } from './types'
 
 interface Summary {
   period: string
-  revenue: { collected: number; invoiced: number; outstanding: number; overdue: number; overdueCount: number; collectionRate: number }
+  revenue: { collected: number; invoiced: number; refunded?: number; outstanding: number; overdue: number; overdueCount: number; collectionRate: number }
   jobs: { total: number; completed: number; completionRate: number; scheduled?: number; inProgress?: number; cancelled?: number; byStatus?: Record<string, number> }
   projects: { total: number; active: number; completed: number; totalValue: number }
   quotes: { total: number; approved: number; conversionRate: number; rejected?: number; expired?: number; pending?: number }
@@ -97,7 +97,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
         return (
           <>
             <div className={`grid grid-cols-1 sm:grid-cols-2 ${cfg.dealership && cfg.quotes ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
-              <Metric title="Revenue collected" value={money(revenue.collected)} subtitle={`${money(revenue.invoiced)} invoiced in this period`} icon={DollarSign} color="green" trend={revenue.collectionRate} trendLabel="collection rate" />
+              <Metric title="Revenue collected" value={money(revenue.collected)} subtitle={`${money(revenue.invoiced)} invoiced in this period${revenue.refunded ? ` · ${money(revenue.refunded)} refunded` : ''}`} icon={DollarSign} color="green" trend={revenue.collectionRate} trendLabel="collection rate" />
               <Metric title="Outstanding now" value={money(revenue.outstanding)} subtitle={`${money(revenue.overdue)} overdue · ${revenue.overdueCount} invoice${revenue.overdueCount === 1 ? '' : 's'}`} icon={AlertCircle} color="orange" alert={revenue.overdueCount > 0} />
               {cfg.eventsPipeline ? (
                 <>

@@ -418,21 +418,24 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
 
   // ---------------------------------------------------------------- stats
   // One set of numbers for the dashboard, Reports and the invoice list:
-  //   issued     = every invoice that is not draft / void / refunded
-  //   totalAmount = sum of issued totals; outstanding = sum of issued balances, floored per invoice
-  //   paidAmount  = money actually kept: amountPaid − amountRefunded on every non-void invoice
+  //   totalAmount    = gross billed: every invoice that is not draft / void, a refunded sale included (a refund
+  //                    never takes a sale out of what was invoiced — Reports "invoiced" is the same; T14 H4)
+  //   outstanding    = sum of balances over issued (not draft / void / refunded), floored per invoice
+  //   paidAmount     = money actually kept: amountPaid − amountRefunded on every non-void invoice
+  //   refundedAmount = money returned: amountRefunded on every non-void invoice
   app.get('/stats', requirePermission('invoices:read'), async (c) => {
     const currentUser = c.get('user') as any
     const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
-    const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0 }
+    const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0, refundedAmount: 0 }
     for (const inv of invoices) {
       const s = derive(inv)
       stats[s] = (stats[s] || 0) + 1
-      if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') {
-        stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
-        stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
+      if (inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
+      if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
+      if (inv.status !== 'void') {
+        stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
+        stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
       }
-      if (inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
     }
     return c.json(stats)
   })

@@ -725,3 +725,14 @@ jobs:
           bun-version: latest
       - name: "Check customers are emailed once before an auto-renew agreement renews"
         run: bun run scripts/check-agreement-renewal-notice.ts
+
+  refund-revenue:
+    name: "Refund revenue guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check refunded sales stay in gross invoiced and refunds are reported separately"
+        run: bun run scripts/check-refund-revenue.ts

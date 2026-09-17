@@ -2,9 +2,13 @@
 // Revenue (invoiced / collected / outstanding / overdue), monthly trend, top customers, job, project,
 // team and quote statistics, and the period summary the Reports page opens with.
 //
-// Money rules (same as the invoicing module): an invoice counts as "invoiced" once issued and still
-// standing (not draft / void / refunded); "collected" is the payment ledger, where a refund is a
-// negative row, so it is always net of refunds; a customer's balance never reopens after a refund.
+// Money rules (same as the invoicing module): "invoiced" is gross — every invoice once billed (not draft /
+// void), a refunded sale included, in the period it was invoiced; a refund is its own event, in the period it
+// happened ("refunded"), and never rewrites past invoiced totals. "collected" is the payment ledger, where a
+// refund is a negative row, so it is always net of refunds. Balances (outstanding / overdue) are summed over
+// `issued` (not draft / void / refunded); a customer's balance never reopens after a refund.
+// (Landscaping T14 H4: refunding the rest of a paid $1,000 invoice took it out of "invoiced" retroactively,
+// while a partial refund kept it at full value.)
 import { Hono } from 'hono'
 import { eq, and, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull } from 'drizzle-orm'
 
@@ -36,6 +40,7 @@ export class ReportError extends Error { status = 400 }
 
 const DAY_MS = 86_400_000
 const ISSUED = ['void', 'refunded', 'draft']
+const BILLED = ['void', 'draft'] // excluded from gross "invoiced" — a refunded sale was still billed
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -61,6 +66,7 @@ export function createReportingService(deps: ReportingDeps) {
   const { db, tables: t } = deps
   const maxMonths = deps.options?.maxMonths || 36
   const issued = sql`${t.invoice.status} NOT IN (${sql.join(ISSUED.map(s => sql`${s}`), sql`, `)})`
+  const billed = sql`${t.invoice.status} NOT IN (${sql.join(BILLED.map(s => sql`${s}`), sql`, `)})`
   // Per-invoice balance — identical to invoiceBalance() and the invoicing /stats endpoint so every
   // screen shows the same outstanding figure: fully paid → 0, else total − (paid − refunded) floored
   // at 0. It is summed over `issued` (only draft/void/refunded excluded), NOT a narrower "open" set —
@@ -73,10 +79,14 @@ export function createReportingService(deps: ReportingDeps) {
 
   async function revenueOverview(companyId: string, range: DateRange) {
     const [inv] = await db.select({ total: sum(t.invoice.total), count: count() }).from(t.invoice)
-      .where(and(eq(t.invoice.companyId, companyId), issued, ...inRange(t.invoice.createdAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), billed, ...inRange(t.invoice.createdAt, range)))
     const [col] = await db.select({ total: sum(t.payment.amount) }).from(t.payment)
       .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
       .where(and(eq(t.invoice.companyId, companyId), ...inRange(t.payment.paidAt, range)))
+    // money returned in the period (refund rows are negative payments, dated when refunded)
+    const [ref] = await db.select({ total: sql<string>`coalesce(sum(-(${t.payment.amount}::numeric)), 0)` }).from(t.payment)
+      .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
+      .where(and(eq(t.invoice.companyId, companyId), sql`${t.payment.amount}::numeric < 0`, ...inRange(t.payment.paidAt, range)))
     // Balances are a point-in-time figure — what is owed right now, whatever the period picker says.
     const [out] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
       .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued))
@@ -86,6 +96,7 @@ export function createReportingService(deps: ReportingDeps) {
     return {
       invoiced, invoiceCount: Number(inv.count),
       collected,
+      refunded: r2(num(ref.total)),
       outstanding: r2(num(out.total)), outstandingCount: Number(out.count),
       overdue: r2(num(over.total)), overdueCount: Number(over.count),
       collectionRate: invoiced > 0 ? Math.min(100, Math.round((collected / invoiced) * 100)) : 0,
@@ -97,7 +108,7 @@ export function createReportingService(deps: ReportingDeps) {
     const start = new Date(); start.setMonth(start.getMonth() - months + 1); start.setDate(1); start.setHours(0, 0, 0, 0)
     const [invoices, payments] = await Promise.all([
       db.select({ total: t.invoice.total, createdAt: t.invoice.createdAt }).from(t.invoice)
-        .where(and(eq(t.invoice.companyId, companyId), gte(t.invoice.createdAt, start), issued)),
+        .where(and(eq(t.invoice.companyId, companyId), gte(t.invoice.createdAt, start), billed)),
       db.select({ amount: t.payment.amount, paidAt: t.payment.paidAt }).from(t.payment)
         .innerJoin(t.invoice, eq(t.payment.invoiceId, t.invoice.id))
         .where(and(eq(t.invoice.companyId, companyId), gte(t.payment.paidAt, start))),
@@ -111,14 +122,14 @@ export function createReportingService(deps: ReportingDeps) {
 
   /**
    * Top customers by what they actually paid (net of refunds), with what was invoiced alongside.
-   * Drafts, void and refunded invoices are not revenue and are not counted.
+   * Drafts and void invoices are not counted; a refunded sale stays in "invoiced" and nets out of "collected".
    */
   async function revenueByCustomer(companyId: string, range: DateRange, limitRaw: number) {
     const limit = Math.min(100, Math.max(1, Math.round(num(limitRaw) || 10)))
     const collectedExpr = sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)`
     const rows = await db.select({ contactId: t.invoice.contactId, invoiced: sum(t.invoice.total), collected: collectedExpr, count: count() })
       .from(t.invoice)
-      .where(and(eq(t.invoice.companyId, companyId), isNotNull(t.invoice.contactId), issued, ...inRange(t.invoice.createdAt, range)))
+      .where(and(eq(t.invoice.companyId, companyId), isNotNull(t.invoice.contactId), billed, ...inRange(t.invoice.createdAt, range)))
       .groupBy(t.invoice.contactId)
       .orderBy(desc(collectedExpr), desc(sum(t.invoice.total)))
       .limit(limit)
@@ -182,7 +193,7 @@ export function createReportingService(deps: ReportingDeps) {
     if (!ids.length) return []
     const [invoiceTotals, jobCounts] = await Promise.all([
       db.select({ projectId: t.invoice.projectId, invoiced: sum(t.invoice.total), collected: sql<string>`coalesce(sum(${t.invoice.amountPaid}::numeric - coalesce(${t.invoice.amountRefunded}, 0)::numeric), 0)` })
-        .from(t.invoice).where(and(inArray(t.invoice.projectId, ids), issued)).groupBy(t.invoice.projectId),
+        .from(t.invoice).where(and(inArray(t.invoice.projectId, ids), billed)).groupBy(t.invoice.projectId),
       db.select({ projectId: t.job.projectId, count: count() }).from(t.job).where(inArray(t.job.projectId, ids)).groupBy(t.job.projectId),
     ])
     const inv = new Map(invoiceTotals.map((i: any) => [i.projectId, i]))
