@@ -31,7 +31,8 @@ for (const t of TEMPLATES) {
   if (/new Stripe\(|paymentIntents\.|webhooks\.construct|refunds\.create/.test(svc)) fail(`${t}/services/stripe.ts carries its own Stripe logic — it must be glue only`)
   const kind = APPOINTMENT_BOOK.has(t) ? 'appointment' : 'job'
   if (!new RegExp(`bookingCalendarKind: '${kind}'`).test(svc)) fail(`${t}/services/stripe.ts must pass bookingCalendarKind: '${kind}'`)
-  if (t === 'crm-restaurant' ? !/afterInvoicePayment: syncEventInvoiceDueDate/.test(svc) : /afterInvoicePayment/.test(svc)) fail(`${t}/services/stripe.ts afterInvoicePayment wiring is wrong (only crm-restaurant passes syncEventInvoiceDueDate)`)
+  // only the events CRM passes the hook: since #171 it books the date (bookOnDeposit), then moves the due date
+  if (t === 'crm-restaurant' ? !/afterInvoicePayment: async \(invoiceId: string\) =>[\s\S]*bookOnDeposit\([\s\S]*await syncEventInvoiceDueDate\(invoiceId\)/.test(svc) : /afterInvoicePayment/.test(svc)) fail(`${t}/services/stripe.ts afterInvoicePayment wiring is wrong (only crm-restaurant passes it: bookOnDeposit, then syncEventInvoiceDueDate)`)
   // Every named export the rest of the template imports (agreements, booking) must still be there.
   for (const name of ['createBookingDepositIntent', 'listSavedPaymentMethods', 'chargeInvoiceOffSession', 'constructWebhookEvent', 'handleWebhook']) {
     if (!svc.includes(name)) fail(`${t}/services/stripe.ts must re-export ${name}`)

@@ -10,7 +10,18 @@ import { createId } from '@paralleldrive/cuid2'
 import { deriveStatus, round2 } from '../shared/index.ts'
 import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice, backfillEventInvoices } from '../services/eventLedger.ts'
 // What an event may hold and how a booking is written — shared with the CSV importer (#162).
-import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput } from '../services/eventBooking.ts'
+import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput, coordinatorRefusal } from '../services/eventBooking.ts'
+
+// A package minimum is a billing floor, not an entry limit: fewer guests than the minimum are billed at
+// the minimum and the line says so — that is how catering minimums work. A quantity at or above the
+// minimum, a flat line, or a package without one is left exactly as typed. (T16 M9)
+const FLOOR_NOTE = /^Billed at the \d+-guest package minimum \(\d+ entered\)( — )?/
+function packageFloor(pkg: any, perPerson: boolean, quantity: any, notes: string | null): { quantity: any; notes: string | null } {
+  const min = Number(pkg?.minGuests || 0), q = Number(quantity)
+  const rest = (notes || '').replace(FLOOR_NOTE, '')
+  if (!(min > 0) || !perPerson || !Number.isFinite(q) || !(q < min)) return { quantity, notes: rest || null }
+  return { quantity: min, notes: [`Billed at the ${min}-guest package minimum (${q} entered)`, rest].filter(Boolean).join(' — ') }
+}
 
 /**
  * Events — the booking, and everything hanging off it.
@@ -138,6 +149,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   const vErr = validateEventInput(body)
   if (vErr) return c.json({ error: vErr }, 400)
+  const cErr = await coordinatorRefusal(db, currentUser.companyId, body.coordinatorId)
+  if (cErr) return c.json({ error: cErr }, 400)
 
   let created
   try {
@@ -174,6 +187,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   // so editing just one of start/end still re-checks the pair. (F5, #162)
   const vErr = validateEventInput(updates, existing)
   if (vErr) return c.json({ error: vErr }, 400)
+  if ('coordinatorId' in updates) {
+    const cErr = await coordinatorRefusal(db, currentUser.companyId, updates.coordinatorId)
+    if (cErr) return c.json({ error: cErr }, 400)
+  }
 
   // Moving the date, changing the room, or promoting an enquiry to tentative
   // can all create a double-book, so re-check on any of them.
@@ -270,19 +287,17 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
   let unitPrice = body.unitPrice ?? null
   let perPerson = body.perPerson ?? true
 
+  let pkg: any = null
   if (body.packageId) {
-    const [pkg] = await db.select().from(menuPackage)
+    ;[pkg] = await db.select().from(menuPackage)
       .where(and(eq(menuPackage.id, body.packageId), eq(menuPackage.companyId, currentUser.companyId)))
       .limit(1)
     if (!pkg) return c.json({ error: 'Package not found' }, 404)
     if (!name) name = pkg.name
     if (unitPrice === null || unitPrice === undefined) unitPrice = pkg.pricePerPerson
-    if (!('perPerson' in body)) perPerson = true
-    // The package minimum is advisory, not a hard wall: a coordinator must be able
-    // to add the line at the quantity they actually typed (it was rejecting any
-    // number below the minimum — e.g. 5 on a min-25 package — and blocking the
-    // package entirely on any event smaller than the minimum). The below-minimum
-    // state is surfaced as a warning banner on the event instead of a 400.
+    if (!('perPerson' in body) || typeof body.perPerson !== 'boolean') perPerson = true
+    // The package minimum never blocks the line (a coordinator adds it at the number they have); it is
+    // a billing floor applied below — see packageFloor. (T16 M9)
   }
   if (!name) return c.json({ error: 'name or packageId is required' }, 400)
 
@@ -294,6 +309,10 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
   if (body.quantity !== undefined && body.quantity !== null && !Number.isFinite(Number(body.quantity))) return c.json({ error: 'Quantity must be a number' }, 400)
   if (body.quantity !== undefined && body.quantity !== null && Number(body.quantity) < 0) return c.json({ error: 'Quantity cannot be negative' }, 400)
 
+  // Per-head lines default to the event's head count so the quote follows the guest number instead of
+  // being re-typed every time it moves; a package's minimum is then the billing floor.
+  const { quantity, notes } = packageFloor(pkg, perPerson, body.quantity ?? (perPerson ? (ev.guestCountFinal ?? ev.guestCount ?? 1) : 1), body.notes || null)
+
   let created
   try {
     created = await db.transaction(async (tx: any) => {
@@ -303,11 +322,9 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
         packageId: body.packageId || null,
         name,
         perPerson,
-        // Per-head lines default to the event's head count so the quote follows the
-        // guest number instead of being re-typed every time it moves.
-        quantity: body.quantity ?? (perPerson ? (ev.guestCountFinal ?? ev.guestCount ?? 1) : 1),
+        quantity,
         unitPrice,
-        notes: body.notes || null,
+        notes,
         companyId: currentUser.companyId,
       }).returning()
       await syncEventInvoice(tx, currentUser.companyId, eventId)
@@ -344,6 +361,13 @@ app.put('/:id/menu/:lineId', requirePermission('contacts:update'), async (c) => 
   if (updates.unitPrice !== null && updates.unitPrice !== undefined && Number(updates.unitPrice) < 0) return c.json({ error: 'Unit price cannot be negative' }, 400)
   if (updates.quantity !== undefined && updates.quantity !== null && !Number.isFinite(Number(updates.quantity))) return c.json({ error: 'Quantity must be a number' }, 400)
   if (updates.quantity !== undefined && updates.quantity !== null && Number(updates.quantity) < 0) return c.json({ error: 'Quantity cannot be negative' }, 400)
+  // The billing floor holds on edit too: a package line edited below its minimum is billed at the minimum. (T16 M9)
+  if (existing.packageId && ('quantity' in updates || 'perPerson' in updates || 'notes' in updates)) {
+    const [pkg] = await db.select().from(menuPackage).where(and(eq(menuPackage.id, existing.packageId), eq(menuPackage.companyId, currentUser.companyId))).limit(1)
+    const floored = packageFloor(pkg, 'perPerson' in updates ? updates.perPerson !== false : existing.perPerson, updates.quantity ?? existing.quantity, 'notes' in updates ? updates.notes || null : existing.notes)
+    updates.quantity = floored.quantity
+    updates.notes = floored.notes
+  }
 
   let updated
   try {

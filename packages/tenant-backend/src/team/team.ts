@@ -66,16 +66,28 @@ export function createTeamRoutes(deps: TeamDeps) {
       db.select().from(t.teamMember).where(where).orderBy(asc(t.teamMember.name)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.teamMember).where(where),
     ])
-    if (Number(total) === 0 && !search && !q.department) {
-      // F-14 fallback: no roster yet → show the login accounts (read-only here; edit/delete target team_member rows).
+    // ONE Team list: the roster plus every login account not already on it (matched by email), the login
+    // rows flagged `_source: 'user'` (read-only here — logins are managed under Settings › Users). They
+    // are appended on the last page so paging never repeats them. Until #172 the login accounts were only
+    // a fallback for an EMPTY roster and vanished the moment the first roster member was added (F-14 →
+    // events T16 H3).
+    const pages = Math.max(1, Math.ceil(Number(total) / limit))
+    let rows: any[] = data, totalN = Number(total)
+    if (!search && !q.department && page >= pages) {
       const uConds: any[] = [eq(t.user.companyId, user.companyId)]
       if (activeFilter !== undefined) uConds.push(eq(t.user.isActive, activeFilter))
-      const users = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, phone: t.user.phone, role: t.user.role, isActive: t.user.isActive })
-        .from(t.user).where(and(...uConds)).orderBy(asc(t.user.firstName))
-      const mapped = users.map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, phone: u.phone, role: u.role, department: null, hireDate: null, hourlyRate: null, active: u.isActive, _source: 'user' as const }))
-      return c.json({ data: mapped, pagination: { page: 1, limit, total: mapped.length, pages: 1 } })
+      const [users, roster] = await Promise.all([
+        db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, phone: t.user.phone, role: t.user.role, isActive: t.user.isActive })
+          .from(t.user).where(and(...uConds)).orderBy(asc(t.user.firstName)),
+        db.select({ email: t.teamMember.email }).from(t.teamMember).where(eq(t.teamMember.companyId, user.companyId)),
+      ])
+      const onRoster = new Set(roster.map((r: any) => String(r.email || '').toLowerCase()).filter(Boolean))
+      const logins = users.filter((u: any) => !onRoster.has(String(u.email || '').toLowerCase()))
+        .map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, phone: u.phone, role: u.role, department: null, hireDate: null, hourlyRate: null, active: u.isActive, _source: 'user' as const }))
+      rows = [...data, ...logins]
+      totalN += logins.length
     }
-    return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.max(1, Math.ceil(Number(total) / limit)) } })
+    return c.json({ data: rows, pagination: { page, limit, total: totalN, pages } })
   })
 
   // Assignable staff = the login USERS a job/appointment's assignedToId can point at. This is NOT the

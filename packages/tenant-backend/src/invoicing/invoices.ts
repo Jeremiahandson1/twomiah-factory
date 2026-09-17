@@ -29,6 +29,13 @@ export interface InvoiceOptions {
   minLineItems?: number
   /** Maximum page size for the list. */
   maxLimit?: number
+  /**
+   * Runs inside the payment transaction, before the payment is written (the invoice row is locked). A
+   * returned message refuses the payment (409). Events use it: a deposit on an enquiry books the date, or
+   * is refused when the room is already held. Interactive payments only — a processor's money is already
+   * taken, so the Stripe path has its own after-payment hook.
+   */
+  onPayment?: (tx: any, invoice: any, amount: number) => Promise<string | null>
 }
 
 export interface InvoiceDeps {
@@ -149,11 +156,13 @@ export interface RecordPaymentInput {
    * instead of inserting a second one. The invoice row lock serialises concurrent retries.
    */
   idempotentByReference?: boolean
+  /** The template's InvoiceOptions.onPayment, passed by the route; a returned message refuses (409). */
+  beforeWrite?: (tx: any, invoice: any, amount: number) => Promise<string | null>
 }
 
 export type RecordPaymentOutcome =
   | { ok: true; payment: any; row: any; newBalance: number; newStatus: string; duplicate: boolean }
-  | { ok: false; status: 400 | 404; error: string }
+  | { ok: false; status: 400 | 404 | 409; error: string }
 
 /**
  * The one way money is recorded on an invoice — POST /:id/payments and the Stripe webhook both come
@@ -182,6 +191,10 @@ export async function recordInvoicePayment(db: any, t: { invoice: any; payment: 
     // Owed is net of refunds: if a deposit was refunded the balance reopened, and a payment may cover it.
     const balanceDue = invoiceBalance({ status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded })
     if (!input.allowOverpayment && amount > balanceDue + 0.005) { outcome = { ok: false, status: 400, error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }; return }
+    if (input.beforeWrite) {
+      const refusal = await input.beforeWrite(tx, row, amount)
+      if (refusal) { outcome = { ok: false, status: 409, error: refusal }; return }
+    }
     const values: any = { invoiceId: id, amount: amount.toString(), method: input.method, reference: input.reference, notes: input.notes }
     if (tips) values.tipAmount = (input.tipAmount ?? 0).toString()
     if (input.paidAt) values.paidAt = input.paidAt
@@ -528,7 +541,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (tips && tipAmount > Math.max(amount * 5, 100)) return c.json({ error: `A $${tipAmount.toFixed(2)} tip on a $${amount.toFixed(2)} payment looks wrong — check the amount.` }, 400)
 
     // The locked, refund-aware write lives in recordInvoicePayment (shared with the Stripe webhook).
-    const outcome = await recordInvoicePayment(db, t, tips, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, tipAmount })
+    const outcome = await recordInvoicePayment(db, t, tips, { invoiceId: id, companyId: currentUser.companyId, amount, method: data.method, reference: data.reference, notes: data.notes, tipAmount, beforeWrite: deps.options?.onPayment })
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.PAYMENT_RECEIVED, { invoiceId: id, invoiceNumber: outcome.row.number, amount, newBalance: outcome.newBalance, status: outcome.newStatus })
     if (outcome.newStatus === 'paid') emitToCompany(currentUser.companyId, EVENTS.INVOICE_PAID, { id, number: outcome.row.number, total: outcome.row.total })

@@ -6,7 +6,7 @@
 import { and, eq, gte, inArray, notInArray, ne, isNotNull, sql, count, countDistinct } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { db } from '../../db/index.ts'
-import { event, eventSpace, eventMenuItem } from '../../db/schema.ts'
+import { event, eventSpace, eventMenuItem, user } from '../../db/schema.ts'
 import { EXIT_STATUSES } from './eventLedger.ts'
 
 // The lists the frontend offers (pages/events/EventsPage.tsx STATUSES / EVENT_TYPES) — pinned equal by
@@ -172,6 +172,39 @@ export async function createEvent(tx: any, companyId: string, body: Record<strin
   }).returning()
   await syncHireLine(tx, companyId, row)
   return row
+}
+
+/**
+ * Money books the date. A deposit recorded on an enquiry confirms it and holds the room — unless the
+ * room is already held that day, in which case the money is refused: there is nothing to sell. Runs
+ * inside the payment transaction (the caller holds the invoice row lock); returns the refusal, or null
+ * once the event is confirmed or needed no change. (T16 M8 — "definite" = deposit received)
+ */
+export async function bookOnDeposit(tx: any, companyId: string, eventId: string | null | undefined): Promise<string | null> {
+  if (!eventId) return null
+  const [ev] = await tx.select().from(event).where(and(eq(event.id, eventId), eq(event.companyId, companyId))).limit(1)
+  if (!ev || ev.status !== 'enquiry') return null
+  await eventLock(tx, companyId)
+  if (ev.spaceId) {
+    const clash = await findClash(tx, companyId, ev.spaceId, ev.eventDate, ev.id)
+    if (clash) return `"${ev.name}" is still an enquiry and its room is already held on ${ev.eventDate} by "${clash.name}" — move the date or the room before taking money.`
+  }
+  await tx.update(event).set({ status: 'confirmed', updatedAt: new Date() }).where(eq(event.id, ev.id))
+  return null
+}
+/** The invoice-payment hook form: the locked invoice row (raw SQL, snake_case) or a drizzle row. */
+export const bookOnDepositForInvoice = (tx: any, inv: any) => bookOnDeposit(tx, inv.company_id ?? inv.companyId, inv.event_id ?? inv.eventId)
+
+/**
+ * A coordinator is a login user of this business (event.coordinator_id → user). A roster-only team
+ * member has no login and can't be assigned; say so instead of the FK's "Referenced record does not
+ * exist". (T16 H3)
+ */
+export async function coordinatorRefusal(exec: any, companyId: string, coordinatorId: unknown): Promise<string | null> {
+  if (coordinatorId == null || coordinatorId === '') return null
+  if (typeof coordinatorId !== 'string') return 'coordinatorId must be a user id'
+  const [u] = await exec.select({ id: user.id }).from(user).where(and(eq(user.id, coordinatorId), eq(user.companyId, companyId))).limit(1)
+  return u ? null : "The coordinator must be one of your login users (Settings › Users) — a roster-only team member can't be assigned."
 }
 
 // ── Retiring what upcoming bookings still use ───────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { Plus, Search, Loader2, X, CalendarDays, Users, DoorOpen, LayoutGrid, Li
 import api from '../../services/api';
 import ClientPicker from '../../components/events/ClientPicker';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { confirmEventRisks } from '../../lib/eventWarnings';
 
 /**
  * Events — the pipeline and the book, over the same list.
@@ -286,6 +287,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
     e.preventDefault();
     if (!form.name.trim()) { alert('Event name is required'); return; }
     if (!form.eventDate) { alert('Event date is required'); return; }
+    if (!confirmEventRisks(form, spaces)) return; // past date / over capacity: warn, allow (T16 L1 / L2)
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {

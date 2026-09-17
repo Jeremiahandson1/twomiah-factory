@@ -9,6 +9,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import emailService from '../services/email.ts'
 import { INVOICE_NUMBERING, syncEventInvoiceDueDate } from '../services/eventLedger.ts'
+import { bookOnDepositForInvoice } from '../services/eventBooking.ts'
 
 export default createInvoiceRoutes({
   db,
@@ -28,5 +29,7 @@ export default createInvoiceRoutes({
   // The same numbering constant event invoices are raised with (the shared default, stated once).
   // minLineItems: a hand-raised invoice needs a line — a $0 invoice with nothing on it saved as INV-00052 (T16 L6).
   // Event invoices are raised by the ledger service, not this route, so they are unaffected.
-  options: { numbering: INVOICE_NUMBERING, minLineItems: 1 },
+  // onPayment: money books the date — a deposit on an enquiry confirms it (and is refused while the room is
+  // held), inside the same transaction as the payment (T16 M8).
+  options: { numbering: INVOICE_NUMBERING, minLineItems: 1, onPayment: bookOnDepositForInvoice },
 })

@@ -417,3 +417,14 @@ jobs:
           bun-version: latest
       - name: shared createEnabledFeatureGate (id or any-of list); every CRM gates its sidebar-gated families at the mount + email marketing in-route; processor + sidebar honour the switch; cross-module lookups tolerant
         run: bun run scripts/check-enabled-feature-gates.ts
+
+  events-booking-rules:
+    name: Events booking rules (deposit books the date, package floor, one Team list, warn-and-ask)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: onPayment hook in the shared payment core; bookOnDeposit on both money paths; packageFloor on add + edit; merged Team list; coordinator = login user; confirmEventRisks in both forms
+        run: bun run scripts/check-events-booking-rules.ts

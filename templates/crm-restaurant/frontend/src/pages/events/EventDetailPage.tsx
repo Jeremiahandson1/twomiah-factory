@@ -7,6 +7,7 @@ import {
 import api from '../../services/api';
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType, localDay } from './EventsPage';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { confirmEventRisks } from '../../lib/eventWarnings';
 import { openPrintable } from '../../lib/printable';
 import { PAYMENT_METHODS } from '../../shared';
 
@@ -594,6 +595,7 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) { alert('Event name is required'); return; }
+    if (!confirmEventRisks(form, spaces, ev)) return; // a changed past date / over-capacity room: warn, allow (T16 L1 / L2)
     setSaving(true);
     try {
       await api.put(`/api/events/${ev.id}`, {
@@ -779,7 +781,7 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
           </select>
           {selected?.minGuests && Number(form.quantity || 0) > 0 && Number(form.quantity) < selected.minGuests && (
             <p className="text-xs text-amber-700 mt-1">
-              Heads up: this package's minimum is {selected.minGuests} guests and you've entered {form.quantity}. You can still add it — the minimum is advisory.
+              This package's minimum is {selected.minGuests} guests and you've entered {form.quantity} — the line will be billed at {selected.minGuests}.
             </p>
           )}
         </div>
