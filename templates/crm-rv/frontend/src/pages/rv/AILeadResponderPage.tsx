@@ -5,11 +5,14 @@ import api from '../../services/api';
 type Lead = {
   id: string; stage: string; source: string; createdAt: string;
   customerName?: string; email?: string; phone?: string;
-  unitYear?: number; unitMake?: string; unitModel?: string; unitPrice?: string; unitCategory?: string;
+  unitYear?: number; unitMake?: string; unitModel?: string; unitPrice?: string; unitCategory?: string; unitStatus?: string;
 };
 
 function money(v?: string) { const n = Number(v); return n ? '$' + n.toLocaleString() : ''; }
 function interestLabel(l: Lead) { return l.unitMake ? `${l.unitYear || ''} ${l.unitMake} ${l.unitModel || ''}`.trim() : '—'; }
+// a unit that can't be offered (the draft offers an available alternative instead)
+const UNIT_STATUS_LABEL: Record<string, string> = { sold: 'Unit sold', pending: 'Sale pending', on_order: 'On order', in_service: 'In service' };
+function unavailableLabel(l: Lead) { return l.unitMake && l.unitStatus && l.unitStatus !== 'available' ? (UNIT_STATUS_LABEL[l.unitStatus] || 'Not available') : ''; }
 
 export default function AILeadResponderPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -58,7 +61,7 @@ export default function AILeadResponderPage() {
               <button key={l.id} onClick={() => draftFor(l)}
                 className={`w-full text-left px-4 py-3 hover:bg-indigo-50 transition ${selected?.id === l.id ? 'bg-indigo-50 border-l-2 border-indigo-600' : ''}`}>
                 <div className="font-medium text-sm">{l.customerName || 'Unknown lead'}</div>
-                <div className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{interestLabel(l)} {l.unitPrice ? `· ${money(l.unitPrice)}` : ''}</div>
+                <div className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{interestLabel(l)} {!unavailableLabel(l) && l.unitPrice ? `· ${money(l.unitPrice)}` : ''}{unavailableLabel(l) && <span className="ml-1 text-amber-700 font-medium dark:text-amber-300">· {unavailableLabel(l)}</span>}</div>
                 <div className="text-[11px] text-gray-400 mt-0.5 capitalize">{(l.source || '').replace(/_/g, ' ')} · {l.stage?.replace(/_/g, ' ')}</div>
               </button>
             ))}
@@ -74,7 +77,7 @@ export default function AILeadResponderPage() {
               <div className="bg-white rounded-xl border shadow-sm p-4 flex items-center justify-between flex-wrap gap-2 dark:bg-slate-900">
                 <div>
                   <div className="font-semibold">{selected.customerName}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400">Interested in <span className="font-medium text-gray-700 dark:text-slate-200">{interestLabel(selected)}</span> · via {(selected.source || '').replace(/_/g, ' ')}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400">Interested in <span className="font-medium text-gray-700 dark:text-slate-200">{interestLabel(selected)}</span>{unavailableLabel(selected) && <span className="text-amber-700 font-medium dark:text-amber-300"> ({unavailableLabel(selected)} — the draft offers an available alternative)</span>} · via {(selected.source || '').replace(/_/g, ' ')}</div>
                 </div>
                 <button onClick={() => draftFor(selected)} disabled={loading}
                   className="text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5 disabled:opacity-50">

@@ -13,6 +13,14 @@ app.use('*', authenticate)
 
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
 
+// unit.status → how the draft may describe a unit that can't be offered
+const UNIT_STATUS_NOTE: Record<string, string> = {
+  sold: 'already sold',
+  pending: 'sale pending with another buyer',
+  on_order: 'on order and not in stock yet',
+  in_service: 'in the service department and not for sale right now',
+}
+
 // GET /inbox — recent leads with customer + the unit they're interested in
 app.get('/inbox', async (c) => {
   const u = c.get('user') as any
@@ -20,7 +28,7 @@ app.get('/inbox', async (c) => {
     const rows = await db.select({
       id: salesLead.id, stage: salesLead.stage, source: salesLead.source, createdAt: salesLead.createdAt,
       customerName: contact.name, email: contact.email, phone: contact.phone,
-      unitYear: unit.year, unitMake: unit.make, unitModel: unit.modelName, unitPrice: unit.internetPrice, unitCategory: unit.category,
+      unitYear: unit.year, unitMake: unit.make, unitModel: unit.modelName, unitPrice: unit.internetPrice, unitCategory: unit.category, unitStatus: unit.status,
     })
       .from(salesLead)
       .leftJoin(contact, eq(salesLead.contactId, contact.id))
@@ -55,15 +63,25 @@ app.post('/draft', async (c) => {
   const alsoAvailable = (interest?.category ? pool.filter(m => m.category === interest.category && m.id !== interest.id) : pool)
     .slice(0, 3).map(m => ({ year: m.year, make: m.make, model: m.modelName, price: m.internetPrice }))
 
+  // Only an available unit can be offered. A unit that is sold, pending, on order or in service goes to the AI with
+  // its status and without a price, and the instructions say not to offer it — pitch an available alternative
+  // instead. (RV T19 H3: the draft offered a test ride on a Gold Wing already sold)
+  const availableNow = interest?.status === 'available'
+  const interestedIn = interest ? (availableNow
+    ? { year: interest.year, make: interest.make, model: interest.modelName, price: interest.internetPrice, category: interest.category, availableNow: true }
+    : { year: interest.year, make: interest.make, model: interest.modelName, category: interest.category, availableNow: false, status: UNIT_STATUS_NOTE[interest.status] || 'no longer available' }
+  ) : null
+
   const ctx = {
     dealership: { name: co?.name, phone: co?.phone, city: co?.city, state: co?.state },
     salesperson: { name: `${me?.firstName || ''} ${me?.lastName || ''}`.trim() || 'the team', email: me?.email },
     customer: { name: cust?.name || 'there', firstName: (cust?.name || 'there').split(' ')[0], leadSource: lead.source },
-    interestedIn: interest ? { year: interest.year, make: interest.make, model: interest.modelName, price: interest.internetPrice, category: interest.category } : null,
+    interestedIn,
     alsoAvailable,
   }
 
   const system = `You are an elite powersports / RV / marine dealership salesperson writing the FIRST response to a fresh internet lead. Warm, concise, human — NOT corporate spam. Use the customer's first name. Reference the SPECIFIC unit they asked about (year/make/model + price if given). Offer a clear next step (schedule a test ride / visit, answer questions, financing pre-qual). If an "alsoAvailable" unit fits, you may mention ONE briefly as an alternative. NEVER invent specs or prices not provided. Write like a top closer who replies within 5 minutes.
+If "interestedIn.availableNow" is false, that unit can NOT be sold to this customer: say briefly and honestly what "interestedIn.status" says (e.g. already sold), do NOT offer a test ride, visit, price or financing on it, and offer ONE "alsoAvailable" unit instead (or, if there are none, offer to find them a similar one). Only units in "alsoAvailable" or an available "interestedIn" may be offered.
 Return your answer in EXACTLY this format — these three literal markers each on their own line, with the content between them, and nothing else:
 ===SUBJECT===
 (the email subject line)

@@ -494,3 +494,14 @@ jobs:
           bun-version: latest
       - name: adjust/transfer/use/return/receive in one locked transaction via moveStock; quantity validated; item/location scoped; refusals 400/404/409
         run: bun run scripts/check-inventory-stock-moves.ts
+
+  rv-ai-leads-availability:
+    name: RV AI Lead Responder never offers a sold/pending unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: unavailable unit → availableNow false + status, no price; instruction forbids offering it; alternatives available-only; inbox/page show status
+        run: bun run scripts/check-rv-ai-leads-availability.ts
