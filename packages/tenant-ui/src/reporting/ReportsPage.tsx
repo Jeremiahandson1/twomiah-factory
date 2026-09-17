@@ -11,12 +11,17 @@ interface Summary {
   revenue: { collected: number; invoiced: number; outstanding: number; overdue: number; overdueCount: number; collectionRate: number }
   jobs: { total: number; completed: number; completionRate: number; scheduled?: number; inProgress?: number; cancelled?: number; byStatus?: Record<string, number> }
   projects: { total: number; active: number; completed: number; totalValue: number }
-  quotes: { total: number; approved: number; conversionRate: number }
+  quotes: { total: number; approved: number; conversionRate: number; rejected?: number; expired?: number; pending?: number }
   recentActivity: Array<{ type: 'invoice' | 'job' | 'quote'; number?: string; title?: string; status?: string; createdAt: string; total?: string | number }>
 }
 interface MonthRow { month: string; invoiced: number; collected: number }
 interface CustomerRow { contact?: { name?: string; company?: string | null }; invoiceCount: number; total: number; collected?: number; invoiced?: number }
 interface TeamRow { user?: { firstName?: string; lastName?: string }; jobsCompleted: number; hoursWorked: number }
+interface DealerReport {
+  sales: { unitsSold: number; lost: number; closeRate: number; frontEndGross: number; unitsWithCost: number; averageGross: number; soldByCategory: Record<string, number> }
+  pipeline: Record<string, number>
+  service: { closedRepairOrders: number; closedValue: number; openRepairOrders: number; openEstimatedValue: number }
+}
 
 const RANGES: Array<[string, string]> = [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days'], ['365', 'Last year']]
 const card = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6'
@@ -33,6 +38,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
   const [customers, setCustomers] = useState<CustomerRow[]>([])
   const [team, setTeam] = useState<TeamRow[]>([])
   const [events, setEvents] = useState<any>(null)
+  const [dealer, setDealer] = useState<DealerReport | null>(null)
   const [range, setRange] = useState('30')
 
   useEffect(() => {
@@ -49,13 +55,14 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
       api.get('/api/reports/revenue/customers', { limit: 5, ...q }),
       cfg.team ? api.get('/api/reports/team', q).catch(() => []) : Promise.resolve([]),
       cfg.eventsPipeline ? api.get('/api/dashboard/stats').catch(() => null) : Promise.resolve(null),
-    ]).then(([summary, m, c, tm, ev]) => {
+      cfg.dealership ? api.get('/api/dashboard/sales-report', q).catch(() => null) : Promise.resolve(null),
+    ]).then(([summary, m, c, tm, ev, dl]) => {
       if (cancelled) return
-      setData(summary || null); setMonthly(Array.isArray(m) ? m : []); setCustomers(Array.isArray(c) ? c : []); setTeam(Array.isArray(tm) ? tm : []); setEvents(ev)
+      setData(summary || null); setMonthly(Array.isArray(m) ? m : []); setCustomers(Array.isArray(c) ? c : []); setTeam(Array.isArray(tm) ? tm : []); setEvents(ev); setDealer(dl || null)
     }).catch(e => { if (!cancelled) setError(e instanceof Error && e.message ? e.message : 'Could not load reports') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [api, range, cfg.team, cfg.eventsPipeline])
+  }, [api, range, cfg.team, cfg.eventsPipeline, cfg.dealership])
 
   const rangeLabel = RANGES.find(r => r[0] === range)?.[1] || `Last ${range} days`
 
@@ -79,11 +86,17 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
         const jobs = data.jobs || { total: 0, completed: 0, completionRate: 0 }
         const projects = data.projects || { total: 0, active: 0, completed: 0, totalValue: 0 }
         const quotes = data.quotes || { total: 0, approved: 0, conversionRate: 0 }
-        const showJobs = cfg.jobs && !cfg.eventsPipeline
-        const chartsTwoUp = showJobs || cfg.eventsPipeline
+        const showJobs = cfg.jobs && !cfg.eventsPipeline && !cfg.dealership
+        const chartsTwoUp = showJobs || cfg.eventsPipeline || cfg.dealership
+        // the conversion rate is approved ÷ decided (approved + rejected + expired); pending quotes don't count yet
+        const decided = quotes.approved + (quotes.rejected || 0) + (quotes.expired || 0)
+        const quoteSubtitle = quotes.rejected !== undefined
+          ? `${quotes.approved} of ${decided} decided${quotes.pending ? ` · ${quotes.pending} pending` : ''}`
+          : `${quotes.approved} of ${quotes.total} approved`
+        const sales = dealer?.sales, service = dealer?.service
         return (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${cfg.dealership && cfg.quotes ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-4`}>
               <Metric title="Revenue collected" value={money(revenue.collected)} subtitle={`${money(revenue.invoiced)} invoiced in this period`} icon={DollarSign} color="green" trend={revenue.collectionRate} trendLabel="collection rate" />
               <Metric title="Outstanding now" value={money(revenue.outstanding)} subtitle={`${money(revenue.overdue)} overdue · ${revenue.overdueCount} invoice${revenue.overdueCount === 1 ? '' : 's'}`} icon={AlertCircle} color="orange" alert={revenue.overdueCount > 0} />
               {cfg.eventsPipeline ? (
@@ -91,10 +104,16 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                   <Metric title="Confirmed events" value={events?.pipeline?.confirmed ?? 0} subtitle={`${money(events?.events?.bookedValue ?? 0)} booked ahead`} icon={CheckCircle} color="blue" />
                   <Metric title="Enquiries" value={events?.pipeline?.enquiry ?? 0} subtitle={`${events?.events?.upcoming30 ?? 0} events in the next 30 days`} icon={Calendar} color="purple" />
                 </>
+              ) : cfg.dealership ? (
+                <>
+                  <Metric title="Units sold" value={sales?.unitsSold ?? 0} subtitle={`${money(sales?.frontEndGross ?? 0)} front-end gross${sales && sales.unitsWithCost < sales.unitsSold ? ` (${sales.unitsWithCost} with cost on file)` : ''}`} icon={Briefcase} color="blue" trend={sales?.closeRate ?? 0} trendLabel={`close rate · ${sales?.lost ?? 0} lost`} />
+                  <Metric title="Service ROs closed" value={service?.closedRepairOrders ?? 0} subtitle={`${money(service?.closedValue ?? 0)} · ${service?.openRepairOrders ?? 0} open now`} icon={FileText} color="purple" />
+                  {cfg.quotes && <Metric title="Quote conversion" value={`${quotes.conversionRate}%`} subtitle={quoteSubtitle} icon={FileText} color="purple" />}
+                </>
               ) : (
                 <>
                   {showJobs && <Metric title={`${cfg.jobsLabel} completed`} value={jobs.completed} subtitle={`${jobs.total} ${cfg.jobsLabel.toLowerCase()} in this period`} icon={Briefcase} color="blue" trend={jobs.completionRate} trendLabel="completion rate" />}
-                  {cfg.quotes && <Metric title="Quote conversion" value={`${quotes.conversionRate}%`} subtitle={`${quotes.approved} of ${quotes.total} approved`} icon={FileText} color="purple" />}
+                  {cfg.quotes && <Metric title="Quote conversion" value={`${quotes.conversionRate}%`} subtitle={quoteSubtitle} icon={FileText} color="purple" />}
                 </>
               )}
             </div>
@@ -102,6 +121,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
             <div className={`grid grid-cols-1 ${chartsTwoUp ? 'lg:grid-cols-2' : ''} gap-6`}>
               <div className={card}><h3 className={h3}>Revenue trend</h3><RevenueChart data={monthly} /></div>
               {cfg.eventsPipeline && <div className={card}><h3 className={h3}>Events pipeline</h3><PipelineBar segments={[['enquiry', 'Enquiry', 'bg-blue-500'], ['tentative', 'Tentative', 'bg-yellow-500'], ['confirmed', 'Confirmed', 'bg-green-500'], ['completed', 'Completed', 'bg-teal-500'], ['lost', 'Lost', 'bg-gray-400'], ['cancelled', 'Cancelled', 'bg-gray-300']]} counts={events?.pipeline || {}} /></div>}
+              {cfg.dealership && <div className={card}><h3 className={h3}>Sales pipeline (open leads)</h3><PipelineBar segments={[['new', 'New', 'bg-blue-500'], ['contacted', 'Contacted', 'bg-indigo-500'], ['demo', 'Demo', 'bg-purple-500'], ['desking', 'Desking', 'bg-yellow-500']]} counts={dealer?.pipeline || {}} /></div>}
               {showJobs && <div className={card}><h3 className={h3}>{cfg.jobsLabel.replace(/s$/, '')} status</h3><PipelineBar segments={[['scheduled', 'Scheduled', 'bg-blue-500'], ['in_progress', 'In progress', 'bg-yellow-500'], ['completed', 'Completed', 'bg-green-500'], ['cancelled', 'Cancelled', 'bg-gray-400']]} counts={{ scheduled: jobs.scheduled ?? jobs.byStatus?.scheduled ?? 0, in_progress: jobs.inProgress ?? jobs.byStatus?.in_progress ?? 0, completed: jobs.completed, cancelled: jobs.cancelled ?? jobs.byStatus?.cancelled ?? 0 }} /></div>}
             </div>
 

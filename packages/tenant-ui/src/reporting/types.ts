@@ -16,11 +16,13 @@ export interface ReportingConfig {
   team?: boolean
   /** Events venue: replace the job cards + chart with the events pipeline from /api/dashboard/stats. */
   eventsPipeline?: boolean
+  /** Dealership (RV): units sold, front-end gross, close rate, sales pipeline and service from /api/dashboard/sales-report. */
+  dealership?: boolean
 }
 
 export interface ReportsPageProps { api: ReportingApi; config?: ReportingConfig }
 
-export const defaultReportingConfig: Required<ReportingConfig> = { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: true, team: true, eventsPipeline: false }
+export const defaultReportingConfig: Required<ReportingConfig> = { jobsLabel: 'Jobs', jobs: true, quotes: true, projects: true, team: true, eventsPipeline: false, dealership: false }
 export const resolveReportingConfig = (c?: ReportingConfig) => ({ ...defaultReportingConfig, ...(c || {}) })
 
 export interface JobsDashboardConfig {

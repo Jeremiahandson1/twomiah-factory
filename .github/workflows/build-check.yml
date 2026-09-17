@@ -604,3 +604,14 @@ jobs:
           bun-version: latest
       - name: "unit search (stock/VIN/make/model/trim/year) company-scoped, default type, gated on unit_inventory; result opens /crm/units?search="
         run: bun run scripts/check-rv-search-units.ts
+
+  rv-dealer-reports:
+    name: "RV Reports shows dealership figures; quote conversion labelled on decided quotes"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "sales-report endpoint (units sold, gross from desk, close rate, pipeline, service) + dealership mode; quote label approved of decided"
+        run: bun run scripts/check-rv-dealer-reports.ts
