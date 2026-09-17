@@ -81,7 +81,7 @@ export default function MaintenanceContracts() {
     monthlyRevenue: contracts
       .filter(c => c.status === 'active')
       .reduce((sum, c) => {
-        const price = Number(c.price) || 0;
+        const price = Number(c.amount) || 0;
         if (c.billingFrequency === 'monthly') return sum + price;
         if (c.billingFrequency === 'quarterly') return sum + price / 3;
         if (c.billingFrequency === 'semi-annual') return sum + price / 6;
@@ -220,7 +220,7 @@ export default function MaintenanceContracts() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <p className="font-medium text-gray-900 dark:text-white">
-                        ${Number(contract.price || 0).toFixed(2)}
+                        ${Number(contract.amount || 0).toFixed(2)}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-slate-400">
                         /{contract.billingFrequency || 'mo'}
@@ -323,7 +323,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
     planType: contract?.planType || 'annual',
     startDate: contract?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
     billingFrequency: contract?.billingFrequency || 'monthly',
-    price: contract?.price || '',
+    amount: contract?.amount || '', // the agreement's billed amount (API field `amount`)
     includedServices: contract?.includedServices || [],
     autoRenew: contract?.autoRenew ?? true,
   });
@@ -366,7 +366,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
       }
       onSave();
     } catch (error) {
-      alert('Failed to save contract');
+      alert(error instanceof Error && error.message ? error.message : 'Failed to save contract');
     } finally {
       setSaving(false);
     }
@@ -414,7 +414,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
                     setForm({
                       ...form,
                       planId: e.target.value,
-                      price: plan?.price || form.price,
+                      amount: plan?.price || form.amount,
                       billingFrequency: plan?.billingFrequency || form.billingFrequency,
                     });
                   }}
@@ -479,8 +479,8 @@ function ContractFormModal({ contract, onSave, onClose }) {
                   <input
                     type="number"
                     step="0.01"
-                    value={form.price}
-                    onChange={(e) => setForm({ ...form, price: e.target.value })}
+                    value={form.amount}
+                    onChange={(e) => setForm({ ...form, amount: e.target.value })}
                     className="w-full pl-7 pr-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                     required
                   />

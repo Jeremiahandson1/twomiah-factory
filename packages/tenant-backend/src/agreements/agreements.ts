@@ -13,7 +13,16 @@
  * copies did `import('./stripe.ts')`, which cannot resolve from the vendored shared/ folder.
  */
 import { Hono } from 'hono'
-import { eq, and, lte, count, asc, desc, sql, inArray } from 'drizzle-orm'
+import { eq, and, lte, gte, count, asc, desc, sql, inArray } from 'drizzle-orm'
+import { nextNumber } from '../invoicing/money'
+
+/** A refused agreement write: bad input (400) or a customer / plan / agreement not in this company (404). */
+export class AgreementError extends Error {
+  status: 400 | 404
+  constructor(message: string, status: 400 | 404) { super(message); this.status = status }
+}
+export const AGREEMENT_FREQUENCIES = ['weekly', 'monthly', 'quarterly', 'semi-annual', 'semiannual', 'semi_annual', 'annual', 'yearly']
+export const AGREEMENT_STATUSES = ['active', 'pending', 'cancelled', 'expired']
 
 export interface AgreementsTables {
   serviceAgreement: any
@@ -47,6 +56,7 @@ function billingIntervalMonths(frequency: string): number {
     case 'weekly': return 0.25
     case 'monthly': return 1
     case 'quarterly': return 3
+    case 'semi-annual':
     case 'semiannual':
     case 'semi_annual': return 6
     case 'annual':
@@ -99,8 +109,11 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     }).returning()
     return plan
   }
+  // Only a plan's own fields — the raw body was written, so a companyId in it moved the plan to another company.
+  const PLAN_FIELDS = ['name', 'description', 'price', 'billingFrequency', 'visitsIncluded', 'discountPercent', 'priorityService', 'durationMonths', 'autoRenew', 'includedServices', 'active']
   async function updatePlan(planId: string, companyId: string, data: Record<string, unknown>) {
-    const [updated] = await db.update(agreementPlan).set({ ...data, updatedAt: new Date() })
+    const fields = Object.fromEntries(PLAN_FIELDS.filter((k) => data?.[k] !== undefined).map((k) => [k, data[k]]))
+    const [updated] = await db.update(agreementPlan).set({ ...fields, updatedAt: new Date() })
       .where(and(eq(agreementPlan.id, planId), eq(agreementPlan.companyId, companyId))).returning()
     return updated
   }
@@ -109,56 +122,148 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   }
 
   // ---- customer agreements ----
+  // An active agreement whose end date has passed is expired: nothing bills it (getAgreementsDueForBilling skips
+  // it) and nothing renews it automatically, so it must not read as Active or as "expiring soon". Run before
+  // every read that shows status. (Landscaping T14 H3: ended 1 June, still Active and "Expiring in 30 Days")
+  async function expireEndedAgreements(companyId: string) {
+    await db.update(serviceAgreement).set({ status: 'expired', updatedAt: new Date() }).where(and(
+      eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'),
+      sql`${serviceAgreement.endDate} IS NOT NULL AND ${serviceAgreement.endDate} < NOW()`,
+    ))
+  }
+
+  // Contact + plan for each row, from this company only — the list pages show the customer, the plan and the
+  // amount. (Landscaping T14 H2: rows rendered no customer, no plan and $0.00)
+  async function withRelations(companyId: string, rows: any[]) {
+    const contactIds = [...new Set(rows.map((r) => r.contactId).filter(Boolean))]
+    const planIds = [...new Set(rows.map((r) => r.planId).filter(Boolean))]
+    const [contacts, plans] = await Promise.all([
+      contactIds.length ? db.select({ id: contact.id, name: contact.name, email: contact.email, phone: contact.phone }).from(contact)
+        .where(and(eq(contact.companyId, companyId), inArray(contact.id, contactIds))) : [],
+      planIds.length ? db.select({ id: agreementPlan.id, name: agreementPlan.name, price: agreementPlan.price, billingFrequency: agreementPlan.billingFrequency }).from(agreementPlan)
+        .where(and(eq(agreementPlan.companyId, companyId), inArray(agreementPlan.id, planIds))) : [],
+    ])
+    const contactById = new Map(contacts.map((x: any) => [x.id, x]))
+    const planById = new Map(plans.map((x: any) => [x.id, x]))
+    return rows.map((r) => ({ ...r, contact: contactById.get(r.contactId) || null, plan: (r.planId && planById.get(r.planId)) || null }))
+  }
+
+  const dateOrError = (v: unknown, label: string): Date => {
+    const d = v instanceof Date ? v : new Date(String(v))
+    if (typeof v === 'boolean' || v === null || v === '' || isNaN(d.getTime())) throw new AgreementError(`${label} must be a valid date.`, 400)
+    return d
+  }
+
+  // The fields a customer agreement can be created or edited with — anything else in the body (companyId, number,
+  // autopay, billing dates…) is ignored. A plan fills in the name, amount, billing frequency and term. (The pages
+  // sent {planId, contactId, startDate, autoRenew} or a "price" and got 400; an edit wrote the raw body, so string
+  // dates 500'd and a companyId in the body moved the agreement to another company.)
+  async function agreementFields(companyId: string, data: any, existing: any | null) {
+    const out: Record<string, unknown> = {}
+    const has = (k: string) => data[k] !== undefined
+    if (has('contactId') || !existing) {
+      if (typeof data.contactId !== 'string' || !data.contactId) throw new AgreementError('Customer is required.', 400)
+      const [row] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, data.contactId), eq(contact.companyId, companyId))).limit(1)
+      if (!row) throw new AgreementError('Customer not found', 404)
+      out.contactId = data.contactId
+    }
+    let plan: any = null
+    if (has('planId')) {
+      if (data.planId === null || data.planId === '') out.planId = null
+      else {
+        if (typeof data.planId !== 'string') throw new AgreementError('Plan not found', 404)
+        ;[plan] = await db.select().from(agreementPlan).where(and(eq(agreementPlan.id, data.planId), eq(agreementPlan.companyId, companyId))).limit(1)
+        if (!plan) throw new AgreementError('Plan not found', 404)
+        out.planId = plan.id
+      }
+    }
+    const planChanged = !!plan && plan.id !== existing?.planId
+    if (has('name')) {
+      const name = typeof data.name === 'string' ? data.name.trim() : ''
+      if (!name || name.length > 200) throw new AgreementError('Name is required (up to 200 characters).', 400)
+      out.name = name
+    } else if (!existing || planChanged) out.name = plan?.name || existing?.name || 'Service agreement'
+    if (has('amount')) {
+      const n = typeof data.amount === 'number' ? data.amount : typeof data.amount === 'string' && data.amount.trim() !== '' ? Number(data.amount) : NaN
+      if (!Number.isFinite(n) || n < 0 || n > 10_000_000) throw new AgreementError('Amount must be 0 or more.', 400)
+      out.amount = n.toFixed(2)
+    } else if (plan && (!existing || planChanged)) out.amount = Number(plan.price).toFixed(2)
+    else if (!existing) throw new AgreementError('Amount is required — enter one or pick a plan.', 400)
+    if (has('billingFrequency')) {
+      if (!AGREEMENT_FREQUENCIES.includes(data.billingFrequency)) throw new AgreementError(`Billing frequency must be one of: monthly, quarterly, semi-annual, annual.`, 400)
+      out.billingFrequency = data.billingFrequency
+    } else if (!existing || planChanged) out.billingFrequency = plan?.billingFrequency || existing?.billingFrequency || 'monthly'
+    const start = has('startDate') ? dateOrError(data.startDate, 'Start date') : existing ? new Date(existing.startDate) : new Date()
+    if (has('startDate') || !existing) out.startDate = start
+    let end: Date | null | undefined
+    if (has('endDate')) end = data.endDate === null || data.endDate === '' ? null : dateOrError(data.endDate, 'End date')
+    else if (!existing) { end = new Date(start); end.setMonth(end.getMonth() + (Number(plan?.durationMonths) || 12)) }
+    if (end !== undefined) out.endDate = end
+    const effectiveEnd = end !== undefined ? end : existing?.endDate ? new Date(existing.endDate) : null
+    if (effectiveEnd && effectiveEnd < start) throw new AgreementError("End date can't be before the start date.", 400)
+    if (has('renewalType')) {
+      if (!['auto', 'manual'].includes(data.renewalType)) throw new AgreementError('Renewal must be auto or manual.', 400)
+      out.renewalType = data.renewalType
+    } else if (has('autoRenew')) out.renewalType = data.autoRenew === false ? 'manual' : 'auto'
+    for (const k of ['terms', 'notes'] as const) {
+      if (!has(k)) continue
+      if (data[k] !== null && typeof data[k] !== 'string') throw new AgreementError(`${k === 'terms' ? 'Terms' : 'Notes'} must be text.`, 400)
+      out[k] = data[k]
+    }
+    if (existing && has('status')) {
+      if (!AGREEMENT_STATUSES.includes(data.status)) throw new AgreementError(`Status must be one of: ${AGREEMENT_STATUSES.join(', ')}.`, 400)
+      out.status = data.status
+    }
+    return out
+  }
+
   async function createAgreement(companyId: string, data: any) {
-    const startDate = data.startDate ? new Date(data.startDate) : new Date()
-    const [agreement] = await db.insert(serviceAgreement).values({
-      companyId,
-      contactId: data.contactId,
-      name: data.name,
-      number: data.number,
-      startDate,
-      endDate: data.endDate ? new Date(data.endDate) : null,
-      billingFrequency: data.billingFrequency || 'monthly',
-      amount: String(data.amount),
-      renewalType: data.renewalType || 'auto',
-      terms: data.terms,
-      notes: data.notes,
-      planId: data.planId,
-      status: 'active',
-    }).returning()
-    return agreement
+    const fields = await agreementFields(companyId, data ?? {}, null)
+    return db.transaction(async (tx: any) => {
+      const number = await nextNumber(tx, serviceAgreement, serviceAgreement.number, serviceAgreement.companyId, companyId, { prefix: 'AGR', pad: 5 })
+      const [agreement] = await tx.insert(serviceAgreement).values({ ...fields, companyId, number, status: 'active' }).returning()
+      return agreement
+    })
   }
 
   async function getAgreements(companyId: string, {
     status, contactId, expiringSoon, page = 1, limit = 50,
   }: { status?: string; contactId?: string; expiringSoon?: boolean; page?: number; limit?: number } = {}) {
+    await expireEndedAgreements(companyId)
     const conditions = [eq(serviceAgreement.companyId, companyId)]
     if (status) conditions.push(eq(serviceAgreement.status, status))
     if (contactId) conditions.push(eq(serviceAgreement.contactId, contactId))
     if (expiringSoon) {
       const thirtyDays = new Date(); thirtyDays.setDate(thirtyDays.getDate() + 30)
       conditions.push(lte(serviceAgreement.endDate, thirtyDays))
+      conditions.push(gte(serviceAgreement.endDate, new Date()))
       conditions.push(eq(serviceAgreement.status, 'active'))
     }
     const whereClause = and(...conditions)
-    const [data, [{ value: total }]] = await Promise.all([
+    const [rows, [{ value: total }]] = await Promise.all([
       db.select().from(serviceAgreement).where(whereClause).orderBy(asc(serviceAgreement.endDate)).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(serviceAgreement).where(whereClause),
     ])
+    const data = await withRelations(companyId, rows)
     return { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } }
   }
 
   async function getAgreement(agreementId: string, companyId: string) {
+    await expireEndedAgreements(companyId)
     const [result] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!result) return null
     const visits = await db.select().from(agreementVisit).where(eq(agreementVisit.agreementId, agreementId)).orderBy(desc(agreementVisit.scheduledDate))
-    const [relatedContact] = await db.select().from(contact).where(eq(contact.id, result.contactId)).limit(1)
-    return { ...result, visits, contact: relatedContact || null }
+    const [withRel] = await withRelations(companyId, [result])
+    return { ...withRel, visits }
   }
 
-  async function updateAgreement(agreementId: string, companyId: string, data: Record<string, unknown>) {
-    return db.update(serviceAgreement).set({ ...data, updatedAt: new Date() })
+  async function updateAgreement(agreementId: string, companyId: string, data: any) {
+    const [existing] = await db.select().from(serviceAgreement)
+      .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
+    if (!existing) throw new AgreementError('Agreement not found', 404)
+    const fields = await agreementFields(companyId, data ?? {}, existing)
+    return db.update(serviceAgreement).set({ ...fields, updatedAt: new Date() })
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).returning()
   }
 
@@ -341,11 +446,13 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   // ---- reports ----
   async function getAgreementStats(companyId: string) {
+    await expireEndedAgreements(companyId)
     const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     const [[{ value: active }], [{ value: expiring }]] = await Promise.all([
       db.select({ value: count() }).from(serviceAgreement).where(and(eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'))),
       db.select({ value: count() }).from(serviceAgreement).where(and(
         eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'), lte(serviceAgreement.endDate, thirtyDaysFromNow),
+        gte(serviceAgreement.endDate, new Date()),
       )),
     ])
     const agreements = await db.select({ amount: serviceAgreement.amount, billingFrequency: serviceAgreement.billingFrequency })
@@ -353,9 +460,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     let monthlyRecurring = 0
     for (const a of agreements) {
       const price = Number(a.amount)
-      if (a.billingFrequency === 'monthly') monthlyRecurring += price
-      else if (a.billingFrequency === 'quarterly') monthlyRecurring += price / 3
-      else monthlyRecurring += price / 12
+      // per billing period → per month (semi-annual was counted as annual)
+      monthlyRecurring += price / billingIntervalMonths(a.billingFrequency)
     }
     return {
       activeAgreements: active,
@@ -366,10 +472,11 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   }
 
   async function getExpiringAgreements(companyId: string, daysAhead = 60) {
+    await expireEndedAgreements(companyId)
     const endDate = new Date(); endDate.setDate(endDate.getDate() + daysAhead)
     return db.select().from(serviceAgreement).where(and(
       eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'),
-      lte(serviceAgreement.endDate, endDate), eq(serviceAgreement.renewalType, 'manual'),
+      lte(serviceAgreement.endDate, endDate), gte(serviceAgreement.endDate, new Date()), eq(serviceAgreement.renewalType, 'manual'),
     )).orderBy(asc(serviceAgreement.endDate))
   }
 
@@ -497,10 +604,22 @@ export function createAgreementsRoutes(deps: AgreementsRoutesDeps) {
     if (!agreement) return c.json({ error: 'Agreement not found' }, 404)
     return c.json(agreement)
   })
-  app.post('/', requirePermission('agreements:create'), async (c: any) => c.json(await service.createAgreement((c.get('user')).companyId, await c.req.json()), 201))
+  app.post('/', requirePermission('agreements:create'), async (c: any) => {
+    try {
+      return c.json(await service.createAgreement((c.get('user')).companyId, await c.req.json().catch(() => ({}))), 201)
+    } catch (err) {
+      if (err instanceof AgreementError) return c.json({ error: err.message }, err.status)
+      throw err
+    }
+  })
   app.put('/:id', requirePermission('agreements:update'), async (c: any) => {
     const user = c.get('user'); const id = c.req.param('id')
-    await service.updateAgreement(id, user.companyId, await c.req.json())
+    try {
+      await service.updateAgreement(id, user.companyId, await c.req.json().catch(() => ({})))
+    } catch (err) {
+      if (err instanceof AgreementError) return c.json({ error: err.message }, err.status)
+      throw err
+    }
     return c.json(await service.getAgreement(id, user.companyId))
   })
   app.post('/:id/cancel', requirePermission('agreements:update'), async (c: any) => {

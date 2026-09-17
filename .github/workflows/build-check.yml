@@ -703,3 +703,14 @@ jobs:
           bun-version: latest
       - name: "Check RV deal pickers load beyond the 30 newest leads"
         run: bun run scripts/check-rv-lead-pickers.ts
+
+  agreements:
+    name: "Service agreements guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check agreements list relations, expiry and scoped create/edit"
+        run: bun run scripts/check-agreements.ts

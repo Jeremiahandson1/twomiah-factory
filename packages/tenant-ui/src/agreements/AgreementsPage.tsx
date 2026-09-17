@@ -42,7 +42,7 @@ interface Agreement {
   plan?: AgreementPlan;
   visitsRemaining: number;
   endDate: string;
-  price: number;
+  amount: string | number; // the agreement's billed amount per period (the API field; there is no "price")
   billingFrequency: string;
   planId?: string;
   contactId?: string;
@@ -478,7 +478,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
         <AutopayToggle agreement={agreement} onChanged={onChanged} />
       </td>
       <td className="px-4 py-3 text-right font-medium">
-        ${(Number(agreement.price) || 0).toFixed(2)}
+        ${(Number(agreement.amount) || 0).toFixed(2)}
         <span className="text-xs text-gray-500 ml-1 dark:text-slate-400">/{agreement.billingFrequency}</span>
       </td>
       <td className="px-4 py-3">
@@ -866,7 +866,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
       }
       onSave();
     } catch (error) {
-      alert('Failed to save agreement');
+      alert(error instanceof Error && error.message ? error.message : 'Failed to save agreement');
     } finally {
       setSaving(false);
     }
