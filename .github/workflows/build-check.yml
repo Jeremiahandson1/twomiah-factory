@@ -461,3 +461,14 @@ jobs:
           bun-version: latest
       - name: each CRM's search TYPE_FEATURES agrees with index.ts (gated → same features, unmounted → hidden); search, quick search, Recent and ?types= filtered
         run: bun run scripts/check-search-feature-gates.ts
+
+  rv-sold-unit:
+    name: RV sale and unit move together (no unit sold twice or left advertised)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: marking a deal Sold sells its unit in one locked transaction, a sold unit is refused, reopening frees it; pipeline labels + flag; seed
+        run: bun run scripts/check-rv-sold-unit.ts

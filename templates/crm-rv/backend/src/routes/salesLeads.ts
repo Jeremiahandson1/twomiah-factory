@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { salesLead, contact, unit, user } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
+import { eq, and, or, ilike, count, desc, sql, ne } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -11,6 +11,36 @@ import { createId } from '@paralleldrive/cuid2'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// A unit is sold by closing its deal (stage closed_won, shown as "Sold"). Closing marks the unit sold, which also
+// takes it off the syndication feed. A unit already sold on another deal can't be sold again. Reopening the deal,
+// or moving it to a different unit, puts the unit back on sale unless another sold deal still holds it. Other
+// customers' open leads on a sold unit stay open; the pipeline flags them "Unit sold". (RV T19 B1)
+const SOLD = 'closed_won'
+
+async function sellUnit(tx: any, companyId: string, unitId: string, leadId: string | null | undefined) {
+  const [u] = await tx.select({ id: unit.id }).from(unit)
+    .where(and(eq(unit.id, unitId), eq(unit.companyId, companyId))).limit(1).for('update')
+  if (!u) return { status: 404 as const, error: 'Unit not found' }
+  const [other] = await tx.select({ id: salesLead.id, contactName: contact.name }).from(salesLead)
+    .leftJoin(contact, eq(salesLead.contactId, contact.id))
+    .where(and(eq(salesLead.companyId, companyId), eq(salesLead.unitId, unitId), eq(salesLead.stage, SOLD), leadId ? ne(salesLead.id, leadId) : undefined))
+    .limit(1)
+  if (other) return { status: 409 as const, error: other.contactName ? `This unit is already sold to ${other.contactName}.` : 'This unit is already sold on another deal.', soldLeadId: other.id }
+  await tx.update(unit).set({ status: 'sold', updatedAt: new Date() }).where(eq(unit.id, unitId))
+  return null
+}
+
+async function releaseUnit(tx: any, companyId: string, unitId: string | null, leadId: string | undefined) {
+  if (!unitId || !leadId) return
+  const [u] = await tx.select({ id: unit.id, status: unit.status }).from(unit)
+    .where(and(eq(unit.id, unitId), eq(unit.companyId, companyId))).limit(1).for('update')
+  if (!u || u.status !== 'sold') return
+  const [other] = await tx.select({ id: salesLead.id }).from(salesLead)
+    .where(and(eq(salesLead.companyId, companyId), eq(salesLead.unitId, unitId), eq(salesLead.stage, SOLD), ne(salesLead.id, leadId)))
+    .limit(1)
+  if (!other) await tx.update(unit).set({ status: 'available', updatedAt: new Date() }).where(eq(unit.id, unitId))
+}
 
 // GET /sales-leads — pipeline list
 app.get('/', requirePermission('contacts:read'), async (c) => {
@@ -37,6 +67,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     unitModelName: unit.modelName,
     unitTrim: unit.trim,
     unitStockNumber: unit.stockNumber,
+    unitStatus: unit.status,
     salespersonFirstName: user.firstName,
     salespersonLastName: user.lastName,
   })
@@ -75,18 +106,33 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
 
-  const [created] = await db.insert(salesLead).values({
-    id: createId(),
-    contactId: body.contactId,
-    unitId: body.unitId || null,
-    source: body.source || 'web',
-    stage: body.stage || 'new',
-    assignedTo: body.assignedTo || null,
-    notes: body.notes || null,
-    tradeInInfo: body.tradeInInfo || null,
-    followUpDate: body.followUpDate ? new Date(body.followUpDate) : null,
-    companyId: currentUser.companyId,
-  }).returning()
+  const id = createId()
+  const stage = body.stage || 'new'
+  const unitId = body.unitId || null
+  const outcome = await db.transaction(async (tx: any) => {
+    if (stage === SOLD && unitId) {
+      const refusal = await sellUnit(tx, currentUser.companyId, unitId, null)
+      if (refusal) return { refusal }
+    }
+    const [created] = await tx.insert(salesLead).values({
+      id,
+      contactId: body.contactId,
+      unitId,
+      source: body.source || 'web',
+      stage,
+      assignedTo: body.assignedTo || null,
+      notes: body.notes || null,
+      tradeInInfo: body.tradeInInfo || null,
+      followUpDate: body.followUpDate ? new Date(body.followUpDate) : null,
+      companyId: currentUser.companyId,
+    }).returning()
+    return { created }
+  })
+  if (outcome.refusal) {
+    const { status, ...rest } = outcome.refusal
+    return c.json(rest, status)
+  }
+  const created = outcome.created
 
   await audit.log({ action: 'create', entity: 'sales_lead', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
@@ -110,7 +156,27 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     updates.closedAt = new Date()
   }
 
-  const [updated] = await db.update(salesLead).set(updates).where(eq(salesLead.id, id)).returning()
+  const nextStage = 'stage' in body ? body.stage : existing.stage
+  const nextUnitId = 'unitId' in body ? body.unitId || null : existing.unitId
+  const wasSold = existing.stage === SOLD && !!existing.unitId
+  const isSold = nextStage === SOLD && !!nextUnitId
+  const sameSale = wasSold && isSold && nextUnitId === existing.unitId
+
+  const outcome = await db.transaction(async (tx: any) => {
+    // sell first: a refusal returns before anything is written
+    if (isSold && !sameSale) {
+      const refusal = await sellUnit(tx, currentUser.companyId, nextUnitId, id)
+      if (refusal) return { refusal }
+    }
+    if (wasSold && !sameSale) await releaseUnit(tx, currentUser.companyId, existing.unitId, id)
+    const [row] = await tx.update(salesLead).set(updates).where(eq(salesLead.id, id)).returning()
+    return { updated: row }
+  })
+  if (outcome.refusal) {
+    const { status, ...rest } = outcome.refusal
+    return c.json(rest, status)
+  }
+  const updated = outcome.updated
   await audit.log({ action: 'update', entity: 'sales_lead', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
   return c.json(updated)

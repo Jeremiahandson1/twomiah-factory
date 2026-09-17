@@ -17,8 +17,8 @@ const STAGES: { value: string; label: string }[] = [
   { value: 'contacted', label: 'Contacted' },
   { value: 'demo', label: 'Demo' },
   { value: 'desking', label: 'Desking' },
-  { value: 'closed_won', label: 'Closed Won' },
-  { value: 'closed_lost', label: 'Closed Lost' },
+  { value: 'closed_won', label: 'Sold' },
+  { value: 'closed_lost', label: 'Lost' },
 ];
 
 const STAGE_ACCENT: Record<string, string> = {
@@ -47,6 +47,7 @@ interface LeadRow {
   unitYear?: number | null;
   unitMake?: string | null;
   unitModelName?: string | null;
+  unitStatus?: string | null;
   salespersonFirstName?: string | null;
   salespersonLastName?: string | null;
 }
@@ -86,12 +87,15 @@ export default function SalesPipelinePage() {
   useEffect(() => { load(); }, [load]);
 
   const moveTo = async (id: string, stage: string) => {
+    const prevStage = rows.find((r) => r.lead.id === id)?.lead.stage;
     // Optimistic move by stage VALUE
     setRows((prev) => prev.map((r) => (r.lead.id === id ? { ...r, lead: { ...r.lead, stage } } : r)));
     try {
       await api.put(`/api/sales-leads/${id}`, { stage });
-    } catch {
-      alert('Failed to move lead');
+      // selling or reopening a deal changes its unit, which other cards on that unit show
+      if (stage === 'closed_won' || prevStage === 'closed_won') load();
+    } catch (err: any) {
+      alert(err?.message || 'Failed to move lead');
       load();
     }
   };
@@ -150,6 +154,9 @@ export default function SalesPipelinePage() {
                       <User className="w-4 h-4 text-gray-400" /> {row.contactName || 'Unknown'}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-slate-400">{unitDesc(row)}</p>
+                    {row.unitStatus === 'sold' && row.lead.stage !== 'closed_won' && row.lead.stage !== 'closed_lost' && (
+                      <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 inline-block dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800">Unit sold</p>
+                    )}
                     {row.contactPhone && (
                       <p className="text-xs text-gray-400 flex items-center gap-1"><Phone className="w-3 h-3" /> {row.contactPhone}</p>
                     )}

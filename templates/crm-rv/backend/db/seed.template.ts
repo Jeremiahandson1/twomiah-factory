@@ -189,12 +189,17 @@ async function main() {
 
     // ── Sales pipeline (sold deals w/ closedAt + dates, plus open + lost) ──
     const stages = ['closed_won', 'closed_won', 'closed_won', 'closed_won', 'desking', 'demo', 'contacted', 'new', 'closed_lost', 'desking', 'contacted', 'new', 'demo', 'closed_won', 'new', 'contacted']
+    // Units 0–3 are the sold ones. Leads past the unit count go on the unsold units (4+) instead of wrapping back onto
+    // units 0–3, which put open leads and a second sale on sold units and gave contacts the same unit twice. A sold
+    // deal marks its unit sold, as the app does; another customer's open lead on that unit shows "Unit sold".
     for (let i = 0; i < stages.length; i++) {
       const stage = stages[i]; const closed = stage.startsWith('closed')
+      const leadUnit = i < unitDefs.length ? unitId(i) : unitId(4 + ((i - unitDefs.length) % (unitDefs.length - 4)))
       try {
+        if (stage === 'closed_won' && leadUnit) await db.update(unit).set({ status: 'sold' }).where(eq(unit.id, leadUnit))
         await db.insert(salesLead).values({
           source: ['walk_in', 'web', 'referral', 'rv_trader', 'cycle_trader'][i % 5], stage,
-          contactId: ctId(i), unitId: unitId(i), assignedTo: repId(i),
+          contactId: ctId(i), unitId: leadUnit, assignedTo: repId(i),
           closedAt: closed ? ago(i * 2 + 1) : null,
           followUpDate: closed ? null : ago(-(i % 8) - 1),
           notes: stage === 'closed_won' ? 'Delivered — financed via Octane.' : stage === 'closed_lost' ? 'Bought elsewhere on price.' : 'Working the deal.',
