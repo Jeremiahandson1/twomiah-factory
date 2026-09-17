@@ -63,7 +63,20 @@ export const refundEffectNote = (total: unknown, amountPaid: unknown): string =>
   const fullyPaid = Number(amountPaid || 0) >= (Number(total) || 0) - 0.005
   return fullyPaid
     ? 'This sale is paid in full: the refund is recorded on its own line and never reopens a balance.'
-    : 'This invoice is part-paid: the refunded amount is owed again, so the balance due goes up by what you refund. To reduce what the client owes instead, edit the invoice.'
+    : 'This invoice is part-paid: the refunded amount is owed again, so the balance due goes up by what you refund. To lower what the client owes without returning money, use Apply credit on the invoice instead.'
+}
+/**
+ * The balance due after a credit of `credit` (taken off the price, before tax — the same field as the
+ * discount) — mirrors applyInvoiceCredit + invoiceBalance on the server, so the modal shows the result
+ * before it is applied.
+ */
+export const balanceAfterCredit = (inv: { lineItems?: { quantity: any; unitPrice: any }[]; taxRate?: any; discount?: any; amountPaid?: any; amountRefunded?: any }, credit: number) => {
+  const lines = (inv.lineItems || []).map((li) => ({ quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
+  const total = calcTotals(lines, Number(inv.taxRate) || 0, round2((Number(inv.discount) || 0) + (Number(credit) || 0))).total
+  const paid = Number(inv.amountPaid || 0), refunded = Number(inv.amountRefunded || 0)
+  if (total > 0 && refunded >= total - 0.005) return 0
+  if (paid >= total - 0.005) return 0
+  return round2(Math.max(0, total - (paid - refunded)))
 }
 export const errMsg = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback)
 

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, Ban, RotateCcw, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, Ban, RotateCcw, RefreshCw, Tag } from 'lucide-react'
 import type { InvoicingPageProps } from './types'
 import { resolveConfig } from './types'
-import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, StatusBadge, dateOnly, dateTime, downloadFile, errMsg, inputCls, isPastDay, money, refundEffectNote } from './ui'
+import { Button, ConfirmModal, NavLink, Field, Modal, PAYMENT_METHODS, StatusBadge, balanceAfterCredit, dateOnly, dateTime, downloadFile, errMsg, inputCls, isPastDay, money, refundEffectNote } from './ui'
 
 type Inv = Record<string, any>
 
@@ -20,6 +20,8 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '', tipAmount: '' })
   const [refundOpen, setRefundOpen] = useState(false)
   const [refund, setRefund] = useState({ amount: '', method: '', reference: '', notes: '' })
+  const [creditOpen, setCreditOpen] = useState(false)
+  const [creditForm, setCreditForm] = useState({ amount: '', reason: '' })
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -59,6 +61,11 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
     if (refund.method) body.method = refund.method
     if (await run(() => api.post(`/api/invoices/${id}/refund`, body), 'Refund recorded', 'Could not record the refund')) setRefundOpen(false)
   }
+  const handleCredit = async () => {
+    if (!(Number(creditForm.amount) > 0)) { toast.error('Enter a valid amount'); return }
+    if (!creditForm.reason.trim()) { toast.error('Say why the credit is given'); return }
+    if (await run(() => api.post(`/api/invoices/${id}/credit`, { amount: Number(creditForm.amount), reason: creditForm.reason.trim() }), 'Credit applied', 'Could not apply the credit')) setCreditOpen(false)
+  }
   const handlePdf = async () => { try { await downloadFile(`/api/invoices/${id}/pdf`, `invoice-${invoice.number}.pdf`) } catch (e) { toast.error(errMsg(e, 'Could not download the PDF')) } }
   const handleQuickBooks = () => run(() => api.post(`/api/quickbooks/sync/invoice/${id}`, {}), 'Synced to QuickBooks', 'QuickBooks sync failed')
 
@@ -80,6 +87,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
         <div className="flex flex-wrap items-center gap-2">
           {!closed && <Button variant="secondary" onClick={handleSend} disabled={busy}><Send className="w-4 h-4" /> {invoice.sentAt ? 'Send again' : 'Send'}</Button>}
           {!closed && balance > 0.005 && <Button variant="success" onClick={() => { setPayment({ amount: balance.toFixed(2), method: 'card', reference: '', notes: '', tipAmount: '' }); setPaymentOpen(true) }}><DollarSign className="w-4 h-4" /> Record Payment</Button>}
+          {!closed && balance > 0.005 && <Button variant="secondary" onClick={() => { setCreditForm({ amount: '', reason: '' }); setCreditOpen(true) }}><Tag className="w-4 h-4" /> Apply credit</Button>}
           {invoice.status !== 'void' && netPaid > 0.005 && <Button variant="warn" onClick={() => { setRefund({ amount: netPaid.toFixed(2), method: '', reference: '', notes: '' }); setRefundOpen(true) }}><RotateCcw className="w-4 h-4" /> Refund</Button>}
           {invoice.status !== 'void' && netPaid <= 0.005 && <Button variant="secondary" onClick={() => setVoidOpen(true)}><Ban className="w-4 h-4" /> Void</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
@@ -108,7 +116,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
               </tbody>
               <tfoot className="bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100">
                 <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">{money(invoice.subtotal)}</td></tr>
-                {Number(invoice.discount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(invoice.discount)}</td></tr>}
+                {Number(invoice.discount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount &amp; credits</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(invoice.discount)}</td></tr>}
                 {Number(invoice.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax ({Number(invoice.taxRate)}%)</td><td className="px-4 py-2 text-right">{money(invoice.taxAmount)}</td></tr>}
                 <tr className="font-bold"><td colSpan={3} className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">{money(invoice.total)}</td></tr>
                 {Number(invoice.amountPaid) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-700 dark:text-green-300">-{money(invoice.amountPaid)}</td></tr>}
@@ -181,6 +189,16 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           <Field label="Reason"><input value={refund.notes} onChange={e => setRefund({ ...refund, notes: e.target.value })} className={inputCls} placeholder="Why the money went back" /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setRefundOpen(false)}>Cancel</Button><Button variant="warn" onClick={handleRefund} disabled={busy}>{busy ? 'Recording…' : 'Record Refund'}</Button></div>
+      </Modal>
+
+      <Modal isOpen={creditOpen} onClose={() => setCreditOpen(false)} title="Apply credit" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600 dark:text-slate-400">Lowers what the client owes without returning any money — for goodwill, a price adjustment or a complaint. It is recorded on the invoice with your reason. To give money back, use Refund.</p>
+          <Field label="Credit amount *" hint={`${money(balance)} still owed${Number(invoice.taxRate) > 0 ? ` · taken off the price, tax is recalculated at ${Number(invoice.taxRate)}%` : ''}`}><input type="number" step="0.01" min="0.01" value={creditForm.amount} onChange={e => setCreditForm({ ...creditForm, amount: e.target.value })} className={inputCls} /></Field>
+          <Field label="Reason *"><input value={creditForm.reason} onChange={e => setCreditForm({ ...creditForm, reason: e.target.value })} className={inputCls} placeholder="Why the credit is given" /></Field>
+          {Number(creditForm.amount) > 0 && <p className="text-sm font-medium text-gray-900 dark:text-slate-100">Balance due: {money(balance)} → {money(balanceAfterCredit(invoice, Number(creditForm.amount)))}</p>}
+        </div>
+        <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setCreditOpen(false)}>Cancel</Button><Button onClick={handleCredit} disabled={busy}>{busy ? 'Applying…' : 'Apply credit'}</Button></div>
       </Modal>
 
       <ConfirmModal isOpen={voidOpen} onClose={() => setVoidOpen(false)} onConfirm={handleVoid} title="Void invoice" message={`Void ${invoice.number}? It stays on record but no longer counts as owed.`} confirmText="Void" />

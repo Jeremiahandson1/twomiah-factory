@@ -439,3 +439,14 @@ jobs:
           bun-version: latest
       - name: header search button not hidden below md; Help headings/body readable and identical across templates; no hard-coded teal on events pages; no two features share a name; no trend arrow on a rate
         run: bun run scripts/check-ui-consistency.ts
+
+  invoice-credit:
+    name: Invoice credit (a refund returns money, a credit lowers the price)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: applyInvoiceCredit locked, capped at what is owed, re-totalled, recorded, no money moved; POST /:id/credit; Apply credit on the invoice page with a matching preview
+        run: bun run scripts/check-invoice-credit.ts

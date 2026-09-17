@@ -277,6 +277,70 @@ export async function recordInvoiceRefund(db: any, t: { invoice: any; payment: a
   return outcome
 }
 
+export interface ApplyCreditInput {
+  invoiceId: string
+  companyId: string
+  /** Whole cents (round2'd by the caller) taken off the price, before tax — the same field as a discount. */
+  amount: number
+  /** Why — written onto the invoice notes as the record of the credit. */
+  reason: string
+  /** Who applied it, for that record. */
+  by?: string | null
+}
+
+export type ApplyCreditOutcome =
+  | { ok: true; invoice: any; balanceBefore: number; balanceAfter: number }
+  | { ok: false; status: 400 | 404; error: string }
+
+/**
+ * A credit lowers what the client owes WITHOUT returning money — the other half of the refund model
+ * (money.ts: "give money back without reopening is a credit/price reduction"). A refund returns money, so
+ * on a part-paid invoice the balance rises; a credit forgives part of the price, so the balance falls.
+ * It goes through the same rules as editing the discount (retotalInvoice: tax recalculated on the lower
+ * price, never below the money already collected), under the invoice row lock, and adds to the invoice's
+ * discount — the one price reduction every CRM and the events ledger already carry (an event invoice's
+ * menu re-sync keeps it). The amount, the reason and who applied it are written onto the invoice notes.
+ * It can take off at most what is still owed. (events T15–T17 B2)
+ */
+export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLineItem: any }, input: ApplyCreditInput): Promise<ApplyCreditOutcome> {
+  const { invoiceId: id, amount } = input
+  let outcome: ApplyCreditOutcome = { ok: false, status: 400, error: 'Credit failed' }
+  await db.transaction(async (tx: any) => {
+    const locked: any = await tx.execute(sql`SELECT * FROM invoice WHERE id = ${id} AND company_id = ${input.companyId} FOR UPDATE`)
+    const row = (locked.rows || locked)[0]
+    if (!row) { outcome = { ok: false, status: 404, error: 'Invoice not found' }; return }
+    if (row.status === 'void') { outcome = { ok: false, status: 400, error: 'This invoice is void.' }; return }
+    if (row.status === 'refunded') { outcome = { ok: false, status: 400, error: 'This sale was refunded and can no longer be changed.' }; return }
+    const money = { status: row.status, total: row.total, amountPaid: row.amount_paid, amountRefunded: row.amount_refunded }
+    const balanceBefore = invoiceBalance(money)
+    if (balanceBefore <= 0.005) { outcome = { ok: false, status: 400, error: 'Nothing is owed on this invoice, so there is nothing to credit.' }; return }
+    const current = await tx.select().from(t.invoiceLineItem).where(eq(t.invoiceLineItem.invoiceId, id)).orderBy(asc(t.invoiceLineItem.sortOrder))
+    const lines = current.map((li: any) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }))
+    const taxRate = Number(row.tax_rate) || 0
+    const newDiscount = round2(Number(row.discount || 0) + amount)
+    const subtotal = rawSubtotal(lines)
+    if (newDiscount > subtotal + 0.005) { outcome = { ok: false, status: 400, error: `A credit can't take the price below $0 — at most $${round2(Math.max(0, subtotal - Number(row.discount || 0))).toFixed(2)} can be credited.` }; return }
+    // A credit forgives what is owed — it never goes past it (that would be money to hand back: a refund).
+    // Checked first, so the answer names the most that can be credited.
+    const takesOff = (c: number) => round2(Number(row.total) - calcTotals(lines, taxRate, round2(Number(row.discount || 0) + c)).total)
+    if (takesOff(amount) > balanceBefore + 0.005) {
+      let most = Math.floor((balanceBefore / (1 + taxRate / 100)) * 100) / 100
+      while (most > 0 && takesOff(most) > balanceBefore + 0.005) most = round2(most - 0.01)
+      outcome = { ok: false, status: 400, error: `Only $${balanceBefore.toFixed(2)} is still owed — the most you can credit is $${most.toFixed(2)}${taxRate > 0 ? ' before tax' : ''}.` }
+      return
+    }
+    const retotal = retotalInvoice({ amountPaid: row.amount_paid, status: row.status }, lines, taxRate, newDiscount)
+    if ('error' in retotal) { outcome = { ok: false, status: 400, error: retotal.error }; return }
+    const balanceAfter = invoiceBalance({ ...money, total: retotal.fields.total, status: retotal.fields.status })
+    const note = `Credit $${amount.toFixed(2)} applied ${new Date().toISOString().slice(0, 10)}${input.by ? ` by ${input.by}` : ''}: ${input.reason}`
+    const set: Record<string, any> = { ...retotal.fields, notes: row.notes ? `${row.notes}\n${note}` : note, updatedAt: new Date() }
+    if (balanceAfter <= 0.005 && !row.paid_at) set.paidAt = new Date()
+    const [updated] = await tx.update(t.invoice).set(set).where(eq(t.invoice.id, id)).returning()
+    outcome = { ok: true, invoice: updated, balanceBefore, balanceAfter }
+  })
+  return outcome
+}
+
 // Once per process, heal invoices whose STORED status drifted during an earlier broken-refund build —
 // a fully-refunded invoice must read 'refunded' and a fully-paid one 'paid', but that window left some
 // stuck on 'partial'/'sent', mislabelling them in the list and the status filter. Only the unambiguous
@@ -592,6 +656,26 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
     emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
     return c.json({ refund: outcome.refund, invoice: outcome.invoice })
+  })
+
+  // ---------------------------------------------------------------- credit
+  // Lowers what the client owes without returning money (see applyInvoiceCredit). A refund returns money.
+  app.post('/:id/credit', requirePermission('invoices:update'), async (c) => {
+    const currentUser = c.get('user') as any
+    const id = c.req.param('id')
+    const creditSchema = z.object({
+      amount: z.number({ invalid_type_error: 'Credit amount must be a number' }).positive('Credit amount must be more than $0'),
+      reason: z.string({ required_error: 'Say why the credit is given' }).trim().min(1, 'Say why the credit is given').max(500, 'Keep the reason under 500 characters'),
+    })
+    const parsed = creditSchema.safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return c.json({ error: parsed.error.errors[0]?.message || 'Invalid credit' }, 400)
+    const amount = round2(parsed.data.amount)
+    if (amount <= 0) return c.json({ error: 'Credit amount must be at least $0.01' }, 400)
+    // The authenticated request carries the user's email (auth/middleware.ts), which is what the record names.
+    const outcome = await applyInvoiceCredit(db, t, { invoiceId: id, companyId: currentUser.companyId, amount, reason: parsed.data.reason, by: currentUser.email || null })
+    if (!outcome.ok) return c.json({ error: outcome.error }, outcome.status)
+    emitToCompany(currentUser.companyId, EVENTS.INVOICE_UPDATED, outcome.invoice)
+    return c.json({ invoice: outcome.invoice, balanceBefore: outcome.balanceBefore, balanceAfter: outcome.balanceAfter })
   })
 
   // ---------------------------------------------------------------- pdf
