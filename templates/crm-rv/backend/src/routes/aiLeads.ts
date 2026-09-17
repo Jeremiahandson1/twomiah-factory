@@ -27,7 +27,7 @@ app.get('/inbox', async (c) => {
   try {
     const rows = await db.select({
       id: salesLead.id, stage: salesLead.stage, source: salesLead.source, createdAt: salesLead.createdAt,
-      customerName: contact.name, email: contact.email, phone: contact.phone,
+      contactId: salesLead.contactId, customerName: contact.name, email: contact.email, phone: contact.phone,
       unitYear: unit.year, unitMake: unit.make, unitModel: unit.modelName, unitPrice: unit.internetPrice, unitCategory: unit.category, unitStatus: unit.status,
     })
       .from(salesLead)

@@ -4,7 +4,7 @@ import api from '../../services/api';
 
 type Lead = {
   id: string; stage: string; source: string; createdAt: string;
-  customerName?: string; email?: string; phone?: string;
+  contactId?: string; customerName?: string; email?: string; phone?: string;
   unitYear?: number; unitMake?: string; unitModel?: string; unitPrice?: string; unitCategory?: string; unitStatus?: string;
 };
 
@@ -24,20 +24,35 @@ export default function AILeadResponderPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [sent, setSent] = useState<{ email?: boolean; sms?: boolean }>({});
+  // Only a text the server confirms is shown as sent. (The buttons used to flip to "Sent ✓" without sending anything.)
+  const [smsSent, setSmsSent] = useState(false);
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsError, setSmsError] = useState<string | null>(null);
 
   useEffect(() => {
     api.get('/api/ai-leads/inbox').then((r: any) => setLeads(r.leads || [])).catch(() => {});
   }, []);
 
   async function draftFor(lead: Lead) {
-    setSelected(lead); setDraft(null); setError(null); setLoading(true); setSent({});
+    setSelected(lead); setDraft(null); setError(null); setLoading(true); setSmsSent(false); setSmsError(null);
     try {
       const r = await api.post('/api/ai-leads/draft', { leadId: lead.id });
       setDraft(r); setEmailSubject(r.draft?.email?.subject || ''); setEmailBody(r.draft?.email?.body || ''); setSms(r.draft?.sms || '');
     } catch (e: any) { setError(e?.message || 'Could not draft a response.'); }
     finally { setLoading(false); }
   }
+
+  // The text goes out through the CRM's messaging (POST /api/sms/send — the same send the contact page uses).
+  async function sendSms() {
+    if (!selected?.contactId || !sms.trim()) return;
+    setSmsSending(true); setSmsError(null);
+    try {
+      await api.post('/api/sms/send', { contactId: selected.contactId, message: sms.trim() });
+      setSmsSent(true);
+    } catch (e: any) { setSmsError(e?.message || 'Text could not be sent'); }
+    finally { setSmsSending(false); }
+  }
+  const mailto = (to: string) => `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
 
   function copy(which: string, text: string) { navigator.clipboard?.writeText(text); setCopied(which); setTimeout(() => setCopied(null), 1500); }
 
@@ -98,7 +113,9 @@ export default function AILeadResponderPage() {
                       <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)} className="w-full text-sm p-2 border rounded-lg h-40 leading-relaxed" />
                       <div className="flex gap-2">
                         <button onClick={() => copy('email', `Subject: ${emailSubject}\n\n${emailBody}`)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5">{copied === 'email' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
-                        <button onClick={() => setSent(s => ({ ...s, email: true }))} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 inline-flex items-center gap-1.5"><Send size={13} /> {sent.email ? 'Sent ✓' : 'Send email'}</button>
+                        {selected.email
+                          ? <a href={mailto(selected.email)} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 inline-flex items-center gap-1.5"><Mail size={13} /> Open in email app</a>
+                          : <span className="text-xs text-gray-400 self-center">No email address on file</span>}
                       </div>
                     </div>
                   </div>
@@ -110,12 +127,12 @@ export default function AILeadResponderPage() {
                       <textarea value={sms} onChange={(e) => setSms(e.target.value)} className="w-full text-sm p-2 border rounded-lg h-20" />
                       <div className="flex items-center gap-2">
                         <button onClick={() => copy('sms', sms)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5">{copied === 'sms' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
-                        <button onClick={() => setSent(s => ({ ...s, sms: true }))} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 inline-flex items-center gap-1.5"><Send size={13} /> {sent.sms ? 'Sent ✓' : 'Send text'}</button>
+                        <button onClick={sendSms} disabled={smsSending || smsSent || !sms.trim() || !selected.contactId} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 inline-flex items-center gap-1.5">{smsSending ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />} {smsSent ? 'Sent ✓' : smsSending ? 'Sending…' : 'Send text'}</button>
                         <span className="text-[11px] text-gray-400 ml-auto">{sms.length} chars</span>
                       </div>
+                      {smsError && <p className="text-xs text-red-600">{smsError}</p>}
                     </div>
                   </div>
-                  {(sent.email || sent.sms) && <p className="text-[11px] text-gray-400">Live delivery sends through the CRM's connected Twilio/SendGrid once configured.</p>}
                 </>
               )}
             </div>

@@ -505,3 +505,14 @@ jobs:
           bun-version: latest
       - name: unavailable unit → availableNow false + status, no price; instruction forbids offering it; alternatives available-only; inbox/page show status
         run: bun run scripts/check-rv-ai-leads-availability.ts
+
+  rv-ai-responder-send:
+    name: RV AI Lead Responder shows Sent only for a real, confirmed text
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Send text → POST /api/sms/send (contactId), Sent ✓ only on success, errors shown; email = mailto, no send claim
+        run: bun run scripts/check-rv-ai-responder-send.ts
