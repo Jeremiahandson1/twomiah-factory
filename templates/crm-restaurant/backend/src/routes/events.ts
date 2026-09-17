@@ -10,7 +10,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { deriveStatus, round2 } from '../shared/index.ts'
 import { LedgerError, EXIT_STATUSES, loadEventLedger, ensureEventInvoice, syncEventInvoice, closeEventInvoice, backfillEventInvoices } from '../services/eventLedger.ts'
 // What an event may hold and how a booking is written — shared with the CSV importer (#162).
-import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput, coordinatorRefusal } from '../services/eventBooking.ts'
+import { HELD, DATE_RE, SpaceClash, eventLock, findClash, syncHireLine, createEvent, validateEventInput, validateTimelineInput, coordinatorRefusal, eventWarnings } from '../services/eventBooking.ts'
 
 // A package minimum is a billing floor, not an entry limit: fewer guests than the minimum are billed at
 // the minimum and the line says so — that is how catering minimums work. A quantity at or above the
@@ -162,7 +162,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
   await audit.log({ action: 'create', entity: 'event', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
-  return c.json(created, 201)
+  // Saved as asked; a past date or an over-capacity room is reported, not refused (T17 L1/L2).
+  const warnings = await eventWarnings(db, currentUser.companyId, created, { date: true, capacity: true })
+  return c.json({ ...created, warnings }, 201)
 })
 
 // PUT /events/:id
@@ -227,7 +229,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   }
   await audit.log({ action: 'update', entity: 'event', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'event' })
-  return c.json(updated)
+  // Only what this edit changed is warned about, so re-saving a past event for another reason is quiet.
+  const changed = (k: string) => k in updates && String(updates[k] ?? '') !== String((existing as any)[k] ?? '')
+  const warnings = await eventWarnings(db, currentUser.companyId, updated, { date: changed('eventDate'), capacity: changed('spaceId') || changed('guestCount') || changed('guestCountFinal') })
+  return c.json({ ...updated, warnings })
 })
 
 // DELETE /events/:id — cancel, keeping the row so win/loss stays measurable. ?keepDeposit=1 closes the

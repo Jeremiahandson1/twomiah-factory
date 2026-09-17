@@ -23,8 +23,18 @@ const send = sms.slice(sms.indexOf('async function sendSMS('), sms.indexOf('asyn
 const walletAt = send.indexOf('usage.walletSufficient()'), threadAt = send.indexOf('db.insert(t.smsConversation)')
 if (walletAt < 0 || threadAt < 0 || walletAt > threadAt) fail('sendSMS must check the usage wallet BEFORE opening a conversation')
 if (!/refused: true/.test(send.slice(walletAt, threadAt))) fail('sendSMS must answer a wallet refusal without writing a message row (refused: true)')
-if (!/regexp_replace\(coalesce\(\$\{t\.contact\.mobile\}, ''\), '\\\\D', '', 'g'\) like/.test(send)) fail('sendSMS must resolve the contact by phone digits when none was given')
+// ONE digit match (contactIdForPhone) for send, inbound and the thread-list heal (T17 N2 — the inbound
+// webhook's ilike '%6085550166%' never matched a number stored as "(608) 555-0166")
+const helper = sms.slice(sms.indexOf('async function contactIdForPhone('), sms.indexOf('async function sendSMS('))
+if (!/regexp_replace\(coalesce\(\$\{t\.contact\.mobile\}, ''\), '\\\\D', '', 'g'\) like/.test(helper) || !/regexp_replace\(coalesce\(\$\{t\.contact\.phone\}, ''\), '\\\\D', '', 'g'\) like/.test(helper)) fail('contactIdForPhone must match mobile and phone by digits')
+if (!/if \(!contactId\) contactId = await contactIdForPhone\(companyId, formattedPhone\)/.test(send)) fail('sendSMS must resolve the contact with contactIdForPhone when none was given')
 if (!/else if \(!conversation\.contactId && contactId\)/.test(send)) fail('sendSMS must link an existing unlinked conversation to the contact it finds')
+const inbound = sms.slice(sms.indexOf('async function handleIncomingSMS('), sms.indexOf('async function handleStatusUpdate('))
+if (!/const matchedContactId = await contactIdForPhone\(comp\.id, formattedPhone\)/.test(inbound)) fail('handleIncomingSMS must match the sender with contactIdForPhone')
+if (/ilike\(t\.contact\.(phone|mobile)/.test(inbound)) fail('handleIncomingSMS must not keep its own ilike phone match')
+if (!/contactId: conversation\.contactId \|\| matchedContactId \|\| null/.test(inbound)) fail('handleIncomingSMS must keep a thread that is already linked (a hand-made link is not overwritten)')
+const list = sms.slice(sms.indexOf('async function getConversations('), sms.indexOf('async function getConversation('))
+if (!/isNull\(t\.smsConversation\.contactId\)/.test(list) || !/if \(m\.cid\) await db\.update\(t\.smsConversation\)\.set\(\{ contactId: m\.cid \}\)/.test(list)) fail('getConversations must link unlinked threads that match a contact (and write only on a match)')
 
 // every frontend sender in the shared UI
 const senders: Array<[string, RegExp]> = [

@@ -6,7 +6,7 @@
 // fieldservice/landscaping lacked the Twilio signature check entirely, crm's was a stub that returned true),
 // and every version parsed Twilio's form-encoded webhook with c.req.json() → the text was dropped with a 200.
 import { Hono } from 'hono'
-import { eq, and, or, ilike, desc, asc, count, sum, sql, gt } from 'drizzle-orm'
+import { eq, and, or, desc, asc, count, sum, sql, gt, isNull } from 'drizzle-orm'
 import { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
 export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any }
@@ -50,6 +50,23 @@ export function createSmsService(deps: SmsServiceDeps) {
     return (deps.twilio || twilioConfigFromEnv()).authToken
   }
 
+  /**
+   * The contact whose number this is, by digits: "(608) 555-0166", "608.555.0166" and +16085550166 are the
+   * same person. ONE match for a text sent to a number, a text received, and an old unlinked thread — the
+   * inbound webhook used `ilike '%6085550166%'`, which never matches a number stored with punctuation. (T16/T17 N2)
+   */
+  async function contactIdForPhone(companyId: string, phone: string): Promise<string | undefined> {
+    const last10 = String(phone || '').replace(/\D/g, '').slice(-10)
+    if (last10.length < 7) return undefined
+    const [byPhone] = await db.select({ id: t.contact.id }).from(t.contact)
+      .where(and(eq(t.contact.companyId, companyId), or(
+        sql`regexp_replace(coalesce(${t.contact.mobile}, ''), '\\D', '', 'g') like ${'%' + last10}`,
+        sql`regexp_replace(coalesce(${t.contact.phone}, ''), '\\D', '', 'g') like ${'%' + last10}`,
+      )))
+      .limit(1)
+    return byPhone?.id
+  }
+
   async function sendSMS(companyId: string, { contactId, toPhone, message, userId, jobId }: { contactId?: string; toPhone?: string; message: string; userId?: string; jobId?: string; templateId?: string }) {
     const cfg = async () => cfgFor(companyId)
     if (!toPhone && contactId) {
@@ -69,16 +86,7 @@ export function createSmsService(deps: SmsServiceDeps) {
     // The thread belongs to the person whose number this is (digits compared, so "(608) 555-0166" matches
     // +16085550166) — the same match the inbound webhook makes — so a text typed to a number is filed
     // under the contact, not left as a bare number. (T16 N2)
-    if (!contactId) {
-      const last10 = formattedPhone.replace(/\D/g, '').slice(-10)
-      const [byPhone] = await db.select({ id: t.contact.id }).from(t.contact)
-        .where(and(eq(t.contact.companyId, companyId), or(
-          sql`regexp_replace(coalesce(${t.contact.mobile}, ''), '\\D', '', 'g') like ${'%' + last10}`,
-          sql`regexp_replace(coalesce(${t.contact.phone}, ''), '\\D', '', 'g') like ${'%' + last10}`,
-        )))
-        .limit(1)
-      contactId = byPhone?.id
-    }
+    if (!contactId) contactId = await contactIdForPhone(companyId, formattedPhone)
 
     let [conversation] = await db.select().from(t.smsConversation)
       .where(and(eq(t.smsConversation.companyId, companyId), eq(t.smsConversation.phoneNumber, formattedPhone)))
@@ -126,11 +134,9 @@ export function createSmsService(deps: SmsServiceDeps) {
 
     let [conversation] = await db.select().from(t.smsConversation)
       .where(and(eq(t.smsConversation.companyId, comp.id), eq(t.smsConversation.phoneNumber, formattedPhone)))
-    const [contactRow] = await db.select().from(t.contact)
-      .where(and(eq(t.contact.companyId, comp.id), or(eq(t.contact.phone, formattedPhone), eq(t.contact.phone, From), ilike(t.contact.phone, `%${formattedPhone.slice(-10)}%`), ilike(t.contact.mobile, `%${formattedPhone.slice(-10)}%`))))
-      .limit(1)
+    const matchedContactId = await contactIdForPhone(comp.id, formattedPhone)
     if (!conversation) {
-      ;[conversation] = await db.insert(t.smsConversation).values({ companyId: comp.id, phoneNumber: formattedPhone, contactId: contactRow?.id || null, status: 'active' }).returning()
+      ;[conversation] = await db.insert(t.smsConversation).values({ companyId: comp.id, phoneNumber: formattedPhone, contactId: matchedContactId || null, status: 'active' }).returning()
     }
     // Twilio retries a webhook it did not get a 200 for — the same SID must not thread twice.
     if (MessageSid) {
@@ -140,7 +146,7 @@ export function createSmsService(deps: SmsServiceDeps) {
     const [msg] = await db.insert(t.smsMessage).values({ conversationId: conversation.id, direction: 'inbound', body: Body || '', status: 'received', twilioSid: MessageSid || null }).returning()
     await db.update(t.smsConversation).set({
       lastMessageAt: new Date(), unreadCount: sql`${t.smsConversation.unreadCount} + 1`, status: 'active',
-      contactId: contactRow?.id || conversation.contactId,
+      contactId: conversation.contactId || matchedContactId || null,
     }).where(eq(t.smsConversation.id, conversation.id))
     await processAutoResponders(comp.id, conversation, Body || '')
     return msg
@@ -162,6 +168,22 @@ export function createSmsService(deps: SmsServiceDeps) {
     // Scope to one contact when asked — the contact Messages panel used to show the company's first conversation for EVERY contact.
     if (contactId) conditions.push(eq(t.smsConversation.contactId, contactId))
     const where = and(...conditions)
+    // A thread opened before its number belonged to a contact (or before the digit match existed) is linked
+    // the next time the list is read — only unlinked threads, only on a match, so it runs once per thread. (T17 N2)
+    // One query finds the matches (same digit rule as contactIdForPhone); a write happens only for a thread that matched.
+    if (!contactId) {
+      const digits = sql`right(regexp_replace(coalesce(${t.smsConversation.phoneNumber}, ''), '\\D', '', 'g'), 10)`
+      const matches = await db.select({
+        id: t.smsConversation.id,
+        cid: sql<string | null>`(select ${t.contact.id} from ${t.contact} where ${t.contact.companyId} = ${companyId} and (
+          regexp_replace(coalesce(${t.contact.mobile}, ''), '\\D', '', 'g') like '%' || ${digits}
+          or regexp_replace(coalesce(${t.contact.phone}, ''), '\\D', '', 'g') like '%' || ${digits}) limit 1)`,
+      }).from(t.smsConversation)
+        .where(and(eq(t.smsConversation.companyId, companyId), isNull(t.smsConversation.contactId), sql`length(${digits}) >= 7`))
+      for (const m of matches) {
+        if (m.cid) await db.update(t.smsConversation).set({ contactId: m.cid }).where(and(eq(t.smsConversation.id, m.id), isNull(t.smsConversation.contactId)))
+      }
+    }
     const [data, [{ value: total }]] = await Promise.all([
       db.select({ conversation: t.smsConversation, contact: { id: t.contact.id, name: t.contact.name, email: t.contact.email } })
         .from(t.smsConversation).leftJoin(t.contact, eq(t.smsConversation.contactId, t.contact.id))

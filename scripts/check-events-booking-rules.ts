@@ -67,5 +67,11 @@ const detail = read('templates/crm-restaurant/frontend/src/pages/events/EventDet
 if (!/if \(!confirmEventRisks\(form, spaces, ev\)\) return/.test(detail)) fail('the Edit Event form must ask confirmEventRisks (against the saved event) before saving')
 if (!/the line will be billed at \{selected\.minGuests\}/.test(detail)) fail('the Add Menu Line form must say the line is billed at the package minimum')
 
+// L1 / L2 on the API too (#172): the same two warnings in `warnings`, saved not refused; on edit only what changed
+if (!/export async function eventWarnings\(/.test(svc) || !/is in the past\./.test(svc) || !/holds \(\$\{cap\} at most\)\./.test(svc)) fail('eventBooking.ts must define eventWarnings with the past-date and capacity messages')
+if (!/Date\.now\(\) - 12 \* 3600_000/.test(svc)) fail('eventWarnings must call a date past only when it is past everywhere (UTC−12), not by the server\'s UTC day')
+if (!/return c\.json\(\{ \.\.\.created, warnings \}, 201\)/.test(post)) fail('POST /events must return the saved event with warnings')
+if (!/return c\.json\(\{ \.\.\.updated, warnings \}\)/.test(put) || !/date: changed\('eventDate'\)/.test(put)) fail('PUT /events/:id must return warnings for what the edit changed')
+
 if (failed) { console.error(`\nevents booking rules: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('events booking rules: a deposit books the date (or is refused while the room is held) on both money paths; package minimums are billing floors; one Team list; coordinator = login user; past date / capacity warn and ask')

@@ -196,6 +196,28 @@ export async function bookOnDeposit(tx: any, companyId: string, eventId: string 
 export const bookOnDepositForInvoice = (tx: any, inv: any) => bookOnDeposit(tx, inv.company_id ?? inv.companyId, inv.event_id ?? inv.eventId)
 
 /**
+ * Soft warnings on a saved event — never a refusal (venues back-date walk-ins and history; a 30-seat room
+ * hosts 60 standing). The forms ask before saving (lib/eventWarnings.ts); the API returns the same two
+ * warnings in `warnings` so an API caller is told too. `check` limits them to what the write changed, so
+ * re-saving an old event for another reason isn't flagged. (T16/T17 L1, L2)
+ * "Past" means past everywhere: the date is before today in the furthest-behind time zone (UTC−12), so an
+ * event dated today in the venue's evening is never called past by a server already on tomorrow in UTC.
+ */
+export async function eventWarnings(exec: any, companyId: string, ev: any, check: { date: boolean; capacity: boolean }): Promise<string[]> {
+  const out: string[] = []
+  const earliestToday = new Date(Date.now() - 12 * 3600_000).toISOString().slice(0, 10)
+  if (check.date && ev.eventDate && ev.eventDate < earliestToday) out.push(`${ev.eventDate} is in the past.`)
+  const heads = Number(ev.guestCountFinal ?? ev.guestCount ?? 0)
+  if (check.capacity && ev.spaceId && heads > 0) {
+    const [sp] = await exec.select({ name: eventSpace.name, seated: eventSpace.seatedCapacity, standing: eventSpace.standingCapacity }).from(eventSpace)
+      .where(and(eq(eventSpace.id, ev.spaceId), eq(eventSpace.companyId, companyId))).limit(1)
+    const cap = sp ? Math.max(Number(sp.seated || 0), Number(sp.standing || 0)) : 0
+    if (cap > 0 && heads > cap) out.push(`${heads} guests is more than ${sp.name} holds (${cap} at most).`)
+  }
+  return out
+}
+
+/**
  * A coordinator is a login user of this business (event.coordinator_id → user). A roster-only team
  * member has no login and can't be assigned; say so instead of the FK's "Referenced record does not
  * exist". (T16 H3)
