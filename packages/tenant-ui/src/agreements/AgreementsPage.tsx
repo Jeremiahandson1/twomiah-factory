@@ -48,6 +48,7 @@ interface Agreement {
   contactId?: string;
   startDate?: string;
   autoRenew?: boolean;
+  renewalType?: 'auto' | 'manual' | string; // the API field (there is no autoRenew on an agreement)
   autoSchedule?: boolean;
   recurrenceRule?: { frequency?: string } | null;
   nextServiceDate?: string | null;
@@ -72,6 +73,7 @@ interface Plan {
 interface AgreementStats {
   activeAgreements: number;
   expiringIn30Days: number;
+  renewingIn30Days?: number;
   monthlyRecurringRevenue?: number;
   annualRecurringRevenue?: number;
 }
@@ -212,7 +214,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             icon={FileText}
             label="Active Agreements"
@@ -223,6 +225,12 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
             label="Expiring in 30 Days"
             value={stats.expiringIn30Days}
             color="orange"
+          />
+          <StatCard
+            icon={RefreshCw}
+            label="Renewing in 30 Days"
+            value={stats.renewingIn30Days ?? 0}
+            color="blue"
           />
           <StatCard
             icon={DollarSign}
@@ -438,7 +446,9 @@ function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChang
 
 function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
   const { api } = useAgreements();
-  const isExpiringSoon = new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const endingSoon = agreement.status === 'active' && new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const isExpiringSoon = endingSoon && agreement.renewalType !== 'auto'; // auto-renew agreements renew instead
+  const renewsSoon = endingSoon && agreement.renewalType === 'auto';
 
   const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
@@ -472,6 +482,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowPro
           <span className={`text-sm ${isExpiringSoon ? 'text-orange-600' : 'text-gray-500'}`}>
             {formatDate(agreement.endDate)}
           </span>
+          {renewsSoon && <span className="text-xs text-blue-600 dark:text-blue-400">Renews</span>}
         </div>
       </td>
       <td className="px-4 py-3">
@@ -811,7 +822,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
     startDate: agreement?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
-    autoRenew: agreement?.autoRenew ?? true,
+    autoRenew: agreement?.renewalType ? agreement.renewalType === 'auto' : true,
     autoSchedule: agreement?.autoSchedule ?? false,
     recurrenceFrequency: agreement?.recurrenceRule?.frequency || 'quarterly',
     nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate.toISOString().split('T')[0],

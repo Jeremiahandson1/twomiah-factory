@@ -73,7 +73,7 @@ export default function MaintenanceContracts() {
   const stats = {
     active: contracts.filter(c => c.status === 'active').length,
     expiringSoon: contracts.filter(c => {
-      if (c.status !== 'active') return false;
+      if (c.status !== 'active' || c.renewalType === 'auto') return false; // auto-renew contracts renew, they don't expire
       const end = new Date(c.endDate);
       const thirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       return end <= thirtyDays;
@@ -189,9 +189,11 @@ export default function MaintenanceContracts() {
             </thead>
             <tbody className="divide-y dark:divide-slate-700">
               {filteredContracts.map(contract => {
-                const isExpiringSoon =
+                const endingSoon =
                   contract.status === 'active' &&
                   new Date(contract.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+                const isExpiringSoon = endingSoon && contract.renewalType !== 'auto';
+                const renewsSoon = endingSoon && contract.renewalType === 'auto';
 
                 return (
                   <tr key={contract.id} className="hover:bg-gray-50 dark:hover:bg-slate-700/50">
@@ -241,6 +243,7 @@ export default function MaintenanceContracts() {
                             ? formatDate(contract.endDate)
                             : '-'}
                         </span>
+                        {renewsSoon && <span className="text-xs text-blue-600 dark:text-blue-400">Renews</span>}
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -325,7 +328,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
     billingFrequency: contract?.billingFrequency || 'monthly',
     amount: contract?.amount || '', // the agreement's billed amount (API field `amount`)
     includedServices: contract?.includedServices || [],
-    autoRenew: contract?.autoRenew ?? true,
+    autoRenew: contract?.renewalType ? contract.renewalType === 'auto' : true, // the API stores renewalType
   });
   const [saving, setSaving] = useState(false);
 

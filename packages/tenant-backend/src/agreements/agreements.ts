@@ -41,6 +41,21 @@ export interface AgreementsServiceDeps {
   db: any
   tables: AgreementsTables
   stripe: AgreementsStripe
+  /** The template's audit service — automatic renewals and expiries are logged when given. */
+  audit?: { log: (entry: any) => any }
+}
+
+/** An auto-renew agreement is renewed if its end date passed at most this many days ago (the worker runs every 12h);
+ *  one that lapsed longer ago (the worker was down, or it predates auto-renewal) expires for the office to renew, so
+ *  a customer is never renewed — and billed — months late without anyone deciding. */
+export const RENEWAL_GRACE_DAYS = 7
+
+/** The agreement's own term in whole months (start → end), 12 when it can't be worked out. */
+export function agreementTermMonths(startDate: unknown, endDate: unknown): number {
+  const s = new Date(String(startDate)), e = new Date(String(endDate))
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e <= s) return 12
+  const months = Math.round((e.getTime() - s.getTime()) / (30.4375 * 86400000))
+  return Math.min(120, Math.max(1, months))
 }
 export interface AgreementsRoutesDeps {
   service: AgreementsService
@@ -84,7 +99,7 @@ function advanceDate(current: Date, rule: { frequency: string; dayOfMonth?: numb
 }
 
 export function createAgreementsService(deps: AgreementsServiceDeps) {
-  const { db, tables, stripe } = deps
+  const { db, tables, stripe, audit } = deps
   const { serviceAgreement, agreementVisit, agreementPlan, contact, job, invoice, invoiceLineItem } = tables
 
   // ---- plans ----
@@ -122,14 +137,33 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   }
 
   // ---- customer agreements ----
-  // An active agreement whose end date has passed is expired: nothing bills it (getAgreementsDueForBilling skips
-  // it) and nothing renews it automatically, so it must not read as Active or as "expiring soon". Run before
-  // every read that shows status. (Landscaping T14 H3: ended 1 June, still Active and "Expiring in 30 Days")
-  async function expireEndedAgreements(companyId: string) {
-    await db.update(serviceAgreement).set({ status: 'expired', updatedAt: new Date() }).where(and(
-      eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'),
+  // Active agreements whose end date has passed: an auto-renew one that ended within RENEWAL_GRACE_DAYS renews for
+  // another term of the same length (stays active, keeps billing); anything else expires. Runs before every read
+  // that shows status and before each billing run. Each update re-checks "still active and still ended", so two
+  // runs at once renew or expire an agreement once. (Landscaping T14 H3: ended 1 June, still Active)
+  async function settleEndedAgreements(companyId?: string) {
+    const now = new Date()
+    const stillEnded = (id: string) => and(eq(serviceAgreement.id, id), eq(serviceAgreement.status, 'active'), sql`${serviceAgreement.endDate} < NOW()`)
+    const ended = await db.select().from(serviceAgreement).where(and(
+      companyId ? eq(serviceAgreement.companyId, companyId) : undefined, eq(serviceAgreement.status, 'active'),
       sql`${serviceAgreement.endDate} IS NOT NULL AND ${serviceAgreement.endDate} < NOW()`,
     ))
+    for (const agr of ended) {
+      const end = new Date(agr.endDate)
+      const lapsedDays = (now.getTime() - end.getTime()) / 86400000
+      if (agr.renewalType === 'auto' && lapsedDays <= RENEWAL_GRACE_DAYS) {
+        const termMonths = agreementTermMonths(agr.startDate, agr.endDate)
+        const newEnd = new Date(end); newEnd.setMonth(newEnd.getMonth() + termMonths)
+        const [renewed] = await db.update(serviceAgreement).set({ startDate: end, endDate: newEnd, updatedAt: now }).where(stillEnded(agr.id)).returning()
+        if (renewed) audit?.log({ action: 'renew', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
+          metadata: { automatic: true, termMonths, previousStartDate: agr.startDate, previousEndDate: agr.endDate, newEndDate: newEnd } })
+        continue
+      }
+      const [expired] = await db.update(serviceAgreement).set({ status: 'expired', updatedAt: now }).where(stillEnded(agr.id)).returning()
+      if (expired) audit?.log({ action: 'expire', entity: 'service_agreement', entityId: agr.id, entityName: agr.number, companyId: agr.companyId,
+        metadata: { automatic: true, endDate: agr.endDate, renewalType: agr.renewalType,
+          reason: agr.renewalType === 'auto' ? `ended ${Math.floor(lapsedDays)} days ago — past the ${RENEWAL_GRACE_DAYS}-day automatic renewal window` : 'manual renewal' } })
+    }
   }
 
   // Contact + plan for each row, from this company only — the list pages show the customer, the plan and the
@@ -229,7 +263,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function getAgreements(companyId: string, {
     status, contactId, expiringSoon, page = 1, limit = 50,
   }: { status?: string; contactId?: string; expiringSoon?: boolean; page?: number; limit?: number } = {}) {
-    await expireEndedAgreements(companyId)
+    await settleEndedAgreements(companyId)
     const conditions = [eq(serviceAgreement.companyId, companyId)]
     if (status) conditions.push(eq(serviceAgreement.status, status))
     if (contactId) conditions.push(eq(serviceAgreement.contactId, contactId))
@@ -238,6 +272,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       conditions.push(lte(serviceAgreement.endDate, thirtyDays))
       conditions.push(gte(serviceAgreement.endDate, new Date()))
       conditions.push(eq(serviceAgreement.status, 'active'))
+      conditions.push(eq(serviceAgreement.renewalType, 'manual')) // auto-renew agreements don't expire
     }
     const whereClause = and(...conditions)
     const [rows, [{ value: total }]] = await Promise.all([
@@ -249,7 +284,7 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   }
 
   async function getAgreement(agreementId: string, companyId: string) {
-    await expireEndedAgreements(companyId)
+    await settleEndedAgreements(companyId)
     const [result] = await db.select().from(serviceAgreement)
       .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId))).limit(1)
     if (!result) return null
@@ -399,6 +434,8 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   }
 
   async function processDueAgreements(companyId?: string) {
+    // renew (or expire) agreements that just ended first, so a renewed agreement's next period is billed on time
+    await settleEndedAgreements(companyId)
     const due = await getAgreementsDueForBilling(companyId)
     let invoiced = 0, charged = 0
     const failures: Array<{ agreementId: string; error: string }> = []
@@ -446,14 +483,17 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
 
   // ---- reports ----
   async function getAgreementStats(companyId: string) {
-    await expireEndedAgreements(companyId)
+    await settleEndedAgreements(companyId)
     const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    const [[{ value: active }], [{ value: expiring }]] = await Promise.all([
+    // ending in the next 30 days: auto-renew ones will renew; manual ones will expire unless the office renews them
+    const endingIn30 = (renewalType: string) => db.select({ value: count() }).from(serviceAgreement).where(and(
+      eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'), lte(serviceAgreement.endDate, thirtyDaysFromNow),
+      gte(serviceAgreement.endDate, new Date()), eq(serviceAgreement.renewalType, renewalType),
+    ))
+    const [[{ value: active }], [{ value: expiring }], [{ value: renewing }]] = await Promise.all([
       db.select({ value: count() }).from(serviceAgreement).where(and(eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'))),
-      db.select({ value: count() }).from(serviceAgreement).where(and(
-        eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'), lte(serviceAgreement.endDate, thirtyDaysFromNow),
-        gte(serviceAgreement.endDate, new Date()),
-      )),
+      endingIn30('manual'),
+      endingIn30('auto'),
     ])
     const agreements = await db.select({ amount: serviceAgreement.amount, billingFrequency: serviceAgreement.billingFrequency })
       .from(serviceAgreement).where(and(eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active')))
@@ -466,13 +506,14 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
     return {
       activeAgreements: active,
       expiringIn30Days: expiring,
+      renewingIn30Days: renewing,
       monthlyRecurringRevenue: Math.round(monthlyRecurring * 100) / 100,
       annualRecurringRevenue: Math.round(monthlyRecurring * 12 * 100) / 100,
     }
   }
 
   async function getExpiringAgreements(companyId: string, daysAhead = 60) {
-    await expireEndedAgreements(companyId)
+    await settleEndedAgreements(companyId)
     const endDate = new Date(); endDate.setDate(endDate.getDate() + daysAhead)
     return db.select().from(serviceAgreement).where(and(
       eq(serviceAgreement.companyId, companyId), eq(serviceAgreement.status, 'active'),
