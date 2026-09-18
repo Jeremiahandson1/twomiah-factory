@@ -661,11 +661,14 @@ export const document = pgTable('document', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
   invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  // A file belongs to the animal, not only to the person who pays the bill. (Vet T12 M6)
+  patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
   uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
 }, (t) => [
   index('document_company_id_idx').on(t.companyId),
   index('document_project_id_idx').on(t.projectId),
   index('document_contact_id_idx').on(t.contactId),
+  index('document_patient_id_idx').on(t.patientId),
   index('document_type_idx').on(t.type),
 ])
 

@@ -137,7 +137,24 @@ function isOverdue(dueDate?: string): boolean {
   return d.getTime() < Date.now();
 }
 
-type Tab = 'visits' | 'vaccinations' | 'prescriptions' | 'labs';
+interface PatientDocument {
+  id: string;
+  name?: string;
+  type?: string;
+  size?: number;
+  url?: string;
+  createdAt?: string;
+  uploadedBy?: { firstName?: string; lastName?: string } | null;
+}
+
+type Tab = 'visits' | 'vaccinations' | 'prescriptions' | 'labs' | 'documents';
+
+const fileSize = (n?: number): string => {
+  if (!n || n < 0) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 export default function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -153,6 +170,11 @@ export default function PatientDetailPage() {
   const [showRx, setShowRx] = useState<boolean>(false);
   const [showLab, setShowLab] = useState<boolean>(false);
 
+  // Files filed against THIS animal — /api/documents?patientId= — rather than everything belonging to the
+  // owner, which in a multi-pet household is somebody else's x-ray. (Vet T12 M6)
+  const [documents, setDocuments] = useState<PatientDocument[]>([]);
+  const [uploading, setUploading] = useState<boolean>(false);
+
   const load = useCallback(async () => {
     if (!id) return;
     setLoading(true);
@@ -166,7 +188,33 @@ export default function PatientDetailPage() {
     }
   }, [id]);
 
+  const loadDocuments = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/api/documents?patientId=${id}&limit=100`);
+      setDocuments(res?.data || []);
+    } catch (error) {
+      console.error('Failed to load documents:', error);
+    }
+  }, [id]);
+
+  const uploadDocument = async (file: File) => {
+    if (!id) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('patientId', id);
+      if (detail.patient?.ownerId) fd.append('contactId', detail.patient.ownerId);
+      await api.upload('/api/documents', fd);
+      await loadDocuments();
+    } catch (err) {
+      alert((err as Error).message || 'Failed to upload the file');
+    } finally { setUploading(false); }
+  };
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadDocuments(); }, [loadDocuments]);
 
   // Patients had no edit or delete anywhere in the UI (VET-08). Delete is guarded server-side —
   // a patient with medical history can't be hard-deleted, only marked deceased.
@@ -227,6 +275,7 @@ export default function PatientDetailPage() {
     { id: 'vaccinations', label: 'Vaccinations', icon: <Syringe className="w-4 h-4" />, count: vaccinations.length },
     { id: 'prescriptions', label: 'Prescriptions', icon: <Pill className="w-4 h-4" />, count: prescriptions.length },
     { id: 'labs', label: 'Lab Results', icon: <FlaskConical className="w-4 h-4" />, count: labResults.length },
+    { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" />, count: documents.length },
   ];
 
   return (
@@ -486,6 +535,47 @@ export default function PatientDetailPage() {
                       <FileText className="w-3 h-3" /> View file
                     </a>
                   )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Documents — filed against the animal, so a two-pet household's x-rays stay apart. (Vet T12 M6) */}
+      {tab === 'documents' && (
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <label className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-white ${uploading ? 'bg-teal-400 cursor-wait' : 'bg-teal-600 hover:bg-teal-700 cursor-pointer'}`}>
+              <Plus className="w-4 h-4" /> {uploading ? 'Uploading…' : 'Upload file'}
+              <input
+                type="file"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void uploadDocument(f); }}
+              />
+            </label>
+          </div>
+          {documents.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
+              No documents for {p.name || 'this patient'} yet — x-rays, referral letters and certificates filed here stay with the animal.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {documents.map((d) => (
+                <div key={d.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-gray-900 truncate dark:text-slate-100" title={d.name}>{d.name || 'Document'}</p>
+                    <span className="text-xs text-gray-400 shrink-0">{[fileSize(d.size), fmtDate(d.createdAt)].filter(Boolean).join(' · ')}</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    {safeUrl(d.url) && (
+                      <a href={safeUrl(d.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700">
+                        <FileText className="w-3 h-3" /> Open
+                      </a>
+                    )}
+                    {d.uploadedBy?.firstName && <span className="text-xs text-gray-400">Uploaded by {[d.uploadedBy.firstName, d.uploadedBy.lastName].filter(Boolean).join(' ')}</span>}
+                  </div>
                 </div>
               ))}
             </div>

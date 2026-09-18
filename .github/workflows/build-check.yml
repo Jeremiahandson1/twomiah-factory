@@ -923,3 +923,14 @@ jobs:
           bun-version: latest
       - name: "Check vet prescribing"
         run: bun run scripts/check-vet-prescribing.ts
+
+  patient-documents:
+    name: "Patient documents: a file is filed against the animal"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check patient documents"
+        run: bun run scripts/check-patient-documents.ts

@@ -29,6 +29,15 @@ export interface DocumentDeps {
   options?: {
     /** max page size, default 100 */
     maxLimit?: number
+    /**
+     * Records a document can hang off BEYOND the four every CRM has (project, contact, job, invoice),
+     * as column name → the table it points at. The vet passes { patientId: patient }, because a vaccination
+     * certificate or an x-ray belongs to the animal, not to the person who pays the bill — filing it under
+     * the owner is what made a multi-pet household's chart useless. (Vet T12 M6)
+     * The column is filterable (?patientId=), settable on upload and on edit, and checked to exist in this
+     * company before it is stored.
+     */
+    links?: Record<string, any>
   }
 }
 
@@ -40,6 +49,24 @@ export function createDocumentRoutes(deps: DocumentDeps) {
   const { db, tables: t, storage, authenticate } = deps
   const audit = deps.audit || (() => {})
   const maxLimit = deps.options?.maxLimit || 100
+  const links: Record<string, any> = deps.options?.links || {}
+  const linkCols = Object.keys(links)
+  const linkLabel = (col: string) => col.replace(/Id$/, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+  /** the extra link columns from a body, refusing an id that is not this company's */
+  const linkValues = async (companyId: string, src: Record<string, any>): Promise<{ values: Record<string, any> } | { error: string }> => {
+    const values: Record<string, any> = {}
+    for (const col of linkCols) {
+      if (src[col] === undefined) continue
+      const id = idOrNull(src[col])
+      if (id) {
+        const table = links[col]
+        const [row] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, id), eq(table.companyId, companyId))).limit(1)
+        if (!row) return { error: `That ${linkLabel(col)} does not exist.` }
+      }
+      values[col] = id
+    }
+    return { values }
+  }
   const app = new Hono()
   app.use('*', authenticate)
   const actor = (c: any) => { const u = c.get('user') as any; return { userId: u.userId, companyId: u.companyId } }
@@ -101,6 +128,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     if (q.projectId) conditions.push(eq(t.document.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.document.contactId, q.contactId))
     if (q.jobId) conditions.push(eq(t.document.jobId, q.jobId))
+    for (const col of linkCols) if (q[col]) conditions.push(eq(t.document[col], q[col]))
     if (q.type) conditions.push(eq(t.document.type, q.type))
     if (q.search) {
       const term = `%${q.search.replace(/[%_\\]/g, ch => '\\' + ch)}%`
@@ -151,6 +179,8 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     if (!body) return c.json({ error: 'Expected multipart/form-data with a file.' }, 400)
     const file = body['file']
     if (!(file instanceof File)) return c.json({ error: 'No file uploaded' }, 400)
+    const extra = await linkValues(companyId, body)
+    if ('error' in extra) return c.json({ error: extra.error }, 404)
     let stored
     try { stored = await storeUpload(file, companyId) } catch (err: any) { return c.json({ error: err.message }, 400) }
     const [doc] = await db.insert(t.document).values({
@@ -163,6 +193,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
       contactId: idOrNull(body['contactId']),
       jobId: idOrNull(body['jobId']),
       invoiceId: idOrNull(body['invoiceId']),
+      ...extra.values,
       uploadedById: userId,
     }).returning()
     audit('document_upload', { userId, companyId }, { documentId: doc.id, filename: doc.originalName })
@@ -178,12 +209,14 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     if (!files.length) return c.json({ error: 'No files uploaded' }, 400)
     const type = str(body['type'], 50) || 'general'
     const projectId = idOrNull(body['projectId']), contactId = idOrNull(body['contactId']), jobId = idOrNull(body['jobId'])
+    const extra = await linkValues(companyId, body)
+    if ('error' in extra) return c.json({ error: extra.error }, 404)
     const documents: any[] = []
     const failed: Array<{ file: string; error: string }> = []
     for (const file of files) {
       try {
         const stored = await storeUpload(file, companyId)
-        const [doc] = await db.insert(t.document).values({ companyId, name: stored.originalName, type, ...stored, projectId, contactId, jobId, uploadedById: userId }).returning()
+        const [doc] = await db.insert(t.document).values({ companyId, name: stored.originalName, type, ...stored, projectId, contactId, jobId, ...extra.values, uploadedById: userId }).returning()
         documents.push(doc)
       } catch (err: any) { failed.push({ file: file.name, error: err.message }) }
     }
@@ -206,6 +239,9 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     if (body.projectId !== undefined) u.projectId = idOrNull(body.projectId)
     if (body.contactId !== undefined) u.contactId = idOrNull(body.contactId)
     if (body.jobId !== undefined) u.jobId = idOrNull(body.jobId)
+    const extra = await linkValues(companyId, body)
+    if ('error' in extra) return c.json({ error: extra.error }, 404)
+    Object.assign(u, extra.values)
     await db.update(t.document).set(u).where(eq(t.document.id, doc.id))
     const [row] = await withRelations(and(eq(t.document.id, doc.id), eq(t.document.companyId, companyId))).limit(1)
     return c.json(flat(row))
