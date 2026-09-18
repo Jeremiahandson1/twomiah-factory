@@ -7,9 +7,18 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { settleWellnessBilling, billFirstPeriod } from '../services/wellnessBilling.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// A tenant backend has no scheduler, so due plans are billed whenever the enrolments are read — the same
+// settle-on-read the service agreements use — and by the explicit run below. (Vet T12 H3)
+app.post('/billing-run', requirePermission('invoices:create'), async (c) => {
+  const currentUser = c.get('user') as any
+  const billed = await settleWellnessBilling(currentUser.companyId)
+  return c.json({ billed: billed.length, invoices: billed })
+})
 
 // ==================== ENROLLMENTS ====================
 // Registered before the plan /:id routes so '/enrollments' isn't matched as a plan id.
@@ -18,6 +27,8 @@ app.use('*', authenticate)
 app.get('/enrollments', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const patientId = c.req.query('patientId')
+  // Bill anything that came due before showing the list, so what is on screen is what has been charged.
+  await settleWellnessBilling(currentUser.companyId).catch((e: any) => console.warn('[wellness] billing run failed:', e?.message || e))
 
   const conditions = [eq(wellnessEnrollment.companyId, currentUser.companyId)]
   if (patientId) conditions.push(eq(wellnessEnrollment.patientId, patientId))
@@ -80,9 +91,13 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit.log({ action: 'create', entity: 'wellness_enrollment', entityId: created.id, metadata: created, req: { user: currentUser } })
+  // Bill the first period now — a plan sold today is invoiced today, and renewsAt is set so the next one follows.
+  const firstInvoice = await billFirstPeriod(created).catch((e: any) => { console.warn('[wellness] first charge failed:', e?.message || e); return null })
+  const [withSchedule] = await db.select().from(wellnessEnrollment).where(eq(wellnessEnrollment.id, created.id)).limit(1)
+
+  await audit.log({ action: 'create', entity: 'wellness_enrollment', entityId: created.id, metadata: { ...created, firstInvoice: firstInvoice?.number || null }, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'wellness_enrollment' })
-  return c.json(created, 201)
+  return c.json({ ...(withSchedule || created), invoice: firstInvoice }, 201)
 })
 
 // PUT /wellness-plans/enrollments/:id

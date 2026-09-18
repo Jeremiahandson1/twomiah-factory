@@ -846,3 +846,14 @@ jobs:
           bun-version: latest
       - name: "Check online booking normalises the species it is given"
         run: bun run scripts/check-booking-species.ts
+
+  wellness-billing:
+    name: "Wellness plans bill"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check a wellness enrolment is invoiced and renews"
+        run: bun run scripts/check-wellness-billing.ts

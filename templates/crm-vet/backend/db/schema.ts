@@ -3891,6 +3891,9 @@ export const wellnessEnrollment = pgTable('wellness_enrollment', {
   billingCycle: text('billing_cycle').default('monthly').notNull(),
   startDate: date('start_date'),
   renewsAt: date('renews_at'),
+  /** the period already invoiced — makes the billing run idempotent (T12 H3) */
+  lastBilledFor: date('last_billed_for'),
+  lastInvoiceId: text('last_invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
   cancelledAt: timestamp('cancelled_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
