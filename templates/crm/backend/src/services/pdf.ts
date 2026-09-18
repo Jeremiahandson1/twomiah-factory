@@ -4,7 +4,20 @@ function buildPDF(title: string, doc: PDFKit.PDFDocument, data: any, company: an
   const companyName = company?.name || company?.companyName || 'Company'
 
   doc.fontSize(20).text(companyName, { align: 'left' })
-  doc.fontSize(14).text(title, { align: 'left' })
+  // Who the business IS — address, phone, email, website. The whole company row already reaches this
+  // function; only the name was ever printed, so an invoice went out with no way to contact the business
+  // that sent it, while other documents from the same tenant (the vet's rabies certificate) printed the
+  // full header. Every line is conditional, so a tenant that has filled in nothing looks as it did before.
+  // (Vet T12 M10 — the same file in seven CRMs.)
+  doc.fontSize(9).fillColor('#555')
+  const cityLine = [company?.city, company?.state].filter(Boolean).join(', ')
+  for (const line of [
+    company?.address,
+    [cityLine, company?.zip].filter(Boolean).join(' '),
+    [company?.phone, company?.email].filter(Boolean).join(' · '),
+    company?.website,
+  ]) if (line) doc.text(String(line))
+  doc.fillColor('black').fontSize(14).text(title, { align: 'left' })
   doc.moveDown()
 
   // Format dates instead of dumping a raw JS Date string, and cap the status. (R2-03)

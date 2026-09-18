@@ -956,3 +956,14 @@ jobs:
           bun-version: latest
       - name: "Check reminder state"
         run: bun run scripts/check-reminder-state.ts
+
+  invoice-pdf-header:
+    name: "Invoice PDF: the practice is on its own invoice"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check invoice PDF header"
+        run: bun run scripts/check-invoice-pdf-header.ts
