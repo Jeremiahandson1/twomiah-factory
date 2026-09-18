@@ -349,6 +349,14 @@ export function createBookingService(deps: BookingDeps) {
       if (!slots.find(s => s.time === time)) throw new BookingError('That time is no longer available — please pick another slot.')
 
       let [theContact] = await tx.select().from(t.contact).where(and(eq(t.contact.companyId, companyId), eq(t.contact.email, email))).limit(1)
+      // Somebody booking under a household's shared email — "my daughter is bringing her in" — typed a name
+      // that then disappeared: the appointment showed the account holder and nothing said otherwise. The
+      // existing contact is still NOT overwritten (that address is somebody's record), but the name that was
+      // actually typed is carried onto the appointment. (Vet T12 L11)
+      const existingName = String(theContact?.name || '').trim()
+      const bookedByNote = theContact && fullName && existingName && fullName.toLowerCase() !== existingName.toLowerCase()
+        ? `Booked by ${fullName} (account: ${existingName})`
+        : ''
       if (!theContact) {
         ;[theContact] = await tx.insert(t.contact).values({
           companyId, name: fullName, email,
@@ -367,7 +375,9 @@ export function createBookingService(deps: BookingDeps) {
       const entry = await calendar.create(tx, {
         companyId, contactId: theContact.id, start, end, durationMinutes,
         serviceName: service?.name || null, serviceRef: service?.menuServiceId || null,
-        price: service ? service.price : null, customerNotes: data.notes?.trim() || null, pendingDeposit: depositRequired,
+        price: service ? service.price : null,
+        customerNotes: [bookedByNote, data.notes?.trim()].filter(Boolean).join(' — ') || null,
+        pendingDeposit: depositRequired,
         petName: data.petName?.trim() || null, petSpecies: data.petSpecies?.trim() || null,
       })
 

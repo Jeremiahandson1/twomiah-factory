@@ -136,6 +136,8 @@ function App() {
                   {/* CRM — dispensary management interface */}
                   <Route path="/crm" element={<ProtectedRoute><OnboardingGate><AppLayout /></OnboardingGate></ProtectedRoute>}>
                     <Route index element={<DashboardPage />} />
+                    {/* /crm/dashboard is what people type and bookmark; the dashboard itself is the index route, so without this the URL answered with the 404 page. (Vet T12 L4) */}
+                    <Route path="dashboard" element={<Navigate to="/crm" replace />} />
                     <Route path="products" element={<ProductsPage />} />
                     <Route path="products/:id" element={<ProductDetailPage />} />
                     <Route path="orders" element={<OrdersPage />} />

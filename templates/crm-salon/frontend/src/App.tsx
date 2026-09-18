@@ -119,6 +119,8 @@ function App() {
                   {/* CRM — full business management interface */}
                   <Route path="/crm" element={<ProtectedRoute><OnboardingGate><AppLayout /></OnboardingGate></ProtectedRoute>}>
                     <Route index element={<SalonDashboardPage />} />
+                    {/* /crm/dashboard is what people type and bookmark; the dashboard itself is the index route, so without this the URL answered with the 404 page. (Vet T12 L4) */}
+                    <Route path="dashboard" element={<Navigate to="/crm" replace />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
                     <Route path="jobs" element={<JobsPage />} />

@@ -656,7 +656,7 @@ export default function PatientDetailPage() {
           onClose={() => { setShowVisit(false); setEditVisit(null); }}
         />
       )}
-      {showVaccine && <VaccineModal patientId={p.id} onSave={() => { setShowVaccine(false); load(); }} onClose={() => setShowVaccine(false)} />}
+      {showVaccine && <VaccineModal patientId={p.id} rabiesTag={p.rabiesTag} onSave={() => { setShowVaccine(false); load(); }} onClose={() => setShowVaccine(false)} />}
       {showRx && <RxModal patientId={p.id} allergies={p.allergies} onSave={() => { setShowRx(false); load(); }} onClose={() => setShowRx(false)} />}
       {showLab && <LabModal patientId={p.id} onSave={() => { setShowLab(false); load(); }} onClose={() => setShowLab(false)} />}
 
@@ -721,11 +721,16 @@ function FormButtons({ saving, onClose }: { saving: boolean; onClose: () => void
 
 /* ---------------- Vaccine Modal ---------------- */
 
-function VaccineModal({ patientId, onSave, onClose }: { patientId: string; onSave: () => void; onClose: () => void }) {
+function VaccineModal({ patientId, rabiesTag, onSave, onClose }: { patientId: string; rabiesTag?: string; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     vaccine: '', manufacturer: '', lotNumber: '', serialNumber: '', site: '', route: '',
-    givenDate: new Date().toISOString().slice(0, 10), dueDate: '', isRabies: false, rabiesTag: '', notes: '',
+    givenDate: new Date().toISOString().slice(0, 10), dueDate: '', isRabies: false,
+    // The tag on the patient record is the tag this animal wears; re-typing it from the collar is how a
+    // certificate ends up with a number that does not match the chart. Still editable — a re-tagged
+    // animal gets a new one. (Vet T12 L5)
+    rabiesTag: rabiesTag || '',
+    notes: '',
   });
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 

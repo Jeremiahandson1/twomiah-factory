@@ -34,6 +34,22 @@ export default function OwnerPicker({ value, onChange, initialLabel }: OwnerPick
   const [selectedLabel, setSelectedLabel] = useState<string>(initialLabel || '');
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Opening an existing patient hands the picker an owner ID and nothing else, so the field read "Selected
+  // owner" — the one thing it should never say is that it knows who it is but will not tell you. Look the
+  // contact up and show their name. (Vet T12 L2)
+  useEffect(() => {
+    if (!value) { setSelectedLabel(''); return; }
+    if (selectedLabel) return;
+    let cancelled = false;
+    api.get(`/api/contacts/${value}`)
+      .then((res: unknown) => {
+        const c = ((res as { data?: ContactLite })?.data || res) as ContactLite | null;
+        if (!cancelled && c?.id) setSelectedLabel(contactName(c));
+      })
+      .catch(() => { /* an owner we cannot read still leaves the picker usable */ });
+    return () => { cancelled = true; };
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!open) return;
     if (debounce.current) clearTimeout(debounce.current);
@@ -64,7 +80,7 @@ export default function OwnerPicker({ value, onChange, initialLabel }: OwnerPick
         <div className="flex items-center justify-between px-3 py-2 border rounded-lg bg-gray-50 dark:bg-slate-900">
           <span className="flex items-center gap-2 text-sm text-gray-800 dark:text-slate-200">
             <User className="w-4 h-4 text-gray-400" />
-            {selectedLabel || 'Selected owner'}
+            {selectedLabel || 'Loading owner…'}
           </span>
           <button
             type="button"
