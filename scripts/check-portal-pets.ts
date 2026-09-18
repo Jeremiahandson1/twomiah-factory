@@ -17,7 +17,9 @@ if (!/app\.get\('\/p\/:token\/pets', portalAuth/.test(portal)) fail('…with a l
 if (!/app\.get\('\/p\/:token\/pets\/:petId', portalAuth/.test(portal)) fail('…and one animal\'s record')
 if (!/eq\(t\.patient\.ownerId, contactId\)/.test(portal)) fail("the pets LIST must be filtered to the visitor's own animals")
 if (!/eq\(t\.patient\.ownerId, contact\.id\)/.test(portal)) fail("…and so must one pet's record")
-if (!/\.\.\.\(has\.projects \? \{ activeProjects: Number\(projectCount\.value\) \} : \{\}\)/.test(portal)) fail('a vertical without projects must not be told how many active projects it has')
+// `sections`, not `has`: since T14 M14 the answer is per request, so a tenant that switched Projects off is
+// not told its active-project count either.
+if (!/\.\.\.\(sections\.projects \? \{ activeProjects: Number\(projectCount\.value\) \} : \{\}\)/.test(portal)) fail('a vertical without projects must not be told how many active projects it has')
 if (!/pets = \{ pets: ids\.length, vaccinationsDue: Number\(due\?\.value \|\| 0\), nextAppointment:/.test(portal)) fail('the portal home must summarise the pets, what is overdue and when they are next seen')
 if ((portal.match(/notInArray\(t\.appointment\.status, \['cancelled', 'no_show'\]\)/g) || []).length < 3) fail('a cancelled appointment must not count as what is next — in the summary, the list AND the record')
 // the clinical chart stays inside the practice

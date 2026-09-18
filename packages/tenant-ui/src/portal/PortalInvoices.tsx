@@ -5,9 +5,22 @@ import { Receipt, Download, AlertCircle, CheckCircle, Clock, CreditCard } from '
 import { usePortal } from './PortalContext'
 import { PortalPaymentModal } from './PaymentForm'
 import { PLink, Spinner, PageTitle, Empty, Section, card, pill, btnSecondary, formatDate, moneyShort } from './common'
+import { isPastDay } from '../invoicing/ui'
 
 const STATUS_STYLES: Record<string, string> = { sent: 'bg-blue-100 text-blue-700', open: 'bg-blue-100 text-blue-700', viewed: 'bg-blue-100 text-blue-700', partial: 'bg-yellow-100 text-yellow-700', paid: 'bg-green-100 text-green-700', overdue: 'bg-red-100 text-red-700' }
 const UNPAID = ['sent', 'open', 'viewed', 'partial', 'overdue']
+// The customer is shown plain English, not the value in the status column: the card used to read
+// "$250 of $250 overdue", "$100 of $100 sent" and "Paid paid". (Contractor T14 L5)
+const STATUS_LABELS: Record<string, string> = {
+  sent: 'Due', open: 'Due', viewed: 'Due', partial: 'Partly paid', overdue: 'Overdue', paid: 'Paid', refunded: 'Refunded', void: 'Void',
+}
+export const invoiceStatusLabel = (status: string) =>
+  STATUS_LABELS[status] || String(status || '').replace(/_/g, ' ').replace(/^./, (ch) => ch.toUpperCase())
+/** Nothing owed: say how it closed. An invoice with no balance left is not "Due", whatever its stored status says. */
+const settledLabel = (status: string) => {
+  const label = invoiceStatusLabel(status)
+  return label === 'Due' || label === 'Overdue' ? 'Settled' : label
+}
 
 export interface PortalInvoiceData {
   id: string; number: string; status: string; total: string | number; balance: string | number; subtotal?: string | number
@@ -20,7 +33,9 @@ export interface PortalInvoiceData {
   [key: string]: unknown
 }
 
-const isOverdue = (inv: PortalInvoiceData) => inv.status === 'overdue' || (UNPAID.includes(inv.status) && !!inv.dueDate && new Date(inv.dueDate) < new Date())
+// Past due means the due DAY is over — the same rule the invoice list, the stats and the contact page use,
+// so the portal cannot call an invoice due today overdue while the office still calls it open. (#246)
+const isOverdue = (inv: PortalInvoiceData) => inv.status === 'overdue' || (UNPAID.includes(inv.status) && Number(inv.balance) > 0 && isPastDay(inv.dueDate))
 
 export function PortalInvoices() {
   const { token, fetch: portalFetch } = usePortal()
@@ -52,7 +67,8 @@ export function PortalInvoices() {
       {invoices.length === 0 ? <Empty icon={Receipt} text="No invoices yet." /> : (
         <div className="space-y-6">
           {unpaid.length > 0 && <Section title={<><Clock className="w-5 h-5 text-orange-500" /> Unpaid ({unpaid.length})</>}>{unpaid.map((inv) => <InvoiceCard key={inv.id} invoice={inv} token={token} />)}</Section>}
-          {paid.length > 0 && <Section title={<><CheckCircle className="w-5 h-5 text-green-500" /> Paid ({paid.length})</>}>{paid.map((inv) => <InvoiceCard key={inv.id} invoice={inv} token={token} />)}</Section>}
+          {/* "Settled", not "Paid": a fully refunded invoice lives here too, and sat under a heading contradicting its own label. */}
+          {paid.length > 0 && <Section title={<><CheckCircle className="w-5 h-5 text-green-500" /> Settled ({paid.length})</>}>{paid.map((inv) => <InvoiceCard key={inv.id} invoice={inv} token={token} />)}</Section>}
         </div>
       )}
     </div>
@@ -69,8 +85,14 @@ function InvoiceCard({ invoice, token }: { invoice: PortalInvoiceData; token?: s
           <div className="min-w-0"><p className="font-medium text-gray-900 dark:text-slate-100">{invoice.number}</p><p className="text-sm text-gray-500 dark:text-slate-400">{invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : 'No due date'}</p></div>
         </div>
         <div className="text-right shrink-0">
-          {Number(invoice.balance) > 0 ? <><p className="text-lg font-bold text-gray-900 dark:text-slate-100">{moneyShort(invoice.balance)}</p><p className="text-xs text-gray-500 dark:text-slate-400">of {moneyShort(invoice.total)}</p></> : <p className="text-lg font-bold text-green-600">Paid</p>}
-          <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700')} mt-1`}>{invoice.status}</span>
+          {/* Nothing owed: the closing word IS the status, so a second pill underneath only repeated it. */}
+          {Number(invoice.balance) > 0 ? (
+            <>
+              <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{moneyShort(invoice.balance)}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400">of {moneyShort(invoice.total)}</p>
+              <span className={`${pill(STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700')} mt-1`}>{invoiceStatusLabel(invoice.status)}</span>
+            </>
+          ) : <p className="text-lg font-bold text-green-600">{settledLabel(invoice.status)}</p>}
         </div>
       </div>
     </PLink>
@@ -103,7 +125,7 @@ export function PortalInvoiceDetail() {
         <div className="p-6 border-b dark:border-slate-700">
           <div className="flex items-start justify-between gap-4">
             <div><h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Invoice {invoice.number}</h1>{invoice.project && <p className="text-gray-500 dark:text-slate-400">Project: {invoice.project.name}</p>}</div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700'}`}>{invoice.status}</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[invoice.status] || 'bg-gray-100 text-gray-700'}`}>{Number(invoice.balance) > 0 ? invoiceStatusLabel(invoice.status) : settledLabel(invoice.status)}</span>
           </div>
           {invoice.dueDate && <p className={`mt-2 ${overdue ? 'text-red-600 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>{overdue ? 'OVERDUE - ' : ''}Due {formatDate(invoice.dueDate)}</p>}
         </div>

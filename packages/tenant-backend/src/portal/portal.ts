@@ -64,7 +64,26 @@ export interface PortalDeps {
   emitToCompany?: (companyId: string, event: string, data: any) => void
   EVENTS?: Record<string, string>
   logger?: { warn: (msg: string, meta?: any) => void; error: (msg: string, meta?: any) => void }
+  /**
+   * The tenant's switched-on features (shared enabledFeature gate). Without it the portal falls back to
+   * "this template has the tables", which is how a customer came to be offered Projects, Change Orders and
+   * Selections on a tenant with all three switched off — in the nav AND as dashboard tiles inviting them to
+   * "Review Change Orders" above a count of 0 Active Projects. (Contractor T14 M14)
+   */
+  enabledFeaturesFor?: (companyId: string) => Promise<string[]>
   options?: PortalOptions
+}
+
+/**
+ * Which feature id has to be on for a section to be offered. Only sections that ARE a switchable feature
+ * appear here: the rest are decided by whether this vertical has the tables at all.
+ */
+const SECTION_FEATURES: Record<string, string[]> = {
+  projects: ['projects'],
+  changeOrders: ['change_orders'],
+  selections: ['selections'],
+  sharedDocuments: ['documents'],
+  projectFiles: ['documents', 'projects'],
 }
 
 /** Quote statuses a customer may see — drafts are the office's business until they are sent. */
@@ -229,10 +248,40 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
   const fullCompany = async (companyId: string) => { const [row] = await db.select().from(t.company).where(eq(t.company.id, companyId)).limit(1); return row }
 
+  /**
+   * The sections this customer is actually offered. `has` is only what this vertical mounted; the owner can
+   * switch a module off in Settings › Features and the portal has to follow, because the nav AND the dashboard
+   * tiles are both built from this payload. Read per request (the gate caches 15 s), so a switch takes effect
+   * without a redeploy. No lookup, a failed lookup, or an empty feature list all fall back to `has` — a portal
+   * that cannot read the feature list must not go blank.
+   */
+  async function sectionsFor(companyId: string): Promise<typeof has> {
+    if (!deps.enabledFeaturesFor) return has
+    let enabled: string[] = []
+    try { enabled = await deps.enabledFeaturesFor(companyId) } catch (err) {
+      log.warn('[portal] enabled-features lookup failed', { error: (err as Error).message })
+      return has
+    }
+    if (enabled.length === 0) return has
+    const out = { ...has }
+    for (const section of Object.keys(out) as Array<keyof typeof has>) {
+      const needed = SECTION_FEATURES[section]
+      if (needed && !needed.every((f) => enabled.includes(f))) out[section] = false
+    }
+    return out
+  }
+  /** Taking a module out of the nav has to close its endpoints too — hiding a module used to leave its API wide open (#167). */
+  const gate = (section: keyof typeof has) => async (c: any, next: any) => {
+    const sections = await sectionsFor(P(c).companyId)
+    if (!sections[section]) return c.json({ error: 'This section is not available on your account.', code: 'FEATURE_NOT_ENABLED' }, 404)
+    await next()
+  }
+
   // ---- home
   app.get('/p/:token', portalAuth, async (c) => {
     const { contact, company } = P(c)
-    const [projectCount] = has.projects
+    const sections = await sectionsFor(contact.companyId)
+    const [projectCount] = sections.projects
       ? await db.select({ value: count() }).from(t.project).where(and(eq(t.project.contactId, contact.id), notInArray(t.project.status, ['completed', 'cancelled'])))
       : [{ value: 0 }]
     const [quoteCount] = await db.select({ value: count() }).from(t.quote).where(and(eq(t.quote.contactId, contact.id), inArray(t.quote.status, QUOTE_RESPONDABLE)))
@@ -241,7 +290,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       .where(and(eq(t.invoice.contactId, contact.id), inArray(t.invoice.status, ['sent', 'open', 'viewed', 'partial', 'overdue'])))
     // The owner's animals, what is overdue and what is booked — the headline a veterinary client actually wants.
     let pets: { pets: number; vaccinationsDue: number; nextAppointment: string | null } | null = null
-    if (has.pets) {
+    if (sections.pets) {
       const mine = await db.select({ id: t.patient.id }).from(t.patient).where(and(eq(t.patient.companyId, contact.companyId), eq(t.patient.ownerId, contact.id)))
       const ids = mine.map((p: any) => p.id)
       const [due] = ids.length && t.vaccination
@@ -260,11 +309,11 @@ export function createPortalRoutes(deps: PortalDeps) {
       // Only what this vertical actually has: a veterinary practice was being told how many active projects and
       // pending quotes its client had. (T12 H6)
       summary: {
-        ...(has.projects ? { activeProjects: Number(projectCount.value) } : {}),
+        ...(sections.projects ? { activeProjects: Number(projectCount.value) } : {}),
         pendingQuotes: Number(quoteCount.value), totalInvoices: Number(invoiceCount.value), outstandingBalance: Number(balance?.total || 0),
         ...(pets || {}),
       },
-      sections: has,
+      sections,
     })
   })
 
@@ -324,13 +373,13 @@ export function createPortalRoutes(deps: PortalDeps) {
 
   // ---- projects
   if (has.projects) {
-    app.get('/p/:token/projects', portalAuth, async (c) => {
+    app.get('/p/:token/projects', portalAuth, gate('projects'), async (c) => {
       const { contact } = P(c)
       const rows = await db.select({ id: t.project.id, number: t.project.number, name: t.project.name, status: t.project.status, progress: t.project.progress, startDate: t.project.startDate, endDate: t.project.endDate, address: t.project.address, city: t.project.city, state: t.project.state })
         .from(t.project).where(eq(t.project.contactId, contact.id)).orderBy(desc(t.project.createdAt))
       return c.json(rows)
     })
-    app.get('/p/:token/projects/:projectId', portalAuth, async (c) => {
+    app.get('/p/:token/projects/:projectId', portalAuth, gate('projects'), async (c) => {
       const { contact } = P(c)
       const projectId = c.req.param('projectId')
       const [found] = await db.select().from(t.project).where(and(eq(t.project.id, projectId), eq(t.project.contactId, contact.id))).limit(1)
@@ -482,7 +531,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   // ---- change orders
   if (has.changeOrders) {
     const coSelect = () => ({ id: t.changeOrder.id, number: t.changeOrder.number, title: t.changeOrder.title, description: t.changeOrder.description, status: t.changeOrder.status, reason: t.changeOrder.reason, amount: t.changeOrder.amount, daysAdded: t.changeOrder.daysAdded, submittedDate: t.changeOrder.submittedDate, approvedDate: t.changeOrder.approvedDate, approvedBy: t.changeOrder.approvedBy, createdAt: t.changeOrder.createdAt, projectId: t.changeOrder.projectId, projectName: t.project.name, projectNumber: t.project.number })
-    app.get('/p/:token/change-orders', portalAuth, async (c) => {
+    app.get('/p/:token/change-orders', portalAuth, gate('changeOrders'), async (c) => {
       const { contact } = P(c)
       const projectIds = await contactProjectIds(contact.id)
       if (projectIds.length === 0) return c.json([])
@@ -496,7 +545,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const [row] = await db.select().from(t.changeOrder).where(and(eq(t.changeOrder.id, changeOrderId), inArray(t.changeOrder.projectId, projectIds))).limit(1)
       return row || null
     }
-    app.get('/p/:token/change-orders/:changeOrderId', portalAuth, async (c) => {
+    app.get('/p/:token/change-orders/:changeOrderId', portalAuth, gate('changeOrders'), async (c) => {
       const { contact, company } = P(c)
       const changeOrderId = c.req.param('changeOrderId')
       const projectIds = await contactProjectIds(contact.id)
@@ -506,7 +555,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       if (!found) return c.json({ error: 'Change order not found' }, 404)
       return c.json({ ...found, project: { name: found.projectName, number: found.projectNumber }, company: { name: company.name, email: company.email, phone: company.phone } })
     })
-    app.post('/p/:token/change-orders/:changeOrderId/approve', portalAuth, async (c) => {
+    app.post('/p/:token/change-orders/:changeOrderId/approve', portalAuth, gate('changeOrders'), async (c) => {
       const { contact } = P(c)
       const changeOrderId = c.req.param('changeOrderId')
       const body = await c.req.json().catch(() => ({}))
@@ -524,7 +573,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       notifyCompany({ companyId: contact.companyId, projectId: found.projectId, entityType: 'change_order', entityId: changeOrderId, action: 'approved', actorName: check.signerName, actorRole: contact.type || 'client', summary: `signed and approved change order ${found.number} "${found.title}" ($${Number(found.amount || 0).toLocaleString()})`, details: { notes: body.notes || null, signedBy: check.signerName, documentHash } })
       return c.json({ success: true, changeOrder: updated })
     })
-    app.post('/p/:token/change-orders/:changeOrderId/reject', portalAuth, async (c) => {
+    app.post('/p/:token/change-orders/:changeOrderId/reject', portalAuth, gate('changeOrders'), async (c) => {
       const { contact } = P(c)
       const changeOrderId = c.req.param('changeOrderId')
       const { reason } = await c.req.json().catch(() => ({}))
@@ -539,12 +588,12 @@ export function createPortalRoutes(deps: PortalDeps) {
 
   // ---- selections
   if (has.selections && selections) {
-    app.get('/p/:token/selections/project/:projectId/selections', portalAuth, async (c) => {
+    app.get('/p/:token/selections/project/:projectId/selections', portalAuth, gate('selections'), async (c) => {
       const { contact } = P(c)
       try { return c.json(await selections.getClientSelections(c.req.param('projectId'), contact.id)) }
       catch (error: any) { return c.json({ error: error.message || 'Failed to load selections' }, 400) }
     })
-    app.post('/p/:token/selections/project/:projectId/selections/:selectionId', portalAuth, async (c) => {
+    app.post('/p/:token/selections/project/:projectId/selections/:selectionId', portalAuth, gate('selections'), async (c) => {
       const { contact } = P(c)
       const { optionId, notes } = await c.req.json().catch(() => ({}))
       if (!optionId) return c.json({ error: 'Option ID is required' }, 400)
@@ -700,7 +749,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
 
   if (has.sharedDocuments) {
-    app.get('/p/:token/shared-documents', portalAuth, async (c) => {
+    app.get('/p/:token/shared-documents', portalAuth, gate('sharedDocuments'), async (c) => {
       const { contact } = P(c)
       const base = { id: t.document.id, name: t.document.name, type: t.document.type, originalName: t.document.originalName, mimeType: t.document.mimeType, size: t.document.size, url: t.document.url, thumbnailUrl: t.document.thumbnailUrl, description: t.document.description, createdAt: t.document.createdAt, projectId: t.document.projectId, sharedAt: t.documentShare.sharedAt }
       const q = t.project
@@ -728,7 +777,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       return null
     }
     const docCols = () => ({ id: t.document.id, name: t.document.name, type: t.document.type, originalName: t.document.originalName, mimeType: t.document.mimeType, size: t.document.size, url: t.document.url, thumbnailUrl: t.document.thumbnailUrl, description: t.document.description, createdAt: t.document.createdAt, uploadedById: t.document.uploadedById })
-    app.get('/p/:token/projects/:projectId/files', portalAuth, async (c) => {
+    app.get('/p/:token/projects/:projectId/files', portalAuth, gate('projectFiles'), async (c) => {
       const { contact } = P(c)
       const projectId = c.req.param('projectId')
       const access = await projectAccess(contact.id, contact.companyId, projectId)
@@ -740,7 +789,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       return c.json(await db.select({ ...docCols(), sharedAt: t.documentShare.sharedAt }).from(t.documentShare).innerJoin(t.document, eq(t.documentShare.documentId, t.document.id))
         .where(and(eq(t.documentShare.contactId, contact.id), eq(t.document.projectId, projectId), eq(t.document.companyId, contact.companyId))).orderBy(desc(t.documentShare.sharedAt)))
     })
-    app.post('/p/:token/projects/:projectId/files', portalAuth, async (c) => {
+    app.post('/p/:token/projects/:projectId/files', portalAuth, gate('projectFiles'), async (c) => {
       const { contact } = P(c)
       const projectId = c.req.param('projectId')
       const access = await projectAccess(contact.id, contact.companyId, projectId)

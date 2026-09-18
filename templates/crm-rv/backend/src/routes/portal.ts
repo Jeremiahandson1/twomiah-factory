@@ -10,6 +10,7 @@ import {
 } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import { enabledFeaturesFor } from '../middleware/enabledFeature.ts'
 import emailService from '../services/email.ts'
 import selections from '../services/selections.ts'
 import fileService from '../services/fileUpload.ts'
@@ -33,6 +34,8 @@ export default createPortalRoutes({
   emitToCompany,
   EVENTS,
   logger,
+  // the owner's Settings > Features switches decide which sections the portal offers, not just which tables exist
+  enabledFeaturesFor,
   options: {
     // endpoint groups this vertical does not offer its customers
     disable: ['projects', 'changeOrders', 'selections', 'projectFiles', 'service'],
