@@ -12,6 +12,9 @@ const jobs = read('packages/tenant-backend/src/jobs/jobs.ts')
 if (!/const completedAt = data\.status === undefined \|\| data\.status === existing\.status \? undefined\s*\n\s*: data\.status === 'completed' \? \(existing\.completedAt \?\? new Date\(\)\)\s*\n\s*: existing\.completedAt \? null : undefined/.test(jobs)) fail('editing a job to completed must stamp completedAt (and clear it when it leaves completed)')
 if (!/\.\.\.\(completedAt !== undefined \? \{ completedAt \} : \{\}\),/.test(jobs)) fail('the job update must write that stamp')
 if (!/transition\('complete', 'completed', \(\) => o\.onComplete, \(\) => \(\{ completedAt: new Date\(\) \}\)\)/.test(jobs)) fail('the Complete action must still stamp completedAt')
+// …and the lifecycle buttons follow the same rule as the dropdown: Start and Dispatch only wrote the status, so
+// reopening a finished job left the old completion time on it and "Completed today" kept counting it (T26 M1).
+if (!/\.\.\.\(status === 'completed' \? \{\} : \{ completedAt: null \}\),/.test(jobs)) fail('Start and Dispatch must clear the completion time — a reopened job must not still claim it was finished')
 // …and a BULK status change follows the same rule: it stamped on completion but never cleared, so a job bulk-moved
 // back out of completed still claimed it was finished, and re-completing overwrote the original time.
 const bulk = read('packages/tenant-backend/src/bulk/bulk.ts')

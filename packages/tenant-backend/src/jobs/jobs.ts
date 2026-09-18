@@ -406,7 +406,15 @@ export function createJobRoutes(deps: JobDeps) {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
-      const [updated] = await db.update(t.job).set({ status, ...extra(), updatedAt: new Date() }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
+      // Moving a job OUT of completed clears the completion stamp — the same rule the status dropdown has
+      // followed since landscaping T14 L13. Start and Dispatch only wrote the status, so reopening a finished
+      // job left it still claiming a completion time, and "Completed today" kept counting it. (T26 M1)
+      const [updated] = await db.update(t.job).set({
+        status,
+        ...(status === 'completed' ? {} : { completedAt: null }),
+        ...extra(),
+        updatedAt: new Date(),
+      }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
       emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status })
       const more = await runHook(hook(), updated, currentUser)
       return c.json({ ...updated, ...more })
