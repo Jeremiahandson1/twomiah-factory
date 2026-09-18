@@ -72,6 +72,7 @@ import AdsPage from './pages/ads/AdsPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
 import EstimatorTrialPage from './pages/EstimatorTrialPage';
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage';
+import FeaturesPage from './pages/settings/FeaturesPage';
 import EstimatorPage from './pages/EstimatorPage';
 import RoofReportsPage from './pages/roofReports/RoofReportsPage';
 import RoofReportDetail from './pages/roofReports/RoofReportDetail';
@@ -184,6 +185,7 @@ function App() {
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
+                    <Route path="settings/features" element={<FeaturesPage />} />
                     <Route path="fleet" element={<FleetPage />} />
                     <Route path="inventory" element={<InventoryPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />

@@ -74,6 +74,9 @@ const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | nul
   pro: { users: 15, contacts: 10000, orders: null, storage: 50, locations: 3 },
   business: { users: 30, contacts: 50000, orders: null, storage: 250, locations: 10 },
   enterprise: { users: null, contacts: null, orders: null, storage: null, locations: null },
+  starter10: { users: 10, contacts: null, orders: null, storage: null, locations: null },
+  team25: { users: 25, contacts: null, orders: null, storage: null, locations: null },
+  business50: { users: 50, contacts: null, orders: null, storage: null, locations: null },
 }
 
 // Self-serve signup (multi-step flow)

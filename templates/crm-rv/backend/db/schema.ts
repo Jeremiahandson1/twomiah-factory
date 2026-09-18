@@ -859,6 +859,13 @@ export const inventoryItem = pgTable('inventory_item', {
   taxable: boolean('taxable').default(true).notNull(),
   active: boolean('active').default(true).notNull(),
 
+  // Links a physically-stocked item back to its catalog entry (OEM part). This is
+  // the wire that unifies the parts CATALOG (catalog_part, a price list) with the
+  // perpetual stock ledger (stock_level / inventory_transaction). One stocked part
+  // = one inventory_item pointing at its catalog_part. Nullable: not every stocked
+  // item comes from the OEM catalog (shop supplies, misc).
+  catalogPartId: text('catalog_part_id').references(() => catalogPart.id, { onDelete: 'set null' }),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -866,6 +873,7 @@ export const inventoryItem = pgTable('inventory_item', {
 }, (t) => [
   uniqueIndex('inventory_item_company_id_sku_key').on(t.companyId, t.sku),
   index('inventory_item_company_id_category_idx').on(t.companyId, t.category),
+  index('inventory_item_catalog_part_idx').on(t.catalogPartId),
 ])
 
 // Parts catalog the dealer brings themselves — OEM price files they download from
@@ -3794,6 +3802,131 @@ export const repairOrder = pgTable('repair_order', {
   index('repair_order_status_idx').on(t.status),
   index('repair_order_customer_id_idx').on(t.customerId),
   uniqueIndex('repair_order_ro_number_company_id_key').on(t.roNumber, t.companyId),
+])
+
+// A real parts line on a repair order — the DMS wire. Unlike repairOrder.services
+// (free-text JSON), each row references a stocked inventory_item and, when it does,
+// decrementing/removing it moves the perpetual stock ledger. itemId is nullable so a
+// special-order part not carried in stock can still be billed on the RO (no decrement).
+export const repairOrderPart = pgTable('repair_order_part', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  repairOrderId: text('repair_order_id').notNull().references(() => repairOrder.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').references(() => inventoryItem.id, { onDelete: 'set null' }),
+  catalogPartId: text('catalog_part_id').references(() => catalogPart.id, { onDelete: 'set null' }),
+  locationId: text('location_id').references(() => inventoryLocation.id, { onDelete: 'set null' }),
+  partNumber: text('part_number'),
+  description: text('description').notNull(),
+  quantity: integer('quantity').default(1).notNull(),
+  unitCost: decimal('unit_cost', { precision: 10, scale: 2 }).default('0').notNull(),
+  unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).default('0').notNull(),
+  totalPrice: decimal('total_price', { precision: 10, scale: 2 }).default('0').notNull(),
+  // true when this line pulled from perpetual stock (so removing it restocks).
+  stockDecremented: boolean('stock_decremented').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('repair_order_part_ro_idx').on(t.repairOrderId),
+  index('repair_order_part_company_idx').on(t.companyId),
+])
+
+// ==================== COUNTER SALES (walk-in parts POS) ====================
+// A walk-in parts sale at the counter — the retail side of the parts department.
+// Lines decrement the same perpetual stock ledger as repair-order parts.
+export const counterSale = pgTable('counter_sale', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  saleNumber: text('sale_number'),
+  status: text('status').default('open').notNull(), // open, completed, voided
+  subtotal: decimal('subtotal', { precision: 10, scale: 2 }).default('0').notNull(),
+  tax: decimal('tax', { precision: 10, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 10, scale: 2 }).default('0').notNull(),
+  paymentMethod: text('payment_method'),
+  notes: text('notes'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  customerId: text('customer_id').references(() => contact.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('counter_sale_company_idx').on(t.companyId),
+  index('counter_sale_status_idx').on(t.status),
+  uniqueIndex('counter_sale_number_company_key').on(t.saleNumber, t.companyId),
+])
+
+export const counterSaleLine = pgTable('counter_sale_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  counterSaleId: text('counter_sale_id').notNull().references(() => counterSale.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').references(() => inventoryItem.id, { onDelete: 'set null' }),
+  catalogPartId: text('catalog_part_id').references(() => catalogPart.id, { onDelete: 'set null' }),
+  locationId: text('location_id').references(() => inventoryLocation.id, { onDelete: 'set null' }),
+  partNumber: text('part_number'),
+  description: text('description').notNull(),
+  quantity: integer('quantity').default(1).notNull(),
+  unitCost: decimal('unit_cost', { precision: 10, scale: 2 }).default('0').notNull(),
+  unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).default('0').notNull(),
+  totalPrice: decimal('total_price', { precision: 10, scale: 2 }).default('0').notNull(),
+  stockDecremented: boolean('stock_decremented').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('counter_sale_line_sale_idx').on(t.counterSaleId),
+  index('counter_sale_line_company_idx').on(t.companyId),
+])
+
+// ==================== CATALOG FEED (distributor price/stock sync) ====================
+// Per-dealer config for an automatic parts price/cost feed from a distributor
+// (Parts Unlimited / Tucker / WPS / OEM price file). Scheduled refresh keeps the
+// catalog + stocked-item costs current — the "parts pricing going forward" answer.
+export const catalogFeed = pgTable('catalog_feed', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  enabled: boolean('enabled').default(false).notNull(),
+  provider: text('provider').default('generic').notNull(), // parts_unlimited, tucker, wps, generic
+  feedUrl: text('feed_url'),
+  apiToken: text('api_token'), // for API distributors (WPS) — the dealer's own API access token
+  format: text('format').default('csv').notNull(), // csv | xml
+  defaultOem: text('default_oem'), // brand to apply when the file has no brand column
+  lastSyncAt: timestamp('last_sync_at'),
+  lastCount: integer('last_count').default(0).notNull(),
+  lastError: text('last_error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('catalog_feed_company_key').on(t.companyId),
+])
+
+// ==================== ACCOUNTING / GL ====================
+// Native general-ledger journal. Every financial event (parts counter sale, RO
+// parts, unit deal…) posts one entry with revenue, COGS and gross profit — the
+// book of record for P&L and department gross. postedToQb/qbRef stay switch-ready
+// so a QuickBooks push can layer on later without changing this table.
+export const accountingEntry = pgTable('accounting_entry', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  entryDate: timestamp('entry_date').defaultNow().notNull(),
+  category: text('category').notNull(), // parts, service, unit, fi, other
+  sourceType: text('source_type').notNull(), // counter_sale, repair_order, deal, manual
+  sourceId: text('source_id'),
+  ref: text('ref'), // human ref: CS-00001 / RO-00009
+  description: text('description'),
+  revenue: decimal('revenue', { precision: 12, scale: 2 }).default('0').notNull(),
+  cost: decimal('cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  tax: decimal('tax', { precision: 12, scale: 2 }).default('0').notNull(),
+  grossProfit: decimal('gross_profit', { precision: 12, scale: 2 }).default('0').notNull(),
+  postedToQb: boolean('posted_to_qb').default(false).notNull(),
+  qbRef: text('qb_ref'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  customerId: text('customer_id').references(() => contact.id, { onDelete: 'set null' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('accounting_entry_company_idx').on(t.companyId),
+  index('accounting_entry_category_idx').on(t.category),
+  uniqueIndex('accounting_entry_source_key').on(t.companyId, t.sourceType, t.sourceId),
 ])
 
 // ==================== SERVICE-TO-SALES ALERTS ====================

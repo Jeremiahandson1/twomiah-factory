@@ -61,6 +61,8 @@ import AuthorizationsManagement from './admin/AuthorizationsManagement';
 import EVVDashboard from './admin/EVVDashboard';
 import LeadInboxPage from '../pages/leads/LeadInboxPage';
 import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
+import FeaturesPage from '../pages/FeaturesPage';
+import { NAV_FEATURE } from '../config/optionalFeatures';
 
 const NAV_SECTIONS = [
   {
@@ -139,13 +141,19 @@ const NAV_SECTIONS = [
       { id: 'ai-receptionist', label: 'AI Receptionist', icon: '🤖' },
     ]
   },
+  {
+    id: 'settings', label: 'Settings', icon: '⚙️',
+    items: [
+      { id: 'features', label: 'Features', icon: '🎛️' },
+    ]
+  },
 ];
 
 // All searchable items flattened
 const ALL_ITEMS = NAV_SECTIONS.flatMap(s => s.items);
 
 const AdminDashboard = ({ onLogout, onImpersonate }) => {
-  const { user, token, company } = useAuth();
+  const { user, token, company, hasFeature } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const trialExpired = isTrialExpired(company);
   const [showHelp, setShowHelp] = useState(false);
@@ -182,6 +190,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
     if (!searchQuery.trim()) { setSearchResults([]); return; }
     const q = searchQuery.toLowerCase();
     const results = ALL_ITEMS.filter(item =>
+      (!NAV_FEATURE[item.id] || hasFeature(NAV_FEATURE[item.id])) &&
       item.label.toLowerCase().includes(q)
     );
     setSearchResults(results);
@@ -266,6 +275,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
 
     switch (currentPage) {
       case 'dashboard': return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
+      case 'features': return <FeaturesPage />;
       case 'referrals': return <ReferralSources />;
       case 'clients': return <ClientsManagement />;
       case 'caregivers': return <CaregiverManagement onViewProfile={handleViewCaregiverProfile} onViewHistory={handleViewCaregiverHistory} />;
@@ -363,7 +373,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
                 {/* Section items */}
                 {!isCollapsed && (
                   <ul style={{ listStyle: 'none', margin: '0.2rem 0 0.5rem 0', padding: 0 }}>
-                    {section.items.map(item => (
+                    {section.items.filter(item => !NAV_FEATURE[item.id] || hasFeature(NAV_FEATURE[item.id])).map(item => (
                       <li key={item.id}>
                         <a
                           href={`#${item.id}`}

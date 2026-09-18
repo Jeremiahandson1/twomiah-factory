@@ -43,7 +43,7 @@ export default function CrewsPage() {
       const res = await fetch('/api/crews', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, crewSize: form.crewSize ? Number(form.crewSize) : null }),
+        body: JSON.stringify({ ...form, size: form.crewSize ? Number(form.crewSize) : null }),
       });
       if (!res.ok) throw new Error();
       const crew = await res.json();
@@ -115,7 +115,7 @@ export default function CrewsPage() {
                 <div className="flex items-center gap-4 pt-2 border-t text-gray-500">
                   <span className="flex items-center gap-1">
                     <Users className="w-3.5 h-3.5" />
-                    {crew.crewSize || '—'} members
+                    {crew.size || '—'} members
                   </span>
                   <span className="flex items-center gap-1">
                     <Briefcase className="w-3.5 h-3.5" />

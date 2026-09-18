@@ -30,6 +30,7 @@ import AdminHomepage from './admin/AdminHomepage';
 import AdminTestimonials from './admin/AdminTestimonials';
 import AdminServicesManager from './admin/AdminServicesManager';
 import AdminAnalytics from './admin/AdminAnalytics';
+import AdminSEO from './admin/AdminSEO';
 import AdminGallery from './admin/AdminGallery';
 import AdminMenus from './admin/AdminMenus';
 import AdminBlog from './admin/AdminBlog';
@@ -172,6 +173,11 @@ function AppContent() {
           <Route path="/analytics" element={
             <ProtectedRoute>
               <AdminAnalytics />
+            </ProtectedRoute>
+          } />
+          <Route path="/seo" element={
+            <ProtectedRoute>
+              <AdminSEO />
             </ProtectedRoute>
           } />
           <Route path="/gallery" element={

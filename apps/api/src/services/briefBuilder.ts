@@ -34,11 +34,13 @@ export function resolveWebsiteTemplate(industry: string): string {
 export const THEME_ALLOW: Record<string, string[]> = {
   'website-showcase': ['warm-bold', 'midnight-neon', 'clean-spotlight'],
   'website-homecare': ['warm-community', 'clean-professional', 'family-modern'],
-  'website-contractor': ['bold-industrial', 'modern-minimal', 'professional-corporate'],
-  'website-fieldservice': ['bold-industrial', 'modern-minimal', 'professional-corporate'],
-  'website-landscaping': ['bold-industrial', 'modern-minimal', 'professional-corporate'],
+  'website-contractor': ['professional-corporate', 'modern-minimal', 'bold-industrial'],
+  'website-fieldservice': ['professional-corporate', 'modern-minimal', 'bold-industrial'],
+  'website-landscaping': ['professional-corporate', 'modern-minimal', 'bold-industrial'],
   'website-dispensary': ['glassmorphism-dark', 'botanical-organic', 'streetwear-bold'],
   'website-general': ['clean-minimal', 'bold-contrast', 'trade-professional'],
+  // Store storefront is cloned from website-general and shares its themes.
+  'website-store': ['clean-minimal', 'bold-contrast', 'trade-professional'],
 }
 export const ALL_WEBSITE_FEATURES = ['blog', 'gallery', 'testimonials', 'services_pages', 'contact_form', 'visualizer'] as const
 export const ALLOWED_PRODUCTS = ['website', 'crm', 'cms', 'pricing'] as const
@@ -153,6 +155,7 @@ export function buildConfig(intake: Intake, d: Decision): GenerateConfig {
     branding: {
       primaryColor: intake.branding?.primaryColor,
       secondaryColor: intake.branding?.secondaryColor,
+      accentColor: intake.branding?.accentColor,
       logo: intake.branding?.logo,
       websiteTheme: d.websiteTheme,
     },

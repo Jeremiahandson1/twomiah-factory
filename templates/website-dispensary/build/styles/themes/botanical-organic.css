@@ -15,26 +15,26 @@
   --font-heading: 'Cormorant Garamond', Georgia, serif;
   --font-body: 'Karla', sans-serif;
   --border-radius: 8px;
-  --shadow-sm: 0 2px 8px rgba(20, 83, 45, 0.06);
-  --shadow: 0 4px 20px rgba(20, 83, 45, 0.08);
-  --shadow-lg: 0 8px 32px rgba(20, 83, 45, 0.12);
+  --shadow-sm: 0 2px 8px color-mix(in srgb, {{PRIMARY_COLOR}} 6%, transparent);
+  --shadow: 0 4px 20px color-mix(in srgb, {{PRIMARY_COLOR}} 8%, transparent);
+  --shadow-lg: 0 8px 32px color-mix(in srgb, {{PRIMARY_COLOR}} 12%, transparent);
 
   /* Botanical palette */
   --bo-cream: #fefce8;
   --bo-cream-dark: #fef9c3;
   --bo-ivory: #fffef5;
-  --bo-forest: #14532d;
-  --bo-forest-dark: #0f3d21;
-  --bo-sage: #a3b18a;
-  --bo-sage-light: #c5d5a9;
-  --bo-sage-dark: #7a8a64;
-  --bo-moss: #588157;
-  --bo-bark: #6b4423;
-  --bo-bark-light: #8b6239;
+  --bo-forest: {{PRIMARY_COLOR}};
+  --bo-forest-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 72%, #000000);
+  --bo-sage: {{SECONDARY_COLOR}};
+  --bo-sage-light: color-mix(in srgb, {{SECONDARY_COLOR}} 62%, #ffffff);
+  --bo-sage-dark: color-mix(in srgb, {{SECONDARY_COLOR}} 78%, #000000);
+  --bo-moss: color-mix(in srgb, {{PRIMARY_COLOR}} 55%, {{SECONDARY_COLOR}});
+  --bo-bark: {{ACCENT_COLOR}};
+  --bo-bark-light: color-mix(in srgb, {{ACCENT_COLOR}} 78%, #ffffff);
   --bo-text: #2d3a2e;
   --bo-text-muted: #5c6b5e;
-  --bo-border: rgba(163, 177, 138, 0.3);
-  --bo-border-strong: rgba(20, 83, 45, 0.15);
+  --bo-border: color-mix(in srgb, {{SECONDARY_COLOR}} 30%, transparent);
+  --bo-border-strong: color-mix(in srgb, {{PRIMARY_COLOR}} 15%, transparent);
 }
 
 /* ── Body ── */
@@ -119,7 +119,7 @@ p, li, span {
 
 .services-nav ul > li > a:hover {
   color: #ffffff !important;
-  background: rgba(163, 177, 138, 0.2) !important;
+  background: color-mix(in srgb, var(--bo-sage) 20%, transparent) !important;
 }
 
 .services-nav .dropdown {
@@ -149,7 +149,7 @@ p, li, span {
 .mobile-nav ul > li > a {
   color: rgba(254, 252, 232, 0.9) !important;
   font-family: 'Karla', sans-serif;
-  border-bottom-color: rgba(163, 177, 138, 0.2) !important;
+  border-bottom-color: color-mix(in srgb, var(--bo-sage) 20%, transparent) !important;
 }
 
 .mobile-nav .mobile-section-label {
@@ -171,9 +171,9 @@ p, li, span {
 .hero-overlay {
   background: linear-gradient(
     180deg,
-    rgba(20, 83, 45, 0.6) 0%,
-    rgba(15, 61, 33, 0.5) 40%,
-    rgba(20, 83, 45, 0.75) 100%
+    color-mix(in srgb, var(--bo-forest) 60%, transparent) 0%,
+    color-mix(in srgb, var(--bo-forest-dark) 50%, transparent) 40%,
+    color-mix(in srgb, var(--bo-forest) 75%, transparent) 100%
   ) !important;
 }
 
@@ -240,7 +240,7 @@ button[type="submit"] {
 button[type="submit"]:hover {
   background: var(--bo-forest-dark) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 16px rgba(20, 83, 45, 0.25) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--bo-forest) 25%, transparent) !important;
 }
 
 .btn-outline,
@@ -272,7 +272,7 @@ button[type="submit"]:hover {
   background: var(--bo-ivory) !important;
   border: 1px solid var(--bo-border) !important;
   border-radius: 8px !important;
-  box-shadow: 0 2px 8px rgba(20, 83, 45, 0.05);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--bo-forest) 5%, transparent);
   transition: all 0.35s ease;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -285,7 +285,7 @@ button[type="submit"]:hover {
 .feature-badge:hover,
 .why-item:hover {
   border-color: var(--bo-sage) !important;
-  box-shadow: 0 6px 24px rgba(20, 83, 45, 0.1);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--bo-forest) 10%, transparent);
   transform: translateY(-3px);
 }
 
@@ -329,13 +329,13 @@ button[type="submit"]:hover {
 
 /* ── Age Gate ── */
 .age-overlay {
-  background: rgba(20, 83, 45, 0.9) !important;
+  background: color-mix(in srgb, var(--bo-forest) 90%, transparent) !important;
 }
 
 .age-overlay-card {
   background: var(--bo-ivory) !important;
   border-radius: 12px !important;
-  box-shadow: 0 20px 60px rgba(20, 83, 45, 0.2);
+  box-shadow: 0 20px 60px color-mix(in srgb, var(--bo-forest) 20%, transparent);
   border: 1px solid var(--bo-border);
 }
 
@@ -428,7 +428,7 @@ button[type="submit"]:hover {
 
 /* Green badge for product categories */
 .strain-badge {
-  background: rgba(20, 83, 45, 0.1) !important;
+  background: color-mix(in srgb, var(--bo-forest) 10%, transparent) !important;
   color: var(--bo-forest) !important;
   border-radius: 4px;
   padding: 3px 10px;
@@ -627,7 +627,7 @@ form textarea::placeholder {
 form input:focus,
 form textarea:focus {
   border-color: var(--bo-sage) !important;
-  box-shadow: 0 0 0 3px rgba(163, 177, 138, 0.2) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bo-sage) 20%, transparent) !important;
   outline: none;
   background: #ffffff !important;
 }
@@ -715,7 +715,7 @@ form label {
 
 .footer-bottom {
   background: rgba(0, 0, 0, 0.15) !important;
-  border-top: 1px solid rgba(163, 177, 138, 0.15);
+  border-top: 1px solid color-mix(in srgb, var(--bo-sage) 15%, transparent);
 }
 
 .footer-bottom p {
@@ -724,19 +724,19 @@ form label {
 }
 
 .footer-age-notice {
-  color: rgba(163, 177, 138, 0.5) !important;
+  color: color-mix(in srgb, var(--bo-sage) 50%, transparent) !important;
 }
 
 /* ── Quick View Modal ── */
 .quick-view-overlay {
-  background: rgba(20, 83, 45, 0.85) !important;
+  background: color-mix(in srgb, var(--bo-forest) 85%, transparent) !important;
 }
 
 .quick-view-modal {
   background: var(--bo-ivory) !important;
   border: 1px solid var(--bo-border);
   border-radius: 12px;
-  box-shadow: 0 32px 64px rgba(20, 83, 45, 0.2);
+  box-shadow: 0 32px 64px color-mix(in srgb, var(--bo-forest) 20%, transparent);
 }
 
 .quick-view-header {
@@ -769,7 +769,7 @@ a, button, .btn, .card, .service-card {
 
 /* ── Selection ── */
 ::selection {
-  background: rgba(163, 177, 138, 0.35);
+  background: color-mix(in srgb, var(--bo-sage) 35%, transparent);
   color: var(--bo-forest);
 }
 

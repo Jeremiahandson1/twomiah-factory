@@ -253,6 +253,8 @@ const fiRoutes = (await import('./routes/fi.ts')).default
 app.route('/api/fi', fiRoutes)
 const partsOrdersRoutes = (await import('./routes/partsOrders.ts')).default
 app.route('/api/parts-orders', partsOrdersRoutes)
+const counterSalesRoutes = (await import('./routes/counterSales.ts')).default
+app.route('/api/counter-sales', counterSalesRoutes)
 const titleRegRoutes = (await import('./routes/titleReg.ts')).default
 app.route('/api/title-reg', titleRegRoutes)
 const floorplanRoutes = (await import('./routes/floorplan.ts')).default
@@ -515,6 +517,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 initializeSocket(server as any)
 syncFeatures().catch(console.error)
 startReviewProcessor()
+try { (await import('./services/catalogFeed.ts')).default.startSchedule() } catch (e) { console.error('[CatalogFeed] schedule start failed', e) }
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

@@ -29,7 +29,6 @@ import {
   CreditCard,
   Radio,
 } from 'lucide-react'
-import { useFeature } from '../../data/features'
 
 const baseNavItems = [
   { label: 'Pipeline', icon: LayoutDashboard, to: '/crm/pipeline' },
@@ -47,7 +46,7 @@ const baseNavItems = [
   { label: 'Roof Reports', icon: FileBarChart, to: '/crm/roof-reports' },
 ]
 
-const fieldNavItems = [
+export const fieldNavItems = [
   { label: 'Canvassing', icon: MapPin, to: '/crm/canvassing', feature: 'canvassing_tool' },
   { label: 'Storm Leads', icon: Zap, to: '/crm/storm-leads', feature: 'storm_lead_gen' },
   { label: 'Ads', icon: Megaphone, to: '/crm/ads', feature: 'paid_ads' },
@@ -66,15 +65,12 @@ export default function AppLayout() {
   const { user, company, logout } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const hasCanvassing = useFeature('canvassing_tool')
-  const hasStormLeads = useFeature('storm_lead_gen')
-  const hasPaidAds = useFeature('paid_ads')
-  const activeFieldItems = fieldNavItems.filter(item => {
-    if (item.feature === 'canvassing_tool') return hasCanvassing
-    if (item.feature === 'storm_lead_gen') return hasStormLeads
-    if (item.feature === 'paid_ads') return hasPaidAds
-    return true
-  })
+  // Show a field module when its feature is enabled (or when it has no feature gate).
+  // Honors every fieldNavItem's `feature` key — previously only 3 of them were checked,
+  // so Reviews/Financing/Storm Radar always showed regardless of enabledFeatures.
+  const activeFieldItems = fieldNavItems.filter(
+    item => !item.feature || (company?.enabledFeatures?.includes(item.feature) ?? true)
+  )
 
   const navItems = [
     ...baseNavItems,

@@ -1,47 +1,48 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
 import quickbooks from '../services/quickbooks.ts'
+import glPosting from '../services/glPosting.ts'
 
-// ── Accounting sync ─────────────────────────────────────────────────────────
-// Post deals / invoices to the GL. Provider-agnostic: QuickBooks Online stub today
-// (the bridge — connected:false until OAuth), native GL later. Same swappable-rail
-// pattern. connected=false surfaces the "Connect" CTA.
+// ── Accounting / GL ─────────────────────────────────────────────────────────
+// Native general ledger. Real revenue + COGS + gross profit posted from counter
+// sales and repair orders (services/glPosting.ts). QuickBooks push is switch-ready:
+// connected=false surfaces a "Connect" CTA; sync marks entries posted (stub until
+// QBO OAuth), then a live QuickBooks provider drops in without changing this route.
 const app = new Hono()
 app.use('*', authenticate)
 
-interface AcctProvider { name: string; connected: boolean; post(entries: any[]): Promise<any> }
-let seq = 9000
-const qboStub: AcctProvider = {
-  name: 'QuickBooks Online', connected: false,
-  async post(entries) { return { batch: 'SYNC-' + (++seq), posted: entries.length, total: entries.reduce((s, e) => s + (Number(e.amount) || 0), 0), provider: 'QuickBooks Online' } },
-}
-// ↓ swap when live: live QuickBooks OAuth provider, or nativeGlProvider
-const provider: AcctProvider = qboStub
-
-const PENDING: any[] = [
-  { id: 'e1', type: 'Vehicle sale', ref: 'DEAL-2041', customer: 'Mike Anderson', amount: 28950, date: '2026-06-22', posted: false },
-  { id: 'e2', type: 'F&I products', ref: 'DEAL-2041', customer: 'Mike Anderson', amount: 2590, date: '2026-06-22', posted: false },
-  { id: 'e3', type: 'Service invoice', ref: 'INV-7782', customer: 'Sarah Lopez', amount: 642, date: '2026-06-23', posted: false },
-  { id: 'e4', type: 'Parts invoice', ref: 'INV-7783', customer: 'Tom Reilly', amount: 189, date: '2026-06-23', posted: false },
-]
-
 app.get('/status', async (c) => {
   const u = c.get('user') as any
-  // Real connection state comes from the existing QuickBooks integration service.
   let connected = false
   try { const qb: any = await quickbooks.getConnectionStatus(u.companyId); connected = !!qb?.connected } catch { /* not connected */ }
   const configured = !!(process.env.QBO_CLIENT_ID && process.env.QBO_REDIRECT_URI)
+  const summary = await glPosting.summary(u.companyId)
   return c.json({
-    provider: 'QuickBooks Online', connected, configured,
-    pending: PENDING.filter((e) => !e.posted), postedCount: PENDING.filter((e) => e.posted).length,
+    provider: 'QuickBooks Online',
+    connected, configured,
+    totals: summary.totals,
+    byCategory: summary.byCategory,
+    pending: summary.qbPending,
   })
 })
 
+app.get('/entries', async (c) => {
+  const u = c.get('user') as any
+  const limit = parseInt(c.req.query('limit') || '0') || 100
+  const from = c.req.query('from') || undefined
+  const to = c.req.query('to') || undefined
+  return c.json(await glPosting.listEntries(u.companyId, { limit, from, to }))
+})
+
+app.get('/summary', async (c) => {
+  const u = c.get('user') as any
+  return c.json(await glPosting.summary(u.companyId))
+})
+
 app.post('/sync', async (c) => {
-  const pend = PENDING.filter((e) => !e.posted)
-  if (!pend.length) return c.json({ error: 'Nothing to sync.' }, 400)
-  const result = await provider.post(pend)
-  pend.forEach((e) => { e.posted = true })
+  const u = c.get('user') as any
+  const result = await glPosting.syncToQb(u.companyId)
+  if (!result.posted) return c.json({ error: 'Nothing to sync.' }, 400)
   return c.json({ result, provider: 'QuickBooks Online' })
 })
 

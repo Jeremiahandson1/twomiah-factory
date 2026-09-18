@@ -18,19 +18,19 @@
 
   /* Palette */
   --cp-white: #ffffff;
-  --cp-ice: #eff6ff;
-  --cp-ice-dark: #dbeafe;
-  --cp-teal: #0d9488;
-  --cp-teal-light: #ccfbf1;
-  --cp-teal-dark: #0f766e;
-  --cp-teal-deeper: #115e59;
+  --cp-ice: color-mix(in srgb, {{PRIMARY_COLOR}} 8%, #ffffff);
+  --cp-ice-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 16%, #ffffff);
+  --cp-teal: {{PRIMARY_COLOR}};
+  --cp-teal-light: color-mix(in srgb, {{PRIMARY_COLOR}} 18%, #ffffff);
+  --cp-teal-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 82%, #000000);
+  --cp-teal-deeper: color-mix(in srgb, {{PRIMARY_COLOR}} 68%, #000000);
   --cp-navy: #1e293b;
   --cp-gray: #64748b;
   --cp-gray-light: #f1f5f9;
   --cp-border: #e2e8f0;
 
   /* Override main vars */
-  --off-white: #eff6ff;
+  --off-white: color-mix(in srgb, {{PRIMARY_COLOR}} 8%, #ffffff);
   --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04);
   --shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
   --shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.08);
@@ -159,7 +159,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 .btn-primary:hover {
   background: var(--cp-teal-dark) !important;
   border-color: var(--cp-teal-dark) !important;
-  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.25) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--cp-teal) 25%, transparent) !important;
   transform: translateY(-1px) !important;
 }
 
@@ -173,7 +173,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 .btn-warm:hover {
   background: var(--cp-teal-dark) !important;
   border-color: var(--cp-teal-dark) !important;
-  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.25) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--cp-teal) 25%, transparent) !important;
 }
 
 .btn-outline-teal {
@@ -295,7 +295,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .hc-service-card:hover {
-  box-shadow: 0 8px 24px rgba(13, 148, 136, 0.08) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--cp-teal) 8%, transparent) !important;
   transform: translateY(-2px) !important;
   border-top-color: var(--cp-teal-dark) !important;
 }
@@ -357,7 +357,7 @@ p { font-family: 'IBM Plex Sans', sans-serif; }
 }
 
 .testimonial-stars {
-  color: #f59e0b !important;
+  color: {{ACCENT_COLOR}} !important;
 }
 
 .testimonial-author img {
@@ -442,7 +442,7 @@ form select {
 form input:focus,
 form textarea:focus {
   border-color: var(--cp-teal) !important;
-  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.08) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cp-teal) 8%, transparent) !important;
 }
 
 /* ── Footer ── */
@@ -554,7 +554,7 @@ section h2 {
 
 /* ── Hero Video ── */
 .hero-video .hero-overlay {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(13, 148, 136, 0.4) 100%) !important;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, color-mix(in srgb, var(--cp-teal) 40%, transparent) 100%) !important;
 }
 
 .hero-video-content h1 {

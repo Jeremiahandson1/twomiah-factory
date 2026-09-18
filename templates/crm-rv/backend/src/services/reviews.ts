@@ -127,6 +127,46 @@ export async function scheduleReviewRequest(jobId: string) {
 }
 
 /**
+ * Schedule a review request for a customer off a repair order / counter sale
+ * (DMS has no "jobs"). Gated on reviewRequestEnabled; deduped to one request per
+ * customer per 7 days so a repeat visitor isn't spammed. The hourly processor
+ * sends it after the configured delay (switch-ready on Twilio/email + a Google URL).
+ */
+export async function scheduleReviewForContact(
+  companyId: string,
+  contactId: string | null | undefined,
+  opts: { reason?: string } = {},
+) {
+  if (!contactId) return null
+  const settings = await getReviewSettings(companyId)
+  if (!settings.reviewRequestEnabled) return null
+
+  const reviewLink = settings.googlePlaceId
+    ? generateGoogleReviewLink(settings.googlePlaceId)
+    : settings.googleReviewUrl || null
+
+  // Dedup: skip if this customer already has a request in the last 7 days.
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const [recent] = await db.select({ id: reviewRequest.id }).from(reviewRequest)
+    .where(and(
+      eq(reviewRequest.companyId, companyId),
+      eq(reviewRequest.contactId, contactId),
+      sql`${reviewRequest.createdAt} >= ${cutoff}`,
+    )).limit(1)
+  if (recent) return null
+
+  const [request] = await db.insert(reviewRequest).values({
+    companyId,
+    contactId,
+    channel: settings.reviewChannel || 'both',
+    status: 'pending',
+    reviewLink,
+  }).returning()
+  console.log('[Reviews] Scheduled review request for contact', contactId, opts.reason || '')
+  return request
+}
+
+/**
  * Send review request immediately for a job
  */
 export async function sendReviewRequest(jobId: string, { channel = 'both' }: { channel?: string } = {}) {
@@ -559,6 +599,7 @@ export default {
   getReviewSettings,
   updateReviewSettings,
   scheduleReviewRequest,
+  scheduleReviewForContact,
   sendReviewRequest,
   processScheduledRequests,
   sendFollowUp,

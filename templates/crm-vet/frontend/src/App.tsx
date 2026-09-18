@@ -48,6 +48,7 @@ import DrawSchedulesPage from './pages/DrawSchedulesPage';
 import AiaFormsPage from './pages/AiaFormsPage';
 import GanttChartsPage from './pages/GanttChartsPage';
 import SettingsPage from './pages/SettingsPage';
+import FeaturesPage from './pages/settings/FeaturesPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
@@ -178,6 +179,7 @@ function App() {
                     <Route path="inspections" element={<InspectionsPage />} />
                     <Route path="bids" element={<BidsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="settings/features" element={<FeaturesPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />

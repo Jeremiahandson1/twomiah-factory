@@ -19,7 +19,7 @@ import { TrialBanner } from '../trial/TrialBanner';
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
 // Items with `features` show if ANY listed feature is enabled.
-const ALL_NAV_ITEMS = [
+export const ALL_NAV_ITEMS = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
   { to: '/crm/contacts', icon: Users, label: 'Contacts' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Service Calls' },

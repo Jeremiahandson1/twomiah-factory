@@ -1,0 +1,340 @@
+[
+  {
+    "id": "roofing",
+    "name": "Roofing",
+    "title": "Roofing",
+    "slug": "roofing",
+    "shortDescription": "Expert roof replacement and repair using premium materials backed by industry-leading warranties.",
+    "description": "Summit Ridge Builders delivers top-quality roofing solutions for homeowners throughout Fort Collins area. From full roof replacements to storm damage repairs, our certified crews work with asphalt shingles, metal roofing, and more — completing most jobs in a single day with a thorough cleanup.",
+    "icon": "home",
+    "image": "/images/services/roof-replacement.jpg",
+    "features": [
+      "Free roof inspection and estimate",
+      "Asphalt shingle, metal, and flat roofing",
+      "Storm damage and insurance claims",
+      "Leak repair and emergency service",
+      "Manufacturer warranty + workmanship guarantee"
+    ],
+    "links": [
+      {
+        "label": "Roof Replacement",
+        "href": "/services/roofing"
+      },
+      {
+        "label": "Roof Repair",
+        "href": "/services/roofing"
+      },
+      {
+        "label": "Storm Damage",
+        "href": "/services/roofing"
+      },
+      {
+        "label": "Metal Roofing",
+        "href": "/services/roofing"
+      },
+      {
+        "label": "Flat Roofing",
+        "href": "/services/roofing"
+      }
+    ],
+    "seoTitle": "Roofing Contractor in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Professional roofing services in Fort Collins, CO. Roof replacement, repair, and storm damage restoration. Free estimates from Summit Ridge Builders.",
+    "visible": true,
+    "order": 1,
+    "heroImage": "/images/services/roofing-hero.jpg",
+    "tagline": "Protect Your Home From the Top Down",
+    "heroDescription": "From full roof replacements to storm and hail damage repair, our certified crews deliver expert residential and commercial roofing across the Fort Collins area — with lifetime warranty options and free, detailed inspections."
+  },
+  {
+    "id": "siding",
+    "name": "Siding",
+    "title": "Siding",
+    "slug": "siding",
+    "shortDescription": "Beautiful, durable siding installation and replacement to protect and transform your home's exterior.",
+    "description": "Protect your home and boost curb appeal with new siding from Summit Ridge Builders. We install vinyl, fiber cement, and engineered wood siding — handling everything from full replacements to partial repairs — with expert installation that ensures a weathertight seal.",
+    "icon": "layers",
+    "image": "/images/services/vinyl-siding.jpg",
+    "features": [
+      "Vinyl, fiber cement, and engineered wood",
+      "Full replacement and partial repair",
+      "Insulated siding options",
+      "Trim, soffit, and fascia",
+      "Color matching and custom profiles"
+    ],
+    "links": [
+      {
+        "label": "Vinyl Siding",
+        "href": "/services/siding"
+      },
+      {
+        "label": "Fiber Cement Siding",
+        "href": "/services/siding"
+      },
+      {
+        "label": "Engineered Wood",
+        "href": "/services/siding"
+      }
+    ],
+    "seoTitle": "Siding Contractor in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Siding installation and replacement in Fort Collins, CO. Vinyl, fiber cement, and engineered wood siding by Summit Ridge Builders. Free estimates.",
+    "visible": true,
+    "order": 2,
+    "heroImage": "/images/services/siding-hero.jpg",
+    "tagline": "Expert Siding You Can Trust",
+    "heroDescription": "Beautiful, durable siding installation and replacement to protect and transform your home's exterior."
+  },
+  {
+    "id": "windows",
+    "name": "Windows & Doors",
+    "title": "Windows & Doors",
+    "slug": "windows",
+    "shortDescription": "Energy-efficient replacement windows and entry doors that lower utility bills and refresh your home.",
+    "description": "New windows and doors improve your home's energy efficiency, security, and appearance. Summit Ridge Builders installs top-brand replacement windows and entry doors throughout Fort Collins area, with professional installation that maximizes performance and warranty coverage.",
+    "icon": "grid",
+    "image": "/images/services/gutter-guards.jpg",
+    "features": [
+      "Double and triple-pane energy-efficient windows",
+      "Entry doors, storm doors, and patio doors",
+      "Professional measurement and installation",
+      "Financing available",
+      "Full removal and disposal of old units"
+    ],
+    "links": [
+      {
+        "label": "Replacement Windows",
+        "href": "/services/windows"
+      },
+      {
+        "label": "Entry Doors",
+        "href": "/services/windows"
+      },
+      {
+        "label": "Patio Doors",
+        "href": "/services/windows"
+      }
+    ],
+    "seoTitle": "Window & Door Replacement in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Window and door replacement in Fort Collins, CO. Energy-efficient windows and entry doors installed by Summit Ridge Builders. Free in-home estimates.",
+    "visible": true,
+    "order": 3,
+    "heroImage": "/images/services/windows-hero.jpg",
+    "tagline": "Expert Windows & Doors You Can Trust",
+    "heroDescription": "Energy-efficient replacement windows and entry doors that lower utility bills and refresh your home."
+  },
+  {
+    "id": "gutters",
+    "name": "Gutters",
+    "title": "Gutters",
+    "slug": "gutters",
+    "shortDescription": "Custom-fit seamless gutters and gutter guards that protect your foundation from water damage.",
+    "description": "Properly functioning gutters protect your home's foundation, landscaping, and siding from costly water damage. Summit Ridge Builders fabricates and installs seamless gutters on-site for a perfect fit, along with gutter guards that eliminate clogging and reduce maintenance.",
+    "icon": "droplets",
+    "image": "/images/services/gutters-hero.jpg",
+    "features": [
+      "Custom seamless gutters fabricated on-site",
+      "Gutter guard installation",
+      "Downspout extensions and grading",
+      "Gutter cleaning and repair",
+      "Multiple colors and profiles"
+    ],
+    "links": [
+      {
+        "label": "Seamless Gutters",
+        "href": "/services/gutters"
+      },
+      {
+        "label": "Gutter Guards",
+        "href": "/services/gutters"
+      },
+      {
+        "label": "Gutter Repair",
+        "href": "/services/gutters"
+      }
+    ],
+    "seoTitle": "Gutter Installation in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Seamless gutter installation and gutter guards in Fort Collins, CO. Professional installation by Summit Ridge Builders. Free estimates.",
+    "visible": true,
+    "order": 4,
+    "heroImage": "/images/services/gutters-hero.jpg",
+    "tagline": "Expert Gutters You Can Trust",
+    "heroDescription": "Custom-fit seamless gutters and gutter guards that protect your foundation from water damage."
+  },
+  {
+    "id": "storm-damage",
+    "name": "Storm Damage Restoration",
+    "title": "Storm Damage Restoration",
+    "slug": "storm-damage",
+    "shortDescription": "Rapid response and complete restoration after hail, wind, and storm damage — we work with your insurance.",
+    "description": "Storm damage needs fast, professional attention to prevent further deterioration. Summit Ridge Builders provides rapid damage assessment, emergency tarping, and complete restoration services — and our team is experienced working with insurance adjusters to help maximize your claim.",
+    "icon": "cloud-lightning",
+    "image": "/images/services/metal-roofing.jpg",
+    "features": [
+      "Free storm damage inspection",
+      "Emergency tarping and board-up",
+      "Insurance claim assistance",
+      "Complete restoration: roof, siding, gutters, windows",
+      "Fast turnaround to prevent further damage"
+    ],
+    "links": [
+      {
+        "label": "Storm Damage Inspection",
+        "href": "/services/storm-damage"
+      },
+      {
+        "label": "Insurance Claims",
+        "href": "/services/storm-damage"
+      },
+      {
+        "label": "Emergency Repairs",
+        "href": "/services/storm-damage"
+      }
+    ],
+    "seoTitle": "Storm Damage Repair in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Storm damage restoration in Fort Collins, CO. Hail and wind damage repair with insurance claim assistance from Summit Ridge Builders.",
+    "visible": true,
+    "order": 5,
+    "heroImage": "/images/services/gutters-hero.jpg",
+    "tagline": "Expert Storm Damage Restoration You Can Trust",
+    "heroDescription": "Rapid response and complete restoration after hail, wind, and storm damage — we work with your insurance."
+  },
+  {
+    "id": "free-inspection",
+    "name": "Free Home Inspection",
+    "title": "Free Home Inspection",
+    "slug": "free-inspection",
+    "shortDescription": "Comprehensive exterior inspection at no cost — identify problems before they become expensive repairs.",
+    "description": "Most homeowners don't know there's a problem until it becomes a major expense. Summit Ridge Builders's free home inspection covers your roof, siding, gutters, windows, and trim — giving you a detailed report and honest recommendations with no sales pressure.",
+    "icon": "search",
+    "image": "/images/services/patio-doors.jpg",
+    "features": [
+      "Roof, siding, gutters, windows, and trim",
+      "Drone roof inspection available",
+      "Written report with photos",
+      "No obligation or pressure",
+      "Priority scheduling after major storms"
+    ],
+    "links": [
+      {
+        "label": "Schedule Inspection",
+        "href": "/contact"
+      },
+      {
+        "label": "Drone Inspection",
+        "href": "/services/free-inspection"
+      }
+    ],
+    "seoTitle": "Free Home Inspection in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Free exterior home inspection in Fort Collins, CO. Roof, siding, gutters, and windows. No obligation from Summit Ridge Builders.",
+    "visible": true,
+    "order": 6,
+    "heroImage": "/images/services/metal-roofing.jpg",
+    "tagline": "Expert Free Home Inspection You Can Trust",
+    "heroDescription": "Comprehensive exterior inspection at no cost — identify problems before they become expensive repairs."
+  },
+  {
+    "id": "insulation",
+    "name": "Insulation",
+    "title": "Insulation",
+    "slug": "insulation",
+    "shortDescription": "Energy-efficient insulation solutions that lower utility bills and improve year-round comfort.",
+    "description": "Summit Ridge Builders provides professional insulation installation throughout Fort Collins area. From attic blown-in insulation to spray foam and air sealing, we help homeowners cut energy costs and maintain a comfortable home in every season.",
+    "icon": "thermometer",
+    "image": "/images/services/replacement-windows.jpg",
+    "features": [
+      "Blown-in attic insulation",
+      "Spray foam insulation (open and closed cell)",
+      "Wall cavity insulation",
+      "Air sealing and draft elimination",
+      "Energy audit and assessment"
+    ],
+    "links": [
+      {
+        "label": "Attic Insulation",
+        "href": "/services/insulation"
+      },
+      {
+        "label": "Spray Foam",
+        "href": "/services/insulation"
+      },
+      {
+        "label": "Air Sealing",
+        "href": "/services/insulation"
+      }
+    ],
+    "seoTitle": "Insulation Contractor in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Professional insulation installation in Fort Collins, CO. Blown-in, spray foam, and air sealing by Summit Ridge Builders. Free estimates.",
+    "visible": true,
+    "order": 7,
+    "heroImage": "/images/services/patio-doors.jpg",
+    "tagline": "Expert Insulation You Can Trust",
+    "heroDescription": "Energy-efficient insulation solutions that lower utility bills and improve year-round comfort."
+  },
+  {
+    "id": "remodeling",
+    "name": "Remodeling",
+    "title": "Remodeling",
+    "slug": "remodeling",
+    "shortDescription": "Complete exterior remodeling services that transform your home's look and increase its value.",
+    "description": "Transform your home with Summit Ridge Builders's exterior remodeling services. Whether you need a full exterior makeover or targeted upgrades, our team handles siding, trim, soffits, fascia, and more — delivering a cohesive new look that boosts curb appeal and property value.",
+    "icon": "hammer",
+    "image": "/images/services/roof-repair.jpg",
+    "features": [
+      "Full exterior renovation",
+      "Siding, trim, and accent updates",
+      "Soffit and fascia replacement",
+      "Color consultation and design",
+      "Financing options available"
+    ],
+    "links": [
+      {
+        "label": "Exterior Remodeling",
+        "href": "/services/remodeling"
+      },
+      {
+        "label": "New Construction",
+        "href": "/services/new-construction"
+      }
+    ],
+    "seoTitle": "Exterior Remodeling in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "Exterior remodeling services in Fort Collins, CO. Full exterior renovation and upgrades by Summit Ridge Builders. Free estimates.",
+    "visible": true,
+    "order": 8,
+    "heroImage": "/images/services/replacement-windows.jpg",
+    "tagline": "Expert Remodeling You Can Trust",
+    "heroDescription": "Complete exterior remodeling services that transform your home's look and increase its value."
+  },
+  {
+    "id": "new-construction",
+    "name": "New Construction",
+    "title": "New Construction",
+    "slug": "new-construction",
+    "shortDescription": "Exterior installation for new builds — roofing, siding, windows, gutters, and insulation done right the first time.",
+    "description": "Summit Ridge Builders partners with builders and homeowners throughout Fort Collins area to deliver complete exterior packages for new construction. From roofing and siding to windows, gutters, and insulation, we ensure every detail meets high standards of quality and efficiency.",
+    "icon": "building",
+    "image": "/images/services/roof-replacement.jpg",
+    "features": [
+      "Complete exterior packages for new builds",
+      "Builder-friendly scheduling and coordination",
+      "Roofing, siding, windows, gutters, and insulation",
+      "Energy-efficient material options",
+      "Warranty on all workmanship"
+    ],
+    "links": [
+      {
+        "label": "Builder Partnerships",
+        "href": "/services/new-construction"
+      },
+      {
+        "label": "Exterior Packages",
+        "href": "/services/new-construction"
+      }
+    ],
+    "seoTitle": "New Construction Exterior in Fort Collins, CO | Summit Ridge Builders",
+    "seoDescription": "New construction exterior services in Fort Collins, CO. Roofing, siding, windows, and gutters for new builds by Summit Ridge Builders.",
+    "visible": true,
+    "order": 9,
+    "heroImage": "/images/services/roof-repair.jpg",
+    "tagline": "Expert New Construction You Can Trust",
+    "heroDescription": "Exterior installation for new builds — roofing, siding, windows, gutters, and insulation done right the first time."
+  }
+]

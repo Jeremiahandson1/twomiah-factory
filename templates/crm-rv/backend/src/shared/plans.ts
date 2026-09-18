@@ -37,6 +37,10 @@ export const PLAN_FEATURES: Record<string, string[]> = {
     'selection_portal', 'takeoffs', 'lien_waivers', 'draw_schedules', 'draw_requests', 'aia_forms',
   ],
   enterprise: ['all'],
+  // Pricing model v2 (2026-07) — seat-tiered; every feature included.
+  starter10: ['all'],
+  team25: ['all'],
+  business50: ['all'],
 }
 
 // Plan limits
@@ -46,4 +50,7 @@ export const PLAN_LIMITS: Record<string, { users: number | null; contacts: numbe
   business: { users: 15, contacts: 10000, jobs: 2000, storage: 100 },
   construction: { users: 20, contacts: 25000, jobs: 5000, storage: 250 },
   enterprise: { users: null, contacts: null, jobs: null, storage: null },
+  starter10: { users: 10, contacts: null, jobs: null, storage: null },
+  team25: { users: 25, contacts: null, jobs: null, storage: null },
+  business50: { users: 50, contacts: null, jobs: null, storage: null },
 }

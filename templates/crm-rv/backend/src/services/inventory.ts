@@ -25,6 +25,11 @@ import {
   inventoryTransfer,
   purchaseOrder,
   purchaseOrderItem,
+  catalogPart,
+  repairOrder,
+  repairOrderPart,
+  counterSale,
+  counterSaleLine,
   user,
   job,
 } from '../../db/schema.ts'
@@ -58,6 +63,7 @@ export async function createItem(companyId: string, data: any) {
     imageUrl: data.imageUrl,
     taxable: data.taxable ?? true,
     active: true,
+    catalogPartId: data.catalogPartId ?? null,
   }).returning()
 
   return item
@@ -737,6 +743,338 @@ export async function receivePurchaseOrder(companyId: string, poId: string, {
 }
 
 // ============================================
+// CATALOG STOCKING + REPAIR-ORDER PARTS  (DMS wiring — Phase 1)
+// ============================================
+
+/**
+ * "Stock" an OEM catalog part: find or create the inventory_item linked to a
+ * catalog_part, then add on-hand quantity to a location. This is the bridge that
+ * turns a catalog price-list row into a perpetually-tracked stocked part.
+ */
+export async function stockCatalogPart(companyId: string, {
+  catalogPartId,
+  locationId,
+  quantity = 0,
+  unitCost,
+  userId,
+}: {
+  catalogPartId: string
+  locationId: string
+  quantity?: number
+  unitCost?: number
+  userId?: string
+}) {
+  const [cp] = await db.select().from(catalogPart)
+    .where(and(eq(catalogPart.id, catalogPartId), eq(catalogPart.companyId, companyId)))
+  if (!cp) throw new Error('Catalog part not found')
+
+  // One stocked item per catalog part — reuse if it already exists.
+  let [item] = await db.select().from(inventoryItem)
+    .where(and(eq(inventoryItem.companyId, companyId), eq(inventoryItem.catalogPartId, catalogPartId)))
+    .limit(1)
+
+  const cost = unitCost != null ? unitCost : (cp.cost != null ? Number(cp.cost) : 0)
+
+  if (!item) {
+    // OEM + part number is the durable identity; keeps SKUs unique across brands.
+    const sku = [cp.oem, cp.partNumber].filter(Boolean).join('-') || cp.partNumber
+    item = await createItem(companyId, {
+      sku,
+      name: cp.name,
+      category: cp.category,
+      unitCost: cost,
+      unitPrice: Number(cp.price) || 0,
+      vendor: cp.oem || null,
+      vendorPartNumber: cp.partNumber,
+      catalogPartId,
+    })
+  }
+
+  if (quantity && quantity > 0) {
+    await adjustStock(companyId, {
+      itemId: item.id,
+      locationId,
+      quantity,
+      reason: `Stocked catalog part ${cp.partNumber}`,
+      userId,
+      cost: cost * quantity,
+    })
+  }
+
+  return getItem(item.id, companyId)
+}
+
+/**
+ * Add a part to a repair order. If it resolves to a stocked inventory_item and a
+ * location is given, this DECREMENTS the perpetual stock ledger (the DMS behavior).
+ * A special-order part with no stocked item is still billed on the RO (no decrement).
+ */
+export async function useOnRepairOrder(companyId: string, {
+  repairOrderId,
+  itemId,
+  catalogPartId,
+  locationId,
+  quantity,
+  unitPrice,
+  description,
+  partNumber,
+  userId,
+}: {
+  repairOrderId: string
+  itemId?: string
+  catalogPartId?: string
+  locationId?: string
+  quantity: number
+  unitPrice?: number
+  description?: string
+  partNumber?: string
+  userId?: string
+}) {
+  // Guard: RO must belong to this company.
+  const [ro] = await db.select({ id: repairOrder.id }).from(repairOrder)
+    .where(and(eq(repairOrder.id, repairOrderId), eq(repairOrder.companyId, companyId))).limit(1)
+  if (!ro) throw new Error('Repair order not found')
+
+  // Resolve the stocked item: explicit itemId wins; else the item linked to the catalog part (may be none).
+  let item: any = null
+  if (itemId) {
+    ;[item] = await db.select().from(inventoryItem)
+      .where(and(eq(inventoryItem.id, itemId), eq(inventoryItem.companyId, companyId))).limit(1)
+    if (!item) throw new Error('Inventory item not found')
+  } else if (catalogPartId) {
+    ;[item] = await db.select().from(inventoryItem)
+      .where(and(eq(inventoryItem.companyId, companyId), eq(inventoryItem.catalogPartId, catalogPartId))).limit(1)
+  }
+
+  const unitCost = item ? Number(item.unitCost) : 0
+  const price = unitPrice != null ? Number(unitPrice) : (item ? Number(item.unitPrice) : 0)
+
+  // Decrement stock only when we have a real stocked item AND a location to pull from.
+  let stockDecremented = false
+  if (item && locationId && quantity > 0) {
+    await adjustStock(companyId, {
+      itemId: item.id,
+      locationId,
+      quantity: -quantity,
+      reason: 'Used on repair order',
+      userId,
+      cost: unitCost * quantity,
+    })
+    stockDecremented = true
+  }
+
+  const [line] = await db.insert(repairOrderPart).values({
+    repairOrderId,
+    itemId: item?.id ?? null,
+    catalogPartId: catalogPartId ?? item?.catalogPartId ?? null,
+    locationId: locationId ?? null,
+    partNumber: partNumber ?? item?.vendorPartNumber ?? null,
+    description: description || item?.name || partNumber || 'Part',
+    quantity,
+    unitCost: String(unitCost),
+    unitPrice: String(price),
+    totalPrice: String(price * quantity),
+    stockDecremented,
+    companyId,
+  }).returning()
+
+  return line
+}
+
+/**
+ * List the parts lines on a repair order.
+ */
+export async function getRepairOrderParts(repairOrderId: string, companyId: string) {
+  return db.select().from(repairOrderPart)
+    .where(and(eq(repairOrderPart.repairOrderId, repairOrderId), eq(repairOrderPart.companyId, companyId)))
+    .orderBy(asc(repairOrderPart.createdAt))
+}
+
+/**
+ * Remove a parts line from a repair order. If it had decremented stock, restock it.
+ */
+export async function removeRepairOrderPart(companyId: string, partId: string, {
+  userId,
+}: { userId?: string } = {}) {
+  const [line] = await db.select().from(repairOrderPart)
+    .where(and(eq(repairOrderPart.id, partId), eq(repairOrderPart.companyId, companyId))).limit(1)
+  if (!line) throw new Error('Repair order part not found')
+
+  if (line.stockDecremented && line.itemId && line.locationId) {
+    await adjustStock(companyId, {
+      itemId: line.itemId,
+      locationId: line.locationId,
+      quantity: line.quantity,
+      reason: 'Returned from repair order',
+      userId,
+      cost: Number(line.unitCost) * line.quantity,
+    })
+  }
+
+  await db.delete(repairOrderPart).where(eq(repairOrderPart.id, partId))
+  return { ok: true }
+}
+
+// ============================================
+// COUNTER SALES (walk-in parts POS — Phase 1)
+// ============================================
+
+async function generateSaleNumber(companyId: string): Promise<string> {
+  const [result] = await db.select({ value: count() }).from(counterSale).where(eq(counterSale.companyId, companyId))
+  return `CS-${String((result?.value ?? 0) + 1).padStart(5, '0')}`
+}
+
+async function recomputeSaleTotals(saleId: string) {
+  const lines = await db.select().from(counterSaleLine).where(eq(counterSaleLine.counterSaleId, saleId))
+  const subtotal = lines.reduce((s, l) => s + Number(l.totalPrice), 0)
+  const [sale] = await db.select().from(counterSale).where(eq(counterSale.id, saleId)).limit(1)
+  const tax = sale ? Number(sale.tax) : 0
+  await db.update(counterSale)
+    .set({ subtotal: String(subtotal), total: String(subtotal + tax), updatedAt: new Date() })
+    .where(eq(counterSale.id, saleId))
+}
+
+export async function createCounterSale(companyId: string, { customerId, userId }: { customerId?: string; userId?: string }) {
+  const saleNumber = await generateSaleNumber(companyId)
+  const [sale] = await db.insert(counterSale).values({
+    companyId,
+    saleNumber,
+    status: 'open',
+    customerId: customerId || null,
+    createdById: userId || null,
+  }).returning()
+  return sale
+}
+
+export async function getCounterSale(companyId: string, saleId: string) {
+  const [sale] = await db.select().from(counterSale)
+    .where(and(eq(counterSale.id, saleId), eq(counterSale.companyId, companyId))).limit(1)
+  if (!sale) return null
+  const lines = await db.select().from(counterSaleLine)
+    .where(eq(counterSaleLine.counterSaleId, saleId)).orderBy(asc(counterSaleLine.createdAt))
+  return { ...sale, lines }
+}
+
+export async function listCounterSales(companyId: string, { status, page = 1, limit = 25 }: { status?: string; page?: number; limit?: number } = {}) {
+  const conditions = [eq(counterSale.companyId, companyId)]
+  if (status) conditions.push(eq(counterSale.status, status))
+  const whereClause = and(...conditions)
+  const [data, [totalResult]] = await Promise.all([
+    db.select().from(counterSale).where(whereClause).orderBy(desc(counterSale.createdAt)).offset((page - 1) * limit).limit(limit),
+    db.select({ value: count() }).from(counterSale).where(whereClause),
+  ])
+  return { data, pagination: { page, limit, total: totalResult?.value ?? 0, pages: Math.ceil((totalResult?.value ?? 0) / limit) } }
+}
+
+/**
+ * Add a line to a counter sale. Decrements the perpetual ledger when it resolves
+ * to a stocked item at a location — same behavior as repair-order parts.
+ */
+export async function addCounterSaleLine(companyId: string, {
+  saleId,
+  itemId,
+  catalogPartId,
+  locationId,
+  quantity,
+  unitPrice,
+  description,
+  partNumber,
+  userId,
+}: {
+  saleId: string
+  itemId?: string
+  catalogPartId?: string
+  locationId?: string
+  quantity: number
+  unitPrice?: number
+  description?: string
+  partNumber?: string
+  userId?: string
+}) {
+  const [sale] = await db.select({ id: counterSale.id, status: counterSale.status }).from(counterSale)
+    .where(and(eq(counterSale.id, saleId), eq(counterSale.companyId, companyId))).limit(1)
+  if (!sale) throw new Error('Counter sale not found')
+  if (sale.status !== 'open') throw new Error('Sale is already closed')
+
+  let item: any = null
+  if (itemId) {
+    ;[item] = await db.select().from(inventoryItem)
+      .where(and(eq(inventoryItem.id, itemId), eq(inventoryItem.companyId, companyId))).limit(1)
+    if (!item) throw new Error('Inventory item not found')
+  } else if (catalogPartId) {
+    ;[item] = await db.select().from(inventoryItem)
+      .where(and(eq(inventoryItem.companyId, companyId), eq(inventoryItem.catalogPartId, catalogPartId))).limit(1)
+  }
+
+  const unitCost = item ? Number(item.unitCost) : 0
+  const price = unitPrice != null ? Number(unitPrice) : (item ? Number(item.unitPrice) : 0)
+
+  let stockDecremented = false
+  if (item && locationId && quantity > 0) {
+    await adjustStock(companyId, {
+      itemId: item.id,
+      locationId,
+      quantity: -quantity,
+      reason: 'Counter sale',
+      userId,
+      cost: unitCost * quantity,
+    })
+    stockDecremented = true
+  }
+
+  const [line] = await db.insert(counterSaleLine).values({
+    counterSaleId: saleId,
+    itemId: item?.id ?? null,
+    catalogPartId: catalogPartId ?? item?.catalogPartId ?? null,
+    locationId: locationId ?? null,
+    partNumber: partNumber ?? item?.vendorPartNumber ?? null,
+    description: description || item?.name || partNumber || 'Part',
+    quantity,
+    unitCost: String(unitCost),
+    unitPrice: String(price),
+    totalPrice: String(price * quantity),
+    stockDecremented,
+    companyId,
+  }).returning()
+
+  await recomputeSaleTotals(saleId)
+  return line
+}
+
+export async function removeCounterSaleLine(companyId: string, lineId: string, { userId }: { userId?: string } = {}) {
+  const [line] = await db.select().from(counterSaleLine)
+    .where(and(eq(counterSaleLine.id, lineId), eq(counterSaleLine.companyId, companyId))).limit(1)
+  if (!line) throw new Error('Sale line not found')
+
+  if (line.stockDecremented && line.itemId && line.locationId) {
+    await adjustStock(companyId, {
+      itemId: line.itemId,
+      locationId: line.locationId,
+      quantity: line.quantity,
+      reason: 'Counter sale line removed',
+      userId,
+      cost: Number(line.unitCost) * line.quantity,
+    })
+  }
+
+  await db.delete(counterSaleLine).where(eq(counterSaleLine.id, lineId))
+  await recomputeSaleTotals(line.counterSaleId)
+  return { ok: true }
+}
+
+export async function completeCounterSale(companyId: string, saleId: string, { paymentMethod }: { paymentMethod?: string } = {}) {
+  const [sale] = await db.select().from(counterSale)
+    .where(and(eq(counterSale.id, saleId), eq(counterSale.companyId, companyId))).limit(1)
+  if (!sale) throw new Error('Counter sale not found')
+  if (sale.status !== 'open') throw new Error('Sale is already closed')
+
+  const [updated] = await db.update(counterSale)
+    .set({ status: 'completed', paymentMethod: paymentMethod || null, completedAt: new Date(), updatedAt: new Date() })
+    .where(eq(counterSale.id, saleId)).returning()
+  return updated
+}
+
+// ============================================
 // REPORTS
 // ============================================
 
@@ -827,6 +1165,16 @@ export default {
   createPurchaseOrder,
   getPurchaseOrders,
   receivePurchaseOrder,
+  stockCatalogPart,
+  useOnRepairOrder,
+  getRepairOrderParts,
+  removeRepairOrderPart,
+  createCounterSale,
+  getCounterSale,
+  listCounterSales,
+  addCounterSaleLine,
+  removeCounterSaleLine,
+  completeCounterSale,
   getInventoryValue,
   getLowStockItems,
 }

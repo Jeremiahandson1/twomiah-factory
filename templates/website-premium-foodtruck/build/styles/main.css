@@ -13,9 +13,9 @@
  */
 
 :root {
-  --brand: #c2410c;         /* burnt orange — heat, rust, signage */
-  --brand-deep: #9a3412;
-  --accent: #fef3c7;        /* cream — chalkboard surface, parchment */
+  --brand: {{PRIMARY_COLOR}};         /* burnt orange — heat, rust, signage */
+  --brand-deep: color-mix(in srgb, {{PRIMARY_COLOR}} 65%, #000000);
+  --accent: {{ACCENT_COLOR}};        /* cream — chalkboard surface, parchment */
   --ink: #1c1917;            /* warm near-black */
   --ink-soft: #44403c;
   --muted: #78716c;

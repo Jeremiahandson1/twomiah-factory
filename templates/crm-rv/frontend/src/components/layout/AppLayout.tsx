@@ -7,7 +7,7 @@ import {
   ChevronDown, User, FolderOpen, Package, Truck,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy,
-  Inbox, ExternalLink, Bot, Calculator, FileBarChart, Caravan, GitBranch, BellRing, Send
+  Inbox, ExternalLink, Bot, Calculator, FileBarChart, Caravan, GitBranch, BellRing, Send, ShoppingCart
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,7 +30,7 @@ interface NavItem {
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
 // Items with `features` show if ANY listed feature is enabled.
-const ALL_NAV_ITEMS: NavItem[] = [
+export const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
 
   // AI Tools
@@ -47,6 +47,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
 
   // Parts & Service
   { to: '/crm/parts-catalog', icon: Package, label: 'Parts Catalog', section: 'Parts & Service' },
+  { to: '/crm/parts-counter', icon: ShoppingCart, label: 'Parts Counter', section: 'Parts & Service' },
   { to: '/crm/service', icon: Wrench, label: 'Service', features: ['service_dept'], section: 'Parts & Service' },
   { to: '/crm/labor-guide', icon: Clock, label: 'Labor Guide', section: 'Parts & Service' },
   { to: '/crm/inventory', icon: Package, label: 'Parts & Inventory', features: ['inventory', 'parts_tracking'], section: 'Parts & Service' },

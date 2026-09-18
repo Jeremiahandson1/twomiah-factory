@@ -19,6 +19,7 @@ const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 import authRoutes from './routes/auth.ts'
 import contactsRoutes from './routes/contacts.ts'
+import companyRoutes from './routes/company.ts'
 import jobsRoutes from './routes/jobs.ts'
 import crewsRoutes from './routes/crews.ts'
 import measurementsRoutes from './routes/measurements.ts'
@@ -100,6 +101,7 @@ app.route('/api/internal/inbound-email', inboundParseRoutes)
 app.route('/api/inbound-messages', inboundMessagesRoutes)
 app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/contacts', contactsRoutes)
+app.route('/api/company', companyRoutes)
 app.route('/api/jobs', jobsRoutes)
 app.route('/api/crews', crewsRoutes)
 app.route('/api/measurements', measurementsRoutes)

@@ -134,6 +134,48 @@
       "when": 1781899000000,
       "tag": "0018_catalog_part",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1781899100000,
+      "tag": "0019_ro_parts_catalog_stock",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1781899200000,
+      "tag": "0020_counter_sales",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1781899300000,
+      "tag": "0021_accounting_entry",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1781899400000,
+      "tag": "0022_catalog_feed",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1781899500000,
+      "tag": "0023_fix_review_request_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1781899600000,
+      "tag": "0024_catalog_feed_api_token",
+      "breakpoints": true
     }
   ]
 }

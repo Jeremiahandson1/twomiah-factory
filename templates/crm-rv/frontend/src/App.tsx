@@ -29,6 +29,7 @@ import TimePage from './pages/TimePage';
 import ExpensesPage from './pages/ExpensesPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
+import FeaturesPage from './pages/settings/FeaturesPage';
 import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
@@ -61,6 +62,7 @@ import AIReportsPage from './pages/rv/AIReportsPage';
 import AILeadResponderPage from './pages/rv/AILeadResponderPage';
 import AITradeAppraisalPage from './pages/rv/AITradeAppraisalPage';
 import OEMPartsPage from './pages/rv/OEMPartsPage';
+import CounterPage from './pages/rv/CounterPage';
 import LaborGuidePage from './pages/rv/LaborGuidePage';
 import FIPage from './pages/rv/FIPage';
 import DeskingPage from './pages/rv/DeskingPage';
@@ -148,6 +150,7 @@ function App() {
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="settings/features" element={<FeaturesPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
@@ -161,6 +164,7 @@ function App() {
                     <Route path="ai-leads" element={<AILeadResponderPage />} />
                     <Route path="ai-trade" element={<AITradeAppraisalPage />} />
                     <Route path="parts-catalog" element={<OEMPartsPage />} />
+                    <Route path="parts-counter" element={<CounterPage />} />
                     <Route path="labor-guide" element={<LaborGuidePage />} />
                     <Route path="fi" element={<FIPage />} />
                     <Route path="desking" element={<DeskingPage />} />

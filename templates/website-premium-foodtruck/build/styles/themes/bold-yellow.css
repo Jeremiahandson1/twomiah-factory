@@ -1,0 +1,74 @@
+/* ═══ Theme: bold-yellow ═══════════════════════════════════════════════════
+ * "Potato-Potahto / Top Dog" look — loud signal-yellow + near-black, the
+ * high-energy street-food aesthetic from those two mockups.
+ *
+ * Palette: signal yellow #FFC60B + near-black #141210. Pairs with the
+ * foodtruck template's existing Bebas Neue display face, which stands in
+ * closely for the mockups' Anton (tall condensed all-caps). Exact-Anton is
+ * an optional base.ejs font-link change for later.
+ *
+ * HOW IT'S APPLIED: set the tenant's `websiteTheme = 'bold-yellow'`. The
+ * factory generator (generator.ts) appends this file to main.css at build
+ * time. This file is OVERRIDES ONLY — additive, no base files touched.
+ *
+ * DESIGN NOTE: foodtruck's --brand doubles as (a) accent text on light and
+ * (b) solid block backgrounds with white text. Yellow can't do both legibly,
+ * so we map --brand → black (does both: black text on light, white text on
+ * black blocks) and --accent → yellow (the pop: CTAs, stat bands, banners).
+ * That matches how the Potato/Top Dog mockups actually use the two colors.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --brand: #141210;        /* near-black — accent text + solid blocks */
+  --brand-deep: #000000;   /* pure black — footer, hovers */
+  --accent: #ffc60b;       /* signal yellow — the pop color */
+  --ink: #141210;
+  --ink-soft: #3a352f;
+  --muted: #6b655c;
+  --paper: #fffdf5;        /* warm near-white with a whisper of yellow */
+  --line: #ededea;
+}
+
+/* Header CTA: yellow pill with black text (the mockups' signature button) */
+.header-cta { background: var(--accent); color: #141210; }
+.header-cta:hover { background: #ffd23d; }
+.mobile-nav__cta { background: var(--accent); color: #141210 !important; }
+.primary-nav a.is-active::after { background: var(--accent); }
+
+/* Loud yellow blocks where the base template painted them brand-colored.
+ * These were `background: var(--brand); color: var(--white)` — with brand now
+ * black that would read black-on-black-ish, so repaint them yellow + black. */
+.hero__stat-band,
+.stats-bar,
+.cta--banner { background: var(--accent); color: #141210; }
+.hero__stat-band-num { color: #141210; }
+.hero__stat-band-label,
+.stats-bar__heading,
+.cta__subtitle { color: rgba(20,18,16,0.72); }
+
+/* CTA-banner button flips to black-on-yellow so it stays visible on the
+ * now-yellow banner (base set it to accent-colored = would be invisible). */
+.cta--banner .btn--primary { background: #141210; color: var(--accent); }
+.cta--banner .btn--primary:hover { background: #000000; }
+
+/* Primary buttons everywhere else: black with yellow text reads boldest. */
+.btn--primary { background: #141210; color: var(--accent); }
+.btn--primary:hover { background: #000000; color: #ffd23d; }
+
+/* Menu price + accent links sit black (high contrast); yellow underline pop. */
+.menu-item__price { color: #141210; }
+.service-row__link { border-bottom-color: var(--accent); }
+.footer-contact a:hover { color: var(--accent); }
+
+/* Small-caps eyebrow / index / role labels color their TEXT with --accent in
+ * the base template. Yellow text is invisible on light surfaces, so darken
+ * them here (the yellow pop lives in the solid blocks instead). The full-bleed
+ * hero keeps its yellow eyebrow — that one sits on a dark image and reads. */
+.hero--centered .hero__eyebrow,
+.hero--split .hero__eyebrow,
+.story__eyebrow,
+.team__role,
+.service-row__index { color: #141210; }
+
+/* Diet/legend chips: yellow base chip already uses --accent + brand-deep,
+ * which now resolve to yellow bg + black text — leave as-is (correct). */

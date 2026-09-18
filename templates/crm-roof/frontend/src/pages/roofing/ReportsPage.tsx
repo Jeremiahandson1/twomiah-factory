@@ -81,12 +81,15 @@ export default function ReportsPage() {
     );
   }
 
+  // Canonical job value — schema stores finalRevenue/estimatedRevenue/rcv (there is no `revenue`/`total` column)
+  const jobValue = (j: any) => Number(j.finalRevenue ?? j.estimatedRevenue ?? j.rcv ?? 0);
+
   // Pipeline value by stage
   const pipelineByStage: Record<string, number> = {};
   const pipelineCountByStage: Record<string, number> = {};
   jobs.forEach((j) => {
     const stage = j.status || 'lead';
-    const value = Number(j.revenue || j.total || 0);
+    const value = jobValue(j);
     pipelineByStage[stage] = (pipelineByStage[stage] || 0) + value;
     pipelineCountByStage[stage] = (pipelineCountByStage[stage] || 0) + 1;
   });
@@ -105,9 +108,9 @@ export default function ReportsPage() {
   const closeRate = proposalsSent > 0 ? ((signed / proposalsSent) * 100).toFixed(1) : '0';
 
   // Average job value
-  const jobsWithValue = jobs.filter((j) => Number(j.revenue || j.total || 0) > 0);
+  const jobsWithValue = jobs.filter((j) => jobValue(j) > 0);
   const avgJobValue = jobsWithValue.length > 0
-    ? jobsWithValue.reduce((s, j) => s + Number(j.revenue || j.total || 0), 0) / jobsWithValue.length
+    ? jobsWithValue.reduce((s, j) => s + jobValue(j), 0) / jobsWithValue.length
     : 0;
 
   // Revenue by sales rep
@@ -115,9 +118,9 @@ export default function ReportsPage() {
   users.forEach((u: any) => (repMap[u.id] = u.name || u.email));
   const revByRep: Record<string, number> = {};
   jobs.forEach((j) => {
-    if (j.salesRepId) {
-      const name = repMap[j.salesRepId] || 'Unknown';
-      revByRep[name] = (revByRep[name] || 0) + Number(j.revenue || j.total || 0);
+    if (j.assignedSalesRepId) {
+      const name = repMap[j.assignedSalesRepId] || 'Unknown';
+      revByRep[name] = (revByRep[name] || 0) + jobValue(j);
     }
   });
   const maxRepRev = Math.max(...Object.values(revByRep), 1);
@@ -127,9 +130,9 @@ export default function ReportsPage() {
   crews.forEach((c: any) => (crewMap[c.id] = c.name));
   const revByCrew: Record<string, number> = {};
   jobs.forEach((j) => {
-    if (j.crewId) {
-      const name = crewMap[j.crewId] || 'Unknown';
-      revByCrew[name] = (revByCrew[name] || 0) + Number(j.revenue || j.total || 0);
+    if (j.assignedCrewId) {
+      const name = crewMap[j.assignedCrewId] || 'Unknown';
+      revByCrew[name] = (revByCrew[name] || 0) + jobValue(j);
     }
   });
   const maxCrewRev = Math.max(...Object.values(revByCrew), 1);
@@ -182,7 +185,7 @@ export default function ReportsPage() {
               <span className="text-sm text-gray-500">Total Revenue</span>
             </div>
             <p className="text-3xl font-bold text-gray-900">
-              ${jobs.reduce((s, j) => s + Number(j.revenue || j.total || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              ${jobs.reduce((s, j) => s + jobValue(j), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </div>
         </div>

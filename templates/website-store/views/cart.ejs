@@ -1,0 +1,23 @@
+<%
+// cart.ejs — no server locals needed. cart.js hydrates #cart-root from localStorage.
+%>
+<div class="store-page cart-page">
+  <div class="container">
+    <a href="/shop" class="back-link store-back-link">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Continue Shopping
+    </a>
+
+    <h1 class="cart-title">Your Cart</h1>
+
+    <div id="cart-root" class="cart-root">
+      <!-- Loading state — replaced by cart.js once localStorage is read -->
+      <div class="cart-loading">
+        <div class="loading-spinner"></div>
+        <p>Loading your cart&hellip;</p>
+      </div>
+    </div>
+  </div>
+</div>

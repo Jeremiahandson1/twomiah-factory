@@ -1,0 +1,64 @@
+{
+  "siteName": "Summit Ridge Builders",
+  "companyName": "Summit Ridge Builders LLC",
+  "phone": "(970) 555-0142",
+  "email": "info@summitridgebuilders.com",
+  "address": "1420 Riverside Ave",
+  "city": "Fort Collins",
+  "state": "CO",
+  "zip": "80524",
+  "logo": "",
+  "favicon": "",
+  "defaultOgImage": "",
+  "socialLinks": {
+    "facebook": "",
+    "instagram": "",
+    "twitter": "",
+    "linkedin": "",
+    "youtube": "",
+    "yelp": "",
+    "googleBusiness": ""
+  },
+  "defaultMetaTitle": "Summit Ridge Builders - Fort Collins Roofing & Construction",
+  "defaultMetaDescription": "Summit Ridge Builders — trusted roofing & construction in Fort Collins, CO. Free estimates, licensed & insured.",
+  "analytics": {
+    "googleAnalyticsId": "",
+    "googleTagManagerId": "",
+    "googleAdsId": "",
+    "facebookPixelId": "",
+    "microsoftClarityId": ""
+  },
+  "scripts": {
+    "headScripts": "",
+    "bodyStartScripts": "",
+    "bodyEndScripts": ""
+  },
+  "custom404": {
+    "title": "Page Not Found",
+    "message": "Sorry, the page you're looking for doesn't exist or has been moved.",
+    "showSearch": true,
+    "showHomeLink": true,
+    "showContactLink": true,
+    "backgroundImage": ""
+  },
+  "robotsTxt": "User-agent: *\nAllow: /\n\nSitemap: http://localhost:4173/sitemap.xml",
+  "emailNotifications": {
+    "enabled": false,
+    "recipient": "info@summitridgebuilders.com",
+    "smtpHost": "",
+    "smtpPort": 587,
+    "smtpUser": "",
+    "smtpPass": "",
+    "fromEmail": "noreply@summitridgebuilders.com",
+    "fromName": "Summit Ridge Builders Website",
+    "sendgridApiKey": ""
+  },
+  "twoFactorEnabled": false,
+  "adminPassword": "",
+  "twoFactorSecret": "",
+  "primaryColor": "#C0791F",
+  "secondaryColor": "#1e3a5f",
+  "accentColor": "#C0791F",
+  "offWhiteColor": "#f8f9fa",
+  "theme": "professional-corporate"
+}

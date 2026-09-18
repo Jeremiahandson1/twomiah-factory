@@ -1,0 +1,108 @@
+{
+  "hero": {
+    "tagline": "Your Trusted Local Roofing & Construction Team",
+    "title": "Fort Collins's Trusted Roofing & Construction",
+    "subtitle": "Quality Work. Fair Prices. Done Right.",
+    "description": "Summit Ridge Builders has been serving Fort Collins area with professional Roofing & Construction services. Licensed, insured, and backed by our satisfaction guarantee.",
+    "image": "/images/hero.jpg",
+    "animation": "ken-burns",
+    "primaryButtonText": "Get a Free Estimate",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "See Our Work",
+    "secondaryButtonLink": "/gallery"
+  },
+  "trustBadges": [
+    {
+      "id": "licensed",
+      "type": "custom",
+      "label": "Licensed & Insured",
+      "sublabel": "Full coverage on every project",
+      "icon": "shield",
+      "enabled": true
+    },
+    {
+      "id": "local",
+      "type": "custom",
+      "label": "Locally Owned",
+      "sublabel": "Serving Fort Collins area",
+      "icon": "home",
+      "enabled": true
+    },
+    {
+      "id": "guaranteed",
+      "type": "custom",
+      "label": "Satisfaction Guaranteed",
+      "sublabel": "Backed by our workmanship warranty",
+      "icon": "check",
+      "enabled": true
+    },
+    {
+      "id": "experience",
+      "type": "custom",
+      "label": "Years of Experience",
+      "sublabel": "Trusted by hundreds of homeowners",
+      "icon": "star",
+      "enabled": true
+    }
+  ],
+  "ctaSection": {
+    "title": "Increase your comfort.\nDecrease your energy bills.",
+    "description": "Find out how we can improve your home's efficiency and curb appeal. Free estimates for Fort Collins area homeowners.",
+    "primaryButtonText": "Get a Free Estimate",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Call (970) 555-0142",
+    "secondaryButtonLink": "tel:9705550142",
+    "backgroundImage": "",
+    "headline": "Ready to start your project? Get a free, no-obligation estimate today.",
+    "subtext": "Call (970) 555-0142 or fill out the form \u2014 we respond same day."
+  },
+  "serviceAreas": [
+    "Fort Collins",
+    "Loveland",
+    "Windsor",
+    "Timnath",
+    "Greeley"
+  ],
+  "businessHours": {
+    "monday": {
+      "open": "7:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "tuesday": {
+      "open": "7:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "wednesday": {
+      "open": "7:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "thursday": {
+      "open": "7:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "friday": {
+      "open": "7:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "saturday": {
+      "open": "8:00 AM",
+      "close": "4:00 PM",
+      "closed": false
+    },
+    "sunday": {
+      "open": "Closed",
+      "close": "Closed",
+      "closed": true
+    }
+  },
+  "aboutSection": {
+    "title": "Why Homeowners Choose Summit Ridge Builders",
+    "text": "Summit Ridge Builders is a locally owned roofing and construction company serving the Fort Collins area with quality craftsmanship and honest, up-front pricing.",
+    "image": ""
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "pageViews": {
+    "services/roofing": {
+      "total": 6,
+      "daily": {
+        "2026-07-13": 6
+      }
+    },
+    "service-area/loveland": {
+      "total": 1,
+      "daily": {
+        "2026-07-13": 1
+      }
+    },
+    "home": {
+      "total": 12,
+      "daily": {
+        "2026-07-13": 12
+      }
+    },
+    "services/siding": {
+      "total": 6,
+      "daily": {
+        "2026-07-13": 6
+      }
+    },
+    "services/windows": {
+      "total": 5,
+      "daily": {
+        "2026-07-13": 5
+      }
+    },
+    "services/insulation": {
+      "total": 3,
+      "daily": {
+        "2026-07-13": 3
+      }
+    },
+    "services/remodeling": {
+      "total": 2,
+      "daily": {
+        "2026-07-13": 2
+      }
+    },
+    "services/new-construction": {
+      "total": 1,
+      "daily": {
+        "2026-07-13": 1
+      }
+    },
+    "gallery": {
+      "total": 1,
+      "daily": {
+        "2026-07-13": 1
+      }
+    },
+    "blog": {
+      "total": 1,
+      "daily": {
+        "2026-07-13": 1
+      }
+    }
+  },
+  "dailyViews": {
+    "2026-07-13": 38
+  },
+  "sources": {
+    "direct": 38
+  },
+  "dailySources": {
+    "2026-07-13": {
+      "direct": 38
+    }
+  },
+  "devices": {
+    "desktop": 38
+  },
+  "utmCampaigns": {},
+  "uniqueSessions": {
+    "2026-07-13": 8
+  }
+}

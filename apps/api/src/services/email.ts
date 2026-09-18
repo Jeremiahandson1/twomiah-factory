@@ -165,6 +165,10 @@ export async function notifyDeployComplete(
   const products = tenant.products || []
   const hasWebsite = products.includes('website') || products.includes('website-premium')
   const isPremiumWebsite = products.includes('website-premium')
+  // Store tenants: the "CRM" (deployedUrl) is actually the crm-store product/order
+  // admin, and the website /admin is only a content editor — so relabel everything
+  // to point the merchant at the right place.
+  const isStore = verticalFor(tenant.industry) === 'store'
   // The auto-attached Twomiah subdomain is the friendliest URL we can give
   // the tenant — it's branded ("acme-cleaning.twomiah.app"), free, and
   // never breaks. Prefer it over the Render-provided hostname when present.
@@ -178,9 +182,9 @@ export async function notifyDeployComplete(
     : null
 
   const urlLines: string[] = []
-  if (urls.deployedUrl) urlLines.push(kv('CRM', `<a href="${urls.deployedUrl}">${urls.deployedUrl}</a>`))
-  if (friendlySiteUrl) urlLines.push(kv('Website', `<a href="${friendlySiteUrl}">${friendlySiteUrl}</a>`))
-  if (websiteAdminUrl) urlLines.push(kv('Website admin', `<a href="${websiteAdminUrl}">${websiteAdminUrl}</a>`))
+  if (urls.deployedUrl) urlLines.push(kv(isStore ? 'Store admin (products, orders, payments)' : 'CRM', `<a href="${urls.deployedUrl}">${urls.deployedUrl}</a>`))
+  if (friendlySiteUrl) urlLines.push(kv(isStore ? 'Storefront' : 'Website', `<a href="${friendlySiteUrl}">${friendlySiteUrl}</a>`))
+  if (websiteAdminUrl) urlLines.push(kv(isStore ? 'Storefront content editor' : 'Website admin', `<a href="${websiteAdminUrl}">${websiteAdminUrl}</a>`))
   if (urls.apiUrl && urls.apiUrl !== urls.deployedUrl) urlLines.push(kv('API', `<a href="${urls.apiUrl}">${urls.apiUrl}</a>`))
 
   const passwordLine = tenant.admin_password
@@ -188,18 +192,22 @@ export async function notifyDeployComplete(
     : `<p style="color:#333;line-height:1.6;">Log in with the email and password you created during signup.</p>`
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Great news! Your <strong>Twomiah ${product}</strong> CRM for <strong>${tenant.name}</strong> is ready to use.</p>
+    <p style="color:#333;line-height:1.6;">Great news! Your <strong>Twomiah ${isStore ? 'store' : product + ' CRM'}</strong> for <strong>${tenant.name}</strong> is ready to use.</p>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:16px;margin:16px 0;">
-      <p style="margin:0 0 8px;color:#166534;font-weight:600;">&#10003; Your CRM is live</p>
+      <p style="margin:0 0 8px;color:#166534;font-weight:600;">&#10003; Your ${isStore ? 'store' : 'CRM'} is live</p>
       ${urlLines.join('\n      ')}
     </div>
     ${passwordLine}
     <div style="background:#f8f8fa;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 12px;color:#1a1a2e;font-weight:600;">3 things to do first:</p>
       <ol style="margin:0;padding-left:20px;color:#333;line-height:1.8;">
+        ${isStore ? `
+        <li>Open <strong>Payments</strong> in your store admin and connect your payment account so you can accept orders</li>
+        <li>Add your products — or edit the sample products we added to get you started</li>
+        <li>Preview your storefront and place a test order</li>` : `
         <li>Complete the onboarding wizard to set up your company profile</li>
         <li>Add your first ${product === 'Care' ? 'client' : 'contact'} and create a ${product === 'Care' ? 'care plan' : 'job'}</li>
-        <li>Invite your team members from Settings</li>
+        <li>Invite your team members from Settings</li>`}
       </ol>
     </div>
     ${isPremiumWebsite ? `
@@ -208,12 +216,12 @@ export async function notifyDeployComplete(
       <p style="margin:0;color:#581c87;font-size:14px;">Open the Website admin to edit any section's wording, swap photos, reorder, or add a new page. The draft is yours to refine.</p>
     </div>` : ''}
     <p style="color:#666;font-size:14px;">Services may take a few minutes to fully start up after deployment.</p>
-    ${urls.deployedUrl ? btn(urls.deployedUrl, 'Log In to Your CRM') : websiteAdminUrl ? btn(websiteAdminUrl, 'Open Website Admin') : urls.siteUrl ? btn(urls.siteUrl, 'View Your Website') : ''}`
+    ${urls.deployedUrl ? btn(urls.deployedUrl, isStore ? 'Log In to Your Store Admin' : 'Log In to Your CRM') : websiteAdminUrl ? btn(websiteAdminUrl, 'Open Website Admin') : urls.siteUrl ? btn(urls.siteUrl, 'View Your Website') : ''}`
 
   return sendEmail(
     tenant.email,
-    `Your Twomiah ${product} CRM is ready`,
-    wrap(`Your ${product} CRM is Ready`, body)
+    isStore ? 'Your Twomiah store is ready' : `Your Twomiah ${product} CRM is ready`,
+    wrap(isStore ? 'Your Store is Ready' : `Your ${product} CRM is Ready`, body)
   )
 }
 

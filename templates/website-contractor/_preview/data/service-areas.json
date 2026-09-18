@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Fort Collins",
+    "state": "CO",
+    "description": "Summit Ridge Builders provides professional roofing, siding, and renovation services throughout Fort Collins, CO. Our licensed contractors are available for repairs, remodeling, and new construction.",
+    "isPrimary": true,
+    "slug": "fort-collins"
+  },
+  {
+    "name": "Loveland",
+    "state": "CO",
+    "description": "Serving Loveland and the surrounding area with reliable roofing, siding, and renovation services. Same-day service available for emergency calls.",
+    "isPrimary": false,
+    "slug": "loveland"
+  },
+  {
+    "name": "Windsor",
+    "state": "CO",
+    "description": "Summit Ridge Builders proudly serves Windsor residents and businesses. Call us for roofing, siding, windows, and remodeling needs.",
+    "isPrimary": false,
+    "slug": "windsor"
+  },
+  {
+    "name": "Timnath",
+    "state": "CO",
+    "description": "Professional home services in Timnath, CO. Licensed, insured, and trusted by your neighbors.",
+    "isPrimary": false,
+    "slug": "timnath"
+  },
+  {
+    "name": "Greeley",
+    "state": "CO",
+    "description": "Summit Ridge Builders serves Greeley with expert roofing, siding, and renovation work. Free estimates on all projects.",
+    "isPrimary": false,
+    "slug": "greeley"
+  }
+]

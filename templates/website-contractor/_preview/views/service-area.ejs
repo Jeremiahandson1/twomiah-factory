@@ -1,0 +1,165 @@
+<%
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '(970) 555-0142';
+const phoneRaw = phone.replace(/\D/g, '');
+function getImageUrl(p) {
+  if (!p) return '';
+  if (p.startsWith('http')) return p;
+  if (p.startsWith('/')) return p;
+  return '/uploads/' + p;
+}
+const areaHero = area.heroImage || '';
+const areaServices = (typeof services !== 'undefined' && services) ? services.filter(s => s.visible !== false) : [];
+const otherAreas = (typeof allAreas !== 'undefined' && allAreas) ? allAreas.filter(a => a.slug !== area.slug) : [];
+%>
+
+<%- include('partials/landing-rail') %>
+
+<div class="service-area-page">
+  <!-- Landing: hero copy + main content share ONE sticky lead-form rail. -->
+  <section class="service-lead" style="--hero-speed: 10s;">
+    <div class="sl-band">
+      <% if (areaHero) { %>
+        <div class="sl-band-bg animation-none" style="background-image: <%- bgWithWebp(getImageUrl(areaHero)) %>"></div>
+      <% } %>
+      <div class="sl-band-overlay"></div>
+    </div>
+
+    <div class="container">
+      <div class="sl-grid">
+
+        <!-- Hero copy -->
+        <div class="sl-hero-copy">
+          <a href="/service-areas" class="back-link">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            All Service Areas
+          </a>
+          <h1>Your Trusted <%= area.name %> Contractor</h1>
+          <p class="hero-tagline">Serving <%= area.name %>, <%= area.state %> and the surrounding communities</p>
+          <div class="hero-buttons">
+            <a href="#sidebar-estimate" class="btn btn-primary btn-lg">Get Free Estimate</a>
+            <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <%= phone %>
+            </a>
+          </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="sl-body">
+          <div class="content-section">
+            <h2>Your Local Contractor Serving <%= area.name %></h2>
+            <div class="prose">
+              <% (area.description || '').split('\n\n').forEach(function(para) { %>
+                <% if (para.trim()) { %><p><%= para %></p><% } %>
+              <% }); %>
+            </div>
+          </div>
+
+          <% if (areaServices.length > 0) { %>
+            <div class="offerings-section">
+              <h2>Our Services in <%= area.name %></h2>
+              <div class="offerings-grid">
+                <% areaServices.forEach(function(svc, index) { %>
+                  <div class="offering-card">
+                    <div class="offering-number"><%= String(index + 1).padStart(2, '0') %></div>
+                    <h3><a href="/services/<%= svc.slug || svc.id %>" style="color: inherit; text-decoration: none;"><%= svc.title || svc.name %></a></h3>
+                    <p><%= svc.shortDescription || svc.tagline || svc.description %></p>
+                  </div>
+                <% }); %>
+              </div>
+            </div>
+          <% } %>
+
+          <div class="details-section">
+            <div class="details-card">
+              <h3>Why Choose Summit Ridge Builders in <%= area.name %>?</h3>
+              <ul>
+                <li>Licensed and insured professionals serving <%= area.name %> and surrounding communities</li>
+                <li>Same-day and emergency service available</li>
+                <li>Upfront pricing with no hidden fees</li>
+                <li>Background-checked, experienced crews</li>
+                <li>100% satisfaction guarantee on all work</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sticky lead-form rail -->
+        <aside class="sl-rail">
+          <%- include('partials/estimate-sidebar', {
+            sefService: '',
+            sefSource: 'service-area-' + (area.slug || ''),
+            phone: phone,
+            phoneRaw: phoneRaw,
+            turnstileSiteKey: (typeof turnstileSiteKey !== 'undefined' ? turnstileSiteKey : '')
+          }) %>
+
+          <div class="trust-card">
+            <div class="trust-item">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>Licensed &amp; Insured</span>
+            </div>
+            <div class="trust-item">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="8" r="7"></circle>
+                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+              </svg>
+              <span>Quality Guaranteed</span>
+            </div>
+            <div class="trust-item">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+              </svg>
+              <span>Locally Owned</span>
+            </div>
+          </div>
+
+          <% if (otherAreas.length > 0) { %>
+            <div class="trust-card">
+              <h4 style="font-size: 1.1rem; margin: 8px 0 12px; color: var(--navy);">Other Areas We Serve</h4>
+              <ul style="list-style: none; padding: 0; margin: 0;">
+                <% otherAreas.forEach(function(other) { %>
+                  <li style="margin-bottom: 8px;">
+                    <a href="/service-area/<%= other.slug %>" style="color: var(--gold); text-decoration: none; font-weight: 600;"><%= other.name %>, <%= other.state %></a>
+                  </li>
+                <% }); %>
+              </ul>
+            </div>
+          <% } %>
+        </aside>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Bottom CTA -->
+  <section class="service-cta">
+    <div class="container">
+      <h2>Ready to Start Your Project in <%= area.name %>?</h2>
+      <p>Contact Summit Ridge Builders today for a free estimate. We proudly serve <%= area.name %> and the surrounding Fort Collins area.</p>
+      <div class="cta-buttons">
+        <a href="#sidebar-estimate" class="btn btn-primary btn-lg">Get Free Estimate</a>
+        <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Local Business Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HomeAndConstructionBusiness",
+    "name": "Summit Ridge Builders",
+    "description": <%- JSON.stringify(area.description ? String(area.description).slice(0, 200) : ('Contractor services in ' + area.name + ', ' + area.state)) %>,
+    "telephone": "+1<%= phoneRaw %>",
+    "areaServed": { "@type": "City", "name": <%- JSON.stringify(area.name + ', ' + area.state) %> }
+  }
+  </script>
+</div>

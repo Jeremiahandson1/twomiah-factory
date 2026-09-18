@@ -6,6 +6,9 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, emitToUser, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
+import inventory from '../services/inventory.ts'
+import glPosting from '../services/glPosting.ts'
+import reviews from '../services/reviews.ts'
 import { sendSMS } from '../services/sms.ts'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -100,6 +103,12 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const [updated] = await db.update(repairOrder).set(updates).where(eq(repairOrder.id, id)).returning()
   await audit.log({ action: 'update', entity: 'repair_order', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'repair_order' })
+
+  // On close: post parts revenue/COGS to the GL and queue a review request.
+  if (body.status === 'closed' && existing.status !== 'closed') {
+    try { await glPosting.postRepairOrderParts(currentUser.companyId, id) } catch { /* don't block the RO update on a posting error */ }
+    try { await reviews.scheduleReviewForContact(currentUser.companyId, updated.customerId, { reason: 'ro_closed' }) } catch { /* review scheduling is best-effort */ }
+  }
 
   // Service status text: notify the customer on a customer-facing status change.
   if (body.status && body.status !== existing.status && RO_STATUS_TEXT[body.status] && updated.customerId) {
@@ -247,6 +256,55 @@ app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
     alertTriggered: alertCreated,
     alert: alertRecord,
   })
+})
+
+// ── RO PARTS (perpetual inventory) ──────────────────────────────────────────
+// GET  parts on an RO
+app.get('/:id/parts', requirePermission('contacts:read'), async (c) => {
+  const currentUser = c.get('user') as any
+  const parts = await inventory.getRepairOrderParts(c.req.param('id'), currentUser.companyId)
+  return c.json(parts)
+})
+
+// POST a part onto an RO — decrements stock when it resolves to a stocked item.
+app.post('/:id/parts', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({} as any))
+  const quantity = body.quantity != null ? parseInt(body.quantity) : 1
+  if (!quantity || quantity <= 0) return c.json({ error: 'quantity must be a positive integer' }, 400)
+  try {
+    const line = await inventory.useOnRepairOrder(currentUser.companyId, {
+      repairOrderId: id,
+      itemId: body.itemId || undefined,
+      catalogPartId: body.catalogPartId || undefined,
+      locationId: body.locationId || undefined,
+      quantity,
+      unitPrice: body.unitPrice != null ? parseFloat(body.unitPrice) : undefined,
+      description: body.description || undefined,
+      partNumber: body.partNumber || undefined,
+      userId: currentUser.userId,
+    })
+    await audit.log({ action: 'add_part', entity: 'repair_order', entityId: id, metadata: line, req: { user: currentUser } })
+    emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'repair_order' })
+    return c.json(line, 201)
+  } catch (e: any) {
+    const msg = e?.message || 'Failed to add part'
+    return c.json({ error: msg }, msg === 'Repair order not found' ? 404 : 400)
+  }
+})
+
+// DELETE a part line — restocks if it had decremented inventory.
+app.delete('/:id/parts/:partId', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  try {
+    await inventory.removeRepairOrderPart(currentUser.companyId, c.req.param('partId'), { userId: currentUser.userId })
+    emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'repair_order' })
+    return c.json({ ok: true })
+  } catch (e: any) {
+    const msg = e?.message || 'Failed to remove part'
+    return c.json({ error: msg }, msg === 'Repair order part not found' ? 404 : 400)
+  }
 })
 
 export default app

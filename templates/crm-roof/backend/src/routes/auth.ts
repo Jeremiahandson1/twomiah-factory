@@ -35,6 +35,9 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'canvassing_tool', 'storm_lead_gen', 'quickbooks_sync', 'pipeline_board',
   ],
   enterprise: ['all'],
+  starter10: ['all'],
+  team25: ['all'],
+  business50: ['all'],
 }
 
 // Plan limits
@@ -43,6 +46,9 @@ const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | nul
   pro: { users: 3, contacts: 1000, jobs: 250, storage: 10 },
   business: { users: 10, contacts: 5000, jobs: 1000, storage: 50 },
   enterprise: { users: null, contacts: null, jobs: null, storage: null },
+  starter10: { users: 10, contacts: null, jobs: null, storage: null },
+  team25: { users: 25, contacts: null, jobs: null, storage: null },
+  business50: { users: 50, contacts: null, jobs: null, storage: null },
 }
 
 // Self-serve signup

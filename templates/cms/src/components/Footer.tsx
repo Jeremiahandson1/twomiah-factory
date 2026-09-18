@@ -155,7 +155,7 @@ function Footer() {
       <div className="footer-bottom">
         <div className="container">
           <p>&copy; {currentYear} {"{{COMPANY_NAME}}"}. All rights reserved.</p>
-          <p>Serving {"{{CITY}}"}, {"{{NEARBY_CITY_4}}"}, {"{{NEARBY_CITY_1}}"}, and the {"{{SERVICE_REGION}}"}</p>
+          <p>Proudly serving {"{{CITY}}"} and the surrounding area.</p>
         </div>
       </div>
     </footer>

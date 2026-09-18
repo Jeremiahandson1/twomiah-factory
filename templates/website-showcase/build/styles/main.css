@@ -2,8 +2,8 @@
    These values are injected by the factory generator.
    Do not edit manually — use the admin panel or regenerate. */
 :root {
-  --color-primary: {{PRIMARY_COLOR}};
-  --color-primary-light: {{PRIMARY_COLOR}};
+  --color-primary: {{SECONDARY_COLOR}};
+  --color-primary-light: {{SECONDARY_COLOR}};
   --color-secondary: {{SECONDARY_COLOR}};
   --color-accent: {{PRIMARY_COLOR}};
   --color-accent-light: {{PRIMARY_COLOR}};

@@ -35,16 +35,18 @@ export default function StormRadarPage() {
   useEffect(() => { load(); }, []);
 
   const load = async () => {
-    try {
-      const [s, e, m] = await Promise.all([
-        api.get('/api/storm-radar/status'),
-        api.get('/api/storm-radar/events'),
-        api.get('/api/storm-radar/matches'),
-      ]);
-      setStatus(s);
-      setEvents(e.data || []);
-      setMatches(m.data || []);
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    // Settle each call independently — a not-yet-provisioned Storm Radar can make
+    // events/matches fail, but status must still populate so we show honest copy
+    // instead of a blank "provider: ." and a developer-facing setup message.
+    const [s, e, m] = await Promise.allSettled([
+      api.get('/api/storm-radar/status'),
+      api.get('/api/storm-radar/events'),
+      api.get('/api/storm-radar/matches'),
+    ]);
+    if (s.status === 'fulfilled') setStatus(s.value);
+    if (e.status === 'fulfilled') setEvents(e.value.data || []);
+    if (m.status === 'fulfilled') setMatches(m.value.data || []);
+    setLoading(false);
   };
 
   const sync = async () => {
@@ -91,9 +93,8 @@ export default function StormRadarPage() {
         <div className="mb-6 bg-yellow-50 border border-yellow-300 rounded-lg p-4 flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
           <div>
-            <div className="font-semibold text-yellow-900">Weather provider not configured</div>
-            <div className="text-sm text-yellow-800 mt-1">{status?.message || 'Add API credentials to services/stormRadar.ts to activate.'}</div>
-            <div className="text-xs text-yellow-700 mt-2">Current provider: <strong>{status?.provider}</strong>. Supported: NOAA (free), Tomorrow.io (paid, real-time), AccuWeather Enterprise.</div>
+            <div className="font-semibold text-yellow-900">Storm Radar isn't turned on yet</div>
+            <div className="text-sm text-yellow-800 mt-1">Live storm tracking for your area isn't enabled on your account yet. Contact support to switch it on and start generating storm-season leads.</div>
           </div>
         </div>
       )}

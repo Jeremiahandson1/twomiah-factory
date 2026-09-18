@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact, job, smsMessage } from '../../db/schema.ts'
+import { contact, job, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, like, or, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -101,6 +101,61 @@ app.put('/:id', async (c) => {
   }).where(eq(contact.id, id)).returning()
 
   return c.json(updated)
+})
+
+// Enable/disable customer-portal access for a contact.
+// The Contacts page "portal access" toggle posts { enabled } here.
+app.post('/:id/portal', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({}))
+  const enabled = body.enabled === true
+
+  const [existing] = await db.select().from(contact)
+    .where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Contact not found' }, 404)
+
+  const [updated] = await db.update(contact)
+    .set({ portalEnabled: enabled, updatedAt: new Date() })
+    .where(eq(contact.id, id)).returning()
+  return c.json({ success: true, portalEnabled: updated.portalEnabled })
+})
+
+// Send (or resend) the customer-portal invite email.
+// Portal login is email + company slug (no token), so the "invite" is an email
+// pointing the customer at the portal; we also ensure access is enabled so the
+// link works. Reuses the existing 'portalInvite' email template.
+app.post('/:id/portal/invite', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [existing] = await db.select().from(contact)
+    .where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Contact not found' }, 404)
+  if (!existing.email) return c.json({ error: 'This contact has no email address on file' }, 400)
+
+  if (!existing.portalEnabled) {
+    await db.update(contact).set({ portalEnabled: true, updatedAt: new Date() }).where(eq(contact.id, id))
+  }
+
+  const [comp] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const portalUrl = `${process.env.CUSTOMER_PORTAL_URL || ''}/portal`
+  const contactName = [existing.firstName, existing.lastName].filter(Boolean).join(' ') || 'there'
+
+  try {
+    const { send } = await import('../services/email.ts')
+    await send(existing.email, 'portalInvite', {
+      companyName: comp?.name || 'Your Contractor',
+      contactName,
+      portalUrl,
+      role: 'customer',
+    })
+  } catch (err: any) {
+    console.error('[portal/invite] email send failed:', err?.message)
+    return c.json({ error: 'Could not send the invite email — check email settings.' }, 502)
+  }
+
+  return c.json({ success: true })
 })
 
 // Delete contact

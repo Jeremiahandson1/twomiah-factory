@@ -36,6 +36,7 @@ import CashPage from './pages/CashPage';
 import AuditLogPage from './pages/AuditLogPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
+import FeaturesPage from './pages/settings/FeaturesPage';
 
 // New feature pages
 import MetrcPage from './pages/MetrcPage';
@@ -146,6 +147,7 @@ function App() {
                     <Route path="audit" element={<AuditLogPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="settings/features" element={<FeaturesPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
 

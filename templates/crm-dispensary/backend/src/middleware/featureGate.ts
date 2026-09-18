@@ -23,6 +23,9 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'custom_forms', 'email_templates', 'email_campaigns',
   ],
   enterprise: ['all'],
+  starter10: ['all'],
+  team25: ['all'],
+  business50: ['all'],
 }
 
 const PLAN_LIMITS: Record<string, Record<string, number | null>> = {
@@ -30,6 +33,9 @@ const PLAN_LIMITS: Record<string, Record<string, number | null>> = {
   pro: { users: 5, contacts: 2500, orders: 5000, storage: 25 },
   business: { users: 15, contacts: 10000, orders: 25000, storage: 100 },
   enterprise: { users: null, contacts: null, orders: null, storage: null },
+  starter10: { users: 10, contacts: null, orders: null, storage: null },
+  team25: { users: 25, contacts: null, orders: null, storage: null },
+  business50: { users: 50, contacts: null, orders: null, storage: null },
 }
 
 const PLAN_HIERARCHY = ['starter', 'pro', 'business', 'enterprise']

@@ -123,6 +123,24 @@ app.post('/conversations/:id/link', async (c) => {
 })
 
 // ============================================
+// TEXTING CONFIG (dealer-owned number)
+// ============================================
+
+// Get texting config (never returns the auth token)
+app.get('/config', async (c) => {
+  const user = c.get('user') as any
+  return c.json(await sms.getTextingConfig(user.companyId))
+})
+
+// Save texting config. Providing accountSid + authToken = dealer's own Twilio account,
+// so the number lives on THEIR account and can be ported out anytime.
+app.put('/config', requirePermission('contacts:update'), async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json().catch(() => ({} as any))
+  return c.json(await sms.saveTextingConfig(user.companyId, body))
+})
+
+// ============================================
 // SEND MESSAGES
 // ============================================
 

@@ -1,0 +1,7 @@
+{
+  "redirects": [
+    { "source": "/start", "destination": "https://twomiah.com/", "type": 301 },
+    { "source": "/care/signup", "destination": "https://twomiah.com/", "type": 301 },
+    { "source": "/signup/:product", "destination": "https://twomiah.com/", "type": 301 }
+  ]
+}

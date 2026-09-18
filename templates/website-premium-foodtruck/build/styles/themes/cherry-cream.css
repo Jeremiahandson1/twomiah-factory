@@ -1,0 +1,41 @@
+/* ═══ Theme: cherry-cream ═══════════════════════════════════════════════════
+ * "Ramone's Ice Cream" look — nostalgic cherry-red + warm cream, the
+ * old-fashioned parlor aesthetic from that mockup (palette sampled from
+ * Ramone's real logo: cherry #C8302E + cream #F5EDD9).
+ *
+ * HOW IT'S APPLIED: set the tenant's `websiteTheme = 'cherry-cream'`. The
+ * factory generator appends this file to main.css at build time. Overrides
+ * only — additive, no base files touched.
+ *
+ * DESIGN NOTE: unlike yellow, cherry red is a "proper" brand color — it reads
+ * as accent text on cream AND as solid blocks with white text — so the brand-
+ * colored blocks (header CTA, CTA banner, stat bands, stats bar) need NO
+ * repaint; they're cherry + white, classic parlor signage. The only fix is
+ * the small eyebrow/label bits that color their TEXT with --accent (cream),
+ * which is invisible on light surfaces.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --brand: #c8302e;        /* cherry red — accent text + solid blocks */
+  --brand-deep: #9c211f;   /* deep cherry — footer, hovers */
+  --accent: #f5edd9;       /* warm cream — pop on red blocks, banner button */
+  --ink: #2a1a17;          /* warm near-black */
+  --ink-soft: #5b463f;
+  --muted: #8a766d;
+  --paper: #fbf4e6;        /* warm cream paper */
+  --line: #ece2cf;
+}
+
+/* Small-caps eyebrow / index / role labels color their TEXT with --accent
+ * (cream) in the base template — invisible on the cream page. Recolor them
+ * cherry on light surfaces (reads, and stays on-brand). The full-bleed hero
+ * keeps its cream eyebrow — that one sits on a dark image and reads. */
+.hero--centered .hero__eyebrow,
+.hero--split .hero__eyebrow,
+.story__eyebrow,
+.team__role,
+.service-row__index { color: var(--brand); }
+
+/* Everything else (cherry header pill + white text, cherry CTA banner with a
+ * cream button, cherry stat bands, cherry stats bar, cherry menu prices,
+ * deep-cherry footer) falls out of the palette correctly with no overrides. */

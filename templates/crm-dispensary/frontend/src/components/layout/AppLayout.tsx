@@ -21,7 +21,7 @@ import { useTheme } from '../../hooks/useTheme';
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
 // Items with `features` show if ANY listed feature is enabled.
-const ALL_NAV_ITEMS = [
+export const ALL_NAV_ITEMS = [
   // Core
   { to: '/crm', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { to: '/crm/products', icon: Package, label: 'Products' },

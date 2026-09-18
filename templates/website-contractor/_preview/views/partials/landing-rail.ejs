@@ -1,0 +1,70 @@
+<%
+// Shared landing-page layout: ONE sticky lead-form rail spanning the hero + body.
+// Ported from the Claflin reference. Included by service.ejs (and the sub-service /
+// service-area pages) so every landing page shares one source of truth for the rail.
+// Brand colors use the template's CSS vars (--navy = SECONDARY_COLOR,
+// --gold = PRIMARY_COLOR) so each generated tenant is themed correctly.
+%>
+<style>
+  /* ===== Landing layout: single sticky lead-form rail ===== */
+  .service-lead { position: relative; background: #f8fafc; }
+
+  /* Full-width dark hero band behind the top of the page (copy + form top). */
+  .sl-band { position: absolute; top: 0; left: 0; right: 0; height: 500px; overflow: hidden; background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%); z-index: 0; }
+  .sl-band-bg { position: absolute; inset: 0; background-size: cover; background-position: center; transition: transform 0.5s ease; }
+  .sl-band-bg.animation-pan { animation: heroPan var(--hero-speed, 10s) ease-in-out infinite alternate; }
+  .sl-band-bg.animation-zoom { animation: heroZoom var(--hero-speed, 10s) ease-in-out infinite alternate; }
+  .sl-band-bg.animation-ken-burns { animation: heroKenBurns var(--hero-speed, 10s) ease-in-out infinite alternate; }
+  .sl-band-overlay { position: absolute; inset: 0; background: rgba(13, 22, 38, 0.78); background: linear-gradient(135deg, color-mix(in srgb, var(--navy) 85%, transparent) 0%, color-mix(in srgb, var(--navy) 70%, transparent) 100%); }
+
+  .service-lead > .container { position: relative; z-index: 1; }
+  .sl-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-areas: "hero form" "proof form" "body form"; column-gap: 44px; align-items: start; padding: 46px 0 64px; }
+
+  /* Hero copy (white text over the dark band) */
+  .sl-hero-copy { grid-area: hero; color: #fff; min-height: 420px; }
+  .sl-hero-copy .back-link { display: inline-flex; align-items: center; gap: 6px; color: rgba(255,255,255,.8); text-decoration: none; font-size: .9rem; margin-bottom: 18px; transition: color .2s; }
+  .sl-hero-copy .back-link:hover { color: #fff; }
+  .sl-hero-copy h1 { font-size: 2.85rem; font-weight: 800; line-height: 1.08; margin: 0 0 14px; color: #fff; }
+  .sl-hero-copy .hero-tagline { font-size: 1.2rem; color: var(--gold); font-weight: 600; margin: 0 0 10px; }
+  .sl-hero-copy .hero-description { font-size: 1.08rem; opacity: .92; line-height: 1.6; max-width: 560px; margin: 0 0 20px; color: #fff; }
+  .sl-hero-copy .hero-rating { margin: 0 0 22px; font-weight: 700; color: #fff; font-size: 1rem; }
+  .sl-hero-copy .hero-rating .stars { color: var(--gold); letter-spacing: 2px; margin-right: 8px; }
+  .sl-hero-copy .hero-buttons { display: flex; gap: 14px; flex-wrap: wrap; }
+
+  /* Testimonials (left column, under the hero copy — used by city/landing pages) */
+  .sl-proof { grid-area: proof; margin: 4px 0 0; }
+  .sl-proof .ssp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+  .sl-proof .ssp-card { margin: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+  .sl-proof .ssp-stars { color: var(--gold); font-size: 1.05rem; letter-spacing: 2px; margin-bottom: 8px; }
+  .sl-proof blockquote { margin: 0 0 8px; font-size: .95rem; line-height: 1.55; color: #334155; }
+  .sl-proof figcaption { font-size: .88rem; font-weight: 600; color: #64748b; }
+
+  /* Main body content */
+  .sl-body { grid-area: body; display: flex; flex-direction: column; gap: 40px; padding-top: 40px; }
+
+  /* Sticky lead-form rail — starts beside the hero, rides down the page */
+  .sl-rail { grid-area: form; position: sticky; top: 150px; align-self: start; display: flex; flex-direction: column; gap: 20px; padding-top: 6px; }
+  .sl-rail .hero-estimate-card, .sl-rail .sidebar-estimate-card { width: 100%; box-sizing: border-box; box-shadow: 0 24px 50px rgba(0,0,0,.28); }
+  .sl-rail .sidebar-estimate-card { margin-bottom: 0; }
+  .sl-rail .trust-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 6px 20px; }
+  .sl-rail .trust-card .trust-item { display: flex; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid #f1f5f9; font-weight: 600; color: #1e293b; font-size: .95rem; }
+  .sl-rail .trust-card .trust-item:last-child { border-bottom: none; }
+  .sl-rail .trust-card .trust-item svg { color: var(--gold); flex-shrink: 0; }
+
+  @keyframes heroPan { 0% { transform: translateX(0); } 100% { transform: translateX(-3%); } }
+  @keyframes heroZoom { 0% { transform: scale(1); } 100% { transform: scale(1.1); } }
+  @keyframes heroKenBurns { 0% { transform: scale(1) translateX(0); } 100% { transform: scale(1.1) translateX(-2%); } }
+
+  @media (max-width: 1024px) {
+    .sl-grid { grid-template-columns: 1fr; grid-template-areas: "hero" "form" "proof" "body"; }
+    .sl-hero-copy { min-height: 0; padding-bottom: 8px; }
+    .sl-rail { position: static; top: auto; margin-top: 8px; }
+    .sl-band { height: 400px; }
+  }
+  @media (max-width: 768px) {
+    .sl-hero-copy h1 { font-size: 2.15rem; }
+    .sl-hero-copy .hero-buttons { flex-direction: column; }
+    .sl-hero-copy .hero-buttons .btn { width: 100%; }
+    .sl-grid { padding: 32px 0 48px; }
+  }
+</style>

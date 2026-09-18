@@ -11,6 +11,7 @@ import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
 import { getFeaturesForPlan } from '../config/featureRegistry'
 import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost, verticalFor } from '../config/industryRouting'
+import { getServiceImage } from '../config/serviceImageLibrary'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
 const PACKAGES_ROOT = process.env.FACTORY_PACKAGES_DIR || path.resolve(process.cwd(), '..', '..', 'packages')
@@ -68,7 +69,10 @@ const TEXT_EXTS = new Set([
   '.prisma', '.template', '.mjs', '.toml',
 ])
 
-const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', 'bun.lock', '.DS_Store', 'dist']
+// composition-a/b.html are premium-template DESIGN-REFERENCE mockups of a
+// fictional sample business — never served (404 on tenants) and not per-tenant
+// rendered. Don't ship them: a fake company's page has no place in a customer's site.
+const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', 'bun.lock', '.DS_Store', 'dist', 'composition-a.html', 'composition-b.html']
 
 export interface GenerateConfig {
   tenant_id?: string
@@ -99,6 +103,7 @@ export interface GenerateConfig {
   branding: {
     primaryColor?: string
     secondaryColor?: string
+    accentColor?: string
     logo?: string
     logoFilename?: string
     favicon?: string
@@ -230,6 +235,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       else if (SHOWCASE_INDUSTRIES.has(industry)) websiteTemplate = 'website-showcase'
       else if (verticalFor(industry) === 'veterinary') websiteTemplate = 'website-vet'
       else if (verticalFor(industry) === 'rv') websiteTemplate = 'website-rv'
+      else if (verticalFor(industry) === 'store') websiteTemplate = 'website-store'
       else if (industry && industry !== 'other') websiteTemplate = 'website-contractor'
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)
@@ -238,7 +244,11 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // Inject website theme if specified
       const theme = config.websiteTheme || config.branding?.websiteTheme
       if (theme) {
-        const themeCssPath = path.join(TEMPLATES_ROOT, websiteTemplate, 'build', 'styles', 'themes', `${theme}.css`)
+        // Read the ALREADY-COPIED theme file (workDir), not the raw source: themes
+        // now use {{PRIMARY_COLOR}}/{{ACCENT_COLOR}} brand tokens, and only the copy
+        // has been token-replaced by copyTemplate. Appending the raw source would put
+        // literal {{...}} into main.css.
+        const themeCssPath = path.join(workDir, 'website', 'build', 'styles', 'themes', `${theme}.css`)
         if (fs.existsSync(themeCssPath)) {
           const themeCss = fs.readFileSync(themeCssPath, 'utf8')
           const mainCssPath = path.join(workDir, 'website', 'build', 'styles', 'main.css')
@@ -258,6 +268,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
       await writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
       injectWizardContent(path.join(workDir, 'website'), config)
+      fillWebsiteImages(path.join(workDir, 'website'), config)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
 
@@ -440,11 +451,28 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   const b = config.branding || {}
   const industry = c.industry || ''
   const industryLabel = INDUSTRY_LABELS[industry] || industry.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Contractor'
+  const isStore = verticalFor(industry) === 'store'
 
   const ownerParts = (c.ownerName || 'Admin User').split(' ')
   const firstName = ownerParts[0] || 'Admin'
   const lastName = ownerParts.slice(1).join(' ') || 'User'
   const defaultPassword = c.defaultPassword || generatePassword()
+
+  // Deduped, real service areas (city + any operator-entered nearby cities).
+  // Prevents "City, City, City, City" when the manual nearbyCities field is blank.
+  const _seenArea = new Set<string>()
+  const uniqueAreas = [c.city, ...(c.nearbyCities || [])]
+    .map((s) => (s || '').trim())
+    .filter((a) => {
+      if (!a) return false
+      const k = a.toLowerCase()
+      if (_seenArea.has(k)) return false
+      _seenArea.add(k)
+      return true
+    })
+  const serviceAreasText = uniqueAreas.length <= 1
+    ? (uniqueAreas[0] || c.city || 'your area') + ' and the surrounding area'
+    : uniqueAreas.slice(0, -1).join(', ') + ', and ' + uniqueAreas[uniqueAreas.length - 1]
 
   return {
     '{{COMPANY_NAME}}': c.name || 'My Company',
@@ -463,14 +491,19 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{STATE}}': c.state || 'ST',
     '{{STATE_FULL}}': c.stateFull || c.state || 'ST',
     '{{ZIP}}': c.zip || '00000',
-    '{{SERVICE_REGION}}': c.serviceRegion || c.city || 'the area',
+    '{{SERVICE_REGION}}': c.serviceRegion || (c.city ? c.city + ' area' : 'surrounding area'),
+    '{{SERVICE_AREAS}}': serviceAreasText,
+    '{{SERVICE_AREA_LINKS}}': uniqueAreas.map((a) => `<li><a href="/service-area/${a}">${a}</a></li>`).join('\n'),
+    '{{SERVICE_AREA_ITEMS}}': uniqueAreas.map((a) => `<li>${a}</li>`).join('\n'),
     // Placeholders when no real service areas were provided — paired with a
     // disclaimer in the preview so a mockup reads as intentional, not broken.
     // Real cities come from the manual intake field (company.nearbyCities).
-    '{{NEARBY_CITY_1}}': (c.nearbyCities || [])[0] || 'Nearby City 1',
-    '{{NEARBY_CITY_2}}': (c.nearbyCities || [])[1] || 'Nearby City 2',
-    '{{NEARBY_CITY_3}}': (c.nearbyCities || [])[2] || 'Nearby City 3',
-    '{{NEARBY_CITY_4}}': (c.nearbyCities || [])[3] || 'Nearby City 4',
+    // Fall back to the real city (a live site must never show "Nearby City 1").
+    // The CMS template also dedupes/filters these before rendering the area list.
+    '{{NEARBY_CITY_1}}': (c.nearbyCities || [])[0] || c.city || 'our area',
+    '{{NEARBY_CITY_2}}': (c.nearbyCities || [])[1] || c.city || 'our area',
+    '{{NEARBY_CITY_3}}': (c.nearbyCities || [])[2] || c.city || 'our area',
+    '{{NEARBY_CITY_4}}': (c.nearbyCities || [])[3] || c.city || 'our area',
     '{{DOMAIN}}': c.domain || slug + '.com',
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
     '{{SITE_URL}}': c.siteUrl || ('https://' + (c.domain || slug + '.com')),
@@ -486,7 +519,9 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       ? 'https://' + slug + '-drive-api.onrender.com'
       : 'https://' + buildCrmApiHost(slug, industry),
     '{{INDUSTRY}}': industryLabel,
-    '{{META_DESCRIPTION}}': industry === 'home_care'
+    '{{META_DESCRIPTION}}': isStore
+      ? 'Shop ' + (c.name || 'our store') + ' online — quality products with fast, secure checkout.'
+      : industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'
       : industry === 'field_service'
       ? 'Professional HVAC and plumbing services in ' + (c.city || 'your area') + '. 24/7 emergency service, installations, repairs, and maintenance contracts.'
@@ -497,8 +532,10 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       : 'Professional services in ' + (c.city || 'your area') + '.',
     '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'VA APPROVED PROVIDER' : industry === 'field_service' ? 'Your Trusted HVAC & Plumbing Professionals' : industry === 'automotive' ? 'Your Trusted Dealership' : industry === 'dispensary' ? 'Premium Cannabis Products' : 'Trusted ' + industryLabel),
     '{{HERO_BADGE}}': config.content?.heroTagline || (industry === 'home_care' ? 'Compassionate In-Home Care' : industry === 'dispensary' ? 'Licensed Dispensary' : 'Licensed & Insured'),
-    '{{HERO_TITLE}}': industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : industry === 'dispensary' ? (c.name || 'Your Dispensary') + ' — Premium Cannabis' : (c.name || 'Your Company') + ' — Quality You Can Trust',
-    '{{HERO_DESCRIPTION}}': industry === 'home_care'
+    '{{HERO_TITLE}}': isStore ? (c.name || 'Our Store') : industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : industry === 'dispensary' ? (c.name || 'Your Dispensary') + ' — Premium Cannabis' : (c.name || 'Your Company') + ' — Quality You Can Trust',
+    '{{HERO_DESCRIPTION}}': isStore
+      ? 'Quality products, fast shipping, and secure checkout.'
+      : industry === 'home_care'
       ? 'Helping families in ' + (c.city || 'your area') + ' with personalized, professional in-home care.'
       : industry === 'dispensary'
       ? 'Premium flower, edibles, concentrates, and more in ' + (c.city || 'your area') + '. Order online for pickup or delivery.'
@@ -524,9 +561,9 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ADMIN_EMAIL}}': c.adminEmail || c.email || 'admin@' + slug + '.com',
     '{{DEFAULT_PASSWORD}}': defaultPassword,
     '{{HASHED_DEFAULT_PASSWORD}}': bcrypt.hashSync(defaultPassword, 10),
-    '{{PRIMARY_COLOR}}': b.primaryColor || (industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
+    '{{PRIMARY_COLOR}}': b.primaryColor || (isStore ? '#4f46e5' : industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
     '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
-    '{{ACCENT_COLOR}}': '#f59e0b',
+    '{{ACCENT_COLOR}}': b.accentColor || '#f59e0b',
     '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : industry === 'dispensary' ? '#f0fdf4' : '#f8f9fa',
     '{{PRODUCTS_JSON}}': JSON.stringify((() => {
       const prods = [...(config.products || ['crm'])]
@@ -535,6 +572,12 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       return prods
     })()),
     '{{CMS_URL}}': ((config.products || []).includes('website') || (config.products || []).includes('cms')) ? 'https://' + slug + '-site.onrender.com/admin' : '',
+    // Storefront cart localStorage key — unique per tenant so multiple stores
+    // opened in one browser don't share a cart.
+    '{{CART_STORAGE_KEY}}': slug + '-cart',
+    // Store flag for the bundled CMS admin — hides contractor-only nav
+    // (Services / Gallery / Leads / Visualizer) for store tenants.
+    '{{IS_STORE}}': isStore ? 'true' : 'false',
     '{{JWT_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{JWT_REFRESH_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{ENCRYPTION_KEY}}': crypto.randomBytes(32).toString('hex'),
@@ -772,6 +815,37 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
     }
   }
 
+  // Follow service→service imports transitively, so a service that's only needed by
+  // another KEPT service isn't pruned (e.g. catalogFeed.ts imports ./wpsFeed.ts).
+  // Iterate to a fixed point. Adding names is harmless (deletion only removes real files).
+  const servicesDirScan = path.join(crmDir, 'backend', 'src', 'services')
+  if (fs.existsSync(servicesDirScan)) {
+    const depPatterns = [
+      /from '\.\/([^'/]+\.ts)'/g,                       // same-dir: from './wpsFeed.ts'
+      /import\('\.\/([^'/]+\.ts)'\)/g,                  // same-dir dynamic
+      /from '(?:\.\.\/|\.\/)services\/([^']+)'/g,       // subpath: from '../services/foo.ts'
+      /import\('(?:\.\.\/|\.\/)services\/([^']+)'\)/g,  // subpath dynamic
+    ]
+    let added = true
+    while (added) {
+      added = false
+      for (const svc of Array.from(neededServices)) {
+        const svcPath = path.join(servicesDirScan, svc)
+        if (!fs.existsSync(svcPath)) continue
+        let content: string
+        try { content = fs.readFileSync(svcPath, 'utf8') } catch { continue }
+        for (const re of depPatterns) {
+          let mm: RegExpExecArray | null
+          re.lastIndex = 0
+          while ((mm = re.exec(content))) {
+            const dep = mm[1]
+            if (dep && !neededServices.has(dep)) { neededServices.add(dep); added = true }
+          }
+        }
+      }
+    }
+  }
+
   // Delete unused service files
   const servicesDir = path.join(crmDir, 'backend', 'src', 'services')
   if (fs.existsSync(servicesDir)) {
@@ -976,6 +1050,83 @@ function seedServicesIfEmpty(websiteDir: string, wizardContent: any) {
   }
 }
 
+// Fill empty gallery/service images from the in-house per-vertical library so a
+// generated site never ships blank placeholder tiles. Rendered directly / via
+// getImageUrl (which passes http through), so external CDN URLs are safe here.
+function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
+  const dataDir = path.join(websiteDir, 'data')
+  const industry = config.company?.industry || ''
+
+  // Copy the self-hosted service-image library into this site so images are served
+  // from the tenant's OWN domain (no external Unsplash/CDN dependency — the customer
+  // owns their site). Files land at build/images/services/ → served at /images/services/…,
+  // the exact paths serviceImageLibrary returns.
+  try {
+    const srcImages = path.join(TEMPLATES_ROOT, '_shared', 'service-images')
+    if (fs.existsSync(srcImages)) {
+      const destImages = path.join(websiteDir, 'build', 'images', 'services')
+      fs.mkdirSync(destImages, { recursive: true })
+      for (const f of fs.readdirSync(srcImages)) fs.copyFileSync(path.join(srcImages, f), path.join(destImages, f))
+    }
+  } catch { /* non-fatal */ }
+
+  // Ensure the hero always has an image. AI content injection can overwrite
+  // homepage.json's hero with an empty image, which drops the site into the
+  // empty-hero placeholder state. Restore the shipped local hero (LCP-optimized).
+  const homepageFile = path.join(dataDir, 'homepage.json')
+  if (fs.existsSync(homepageFile)) {
+    try {
+      const hp = JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
+      if (hp.hero && !hp.hero.image) {
+        // Prefer the template's dedicated hero.jpg, but several templates
+        // (dispensary, general, rv, showcase) don't ship one — for those, fall
+        // back to a real industry photo (copied in above) instead of a 404.
+        const heroJpg = path.join(websiteDir, 'build', 'images', 'hero.jpg')
+        hp.hero.image = fs.existsSync(heroJpg) ? '/images/hero.jpg' : (getServiceImage(industry, 0) || '/images/hero.jpg')
+        fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
+      }
+    } catch { /* leave homepage as-is on parse error */ }
+  }
+
+  // Gallery projects — template reads project.images[0].{url,thumbnail} + featured_image
+  const galleryFile = path.join(dataDir, 'gallery.json')
+  if (fs.existsSync(galleryFile)) {
+    try {
+      const gallery = JSON.parse(fs.readFileSync(galleryFile, 'utf8'))
+      if (Array.isArray(gallery)) {
+        let changed = false
+        gallery.forEach((p: any, i: number) => {
+          const hasImg = p.featured_image || (Array.isArray(p.images) && p.images.length > 0)
+          if (!hasImg) {
+            const url = getServiceImage(industry, i)
+            if (url) { p.featured_image = url; p.images = [{ url, thumbnail: url }]; changed = true }
+          }
+        })
+        if (changed) fs.writeFileSync(galleryFile, JSON.stringify(gallery, null, 2))
+      }
+    } catch { /* leave gallery as-is on parse error */ }
+  }
+
+  // Service cards — template reads service.image via getImageUrl
+  const servicesFile = path.join(dataDir, 'services.json')
+  if (fs.existsSync(servicesFile)) {
+    try {
+      const services = JSON.parse(fs.readFileSync(servicesFile, 'utf8'))
+      if (Array.isArray(services)) {
+        let changed = false
+        services.forEach((s: any, i: number) => {
+          const url = getServiceImage(industry, i)
+          if (url && !s.image) { s.image = url; changed = true }
+          // Service-page hero background — empty heroImage falls back to a flat
+          // color block; give it a real photo (with the template's dark overlay).
+          if (url && !s.heroImage) { s.heroImage = url; changed = true }
+        })
+        if (changed) fs.writeFileSync(servicesFile, JSON.stringify(services, null, 2))
+      }
+    } catch { /* leave services as-is on parse error */ }
+  }
+}
+
 function injectWizardContent(websiteDir: string, config: GenerateConfig) {
   const dataDir = path.join(websiteDir, 'data')
   const wizardContent = config.content || {}
@@ -1049,8 +1200,20 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
     try {
       let services = JSON.parse(fs.readFileSync(servicesFile, 'utf8'))
       if (wizardContent.services && wizardContent.services.length > 0) {
-        services = services.filter((s: any) => wizardContent.services!.includes(s.id))
-        services.sort((a: any, b: any) => wizardContent.services!.indexOf(a.id) - wizardContent.services!.indexOf(b.id))
+        // The customer's picks may be template service IDs OR display names (the
+        // intake sends whatever the form collected). Build one card PER pick, in
+        // the customer's order: reuse the template's richer service (copy/icon)
+        // when the pick matches one by id or name, otherwise create a card from
+        // the pick's name. This never drops a customer's service and never blanks
+        // the section (the old id-only filter did both).
+        const norm = (v: any) => slugify(String(v || ''))
+        const pool = services
+        services = wizardContent.services!.map((pick: string, i: number) => {
+          const match = pool.find((s: any) => norm(s.id) === norm(pick) || norm(s.name) === norm(pick))
+          return match
+            ? { ...match, order: i + 1 }
+            : { id: norm(pick), name: String(pick), slug: norm(pick), shortDescription: '', description: '', icon: 'star', visible: true, order: i + 1 }
+        })
       }
       if (wizardContent.customServices && wizardContent.customServices.length > 0) {
         for (const custom of wizardContent.customServices) {

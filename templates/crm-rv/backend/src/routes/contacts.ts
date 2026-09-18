@@ -7,6 +7,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
+import sms from '../services/sms.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -100,6 +101,14 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
 
   const [updated] = await db.update(contact).set({ ...data, updatedAt: new Date() }).where(eq(contact.id, id)).returning()
+
+  // If the contact's texting number changed, keep their SMS thread with them (Kenect-proofing).
+  const oldNum = existing.mobile || existing.phone
+  const newNum = updated.mobile || updated.phone
+  if (newNum && newNum !== oldNum) {
+    try { await sms.handleContactNumberChanged(currentUser.companyId, updated.id, newNum) } catch { /* best-effort */ }
+  }
+
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, updated)
   const changes = audit.diff(existing, updated)
   if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c.req })

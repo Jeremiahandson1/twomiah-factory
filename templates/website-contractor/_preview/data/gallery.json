@@ -1,0 +1,93 @@
+[
+  {
+    "id": "p1",
+    "title": "Complete Roof Replacement",
+    "category": "Roofing",
+    "description": "Full tear-off and replacement with architectural shingles. Completed in one day with full cleanup.",
+    "location": "Fort Collins, CO",
+    "featured": true,
+    "images": [],
+    "featured_image": "/images/services/asphalt-shingles.jpg",
+    "tags": [
+      "roofing",
+      "shingles"
+    ],
+    "createdAt": "2026-01-15T00:00:00Z"
+  },
+  {
+    "id": "p2",
+    "title": "Vinyl Siding Installation",
+    "category": "Siding",
+    "description": "Complete siding replacement with insulated vinyl. Includes new soffit, fascia, and seamless gutters.",
+    "location": "Loveland, CO",
+    "featured": true,
+    "images": [],
+    "featured_image": "/images/services/entry-doors.jpg",
+    "tags": [
+      "siding",
+      "vinyl"
+    ],
+    "createdAt": "2026-01-10T00:00:00Z"
+  },
+  {
+    "id": "p3",
+    "title": "Energy-Efficient Window Upgrade",
+    "category": "Windows & Doors",
+    "description": "Replaced 14 original windows with triple-pane energy-efficient models. Noticeable reduction in heating costs.",
+    "location": "Fort Collins, CO",
+    "featured": true,
+    "images": [],
+    "featured_image": "/images/services/fiber-cement.jpg",
+    "tags": [
+      "windows",
+      "energy-efficiency"
+    ],
+    "createdAt": "2026-01-05T00:00:00Z"
+  },
+  {
+    "id": "p4",
+    "title": "Storm Damage Restoration",
+    "category": "Roofing",
+    "description": "Insurance-backed roof and gutter restoration after severe hail damage. Coordinated directly with the adjuster.",
+    "location": "Windsor, CO",
+    "featured": true,
+    "images": [],
+    "featured_image": "/images/services/gutter-guards.jpg",
+    "tags": [
+      "roofing",
+      "storm-damage",
+      "insurance"
+    ],
+    "createdAt": "2025-12-20T00:00:00Z"
+  },
+  {
+    "id": "p5",
+    "title": "Metal Roof Installation",
+    "category": "Roofing",
+    "description": "Hidden-fastener standing seam metal roof with seamless gutters. Designed for maximum longevity and curb appeal.",
+    "location": "Timnath, CO",
+    "featured": true,
+    "images": [],
+    "featured_image": "/images/services/gutters-hero.jpg",
+    "tags": [
+      "roofing",
+      "metal"
+    ],
+    "createdAt": "2025-12-15T00:00:00Z"
+  },
+  {
+    "id": "p6",
+    "title": "Full Exterior Remodel",
+    "category": "Siding",
+    "description": "New fiber cement siding, entry door, trim work, and soffit. Complete exterior transformation.",
+    "location": "Fort Collins, CO",
+    "featured": true,
+    "images": [],
+    "featured_image": "/images/services/metal-roofing.jpg",
+    "tags": [
+      "siding",
+      "remodeling"
+    ],
+    "createdAt": "2025-12-10T00:00:00Z"
+  }
+]

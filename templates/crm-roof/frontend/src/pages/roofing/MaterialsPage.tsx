@@ -43,7 +43,7 @@ export default function MaterialsPage() {
       if (dateFrom) params.set('dateFrom', dateFrom);
       if (dateTo) params.set('dateTo', dateTo);
 
-      const res = await fetch(`/api/material-orders?${params}`, { headers });
+      const res = await fetch(`/api/materials?${params}`, { headers });
       const data = await res.json();
       const items = Array.isArray(data) ? data : data.data || [];
       setOrders(items);

@@ -14,9 +14,24 @@ import { smsConversation, smsMessage, smsTemplate, contact, company, job, user }
 import { eq, and, or, ilike, desc, asc, count, sum, sql, gt } from 'drizzle-orm'
 import twilio from 'twilio'
 
-// Initialize Twilio client
+// Initialize the platform Twilio client (fallback)
 const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
 const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER
+
+// Resolve the Twilio client + from-number for a company. Dealer-owned FIRST: if the
+// company has its OWN Twilio account creds, the number lives on THEIR account — they
+// own it and can port it out anytime (Kenect-proofing: never hold a dealer's number
+// hostage). Otherwise fall back to the platform account + the dealer's provisioned number.
+async function getCompanyTexting(companyId: string): Promise<{ client: any; from?: string; owned: boolean }> {
+  const [comp] = await db
+    .select({ settings: company.settings, twilioPhoneNumber: company.twilioPhoneNumber })
+    .from(company).where(eq(company.id, companyId)).limit(1)
+  const t = (((comp?.settings as any) || {}).twilio) || {}
+  if (t.accountSid && t.authToken && t.phoneNumber) {
+    return { client: twilio(t.accountSid, t.authToken), from: t.phoneNumber, owned: true }
+  }
+  return { client: twilioClient, from: t.phoneNumber || comp?.twilioPhoneNumber || TWILIO_PHONE, owned: false }
+}
 
 // ============================================
 // SENDING MESSAGES
@@ -43,11 +58,12 @@ export async function sendSMS(
     templateId?: string
   }
 ) {
-  // Get contact phone if not provided
+  // Get contact phone if not provided — prefer the mobile (texting) number.
   if (!toPhone && contactId) {
     const [contactRow] = await db.select().from(contact).where(eq(contact.id, contactId))
-    if (!contactRow?.phone) throw new Error('Contact has no phone number')
-    toPhone = contactRow.phone
+    const num = resolveTextingNumber(contactRow || {})
+    if (!num) throw new Error('Contact has no phone number')
+    toPhone = num
   }
 
   if (!toPhone) throw new Error('Phone number required')
@@ -78,10 +94,11 @@ export async function sendSMS(
   let errorMessage: string | null = null
 
   try {
-    twilioResponse = await twilioClient.messages.create({
+    const { client, from } = await getCompanyTexting(companyId)
+    twilioResponse = await client.messages.create({
       body: message,
       to: formattedPhone,
-      from: TWILIO_PHONE,
+      from,
       statusCallback: `${process.env.API_BASE_URL}/api/sms/webhook/status`,
     })
   } catch (error: any) {
@@ -317,6 +334,83 @@ export async function linkToContact(conversationId: string, companyId: string, c
     .update(smsConversation)
     .set({ contactId })
     .where(and(eq(smsConversation.id, conversationId), eq(smsConversation.companyId, companyId)))
+}
+
+// ============================================
+// TEXTING CONFIG (dealer-owned number) + NUMBER CONTINUITY  (Kenect-proofing)
+// ============================================
+
+/** The number we text a contact on: prefer mobile, then phone. */
+export function resolveTextingNumber(c: { mobile?: string | null; phone?: string | null }): string | null {
+  return (c.mobile && c.mobile.trim()) || (c.phone && c.phone.trim()) || null
+}
+
+/** Public texting config — never returns the auth token. */
+export async function getTextingConfig(companyId: string) {
+  const [comp] = await db
+    .select({ settings: company.settings, twilioPhoneNumber: company.twilioPhoneNumber })
+    .from(company).where(eq(company.id, companyId)).limit(1)
+  const t = (((comp?.settings as any) || {}).twilio) || {}
+  return {
+    phoneNumber: t.phoneNumber || comp?.twilioPhoneNumber || null,
+    ownsNumber: !!(t.accountSid && t.authToken), // BYO Twilio account = dealer owns & can port the number out
+    hasCredentials: !!(t.accountSid && t.authToken),
+  }
+}
+
+/** Save texting config. Providing account creds makes the number dealer-owned/portable. */
+export async function saveTextingConfig(
+  companyId: string,
+  { phoneNumber, accountSid, authToken }: { phoneNumber?: string; accountSid?: string; authToken?: string },
+) {
+  const [comp] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  const settings = ((comp?.settings as any) || {})
+  const prev = settings.twilio || {}
+  settings.twilio = {
+    ...prev,
+    phoneNumber: phoneNumber !== undefined ? (phoneNumber ? formatPhoneNumber(phoneNumber) : null) : (prev.phoneNumber ?? null),
+    ...(accountSid !== undefined ? { accountSid: accountSid || undefined } : {}),
+    ...(authToken !== undefined ? { authToken: authToken || undefined } : {}),
+  }
+  await db.update(company).set({ settings, twilioPhoneNumber: settings.twilio.phoneNumber || null }).where(eq(company.id, companyId))
+  return getTextingConfig(companyId)
+}
+
+/**
+ * Keep a contact's conversation thread WITH THEM when their texting number changes.
+ * Kenect's #1 documented failure is that a number change orphans the thread across two
+ * systems. Because our contact + thread live in one DB, we re-point (or merge) the
+ * conversation onto the new number and keep every message. Best-effort, never throws up.
+ */
+export async function handleContactNumberChanged(companyId: string, contactId: string, newNumberRaw: string) {
+  const newNumber = formatPhoneNumber(newNumberRaw)
+  const convos = await db.select().from(smsConversation)
+    .where(and(eq(smsConversation.companyId, companyId), eq(smsConversation.contactId, contactId)))
+  if (convos.length === 0) return { ok: true, moved: 0 }
+
+  // Single surviving thread: an existing conversation already on the new number, else
+  // the first stale one re-pointed. All others merge into it (no duplicate-number threads).
+  const [existingNew] = await db.select().from(smsConversation)
+    .where(and(eq(smsConversation.companyId, companyId), eq(smsConversation.phoneNumber, newNumber))).limit(1)
+  let target: any = existingNew || null
+  let moved = 0
+
+  for (const conv of convos) {
+    if (target && conv.id === target.id) continue
+    if (conv.phoneNumber === newNumber && !target) { target = conv; continue }
+    if (target) {
+      await db.update(smsMessage).set({ conversationId: target.id }).where(eq(smsMessage.conversationId, conv.id))
+      await db.delete(smsConversation).where(eq(smsConversation.id, conv.id))
+    } else {
+      await db.update(smsConversation).set({ phoneNumber: newNumber }).where(eq(smsConversation.id, conv.id))
+      target = { ...conv, phoneNumber: newNumber }
+    }
+    moved++
+  }
+  if (target && !target.contactId) {
+    await db.update(smsConversation).set({ contactId }).where(eq(smsConversation.id, target.id))
+  }
+  return { ok: true, moved }
 }
 
 // ============================================
@@ -609,6 +703,10 @@ export default {
   getConversation,
   archiveConversation,
   linkToContact,
+  resolveTextingNumber,
+  getTextingConfig,
+  saveTextingConfig,
+  handleContactNumberChanged,
   createTemplate,
   getTemplates,
   updateTemplate,

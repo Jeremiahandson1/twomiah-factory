@@ -17,6 +17,7 @@ import InvoicesPage from './pages/roofing/InvoicesPage'
 import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
+import FeaturesPage from './pages/settings/FeaturesPage'
 import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
 import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
@@ -102,6 +103,7 @@ export default function App() {
                 <Route path="invoices" element={<InvoicesPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="settings/features" element={<FeaturesPage />} />
                 <Route path="canvassing" element={<CanvassingDashboard />} />
                 <Route path="storm-leads" element={<StormLeadsPage />} />
                 <Route path="leads" element={<LeadInboxPage />} />

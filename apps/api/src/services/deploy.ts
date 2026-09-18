@@ -785,6 +785,7 @@ export async function deployCustomer(
   const isDispensary = vertical === 'dispensary'
   const isRv = vertical === 'rv' // RV + powersports dealership CRM
   const isVet = vertical === 'veterinary' // veterinary practice CRM
+  const isStore = vertical === 'store' // e-commerce: crm-store back-office + website-store storefront
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')
@@ -839,7 +840,7 @@ export async function deployCustomer(
     let dbConnectionString: string | null = null
     let supabaseProject: SupabaseProjectResult | null = null
     if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
-      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : slug
+      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isStore ? slug + '-shop' : slug
 
       if (isSupabaseManagementConfigured()) {
         // ── Dedicated Supabase project per customer ──
@@ -929,7 +930,7 @@ export async function deployCustomer(
       results.steps.push({ step: 'r2_bucket', status: 'skipped', reason: 'no products require file storage' })
     } else {
       try {
-        const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : slug
+        const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isStore ? slug + '-shop' : slug
         r2BucketName = await createR2Bucket(bucketSlug)
         createdResources.push({ type: 'r2_bucket', id: r2BucketName })
         r2EnvVars = getR2EnvVars(r2BucketName)
@@ -972,7 +973,8 @@ export async function deployCustomer(
     if (replicateToken) integrationEnvVars.push({ key: 'REPLICATE_API_TOKEN', value: replicateToken })
 
     // Pre-compute visualizer flag so we can include VISION_URL in initial env vars for both CRM and website
-    const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')
+    // Visualizer/estimator are contractor/roofing-only add-ons — never for a store.
+    const hasVisualizerFeature = !isStore && (products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer'))
     const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
 
     // Step 5 & 6: CRM backend + frontend
@@ -1011,9 +1013,19 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isStore ? slug + '-shop-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isStore ? slug + '-shop' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isStore ? 'crm-store' : 'crm'
+
+        // crm-store needs its own back-office URL for the merchant-facing webhook
+        // setup screen. STOREFRONT_ORIGIN/URL are set later (Step 7) once the
+        // storefront service exists.
+        if (isStore) {
+          backendEnvVars.push({ key: 'BACKEND_URL', value: 'https://' + crmApiName + '.onrender.com' })
+          // From address for the store's transactional order emails (verified domain).
+          const storeFromEmail = process.env.FACTORY_FROM_EMAIL || ''
+          if (storeFromEmail) backendEnvVars.push({ key: 'FACTORY_FROM_EMAIL', value: storeFromEmail })
+        }
 
         // QuickBooks: factory-level credentials flow to each tenant CRM; the redirect
         // URI is the tenant's own backend host (must also be registered in the Intuit app).
@@ -1141,7 +1153,8 @@ export async function deployCustomer(
       }
     }
 
-    // Step 7: Website service
+    // Step 7: Website service (EJS server-static — same path for the store, whose
+    // storefront is a normal EJS site that reads its catalog from crm-store).
     if (products.includes('website')) {
       try {
         await findAndDeleteRenderService(slug + '-site')
@@ -1206,6 +1219,8 @@ export async function deployCustomer(
             { key: 'TENANT_SLUG', value: slug },
             ...r2EnvVars,
         ]
+        // Store storefront reads its catalog + checkout from the crm-store backend PUBLIC API.
+        if (isStore && results.apiUrl) siteEnvVars.push({ key: 'CRM_STORE_API_URL', value: results.apiUrl })
         // AI sales chatbot on the public site calls Claude directly.
         if (process.env.ANTHROPIC_API_KEY) siteEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
         if (siteDbConnectionString) {
@@ -1263,7 +1278,7 @@ export async function deployCustomer(
         if (hasVisualizerFeature) {
           siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
-        const hasEstimatorFeature = (factoryCustomer.config?.features?.crm || []).includes('instant_estimator') || (factoryCustomer.config?.features?.website || []).includes('instant_estimator')
+        const hasEstimatorFeature = !isStore && ((factoryCustomer.config?.features?.crm || []).includes('instant_estimator') || (factoryCustomer.config?.features?.website || []).includes('instant_estimator'))
         if (hasEstimatorFeature) {
           siteEnvVars.push({ key: 'HAS_ESTIMATOR', value: 'true' })
         }
@@ -1343,6 +1358,14 @@ export async function deployCustomer(
             siteEnvUpdates.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
           }
           if (siteEnvUpdates.length > 0) await updateRenderEnvVars(siteSvc.id, siteEnvUpdates)
+        }
+        // Store: point the crm-store backend's checkout redirect + CORS origin at
+        // the real storefront URL now that it exists.
+        if (isStore && siteUrl && results.services.backend?.id) {
+          await updateRenderEnvVars(results.services.backend.id, [
+            { key: 'STOREFRONT_ORIGIN', value: siteUrl },
+            { key: 'STOREFRONT_URL', value: siteUrl },
+          ])
         }
       } catch (err: any) {
         results.steps.push({ step: 'render_site', status: 'error', error: err.message })

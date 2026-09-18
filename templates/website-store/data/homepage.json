@@ -1,0 +1,62 @@
+{
+  "hero": {
+    "tagline": "SHOP {{COMPANY_NAME_UPPER}}",
+    "title": "{{COMPANY_NAME}}",
+    "subtitle": "Quality products, delivered.",
+    "description": "Discover {{COMPANY_NAME}} — quality products with fast shipping and secure checkout.",
+    "image": "",
+    "animation": "ken-burns",
+    "primaryButtonText": "Shop Now",
+    "primaryButtonLink": "/shop",
+    "secondaryButtonText": "Learn More",
+    "secondaryButtonLink": "/about"
+  },
+  "trustBadges": [
+    {
+      "id": "shipping",
+      "type": "custom",
+      "label": "Fast, Reliable Shipping",
+      "icon": "home",
+      "enabled": true
+    },
+    {
+      "id": "secure",
+      "type": "custom",
+      "label": "Secure Checkout",
+      "icon": "shield",
+      "enabled": true
+    },
+    {
+      "id": "returns",
+      "type": "custom",
+      "label": "Easy Returns",
+      "icon": "check",
+      "enabled": true
+    }
+  ],
+  "ctaSection": {
+    "title": "Ready to shop?",
+    "description": "Browse our full collection and check out securely in seconds.",
+    "primaryButtonText": "Shop Now",
+    "primaryButtonLink": "/shop",
+    "secondaryButtonText": "Contact Us",
+    "secondaryButtonLink": "/contact",
+    "backgroundImage": ""
+  },
+  "serviceAreas": [
+    "{{CITY}}",
+    "{{NEARBY_CITY_1}}",
+    "{{NEARBY_CITY_2}}",
+    "{{NEARBY_CITY_3}}",
+    "{{NEARBY_CITY_4}}"
+  ],
+  "businessHours": {
+    "monday": { "open": "9:00 AM", "close": "5:00 PM", "closed": false },
+    "tuesday": { "open": "9:00 AM", "close": "5:00 PM", "closed": false },
+    "wednesday": { "open": "9:00 AM", "close": "5:00 PM", "closed": false },
+    "thursday": { "open": "9:00 AM", "close": "5:00 PM", "closed": false },
+    "friday": { "open": "9:00 AM", "close": "5:00 PM", "closed": false },
+    "saturday": { "open": "10:00 AM", "close": "3:00 PM", "closed": false },
+    "sunday": { "open": "Closed", "close": "Closed", "closed": true }
+  }
+}

@@ -48,14 +48,11 @@ export default function ContactsPage() {
     setSelected(contact);
     setDetailTab('info');
     try {
-      const [jobsRes, smsRes] = await Promise.all([
-        fetch(`/api/contacts/${contact.id}/jobs`, { headers }).catch(() => null),
-        fetch(`/api/contacts/${contact.id}/sms`, { headers }).catch(() => null),
-      ]);
-      const jobsData = jobsRes ? await jobsRes.json() : [];
-      const smsData = smsRes ? await smsRes.json() : [];
-      setContactJobs(Array.isArray(jobsData) ? jobsData : jobsData.data || []);
-      setSmsThread(Array.isArray(smsData) ? smsData : smsData.data || []);
+      // Jobs + SMS thread come back inside GET /api/contacts/:id (there is no /:id/jobs or /:id/sms route)
+      const res = await fetch(`/api/contacts/${contact.id}`, { headers });
+      const detail = res.ok ? await res.json() : {};
+      setContactJobs(Array.isArray(detail.jobs) ? detail.jobs : []);
+      setSmsThread(Array.isArray(detail.smsThread) ? detail.smsThread : []);
     } catch {
       setContactJobs([]);
       setSmsThread([]);

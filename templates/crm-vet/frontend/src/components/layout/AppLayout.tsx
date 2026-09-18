@@ -30,7 +30,7 @@ interface NavItem {
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
 // Items with `features` show if ANY listed feature is enabled.
-const ALL_NAV_ITEMS: NavItem[] = [
+export const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
   { to: '/crm/patients', icon: PawPrint, label: 'Patients', features: ['patient_records'] },
   { to: '/crm/appointments', icon: Calendar, label: 'Appointments', features: ['appointment_scheduling'] },

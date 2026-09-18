@@ -1,41 +1,60 @@
 /**
- * Curated fallback "fill library" for service-card images.
+ * Curated fallback "fill library" for service-card + hero images.
  *
- * The AI composer (contentGenerator.generateWebsiteContent) leaves
- * GeneratedService.image empty, and Unsplash+ search (searchStockPhotosForBusiness)
- * returns nothing unless an Unsplash key is configured. This library is the
- * no-API fallback so service cards are never blank: keyed by industry token,
- * with GENERIC as the catch-all.
+ * The AI composer (contentGenerator.generateWebsiteContent) leaves image fields
+ * empty. This library is the no-API baseline so cards and heroes are NEVER
+ * blank — real, on-brand stock per vertical, verified by eye.
  *
- * IMPORTANT — this is a STARTER. The shipped per-template build/images/services/*
- * are all contractor/roofing photos (cloned, never re-shot), so they're wrong for
- * non-contractor verticals. Expand the arrays below with on-brand stock per
- * vertical (or configure an Unsplash key to auto-source). URLs are Unsplash direct
- * CDN (no API key needed) sized for cards.
+ * SELF-HOSTED: the actual files live in templates/_shared/service-images/ and are
+ * copied into every generated site's build/images/services/ at generation (see
+ * fillWebsiteImages in generator.ts). Each site therefore serves its own images
+ * from its own domain — no external Unsplash/CDN dependency, and the customer
+ * truly owns their site. These paths must match the filenames in that folder.
  */
-const SZ = '?auto=format&fit=crop&w=900&q=70'
+const p = (name: string) => '/images/services/' + name
 
 export const SERVICE_IMAGE_LIBRARY: Record<string, string[]> = {
-  // rv / powersports / marine — verified marine hero used on the Zacho demo.
-  rv: [
-    'https://images.unsplash.com/photo-1605281317010-fe5ffe798166' + SZ,
-    'https://images.unsplash.com/photo-1568438350562-2cae6d394ad0' + SZ,
-    'https://images.unsplash.com/photo-1558981403-c5f9899a28bc' + SZ,
-  ],
+  roofing: [p('roofing-0.jpg'), p('roofing-1.jpg'), p('roofing-2.jpg'), p('roofing-3.jpg')],
+  contractor: [p('contractor-0.jpg'), p('contractor-1.jpg'), p('contractor-2.jpg')],
+  fieldservice: [p('fieldservice-0.jpg'), p('fieldservice-1.jpg'), p('fieldservice-2.jpg')],
+  homecare: [p('homecare-0.jpg'), p('homecare-1.jpg'), p('homecare-2.jpg')],
+  landscaping: [p('landscaping-0.jpg'), p('landscaping-1.jpg'), p('landscaping-2.jpg')],
+  dispensary: [p('dispensary-0.jpg'), p('dispensary-1.jpg'), p('dispensary-2.jpg')],
+  veterinary: [p('veterinary-0.jpg'), p('veterinary-1.jpg')],
+  foodtruck: [p('foodtruck-0.jpg'), p('foodtruck-1.jpg'), p('foodtruck-2.jpg')],
+  rv: [p('rv-0.jpg'), p('rv-1.jpg'), p('rv-2.jpg')],
+  // E-commerce / retail storefronts (clean apparel-boutique interiors).
+  store: [p('store-0.jpg'), p('store-1.jpg'), p('store-2.jpg')],
   // GENERIC professional-service fallback (used for any unmapped industry).
-  GENERIC: [
-    'https://images.unsplash.com/photo-1521791136064-7986c2920216' + SZ,
-    'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab' + SZ,
-    'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40' + SZ,
-  ],
-  // TODO: populate per vertical with verified on-brand photos.
-  general_contractor: [], roofing: [], field_service: [], hvac: [],
-  home_care: [], landscaping: [], dispensary: [], veterinary: [], food: [],
+  GENERIC: [p('GENERIC-0.jpg'), p('GENERIC-1.jpg'), p('GENERIC-2.jpg')],
 }
 
-/** Returns a fallback image URL for a service by industry + index, or '' if none. */
+// Map any intake industry value → a canonical library key above. Keeps the
+// dropdown's many trade values pointed at the right photo set instead of GENERIC.
+const INDUSTRY_ALIAS: Record<string, string> = {
+  general_contractor: 'contractor', remodeler: 'contractor', painter: 'contractor',
+  concrete: 'contractor', flooring: 'contractor', construction: 'contractor', builder: 'contractor',
+  hvac: 'fieldservice', plumbing: 'fieldservice', plumber: 'fieldservice',
+  electrical: 'fieldservice', electrician: 'fieldservice', field_service: 'fieldservice', appliance_repair: 'fieldservice',
+  home_care: 'homecare', healthcare: 'homecare', senior_care: 'homecare',
+  lawn_care: 'landscaping', lawncare: 'landscaping', landscape_design: 'landscaping', snow_removal: 'landscaping',
+  cannabis: 'dispensary', cannabis_retail: 'dispensary',
+  vet: 'veterinary', veterinarian: 'veterinary', vet_clinic: 'veterinary', animal_hospital: 'veterinary',
+  food: 'foodtruck', food_truck: 'foodtruck', restaurant: 'foodtruck', cafe: 'foodtruck',
+  rv_dealer: 'rv', powersports: 'rv', marine: 'rv',
+  // E-commerce / retail → store set (mirrors STORE_INDUSTRIES in industryRouting).
+  ecommerce: 'store', e_commerce: 'store', retail: 'store', online_store: 'store',
+  online_shop: 'store', boutique: 'store', shop: 'store', storefront: 'store',
+  clothing: 'store', apparel: 'store', fashion: 'store', merch: 'store',
+  merchandise: 'store', goods: 'store', products: 'store', print_on_demand: 'store',
+  dropshipping: 'store', dropship: 'store', handmade: 'store', crafts: 'store',
+  jewelry: 'store', accessories: 'store', cosmetics_retail: 'store',
+}
+
+/** Returns a fallback image URL for a service/hero by industry + index, or '' if none. */
 export function getServiceImage(industry: string, i: number): string {
-  const key = (industry || '').toLowerCase().replace(/\s+/g, '_')
+  const raw = (industry || '').toLowerCase().replace(/[\s-]+/g, '_')
+  const key = SERVICE_IMAGE_LIBRARY[raw] ? raw : (INDUSTRY_ALIAS[raw] || raw)
   const set = (SERVICE_IMAGE_LIBRARY[key]?.length ? SERVICE_IMAGE_LIBRARY[key] : SERVICE_IMAGE_LIBRARY.GENERIC) || []
   return set.length ? set[i % set.length] : ''
 }

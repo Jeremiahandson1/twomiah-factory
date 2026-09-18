@@ -3,7 +3,7 @@
 const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
-const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
+const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : [...new Set(['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'].map(s => s.trim()).filter(Boolean))];
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
 
 // Settings with fallbacks
@@ -48,6 +48,7 @@ function getImageUrl(p) {
       <div class="hero-line"></div>
       <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR TRUSTED LOCAL PROFESSIONALS' %></strong></p>
       <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship' %></p>
+      <p class="hero-google-rating"><span class="stars">★★★★★</span>Rated 5.0 on Google</p>
       <div class="hero-buttons">
         <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
           <%= hero.primaryButtonText || 'Request Free Estimate' %>
@@ -114,7 +115,7 @@ function getImageUrl(p) {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
           <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve homeowners across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and the surrounding communities. As a local company, we're already here — not driving in from out of town.</p>
+          <p>Based in {{CITY}}, we serve homeowners across {{SERVICE_AREAS}}. As a local company, we're already here — not driving in from out of town.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
@@ -127,28 +128,77 @@ function getImageUrl(p) {
     </div>
   </section>
 
-  <!-- Testimonials Section (static grid — reliable, no carousel JS dependency) -->
+  <!-- Testimonials Section (carousel — matches Claflin reference; JS wired below) -->
   <% if (typeof testimonials !== 'undefined' && testimonials && testimonials.length > 0) { %>
-    <section class="testimonials-section" style="padding: 72px 0; background: var(--darker-bg, #111);">
+    <section class="testimonials-section">
       <div class="container">
         <h2>What Our Customers Say</h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 44px;">
-          <% testimonials.slice(0, 3).forEach(function(testimonial) { %>
-            <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-top: 3px solid var(--gold, #E67A22); border-radius: 10px; padding: 30px;">
-              <div style="color: var(--gold, #E67A22); font-size: 18px; letter-spacing: 3px; margin-bottom: 16px;"><%= '★'.repeat(testimonial.rating || 5) %></div>
-              <blockquote style="margin: 0 0 20px; color: rgba(255,255,255,0.82); font-size: 15.5px; line-height: 1.65; font-style: italic;">&ldquo;<%= testimonial.text %>&rdquo;</blockquote>
-              <div style="color: #fff; font-weight: 700;"><%= testimonial.author || testimonial.name %></div>
-              <% if (testimonial.role || testimonial.location) { %><div style="color: rgba(255,255,255,0.5); font-size: 13.5px; margin-top: 2px;"><%= testimonial.role || testimonial.location %></div><% } %>
+        <div class="testimonial-slider">
+          <% testimonials.forEach(function(testimonial, index) { %>
+            <div class="testimonial-card <%= index === 0 ? 'active' : '' %>" data-index="<%= index %>">
+              <div class="testimonial-content">
+                <div class="testimonial-stars">
+                  <%= '★'.repeat(testimonial.rating || 5) %>
+                </div>
+                <blockquote>"<%= testimonial.text %>"</blockquote>
+                <div class="testimonial-author">
+                  <% if (testimonial.image) { %>
+                    <img src="<%= getImageUrl(testimonial.image) %>" alt="<%= testimonial.author || testimonial.name %>">
+                  <% } %>
+                  <div>
+                    <strong><%= testimonial.author || testimonial.name %></strong>
+                    <% if (testimonial.location || testimonial.role) { %>
+                      <span><%= testimonial.location || testimonial.role %></span>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
             </div>
           <% }); %>
         </div>
+        <% if (testimonials.length > 1) { %>
+          <div class="testimonial-dots">
+            <% testimonials.forEach(function(_, i) { %>
+              <button
+                class="<%= i === 0 ? 'active' : '' %>"
+                data-index="<%= i %>"
+                aria-label="Testimonial <%= i + 1 %>"
+              ></button>
+            <% }); %>
+          </div>
+        <% } %>
       </div>
     </section>
   <% } %>
 
-  <!-- Featured Projects section removed: contractor-clone leftover (gallery/"projects"
-       with placeholder images), not relevant for an RV/powersports dealer. -->
-  <% if (false) { %><% } %>
+  <!-- Featured Projects -->
+  <% if (typeof featuredProjects !== 'undefined' && featuredProjects && featuredProjects.length > 0) { %>
+    <section class="featured-projects-section">
+      <div class="container">
+        <h2>Recent Projects in the {{SERVICE_REGION}}</h2>
+        <div class="fp-grid">
+          <% featuredProjects.slice(0, 6).forEach(function(project) { %>
+            <a href="/gallery/<%= project.id %>" class="fp-card animate-on-scroll">
+              <img
+                src="<%= project.featured_image || (project.images && project.images[0] ? (project.images[0].thumbnail || project.images[0].url) : '/images/project-placeholder.jpg') %>"
+                alt="<%= project.title %> - <%= project.category || 'Construction' %> project in <%= project.location || '{{CITY}}' %>, {{STATE}}"
+                loading="lazy"
+                width="400"
+                height="300"
+              >
+              <div class="fp-overlay">
+                <h3><%= project.title %></h3>
+                <span><%= project.category %></span>
+              </div>
+            </a>
+          <% }); %>
+        </div>
+        <div style="text-align: center; margin-top: 2rem;">
+          <a href="/gallery" class="btn btn-outline">View All Projects</a>
+        </div>
+      </div>
+    </section>
+  <% } %>
 
   <!-- Visualizer CTA -->
   <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %>
@@ -344,7 +394,7 @@ function getImageUrl(p) {
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
-          <p>We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}. Our crew is local, so we're never far away.</p>
+          <p>We serve homeowners in {{SERVICE_AREAS}}. Our crew is local, so we're never far away.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>
@@ -425,6 +475,10 @@ function getImageUrl(p) {
         <div class="contact-form-container">
           <h2>Request an Estimate</h2>
           <form id="contact-form" method="POST" action="/api/admin/leads">
+            <!-- anti-spam honeypot: hidden from people; bots that fill it are rejected server-side -->
+            <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;">
+              <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off" value=""></label>
+            </div>
             <div class="form-row">
               <div class="form-group">
                 <label for="name">Name *</label>
@@ -463,6 +517,7 @@ function getImageUrl(p) {
               <textarea id="message" name="message" rows="4" placeholder="Tell us about your project..."></textarea>
             </div>
             <div id="form-error" style="display: none; color: #dc2626; background: #fef2f2; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 0.95rem;"></div>
+            <div id="form-success" style="display: none; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; font-size: 0.98rem;"><strong>Thank you!</strong> Your request is in &mdash; we'll be in touch shortly to schedule your free estimate.</div>
             <button type="submit" class="btn btn-primary btn-lg full-width">
               Submit Request
             </button>
@@ -602,7 +657,7 @@ function getImageUrl(p) {
         "name": "What areas do you serve besides {{CITY}}?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}."
+          "text": "We serve homeowners in {{SERVICE_AREAS}}."
         }
       },
       {
@@ -686,6 +741,7 @@ function getImageUrl(p) {
         address: formData.get('address'),
         service: formData.getAll('services[]').join(', '),
         message: formData.get('message'),
+        website: formData.get('website') || '',
         source: 'homepage'
       };
       
@@ -697,7 +753,13 @@ function getImageUrl(p) {
       
       if (response.ok) {
         form.reset();
-        alert('Thank you! We\'ll be in touch soon.');
+        // Inline success panel instead of a spammy blocking alert().
+        form.style.display = 'none';
+        const successDiv = document.getElementById('form-success');
+        if (successDiv) {
+          successDiv.style.display = 'block';
+          successDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       } else {
         throw new Error('Submission failed');
       }

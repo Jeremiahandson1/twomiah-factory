@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   MessageSquare, Send, Search, Phone, User, Clock,
   Check, CheckCheck, AlertCircle, Loader2, Plus,
-  Archive, Star, MoreVertical, ArrowLeft
+  Archive, Star, MoreVertical, ArrowLeft, Settings
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -18,6 +18,11 @@ export default function MessagesPage() {
   const [search, setSearch] = useState<string>('');
   const [showNewMessage, setShowNewMessage] = useState<boolean>(false);
   const [unreadFilter, setUnreadFilter] = useState<boolean>(false);
+  const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [cfg, setCfg] = useState<any>({ phoneNumber: '', ownsNumber: false });
+  const [cfgForm, setCfgForm] = useState<any>({ phoneNumber: '', accountSid: '', authToken: '' });
+  const [cfgSaving, setCfgSaving] = useState<boolean>(false);
+  const [cfgMsg, setCfgMsg] = useState<string>('');
 
   useEffect(() => {
     loadConversations();
@@ -55,20 +60,81 @@ export default function MessagesPage() {
     }
   };
 
+  const openSettings = async () => {
+    setShowSettings(true); setCfgMsg('');
+    try {
+      const r = await api.get('/api/sms/config');
+      setCfg(r || {});
+      setCfgForm({ phoneNumber: (r as any)?.phoneNumber || '', accountSid: '', authToken: '' });
+    } catch { /* ignore */ }
+  };
+  const saveCfg = async () => {
+    setCfgSaving(true); setCfgMsg('');
+    try {
+      const body: any = { phoneNumber: cfgForm.phoneNumber };
+      if (cfgForm.accountSid) body.accountSid = cfgForm.accountSid;
+      if (cfgForm.authToken) body.authToken = cfgForm.authToken;
+      const r = await api.put('/api/sms/config', body);
+      setCfg(r || {}); setCfgForm({ phoneNumber: (r as any)?.phoneNumber || '', accountSid: '', authToken: '' });
+      setCfgMsg('Saved.');
+    } catch { setCfgMsg('Save failed.'); }
+    finally { setCfgSaving(false); }
+  };
+
   return (
     <div className="h-[calc(100vh-8rem)] flex">
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowSettings(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold flex items-center gap-2"><Settings className="w-4 h-4" /> Texting settings</h3>
+              <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">The number your texts send from. Use your <b>own Twilio account</b> to keep full ownership — you can port the number out anytime, it's never held hostage.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600">Texting number</label>
+                <input value={cfgForm.phoneNumber} onChange={(e) => setCfgForm({ ...cfgForm, phoneNumber: e.target.value })} placeholder="+1 715 555 0123" className="mt-1 w-full p-2 border rounded-lg text-sm" />
+              </div>
+              <div className="rounded-lg border p-3 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-600">Bring your own Twilio account (recommended)</span>
+                  {cfg.ownsNumber ? <span className="text-[11px] text-green-700 font-medium">✓ You own this number</span> : <span className="text-[11px] text-amber-600">on shared number</span>}
+                </div>
+                <input value={cfgForm.accountSid} onChange={(e) => setCfgForm({ ...cfgForm, accountSid: e.target.value })} placeholder="Account SID (AC…)" className="mt-2 w-full p-2 border rounded-lg text-sm" />
+                <input value={cfgForm.authToken} onChange={(e) => setCfgForm({ ...cfgForm, authToken: e.target.value })} placeholder="Auth token (leave blank to keep current)" type="password" className="mt-2 w-full p-2 border rounded-lg text-sm" />
+                <p className="text-[11px] text-gray-400 mt-1">Your token is stored securely and never shown back to anyone.</p>
+              </div>
+              {cfgMsg && <p className={`text-xs ${cfgMsg === 'Saved.' ? 'text-green-700' : 'text-red-600'}`}>{cfgMsg}</p>}
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowSettings(false)} className="px-3 py-2 rounded-lg border text-sm">Close</button>
+                <button onClick={saveCfg} disabled={cfgSaving} className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 disabled:opacity-50 inline-flex items-center gap-1.5">{cfgSaving && <Loader2 className="animate-spin w-4 h-4" />} Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Conversations List */}
       <div className={`w-80 border-r bg-white flex flex-col ${selectedConversation ? 'hidden md:flex' : 'flex'}`}>
         {/* Header */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg font-bold text-gray-900">Messages</h1>
-            <button
-              onClick={() => setShowNewMessage(true)}
-              className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={openSettings}
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
+                title="Texting settings"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setShowNewMessage(true)}
+                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

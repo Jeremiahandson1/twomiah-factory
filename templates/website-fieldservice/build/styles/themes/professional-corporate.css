@@ -15,18 +15,18 @@
   --font-heading: 'Nunito', sans-serif;
   --font-body: 'Open Sans', sans-serif;
   --border-radius: 10px;
-  --shadow-sm: 0 2px 8px rgba(22, 101, 52, 0.06);
-  --shadow: 0 4px 20px rgba(22, 101, 52, 0.08);
-  --shadow-lg: 0 8px 40px rgba(22, 101, 52, 0.12);
+  --shadow-sm: 0 2px 8px color-mix(in srgb, {{PRIMARY_COLOR}} 6%, transparent);
+  --shadow: 0 4px 20px color-mix(in srgb, {{PRIMARY_COLOR}} 8%, transparent);
+  --shadow-lg: 0 8px 40px color-mix(in srgb, {{PRIMARY_COLOR}} 12%, transparent);
   --off-white: #fafaf7;
   --warm-white: #fefdfb;
-  --forest-green: #166534;
-  --forest-green-light: #22863a;
-  --forest-green-dim: rgba(22, 101, 52, 0.08);
-  --forest-green-pale: #dcfce7;
-  --warm-amber: #d97706;
-  --warm-amber-light: #f59e0b;
-  --warm-amber-dim: rgba(217, 119, 6, 0.1);
+  --forest-green: {{PRIMARY_COLOR}};
+  --forest-green-light: color-mix(in srgb, {{PRIMARY_COLOR}} 78%, #ffffff);
+  --forest-green-dim: color-mix(in srgb, {{PRIMARY_COLOR}} 8%, transparent);
+  --forest-green-pale: color-mix(in srgb, {{PRIMARY_COLOR}} 14%, #ffffff);
+  --warm-amber: {{ACCENT_COLOR}};
+  --warm-amber-light: color-mix(in srgb, {{ACCENT_COLOR}} 80%, #ffffff);
+  --warm-amber-dim: color-mix(in srgb, {{ACCENT_COLOR}} 10%, transparent);
   --warm-gray: #78716c;
   --warm-dark: #292524;
   --warm-border: #e7e5e4;
@@ -136,7 +136,7 @@ header {
   background: var(--warm-white) !important;
   border: 1px solid var(--warm-border);
   border-radius: 10px !important;
-  box-shadow: 0 12px 40px rgba(22, 101, 52, 0.15);
+  box-shadow: 0 12px 40px color-mix(in srgb, var(--forest-green) 15%, transparent);
   padding: 8px !important;
 }
 
@@ -187,9 +187,9 @@ header {
 .hero-overlay {
   background: linear-gradient(
     160deg,
-    rgba(22, 101, 52, 0.82) 0%,
-    rgba(34, 134, 58, 0.72) 50%,
-    rgba(217, 119, 6, 0.25) 100%
+    color-mix(in srgb, var(--forest-green) 82%, transparent) 0%,
+    color-mix(in srgb, var(--forest-green-light) 72%, transparent) 50%,
+    color-mix(in srgb, var(--warm-amber) 25%, transparent) 100%
   ) !important;
 }
 
@@ -233,7 +233,7 @@ button[type="submit"] {
   transition: all 0.3s ease;
   background: var(--warm-amber);
   color: #fff;
-  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.25);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--warm-amber) 25%, transparent);
 }
 
 .btn:hover,
@@ -242,8 +242,8 @@ button[type="submit"] {
 .hero-cta:hover,
 button[type="submit"]:hover {
   transform: translateY(-2px);
-  background: #b45309;
-  box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);
+  background: color-mix(in srgb, {{ACCENT_COLOR}} 82%, #000000);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--warm-amber) 35%, transparent);
 }
 
 .btn-secondary,
@@ -264,12 +264,12 @@ button[type="submit"]:hover {
 
 .btn-sm {
   background: var(--forest-green);
-  box-shadow: 0 2px 8px rgba(22, 101, 52, 0.2);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--forest-green) 20%, transparent);
 }
 
 .btn-sm:hover {
   background: var(--forest-green-light);
-  box-shadow: 0 4px 12px rgba(22, 101, 52, 0.3);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--forest-green) 30%, transparent);
 }
 
 /* ── Cards / Service Cards ── */

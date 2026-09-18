@@ -126,6 +126,14 @@ app.get('/.well-known/security.txt', (c) => {
 app.use('/styles/*', serveStatic({ root: './build' }))
 app.use('/scripts/*', serveStatic({ root: './build' }))
 app.use('/uploads/*', serveStatic({ root: '.' }))
+// Favicon — served from the generated build/ dir. The generator writes
+// build/favicon.svg (synthesized) or build/favicon.png + favicon.ico (when the
+// customer uploaded one). serveStatic falls through to a 404 when absent.
+app.use('/favicon.svg', serveStatic({ path: './build/favicon.svg' }))
+app.use('/favicon.png', serveStatic({ path: './build/favicon.png' }))
+app.use('/favicon.ico', serveStatic({ path: './build/favicon.ico' }))
+// Synthesized logo (build/images/logo.svg) — makes og:image + any /images asset resolvable.
+app.use('/images/*', serveStatic({ root: './build' }))
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const viewsDir = path.join(__dirname, 'views')
@@ -1011,7 +1019,7 @@ app.post('/booking/:token/cancel', async (c) => {
 // Reserved top-level path segments that must never be treated as a CMS page
 // slug — they have their own routes/handlers above. Shared by the single-slug
 // and nested-slug page routes.
-const NESTED_RESERVED = ['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking', 'customize', '.well-known']
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking', 'customize', '.well-known']
 
 // Match a single top-level slug (about, services, contact, custom…).
 app.get('/:slug', async (c) => {

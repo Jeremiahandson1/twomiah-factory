@@ -132,7 +132,12 @@ function HomePage({ onFormSuccess }: { onFormSuccess: () => void }) {
   const hero = homepage?.hero || {};
   const trustBadges = homepage?.trustBadges?.filter(b => b.enabled) || [];
   const ctaSection = homepage?.ctaSection || {};
-  const serviceAreas = homepage?.serviceAreas || ['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
+  // Filter out unresolved tokens + "Nearby City N" placeholders, and dedupe — a live
+  // site must never show raw placeholder area names.
+  const serviceAreas = [...new Set(
+    (homepage?.serviceAreas || ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'])
+      .filter((a: string) => a && !/Nearby City \d|\{\{/.test(a))
+  )];
   const businessHours = homepage?.businessHours || {};
 
   return (
@@ -144,9 +149,12 @@ function HomePage({ onFormSuccess }: { onFormSuccess: () => void }) {
       >
         {hero.image ? (
           <>
-            <div 
+            <img
               className={`hero-bg animation-${hero.animation || 'none'}`}
-              style={{ backgroundImage: `url(${getImageUrl(hero.image)})` }}
+              src={getImageUrl(hero.image)}
+              alt=""
+              fetchPriority="high"
+              decoding="async"
             />
             <div className="hero-overlay"></div>
           </>

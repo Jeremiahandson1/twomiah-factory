@@ -1,0 +1,60 @@
+<%
+  // Banner hero: the customer supplies a designed banner graphic (flyer,
+  // promo art) that IS the hero. Rendered whole — never cropped, no
+  // overlay text competing with the artwork. Optional CTAs sit below.
+  //
+  // data.background: set it to the artwork's own background color and the
+  // banner blends into a seamless full-width masthead instead of floating
+  // as a framed image. Secondary CTA renders ghost-style on a dark
+  // background, outline-style on the default paper.
+  // data.mobile: { eyebrow?, title, subtitle? } — banner artwork shrinks
+  // unreadably on phones, so when mobile text is provided the image hides
+  // under 640px and a native-text hero with the same message shows instead.
+  // data: { image, alt, title?, background?, mobile?, primaryCta?, secondaryCta? }
+  const image = data.image || ''
+  const alt = data.alt || ''
+  const title = data.title || (settings && settings.companyName) || ''
+  const background = data.background || ''
+  const mobile = data.mobile && data.mobile.title ? data.mobile : null
+  const primaryCta = data.primaryCta || null
+  const secondaryCta = data.secondaryCta || null
+  const secondaryClass = background ? 'btn--ghost' : 'btn--outline'
+  if (!image) return
+%>
+<section class="hero hero--banner<%= mobile ? ' hero--banner-has-mobile' : '' %>"<% if (background) { %> style="background: <%= background %>"<% } %>>
+  <style>
+    .hero--banner { padding: 0 0 56px; }
+    .hero--banner .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .hero-banner__img { width: 100%; max-width: 1080px; height: auto; display: block; margin: 0 auto; }
+    .hero--banner:not([style]) { padding-top: 28px; }
+    .hero--banner:not([style]) .hero-banner__img { border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); }
+    .hero--banner .hero__ctas { justify-content: center; margin-top: 8px; }
+    .hero-banner__mobile { display: none; }
+    @media (max-width: 640px) {
+      .hero--banner .hero__ctas { flex-direction: column; align-items: stretch; }
+      .hero--banner .hero__ctas .btn { width: 100%; }
+      .hero--banner-has-mobile .hero-banner__img { display: none; }
+      .hero--banner-has-mobile .hero-banner__mobile { display: block; text-align: center; padding: 48px 0 28px; color: var(--white); }
+      .hero-banner__mobile-eyebrow { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--cta, var(--accent)); font-weight: 600; margin-bottom: 14px; }
+      .hero-banner__mobile-title { font-family: 'Bebas Neue', 'Inter', system-ui, sans-serif; font-size: clamp(38px, 11vw, 52px); line-height: 1.05; margin: 0 0 14px; }
+      .hero-banner__mobile-subtitle { font-size: 16px; line-height: 1.5; color: rgba(255,255,255,0.85); margin: 0 0 8px; }
+    }
+  </style>
+  <div class="container">
+    <% if (mobile) { %>
+      <div class="hero-banner__mobile" aria-hidden="false">
+        <% if (mobile.eyebrow) { %><div class="hero-banner__mobile-eyebrow"><%= mobile.eyebrow %></div><% } %>
+        <div class="hero-banner__mobile-title"><%= mobile.title %></div>
+        <% if (mobile.subtitle) { %><p class="hero-banner__mobile-subtitle"><%= mobile.subtitle %></p><% } %>
+      </div>
+    <% } %>
+    <% if (title) { %><h1 class="sr-only"><%= title %></h1><% } %>
+    <img class="hero-banner__img" src="<%= image %>" alt="<%= alt %>" fetchpriority="high">
+    <% if (primaryCta || secondaryCta) { %>
+      <div class="hero__ctas">
+        <% if (primaryCta) { %><a class="btn btn--primary btn--xl" href="<%= primaryCta.href || '#contact' %>"><%= primaryCta.label %></a><% } %>
+        <% if (secondaryCta) { %><a class="btn <%= secondaryClass %> btn--xl" href="<%= secondaryCta.href || '#services' %>"><%= secondaryCta.label %></a><% } %>
+      </div>
+    <% } %>
+  </div>
+</section>

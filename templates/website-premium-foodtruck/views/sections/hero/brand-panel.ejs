@@ -1,0 +1,108 @@
+<%
+  // Brand-panel hero: a customer's flyer/banner content rebuilt as native
+  // HTML — headline, tagline, CTAs, trust badges, a feature grid, and a
+  // full-width contact band. Crisp at every viewport, unlike a bitmap.
+  //
+  // data: {
+  //   background?,                      // panel color (defaults to --brand)
+  //   eyebrow?, title, tagline?, subtitle?,
+  //   primaryCta?, secondaryCta?,
+  //   badges?: [string],                // check-mark trust row
+  //   features?: [{ icon, title, text }],  // icon: pin|plug|calendar|people|truck|stall|check|phone
+  //   contactBar?: { label, phone }     // gold full-width band
+  // }
+  const background = data.background || 'var(--brand)'
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || ''
+  const tagline = data.tagline || ''
+  const subtitle = data.subtitle || ''
+  const primaryCta = data.primaryCta || null
+  const secondaryCta = data.secondaryCta || null
+  const badges = Array.isArray(data.badges) ? data.badges : []
+  const features = Array.isArray(data.features) ? data.features.filter(f => f && f.title) : []
+  const contactBar = data.contactBar && data.contactBar.phone ? data.contactBar : null
+  if (!title) return
+
+  const ICONS = {
+    pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
+    plug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-4"/><path d="M7 8v4a5 5 0 0 0 10 0V8"/><path d="M9 2v6"/><path d="M15 2v6"/></svg>',
+    calendar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></svg>',
+    people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+    truck: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+    stall: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/><path d="M5 13v8h14v-8"/><path d="M9 21v-5h6v5"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/></svg>',
+  }
+%>
+<section class="hero hero--brand-panel" style="background: <%= background %>">
+  <style>
+    .hero--brand-panel { color: var(--white); }
+    .hero--brand-panel .hbp__inner { padding: clamp(56px, 8vw, 96px) 24px 56px; text-align: center; }
+    .hbp__eyebrow { font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--cta, var(--accent)); margin-bottom: 22px; }
+    .hbp__title { font-family: 'Bebas Neue', 'Inter', system-ui, sans-serif; font-size: clamp(44px, 7vw, 92px); line-height: 0.98; letter-spacing: 0.01em; margin: 0 auto 18px; max-width: 880px; text-wrap: balance; }
+    .hbp__tagline { font-family: 'DM Mono', ui-monospace, monospace; font-size: clamp(16px, 2.2vw, 22px); letter-spacing: 0.12em; text-transform: uppercase; color: var(--cta, var(--accent)); margin: 0 0 10px; }
+    .hbp__subtitle { font-size: 17px; color: rgba(255,255,255,0.78); margin: 0 auto 32px; max-width: 560px; line-height: 1.5; }
+    .hbp__ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 26px; }
+    .hbp__badges { display: flex; gap: 10px 28px; justify-content: center; flex-wrap: wrap; list-style: none; padding: 0; margin: 0; }
+    .hbp__badge { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: rgba(255,255,255,0.82); }
+    .hbp__badge svg { width: 15px; height: 15px; color: var(--cta, var(--accent)); flex: none; }
+    .hbp__features { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; list-style: none; padding: 0; margin: 44px 0 0; text-align: left; }
+    .hbp__feature { background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px 18px; }
+    .hbp__feature svg { width: 28px; height: 28px; color: var(--cta, var(--accent)); margin-bottom: 14px; }
+    .hbp__feature-title { font-size: 14px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; margin: 0 0 6px; }
+    .hbp__feature-text { font-size: 13.5px; line-height: 1.45; color: rgba(255,255,255,0.7); margin: 0; }
+    .hbp__contact { background: var(--cta, var(--accent)); color: var(--cta-ink, var(--brand-deep)); }
+    .hbp__contact-inner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 18px 24px; font-family: 'Bebas Neue', 'Inter', system-ui, sans-serif; font-size: clamp(20px, 3vw, 28px); letter-spacing: 0.04em; }
+    .hbp__contact svg { width: 22px; height: 22px; flex: none; }
+    .hbp__contact a { color: inherit; }
+    @media (max-width: 900px) { .hbp__features { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 640px) {
+      .hero--brand-panel .hbp__inner { text-align: left; }
+      .hbp__title { margin-left: 0; }
+      .hbp__subtitle { margin-left: 0; }
+      .hbp__ctas { flex-direction: column; align-items: stretch; }
+      .hbp__ctas .btn { width: 100%; }
+      .hbp__badges { justify-content: flex-start; }
+      .hbp__features { grid-template-columns: 1fr; gap: 10px; }
+      .hbp__feature { display: grid; grid-template-columns: 28px 1fr; gap: 4px 14px; padding: 16px; }
+      .hbp__feature svg { margin-bottom: 0; grid-row: span 2; }
+      .hbp__contact-inner { flex-wrap: wrap; text-align: center; }
+    }
+  </style>
+  <div class="container hbp__inner">
+    <% if (eyebrow) { %><div class="hbp__eyebrow"><%= eyebrow %></div><% } %>
+    <h1 class="hbp__title"><%= title %></h1>
+    <% if (tagline) { %><div class="hbp__tagline"><%= tagline %></div><% } %>
+    <% if (subtitle) { %><p class="hbp__subtitle"><%= subtitle %></p><% } %>
+    <% if (primaryCta || secondaryCta) { %>
+      <div class="hbp__ctas">
+        <% if (primaryCta) { %><a class="btn btn--primary btn--xl" href="<%= primaryCta.href || '#contact' %>"><%= primaryCta.label %></a><% } %>
+        <% if (secondaryCta) { %><a class="btn btn--ghost btn--xl" href="<%= secondaryCta.href || '#services' %>"><%= secondaryCta.label %></a><% } %>
+      </div>
+    <% } %>
+    <% if (badges.length) { %>
+      <ul class="hbp__badges">
+        <% for (const b of badges) { %><li class="hbp__badge"><%- ICONS.check %><span><%= b %></span></li><% } %>
+      </ul>
+    <% } %>
+    <% if (features.length) { %>
+      <ul class="hbp__features">
+        <% for (const f of features) { %>
+          <li class="hbp__feature">
+            <%- ICONS[f.icon] || ICONS.check %>
+            <h3 class="hbp__feature-title"><%= f.title %></h3>
+            <% if (f.text) { %><p class="hbp__feature-text"><%= f.text %></p><% } %>
+          </li>
+        <% } %>
+      </ul>
+    <% } %>
+  </div>
+  <% if (contactBar) { %>
+    <div class="hbp__contact">
+      <div class="container hbp__contact-inner">
+        <%- ICONS.phone %>
+        <span><%= contactBar.label %> <a href="tel:<%= contactBar.phone.replace(/[^0-9+]/g, '') %>"><%= contactBar.phone %></a></span>
+      </div>
+    </div>
+  <% } %>
+</section>

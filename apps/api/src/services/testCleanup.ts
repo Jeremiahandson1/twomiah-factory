@@ -46,6 +46,7 @@ function deriveServiceNames(slug: string, industry: string | null | undefined): 
   const isDispensary = i === 'dispensary' || i === 'cannabis'
   const isRv = i === 'rv' || i === 'rv_dealer' || i === 'rv_dealership' || i === 'rv_sales' || i === 'powersports' || i === 'motorcycle_dealer' || i === 'atv_dealer' || i === 'utv_dealer' || i === 'boat_dealer' || i === 'marine_dealer' || i === 'motorhome'
   const isVet = i === 'veterinary' || i === 'veterinarian' || i === 'vet' || i === 'vet_clinic' || i === 'vet_hospital' || i === 'animal_hospital' || i === 'animal_clinic' || i === 'pet_clinic' || i === 'pet_hospital' || i === 'mobile_vet'
+  const isStore = i === 'store' || i === 'retail' || i === 'ecommerce' || i === 'e_commerce' || i === 'online_store' || i === 'online_shop' || i === 'shop' || i === 'boutique' || i === 'storefront'
 
   const suffix =
     isHomeCare ? '-care' :
@@ -56,6 +57,7 @@ function deriveServiceNames(slug: string, industry: string | null | undefined): 
     isDispensary ? '-leaf' :
     isRv ? '-rv' :
     isVet ? '-vet' :
+    isStore ? '-shop' :
     ''
 
   // We don't know which exact vertical the deploy used (it's derived at
@@ -72,7 +74,7 @@ function deriveServiceNames(slug: string, industry: string | null | undefined): 
   }
   // Always also try the vertical patterns we know exist, in case industry
   // was mis-classified or the deploy renamed something.
-  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet']) {
+  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-shop']) {
     candidates.add(slug + s)
     candidates.add(slug + s + '-api')
   }
@@ -178,7 +180,7 @@ export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupRes
 
   // ─── 3) Render Postgres (vertical-suffix DB + premium site DB) ────
   const dbCandidates = new Set<string>([slug + '-db', slug + '-site-db'])
-  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet']) {
+  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-shop']) {
     dbCandidates.add(slug + s + '-db')
   }
   let dbDeleted = 0

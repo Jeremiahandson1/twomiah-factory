@@ -29,6 +29,7 @@ export type CrmTemplate =
   | 'crm-dispensary'
   | 'crm-rv'
   | 'crm-vet'
+  | 'crm-store'
 
 export type PremiumWebsiteTemplate =
   | 'website-premium-contractor'
@@ -49,6 +50,7 @@ export type LegacyWebsiteTemplate =
   | 'website-landscaping'
   | 'website-dispensary'
   | 'website-showcase'
+  | 'website-store'
 
 export type Vertical =
   | 'contractor'
@@ -61,6 +63,7 @@ export type Vertical =
   | 'foodtruck'
   | 'rv'
   | 'veterinary'
+  | 'store'
 
 // ─── Industry sets per vertical ─────────────────────────────────────
 // These are the strings the intake form / wizard / API may receive.
@@ -136,6 +139,19 @@ export const VET_INDUSTRIES = new Set([
   'mobile_vet', 'equine_vet', 'exotic_vet', 'small_animal_vet',
 ])
 
+// E-commerce / online retail. A product catalog + orders storefront
+// (website-store) backed by a store back-office (crm-store) — NOT the
+// recurring-job or dealership model. Merchant brings their own payment
+// account (Stripe now; Square/PayPal later) and sells physical goods with
+// hosted checkout.
+export const STORE_INDUSTRIES = new Set([
+  'store', 'ecommerce', 'e_commerce', 'online_store', 'online_shop',
+  'retail', 'shop', 'boutique', 'storefront',
+  'clothing', 'apparel', 'fashion', 'merch', 'merchandise',
+  'goods', 'products', 'print_on_demand', 'dropshipping', 'dropship',
+  'handmade', 'crafts', 'jewelry', 'accessories', 'cosmetics_retail',
+])
+
 export const CONTRACTOR_INDUSTRIES = new Set([
   'contractor', 'general_contractor', 'construction', 'remodeling',
   'siding', 'home_improvement',
@@ -189,6 +205,7 @@ export function verticalFor(industry: string | undefined | null): Vertical {
   if (FIELDSERVICE_INDUSTRIES.has(i)) return 'fieldservice'
   if (RV_INDUSTRIES.has(i)) return 'rv'
   if (VET_INDUSTRIES.has(i)) return 'veterinary'
+  if (STORE_INDUSTRIES.has(i)) return 'store'
   if (SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
   // Explicit contractor list + the empty/other fallback both land here.
   // Showcase doesn't get the fallback — it's the most specialized vertical
@@ -206,6 +223,7 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     case 'dispensary':   return 'crm-dispensary'
     case 'rv':           return 'crm-rv'
     case 'veterinary':   return 'crm-vet'
+    case 'store':        return 'crm-store'
     // Showcase verticals (restaurants, salons, etc.) don't have a
     // dedicated CRM template yet — most don't need full job/quote
     // workflows. Default to the contractor base, which is the most
@@ -227,6 +245,9 @@ export function premiumWebsiteTemplateFor(industry: string | undefined | null): 
   if (v === 'rv') return 'website-premium-contractor'
   // Veterinary is a CRM-only vertical — no dedicated premium site template.
   if (v === 'veterinary') return 'website-premium-contractor'
+  // Store uses the dedicated website-store storefront (not a premium marketing
+  // site) — this fallback only guards against a nonexistent template dir.
+  if (v === 'store') return 'website-premium-contractor'
   return ('website-premium-' + v) as PremiumWebsiteTemplate
 }
 
@@ -250,6 +271,8 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
     rv:           'website-general' as LegacyWebsiteTemplate,
     // No vet website template (CRM-only vertical) — falls back to general.
     veterinary:   'website-general' as LegacyWebsiteTemplate,
+    // E-commerce storefront (Next.js). The generator ladder routes here.
+    store:        'website-store',
   }
   return map[v] || 'website-general'
 }
@@ -274,6 +297,7 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'dispensary':   return 'leaf'
     case 'rv':           return 'rv'   // {slug}-rv-api.onrender.com
     case 'veterinary':   return 'vet'  // {slug}-vet-api.onrender.com
+    case 'store':        return 'shop' // {slug}-shop-api.onrender.com
     case 'showcase':     return ''     // shares the contractor base CRM
     case 'foodtruck':    return ''     // shares the contractor base CRM
     case 'contractor':   return ''
@@ -311,6 +335,7 @@ const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
   showcase: 'multi-page',
   rv: 'multi-page',
   veterinary: 'multi-page',
+  store: 'multi-page',
 }
 
 export function layoutModeFor(industry: string | undefined | null): LayoutMode {

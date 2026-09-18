@@ -1,0 +1,83 @@
+<%
+// Compact lead-capture card for landing-page sidebars (service-area / city pages).
+// Expects locals: sefService (service name stored on the lead, may be ''),
+// sefSource (lead source tag), phone, phoneRaw. Posts to the same endpoint as the
+// other lead forms; inline success + honeypot + optional Turnstile.
+%>
+<style>
+  .sidebar-estimate-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 22px; box-shadow: 0 10px 28px rgba(0,0,0,.08); margin-bottom: 20px; }
+  .sidebar-estimate-card h3 { margin: 0 0 4px; color: var(--navy); }
+  .sidebar-estimate-card .sef-sub { font-size: .88rem; color: #64748b; margin: 0 0 14px; }
+  .sidebar-estimate-card label { display: block; font-size: .8rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+  .sidebar-estimate-card input { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; margin-bottom: 12px; }
+  .sidebar-estimate-card input:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--navy) 12%, transparent); }
+  .sidebar-estimate-card .sef-submit { width: 100%; }
+  .sidebar-estimate-card .sef-error { display: none; color: #dc2626; background: #fef2f2; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: .9rem; }
+  .sidebar-estimate-card .sef-success { display: none; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 8px; font-size: .92rem; }
+  .sidebar-estimate-card .sef-finehint { font-size: .82rem; color: #64748b; text-align: center; margin: 12px 0 0; }
+  .sidebar-estimate-card .sef-finehint a { color: var(--navy); font-weight: 700; text-decoration: none; }
+</style>
+<div class="sidebar-estimate-card" id="sidebar-estimate">
+  <h3>Get a Free Estimate</h3>
+  <p class="sef-sub">No obligation &mdash; fast response from a local crew.</p>
+  <form id="sidebar-estimate-form" method="POST" action="/api/admin/leads">
+    <!-- anti-spam honeypot: hidden from people; bots that fill it are rejected server-side -->
+    <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;">
+      <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off" value=""></label>
+    </div>
+    <% if (typeof turnstileSiteKey !== 'undefined' && turnstileSiteKey) { %><div class="cf-turnstile" data-sitekey="<%= turnstileSiteKey %>" style="margin:8px 0 12px;"></div><% } %>
+    <label for="sef-name">Name *</label>
+    <input id="sef-name" name="name" type="text" autocomplete="name" required>
+    <label for="sef-phone">Phone *</label>
+    <input id="sef-phone" name="phone" type="tel" autocomplete="tel" required>
+    <input type="hidden" name="service" value="<%= typeof sefService !== 'undefined' ? sefService : '' %>">
+    <input type="hidden" name="source" value="<%= typeof sefSource !== 'undefined' ? sefSource : 'landing' %>">
+    <div class="sef-error" id="sef-error"></div>
+    <div class="sef-success" id="sef-success">
+      <strong>Thank you!</strong> Your request is in &mdash; we'll call you shortly to schedule your free estimate.
+    </div>
+    <button type="submit" class="btn btn-primary sef-submit">Get My Free Estimate</button>
+    <p class="sef-finehint">Prefer to talk? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a></p>
+  </form>
+</div>
+<script>
+(function() {
+  var form = document.getElementById('sidebar-estimate-form');
+  if (!form) return;
+  var errorDiv = document.getElementById('sef-error');
+  var successDiv = document.getElementById('sef-success');
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var btn = form.querySelector('button[type="submit"]');
+    var originalText = btn.textContent;
+    btn.textContent = 'Sending...';
+    btn.disabled = true;
+    errorDiv.style.display = 'none';
+
+    try {
+      var fd = new FormData(form);
+      var response = await fetch('/api/admin/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(fd))
+      });
+      if (!response.ok) throw new Error('Submission failed');
+
+      if (typeof window._bpTrack === 'function') {
+        window._bpTrack('generate_lead', { event_category: 'conversion', contact_method: 'form' });
+      }
+      if (typeof gtag !== 'undefined' && window._gadsId) {
+        gtag('event', 'conversion', { send_to: window._gadsId });
+      }
+      form.querySelectorAll('label, input, button, .sef-finehint').forEach(function(el) { el.style.display = 'none'; });
+      successDiv.style.display = 'block';
+    } catch (err) {
+      errorDiv.textContent = 'Something went wrong. Please try again or call us directly.';
+      errorDiv.style.display = 'block';
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+})();
+</script>

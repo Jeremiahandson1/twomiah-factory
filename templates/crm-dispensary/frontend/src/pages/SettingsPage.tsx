@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, SlidersHorizontal } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -204,6 +204,15 @@ export default function SettingsPage() {
               {t.label}
             </button>
           ))}
+          <div className="border-t border-gray-100 my-2 pt-2">
+            <button
+              onClick={() => navigate('/crm/settings/features')}
+              className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left text-gray-600 hover:bg-gray-100 transition"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+              Features
+            </button>
+          </div>
         </div>
 
         {/* Content */}

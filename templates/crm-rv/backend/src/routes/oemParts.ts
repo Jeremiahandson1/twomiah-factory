@@ -1,8 +1,11 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
-import { catalogPart } from '../../db/schema.ts'
-import { and, eq, or, ilike, sql } from 'drizzle-orm'
+import { catalogPart, inventoryItem, stockLevel } from '../../db/schema.ts'
+import { and, eq, or, ilike, sql, inArray } from 'drizzle-orm'
+import inventory from '../services/inventory.ts'
+import catalogFeed from '../services/catalogFeed.ts'
 
 // ── OEM Parts Catalog ───────────────────────────────────────────────────────
 // Provider-agnostic. Today returns realistic MOCK data so the UI is fully working
@@ -15,6 +18,7 @@ const app = new Hono()
 app.use('*', authenticate)
 
 export type OemPart = {
+  id?: string            // catalog_part id (imported catalog only)
   partNumber: string
   name: string
   oem: string
@@ -25,6 +29,7 @@ export type OemPart = {
   supersededBy?: string  // newer part number if superseded
   fitment?: string       // which units it fits
   diagram?: string       // fiche / assembly reference
+  onHand?: number        // live perpetual stock (0 until the part is stocked)
 }
 
 interface PartsProvider {
@@ -82,6 +87,7 @@ function mockSearch(q: string, f: { oem?: string; category?: string }): OemPart[
 // (Snap-on EPC / ARI) can layer on later; the imported data and UI don't change.
 function rowToPart(r: any): OemPart {
   return {
+    id: r.id,
     partNumber: r.partNumber, name: r.name, oem: r.oem || '', category: r.category || '',
     price: Number(r.price) || 0, msrp: r.msrp != null ? Number(r.msrp) : undefined,
     availability: r.availability || 'Order from OEM',
@@ -117,6 +123,21 @@ app.get('/search', async (c) => {
     try {
       const rows = await db.select().from(catalogPart).where(and(...conds)).limit(100)
       parts = rows.map(rowToPart)
+
+      // Attach live on-hand from the perpetual stock ledger (parts that were stocked).
+      const ids = rows.map(r => r.id)
+      if (ids.length) {
+        const stock = await db.select({ cpId: inventoryItem.catalogPartId, qty: stockLevel.quantity })
+          .from(inventoryItem)
+          .leftJoin(stockLevel, eq(stockLevel.itemId, inventoryItem.id))
+          .where(and(eq(inventoryItem.companyId, companyId), inArray(inventoryItem.catalogPartId, ids)))
+        const onHandByCp = new Map<string, number>()
+        for (const s of stock) {
+          if (!s.cpId) continue
+          onHandByCp.set(s.cpId, (onHandByCp.get(s.cpId) || 0) + (s.qty || 0))
+        }
+        parts = parts.map(p => ({ ...p, onHand: p.id ? (onHandByCp.get(p.id) || 0) : 0 }))
+      }
     } catch { parts = [] }
     let oems: string[] = [], categories: string[] = []
     try {
@@ -239,6 +260,48 @@ app.post('/clear', async (c) => {
   const companyId = (c.get('user') as any).companyId
   try { await db.delete(catalogPart).where(eq(catalogPart.companyId, companyId)) } catch (e: any) { return c.json({ error: String(e?.message || e) }, 500) }
   return c.json({ ok: true })
+})
+
+// ── Stock a catalog part ────────────────────────────────────────────────────
+// Turns a catalog price-list row into a perpetually-tracked stocked item and adds
+// on-hand at a location. Body: { locationId, quantity?, unitCost? }.
+app.post('/:id/stock', requirePermission('inventory:create'), async (c) => {
+  const user = c.get('user') as any
+  const catalogPartId = c.req.param('id')
+  const body = await c.req.json().catch(() => ({} as any))
+  if (!body.locationId) return c.json({ error: 'locationId is required' }, 400)
+  try {
+    const item = await inventory.stockCatalogPart(user.companyId, {
+      catalogPartId,
+      locationId: String(body.locationId),
+      quantity: body.quantity != null ? parseInt(body.quantity) : 0,
+      unitCost: body.unitCost != null ? parseFloat(body.unitCost) : undefined,
+      userId: user.userId,
+    })
+    return c.json({ ok: true, item })
+  } catch (e: any) {
+    return c.json({ error: e?.message || 'Failed to stock part' }, 400)
+  }
+})
+
+// ── Distributor price/cost feed ─────────────────────────────────────────────
+app.get('/feed-config', async (c) => {
+  const user = c.get('user') as any
+  return c.json(await catalogFeed.getConfig(user.companyId))
+})
+
+app.put('/feed-config', requirePermission('inventory:update'), async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json().catch(() => ({} as any))
+  const cfg = await catalogFeed.saveConfig(user.companyId, body)
+  return c.json({ message: 'Feed settings saved', config: cfg })
+})
+
+app.post('/feed-sync', requirePermission('inventory:update'), async (c) => {
+  const user = c.get('user') as any
+  const result = await catalogFeed.runFeedImport(user.companyId, true)
+  if (!result.ok) return c.json({ ok: false, error: result.error || 'Sync failed' }, 400)
+  return c.json(result)
 })
 
 export default app

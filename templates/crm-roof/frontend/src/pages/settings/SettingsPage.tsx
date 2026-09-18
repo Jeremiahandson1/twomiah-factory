@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning } from 'lucide-react';
+import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../data/features';
@@ -283,6 +283,25 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Features */}
+        <div
+          onClick={() => navigate('/crm/settings/features')}
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-green-300 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                <SlidersHorizontal className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Features</h2>
+                <p className="text-xs text-gray-500">Turn optional modules on or off — every feature's included free</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+
         {/* Instant Estimator */}
         <div
           onClick={() => navigate('/crm/settings/estimator')}
@@ -435,13 +454,9 @@ export default function SettingsPage() {
           </h2>
           <p className="text-sm text-gray-500 mb-3">
             Automated SMS messages are sent at each pipeline stage when two-way texting is enabled.
-            Configure your Twilio credentials as environment variables:
+            Your texting number is set up and managed for you during onboarding — contact support to
+            turn on SMS or change your number.
           </p>
-          <div className="bg-gray-50 rounded-lg p-3 font-mono text-xs text-gray-600 space-y-1">
-            <p>TWILIO_ACCOUNT_SID=your_account_sid</p>
-            <p>TWILIO_AUTH_TOKEN=your_auth_token</p>
-            <p>TWILIO_FROM_NUMBER=+1XXXXXXXXXX</p>
-          </div>
           <p className="text-xs text-gray-400 mt-2">
             SMS triggers: inspection scheduled, inspected, measurement ordered, proposal sent, signed, material ordered, in production, final inspection, invoiced, collected, insurance claim filed, insurance approved, supplement submitted
           </p>

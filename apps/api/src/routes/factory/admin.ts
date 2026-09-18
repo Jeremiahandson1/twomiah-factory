@@ -1,7 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { isConfigured, addCustomDomain, findRenderServicesBySlug } from '../../services/deploy'
 import pg from 'pg'
-import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../../config/featureRegistry'
+import { FEATURE_REGISTRY, getFeaturesForTemplate, getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
 import { crmTemplateFor } from '../../config/industryRouting'
 import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getCompanyInfo } from '../../services/quickbooksOnline'
 import { type FactoryApp, parseJsonBody, UUID_RE, DOMAIN_RE, logTenantAudit, diffTenantChanges, qboOAuthStates, cleanExpiredStates } from './shared'
@@ -481,13 +481,16 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
     const availableFeatures = getFeaturesForTemplate(template)
 
     // If tenant is active but has no features stored, or stored features are mostly from a
-    // different template (e.g. industry was corrected), re-populate with all available features
+    // DIFFERENT template (e.g. industry was corrected), re-seed with the lean core default.
+    // NOTE: mismatch is measured by how many STORED ids are FOREIGN to this template — not
+    // by how few of the available features are stored — so an intentionally lean subset
+    // (the provisioning default, or a tenant that toggled most modules off) is NOT clobbered.
     let enabledFeatures: string[] = tenant.features || []
     const availableIds = new Set(availableFeatures.map(f => f.id))
-    const matchCount = enabledFeatures.filter(f => availableIds.has(f)).length
-    const mismatch = enabledFeatures.length > 0 && matchCount < availableIds.size / 2
+    const foreignCount = enabledFeatures.filter(f => !availableIds.has(f)).length
+    const mismatch = enabledFeatures.length > 0 && foreignCount > enabledFeatures.length / 2
     if ((enabledFeatures.length === 0 || mismatch) && tenant.status === 'active') {
-      enabledFeatures = availableFeatures.map(f => f.id)
+      enabledFeatures = getDefaultFeaturesForTemplate(template)
       await supabase.from('tenants').update({ features: enabledFeatures }).eq('id', id)
     }
 
