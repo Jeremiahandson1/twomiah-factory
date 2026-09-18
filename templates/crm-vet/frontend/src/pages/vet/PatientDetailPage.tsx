@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Loader2, PawPrint, AlertTriangle, User, Phone, Mail, Plus, FileText,
-  Syringe, Pill, FlaskConical, Stethoscope, ArrowLeft, ExternalLink, X, Edit, Trash2,
+  Syringe, Pill, FlaskConical, Stethoscope, ArrowLeft, ExternalLink, X, Edit, Trash2, Receipt,
 } from 'lucide-react';
 import api from '../../services/api';
 import VisitEditorModal, { Visit } from '../../components/vet/VisitEditorModal';
@@ -147,7 +147,16 @@ interface PatientDocument {
   uploadedBy?: { firstName?: string; lastName?: string } | null;
 }
 
-type Tab = 'visits' | 'vaccinations' | 'prescriptions' | 'labs' | 'documents';
+interface PatientInvoice {
+  id: string;
+  number?: string;
+  status?: string;
+  total?: number | string;
+  balance?: number | string;
+  issueDate?: string;
+}
+
+type Tab = 'visits' | 'vaccinations' | 'prescriptions' | 'labs' | 'documents' | 'invoices';
 
 const fileSize = (n?: number): string => {
   if (!n || n < 0) return '';
@@ -173,6 +182,7 @@ export default function PatientDetailPage() {
   // Files filed against THIS animal — /api/documents?patientId= — rather than everything belonging to the
   // owner, which in a multi-pet household is somebody else's x-ray. (Vet T12 M6)
   const [documents, setDocuments] = useState<PatientDocument[]>([]);
+  const [invoices, setInvoices] = useState<PatientInvoice[]>([]);
   const [uploading, setUploading] = useState<boolean>(false);
 
   const load = useCallback(async () => {
@@ -198,6 +208,17 @@ export default function PatientDetailPage() {
     }
   }, [id]);
 
+  // What this animal has cost — the owner is billed, but the charges belong to the pet. (Vet T12 M6)
+  const loadInvoices = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await api.get(`/api/invoices?patientId=${id}&limit=100`);
+      setInvoices(res?.data || []);
+    } catch (error) {
+      console.error('Failed to load invoices:', error);
+    }
+  }, [id]);
+
   const uploadDocument = async (file: File) => {
     if (!id) return;
     setUploading(true);
@@ -215,6 +236,7 @@ export default function PatientDetailPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
+  useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
   // Patients had no edit or delete anywhere in the UI (VET-08). Delete is guarded server-side —
   // a patient with medical history can't be hard-deleted, only marked deceased.
@@ -276,6 +298,7 @@ export default function PatientDetailPage() {
     { id: 'prescriptions', label: 'Prescriptions', icon: <Pill className="w-4 h-4" />, count: prescriptions.length },
     { id: 'labs', label: 'Lab Results', icon: <FlaskConical className="w-4 h-4" />, count: labResults.length },
     { id: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" />, count: documents.length },
+    { id: 'invoices', label: 'Invoices', icon: <Receipt className="w-4 h-4" />, count: invoices.length },
   ];
 
   return (
@@ -577,6 +600,35 @@ export default function PatientDetailPage() {
                     {d.uploadedBy?.firstName && <span className="text-xs text-gray-400">Uploaded by {[d.uploadedBy.firstName, d.uploadedBy.lastName].filter(Boolean).join(' ')}</span>}
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Invoices — what this animal has cost, though the owner is who pays. (Vet T12 M6) */}
+      {tab === 'invoices' && (
+        <div className="space-y-3">
+          {invoices.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
+              Nothing billed for {p.name || 'this patient'} yet — billing a visit raises an invoice against the animal.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {invoices.map((inv) => (
+                <Link key={inv.id} to={`/crm/invoices/${inv.id}`} className="block bg-white rounded-xl border p-4 hover:border-teal-300 dark:bg-slate-900">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-gray-900 dark:text-slate-100">
+                      {inv.number || 'Invoice'}
+                      {inv.status && <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{inv.status}</span>}
+                    </p>
+                    <span className="text-sm text-gray-700 dark:text-slate-200">${Number(inv.total || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 mt-1">
+                    <span className="text-xs text-gray-400">{fmtDate(inv.issueDate)}</span>
+                    {Number(inv.balance || 0) > 0 && <span className="text-xs text-amber-600">${Number(inv.balance).toFixed(2)} outstanding</span>}
+                  </div>
+                </Link>
               ))}
             </div>
           )}

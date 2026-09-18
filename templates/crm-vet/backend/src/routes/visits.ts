@@ -107,6 +107,8 @@ app.post('/:id/invoice', requirePermission('invoices:create'), async (c) => {
 
   const [inv] = await db.insert(invoice).values({
     contactId: pet.ownerId,
+    // The owner is billed, but the charges are this animal's — the chart's Invoices tab reads it. (T12 M6)
+    patientId: v.patientId,
     subtotal: amount,
     taxAmount: '0',
     total: amount,

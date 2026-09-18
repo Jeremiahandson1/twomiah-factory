@@ -3,7 +3,7 @@
 // behaviour lives in one place for every CRM.
 import { createInvoiceRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { invoice, invoiceLineItem, contact, project, quote, payment, company } from '../../db/schema.ts'
+import { invoice, invoiceLineItem, contact, project, quote, payment, company, patient } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -19,5 +19,7 @@ export default createInvoiceRoutes({
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
   // minLineItems: an invoice needs at least one line — the invoice form already requires one, and the API created an empty $0 invoice when called directly (RV T19 L8; landscaping and events had it).
-  options: { minLineItems: 1 },
+  // links: the owner pays, but the bill is for an animal — a multi-pet household's invoices said nothing
+  // about which pet the charges were for, and the chart could not show what that animal had cost. (T12 M6)
+  options: { minLineItems: 1, links: { patientId: patient } },
 })

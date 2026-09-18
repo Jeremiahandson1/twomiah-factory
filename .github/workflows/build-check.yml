@@ -934,3 +934,14 @@ jobs:
           bun-version: latest
       - name: "Check patient documents"
         run: bun run scripts/check-patient-documents.ts
+
+  patient-invoices:
+    name: "Patient invoices: the bill names the animal"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check patient invoices"
+        run: bun run scripts/check-patient-invoices.ts

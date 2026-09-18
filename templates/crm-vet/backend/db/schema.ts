@@ -314,9 +314,12 @@ export const invoice = pgTable('invoice', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').unique().references(() => quote.id, { onDelete: 'set null' }),
+  // The owner pays it, but the bill is FOR an animal. (Vet T12 M6)
+  patientId: text('patient_id').references(() => patient.id, { onDelete: 'set null' }),
 }, (t) => [
   index('invoice_company_id_idx').on(t.companyId),
   index('invoice_status_idx').on(t.status),
+  index('invoice_patient_id_idx').on(t.patientId),
 ])
 
 export const invoiceLineItem = pgTable('invoice_line_item', {

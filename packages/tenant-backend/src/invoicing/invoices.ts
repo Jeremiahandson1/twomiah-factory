@@ -36,6 +36,14 @@ export interface InvoiceOptions {
    * taken, so the Stripe path has its own after-payment hook.
    */
   onPayment?: (tx: any, invoice: any, amount: number) => Promise<string | null>
+  /**
+   * Records an invoice can be raised against BEYOND the contact, project and quote every CRM has, as column
+   * name → the table it points at. The vet passes { patientId: patient }: the owner pays the bill, but the
+   * bill is FOR an animal, and in a multi-pet household nothing said which one. (Vet T12 M6)
+   * The column is filterable (?patientId=), settable on create and on edit, and checked to exist in this
+   * company before it is stored.
+   */
+  links?: Record<string, any>
 }
 
 export interface InvoiceDeps {
@@ -91,7 +99,7 @@ export type InvoiceLine = z.infer<typeof lineItemSchema>
  */
 export async function insertInvoice(
   tx: any, t: InvoiceTables, numbering: NumberingOptions,
-  v: { companyId: string; contactId: string; projectId?: string; notes?: string; terms?: string; dueDate: Date; issueDate: Date; taxRate: number; discount?: number; status?: string },
+  v: { companyId: string; contactId: string; projectId?: string; notes?: string; terms?: string; dueDate: Date; issueDate: Date; taxRate: number; discount?: number; status?: string; extra?: Record<string, any> },
   lineItems: InvoiceLine[],
 ) {
   const totals = calcTotals(lineItems, v.taxRate, v.discount ?? 0)
@@ -103,6 +111,7 @@ export async function insertInvoice(
     subtotal: totals.subtotal.toString(), taxRate: String(v.taxRate), taxAmount: totals.taxAmount.toString(),
     discount: totals.effectiveDiscount.toString(), total: totals.total.toString(), amountPaid: '0',
     ...(v.status ? { status: v.status } : {}),
+    ...(v.extra || {}),
   }).returning()
   const items = lineItems.length ? await tx.insert(t.invoiceLineItem).values(toRow(lineItems, created.id)).returning() : []
   return { ...created, lineItems: items }
@@ -379,6 +388,27 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   const ownContact = async (companyId: string, id: string) => (await db.select({ id: t.contact.id }).from(t.contact).where(and(eq(t.contact.id, id), eq(t.contact.companyId, companyId))).limit(1))[0]
   const ownProject = async (companyId: string, id: string) => (await db.select({ id: t.project.id }).from(t.project).where(and(eq(t.project.id, id), eq(t.project.companyId, companyId))).limit(1))[0]
 
+  // Extra records an invoice can be raised against, per template (crm-vet: patientId). Taken from the RAW
+  // body, because the zod schema drops what it does not name.
+  const links: Record<string, any> = deps.options?.links || {}
+  const linkCols = Object.keys(links)
+  const linkLabel = (col: string) => col.replace(/Id$/, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
+  const linkValues = async (companyId: string, raw: any): Promise<{ values: Record<string, any> } | { error: string }> => {
+    const values: Record<string, any> = {}
+    if (!raw || typeof raw !== 'object') return { values }
+    for (const col of linkCols) {
+      if (raw[col] === undefined) continue
+      const id = typeof raw[col] === 'string' && raw[col].trim() ? raw[col].trim() : null
+      if (id) {
+        const table = links[col]
+        const [row] = await db.select({ id: table.id }).from(table).where(and(eq(table.id, id), eq(table.companyId, companyId))).limit(1)
+        if (!row) return { error: `That ${linkLabel(col)} does not exist.` }
+      }
+      values[col] = id
+    }
+    return { values }
+  }
+
   // ---------------------------------------------------------------- list
   app.get('/', requirePermission('invoices:read'), async (c) => {
     const currentUser = c.get('user') as any
@@ -395,6 +425,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     else if (status && openStatuses.includes(status)) { conditions.push(eq(t.invoice.status, status)); conditions.push(or(isNull(t.invoice.dueDate), gte(t.invoice.dueDate, now))) }
     else if (status) conditions.push(eq(t.invoice.status, status))
     if (contactId) conditions.push(eq(t.invoice.contactId, contactId))
+    for (const col of linkCols) { const v = c.req.query(col); if (v) conditions.push(eq(t.invoice[col], v)) }
 
     const where = and(...conditions)
     const [data, [{ value: total }]] = await Promise.all([
@@ -461,8 +492,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   // ---------------------------------------------------------------- create
   app.post('/', requirePermission('invoices:create'), async (c) => {
     const currentUser = c.get('user') as any
-    const data = invoiceSchema.parse(await c.req.json())
+    const raw = await c.req.json()
+    const data = invoiceSchema.parse(raw)
     const cid = currentUser.companyId
+    const extra = await linkValues(cid, raw)
+    if ('error' in extra) return c.json({ error: extra.error }, 404)
     if (!data.contactId) return c.json({ error: 'A client is required to create an invoice.' }, 400)
     if (!(await ownContact(cid, data.contactId))) return c.json({ error: 'That client does not exist.' }, 404)
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
@@ -489,7 +523,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const { lineItems, ...rest } = data
     const result = await db.transaction((tx: any) => insertInvoice(tx, t, numbering, {
       companyId: cid, contactId: data.contactId!, projectId: rest.projectId, notes: rest.notes, terms: rest.terms,
-      dueDate, issueDate, taxRate, discount: data.discount,
+      dueDate, issueDate, taxRate, discount: data.discount, extra: extra.values,
     }, lineItems))
     emitToCompany(cid, EVENTS.INVOICE_CREATED, result)
     return c.json(result, 201)
@@ -500,7 +534,10 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const cid = currentUser.companyId
-    const data = invoiceSchema.partial().parse(await c.req.json())
+    const raw = await c.req.json()
+    const data = invoiceSchema.partial().parse(raw)
+    const extra = await linkValues(cid, raw)
+    if ('error' in extra) return c.json({ error: extra.error }, 404)
     const [existing] = await db.select().from(t.invoice).where(and(eq(t.invoice.id, id), eq(t.invoice.companyId, cid))).limit(1)
     if (!existing) return c.json({ error: 'Invoice not found' }, 404)
     if (existing.status === 'void') return c.json({ error: 'This invoice is void and can no longer be edited.' }, 400)
@@ -527,6 +564,7 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     }
     const update: Record<string, any> = { updatedAt: new Date() }
     for (const k of ['contactId', 'projectId', 'notes', 'terms'] as const) if (data[k] !== undefined) update[k] = data[k]
+    Object.assign(update, extra.values)
     if (due.value !== undefined) update.dueDate = due.value
     if (issue.value != null) update.issueDate = issue.value
     if (recompute && lines) {
