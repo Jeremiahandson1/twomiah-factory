@@ -144,8 +144,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
   app.get('/stats', requirePermission('quotes:read'), async (c) => {
     const currentUser = c.get('user') as any
     const quotes = await db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(eq(t.quote.companyId, currentUser.companyId))
-    const stats: Record<string, number> = { total: quotes.length, draft: 0, sent: 0, approved: 0, rejected: 0, declined: 0, expired: 0, totalValue: 0, approvedValue: 0 }
-    for (const q of quotes) { stats[q.status] = (stats[q.status] || 0) + 1; stats.totalValue = round2(stats.totalValue + Number(q.total)); if (q.status === 'approved') stats.approvedValue = round2(stats.approvedValue + Number(q.total)) }
+    // "The customer said no" is one bucket, under the word this CRM uses (Decline where the vertical declines, Reject
+    // elsewhere). Counting rejected and declined separately left a phantom always-zero figure beside the real one, and
+    // anything reading only its own word was short by the quotes refused under the other. (Landscaping T21 L5)
+    const refused = o.hasDeclinedAt ? 'declined' : 'rejected'
+    const stats: Record<string, number> = { total: quotes.length, draft: 0, sent: 0, approved: 0, [refused]: 0, expired: 0, totalValue: 0, approvedValue: 0 }
+    for (const q of quotes) { const k = q.status === 'rejected' || q.status === 'declined' ? refused : q.status; stats[k] = (stats[k] || 0) + 1; stats.totalValue = round2(stats.totalValue + Number(q.total)); if (q.status === 'approved') stats.approvedValue = round2(stats.approvedValue + Number(q.total)) }
     return c.json(stats)
   })
 

@@ -483,7 +483,10 @@ export function createMarketingRoutes({ service: m, authenticate, requirePermiss
   app.post('/campaigns/:id/schedule', requirePermission('marketing:update'), guarded(async (c) => c.json(await m.scheduleCampaign(c.req.param('id'), user(c).companyId, String((await body(c)).scheduledFor || '')))))
   app.post('/campaigns/:id/unschedule', requirePermission('marketing:update'), guarded(async (c) => c.json(await m.unscheduleCampaign(c.req.param('id'), user(c).companyId))))
   app.delete('/campaigns/:id', requirePermission('marketing:delete'), guarded(async (c) => { await m.deleteCampaign(c.req.param('id'), user(c).companyId); return c.body(null, 204) }))
-  app.post('/audience/preview', requirePermission('marketing:read'), guarded(async (c) => { const b = await body(c); const type = AUDIENCE_TYPES.includes(b.audienceType) ? b.audienceType : 'all'; return c.json(await m.previewAudience(user(c).companyId, type, b.audienceFilter ?? null)) }))
+  // An audience we don't know must NOT quietly mean "everyone": previewing audienceType "clients" answered with the
+  // whole list (76), so a campaign aimed at a subset looked right and would have gone to every contact. Name the
+  // audiences we support instead. (Landscaping T21 M4)
+  app.post('/audience/preview', requirePermission('marketing:read'), guarded(async (c) => { const b = await body(c); if (b.audienceType !== undefined && b.audienceType !== null && b.audienceType !== '' && !AUDIENCE_TYPES.includes(b.audienceType)) return c.json({ error: `Audience must be one of: ${AUDIENCE_TYPES.join(', ')}. To reach one kind of customer, use "segment" with a type filter.` }, 400); const type = b.audienceType || 'all'; return c.json(await m.previewAudience(user(c).companyId, type, b.audienceFilter ?? null)) }))
 
   // sequences
   app.get('/sequences', requirePermission('marketing:read'), async (c) => c.json(await m.getSequences(user(c).companyId)))

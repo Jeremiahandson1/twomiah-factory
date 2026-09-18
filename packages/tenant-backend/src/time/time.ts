@@ -29,6 +29,8 @@ const validDate = (v: unknown) => !v || !isNaN(new Date(String(v)).getTime())
 const fk = z.string().optional().nullable().transform((v) => (v ? v : null))
 const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/
 const round2 = (n: number) => Math.round(n * 100) / 100
+/** Clock in and straight back out = a mis-click; shorter than this and the clock-in is discarded, not saved as 0.00 h. */
+const MIN_CLOCK_MINUTES = 1
 
 export function getWeekStart(date: Date): string {
   const d = new Date(date)
@@ -222,7 +224,17 @@ export function createTimeRoutes(deps: TimeDeps) {
     const open = await activeEntry(currentUser.userId, currentUser.companyId)
     if (!open) return c.json({ error: 'No open clock-in to clock out of' }, 400)
     const end = new Date()
-    const worked = Math.max(0, Math.round((end.getTime() - new Date(open.clockIn).getTime()) / 60000) - (parsed.data.breakMinutes || 0))
+    // Clocking straight back out is a mis-click, not a shift: it used to save a 0.00-hour row on the timesheet for
+    // someone to wonder about later. Under a minute, the clock-in is discarded instead. (Landscaping T21 L7)
+    const elapsedMinutes = (end.getTime() - new Date(open.clockIn).getTime()) / 60000
+    if (elapsedMinutes < MIN_CLOCK_MINUTES) {
+      await db.delete(t.timeEntry).where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, currentUser.companyId)))
+      audit?.log({ action: 'delete', entity: 'time_entry', entityId: open.id, metadata: { discarded: 'under a minute', userId: open.userId }, req: { user: currentUser } })
+      return c.json({ discarded: true, message: 'That clock-in lasted less than a minute, so no time was recorded. Clock in again when you start work.' })
+    }
+    const worked = Math.round(elapsedMinutes) - (parsed.data.breakMinutes || 0)
+    // Same answer a manual entry gives, instead of silently saving nothing worked.
+    if (worked <= 0) return c.json({ error: 'Break is longer than the time worked' }, 400)
     const [row] = await db.update(t.timeEntry).set({ clockOut: end, hours: String(round2(worked / 60)), description: parsed.data.description || parsed.data.notes || open.description, updatedAt: new Date() })
       .where(and(eq(t.timeEntry.id, open.id), eq(t.timeEntry.companyId, currentUser.companyId))).returning()
     return c.json(row)

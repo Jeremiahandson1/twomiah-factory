@@ -54,7 +54,7 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
   useEffect(() => { if (!active) return; const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id) }, [active])
 
   const clockIn = async () => { setClockBusy(true); try { await api.post('/api/time/clock-in', {}); toast.success('Clocked in'); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock in')) } finally { setClockBusy(false) } }
-  const clockOut = async () => { setClockBusy(true); try { const r = await api.post('/api/time/clock-out', {}); toast.success(`Clocked out — ${Number(r?.hours || 0).toFixed(2)} h`); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock out')) } finally { setClockBusy(false) } }
+  const clockOut = async () => { setClockBusy(true); try { const r = await api.post('/api/time/clock-out', {}); toast.success(r?.discarded ? (r.message || 'That clock-in was too short to record') : `Clocked out — ${Number(r?.hours || 0).toFixed(2)} h`); await load() } catch (e) { toast.error(errMsg(e, 'Failed to clock out')) } finally { setClockBusy(false) } }
 
   const handleSave = async () => {
     setFormError('')

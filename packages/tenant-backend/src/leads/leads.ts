@@ -183,7 +183,8 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     const parsed = sourceCreateSchema.safeParse(await c.req.json().catch(() => ({})))
     if (!parsed.success) return c.json({ error: parsed.error.errors[0]?.message || 'Invalid source' }, 400)
     const { platform, config } = parsed.data
-    if (!platforms.includes(platform)) return c.json({ error: `Unknown lead source "${platform}"` }, 400)
+    // Say which ones there are — "Unknown lead source" left the user guessing what to type. (Landscaping T21 L6)
+    if (!platforms.includes(platform)) return c.json({ error: `"${platform}" is not a lead source we connect to. Choose one of: ${platforms.join(', ')}.`, platforms }, 400)
     const [dupe] = await db.select({ id: t.leadSource.id }).from(t.leadSource)
       .where(and(eq(t.leadSource.companyId, currentUser.companyId), eq(t.leadSource.platform, platform))).limit(1)
     if (dupe) return c.json({ error: 'This lead source is already connected', existingId: dupe.id }, 409)
