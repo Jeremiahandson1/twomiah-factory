@@ -22,7 +22,7 @@ export default createContactRoutes({
     // a dealership sells to customers; legacy 'client' rows are folded into 'customer' at boot (db/prune-legacy.ts)
     types: ['lead', 'customer', 'vendor'],
     convertTo: 'customer',
-    relations: standardRelations({ project, quote, invoice }),
+    relations: standardRelations({ project, quote, invoice, job }),
     guards: [
       ...standardGuards({ invoice, quote, job, project }),
       { table: repairOrder, column: repairOrder.customerId, label: 'repair order' },

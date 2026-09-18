@@ -20,7 +20,7 @@ export default createContactRoutes({
   cleanText,
   options: {
     relations: [
-      ...standardRelations({ project, quote, invoice }),
+      ...standardRelations({ project, quote, invoice, job }),
       // the events venue counts + lists a contact's events (H-02)
       { key: 'events', table: event, column: event.contactId, columns: { id: event.id, name: event.name, status: event.status, eventDate: event.eventDate } },
     ],

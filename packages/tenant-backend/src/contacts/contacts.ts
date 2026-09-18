@@ -82,11 +82,16 @@ export const isValidPhone = (v: unknown) => !v || (PHONE_RE.test(String(v)) && S
 const phoneField = (what: string) => z.string().optional().nullable().refine(isValidPhone, { message: `Enter a valid ${what} (at least 7 digits)` })
 
 /** The three lists every CRM shows on a contact: projects, quotes, invoices (whichever tables it has). */
-export function standardRelations(t: { project?: any; quote?: any; invoice?: any }): ContactRelation[] {
+export function standardRelations(t: { project?: any; quote?: any; invoice?: any; job?: any }): ContactRelation[] {
   const out: ContactRelation[] = []
   if (t.project) out.push({ key: 'projects', table: t.project, column: t.project.contactId, columns: { id: t.project.id, name: t.project.name, status: t.project.status } })
   if (t.quote) out.push({ key: 'quotes', table: t.quote, column: t.quote.contactId, columns: { id: t.quote.id, number: t.quote.number, total: t.quote.total, status: t.quote.status } })
-  if (t.invoice) out.push({ key: 'invoices', table: t.invoice, column: t.invoice.contactId, columns: { id: t.invoice.id, number: t.invoice.number, total: t.invoice.total, amountPaid: t.invoice.amountPaid, status: t.invoice.status } })
+  // dueDate and the amounts come too: the page derives "overdue" the same way every other surface does,
+  // instead of printing the stored status. (T14 M17 / H10)
+  if (t.invoice) out.push({ key: 'invoices', table: t.invoice, column: t.invoice.contactId, columns: { id: t.invoice.id, number: t.invoice.number, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate, status: t.invoice.status } })
+  // A contact's work, which the page counted and never listed: "Invoices 4" over a body showing quotes
+  // only. (T14 M6)
+  if (t.job) out.push({ key: 'jobs', table: t.job, column: t.job.contactId, columns: { id: t.job.id, number: t.job.number, title: t.job.title, status: t.job.status, scheduledDate: t.job.scheduledDate } })
   return out
 }
 

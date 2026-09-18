@@ -19,7 +19,7 @@ export default createContactRoutes({
   audit,
   cleanText,
   options: {
-    relations: standardRelations({ project, quote, invoice }),
+    relations: standardRelations({ project, quote, invoice, job }),
     guards: standardGuards({ invoice, quote, job, project }),
   },
 })

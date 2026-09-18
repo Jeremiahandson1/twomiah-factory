@@ -8,15 +8,15 @@ import {
   Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight, MapPinned, ChevronRight, X,
   CalendarDays, PawPrint,
 } from 'lucide-react'
-import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, dateTime, errMsg } from '../invoicing/ui'
+import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, dateTime, isPastDay, errMsg } from '../invoicing/ui'
 import { resolveContactsConfig } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 
-type Related = { id: string; name?: string; number?: string; total?: unknown; status?: string; eventDate?: string }
+type Related = { id: string; name?: string; number?: string; title?: string; total?: unknown; amountPaid?: unknown; amountRefunded?: unknown; dueDate?: string; scheduledDate?: string; status?: string; eventDate?: string }
 type Equipment = { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null; purchaseDate?: string | null; warrantyExpiry?: string | null }
 type Site = { id: string; name: string; address?: string | null; city?: string | null; state?: string | null; zip?: string | null; accessNotes?: string | null; equipment?: Equipment[]; jobs?: any[] }
 type Patient = { id: string; name: string; species?: string | null; breed?: string | null; deceased?: boolean | null }
-type ContactDetail = ContactRow & { projects?: Related[]; quotes?: Related[]; invoices?: Related[]; events?: Related[]; patients?: Patient[]; equipment?: Equipment[]; sites?: Site[] }
+type ContactDetail = ContactRow & { projects?: Related[]; quotes?: Related[]; invoices?: Related[]; jobs?: Related[]; events?: Related[]; patients?: Patient[]; equipment?: Equipment[]; sites?: Site[] }
 
 const ACTION_ICONS: Record<QuickActionIcon, React.ComponentType<{ className?: string }>> = {
   quote: FileText, job: Briefcase, invoice: Receipt, event: CalendarDays, patients: PawPrint, appointment: CalendarDays,
@@ -191,6 +191,15 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const quotes = sections.quotes && gated('quotes') ? (contact.quotes || []) : []
   const events = sections.events && hasFeature('event_bookings') ? (contact.events || []) : []
   const showInvoices = gated('invoices')
+  const invoices = showInvoices ? (contact.invoices || []) : []
+  const jobs = contact.jobs || []
+  // "Overdue" is derived, never stored — the same rule the list, the stats, Reports and search use, so a
+  // contact's invoices cannot say something different from the invoice itself. (T14 M6 / H10)
+  const invoiceStatus = (r: Related) => {
+    const outstanding = Number(r.total || 0) - Number(r.amountPaid || 0) + Number(r.amountRefunded || 0)
+    const open = r.status === 'sent' || r.status === 'partial' || r.status === 'open'
+    return open && outstanding > 0.005 && isPastDay(r.dueDate) ? 'overdue' : String(r.status || '')
+  }
   const quickActions = cfg.quickActions.filter((a) => !a.feature || hasFeature(a.feature))
 
   return (
@@ -326,6 +335,36 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
               <div className="flex-1 flex items-center justify-between gap-3">
                 <p className="font-medium text-gray-900 dark:text-slate-100">{r.number}</p>
                 <div className="text-right"><p className="font-medium text-gray-900 dark:text-slate-100">{money(r.total)}</p>{r.status && <StatusBadge status={r.status} />}</div>
+              </div>
+            )} />
+          )}
+
+          {/* The page counted these in the sidebar and then showed a body with quotes only — "Invoices 4"
+              over nothing. Both lists are here now, and an invoice shows what is actually outstanding and
+              derives "overdue" the way every other surface does. (T14 M6) */}
+          {showInvoices && invoices.length > 0 && (
+            <RelatedList title="Invoices" rows={invoices} icon={Receipt} href={(r) => `/crm/invoices/${r.id}`} render={(r) => {
+              const outstanding = Number(r.total || 0) - Number(r.amountPaid || 0) + Number(r.amountRefunded || 0)
+              return (
+                <div className="flex-1 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-slate-100">{r.number}</p>
+                    {outstanding > 0.005 && <p className="text-sm text-gray-500 dark:text-slate-400">{money(outstanding)} outstanding</p>}
+                  </div>
+                  <div className="text-right"><p className="font-medium text-gray-900 dark:text-slate-100">{money(r.total)}</p><StatusBadge status={invoiceStatus(r)} /></div>
+                </div>
+              )
+            }} />
+          )}
+
+          {jobs.length > 0 && (
+            <RelatedList title="Jobs" rows={jobs} icon={Briefcase} href={(r) => `/crm/jobs?jobId=${r.id}`} render={(r) => (
+              <div className="flex-1 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{r.title || r.number}</p>
+                  {r.scheduledDate && <p className="text-sm text-gray-500 dark:text-slate-400">{dateOnly(r.scheduledDate)}</p>}
+                </div>
+                {r.status && <StatusBadge status={r.status} />}
               </div>
             )} />
           )}

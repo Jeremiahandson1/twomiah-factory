@@ -22,7 +22,7 @@ export default createContactRoutes({
   cleanText,
   options: {
     relations: [
-      ...standardRelations({ project, quote, invoice }),
+      ...standardRelations({ project, quote, invoice, job }),
       { key: 'equipment', table: equipment, column: equipment.contactId, columns: { id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model, serialNumber: equipment.serialNumber, status: equipment.status, location: equipment.location, purchaseDate: equipment.purchaseDate, warrantyExpiry: equipment.warrantyExpiry, siteId: equipment.siteId } },
       { key: 'sites', table: site, column: site.contactId, orderBy: asc(site.name) },
     ],

@@ -21,7 +21,7 @@ export default createContactRoutes({
   cleanText,
   options: {
     relations: [
-      ...standardRelations({ project, quote, invoice }),
+      ...standardRelations({ project, quote, invoice, job }),
       // the owner page lists their pets
       { key: 'patients', table: patient, column: patient.ownerId, columns: { id: patient.id, name: patient.name, species: patient.species, breed: patient.breed, deceased: patient.deceased }, orderBy: asc(patient.name) },
     ],

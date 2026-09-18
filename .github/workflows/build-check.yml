@@ -1044,3 +1044,14 @@ jobs:
           bun-version: latest
       - name: "Check calendar-day dates"
         run: bun run scripts/check-calendar-day-dates.ts
+
+  contact-related-lists:
+    name: "Contact page: lists the invoices and jobs it counts"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check contact related lists"
+        run: bun run scripts/check-contact-related-lists.ts
