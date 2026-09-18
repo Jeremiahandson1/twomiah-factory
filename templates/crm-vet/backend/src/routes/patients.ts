@@ -7,11 +7,10 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { SPECIES } from '../config/species.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
-
-const SPECIES = ['dog', 'cat', 'avian', 'reptile', 'equine', 'exotic', 'other']
 
 // Basic sanity on create/update — before this, a blank name, a future birth
 // date, or a negative weight all saved happily and broke the chart later.

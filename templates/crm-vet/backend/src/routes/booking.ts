@@ -5,6 +5,7 @@ import { createBookingRoutes, appointmentCalendar } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { company, contact, bookingSettings, bookableService, onlineBooking, appointment, patient } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
+import { SPECIES, SPECIES_FALLBACK } from '../config/species.ts'
 import { sendRaw } from '../services/email.ts'
 import { sendSMS } from '../services/sms.ts'
 
@@ -15,7 +16,9 @@ export default createBookingRoutes({
   calendar: appointmentCalendar(appointment, {
     contactColumn: 'ownerId', reasonColumn: 'reason', defaults: { type: 'wellness' },
     // Public booking captures the pet → create a linked patient chart so the visit isn't ownerless.
-    patient: { table: patient, ownerColumn: 'ownerId', linkColumn: 'patientId', nameColumn: 'name', speciesColumn: 'species' },
+    // The widget's species box is free text; the chart is an enum. Normalise to the SAME vocabulary /api/patients
+    // enforces, so "Cat" and "Kitty" don't land as species nothing else recognises. (T12 H5/L9)
+    patient: { table: patient, ownerColumn: 'ownerId', linkColumn: 'patientId', nameColumn: 'name', speciesColumn: 'species', species: { allowed: SPECIES, fallback: SPECIES_FALLBACK }, notesColumn: 'notes' },
   }),
   options: {
     requireAddress: false,

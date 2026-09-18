@@ -6,6 +6,35 @@ import type { BookingCalendar, BookingStatus } from './types'
 const hoursToMs = (h: unknown) => (Number(h) || 1) * 3_600_000
 
 /**
+ * What an owner types in the booking widget's species box → the chart's own vocabulary.
+ *
+ * The box is free text (it has to be — refusing a booking because someone wrote "Kitty" loses the customer), but
+ * the chart is an enum the authenticated API enforces. Unmatched, the typed string went straight onto the record:
+ * "Cat" and "Kitty" both became species the rest of the product does not recognise, which is how a capitalised
+ * "Dog" ends up in its own bucket on the dashboard. So: match case-insensitively, accept the everyday words people
+ * actually use, and put anything else in the vertical's catch-all. The raw answer is not lost — the booking row
+ * keeps petSpecies exactly as typed, so the practice can see what was meant and correct the chart. (Vet T12 H5/L9)
+ */
+const SPECIES_SYNONYMS: Record<string, string> = {
+  puppy: 'dog', pup: 'dog', canine: 'dog', doggy: 'dog', k9: 'dog',
+  kitten: 'cat', kitty: 'cat', feline: 'cat',
+  bird: 'avian', parrot: 'avian', budgie: 'avian', cockatiel: 'avian', parakeet: 'avian', chicken: 'avian', hen: 'avian',
+  snake: 'reptile', lizard: 'reptile', turtle: 'reptile', tortoise: 'reptile', gecko: 'reptile', bearded_dragon: 'reptile', iguana: 'reptile',
+  horse: 'equine', pony: 'equine', mare: 'equine', stallion: 'equine', foal: 'equine',
+  rabbit: 'exotic', bunny: 'exotic', ferret: 'exotic', hamster: 'exotic', guinea_pig: 'exotic', gerbil: 'exotic', chinchilla: 'exotic', hedgehog: 'exotic', rat: 'exotic', mouse: 'exotic',
+}
+export function normaliseSpecies(typed: string, vocab?: { allowed: readonly string[]; fallback: string }): string {
+  const raw = String(typed || '').trim()
+  if (!vocab) return raw
+  if (!raw) return vocab.fallback
+  const key = raw.toLowerCase().replace(/[\s-]+/g, '_')
+  if (vocab.allowed.includes(key)) return key
+  const mapped = SPECIES_SYNONYMS[key]
+  if (mapped && vocab.allowed.includes(mapped)) return mapped
+  return vocab.fallback
+}
+
+/**
  * Trades (contractor, field service, landscaping, events, RV): a booking becomes a scheduled job.
  * Numbered JOB-00001 under the same advisory lock the rest of the app uses.
  */
@@ -67,7 +96,13 @@ export function appointmentCalendar(appointment: any, opts: {
   serviceTable?: any
   /** vet: when the booking carries a petName, create a linked patient (owner = the booking's contact) and
    *  point the appointment's linkColumn (patientId) at it, so the visit has a real chart from the start. */
-  patient?: { table: any; ownerColumn: string; linkColumn: string; nameColumn?: string; speciesColumn?: string }
+  patient?: { table: any; ownerColumn: string; linkColumn: string; nameColumn?: string; speciesColumn?: string
+    /** the chart's own species vocabulary + what an unrecognised answer becomes (vet). Without it the typed value
+     *  is stored as-is, which is how "Cat" and "Kitty" reached charts the authenticated API would have refused. */
+    species?: { allowed: readonly string[]; fallback: string }
+    /** free-text column on the chart; an answer we could not place is written here verbatim, so the practice can
+     *  correct the species instead of wondering what the owner actually booked. */
+    notesColumn?: string }
 }): BookingCalendar {
   const inactive = ['cancelled', 'no_show']
   const statusFor = (s: BookingStatus) => s === 'pending' ? 'scheduled' : s
@@ -99,7 +134,18 @@ export function appointmentCalendar(appointment: any, opts: {
       if (opts.patient && i.petName && String(i.petName).trim()) {
         const p = opts.patient
         const pv: Record<string, unknown> = { companyId: i.companyId, [p.ownerColumn]: i.contactId, [p.nameColumn || 'name']: String(i.petName).trim() }
-        if (p.speciesColumn && i.petSpecies && String(i.petSpecies).trim()) pv[p.speciesColumn] = String(i.petSpecies).trim()
+        // With a vocabulary configured the column is always written: an unanswered species is "other", not the
+        // table's default of dog — a chart should not claim an animal we were never told about is a dog.
+        if (p.speciesColumn && p.species) {
+          const typed = String(i.petSpecies || '').trim()
+          const placed = normaliseSpecies(typed, p.species)
+          pv[p.speciesColumn] = placed
+          // An answer we could not place is kept verbatim on the chart, so the practice corrects a species rather
+          // than guessing what "unicorn" meant. Recognised answers need no note — the species says it.
+          if (p.notesColumn && typed && placed === p.species.fallback && typed.toLowerCase() !== p.species.fallback) {
+            pv[p.notesColumn] = `Species as booked: "${typed}"`
+          }
+        } else if (p.speciesColumn && i.petSpecies && String(i.petSpecies).trim()) pv[p.speciesColumn] = String(i.petSpecies).trim()
         const [pr] = await exec.insert(p.table).values(pv).returning({ id: p.table.id })
         if (pr?.id) values[p.linkColumn] = pr.id
       }
