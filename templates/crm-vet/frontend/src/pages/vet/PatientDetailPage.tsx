@@ -9,6 +9,8 @@ import VisitEditorModal, { Visit } from '../../components/vet/VisitEditorModal';
 import { openPrintable } from '../../lib/printable';
 import { ageFromDob, NewPatientModal } from './PatientsPage';
 import { ConfirmDialog } from '../../components/ui/Modal';
+import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { useAuth } from '../../contexts/AuthContext';
 
 // The lab-result "File URL" is free text, so a stored javascript:/data: URL would
 // execute on click if handed straight to href. Only ever emit http/https.
@@ -90,6 +92,7 @@ interface Prescription {
   refills?: number | string;
   isControlled?: boolean;
   notes?: string;
+  prescriber?: { id: string; name?: string } | null;
 }
 interface LabResult {
   id: string;
@@ -444,6 +447,7 @@ export default function PatientDetailPage() {
                     </span>
                   </div>
                   {rx.sig && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{rx.sig}</p>}
+                  {rx.prescriber?.name && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Prescribed by {rx.prescriber.name}</p>}
                   {rx.notes && <p className="text-xs text-gray-400 mt-1">{rx.notes}</p>}
                 </div>
               ))}
@@ -498,7 +502,7 @@ export default function PatientDetailPage() {
         />
       )}
       {showVaccine && <VaccineModal patientId={p.id} onSave={() => { setShowVaccine(false); load(); }} onClose={() => setShowVaccine(false)} />}
-      {showRx && <RxModal patientId={p.id} onSave={() => { setShowRx(false); load(); }} onClose={() => setShowRx(false)} />}
+      {showRx && <RxModal patientId={p.id} allergies={p.allergies} onSave={() => { setShowRx(false); load(); }} onClose={() => setShowRx(false)} />}
       {showLab && <LabModal patientId={p.id} onSave={() => { setShowLab(false); load(); }} onClose={() => setShowLab(false)} />}
 
       {showEdit && (
@@ -623,33 +627,54 @@ function VaccineModal({ patientId, onSave, onClose }: { patientId: string; onSav
 
 /* ---------------- Rx Modal ---------------- */
 
-function RxModal({ patientId, onSave, onClose }: { patientId: string; onSave: () => void; onClose: () => void }) {
+function RxModal({ patientId, allergies, onSave, onClose }: { patientId: string; allergies?: string; onSave: () => void; onClose: () => void }) {
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  // Blank means "whoever is signed in" — the server fills it in, so a single-vet clinic never has to choose.
+  const [prescriberId, setPrescriberId] = useState('');
+  // What the server said when it refused: the chart's allergy against the drug just typed. Confirming
+  // re-sends the same prescription with the acknowledgement, which is what lands in the audit trail.
+  const [allergyWarning, setAllergyWarning] = useState<string | null>(null);
   const [form, setForm] = useState({ drug: '', strength: '', form: '', sig: '', quantity: '', refills: '', isControlled: false, notes: '' });
   const set = (k: string, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => { fetchStaff().then(setStaff).catch(() => setStaff([])); }, []);
+  // A different drug is a different question — a warning about the last one must not carry over.
+  useEffect(() => { setAllergyWarning(null); }, [form.drug]);
+
+  const save = async (acknowledgeAllergy: boolean) => {
     if (!form.drug.trim()) { alert('Drug is required'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = { patientId, drug: form.drug.trim(), isControlled: form.isControlled };
+      if (prescriberId) payload.prescriberId = prescriberId;
       if (form.strength) payload.strength = form.strength;
       if (form.form) payload.form = form.form;
       if (form.sig) payload.sig = form.sig;
       if (form.quantity !== '') payload.quantity = Number(form.quantity);
       if (form.refills !== '') payload.refills = Number(form.refills);
       if (form.notes) payload.notes = form.notes;
+      if (acknowledgeAllergy) payload.acknowledgeAllergy = true;
       await api.post('/api/prescriptions', payload);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to add prescription');
+      const e = err as Error & { status?: number; data?: { error?: string; acknowledgeWith?: string } };
+      if (e.status === 409 && e.data?.acknowledgeWith === 'acknowledgeAllergy') setAllergyWarning(e.data.error || 'This patient has a documented allergy.');
+      else alert(e.message || 'Failed to add prescription');
     } finally { setSaving(false); }
   };
+  const submit = (e: React.FormEvent) => { e.preventDefault(); void save(false); };
 
   return (
     <ModalShell title="Add Prescription" icon={<Pill className="w-5 h-5 text-teal-600" />} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
+        {!!allergies?.trim() && (
+          <div role="note" className="flex items-start gap-2 p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-100">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span><span className="font-medium">Documented allergies:</span> {allergies}</span>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4">
           <Field label="Drug *"><input type="text" value={form.drug} onChange={(e) => set('drug', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required /></Field>
           <Field label="Strength"><input type="text" value={form.strength} onChange={(e) => set('strength', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></Field>
@@ -658,12 +683,30 @@ function RxModal({ patientId, onSave, onClose }: { patientId: string; onSave: ()
           <Field label="Refills"><input type="number" value={form.refills} onChange={(e) => set('refills', e.target.value)} className="w-full px-3 py-2 border rounded-lg" /></Field>
         </div>
         <Field label="Sig (directions)"><input type="text" value={form.sig} onChange={(e) => set('sig', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="1 tablet PO q12h" /></Field>
+        <Field label="Prescriber">
+          <select value={prescriberId} onChange={(e) => setPrescriberId(e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+            <option value="">{user ? `${staffName(user as StaffMember)} (me)` : 'Me'}</option>
+            {staff.filter((s) => s.id !== user?.id).map((s) => <option key={s.id} value={s.id}>{staffName(s)}</option>)}
+          </select>
+        </Field>
         <div className="flex items-center gap-2">
           <input id="isControlled" type="checkbox" checked={form.isControlled} onChange={(e) => set('isControlled', e.target.checked)} className="w-4 h-4" />
           <label htmlFor="isControlled" className="text-sm font-medium text-gray-700 dark:text-slate-200">Controlled substance</label>
         </div>
         <Field label="Notes"><textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" /></Field>
-        <FormButtons saving={saving} onClose={onClose} />
+        {allergyWarning ? (
+          <div role="alert" className="p-3 rounded-lg border border-red-300 bg-red-50 text-red-900 text-sm dark:bg-red-900/20 dark:border-red-700 dark:text-red-100">
+            <p className="flex items-start gap-2"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><span>{allergyWarning}</span></p>
+            <div className="flex gap-3 pt-3">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-red-300 rounded-lg hover:bg-red-100">Cancel</button>
+              <button type="button" disabled={saving} onClick={() => void save(true)} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                {saving ? 'Saving...' : 'Prescribe anyway'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <FormButtons saving={saving} onClose={onClose} />
+        )}
       </form>
     </ModalShell>
   );

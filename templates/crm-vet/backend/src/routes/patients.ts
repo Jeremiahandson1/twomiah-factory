@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { patient, contact, visit, vaccination, prescription, labResult, appointment } from '../../db/schema.ts'
+import { patient, contact, visit, vaccination, prescription, labResult, appointment, user } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -97,9 +97,16 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     .where(and(eq(vaccination.patientId, id), eq(vaccination.companyId, currentUser.companyId)))
     .orderBy(desc(vaccination.givenDate))
 
-  const prescriptions = await db.select().from(prescription)
+  // Who wrote each script travels with it — the chart is where that question gets asked. (Vet T12 M7)
+  const rxRows = await db.select({ rx: prescription, prescriber: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email } })
+    .from(prescription)
+    .leftJoin(user, eq(user.id, prescription.prescriberId))
     .where(and(eq(prescription.patientId, id), eq(prescription.companyId, currentUser.companyId)))
     .orderBy(desc(prescription.prescribedDate))
+  const prescriptions = rxRows.map((r: any) => ({
+    ...r.rx,
+    prescriber: r.prescriber?.id ? { ...r.prescriber, name: [r.prescriber.firstName, r.prescriber.lastName].filter(Boolean).join(' ') || r.prescriber.email } : null,
+  }))
 
   const labResults = await db.select().from(labResult)
     .where(and(eq(labResult.patientId, id), eq(labResult.companyId, currentUser.companyId)))

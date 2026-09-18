@@ -912,3 +912,14 @@ jobs:
           bun-version: latest
       - name: "Check table cell truncation"
         run: bun run scripts/check-table-cells.ts
+
+  vet-prescribing:
+    name: "Vet prescribing: prescriber recorded, chart checked"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check vet prescribing"
+        run: bun run scripts/check-vet-prescribing.ts
