@@ -1099,3 +1099,14 @@ jobs:
           bun-version: latest
       - name: "Check mail error wording"
         run: bun run scripts/check-mail-error-wording.ts
+
+  branding-settings:
+    name: "Owner can set logo and brand colour"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check branding settings"
+        run: bun run scripts/check-branding-settings.ts

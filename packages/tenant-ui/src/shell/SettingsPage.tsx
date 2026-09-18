@@ -7,7 +7,9 @@ import { Button, Field, inputCls, errMsg } from '../invoicing/ui'
 import { DEFAULT_ROLES, ROLE_LABELS } from './types'
 import type { SettingsPageProps, RoleOption } from './types'
 
-interface CompanyForm { name: string; email: string; phone: string; address: string; city: string; state: string; zip: string; website: string; licenseNumber: string; defaultTaxRate: string; paymentTermsDays: string }
+interface CompanyForm { name: string; email: string; phone: string; address: string; city: string; state: string; zip: string; website: string; licenseNumber: string; defaultTaxRate: string; paymentTermsDays: string; logo: string; primaryColor: string }
+/** The colour the portal header and the Stripe payment form fall back to when a tenant has not set one. */
+const DEFAULT_BRAND = '#f97316'
 interface NewUserForm { firstName: string; lastName: string; email: string; password: string; role: RoleOption['value'] }
 
 const SUB_PAGES = [
@@ -28,7 +30,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const roles = config?.roles && config.roles.length ? config.roles : DEFAULT_ROLES
   const showLicense = config?.licenseNumber !== false
   const [tab, setTab] = useState('company')
-  const [form, setForm] = useState<CompanyForm>({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30' })
+  const [form, setForm] = useState<CompanyForm>({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30', logo: '', primaryColor: '' })
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [users, setUsers] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
@@ -46,6 +48,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
       setForm({
         name: company.name || '', email: company.email || '', phone: company.phone || '', address: company.address || '', city: company.city || '',
         state: company.state || '', zip: company.zip || '', website: company.website || '', licenseNumber: company.licenseNumber || '',
+        logo: company.logo || '', primaryColor: company.primaryColor || '',
         defaultTaxRate: company.settings?.defaultTaxRate != null ? String(company.settings.defaultTaxRate) : '',
         paymentTermsDays: company.settings?.paymentTermsDays != null ? String(company.settings.paymentTermsDays) : '30',
       })
@@ -69,6 +72,11 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     const termsRaw = String(paymentTermsDays).trim()
     const termsNum = termsRaw === '' ? 30 : Number(termsRaw)
     if (!Number.isFinite(termsNum) || !Number.isInteger(termsNum) || termsNum < 0 || termsNum > 365) { toast.error('Payment terms must be a whole number of days between 0 and 365.'); return }
+    // Refuse a colour we cannot use rather than storing it: it goes straight into the portal header and the
+    // Stripe payment form, where a bad value paints nothing at all. Blank means "use the default". (T14 M8)
+    const colour = String(fields.primaryColor || '').trim()
+    if (colour && !/^#[0-9a-fA-F]{6}$/.test(colour)) { toast.error('Brand colour must be a 6-digit hex value like #f97316 (leave blank for the default).'); return }
+    fields.primaryColor = colour
     setSaving(true)
     try {
       const settings = { ...(company?.settings || {}), defaultTaxRate: taxNum, paymentTermsDays: termsNum }
@@ -160,6 +168,31 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                 <Field label="Website"><input value={form.website} onChange={set('website')} className={inputCls} /></Field>
                 {showLicense && <Field label="License #"><input value={form.licenseNumber} onChange={set('licenseNumber')} className={inputCls} /></Field>}
               </div>
+              {/* The company row has carried logo and primaryColor all along, and the portal header, the Stripe
+                  payment form and your invoices already use them — there was simply nowhere to set them. (T14 M8) */}
+              <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Branding</h3>
+              <p className="text-sm text-gray-500 -mt-2 dark:text-slate-400">What your customers see: the portal header, the payment form and your invoices.</p>
+              <Field label="Logo URL" hint="A direct link to your logo image. Leave blank to show your company name instead.">
+                <input value={form.logo} onChange={set('logo')} className={inputCls} placeholder="https://example.com/logo.png" />
+              </Field>
+              {form.logo.trim() !== '' && (
+                <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-slate-400">
+                  <span>Preview</span>
+                  <img src={form.logo} alt="Company logo preview" className="h-10 max-w-[200px] object-contain border border-gray-200 rounded p-1 dark:border-slate-700" />
+                </div>
+              )}
+              <Field label="Brand Colour" hint="A 6-digit hex value. Leave blank to use the default.">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    aria-label="Pick brand colour"
+                    value={/^#[0-9a-fA-F]{6}$/.test(form.primaryColor) ? form.primaryColor : DEFAULT_BRAND}
+                    onChange={set('primaryColor')}
+                    className="h-10 w-12 shrink-0 rounded border border-gray-300 bg-white dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <input value={form.primaryColor} onChange={set('primaryColor')} className={inputCls} placeholder={DEFAULT_BRAND} />
+                </div>
+              </Field>
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Billing Defaults</h3>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Default Sales Tax Rate (%)" hint="Applied to new quotes and invoices. Leave 0 if you do not collect sales tax."><input type="number" step="0.01" min="0" max="100" value={form.defaultTaxRate} onChange={set('defaultTaxRate')} className={inputCls} placeholder="e.g. 7.5" /></Field>
