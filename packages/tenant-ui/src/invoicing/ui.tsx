@@ -192,7 +192,21 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
 }
 
 // ---------------------------------------------------------------- form controls
-export const inputCls = 'w-full px-3 py-2 border rounded-lg bg-white text-gray-900 border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:placeholder-slate-500'
+// The look of a control, minus the two things callers routinely try to override. Width and padding are NOT
+// part of the skin, because appending a Tailwind utility cannot beat one already on the element: the sheet
+// emits .w-auto before .w-full and .py-1.5 before .py-2, so the later rule wins whatever order the class
+// names are written in. `${inputCls} w-auto` therefore rendered FULL width — which squeezed the search box
+// sitting beside it down to 54px (vet T12 M1, every CRM) — and `${inputCls} py-1.5` was quietly ignored.
+// Compose a control from the variants below instead of appending a width or a padding to one.
+const controlSkin = 'border rounded-lg bg-white text-gray-900 border-gray-300 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:placeholder-slate-500'
+/** Fills its column — the usual form field. */
+export const inputCls = `w-full px-3 py-2 ${controlSkin}`
+/** Sizes to its content: a filter or dropdown standing next to something else. */
+export const selectCls = `w-auto px-3 py-2 ${controlSkin}`
+/** Content-sized and tighter, for a dense inline row. */
+export const controlCompactCls = `w-auto px-3 py-1.5 ${controlSkin}`
+/** No width of its own, for a caller that sets one (a narrow number stepper). */
+export const controlNoWidthCls = `px-3 py-2 ${controlSkin}`
 export const labelCls = 'block text-sm font-medium mb-1 text-gray-700 dark:text-slate-300'
 export function Field({ label, children, hint }: { label: React.ReactNode; children: React.ReactNode; hint?: string }) {
   return <div><label className={labelCls}>{label}</label>{children}{hint && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{hint}</p>}</div>

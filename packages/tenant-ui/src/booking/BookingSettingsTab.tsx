@@ -1,7 +1,7 @@
 // Booking settings — the master switch, hours, scheduling rules (slot length, notice, window, capacity,
 // timezone), messages and owner notifications. One tab for every CRM.
 import React, { useEffect, useState } from 'react'
-import { Button, Field, errMsg, inputCls } from '../invoicing/ui'
+import { Button, Field, errMsg, inputCls, controlCompactCls } from '../invoicing/ui'
 import type { BookingApi, BookingConfig, BookingSettings, BookingToast } from './types'
 import { resolveBookingConfig } from './types'
 
@@ -104,9 +104,9 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
                 </label>
                 {h.enabled ? (
                   <div className="flex items-center gap-2">
-                    <input type="time" value={h.start} onChange={e => setDay(d, { start: e.target.value })} className={`${inputCls} w-auto py-1.5`} />
+                    <input type="time" value={h.start} onChange={e => setDay(d, { start: e.target.value })} className={controlCompactCls} />
                     <span className="text-gray-400 text-sm">to</span>
-                    <input type="time" value={h.end} onChange={e => setDay(d, { end: e.target.value })} className={`${inputCls} w-auto py-1.5`} />
+                    <input type="time" value={h.end} onChange={e => setDay(d, { end: e.target.value })} className={controlCompactCls} />
                   </div>
                 ) : <span className="text-sm text-gray-400">Closed</span>}
               </div>

@@ -2,7 +2,7 @@
 // balances (outstanding / overdue) are point-in-time and say so.
 import React, { useEffect, useState } from 'react'
 import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, FileText, Loader2, Users } from 'lucide-react'
-import { StatusBadge, dateOnly, inputCls, money } from '../invoicing/ui'
+import { StatusBadge, dateOnly, inputCls, money, selectCls } from '../invoicing/ui'
 import type { ReportsPageProps } from './types'
 import { resolveReportingConfig } from './types'
 
@@ -73,7 +73,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports & Analytics</h1>
           <p className={muted}>{rangeLabel}</p>
         </div>
-        <select value={range} onChange={e => setRange(e.target.value)} className={`${inputCls} w-auto`} aria-label="Period">
+        <select value={range} onChange={e => setRange(e.target.value)} className={selectCls} aria-label="Period">
           {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>

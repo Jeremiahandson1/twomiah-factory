@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, DollarSign, Ban, RotateCcw } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
-import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError, refundEffectNote } from './ui'
+import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PAYMENT_METHODS, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError, refundEffectNote, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
 interface InvoiceForm { contactId: string; projectId: string; dueDate: string; taxRate: number; discount: number; notes: string; lineItems: LineItemInput[] }
@@ -145,7 +145,7 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
     <div>
       <PageHeader title="Invoices" action={<Button onClick={openCreate}><Plus className="w-4 h-4" /> New Invoice</Button>} />
       <div className="mb-4">
-        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={`${inputCls} w-auto`}>
+        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
           <option value="">All statuses</option>
           {statuses.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
         </select>

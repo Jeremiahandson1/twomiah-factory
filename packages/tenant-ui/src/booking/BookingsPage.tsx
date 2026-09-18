@@ -2,7 +2,7 @@
 // One page for every CRM; the template passes its api client, toast and a small config.
 import React, { useCallback, useEffect, useState } from 'react'
 import { Calendar, Check, CheckCircle2, Clock, Copy, DollarSign, Plus, UserX, XCircle } from 'lucide-react'
-import { Button, ConfirmModal, DataTable, Field, Modal, NavLink, PageHeader, StatusBadge, errMsg, inputCls, money } from '../invoicing/ui'
+import { Button, ConfirmModal, DataTable, Field, Modal, NavLink, PageHeader, StatusBadge, errMsg, inputCls, money, selectCls } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { BookingSettingsTab } from './BookingSettingsTab'
 import type { BookableServiceRow, BookingPageProps, BookingRow, BookingSettings } from './types'
@@ -114,7 +114,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
       {tab === 'bookings' && (
         <>
           <div className="mb-4 flex items-center gap-3 flex-wrap">
-            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={`${inputCls} w-auto`}>
+            <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className={selectCls}>
               {STATUS_FILTERS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
             {tz && <span className="text-xs text-gray-500 dark:text-slate-400">Times shown in {tz.replace(/_/g, ' ')}</span>}

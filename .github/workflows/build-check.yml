@@ -890,3 +890,14 @@ jobs:
           bun-version: latest
       - name: "Check rooms, refills, lab statuses and addresses"
         run: bun run scripts/check-vet-validation.ts
+
+  control-classes:
+    name: "Control classes: one width per control"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check shared control classes"
+        run: bun run scripts/check-control-classes.ts

@@ -7,7 +7,7 @@
 // spend confirmation), AI recommendations, A/B landing-page tests, settings with the business profile and billing.
 import React, { useState, useEffect, useCallback } from 'react'
 import { BarChart3, Target, Lightbulb, Beaker, Settings, Loader2, Pause, Play, Plus, Trophy, Trash2, Archive, ExternalLink, Link, Unlink, RefreshCw, AlertCircle, Check } from 'lucide-react'
-import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
+import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { AdsApi, AdsToast, AdsConfig, AdsOverview, AdsPlatformState, AdsProfile } from './types'
 
@@ -119,7 +119,7 @@ function OverviewTab({ api, overview }: { api: AdsApi; overview: AdsOverview }) 
       </div>
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">Performance</h2>
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))} className={`${inputCls} w-auto`} aria-label="Date range">
+        <select value={days} onChange={(e) => setDays(Number(e.target.value))} className={selectCls} aria-label="Date range">
           {[7, 30, 90].map((d) => <option key={d} value={d}>Last {d} days</option>)}
         </select>
       </div>
@@ -299,7 +299,7 @@ function RecommendationsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast;
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-gray-500 dark:text-slate-400">Twomiah Ads reviews your campaigns and suggests changes. Nothing changes until someone applies a suggestion.</p>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className={`${inputCls} w-auto`} aria-label="Show"><option value="pending">Pending</option><option value="executed">Applied or dismissed</option><option value="all">All</option></select>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} className={selectCls} aria-label="Show"><option value="pending">Pending</option><option value="executed">Applied or dismissed</option><option value="all">All</option></select>
       </div>
       <ErrorBox msg={err} onRetry={load} />
       {loading ? <Spinner /> : rows.length === 0 ? <Empty icon={Lightbulb} text="No recommendations." hint="Suggestions appear after your campaigns have run for a few days." /> : (

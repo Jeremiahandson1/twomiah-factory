@@ -4,7 +4,7 @@
 // reported every failure with alert().
 import React, { useState, useEffect, useCallback } from 'react'
 import { BookOpen, Plus, Search, Edit2, Copy, Trash2, Loader2, DollarSign, Clock, Package, Star, Percent, FolderTree } from 'lucide-react'
-import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
+import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './types'
 
 type Item = Record<string, any>
@@ -69,7 +69,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={`Search ${itemWord.toLowerCase()}s…`} className={`${inputCls} pl-10`} aria-label="Search" />
         </div>
-        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={`${inputCls} w-auto`} aria-label="Category">
+        <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={selectCls} aria-label="Category">
           <option value="">All categories</option>
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>

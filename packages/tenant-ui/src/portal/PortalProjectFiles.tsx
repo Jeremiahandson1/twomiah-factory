@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { FolderOpen, Loader2, Upload, FileUp } from 'lucide-react'
 import { usePortal } from './PortalContext'
-import { PLink, Spinner, PageTitle, Empty, card, inputCls, formatDate } from './common'
+import { PLink, Spinner, PageTitle, Empty, card, inputCls, formatDate, selectCls } from './common'
 import { FilterBtn, DocRow } from './PortalCollaborators'
 
 interface ProjectFile { id: string; name: string; type: string; originalName: string; size?: number | null; url: string; thumbnailUrl?: string | null; description?: string | null; createdAt: string }
@@ -49,7 +49,7 @@ export function PortalProjectFiles() {
         <div className="flex flex-wrap items-center gap-3">
           <FileUp className="w-5 h-5 text-gray-500 dark:text-slate-400" />
           <p className="font-medium text-gray-900 dark:text-slate-100">Upload a file</p>
-          <select aria-label="File category" value={uploadType} onChange={(e) => setUploadType(e.target.value)} className={`${inputCls} w-auto`}>{categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}</select>
+          <select aria-label="File category" value={uploadType} onChange={(e) => setUploadType(e.target.value)} className={selectCls}>{categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}</select>
           <input ref={fileInput} type="file" onChange={handleUpload} disabled={uploading} className="hidden" id="portal-file-upload" data-testid="portal-file-input" />
           <label htmlFor="portal-file-upload" className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${uploading ? 'bg-gray-300 text-gray-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>{uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{uploading ? 'Uploading…' : 'Choose File'}</label>
         </div>

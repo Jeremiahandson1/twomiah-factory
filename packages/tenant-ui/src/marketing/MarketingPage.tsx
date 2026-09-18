@@ -5,7 +5,7 @@
 // every failure, and a trigger picker offering automations nothing fires.
 import React, { useState, useEffect, useCallback } from 'react'
 import { Mail, Plus, Send, Users, Edit2, Copy, Trash2, Loader2, FileText, Zap, Clock, Play, Pause, UserPlus, Calendar, X } from 'lucide-react'
-import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
+import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, controlNoWidthCls } from '../invoicing/ui'
 import { DEFAULT_CONTACT_TYPES } from '../contacts/types'
 import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
 
@@ -341,8 +341,8 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
                 <span className="font-medium text-gray-900 dark:text-slate-100">Step {i + 1}</span>
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
                   <span>{i === 0 ? 'Send' : 'Wait'}</span>
-                  <input type="number" min={0} value={s.delayDays} onChange={(e) => setStep(i, { delayDays: Math.max(0, parseInt(e.target.value) || 0) })} className={`${inputCls} w-16 py-1`} /> days
-                  <input type="number" min={0} max={23} value={s.delayHours} onChange={(e) => setStep(i, { delayHours: Math.max(0, parseInt(e.target.value) || 0) })} className={`${inputCls} w-16 py-1`} /> hours
+                  <input type="number" min={0} value={s.delayDays} onChange={(e) => setStep(i, { delayDays: Math.max(0, parseInt(e.target.value) || 0) })} className={`${controlNoWidthCls} w-16 py-1`} /> days
+                  <input type="number" min={0} max={23} value={s.delayHours} onChange={(e) => setStep(i, { delayHours: Math.max(0, parseInt(e.target.value) || 0) })} className={`${controlNoWidthCls} w-16 py-1`} /> hours
                   <span>{i === 0 ? 'after enrolling' : 'after the previous step'}</span>
                   {form.steps.length > 1 && <button type="button" onClick={() => setForm({ ...form, steps: form.steps.filter((_, j) => j !== i) })} className="p-1 text-gray-400 hover:text-red-600" title="Remove step"><X className="w-4 h-4" /></button>}
                 </div>

@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, UserCheck, Search, Handshake } from 'lucide-react'
-import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
+import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { resolveContactsConfig, isValidPhone } from './types'
 import type { ContactsPageProps, ContactRow } from './types'
@@ -201,7 +201,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input type="text" placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className={`${inputCls} pl-10`} />
         </div>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={`${inputCls} w-auto`}>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={selectCls}>
           <option value="">All Types</option>
           {cfg.types.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>

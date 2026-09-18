@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench, MapPinned } from 'lucide-react'
-import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, dateOnly, errMsg } from '../invoicing/ui'
+import { DataTable, StatusBadge, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, dateOnly, errMsg, selectCls } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import { resolveJobsConfig, PRIORITY_COLORS } from './types'
 import type { JobsPageProps, JobRow } from './types'
@@ -166,7 +166,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className={`${inputCls} pl-10`} />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${inputCls} w-auto capitalize`}>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${selectCls} capitalize`}>
           <option value="">All Status</option>
           {cfg.statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}
         </select>

@@ -3,7 +3,7 @@
 // token: an <img src> / <a href> cannot, which is why previews were blank and downloads 401'd before.
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Eye, File, FileText, FolderOpen, History, Image as ImageIcon, MapPin, PenLine, PenTool, RotateCcw, Square, Trash2, Upload, UploadCloud, X } from 'lucide-react'
-import { Button, ConfirmModal, DataTable, Field, Modal, PageHeader, dateOnly, errMsg, inputCls } from '../invoicing/ui'
+import { Button, ConfirmModal, DataTable, Field, Modal, PageHeader, dateOnly, errMsg, inputCls, controlCompactCls } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import type { DocumentRow, DocumentsPageProps, FilesApi, FilesToast } from './types'
 import { resolveDocumentsConfig } from './types'
@@ -310,7 +310,7 @@ function MarkupModal({ api, toast, doc, onClose }: { api: FilesApi; toast: Files
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex-wrap gap-2">
           <div className="font-semibold truncate">Markup — {doc.name}</div>
           <div className="flex items-center gap-2 flex-wrap">
-            <select value={activeId || ''} onChange={e => { const m = layers.find(x => x.id === e.target.value); if (m) select(m); else newLayer() }} className={`${inputCls} w-auto py-1.5`}>
+            <select value={activeId || ''} onChange={e => { const m = layers.find(x => x.id === e.target.value); if (m) select(m); else newLayer() }} className={controlCompactCls}>
               <option value="">New layer…</option>{layers.map(m => <option key={m.id} value={m.id}>{m.name} ({dateOnly(m.updatedAt)})</option>)}
             </select>
             {toolBtn('rect', Square, 'Rectangle')}{toolBtn('pen', PenLine, 'Freehand')}{toolBtn('pin', MapPin, 'Pin with note')}
