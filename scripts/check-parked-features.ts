@@ -49,5 +49,17 @@ if (!/const ADS_READY = false/.test(wizard)) fail('the wizard must keep the Ads 
 if (!/\{ADS_READY && \(\s*\n\s*<button onClick=\{\(\) => setTab\('ads'\)\}/.test(wizard)) fail('the Ads tab button must be behind ADS_READY')
 if (!/\{ADS_READY && tab === 'ads' && \(/.test(wizard)) fail('the Ads panel must be behind ADS_READY')
 
+// Ads off must mean Ads off in the product too: crm-roof carries its OWN /api/ads router (landing-page A/B tests
+// plus illustrative sample campaigns) and has no shared enabled-feature middleware, so it gates itself; and no CRM
+// may push a signed-in user out to the Ads sales page when the switch is off.
+const roofAds = read('templates/crm-roof/backend/src/routes/ads.ts')
+if (!/if \(!list\.includes\('paid_ads'\)\) return c\.json\(\{ error: 'Ads is not enabled for your account\.', code: 'FEATURE_NOT_ENABLED', feature: 'paid_ads' \}, 403\)/.test(roofAds)) fail('crm-roof /api/ads must refuse a tenant that does not have Ads switched on')
+if (roofAds.indexOf("app.use('*', authenticate)") > roofAds.indexOf("!list.includes('paid_ads')")) fail('crm-roof /api/ads must authenticate before it reads the feature list')
+for (const t of ['crm-roof', 'crm-homecare']) {
+  const page = read(`templates/${t}/frontend/src/pages/ads/AdsPage.tsx`)
+  if (/window\.location\.href = 'https:\/\/twomiah\.com\/ads'/.test(page)) fail(`${t} AdsPage sends a signed-in user to the Ads sales page when the feature is off`)
+  if (!/Ads is not enabled for your account\./.test(page)) fail(`${t} AdsPage must say Ads is not enabled instead of redirecting`)
+}
+
 if (failed) { console.error(`\nparked features: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`parked features: ${PARKED.join(', ')} — hidden, offered to no template, in no plan tier, in no Factory catalogue`)

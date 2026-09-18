@@ -7,6 +7,24 @@ import { eq, desc, sql, and } from 'drizzle-orm'
 const app = new Hono()
 app.use('*', authenticate)
 
+// The owner's Settings › Features switch, enforced here because this product has no shared enabled-feature
+// middleware. Without it every /api/ads route answered any signed-in user — including /campaigns, which serves
+// illustrative sample campaigns. Twomiah Ads is parked, so in practice this now refuses everyone. (2026-09-18)
+const featureCache = new Map<string, { at: number; list: string[] }>()
+app.use('*', async (c, next) => {
+  const u = (c as any).get('user')
+  if (!u?.companyId) return c.json({ error: 'Authentication required' }, 401)
+  const hit = featureCache.get(u.companyId)
+  let list = hit && Date.now() - hit.at < 15_000 ? hit.list : null
+  if (!list) {
+    const [co] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, u.companyId)).limit(1)
+    list = Array.isArray(co?.enabledFeatures) ? (co!.enabledFeatures as string[]) : []
+    featureCache.set(u.companyId, { at: Date.now(), list })
+  }
+  if (!list.includes('paid_ads')) return c.json({ error: 'Ads is not enabled for your account.', code: 'FEATURE_NOT_ENABLED', feature: 'paid_ads' }, 403)
+  await next()
+})
+
 // ─── A/B experiments ─────────────────────────────────────────────────────────
 async function companyId(): Promise<string | null> {
   const [c] = await db.select({ id: company.id }).from(company).limit(1)

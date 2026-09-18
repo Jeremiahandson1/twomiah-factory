@@ -11,11 +11,11 @@ import {
 export default function AdsPage() {
   const { hasFeature } = useAuth();
 
+  // Ads off used to push the user out of their CRM to a sales page. Say what is true and stay put. (2026-09-18)
   if (!hasFeature('paid_ads')) {
-    window.location.href = 'https://twomiah.com/ads';
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500 dark:text-slate-400">Redirecting...</p>
+        <p className="text-gray-500 dark:text-slate-400">Ads is not enabled for your account.</p>
       </div>
     );
   }
