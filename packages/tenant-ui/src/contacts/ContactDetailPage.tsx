@@ -6,7 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2, FileText, Briefcase, Receipt, MessageSquare,
   Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight, MapPinned, ChevronRight, X,
-  CalendarDays, PawPrint,
+  CalendarDays, PawPrint, Copy, Check,
 } from 'lucide-react'
 import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, dateTime, isPastDay, errMsg } from '../invoicing/ui'
 import { resolveContactsConfig } from './types'
@@ -63,6 +63,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
 
   const [portalStatus, setPortalStatus] = useState<any>(null)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [portalCopied, setPortalCopied] = useState(false)
 
   const [siteModalOpen, setSiteModalOpen] = useState(false)
   const [siteForm, setSiteForm] = useState({ name: '', address: '', city: '', state: '', zip: '', accessNotes: '' })
@@ -124,6 +125,14 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
     setPortalLoading(true)
     try { await api.post(`/api/portal/contacts/${id}/send-link`); toast.success('Portal invite sent') }
     catch (err) { toast.error(errMsg(err, 'Failed to send invite')) } finally { setPortalLoading(false) }
+  }
+  // The link was in the payload all along and nothing showed it, so the only way to get it was out of the API.
+  // Emailing it is not always what you want — sometimes you read it down the phone. (Contractor T14)
+  const copyPortalLink = async () => {
+    const url = portalStatus?.portalUrl
+    if (!url) return
+    try { await navigator.clipboard.writeText(url); setPortalCopied(true); setTimeout(() => setPortalCopied(false), 2000) }
+    catch { toast.error('Could not copy — the link is shown above and can be selected') }
   }
   const handleDelete = async () => {
     try { await api.delete('/api/contacts', id); toast.success('Contact deleted'); navigate('/crm/contacts') }
@@ -526,6 +535,19 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   </div>
                   <div className="flex items-center justify-between text-sm gap-3"><span className="text-gray-500 dark:text-slate-400">Email</span><span className="text-gray-900 dark:text-slate-100 break-all text-right">{contact.email}</span></div>
                   {portalStatus?.lastVisit && <div className="flex items-center justify-between text-sm"><span className="text-gray-500 dark:text-slate-400">Last Login</span><span className="text-gray-900 dark:text-slate-100">{dateOnly(portalStatus.lastVisit)}</span></div>}
+                  {portalStatus?.enabled && portalStatus?.portalUrl && (
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1 dark:text-slate-400">Link</div>
+                      <div className="flex items-start gap-2">
+                        <code className="flex-1 min-w-0 break-all text-xs bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-gray-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{portalStatus.portalUrl}</code>
+                        <button type="button" onClick={copyPortalLink} aria-label="Copy portal link"
+                          className="shrink-0 px-2 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                          {portalCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {portalCopied && <p className="text-xs text-green-600 mt-1">Copied</p>}
+                    </div>
+                  )}
                   {portalStatus?.enabled && (
                     <button type="button" onClick={resendPortalInvite} disabled={portalLoading} className="w-full mt-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2 dark:bg-blue-900/30 dark:text-blue-200">
                       {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Resend Portal Invite

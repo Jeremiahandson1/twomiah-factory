@@ -41,5 +41,13 @@ if (!/\{money\(outstanding\)\} outstanding/.test(page)) fail('a row should say w
 if (!/showInvoices && invoices\.length > 0/.test(page)) fail('an empty section must not render')
 if (!/jobs\.length > 0 &&/.test(page)) fail('…nor an empty Jobs section')
 
+// The portal link was in the status payload all along and nothing rendered it, so the only way an owner could
+// get it was out of the API. Emailing an invite is not always what you want — sometimes you read it out. (T14)
+if (!/\{portalStatus\.portalUrl\}/.test(page)) fail('the portal panel must SHOW the link, not just offer to email it')
+if (!/portalStatus\?\.enabled && portalStatus\?\.portalUrl/.test(page)) fail('…only when access is on and a token exists')
+if (!/aria-label="Copy portal link"/.test(page)) fail('…with a way to copy it')
+if (!/Could not copy — the link is shown above and can be selected/.test(page)) fail('…and a refused clipboard must say so rather than failing silently')
+if (!/Resend Portal Invite/.test(page)) fail('the invite email must remain — the link is an addition, not a replacement')
+
 if (failed) { console.error(`\ncontact related lists: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('contact related lists: the contact page lists the invoices and jobs it counts')
