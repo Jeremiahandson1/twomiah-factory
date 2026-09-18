@@ -17,5 +17,14 @@ for (const t of ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-vet']) {
   if (!tile) fail(`${t}: the portal has no Open Jobs tile`)
   else if (!/\?\.open \?\? 0/.test(tile) || /\?\.total \?\? 0/.test(tile) || /\?\.today \?\? 0/.test(tile)) fail(`${t}: the Open Jobs tile must read jobs.open (not total, not today) — ${tile.trim().slice(0, 90)}`)
 }
+// Reports' job status bar charts every job in the period: the eight statuses a job can hold, plus "Other" for
+// whatever is left (a status from an older build). It charted four, so 98 jobs showed as 94. (Landscaping T21 M2)
+const reports = read('packages/tenant-ui/src/reporting/ReportsPage.tsx')
+if (!/export function jobStatusBar\(/.test(reports)) fail('ReportsPage must build the job status bar from one place')
+for (const s of ['pending', 'confirmed', 'dispatched', 'on_hold']) if (!new RegExp(`\\['${s}', '`).test(reports)) fail(`the job status bar must chart '${s}' jobs`)
+if (!/const other = Math\.max\(0, \(Number\(jobs\.total\) \|\| 0\) - charted\)/.test(reports)) fail('anything not charted must land in Other, so the segments add up to the total')
+if (!/if \(other > 0\) segments\.push\(\['other', 'Other', 'bg-gray-300'\]\)/.test(reports)) fail('the Other segment must appear when there is something in it')
+if (/segments=\{\[\['scheduled', 'Scheduled', 'bg-blue-500'\], \['in_progress'/.test(reports)) fail('the hard-coded four-segment job bar must be gone')
+
 if (failed) { console.error(`\ndashboard counts: ${failed} check(s) FAILED`); process.exit(1) }
-console.log('dashboard counts: Open Jobs = still to do; billed totals keep refunded sales')
+console.log('dashboard counts: Open Jobs = still to do; billed totals keep refunded sales; every job is on the Reports status bar')

@@ -124,7 +124,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
               <div className={card}><h3 className={h3}>Revenue trend</h3><RevenueChart data={monthly} /></div>
               {cfg.eventsPipeline && <div className={card}><h3 className={h3}>Events pipeline</h3><PipelineBar segments={[['enquiry', 'Enquiry', 'bg-blue-500'], ['tentative', 'Tentative', 'bg-yellow-500'], ['confirmed', 'Confirmed', 'bg-green-500'], ['completed', 'Completed', 'bg-teal-500'], ['lost', 'Lost', 'bg-gray-400'], ['cancelled', 'Cancelled', 'bg-gray-300']]} counts={events?.pipeline || {}} /></div>}
               {cfg.dealership && <div className={card}><h3 className={h3}>Sales pipeline (open leads)</h3><PipelineBar segments={[['new', 'New', 'bg-blue-500'], ['contacted', 'Contacted', 'bg-indigo-500'], ['demo', 'Demo', 'bg-purple-500'], ['desking', 'Desking', 'bg-yellow-500']]} counts={dealer?.pipeline || {}} /></div>}
-              {showJobs && <div className={card}><h3 className={h3}>{cfg.jobsLabel.replace(/s$/, '')} status</h3><PipelineBar segments={[['scheduled', 'Scheduled', 'bg-blue-500'], ['in_progress', 'In progress', 'bg-yellow-500'], ['completed', 'Completed', 'bg-green-500'], ['cancelled', 'Cancelled', 'bg-gray-400']]} counts={{ scheduled: jobs.scheduled ?? jobs.byStatus?.scheduled ?? 0, in_progress: jobs.inProgress ?? jobs.byStatus?.in_progress ?? 0, completed: jobs.completed, cancelled: jobs.cancelled ?? jobs.byStatus?.cancelled ?? 0 }} /></div>}
+              {showJobs && (() => { const bar = jobStatusBar(jobs); return <div className={card}><h3 className={h3}>{cfg.jobsLabel.replace(/s$/, '')} status</h3><PipelineBar segments={bar.segments} counts={bar.counts} /></div> })()}
             </div>
 
             <div className={`grid grid-cols-1 ${cfg.team ? 'lg:grid-cols-3' : 'lg:grid-cols-2'} gap-6`}>
@@ -249,6 +249,33 @@ function RevenueChart({ data }: { data: MonthRow[] }) {
       </div>
     </div>
   )
+}
+
+// Every job in the period belongs on the status bar. It charted four statuses out of the eight a job can hold, so
+// pending / confirmed / dispatched / on hold work vanished from it — and so did anything left on a status from an
+// older build: 98 jobs showed as 94 (T21 M2). Statuses in use are charted; whatever is left over is "Other", so the
+// segments always add up to the total.
+const JOB_STATUS_SEGMENTS: Array<[string, string, string]> = [
+  ['scheduled', 'Scheduled', 'bg-blue-500'], ['pending', 'Pending', 'bg-slate-400'], ['confirmed', 'Confirmed', 'bg-indigo-500'],
+  ['dispatched', 'Dispatched', 'bg-purple-500'], ['in_progress', 'In progress', 'bg-yellow-500'], ['on_hold', 'On hold', 'bg-orange-400'],
+  ['completed', 'Completed', 'bg-green-500'], ['cancelled', 'Cancelled', 'bg-gray-400'],
+]
+const ALWAYS_SHOWN = ['scheduled', 'in_progress', 'completed', 'cancelled']
+export function jobStatusBar(jobs: { total?: number; completed?: number; scheduled?: number; inProgress?: number; cancelled?: number; byStatus?: Record<string, number> }) {
+  const by = jobs.byStatus || {}
+  const counts: Record<string, number> = {
+    ...Object.fromEntries(JOB_STATUS_SEGMENTS.map(([k]) => [k, Number(by[k]) || 0])),
+    scheduled: jobs.scheduled ?? (Number(by.scheduled) || 0),
+    in_progress: jobs.inProgress ?? (Number(by.in_progress) || 0),
+    completed: jobs.completed ?? (Number(by.completed) || 0),
+    cancelled: jobs.cancelled ?? (Number(by.cancelled) || 0),
+  }
+  const charted = JOB_STATUS_SEGMENTS.reduce((s, [k]) => s + counts[k], 0)
+  const other = Math.max(0, (Number(jobs.total) || 0) - charted)
+  counts.other = other
+  const segments = JOB_STATUS_SEGMENTS.filter(([k]) => counts[k] > 0 || ALWAYS_SHOWN.includes(k))
+  if (other > 0) segments.push(['other', 'Other', 'bg-gray-300'])
+  return { segments, counts }
 }
 
 function PipelineBar({ segments, counts }: { segments: Array<[string, string, string]>; counts: Record<string, number> }) {
