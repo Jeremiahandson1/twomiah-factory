@@ -342,6 +342,18 @@ export default function PatientDetailPage() {
           </div>
         )}
 
+        {/* An allergy is a medical alert. It used to sit in the details list at the same weight as Colour,
+            so the one field the prescribing check reads was the quietest thing on the chart. (Vet T12 L8) */}
+        {p.allergies && (
+          <div role="alert" className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-3 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-100">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Allergies</p>
+              <p className="text-sm">{p.allergies}</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           {/* Owner card */}
           <div className="border rounded-lg p-3">
@@ -363,7 +375,8 @@ export default function PatientDetailPage() {
               {p.bloodType && <div className="flex justify-between"><dt className="text-gray-400">Blood Type</dt><dd>{p.bloodType}</dd></div>}
               {p.insuranceProvider && <div className="flex justify-between gap-4"><dt className="text-gray-400">Insurance</dt><dd className="text-right">{p.insuranceProvider}{p.insurancePolicy ? ` · ${p.insurancePolicy}` : ''}</dd></div>}
               <div className="flex justify-between"><dt className="text-gray-400">Spayed/Neutered</dt><dd>{p.spayedNeutered ? 'Yes' : 'No'}</dd></div>
-              {p.allergies && <div className="flex justify-between"><dt className="text-gray-400">Allergies</dt><dd>{p.allergies}</dd></div>}
+              {/* Allergies moved up into their own alert — see above. Repeating them here would say they
+                  are ordinary detail, which is the impression that needed fixing. (Vet T12 L8) */}
             </dl>
           </div>
         </div>

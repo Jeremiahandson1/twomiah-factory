@@ -23,6 +23,39 @@ const todayStr = () => new Date().toISOString().slice(0, 10)
 // and what stops the same client being texted about the same shot every morning. (Vet T12 M9)
 const REMINDED_RECENTLY_DAYS = 7
 
+/**
+ * Merge fields for a recall message. The old template said "your pet is due for care" to every owner, which
+ * is a message nobody acts on — while the due list already knew the pet, the vaccine and the date. The text
+ * is written once and personalised per recipient here. (Vet T12 L7)
+ *
+ * A field with nothing behind it (the win-back tab names no vaccination) falls back to wording that still
+ * reads as a sentence, rather than leaving "{{pet_name}}" in a text message.
+ */
+const MERGE_FALLBACKS: Record<string, string> = { pet_name: 'your pet', vaccine: 'care', due_date: 'soon', owner_name: 'there', clinic_name: 'your veterinary team' }
+export function mergeReminder(template: string, values: Record<string, string | undefined>): string {
+  return String(template ?? '').replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (whole, key: string) => {
+    const k = key.toLowerCase()
+    const v = (values[k] || '').trim()
+    if (v) return v
+    return k in MERGE_FALLBACKS ? MERGE_FALLBACKS[k] : whole
+  })
+}
+
+/** "Luna" / "Luna and Max" / "Luna, Max and Pip" — a list a person would say out loud. */
+export function listPhrase(items: string[]): string {
+  const seen = [...new Set(items.filter(Boolean))]
+  if (seen.length <= 1) return seen[0] || ''
+  if (seen.length === 2) return `${seen[0]} and ${seen[1]}`
+  return `${seen.slice(0, -1).join(', ')} and ${seen[seen.length - 1]}`
+}
+
+const prettyDate = (d: unknown) => {
+  const s = String(d ?? '').slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return ''
+  const [y, m, day] = s.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric' })
+}
+
 // GET /reminders/due?window=30 — latest administration per pet+vaccine whose due date is within `window` days (or past).
 app.get('/due', requirePermission('contacts:read'), async (c) => {
   const u = c.get('user') as any
@@ -111,14 +144,45 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
   const vaccinationIds: string[] = Array.isArray(body.vaccinationIds) ? body.vaccinationIds.filter(Boolean) : []
 
   const owners = await db.select().from(contact).where(and(eq(contact.companyId, u.companyId), inArray(contact.id, contactIds)))
+
+  // What each owner's message is about, so "your pet is due for care" can become "Luna's Rabies is due
+  // October 3rd". Everything here is already on screen in the due list. (Vet T12 L7)
+  const perOwner = new Map<string, { pets: string[]; vaccines: string[]; due: string[] }>()
+  if (vaccinationIds.length) {
+    const rows = await db.select({
+      ownerId: patient.ownerId, petName: patient.name, vaccine: vaccination.vaccine, dueDate: vaccination.dueDate,
+    })
+      .from(vaccination)
+      .leftJoin(patient, eq(vaccination.patientId, patient.id))
+      .where(and(eq(vaccination.companyId, u.companyId), inArray(vaccination.id, vaccinationIds)))
+    for (const r of rows) {
+      if (!r.ownerId) continue
+      const bucket = perOwner.get(r.ownerId) || { pets: [], vaccines: [], due: [] }
+      if (r.petName) bucket.pets.push(r.petName)
+      if (r.vaccine) bucket.vaccines.push(r.vaccine)
+      const d = prettyDate(r.dueDate)
+      if (d) bucket.due.push(d)
+      perOwner.set(r.ownerId, bucket)
+    }
+  }
+  const [clinic] = await db.select({ name: company.name }).from(company).where(eq(company.id, u.companyId)).limit(1)
+
   let sent = 0
   const failures: string[] = []
   const reached: string[] = []
   for (const ct of owners) {
     const to = (ct as any).mobile || ct.phone
     if (!to) { failures.push(ct.id); continue }
+    const b = perOwner.get(ct.id)
+    const personalised = mergeReminder(message, {
+      owner_name: String(ct.name || '').split(' ')[0],
+      pet_name: listPhrase(b?.pets || []),
+      vaccine: listPhrase(b?.vaccines || []),
+      due_date: (b?.due || [])[0] || '',
+      clinic_name: clinic?.name || '',
+    })
     try {
-      await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message, userId: u.userId })
+      await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message: personalised, userId: u.userId })
       sent++
       reached.push(ct.id)
     } catch { failures.push(ct.id) }

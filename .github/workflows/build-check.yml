@@ -978,3 +978,14 @@ jobs:
           bun-version: latest
       - name: "Check vet vocabulary"
         run: bun run scripts/check-vet-vocabulary.ts
+
+  recall-message:
+    name: "Recall message: names the pet, vaccine and date; allergies read as alerts"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check recall message"
+        run: bun run scripts/check-recall-message.ts

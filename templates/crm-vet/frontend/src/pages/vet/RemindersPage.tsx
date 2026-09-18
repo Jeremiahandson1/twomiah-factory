@@ -312,8 +312,13 @@ export default function RemindersPage() {
 /* ---------------- Send Reminder Modal ---------------- */
 
 function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { contactIds: string[]; vaccinationIds: string[]; onDone: () => void; onClose: () => void }) {
+  // The fields in {{ }} are filled in per recipient by the server. The old template said "your pet is due
+  // for care" to everyone, which is a message nobody acts on, while the list on screen already knew the pet,
+  // the vaccine and the date. (Vet T12 L7)
   const [message, setMessage] = useState<string>(
-    'Hi! This is a friendly reminder from your veterinary team — your pet is due for care. Please call us to schedule a visit.'
+    vaccinationIds.length
+      ? "Hi {{owner_name}}, it's {{clinic_name}} — {{pet_name}} is due for {{vaccine}} on {{due_date}}. Call us and we'll get it booked in."
+      : "Hi {{owner_name}}, it's {{clinic_name}} — we haven't seen {{pet_name}} in a while. Call us any time to book a check-up."
   );
   const [sending, setSending] = useState<boolean>(false);
   const [result, setResult] = useState<{ sent?: number; failed?: number } | null>(null);
@@ -361,6 +366,11 @@ function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { co
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Message</label>
                 <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} className="w-full px-3 py-2 border rounded-lg" />
+                <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">
+                  Filled in for each owner: <code>{'{{owner_name}}'}</code> <code>{'{{pet_name}}'}</code>{' '}
+                  {vaccinationIds.length > 0 && <><code>{'{{vaccine}}'}</code> <code>{'{{due_date}}'}</code>{' '}</>}
+                  <code>{'{{clinic_name}}'}</code>
+                </p>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
