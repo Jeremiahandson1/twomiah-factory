@@ -7,6 +7,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { mailFailureReason } from '../integrations/mailError'
 
 export interface InvoiceTables {
   invoice: any
@@ -631,7 +632,9 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
         total: found.total, balance, dueDate: found.dueDate ? new Date(found.dueDate as any).toLocaleDateString() : 'Upon receipt',
       })
     } catch (err: any) {
-      return c.json({ error: `Could not send the invoice email: ${err?.message || 'delivery failed'}. It was not marked as sent.` }, 502)
+      // The provider's own reply goes to the log; the screen gets a reason the owner can act on. (T14 L4)
+      console.error('[invoices] send failed', { invoice: found.number, to: recipientEmail, error: err?.message })
+      return c.json({ error: `Could not send the invoice email. ${mailFailureReason(err)} It was not marked as sent.` }, 502)
     }
     // Sending never rewinds a paid/partial/open invoice to 'sent' — only a draft becomes 'sent'. sentAt is always stamped.
     const status = found.status === 'draft' ? 'sent' : found.status

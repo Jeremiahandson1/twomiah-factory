@@ -14,6 +14,7 @@ import crypto from 'crypto'
 import path from 'path'
 import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus } from '../invoicing/money'
+import { mailFailureReason } from '../integrations/mailError'
 
 export interface PortalTables {
   contact: any; company: any; user: any
@@ -194,8 +195,10 @@ export function createPortalRoutes(deps: PortalDeps) {
     try {
       await sendEmail(found.email, 'portalInvite', { contactName: found.name, companyName: companyInfo?.name, portalUrl: portalUrlFor(found.portalToken), role: found.type || 'client' })
     } catch (err) {
-      // The link is still valid — only the mail failed. Say so instead of a bare 500.
-      return c.json({ error: `Could not send the portal invite: ${(err as Error).message}` }, 502)
+      // The link is still valid — only the mail failed. Say so instead of a bare 500, and in words rather
+      // than in the provider's own reply, which named a mailbox table. (T14 L4)
+      log.warn('[portal] invite email failed', { to: found.email, error: (err as Error).message })
+      return c.json({ error: `Could not send the portal invite. ${mailFailureReason(err)} The link itself is still valid.` }, 502)
     }
     return c.json({ success: true, sentTo: found.email })
   })
