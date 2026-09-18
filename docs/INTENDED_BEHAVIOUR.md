@@ -140,4 +140,31 @@ changing the provider. (#241)
 
 ---
 
+## Refunds
+
+### Refunding a PARTIAL payment puts the balance back — that is the point
+
+**Seen:** a $100 invoice with $40 paid reads *partial*, balance $60. Refund that $40 and it reads *sent*,
+`amountRefunded` $40, balance **$100** — the balance went UP after a refund (contractor T14 L1).
+
+**Why:** the customer's $40 went back to them, so they owe the whole $100 again. A refund reverses a payment;
+reversing the only payment on an invoice leaves the invoice unpaid, and an unpaid invoice owes its total. The
+figures are self-consistent throughout: `amountPaid` stays gross, `amountRefunded` records what went back, and
+the balance is what is actually collectable.
+
+**The rule it appears to contradict** — "a refund must never create a balance owed" — is about a FULLY PAID
+invoice, and there it holds exactly. Verified on this tenant: INV-00065, $189.44 paid, took a partial refund
+and stayed **Paid at a $0 balance** with the refund on its own line, and only became *Refunded* once
+everything was returned. INV-00073 behaves the same way.
+
+| | invoice | paid | refunded | status | balance |
+|---|---|---|---|---|---|
+| partial payment, refunded | $100 | $40 | $40 | sent | **$100** — owed again |
+| full payment, fully refunded | $200 | $200 | $200 | refunded | $0 |
+
+**Decision:** left as designed (2026-09-18). A partial refund on a partly-paid invoice SHOULD restore the
+balance; anything else would show money as collected that the business no longer holds. (T14 L1)
+
+---
+
 *Last updated 2026-09-18.*
