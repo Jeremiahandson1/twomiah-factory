@@ -791,3 +791,14 @@ jobs:
           bun-version: latest
       - name: "Check job completion stamps and quote line/expiry rules"
         run: bun run scripts/check-job-quote-rules.ts
+
+  ads-upstream-errors:
+    name: "Ads upstream error guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check ads errors never show the provider payload"
+        run: bun run scripts/check-ads-upstream-errors.ts

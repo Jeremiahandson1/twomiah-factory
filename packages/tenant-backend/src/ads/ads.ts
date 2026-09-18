@@ -92,8 +92,20 @@ export function createAdsClient(env: Record<string, string | undefined>, fetchIm
       try { data = text ? JSON.parse(text) : null } catch { data = null }
       if (res.ok) return data
       if (res.status === 401) throw new AdsUpstreamError(502, "Twomiah Ads did not accept this account's API key.")
-      const msg = data?.error ? `Twomiah Ads: ${String(data.error).slice(0, 300)}` : `Twomiah Ads returned HTTP ${res.status}.`
-      throw new AdsUpstreamError(res.status === 400 || res.status === 404 || res.status === 409 ? res.status : 502, msg, data?.details)
+      // The operator sees a sentence about THIS app, never the upstream's payload: the ad-copy failure arrived as
+      // `{"type":"error","error":{"type":"authentication_error","message":"API key is invalid."}}` and was shown
+      // verbatim in the dialog — a provider's credential error is not something a landscaper can act on, and a raw
+      // upstream body can carry internals. The full body is logged for us instead. (Landscaping T21 H1)
+      const raw = typeof data?.error === 'string' ? data.error : typeof data?.error?.message === 'string' ? data.error.message : typeof data?.message === 'string' ? data.message : ''
+      const plain = raw.trim()
+      const safe = plain && plain.length <= 200 && !/[{}[\]]|api[\s_-]?key|authentication|credential|token|bearer/i.test(plain) ? plain : ''
+      const msg = safe
+        ? `Twomiah Ads: ${safe}`
+        : res.status >= 500 || !safe
+          ? 'Twomiah Ads could not complete that request. Nothing was charged — try again in a few minutes, and contact support if it keeps happening.'
+          : `Twomiah Ads returned HTTP ${res.status}.`
+      if (!safe) console.error('[Ads] upstream error', { path, status: res.status, body: text.slice(0, 500) })
+      throw new AdsUpstreamError(res.status === 400 || res.status === 404 || res.status === 409 ? res.status : 502, msg, safe ? data?.details : undefined)
     },
   }
 }
