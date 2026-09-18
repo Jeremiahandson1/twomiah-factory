@@ -338,7 +338,8 @@ factory.get('/features', (c) => {
         { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal' },
       ]},
       { category: 'Marketing', features: [
-        { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management, lead tracking, monthly ROI reports' },
+        // Twomiah Ads is not ready — it is hidden in the feature registry and offered to no template, so it is not
+        // listed here either. Put it back when the service ships (see featureRegistry.ts, id 'paid_ads').
         { id: 'google_reviews', name: 'Review Requests', description: 'Review request automation' },
         { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters' },
         { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking' },

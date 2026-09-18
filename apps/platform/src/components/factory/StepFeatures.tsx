@@ -6,6 +6,13 @@ import {
   type PlanSelection, PLANS_BY_PRODUCT, getPlanTierIndex, getFeatureTier,
 } from './planData'
 
+/**
+ * Twomiah Ads is not ready to sell (2026-09-17): the service still needs work, so no tenant may be built with it.
+ * The wizard's Ads tab and panel stay in the code behind this switch; the matching registry entry ('paid_ads') is
+ * hidden and offered to no template, and it is in no plan tier. Flip both back together when the service ships.
+ */
+const ADS_READY = false
+
 type Props = {
   config: FactoryConfig
   setConfig: React.Dispatch<React.SetStateAction<FactoryConfig>>
@@ -129,7 +136,8 @@ const CRM_REGISTRY = [
     { id: 'lead_inbox', name: 'Lead Inbox', description: 'Unified lead feed from Angi, Thumbtack, HomeAdvisor, Google LSA', core: false },
   ]},
   { category: 'Marketing', features: [
-    { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', core: false },
+    // Twomiah Ads is not ready — hidden in the feature registry and offered to no template, so it is not listed
+    // here and the Ads tab below is not rendered. Put both back when the service ships.
     { id: 'google_reviews', name: 'Review Requests', description: 'Review request automation', core: false },
     { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', core: false },
     { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', core: false },
@@ -239,7 +247,7 @@ export default function StepFeatures({ config, setConfig, plan, onNext, onBack }
             Website ({config.features.website.length})
           </button>
         )}
-        {(hasCRM || hasWebsite) && (
+        {ADS_READY && (
           <button onClick={() => setTab('ads')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'ads' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
             📣 Ads {config.features.paid_ads ? '✓' : ''}
           </button>
@@ -266,7 +274,7 @@ export default function StepFeatures({ config, setConfig, plan, onNext, onBack }
           onChange={f => setFeatures('website', f)}
         />
       )}
-      {tab === 'ads' && (
+      {ADS_READY && tab === 'ads' && (
         <PaidAdsFeature enabled={config.features.paid_ads} onChange={setPaidAds} />
       )}
 

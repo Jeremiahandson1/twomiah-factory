@@ -824,3 +824,14 @@ jobs:
           bun-version: latest
       - name: "Check the live file is in its own version history"
         run: bun run scripts/check-document-versions.ts
+
+  parked-features:
+    name: "Parked features stay unsellable"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check Twomiah Ads and the Instant Estimator cannot be switched on"
+        run: bun run scripts/check-parked-features.ts

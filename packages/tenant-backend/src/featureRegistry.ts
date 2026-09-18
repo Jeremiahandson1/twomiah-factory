@@ -140,7 +140,11 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'lead_inbox', name: 'Lead Inbox', description: 'Every enquiry in one inbox — marketplaces, ads, booking apps and your website', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
 
   // Marketing
-  { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof'] },
+  // Twomiah Ads — NOT ready (2026-09-17). The page, the routes and the connector all still exist in the templates
+  // and every surface is gated on this id; the id stays in the vocabulary so those gates are not "unknown". Offered
+  // to NO template and hidden, so it cannot be seeded by a plan, shown on a tenant's Features page, or picked in the
+  // Factory wizard. Put the templates back (and re-add it to the plan tiers below) when the service is ready.
+  { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management — not yet available', category: 'Marketing', core: false, templates: [], hidden: true },
   { id: 'google_reviews', name: 'Review Requests', description: 'Automated review requests after a visit', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
   { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet'] },
   { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
@@ -328,7 +332,7 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
       'inventory', 'equipment_tracking', 'fleet', 'warranties',
       'email_marketing', 'call_tracking', 'consumer_financing',
       'reports', 'job_costing', 'photo_capture', 'referral_program',
-      'paid_ads', 'ai_receptionist',
+      'ai_receptionist',
     ],
     construction: [
       'projects', 'rfis', 'change_orders', 'punch_lists', 'daily_logs', 'inspections',
@@ -355,7 +359,7 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
       'maintenance_contracts', 'warranties', 'inventory',
       'expense_tracking', 'reports', 'job_costing', 'photo_capture',
       'call_tracking', 'email_marketing', 'referral_program',
-      'paid_ads', 'ai_receptionist',
+      'ai_receptionist',
     ],
     fleet: [
       'multi_location', 'commission_tracking', 'map_view',
@@ -378,7 +382,7 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
     ],
     fleet: [
       'equipment_tracking', 'fleet', 'dispatch_board', 'multi_location',
-      'call_tracking', 'email_marketing', 'referral_program', 'paid_ads',
+      'call_tracking', 'email_marketing', 'referral_program',
       'ai_receptionist', 'snow_billing',
     ],
     enterprise: [],
@@ -397,7 +401,7 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
       'photo_capture', 'consumer_financing',
     ],
     storm: [
-      'storm_lead_gen', 'canvassing_tool', 'ai_receptionist', 'paid_ads',
+      'storm_lead_gen', 'canvassing_tool', 'ai_receptionist',
     ],
     enterprise: [], // visualizer removed — paid add-on, not tier-bundled
   },
