@@ -879,3 +879,14 @@ jobs:
           bun-version: latest
       - name: "Check today's appointments, visit totals and species chips"
         run: bun run scripts/check-vet-dashboard.ts
+
+  vet-validation:
+    name: "Vet inputs are checked"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check rooms, refills, lab statuses and addresses"
+        run: bun run scripts/check-vet-validation.ts

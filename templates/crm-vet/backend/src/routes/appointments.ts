@@ -57,6 +57,35 @@ async function findProviderConflict(
   return null
 }
 
+/**
+ * An exam room can't hold two appointments at once either. The provider check has always been here; a room was
+ * never checked, so two vets could be booked into "Room 7" at 11:00 and the schedule simply stacked them with no
+ * warning. Same overlap rule, same non-cancelled filter. (Vet T12 M5)
+ */
+async function findRoomConflict(
+  companyId: string,
+  room: string,
+  start: Date,
+  end: Date,
+  ignoreId?: string,
+  exec: any = db
+) {
+  const trimmed = String(room || '').trim()
+  if (!trimmed) return null
+  const rows = await exec.select().from(appointment).where(and(
+    eq(appointment.companyId, companyId),
+    sql`lower(trim(${appointment.room})) = ${trimmed.toLowerCase()}`,
+    ne(appointment.status, 'cancelled'),
+  ))
+  for (const r of rows) {
+    if (ignoreId && r.id === ignoreId) continue
+    const rStart = new Date(r.startTime)
+    const rEnd = r.endTime ? new Date(r.endTime) : new Date(rStart.getTime() + DEFAULT_APPT_MINUTES * 60000)
+    if (start < rEnd && end > rStart) return r
+  }
+  return null
+}
+
 // GET /appointments — ?from=&to= on startTime, ?providerId=, ?status=
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -114,6 +143,13 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
         const clash = await findProviderConflict(currentUser.companyId, body.providerId, start, effEnd, undefined, tx)
         if (clash) throw new ApptConflict({
           error: 'This provider already has an appointment in that time slot.',
+          conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
+        })
+      }
+      if (body.room && !body.allowConflict) {
+        const clash = await findRoomConflict(currentUser.companyId, body.room, start, effEnd, undefined, tx)
+        if (clash) throw new ApptConflict({
+          error: `${String(body.room).trim()} is already booked for that time.`,
           conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
         })
       }
@@ -183,6 +219,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 
   const effProvider = 'providerId' in updates ? updates.providerId : existing.providerId
   const effStatus = 'status' in updates ? updates.status : existing.status
+  const effRoom = 'room' in updates ? updates.room : existing.room
   let updated
   try {
     updated = await db.transaction(async (tx: any) => {
@@ -191,6 +228,13 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
         const clash = await findProviderConflict(currentUser.companyId, effProvider, effStart, effEnd, id, tx)
         if (clash) throw new ApptConflict({
           error: 'This provider already has an appointment in that time slot.',
+          conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
+        })
+      }
+      if (effRoom && effStatus !== 'cancelled' && !body.allowConflict) {
+        const clash = await findRoomConflict(currentUser.companyId, effRoom, effStart, effEnd, id, tx)
+        if (clash) throw new ApptConflict({
+          error: `${String(effRoom).trim()} is already booked for that time.`,
           conflict: { id: clash.id, startTime: clash.startTime, endTime: clash.endTime },
         })
       }

@@ -21,6 +21,15 @@ function sanitizeFileUrl(u: unknown): string | null {
   return s
 }
 
+// A result is pending, normal, abnormal, critical or final — the words the form itself suggests. It was free
+// text, so "saffron" saved as written and no filter or colour could ever be built on it. (Vet T12 L1)
+const LAB_STATUSES = ['pending', 'normal', 'abnormal', 'critical', 'final'] as const
+function statusError(v: unknown): string | null {
+  if (v === undefined || v === null || v === '') return null
+  if (typeof v === 'string' && (LAB_STATUSES as readonly string[]).includes(v.trim().toLowerCase())) return null
+  return `Invalid lab status. Expected one of: ${LAB_STATUSES.join(', ')}`
+}
+
 // GET /lab-results — ?patientId=
 app.get('/', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
@@ -41,6 +50,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
 
+  const bad = statusError(body.status)
+  if (bad) return c.json({ error: bad }, 400)
+
   const [created] = await db.insert(labResult).values({
     id: createId(),
     patientId: body.patientId,
@@ -48,7 +60,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     testName: body.testName,
     category: body.category || null,
     resultDate: body.resultDate || null,
-    status: body.status || 'final',
+    status: String(body.status || 'final').trim().toLowerCase(),
     results: body.results || {},
     summary: body.summary || null,
     fileUrl: sanitizeFileUrl(body.fileUrl),
@@ -77,6 +89,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   if ('fileUrl' in updates) updates.fileUrl = sanitizeFileUrl(updates.fileUrl)
+  if ('status' in updates) { const bad = statusError(updates.status); if (bad) return c.json({ error: bad }, 400); updates.status = String(updates.status).trim().toLowerCase() }
 
   const [updated] = await db.update(labResult).set(updates).where(eq(labResult.id, id)).returning()
   await audit.log({ action: 'update', entity: 'lab_result', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })

@@ -14,6 +14,7 @@
 //   - portal tokens are never returned, on any route (list/get already stripped; create/update leaked)
 import { Hono } from 'hono'
 import { z } from 'zod'
+import { normaliseState, normaliseZip, STATE_ERROR, ZIP_ERROR } from '../address'
 import { eq, ne, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 
 export const DEFAULT_CONTACT_TYPES = ['lead', 'client', 'subcontractor', 'vendor']
@@ -125,8 +126,9 @@ export function createContactRoutes(deps: ContactDeps) {
     mobile: phoneField('mobile number'),
     address: cleanText().optional(),
     city: cleanText().optional(),
-    state: cleanText().optional(),
-    zip: cleanText().optional(),
+    // the only two contact fields with no checking at all — "VVVVV" and an 11-digit ZIP both saved (T12 L3)
+    state: cleanText().optional().refine((v: unknown) => !v || normaliseState(v) !== null, { message: STATE_ERROR }).transform((v: unknown) => (v ? normaliseState(v)! : v)),
+    zip: cleanText().optional().refine((v: unknown) => !v || normaliseZip(v) !== null, { message: ZIP_ERROR }).transform((v: unknown) => (v ? normaliseZip(v)! : v)),
     source: cleanText().optional(),
     notes: cleanText().optional(),
     tags: z.array(cleanText()).optional(),
@@ -187,8 +189,8 @@ export function createContactRoutes(deps: ContactDeps) {
       name: cleanText(1),
       address: cleanText().optional(),
       city: cleanText().optional(),
-      state: cleanText().optional(),
-      zip: cleanText().optional(),
+      state: cleanText().optional().refine((v: unknown) => !v || normaliseState(v) !== null, { message: STATE_ERROR }).transform((v: unknown) => (v ? normaliseState(v)! : v)),
+      zip: cleanText().optional().refine((v: unknown) => !v || normaliseZip(v) !== null, { message: ZIP_ERROR }).transform((v: unknown) => (v ? normaliseZip(v)! : v)),
       accessNotes: cleanText().optional(),
     })
     const findSite = async (siteId: string, companyId: string) => {

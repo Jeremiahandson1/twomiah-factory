@@ -27,9 +27,24 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 })
 
 // POST /prescriptions
+// A refill count is how many times the script may be filled again: a whole number, never negative. "-6" saved
+// without complaint, which is not a dispensing instruction anybody can act on. 12 is the usual legal ceiling for
+// a non-controlled drug, and a controlled one gets none of this leeway anyway. (Vet T12 M8)
+const MAX_REFILLS = 12
+function refillsError(v: unknown): string | null {
+  if (v === undefined || v === null || v === '') return null
+  const n = Number(v)
+  if (!Number.isInteger(n) || n < 0) return 'Refills must be a whole number, and cannot be negative'
+  if (n > MAX_REFILLS) return `Refills cannot exceed ${MAX_REFILLS}`
+  return null
+}
+
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
+
+  const badRefills = refillsError(body.refills)
+  if (badRefills) return c.json({ error: badRefills }, 400)
 
   const [created] = await db.insert(prescription).values({
     id: createId(),
@@ -69,6 +84,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   if ('prescribedDate' in updates && updates.prescribedDate) updates.prescribedDate = new Date(updates.prescribedDate)
+  if ('refills' in updates) { const bad = refillsError(updates.refills); if (bad) return c.json({ error: bad }, 400) }
 
   const [updated] = await db.update(prescription).set(updates).where(eq(prescription.id, id)).returning()
   await audit.log({ action: 'update', entity: 'prescription', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })

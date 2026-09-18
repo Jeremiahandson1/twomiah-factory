@@ -70,6 +70,7 @@ export { createPhotoRoutes, PHOTO_CATEGORIES } from './files/photos'
 export type { PhotoDeps, PhotoTables } from './files/photos'
 
 // Contacts — one implementation for every CRM; the template injects its tables, guards and related lists.
+export { US_STATES, normaliseState, normaliseZip, STATE_ERROR, ZIP_ERROR } from './address'
 export { createContactRoutes, standardRelations, standardGuards, isValidPhone, DEFAULT_CONTACT_TYPES } from './contacts/contacts'
 export type { ContactDeps, ContactOptions, ContactRelation, ContactGuard, ContactSitesTables } from './contacts/contacts'
 
