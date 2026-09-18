@@ -5,6 +5,7 @@ import {
   HeartPulse, DollarSign, AlertTriangle, ArrowRight,
 } from 'lucide-react';
 import api from '../../services/api';
+import { appointmentTypeLabel } from '../../lib/appointmentTypes';
 
 /**
  * Twomiah Vet — practice dashboard.
@@ -271,8 +272,8 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <p className="font-medium text-gray-900 dark:text-slate-100">{a.patientName || 'Patient'}</p>
                     {a.type && (
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">
-                        {a.type}
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
+                        {appointmentTypeLabel(a.type)}
                       </span>
                     )}
                   </div>

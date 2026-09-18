@@ -967,3 +967,14 @@ jobs:
           bun-version: latest
       - name: "Check invoice PDF header"
         run: bun run scripts/check-invoice-pdf-header.ts
+
+  vet-vocabulary:
+    name: "Vet vocabulary: the clinic does not talk like a contractor"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check vet vocabulary"
+        run: bun run scripts/check-vet-vocabulary.ts

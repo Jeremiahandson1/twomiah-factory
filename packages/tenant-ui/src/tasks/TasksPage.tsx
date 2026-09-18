@@ -486,19 +486,25 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
-                <select
-                  value={form.projectId}
-                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, projectId: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value="">None</option>
-                  {projects.map((p: ProjectData) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
+              {/* Only offered where there is something to offer. A CRM with no projects — a clinic, a
+                  salon — showed a Project selector whose only option was "None": contractor vocabulary on
+                  a form that has nothing to do with projects. A task already attached to one keeps the
+                  field, so an existing link is never hidden from the person editing it. (Vet T12 M11) */}
+              {(projects.length > 0 || !!form.projectId) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Project</label>
+                  <select
+                    value={form.projectId}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, projectId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="">None</option>
+                    {projects.map((p: ProjectData) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Checklist */}

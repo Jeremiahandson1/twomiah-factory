@@ -3,6 +3,7 @@ import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, DoorO
 import api from '../../services/api';
 import OwnerPicker, { ContactLite } from '../../components/vet/OwnerPicker';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { APPOINTMENT_TYPES, appointmentTypeLabel } from '../../lib/appointmentTypes';
 
 /**
  * Appointments — single-day list over /api/appointments?from=&to=.
@@ -10,7 +11,7 @@ import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
  * /api/appointments/:id/check-in.
  */
 
-const TYPES = ['wellness', 'sick', 'surgery', 'dental', 'recheck', 'grooming', 'euthanasia'];
+// the types themselves live in lib/appointmentTypes, so the form and the schedule cannot disagree
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: 'bg-gray-100 text-gray-700',
@@ -152,7 +153,7 @@ export default function AppointmentsPage() {
                 {a.reason && <p className="text-xs text-gray-400 mt-0.5">{a.reason}</p>}
               </div>
               <div className="flex items-center gap-2 text-sm">
-                {a.type && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{a.type}</span>}
+                {a.type && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{appointmentTypeLabel(a.type)}</span>}
                 {a.room && <span className="text-xs text-gray-400 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {a.room}</span>}
                 {providerName(a) && <span className="text-xs text-gray-400">Dr. {providerName(a)}</span>}
               </div>
@@ -293,8 +294,8 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Type</label>
-                <select value={form.type} onChange={(e) => set('type', e.target.value)} className="w-full px-3 py-2 border rounded-lg capitalize">
-                  {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                <select value={form.type} onChange={(e) => set('type', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                  {APPOINTMENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
               <div>
