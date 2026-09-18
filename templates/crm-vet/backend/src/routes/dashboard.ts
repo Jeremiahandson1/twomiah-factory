@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { contact, patient, appointment, visit, vaccination, wellnessEnrollment, user } from '../../db/schema.ts'
-import { eq, and, gte, lt, count, desc, sql } from 'drizzle-orm'
+import { eq, and, gte, lt, count, desc, sql, notInArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
 /**
@@ -9,6 +9,9 @@ import { authenticate } from '../middleware/auth.ts'
  * preventive-care reminders due and wellness enrollments (not the contractor
  * jobs/quotes/invoices the base ships).
  */
+
+/** A cancelled or no-show slot is not work the practice still has to do. (T12 M3) */
+const INACTIVE_APPT = ['cancelled', 'no_show']
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -29,9 +32,11 @@ app.get('/stats', async (c) => {
 
   const [ownerRows, patientsBySpecies, activePatientRows, todayApptRows, upcomingApptRows, apptsByStatus, visitsMonthRows, revenueRows, overdueVaxRows, dueSoonVaxRows, wellnessRows] = await Promise.all([
     safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }]),
-    safe(() => db.select({ species: patient.species, c: count() }).from(patient).where(and(eq(patient.companyId, companyId), eq(patient.deceased, false))).groupBy(patient.species), [] as { species: string; c: number }[]),
+    safe(() => db.select({ species: sql<string>`lower(${patient.species})`, c: count() }).from(patient).where(and(eq(patient.companyId, companyId), eq(patient.deceased, false))).groupBy(sql`lower(${patient.species})`), [] as { species: string; c: number }[]),
     safe(() => db.select({ value: count() }).from(patient).where(and(eq(patient.companyId, companyId), eq(patient.deceased, false))), [{ value: 0 }]),
-    safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, tomorrow))), [{ value: 0 }]),
+    // "Appointments Today" is what the practice still has to see — a cancelled or no-show slot is not one of them.
+    // It counted every row in today's window, so a day with two cancellations read 9 when 7 were coming. (T12 M3)
+    safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, tomorrow), notInArray(appointment.status, INACTIVE_APPT))), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), lt(appointment.startTime, in7))), [{ value: 0 }]),
     safe(() => db.select({ status: appointment.status, c: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, in7))).groupBy(appointment.status), [] as { status: string; c: number }[]),
     safe(() => db.select({ value: count() }).from(visit).where(and(eq(visit.companyId, companyId), gte(visit.visitDate, startOfMonth), lt(visit.visitDate, startOfNextMonth))), [{ value: 0 }]),
@@ -73,7 +78,8 @@ app.get('/recent-activity', async (c) => {
   const [recentPatients, recentVisits, upcomingAppointments] = await Promise.all([
     safe(() => db.select({ id: patient.id, name: patient.name, species: patient.species, breed: patient.breed, ownerName: contact.name, updatedAt: patient.updatedAt })
       .from(patient).leftJoin(contact, eq(patient.ownerId, contact.id)).where(eq(patient.companyId, companyId)).orderBy(desc(patient.updatedAt)).limit(5), []),
-    safe(() => db.select({ id: visit.id, visitDate: visit.visitDate, reason: visit.reason, patientName: patient.name, ownerName: contact.name })
+    // Recent Visits showed $0 against every line because the total was never selected. (T12 M4)
+    safe(() => db.select({ id: visit.id, visitDate: visit.visitDate, reason: visit.reason, total: visit.total, patientName: patient.name, ownerName: contact.name })
       .from(visit).leftJoin(patient, eq(visit.patientId, patient.id)).leftJoin(contact, eq(patient.ownerId, contact.id)).where(eq(visit.companyId, companyId)).orderBy(desc(visit.visitDate)).limit(5), []),
     safe(() => db.select({ id: appointment.id, startTime: appointment.startTime, type: appointment.type, status: appointment.status, patientName: patient.name, ownerName: contact.name, providerFirstName: user.firstName, providerLastName: user.lastName })
       .from(appointment).leftJoin(patient, eq(appointment.patientId, patient.id)).leftJoin(contact, eq(appointment.ownerId, contact.id)).leftJoin(user, eq(appointment.providerId, user.id))
