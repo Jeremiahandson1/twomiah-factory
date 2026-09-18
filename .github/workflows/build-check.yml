@@ -813,3 +813,14 @@ jobs:
           bun-version: latest
       - name: "Check an unknown audience is refused and a mis-clicked clock-in is discarded"
         run: bun run scripts/check-audience-quotes-leads-time.ts
+
+  document-versions:
+    name: "Document version history"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check the live file is in its own version history"
+        run: bun run scripts/check-document-versions.ts

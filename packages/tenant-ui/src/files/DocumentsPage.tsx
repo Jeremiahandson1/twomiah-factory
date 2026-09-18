@@ -213,6 +213,7 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
 // ---------------------------------------------------------------- version history
 function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; toast: FilesToast; doc: DocumentRow; onClose: () => void; onChanged: () => void }) {
   const [versions, setVersions] = useState<any[]>([])
+  const [currentVersion, setCurrentVersion] = useState(1)
   const [current, setCurrent] = useState<DocumentRow>(doc)
   const [loading, setLoading] = useState(true)
   const [note, setNote] = useState('')
@@ -220,7 +221,7 @@ function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; 
   const fileRef = useRef<HTMLInputElement>(null)
   const load = useCallback(async () => {
     setLoading(true)
-    try { const r = await api.get(`/api/documents/${doc.id}/versions`); setVersions(r?.data || []) }
+    try { const r = await api.get(`/api/documents/${doc.id}/versions`); setVersions(r?.data || []); setCurrentVersion(Number(r?.currentVersion) || 1) }
     catch (e) { toast.error(errMsg(e, 'Could not load version history')) } finally { setLoading(false) }
   }, [api, doc.id])
   useEffect(() => { load() }, [load])
@@ -240,24 +241,27 @@ function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; 
     <Modal isOpen onClose={onClose} title={`Versions — ${doc.name}`}>
       <div className="space-y-4">
         <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-3">
-          <p className="text-sm font-medium mb-2">Current file: <span className="font-normal">{current.originalName}</span></p>
+          <p className="text-sm font-medium mb-2">Current file: <span className="font-normal">v{currentVersion} — {current.originalName}</span></p>
           <div className="flex gap-2 items-center flex-wrap">
             <input value={note} onChange={e => setNote(e.target.value)} placeholder="What changed? (optional)" className={`${inputCls} flex-1 min-w-[12rem]`} />
             <input ref={fileRef} type="file" className="hidden" onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadVersion(f) }} />
             <Button onClick={() => fileRef.current?.click()} disabled={busy}><UploadCloud className="w-4 h-4" />{busy ? 'Uploading…' : 'Upload new version'}</Button>
           </div>
         </div>
-        {loading ? <p className="text-center text-gray-400 py-6">Loading…</p> : versions.length === 0 ? <p className="text-sm text-gray-500 dark:text-slate-400">No previous versions — replaced files are kept here.</p> : (
+        {loading ? <p className="text-center text-gray-400 py-6">Loading…</p> : (
           <div className="space-y-2">
+            {/* The live file is the first entry (T21 M3: the list stopped at the file that had just been replaced).
+                It has no version row, so it downloads from the document and there is nothing to restore it to. */}
             {versions.map(v => (
-              <div key={v.id} className="rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 flex items-center justify-between gap-3">
-                <div className="min-w-0"><p className="text-sm font-medium truncate">v{v.versionNumber} — {v.originalName}</p><p className="text-xs text-gray-500 dark:text-slate-400">{new Date(v.createdAt).toLocaleString()}{v.note ? ` — ${v.note}` : ''}</p></div>
+              <div key={v.id || 'current'} className="rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2 flex items-center justify-between gap-3">
+                <div className="min-w-0"><p className="text-sm font-medium truncate">v{v.versionNumber} — {v.originalName}{v.isCurrent ? <span className="ml-2 text-xs font-normal text-green-600">current</span> : null}</p><p className="text-xs text-gray-500 dark:text-slate-400">{new Date(v.createdAt).toLocaleString()}{v.note ? ` — ${v.note}` : ''}</p></div>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => downloadAuthed(api, `/api/documents/${doc.id}/versions/${v.id}/download`, v.originalName || 'download').catch(e => toast.error(errMsg(e, 'Download failed')))} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100" title="Download"><Download className="w-4 h-4" /></button>
-                  <button onClick={() => restore(v)} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>
+                  <button onClick={() => downloadAuthed(api, v.isCurrent ? `/api/documents/${doc.id}/download` : `/api/documents/${doc.id}/versions/${v.id}/download`, v.originalName || 'download').catch(e => toast.error(errMsg(e, 'Download failed')))} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100" title="Download"><Download className="w-4 h-4" /></button>
+                  {!v.isCurrent && <button onClick={() => restore(v)} className="p-2 rounded text-gray-500 hover:text-gray-900 dark:hover:text-slate-100" title="Restore this version"><RotateCcw className="w-4 h-4" /></button>}
                 </div>
               </div>
             ))}
+            {versions.filter(v => !v.isCurrent).length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No previous versions — replaced files are kept here.</p>}
           </div>
         )}
       </div>

@@ -262,7 +262,13 @@ export function createDocumentRoutes(deps: DocumentDeps) {
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
       const versions = await db.select().from(v).where(eq(v.documentId, doc.id)).orderBy(desc(v.versionNumber))
-      return c.json({ data: versions, currentVersion: versions.length + 1 })
+      const currentVersion = versions.length + 1
+      // The file that is live now is part of its own history. Listing only the superseded copies meant the newest
+      // thing the list knew about was the file that had just been replaced, so nothing said which version you are
+      // looking at. It has no version row — it IS the document — so it carries isCurrent and no id to restore from,
+      // and it downloads from the document itself. (Landscaping T21 M3)
+      const live = { id: null, documentId: doc.id, versionNumber: currentVersion, filename: doc.filename, originalName: doc.originalName, mimeType: doc.mimeType, size: doc.size, path: doc.path, url: doc.url, note: null, uploadedById: doc.uploadedById ?? null, createdAt: doc.updatedAt || doc.createdAt, isCurrent: true }
+      return c.json({ data: [live, ...versions.map((row: any) => ({ ...row, isCurrent: false }))], currentVersion })
     })
 
     // Replace the file: the outgoing file is kept as a version, and the row (path, url, thumbnail) points at the new one.
