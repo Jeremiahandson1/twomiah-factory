@@ -7,6 +7,7 @@ import {
   contact, company, user, quote, quoteLineItem, invoice, invoiceLineItem, payment, message, auditLog, activity,
   project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
   equipment, serviceAgreement, agreementVisit, formSubmission,
+  patient, vaccination, appointment, visit,
 } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -22,6 +23,8 @@ export default createPortalRoutes({
     contact, company, user, quote, quoteLineItem, invoice, invoiceLineItem, payment, message, auditLog, activity,
     project, job, changeOrder, changeOrderLineItem, lienWaiver, rfi, submittal, document, documentShare,
     equipment, serviceAgreement, agreementVisit, formSubmission,
+    // the owner's animals — gives the portal its Pets section instead of a builder's project list (T12 H6)
+    patient, vaccination, appointment, visit,
   },
   authenticate,
   requirePermission,

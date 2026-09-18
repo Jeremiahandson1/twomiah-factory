@@ -55,6 +55,8 @@ import { PortalProvider } from './contexts/PortalContext';
 import {
   PortalLayout,
   PortalDashboard,
+  PortalPets,
+  PortalPetDetail,
   PortalProjects,
   PortalProjectDetail,
   PortalProjectFiles,
@@ -151,6 +153,8 @@ function App() {
                   {/* Client Portal (public, token-based auth) */}
                   <Route path="/portal/:token" element={<PortalProvider><PortalLayout /></PortalProvider>}>
                     <Route index element={<PortalDashboard />} />
+                    <Route path="pets" element={<PortalPets />} />
+                    <Route path="pets/:petId" element={<PortalPetDetail />} />
                     <Route path="projects" element={<PortalProjects />} />
                     <Route path="projects/:projectId" element={<PortalProjectDetail />} />
                     <Route path="projects/:projectId/files" element={<PortalProjectFiles />} />

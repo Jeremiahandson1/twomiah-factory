@@ -857,3 +857,14 @@ jobs:
           bun-version: latest
       - name: "Check a wellness enrolment is invoiced and renews"
         run: bun run scripts/check-wellness-billing.ts
+
+  portal-pets:
+    name: "Vet portal shows the pets"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check a veterinary client's portal is about their animals"
+        run: bun run scripts/check-portal-pets.ts

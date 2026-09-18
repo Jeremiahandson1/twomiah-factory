@@ -18,6 +18,7 @@ const CARD_STYLE: Record<PortalSection, { color: string; value: string }> = {
   selections: { color: 'bg-purple-100 text-purple-600', value: 'Choose' },
   messages: { color: 'bg-gray-100 text-gray-600', value: 'Open' },
   myJobs: { color: 'bg-orange-100 text-orange-600', value: 'View' },
+  pets: { color: 'bg-teal-100 text-teal-600', value: 'View' },
   lienWaivers: { color: 'bg-blue-100 text-blue-600', value: 'Review & Sign' },
   submittals: { color: 'bg-purple-100 text-purple-600', value: 'Review' },
   rfis: { color: 'bg-indigo-100 text-indigo-600', value: 'Respond' },
@@ -42,6 +43,8 @@ export function PortalDashboard() {
     if (s === 'projects') { value = summary?.activeProjects ?? 0; label = 'Active Projects' }
     if (s === 'quotes') { value = summary?.pendingQuotes ?? 0; label = 'Pending Quotes' }
     if (s === 'invoices') { value = summary?.totalInvoices ?? 0; label = 'Total Invoices' }
+    // vet: how many animals are on the account, and whether anything is overdue (T12 H6)
+    if (s === 'pets') { value = summary?.pets ?? 0; label = config.labels.pets }
     stats.push({ key: s, label, value, icon: SECTION_ICONS[s], color: style.color, link: link(s) })
     if (s === 'invoices') {
       const balance = summary?.outstandingBalance ?? 0

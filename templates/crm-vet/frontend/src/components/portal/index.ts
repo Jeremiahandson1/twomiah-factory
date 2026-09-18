@@ -2,6 +2,8 @@
 export {
   PortalLayout,
   PortalDashboard,
+  PortalPets,
+  PortalPetDetail,
   PortalProjects,
   PortalProjectDetail,
   PortalProjectFiles,

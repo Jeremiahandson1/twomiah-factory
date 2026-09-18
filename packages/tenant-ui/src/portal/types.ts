@@ -4,6 +4,8 @@ export type PortalSection =
   | 'projects' | 'quotes' | 'invoices' | 'paymentMethods' | 'changeOrders' | 'selections' | 'messages'
   | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments'
   | 'equipment' | 'agreements' | 'serviceRequest'
+  // vet: the customer's animals (T12 H6)
+  | 'pets'
 
 /** Contact types that get the collaborator (sub/vendor) portal instead of the customer one. */
 export const COLLABORATOR_TYPES = ['subcontractor', 'vendor', 'supplier']
@@ -28,7 +30,8 @@ export interface PortalConfig {
   roleLabels?: Record<string, string>
 }
 
-export const DEFAULT_CLIENT_NAV: PortalSection[] = ['projects', 'quotes', 'invoices', 'paymentMethods', 'changeOrders', 'selections', 'messages']
+// 'pets' is in the client nav for every vertical; only the ones whose backend mounts it (a veterinary practice) show it
+export const DEFAULT_CLIENT_NAV: PortalSection[] = ['pets', 'projects', 'quotes', 'invoices', 'paymentMethods', 'changeOrders', 'selections', 'messages']
 export const DEFAULT_COLLABORATOR_NAV: PortalSection[] = ['myJobs', 'lienWaivers', 'sharedDocuments', 'messages']
 export const DEFAULT_REVIEWER_NAV: PortalSection[] = ['rfis', 'submittals', 'changeOrders', 'sharedDocuments', 'messages']
 
@@ -36,6 +39,7 @@ export const DEFAULT_LABELS: Record<PortalSection, string> = {
   projects: 'Projects', quotes: 'Quotes', invoices: 'Invoices', paymentMethods: 'Payment Method', changeOrders: 'Change Orders',
   selections: 'Selections', messages: 'Messages', myJobs: 'My Jobs', lienWaivers: 'Lien Waivers', submittals: 'Submittals',
   rfis: 'RFIs', sharedDocuments: 'Documents', equipment: 'Equipment', agreements: 'Service Plans', serviceRequest: 'Request Service',
+  pets: 'My Pets',
 }
 
 /** URL path segment under /portal/:token for each section. */
@@ -43,10 +47,11 @@ export const SECTION_PATH: Record<PortalSection, string> = {
   projects: 'projects', quotes: 'quotes', invoices: 'invoices', paymentMethods: 'payment-methods', changeOrders: 'change-orders',
   selections: 'selections', messages: 'messages', myJobs: 'my-jobs', lienWaivers: 'lien-waivers', submittals: 'submittal-review',
   rfis: 'rfis-assigned', sharedDocuments: 'shared-documents', equipment: 'equipment', agreements: 'agreements', serviceRequest: 'service-request',
+  pets: 'pets',
 }
 
 /** What the backend reports it mounted (GET /p/:token → sections). */
-export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest', boolean>>
+export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest' | 'pets', boolean>>
 
 export const DEFAULT_ROLE_LABELS: Record<string, string> = {
   client: 'Customer Portal', customer: 'Customer Portal', lead: 'Customer Portal', owner: 'Customer Portal',

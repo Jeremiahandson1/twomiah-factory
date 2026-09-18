@@ -12,7 +12,7 @@
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import path from 'path'
-import { eq, and, inArray, count, sql, desc, asc, notInArray } from 'drizzle-orm'
+import { eq, and, inArray, count, sql, desc, asc, gte, lte, notInArray } from 'drizzle-orm'
 import { nextNumber, invoiceBalance, deriveStatus } from '../invoicing/money'
 
 export interface PortalTables {
@@ -23,6 +23,9 @@ export interface PortalTables {
   project?: any; job?: any; changeOrder?: any; changeOrderLineItem?: any
   lienWaiver?: any; rfi?: any; submittal?: any; document?: any; documentShare?: any
   equipment?: any; serviceAgreement?: any; agreementVisit?: any; formSubmission?: any
+  /** vet: the customer's animals and their care. With `patient` present the portal gains a Pets section —
+   *  an owner logging in sees their pets, what is due and what is booked, instead of a builder's project list. */
+  patient?: any; vaccination?: any; appointment?: any; visit?: any
 }
 export interface PortalSelectionsService {
   getClientSelections: (projectId: string, contactId: string) => Promise<any>
@@ -44,7 +47,7 @@ export interface PortalOptions {
   /** Status a portal service request is created in. Default 'pending' (unscheduled, waiting for the office). */
   serviceRequestStatus?: string
   /** Endpoint groups to leave unmounted even though their tables exist. */
-  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service'>
+  disable?: Array<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'collaborators' | 'sharedDocuments' | 'projectFiles' | 'service' | 'pets'>
 }
 export interface PortalDeps {
   db: any
@@ -92,6 +95,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     equipment: !!t.equipment && !!t.job && !off('service'),
     agreements: !!t.serviceAgreement && !off('service'),
     serviceRequest: !!t.job && !off('service'),
+    // vet: the owner's animals. (T12 H6 — the portal offered a veterinary client projects, change orders and lien
+    // waivers, and nothing at all about the pets they actually bring in.)
+    pets: !!t.patient && !off('pets'),
   }
   const app = new Hono()
   const portalUrlFor = (token: string) => `${frontendUrl()}/portal/${token}`
@@ -233,13 +239,88 @@ export function createPortalRoutes(deps: PortalDeps) {
     const [invoiceCount] = await db.select({ value: count() }).from(t.invoice).where(and(eq(t.invoice.contactId, contact.id), notInArray(t.invoice.status, PORTAL_INVOICE_HIDDEN)))
     const [balance] = await db.select({ total: sql<string>`COALESCE(SUM(CASE WHEN ${t.invoice.amountPaid} >= ${t.invoice.total} THEN 0 ELSE GREATEST(0, ${t.invoice.total} - (${t.invoice.amountPaid} - COALESCE(${t.invoice.amountRefunded}, 0))) END), 0)` }).from(t.invoice)
       .where(and(eq(t.invoice.contactId, contact.id), inArray(t.invoice.status, ['sent', 'open', 'viewed', 'partial', 'overdue'])))
+    // The owner's animals, what is overdue and what is booked — the headline a veterinary client actually wants.
+    let pets: { pets: number; vaccinationsDue: number; nextAppointment: string | null } | null = null
+    if (has.pets) {
+      const mine = await db.select({ id: t.patient.id }).from(t.patient).where(and(eq(t.patient.companyId, contact.companyId), eq(t.patient.ownerId, contact.id)))
+      const ids = mine.map((p: any) => p.id)
+      const [due] = ids.length && t.vaccination
+        ? await db.select({ value: count() }).from(t.vaccination).where(and(inArray(t.vaccination.patientId, ids), sql`${t.vaccination.dueDate} IS NOT NULL`, lte(t.vaccination.dueDate, new Date().toISOString().slice(0, 10))))
+        : [{ value: 0 }]
+      const [next] = ids.length && t.appointment
+        ? await db.select({ startTime: t.appointment.startTime }).from(t.appointment)
+            .where(and(inArray(t.appointment.patientId, ids), gte(t.appointment.startTime, new Date()), notInArray(t.appointment.status, ['cancelled', 'no_show'])))
+            .orderBy(asc(t.appointment.startTime)).limit(1)
+        : [undefined]
+      pets = { pets: ids.length, vaccinationsDue: Number(due?.value || 0), nextAppointment: next?.startTime ? new Date(next.startTime).toISOString() : null }
+    }
     return c.json({
       contact: { name: contact.name, email: contact.email, type: contact.type || 'client' },
       company: { name: company.name, logo: company.logo, primaryColor: company.primaryColor, email: company.email, phone: company.phone },
-      summary: { activeProjects: Number(projectCount.value), pendingQuotes: Number(quoteCount.value), totalInvoices: Number(invoiceCount.value), outstandingBalance: Number(balance?.total || 0) },
+      // Only what this vertical actually has: a veterinary practice was being told how many active projects and
+      // pending quotes its client had. (T12 H6)
+      summary: {
+        ...(has.projects ? { activeProjects: Number(projectCount.value) } : {}),
+        pendingQuotes: Number(quoteCount.value), totalInvoices: Number(invoiceCount.value), outstandingBalance: Number(balance?.total || 0),
+        ...(pets || {}),
+      },
       sections: has,
     })
   })
+
+  // ---- pets (vet)
+  // What an owner comes to the portal for: their animals, what each is due, and what is booked. Read-only — the
+  // chart, the notes and the prescriptions stay inside the practice. (T12 H6)
+  if (has.pets) {
+    const myPets = async (contactId: string, companyId: string) =>
+      db.select().from(t.patient).where(and(eq(t.patient.companyId, companyId), eq(t.patient.ownerId, contactId))).orderBy(asc(t.patient.name))
+
+    app.get('/p/:token/pets', portalAuth, async (c) => {
+      const { contact } = P(c)
+      const rows = await myPets(contact.id, contact.companyId)
+      const ids = rows.map((p: any) => p.id)
+      const vaccinations = ids.length && t.vaccination
+        ? await db.select({ patientId: t.vaccination.patientId, vaccine: t.vaccination.vaccine, dueDate: t.vaccination.dueDate }).from(t.vaccination)
+            .where(and(inArray(t.vaccination.patientId, ids), sql`${t.vaccination.dueDate} IS NOT NULL`)).orderBy(asc(t.vaccination.dueDate))
+        : []
+      const upcoming = ids.length && t.appointment
+        ? await db.select({ patientId: t.appointment.patientId, startTime: t.appointment.startTime, reason: t.appointment.reason, status: t.appointment.status }).from(t.appointment)
+            .where(and(inArray(t.appointment.patientId, ids), gte(t.appointment.startTime, new Date()), notInArray(t.appointment.status, ['cancelled', 'no_show']))).orderBy(asc(t.appointment.startTime))
+        : []
+      const todayIso = new Date().toISOString().slice(0, 10)
+      return c.json(rows.map((p: any) => {
+        const vax = vaccinations.filter((v: any) => v.patientId === p.id)
+        const next = upcoming.find((a: any) => a.patientId === p.id)
+        return {
+          id: p.id, name: p.name, species: p.species, breed: p.breed, sex: p.sex, dob: p.dob, weightLb: p.weightLb,
+          color: p.color, microchip: p.microchip, rabiesTag: p.rabiesTag, deceased: p.deceased,
+          vaccinationsDue: vax.filter((v: any) => v.dueDate && v.dueDate <= todayIso).length,
+          nextVaccinationDue: vax.find((v: any) => v.dueDate && v.dueDate > todayIso) || null,
+          nextAppointment: next ? { startTime: next.startTime, reason: next.reason } : null,
+        }
+      }))
+    })
+
+    app.get('/p/:token/pets/:petId', portalAuth, async (c) => {
+      const { contact } = P(c)
+      const [pet] = await db.select().from(t.patient)
+        .where(and(eq(t.patient.id, c.req.param('petId')), eq(t.patient.companyId, contact.companyId), eq(t.patient.ownerId, contact.id))).limit(1)
+      if (!pet) return c.json({ error: 'Pet not found' }, 404)
+      const [vaccinations, appointments, visits] = await Promise.all([
+        t.vaccination ? db.select({ id: t.vaccination.id, vaccine: t.vaccination.vaccine, givenDate: t.vaccination.givenDate, dueDate: t.vaccination.dueDate })
+          .from(t.vaccination).where(eq(t.vaccination.patientId, pet.id)).orderBy(desc(t.vaccination.givenDate)) : Promise.resolve([]),
+        t.appointment ? db.select({ id: t.appointment.id, startTime: t.appointment.startTime, endTime: t.appointment.endTime, reason: t.appointment.reason, status: t.appointment.status })
+          .from(t.appointment).where(and(eq(t.appointment.patientId, pet.id), notInArray(t.appointment.status, ['cancelled', 'no_show']))).orderBy(desc(t.appointment.startTime)).limit(20) : Promise.resolve([]),
+        t.visit ? db.select({ id: t.visit.id, visitDate: t.visit.visitDate, reason: t.visit.reason }).from(t.visit)
+          .where(eq(t.visit.patientId, pet.id)).orderBy(desc(t.visit.visitDate)).limit(20) : Promise.resolve([]),
+      ])
+      // The chart's clinical detail (notes, alerts, prescriptions) is deliberately not in this payload.
+      return c.json({
+        pet: { id: pet.id, name: pet.name, species: pet.species, breed: pet.breed, sex: pet.sex, dob: pet.dob, weightLb: pet.weightLb, color: pet.color, microchip: pet.microchip, rabiesTag: pet.rabiesTag, deceased: pet.deceased },
+        vaccinations, appointments, visits,
+      })
+    })
+  }
 
   // ---- projects
   if (has.projects) {

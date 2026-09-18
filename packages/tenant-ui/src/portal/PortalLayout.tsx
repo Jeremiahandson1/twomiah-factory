@@ -1,7 +1,7 @@
 // Portal chrome: company header, role-based tab nav (from the template's portal config ∩ what the backend mounts), footer.
 import React from 'react'
 import { useOutlet } from 'react-router-dom'
-import { Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageSquare, Hammer, FileSignature, FileCheck2, FolderOpen, HelpCircle, CreditCard, Wrench, CalendarCheck, LifeBuoy } from 'lucide-react'
+import { PawPrint, Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageSquare, Hammer, FileSignature, FileCheck2, FolderOpen, HelpCircle, CreditCard, Wrench, CalendarCheck, LifeBuoy } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { PortalTab } from './common'
 import type { PortalSection } from './types'
@@ -11,7 +11,7 @@ import { useTheme } from '../shell/hooks'
 export const SECTION_ICONS: Record<PortalSection, React.ComponentType<{ className?: string }>> = {
   projects: FolderKanban, quotes: FileText, invoices: Receipt, paymentMethods: CreditCard, changeOrders: ClipboardList, selections: Palette,
   messages: MessageSquare, myJobs: Hammer, lienWaivers: FileSignature, submittals: FileCheck2, rfis: HelpCircle, sharedDocuments: FolderOpen,
-  equipment: Wrench, agreements: CalendarCheck, serviceRequest: LifeBuoy,
+  equipment: Wrench, agreements: CalendarCheck, serviceRequest: LifeBuoy, pets: PawPrint,
 }
 
 /** The sections this visitor gets, in nav order: the role's configured list, minus anything the backend did not mount. */
