@@ -945,3 +945,14 @@ jobs:
           bun-version: latest
       - name: "Check patient invoices"
         run: bun run scripts/check-patient-invoices.ts
+
+  reminder-state:
+    name: "Reminder state: chasing a reminder is recorded"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check reminder state"
+        run: bun run scripts/check-reminder-state.ts

@@ -19,6 +19,10 @@ app.use('*', authenticate)
 
 const todayStr = () => new Date().toISOString().slice(0, 10)
 
+// A reminder sent inside this many days counts as "already chased" — the front desk's own rule of thumb,
+// and what stops the same client being texted about the same shot every morning. (Vet T12 M9)
+const REMINDED_RECENTLY_DAYS = 7
+
 // GET /reminders/due?window=30 — latest administration per pet+vaccine whose due date is within `window` days (or past).
 app.get('/due', requirePermission('contacts:read'), async (c) => {
   const u = c.get('user') as any
@@ -27,6 +31,8 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
 
   const rows = await db.select({
     vaccinationId: vaccination.id, vaccine: vaccination.vaccine, givenDate: vaccination.givenDate, dueDate: vaccination.dueDate, isRabies: vaccination.isRabies,
+    // what chasing has already been done about this due date (T12 M9)
+    lastRemindedAt: vaccination.lastRemindedAt, reminderCount: vaccination.reminderCount,
     patientId: patient.id, patientName: patient.name, species: patient.species, deceased: patient.deceased,
     ownerId: contact.id, ownerName: contact.name, ownerEmail: contact.email, ownerPhone: contact.phone, ownerMobile: contact.mobile,
   })
@@ -45,12 +51,24 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
     if (!cur || (r.givenDate || '') > (cur.givenDate || '')) latest.set(key, r)
   }
   const t = todayStr()
+  // "Recently reminded" is the question the front desk actually asks before texting somebody again.
+  const recentCutoff = Date.now() - REMINDED_RECENTLY_DAYS * 86400000
   const data = [...latest.values()]
     .filter(r => (r.dueDate || '') <= cutoff)
-    .map(r => ({ ...r, overdue: (r.dueDate || '') < t }))
+    .map(r => ({
+      ...r,
+      overdue: (r.dueDate || '') < t,
+      remindedRecently: !!r.lastRemindedAt && new Date(r.lastRemindedAt).getTime() >= recentCutoff,
+    }))
     .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
 
-  return c.json({ count: data.length, overdue: data.filter(d => d.overdue).length, data })
+  return c.json({
+    count: data.length,
+    overdue: data.filter(d => d.overdue).length,
+    remindedRecently: data.filter(d => d.remindedRecently).length,
+    remindedWithinDays: REMINDED_RECENTLY_DAYS,
+    data,
+  })
 })
 
 // GET /reminders/lapsed?months=12 — active patients whose last visit is older than N months (or never).
@@ -63,6 +81,7 @@ app.get('/lapsed', requirePermission('contacts:read'), async (c) => {
   const rows = await db.select({
     patientId: patient.id, patientName: patient.name, species: patient.species,
     ownerId: contact.id, ownerName: contact.name, ownerEmail: contact.email, ownerPhone: contact.phone, ownerMobile: contact.mobile,
+    lastRemindedAt: contact.lastRemindedAt,
     lastVisit: sql<string | null>`max(${visit.visitDate})`,
   })
     .from(patient)
@@ -87,18 +106,49 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
   const message: string = (body.message || '').trim()
   if (!contactIds.length || !message) return c.json({ error: 'contactIds and message are required' }, 400)
 
+  // Which due shots this send is about, so the stamp lands on the thing being chased and not merely on the
+  // person. The page sends them for the due tab; the win-back tab has none and stamps only the client.
+  const vaccinationIds: string[] = Array.isArray(body.vaccinationIds) ? body.vaccinationIds.filter(Boolean) : []
+
   const owners = await db.select().from(contact).where(and(eq(contact.companyId, u.companyId), inArray(contact.id, contactIds)))
   let sent = 0
   const failures: string[] = []
+  const reached: string[] = []
   for (const ct of owners) {
     const to = (ct as any).mobile || ct.phone
     if (!to) { failures.push(ct.id); continue }
     try {
       await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message, userId: u.userId })
       sent++
+      reached.push(ct.id)
     } catch { failures.push(ct.id) }
   }
-  return c.json({ sent, failed: failures.length, failures })
+
+  // Only what actually went out is stamped — a reminder nobody received is not a reminder. (T12 M9)
+  const now = new Date()
+  let stamped = 0
+  if (reached.length) {
+    await db.update(contact).set({ lastRemindedAt: now, updatedAt: now })
+      .where(and(eq(contact.companyId, u.companyId), inArray(contact.id, reached)))
+    if (vaccinationIds.length) {
+      // a shot only counts as chased if ITS owner is one of the people who were actually texted
+      const toStamp = await db.select({ id: vaccination.id })
+        .from(vaccination)
+        .leftJoin(patient, eq(vaccination.patientId, patient.id))
+        .where(and(
+          eq(vaccination.companyId, u.companyId),
+          inArray(vaccination.id, vaccinationIds),
+          inArray(patient.ownerId, reached),
+        ))
+      if (toStamp.length) {
+        await db.update(vaccination)
+          .set({ lastRemindedAt: now, reminderCount: sql`${vaccination.reminderCount} + 1`, updatedAt: now })
+          .where(and(eq(vaccination.companyId, u.companyId), inArray(vaccination.id, toStamp.map((r: any) => r.id))))
+        stamped = toStamp.length
+      }
+    }
+  }
+  return c.json({ sent, failed: failures.length, failures, remindersRecorded: stamped, remindedAt: reached.length ? now.toISOString() : null })
 })
 
 // GET /reminders/rabies/:vaccinationId — printable rabies vaccination certificate (HTML → print to PDF).

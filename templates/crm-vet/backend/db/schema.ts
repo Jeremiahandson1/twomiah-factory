@@ -149,6 +149,9 @@ export const contact = pgTable('contact', {
   lastPortalVisit: timestamp('last_portal_visit'),
   emailOptOut: boolean('email_opt_out').default(false).notNull(),
   emailOptOutAt: timestamp('email_opt_out_at'),
+  // When this client was last chased — the win-back list's equivalent of the vaccination stamp, so a
+  // lapsed client is not texted again the next morning by whoever opens the page. (Vet T12 M9)
+  lastRemindedAt: timestamp('last_reminded_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -3821,6 +3824,10 @@ export const vaccination = pgTable('vaccination', {
   isRabies: boolean('is_rabies').default(false).notNull(),
   rabiesTag: text('rabies_tag'),
   notes: text('notes'),
+  // What reminding has already been done about THIS due date, so the list can say so and the practice
+  // does not text the same owner about the same shot every morning. (Vet T12 M9)
+  lastRemindedAt: timestamp('last_reminded_at'),
+  reminderCount: integer('reminder_count').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

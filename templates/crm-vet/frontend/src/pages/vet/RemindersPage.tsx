@@ -24,6 +24,10 @@ interface DueRow {
   ownerEmail?: string;
   ownerPhone?: string;
   ownerMobile?: string;
+  // what chasing has already been done about this due date (T12 M9)
+  lastRemindedAt?: string | null;
+  reminderCount?: number;
+  remindedRecently?: boolean;
 }
 interface LapsedRow {
   patientId?: string;
@@ -35,6 +39,7 @@ interface LapsedRow {
   ownerPhone?: string;
   ownerMobile?: string;
   lastVisit?: string;
+  lastRemindedAt?: string | null;
 }
 
 function fmtDate(s?: string): string {
@@ -46,6 +51,18 @@ function fmtDate(s?: string): string {
   const d = dateOnly ? new Date(str.slice(0, 10) + 'T00:00:00') : new Date(str);
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// "3d ago" reads faster than a date when the question is only "have we already chased this?" (T12 M9)
+function ago(s?: string | null): string {
+  if (!s) return '—';
+  const then = new Date(s).getTime();
+  if (isNaN(then)) return '—';
+  const days = Math.floor((Date.now() - then) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 30) return `${days}d ago`;
+  return fmtDate(s);
 }
 
 type Tab = 'due' | 'lapsed';
@@ -217,9 +234,13 @@ export default function RemindersPage() {
                   <>
                     <th className="px-4 py-3 font-medium">Vaccine</th>
                     <th className="px-4 py-3 font-medium">Due</th>
+                    <th className="px-4 py-3 font-medium">Reminded</th>
                   </>
                 ) : (
-                  <th className="px-4 py-3 font-medium">Last Visit</th>
+                  <>
+                    <th className="px-4 py-3 font-medium">Last Visit</th>
+                    <th className="px-4 py-3 font-medium">Reminded</th>
+                  </>
                 )}
               </tr>
             </thead>
@@ -241,6 +262,15 @@ export default function RemindersPage() {
                       <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
                         {fmtDate(r.dueDate)}{r.overdue ? ' (overdue)' : ''}
                       </td>
+                      <td className="px-4 py-3 text-xs">
+                        {r.lastRemindedAt ? (
+                          <span className={r.remindedRecently ? 'text-amber-700' : 'text-gray-500 dark:text-slate-400'}>
+                            {ago(r.lastRemindedAt)}{(r.reminderCount || 0) > 1 ? ` · ${r.reminderCount}×` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">Not yet</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 : lapsedRows.map((r, i) => (
@@ -256,6 +286,9 @@ export default function RemindersPage() {
                         {[r.ownerMobile || r.ownerPhone, r.ownerEmail].filter(Boolean).join(' · ') || '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.lastVisit)}</td>
+                      <td className="px-4 py-3 text-xs">
+                        {r.lastRemindedAt ? <span className="text-gray-500 dark:text-slate-400">{ago(r.lastRemindedAt)}</span> : <span className="text-gray-400">Not yet</span>}
+                      </td>
                     </tr>
                   ))}
             </tbody>
@@ -266,7 +299,9 @@ export default function RemindersPage() {
       {showSend && (
         <SendReminderModal
           contactIds={selectedContactIds}
-          onDone={() => { setShowSend(false); setSelected(new Set()); }}
+          vaccinationIds={tab === 'due' ? Array.from(selected) : []}
+          // reload, so the Reminded column shows what was just sent rather than going stale (T12 M9)
+          onDone={() => { setShowSend(false); setSelected(new Set()); if (tab === 'due') loadDue(); else loadLapsed(); }}
           onClose={() => setShowSend(false)}
         />
       )}
@@ -276,7 +311,7 @@ export default function RemindersPage() {
 
 /* ---------------- Send Reminder Modal ---------------- */
 
-function SendReminderModal({ contactIds, onDone, onClose }: { contactIds: string[]; onDone: () => void; onClose: () => void }) {
+function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { contactIds: string[]; vaccinationIds: string[]; onDone: () => void; onClose: () => void }) {
   const [message, setMessage] = useState<string>(
     'Hi! This is a friendly reminder from your veterinary team — your pet is due for care. Please call us to schedule a visit.'
   );
@@ -287,7 +322,7 @@ function SendReminderModal({ contactIds, onDone, onClose }: { contactIds: string
     if (!message.trim()) { alert('Message is required'); return; }
     setSending(true);
     try {
-      const res = await api.post('/api/reminders/send', { contactIds, message: message.trim() });
+      const res = await api.post('/api/reminders/send', { contactIds, vaccinationIds, message: message.trim() });
       setResult({ sent: res.sent || 0, failed: res.failed || 0 });
     } catch (err) {
       alert((err as Error).message || 'Failed to send reminders');
