@@ -57,7 +57,18 @@ const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 const PHOTO_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }
 
 const emptyToUndef = (v: unknown) => (v === '' || v === null ? undefined : v)
-const validDate = (v: unknown) => v === undefined || v === '' || (typeof v === 'string' && !isNaN(new Date(v).getTime()))
+// A date the calendar actually has. `new Date('2026-02-30')` does not fail — it rolls over to 2 March, so an
+// impossible date was accepted and silently moved. A date-only value must round-trip its own Y-M-D.
+// (Landscaping T21 M5)
+const validDate = (v: unknown) => {
+  if (v === undefined || v === '') return true
+  if (typeof v !== 'string') return false
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return false
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return true
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() + 1 === +m[2] && d.getUTCDate() === +m[3]
+}
 
 export function createJobRoutes(deps: JobDeps) {
   const { db, tables: t, authenticate, emitToCompany, EVENTS, cleanText } = deps
@@ -68,7 +79,8 @@ export function createJobRoutes(deps: JobDeps) {
   const mediaPrefix = o.mediaUrlPrefix || '/media/'
 
   const jobSchema = z.object({
-    title: cleanText(1),
+    // a title is a line, not an essay — 500 characters went in unchecked (T21 L1)
+    title: cleanText(1).pipe(z.string().max(200, 'Title must be 200 characters or fewer')),
     description: cleanText().optional(),
     projectId: z.string().optional().transform(emptyToUndef as any),
     contactId: z.string().optional().transform(emptyToUndef as any),
@@ -96,6 +108,18 @@ export function createJobRoutes(deps: JobDeps) {
   const findOwned = async (id: string, companyId: string) => {
     const [row] = await db.select().from(t.job).where(and(eq(t.job.id, id), eq(t.job.companyId, companyId))).limit(1)
     return row
+  }
+
+  /**
+   * Work is assigned to someone who can open the app — assignedToId points at a login user. Picking a roster-only
+   * crew member used to reach the database and come back as "A related record does not exist, or is still in use.",
+   * which says nothing about why. Name the reason instead. (Landscaping T21 M6)
+   */
+  const assigneeError = async (companyId: string, assignedToId: unknown): Promise<string | null> => {
+    if (assignedToId === undefined || assignedToId === null || assignedToId === '') return null
+    const [row] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, String(assignedToId)), eq(t.user.companyId, companyId))).limit(1)
+    if (row) return null
+    return 'That person cannot be assigned work. Only team members with a login can be assigned — add a login for them on the Team page, or pick someone else.'
   }
 
   // Reject assigning the same person two live jobs at the same date + time. Online booking already
@@ -247,6 +271,8 @@ export function createJobRoutes(deps: JobDeps) {
   app.post('/', async (c) => {
     const currentUser = c.get('user') as any
     const data: any = jobSchema.parse(await c.req.json())
+    const badAssignee = await assigneeError(currentUser.companyId, data.assignedToId)
+    if (badAssignee) return c.json({ error: badAssignee }, 400)
     // Conflict check + insert run in ONE transaction under the per-company job lock, so two concurrent
     // New-Job requests for the same tech/slot can't both pass the check and double-book (the check ran
     // outside the write before, so a race stacked two jobs at 10:00). (FS double-booking race)
@@ -279,8 +305,15 @@ export function createJobRoutes(deps: JobDeps) {
     // optional string fields reject null, so map null → undefined (clearing a field uses '').
     const raw = (await c.req.json().catch(() => null)) ?? {}
     const data: any = jobSchema.partial().parse(Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v])))
+    // On an EDIT, '' (or null) on a link means "clear it" — the schema maps '' to undefined, which leaves the field
+    // alone, so Unassign and clearing the customer/project silently did nothing. All three columns are nullable.
+    for (const k of ['assignedToId', 'contactId', 'projectId'] as const) {
+      if (Object.prototype.hasOwnProperty.call(raw, k) && (raw[k] === '' || raw[k] === null)) data[k] = null
+    }
     const existing = await findOwned(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Job not found' }, 404)
+    const badAssignee = await assigneeError(currentUser.companyId, data.assignedToId)
+    if (badAssignee) return c.json({ error: badAssignee }, 400)
     // Check the resulting assignee/date/time (only the fields the edit changed override the existing).
     const effAssignee = data.assignedToId !== undefined ? data.assignedToId : existing.assignedToId
     const effDate = data.scheduledDate !== undefined ? data.scheduledDate : existing.scheduledDate

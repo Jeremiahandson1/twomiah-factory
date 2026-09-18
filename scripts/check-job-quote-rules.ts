@@ -13,6 +13,16 @@ if (!/const completedAt = data\.status === undefined \|\| data\.status === exist
 if (!/\.\.\.\(completedAt !== undefined \? \{ completedAt \} : \{\}\),/.test(jobs)) fail('the job update must write that stamp')
 if (!/transition\('complete', 'completed', \(\) => o\.onComplete, \(\) => \(\{ completedAt: new Date\(\) \}\)\)/.test(jobs)) fail('the Complete action must still stamp completedAt')
 
+// a date the calendar has (30 February rolled to 2 March), a title with a length, work assigned only to someone who
+// can log in (with a message that says why), and '' on an edit meaning "clear it" (T21 M5, M6, L1)
+if (!/const m = v\.match\(\/\^\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\/\)/.test(jobs) || !/d\.getUTCFullYear\(\) === \+m\[1\] && d\.getUTCMonth\(\) \+ 1 === \+m\[2\] && d\.getUTCDate\(\) === \+m\[3\]/.test(jobs)) fail('a date-only value must round-trip its own year-month-day (30 February must be refused)')
+if (!/title: cleanText\(1\)\.pipe\(z\.string\(\)\.max\(200, 'Title must be 200 characters or fewer'\)\)/.test(jobs)) fail('a job title must have a maximum length')
+if (!/const assigneeError = async \(companyId: string, assignedToId: unknown\)/.test(jobs) || !/Only team members with a login can be assigned/.test(jobs)) fail('assigning someone without a login must be refused with a message that says why')
+if ((jobs.match(/const badAssignee = await assigneeError\(currentUser\.companyId, data\.assignedToId\)/g) || []).length < 2) fail('both create and edit must check the assignee')
+if (!/for \(const k of \['assignedToId', 'contactId', 'projectId'\] as const\) \{\s*\n\s*if \(Object\.prototype\.hasOwnProperty\.call\(raw, k\) && \(raw\[k\] === '' \|\| raw\[k\] === null\)\) data\[k\] = null/.test(jobs)) fail("an edit sending '' for a link must clear it (Unassign did nothing)")
+const jobsPage = read('packages/tenant-ui/src/jobs/JobsPage.tsx')
+if (!/r\.contact \? r\.contact\.name : 'No customer'/.test(jobsPage)) fail('a job with no customer must say so in the list')
+
 const quotes = read('packages/tenant-backend/src/invoicing/quotes.ts')
 if (!/if \(!data\.lineItems\.length\) return c\.json\(\{ error: 'Add at least one line item\.' \}, 400\)/.test(quotes)) fail('a quote must have at least one line item')
 if (!/if \(exp\.value && exp\.value < startOfToday\(\)\) return c\.json\(\{ error: 'Expiry date is in the past — pick today or later\.' \}, 400\)/.test(quotes)) fail('a quote must not be created with an expiry date in the past')
