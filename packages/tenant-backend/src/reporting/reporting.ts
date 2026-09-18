@@ -11,6 +11,7 @@
 // while a partial refund kept it at full value.)
 import { Hono } from 'hono'
 import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull } from 'drizzle-orm'
+import { overdueCutoff } from '../invoicing/money'
 
 export interface ReportingTables {
   invoice: any
@@ -93,7 +94,9 @@ export function createReportingService(deps: ReportingDeps) {
     const [out] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
       .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued))
     const [over] = await db.select({ total: sql<string>`coalesce(sum(${balanceExpr}), 0)`, count: sql<number>`coalesce(sum(CASE WHEN ${balanceExpr} > 0.005 THEN 1 ELSE 0 END), 0)` })
-      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued, isNotNull(t.invoice.dueDate), lt(t.invoice.dueDate, new Date())))
+      // the customer has the whole of the due day, so the cut-off is the start of today — the same rule
+      // isOverdue and the invoice list use, or Reports disagrees with the page it links to (T14 M17)
+      .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), issued, isNotNull(t.invoice.dueDate), lt(t.invoice.dueDate, overdueCutoff())))
     const invoiced = r2(num(inv.total)), collected = r2(num(col.total))
     return {
       invoiced, invoiceCount: Number(inv.count),

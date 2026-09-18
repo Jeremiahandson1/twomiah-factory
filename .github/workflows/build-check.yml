@@ -1033,3 +1033,14 @@ jobs:
           bun-version: latest
       - name: "Check search invoice status"
         run: bun run scripts/check-search-invoice-status.ts
+
+  calendar-day-dates:
+    name: "Calendar-day dates: due/issue/expiry are days, overdue waits for the day to end"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check calendar-day dates"
+        run: bun run scripts/check-calendar-day-dates.ts

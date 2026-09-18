@@ -80,7 +80,12 @@ export function recomputeStatus(inv: { total: any; amountPaid: any; amountRefund
 export function isOverdue(inv: { status: string; dueDate: Date | string | null; total: any; amountPaid: any; amountRefunded?: any }, openStatuses: string[] = DEFAULT_OPEN_STATUSES): boolean {
   if (!openStatuses.includes(inv.status) || !inv.dueDate) return false
   if (invoiceBalance(inv) <= 0.005) return false
-  return new Date(inv.dueDate as any) < new Date()
+  // The customer has the WHOLE of the due day. Comparing the stored instant made an invoice due today
+  // overdue from the moment of day it happened to be stamped with — and it disagreed with the screens,
+  // which have always waited for the day to end (isPastDay). (Contractor T14 M17)
+  const due = new Date(inv.dueDate as any)
+  const endOfDueDay = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate(), 23, 59, 59, 999)
+  return endOfDueDay < Date.now()
 }
 export const deriveStatus = (inv: any, openStatuses: string[] = DEFAULT_OPEN_STATUSES) => (isOverdue(inv, openStatuses) ? 'overdue' : inv.status)
 
@@ -96,9 +101,27 @@ export function paymentTermsDaysFrom(settings: any): number {
   return Number.isFinite(d) && d >= 0 ? Math.floor(d) : 30
 }
 
+/**
+ * A due date, an issue date and a quote expiry are CALENDAR DAYS, not instants: "due 16 October" means the
+ * whole of the 16th, wherever the reader is. They are stored at midnight UTC so the day cannot drift, and
+ * so two invoices raised the same way cannot differ — 43 of 58 on one tenant carried the time of day they
+ * happened to be created at, while 15 were clean midnights. (Contractor T14 M17)
+ */
+export function startOfUtcDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+}
+
+/**
+ * The cut-off a SQL query compares a due date against: a day BEFORE today is overdue, today is not. Keeps
+ * the filtered list, the stats and Reports on the same rule as isOverdue, which waits for the day to end.
+ */
+export function overdueCutoff(now: Date = new Date()): Date {
+  return startOfUtcDay(now)
+}
+
 /** Due date = today + payment terms (whole days), on the calendar day boundary in UTC like the rest of the app. */
 export function dueDateFromTerms(settings: any, from: Date = new Date()): Date {
-  return new Date(from.getTime() + paymentTermsDaysFrom(settings) * 86400000)
+  return startOfUtcDay(new Date(from.getTime() + paymentTermsDaysFrom(settings) * 86400000))
 }
 
 /**
@@ -118,7 +141,10 @@ export function normalizeDateInput(v: unknown): { value?: Date | null; error?: s
   }
   const d = new Date(String(v))
   if (isNaN(d.getTime())) return { error: 'Enter a valid date.' }
-  return { value: d }
+  // Every caller is a calendar-day field (due date, issue date, quote expiry), so the day is what is kept:
+  // a picker sends 2026-10-16 and a client that sends a full timestamp must not store a different value for
+  // the same day. (Contractor T14 M17)
+  return { value: startOfUtcDay(d) }
 }
 
 /**

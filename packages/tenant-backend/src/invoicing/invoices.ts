@@ -6,7 +6,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
-import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 
 export interface InvoiceTables {
   invoice: any
@@ -103,7 +103,10 @@ export async function insertInvoice(
   lineItems: InvoiceLine[],
 ) {
   const totals = calcTotals(lineItems, v.taxRate, v.discount ?? 0)
-  const { dueDate, issueDate } = v
+  // Normalised HERE rather than only in the route, so every path that raises an invoice agrees: snow
+  // billing, agreements, wellness plans, a billed visit and an event deposit all call this. (T14 M17)
+  const dueDate = startOfUtcDay(v.dueDate)
+  const issueDate = startOfUtcDay(v.issueDate)
   const number = await nextNumber(tx, t.invoice, t.invoice.number, t.invoice.companyId, v.companyId, numbering)
   const [created] = await tx.insert(t.invoice).values({
     contactId: v.contactId, projectId: v.projectId, notes: v.notes, terms: v.terms,
@@ -420,7 +423,9 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const conditions: any[] = [eq(t.invoice.companyId, currentUser.companyId)]
     // 'overdue' is derived, never stored: translate the filter instead of matching a status that no row
     // has, and keep past-due rows out of the plain open-status filters so the page and its count agree.
-    const now = new Date()
+    // …and the customer has the whole of the due day, so the cut-off is the start of TODAY, not this
+    // instant — otherwise the filter disagreed with isOverdue by up to a day. (T14 M17)
+    const now = overdueCutoff()
     if (status === 'overdue') { conditions.push(inArray(t.invoice.status, openStatuses)); conditions.push(lt(t.invoice.dueDate, now)) }
     else if (status && openStatuses.includes(status)) { conditions.push(eq(t.invoice.status, status)); conditions.push(or(isNull(t.invoice.dueDate), gte(t.invoice.dueDate, now))) }
     else if (status) conditions.push(eq(t.invoice.status, status))
@@ -513,7 +518,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     // Issue date defaults to today but is settable, so backdated / migrated invoices can be entered.
     const issue = normalizeDateInput(data.issueDate)
     if (issue.error) return c.json({ error: `Issue date: ${issue.error}` }, 400)
-    const issueDate = issue.value ?? new Date()
+    // a calendar day, like the due date — not the instant the invoice happened to be raised (T14 M17)
+    const issueDate = issue.value ?? startOfUtcDay(new Date())
     // A due date before the ISSUE date is always invalid — that is what the old rejectPastDueOnCreate guard
     // meant, but it compared against TODAY, so it wrongly rejected a legitimately overdue/backdated invoice
     // and accepted a genuinely backwards one (whose issue date it had silently stamped to today). Compare the
