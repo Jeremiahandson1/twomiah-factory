@@ -12,6 +12,13 @@ const jobs = read('packages/tenant-backend/src/jobs/jobs.ts')
 if (!/const completedAt = data\.status === undefined \|\| data\.status === existing\.status \? undefined\s*\n\s*: data\.status === 'completed' \? \(existing\.completedAt \?\? new Date\(\)\)\s*\n\s*: existing\.completedAt \? null : undefined/.test(jobs)) fail('editing a job to completed must stamp completedAt (and clear it when it leaves completed)')
 if (!/\.\.\.\(completedAt !== undefined \? \{ completedAt \} : \{\}\),/.test(jobs)) fail('the job update must write that stamp')
 if (!/transition\('complete', 'completed', \(\) => o\.onComplete, \(\) => \(\{ completedAt: new Date\(\) \}\)\)/.test(jobs)) fail('the Complete action must still stamp completedAt')
+// …and a BULK status change follows the same rule: it stamped on completion but never cleared, so a job bulk-moved
+// back out of completed still claimed it was finished, and re-completing overwrote the original time.
+const bulk = read('packages/tenant-backend/src/bulk/bulk.ts')
+const fromBulkStatus = bulk.slice(bulk.indexOf('async function bulkUpdateJobStatus('))
+const bulkStatus = fromBulkStatus.slice(0, fromBulkStatus.indexOf('\n  async function', 1) + 1 || undefined)
+if (!/updates\.completedAt = sql`COALESCE\(\$\{job\.completedAt\}, \$\{new Date\(\)\}\)`/.test(bulkStatus)) fail('a bulk complete must keep the original completion time when the job was already completed')
+if (!/\} else \{\s*\n\s*updates\.completedAt = null;/.test(bulkStatus)) fail('a bulk status change away from completed must clear the completion time')
 
 // a date the calendar has (30 February rolled to 2 March), a title with a length, work assigned only to someone who
 // can log in (with a message that says why), and '' on an edit meaning "clear it" (T21 M5, M6, L1)

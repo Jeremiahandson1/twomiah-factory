@@ -129,8 +129,13 @@ export function createBulkService(deps: BulkServiceDeps) {
 
   async function bulkUpdateJobStatus(companyId: string, jobIds: string[], status: string): Promise<number> {
     const updates: Record<string, unknown> = { status, updatedAt: new Date() };
+    // Same rule the single-job routes follow (#213): completing stamps when, and moving back out of completed
+    // clears it — a reopened job must not keep claiming it was finished. COALESCE keeps the ORIGINAL completion
+    // time when a job that is already completed is included in the selection again.
     if (status === 'completed') {
-      updates.completedAt = new Date();
+      updates.completedAt = sql`COALESCE(${job.completedAt}, ${new Date()})`;
+    } else {
+      updates.completedAt = null;
     }
 
     const result = await db.update(job)
