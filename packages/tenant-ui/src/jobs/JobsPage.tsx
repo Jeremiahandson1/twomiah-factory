@@ -57,7 +57,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   useEffect(() => {
     api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
-    // Assignable staff are login USERS (job.assignedToId → user.id), not the crew roster — GET /api/team
+    // Assignable people: login users AND active roster crew (T21 M12 — crew without a login do the work). GET /api/team
     // drops users once a roster member exists, which erased everyone from the picker. (F-14 / assignee)
     if (cfg.assignee) api.get('/api/team/assignable').then((r: any) => setTeam(r?.data || (Array.isArray(r) ? r : []))).catch(() => setTeam([]))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -91,7 +91,10 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
       title: item.title || '', description: item.description || '', status: item.status || cfg.statuses[0], priority: item.priority || 'normal',
       scheduledDate: item.scheduledDate ? String(item.scheduledDate).slice(0, 10) : '', scheduledTime: item.scheduledTime || '', estimatedHours: item.estimatedHours != null ? String(item.estimatedHours) : '',
       address: item.address || '', city: item.city || '', state: item.state || '', zip: item.zip || '',
-      projectId: item.projectId || '', contactId: item.contactId || '', assignedToId: item.assignedToId || '', equipmentId: item.equipmentId || '', siteId: item.siteId || '', notes: item.notes || '',
+      // A job can be assigned to a login user OR a roster-only crew member; the picker holds whichever id it is, and
+      // the API routes it back to the right column. Seeding only from assignedToId showed "Unassigned" for crew —
+      // and saving the form would then have unassigned them for real. (T21 M12)
+      projectId: item.projectId || '', contactId: item.contactId || '', assignedToId: item.assignedToId || item.assignedToMemberId || '', equipmentId: item.equipmentId || '', siteId: item.siteId || '', notes: item.notes || '',
     })
     setUseAddressOnFile(false)
     loadForContact(item.contactId || '')
@@ -145,7 +148,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     { key: 'status', label: 'Status', render: (v: unknown, r: JobRow) => <span className="inline-flex items-center gap-1"><StatusBadge status={String(v || '')} />{r.isOverdue ? <StatusBadge status="overdue" /> : null}</span> },
     { key: 'priority', label: 'Priority', render: (v: unknown) => <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${PRIORITY_COLORS[String(v)] || ''}`}>{String(v || '')}</span> },
     { key: 'scheduledDate', label: 'Scheduled', render: (v: unknown) => v ? dateOnly(v) : '-' },
-    { key: 'assignedTo', label: 'Assigned To', render: (v: unknown) => v ? `${(v as any).firstName} ${(v as any).lastName}` : '-' },
+    { key: 'assignedTo', label: 'Assigned To', render: (v: unknown) => { const a = v as any; return a ? (a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim() || '-') : '-' } },
   ]
   const actions = [
     { label: 'Edit', icon: Edit, onClick: openEdit },

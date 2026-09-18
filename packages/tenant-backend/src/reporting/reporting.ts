@@ -10,7 +10,7 @@
 // (Landscaping T14 H4: refunding the rest of a paid $1,000 invoice took it out of "invoiced" retroactively,
 // while a partial refund kept it at full value.)
 import { Hono } from 'hono'
-import { eq, and, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull } from 'drizzle-orm'
+import { eq, and, or, gte, lte, lt, sql, count, sum, inArray, desc, isNotNull } from 'drizzle-orm'
 
 export interface ReportingTables {
   invoice: any
@@ -21,6 +21,8 @@ export interface ReportingTables {
   timeEntry: any
   user: any
   contact: any
+  /** crew roster — present → team productivity also counts jobs done by roster-only crew (T21 M12) */
+  teamMember?: any
 }
 
 export interface ReportingOptions {
@@ -162,14 +164,23 @@ export function createReportingService(deps: ReportingDeps) {
     return rows.map((r: any) => ({ type: r.type || 'Uncategorized', count: Number(r.count) }))
   }
 
+  // Who did the work — counting login users AND roster-only crew, who are assigned through their own column.
+  // Counting only the user column left every crew member's jobs out of team productivity entirely. (T21 M12)
   async function jobsByAssignee(companyId: string, range: DateRange) {
-    const rows = await db.select({ assignedToId: t.job.assignedToId, count: count() }).from(t.job)
-      .where(and(eq(t.job.companyId, companyId), isNotNull(t.job.assignedToId), ...inRange(t.job.createdAt, range))).groupBy(t.job.assignedToId)
+    const hasRoster = !!t.teamMember && !!t.job.assignedToMemberId
+    const rows = await db.select({ assignedToId: t.job.assignedToId, ...(hasRoster ? { assignedToMemberId: t.job.assignedToMemberId } : {}), count: count() }).from(t.job)
+      .where(and(eq(t.job.companyId, companyId), hasRoster ? or(isNotNull(t.job.assignedToId), isNotNull(t.job.assignedToMemberId)) : isNotNull(t.job.assignedToId), ...inRange(t.job.createdAt, range)))
+      .groupBy(t.job.assignedToId, ...(hasRoster ? [t.job.assignedToMemberId] : []))
     const ids = rows.map((r: any) => r.assignedToId).filter(Boolean) as string[]
-    if (!ids.length) return []
-    const users = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName }).from(t.user).where(inArray(t.user.id, ids))
-    const byId = new Map(users.map((u: any) => [u.id, u]))
-    return rows.map((r: any) => ({ user: byId.get(r.assignedToId), count: Number(r.count) }))
+    const memberIds = hasRoster ? (rows.map((r: any) => r.assignedToMemberId).filter(Boolean) as string[]) : []
+    if (!ids.length && !memberIds.length) return []
+    const [users, members] = await Promise.all([
+      ids.length ? db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName }).from(t.user).where(inArray(t.user.id, ids)) : Promise.resolve([]),
+      memberIds.length ? db.select({ id: t.teamMember.id, name: t.teamMember.name }).from(t.teamMember).where(and(eq(t.teamMember.companyId, companyId), inArray(t.teamMember.id, memberIds))) : Promise.resolve([]),
+    ])
+    const byId = new Map(users.map((u: any) => [u.id, { ...u, name: `${u.firstName || ''} ${u.lastName || ''}`.trim(), kind: 'user' }]))
+    for (const m of members) { const [first, ...rest] = String(m.name || '').split(' '); byId.set(m.id, { id: m.id, firstName: first || m.name, lastName: rest.join(' '), name: m.name, kind: 'member' }) }
+    return rows.map((r: any) => ({ user: byId.get(r.assignedToId || r.assignedToMemberId), count: Number(r.count) })).filter((x: any) => x.user)
   }
 
   // ---------------------------------------------------------------- projects

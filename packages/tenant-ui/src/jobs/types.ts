@@ -62,7 +62,9 @@ export interface JobRow {
   siteId?: string | null
   project?: { id: string; name: string } | null
   contact?: { id: string; name: string; phone?: string | null } | null
-  assignedTo?: { id?: string; firstName: string; lastName: string } | null
+  /** set when the job is assigned to a roster-only crew member instead of a login user (T21 M12) */
+  assignedToMemberId?: string | null
+  assignedTo?: { id?: string; firstName: string; lastName: string; name?: string; kind?: 'user' | 'member' } | null
   equipment?: { id: string; name: string; manufacturer?: string | null; model?: string | null; serialNumber?: string | null; location?: string | null } | null
   isOverdue?: boolean
   createdAt?: string

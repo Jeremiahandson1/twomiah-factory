@@ -9,7 +9,9 @@ import { Hono } from 'hono'
 import { eq, and, or, desc, asc, count, sum, sql, gt, isNull } from 'drizzle-orm'
 import { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
-export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any }
+export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any;
+  /** crew roster — present → a roster-only assignee's first name is used for {{tech_name}} (T21 M12) */
+  teamMember?: any }
 export interface SmsUsage { reportSmsUsage: (segments: number, twilioSid?: string) => void; walletSufficient: () => Promise<boolean> }
 export interface SmsServiceDeps {
   db: any
@@ -309,10 +311,16 @@ export function createSmsService(deps: SmsServiceDeps) {
     if (!contactRow || (!contactRow.phone && !contactRow.mobile)) return null
     if ((contactRow as any).optedOutSms) return null
     const [companyRow] = await db.select().from(t.company).where(eq(t.company.id, companyId))
+    // "{{tech_name}} is on the way" — the person going is often roster-only crew with no login, so read whichever
+    // column holds them. Before, the customer was told "Your technician" for every crew member. (T21 M12)
     let techName = 'Your technician'
     if (jobRow.assignedToId) {
       const [assignedUser] = await db.select({ firstName: t.user.firstName }).from(t.user).where(eq(t.user.id, jobRow.assignedToId))
-      if (assignedUser) techName = assignedUser.firstName
+      if (assignedUser?.firstName) techName = assignedUser.firstName
+    } else if (jobRow.assignedToMemberId && t.teamMember) {
+      const [member] = await db.select({ name: t.teamMember.name }).from(t.teamMember).where(eq(t.teamMember.id, jobRow.assignedToMemberId))
+      const first = String(member?.name || '').trim().split(' ')[0]
+      if (first) techName = first
     }
     const templates: Record<string, string> = {
       scheduled: `Hi {{first_name}}, your appointment with {{company_name}} is confirmed for {{job_date}} at {{job_time}}. Reply CONFIRM to confirm or RESCHEDULE to change.`,
