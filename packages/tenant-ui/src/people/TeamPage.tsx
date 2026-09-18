@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Edit, Trash2, Users } from 'lucide-react'
 import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
+import { ROLE_LABELS } from '../shell/types'
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
 
 interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; active: boolean; assignedJobs?: number; _source?: 'user' }
@@ -63,7 +64,10 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
 
   const columns = [
     { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{row._source === 'user' && <span className="ml-2 text-xs font-normal text-gray-400 dark:text-slate-500">login</span>}</span> },
-    { key: 'role', label: roleLabel, render: (v: any) => v || '-' },
+    // Two different things share this column: a roster member's job title is free text they typed, but a login
+    // account's is a permission role, and that was printing the stored slug — "field" and "user" on a page whose
+    // own Settings › Users calls them Staff. ROLE_LABELS is the one vocabulary for that. (Contractor T14 M10)
+    { key: 'role', label: roleLabel, render: (v: any, row: Member) => (row._source === 'user' ? ROLE_LABELS[String(v)] || v || '-' : v || '-') },
     { key: 'department', label: 'Department', render: (v: any) => v || '-' },
     { key: 'email', label: 'Email', render: (v: any) => v || '-' },
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },

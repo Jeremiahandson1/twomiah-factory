@@ -14,6 +14,14 @@ if (!/export const moneyShort = money\b/.test(common)) fail('portal moneyShort m
 // L2 — a team rate is money
 const team = read('packages/tenant-ui/src/people/TeamPage.tsx')
 if (!/\$\$\{Number\(v\)\.toFixed\(2\)\}\/hr/.test(team.replace(/\$\{/g, '$${')) && !/\$\{Number\(v\)\.toFixed\(2\)\}\/hr/.test(team)) fail('the team Rate column must show 2 decimals')
+// A login account's role is a PERMISSION role, and the Team page printed the stored slug — "field" and "user"
+// on a page whose own Settings › Users calls both of them Staff. One vocabulary, one map. (T14 M10)
+if (!/import \{ ROLE_LABELS \} from '\.\.\/shell\/types'/.test(team)) fail('the Team page must read the shared role vocabulary, not invent a second one')
+if (!/row\._source === 'user' \? ROLE_LABELS\[String\(v\)\] \|\| v \|\| '-' : v \|\| '-'/.test(team)) fail("a login account's role must be shown as the word Settings uses, while a roster member's typed job title is left alone")
+const labels = read('packages/tenant-ui/src/shell/types.ts')
+for (const [slug, word] of [['field', 'Staff'], ['user', 'Staff'], ['manager', 'Manager'], ['owner', 'Owner']]) {
+  if (!new RegExp(`${slug}: '${word}'`).test(labels)) fail(`ROLE_LABELS must map ${slug} → ${word}`)
+}
 // L6 — one job is not "1 jobs"
 const reports = read('packages/tenant-ui/src/reporting/ReportsPage.tsx')
 if (!/const labelFor = \(n: number\) => \(n === 1 \? cfg\.jobsLabel\.replace\(\/s\$\/, ''\) : cfg\.jobsLabel\)\.toLowerCase\(\)/.test(reports)) fail('Reports must pick the singular label for a count of one')
