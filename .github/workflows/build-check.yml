@@ -1066,3 +1066,14 @@ jobs:
           bun-version: latest
       - name: "Check portal feature sections"
         run: bun run scripts/check-portal-feature-sections.ts
+
+  team-removal-warning:
+    name: "Removing a team member warns about their work"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check team removal warning"
+        run: bun run scripts/check-team-removal-warning.ts

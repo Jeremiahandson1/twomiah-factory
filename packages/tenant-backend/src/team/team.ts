@@ -5,10 +5,16 @@
 // Before: two copies differing only in whether a negative hourly rate was refused; phone was free text; paging unclamped.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, count, asc, ilike, or } from 'drizzle-orm'
+import { eq, and, count, asc, ilike, or, inArray } from 'drizzle-orm'
 import { isValidPhone } from '../contacts/contacts'
 
-export interface TeamTables { teamMember: any; user: any }
+export interface TeamTables { teamMember: any; user: any
+  /**
+   * Jobs, where present. Removing someone from the roster sets their jobs' assignedToMemberId to null, which
+   * happened with nothing said either before or after — the work was quietly left unassigned. With this the
+   * list can say how much each person is holding and the delete can say what it let go. (Contractor T26 L2)
+   */
+  job?: any }
 export interface TeamDeps {
   db: any
   tables: TeamTables
@@ -48,6 +54,17 @@ export function createTeamRoutes(deps: TeamDeps) {
     return dupe && dupe.id !== exceptId ? dupe : null
   }
   const normEmail = (body: any) => { if (body && typeof body.email === 'string') body.email = body.email.toLowerCase().trim(); return body }
+  /** How many jobs each of these roster members is holding — what removing them would leave unassigned. */
+  const assignedJobCounts = async (companyId: string, memberIds: string[]): Promise<Record<string, number>> => {
+    // The COLUMN, not just the table: only the verticals that let roster crew hold work (contractor, field
+    // service, landscaping) have job.assigned_to_member_id. Selecting a column that does not exist throws
+    // inside drizzle and would 500 the whole Team page on vet, salon, RV and restaurant.
+    if (!t.job?.assignedToMemberId || memberIds.length === 0) return {}
+    const rows = await db.select({ memberId: t.job.assignedToMemberId, value: count() }).from(t.job)
+      .where(and(eq(t.job.companyId, companyId), inArray(t.job.assignedToMemberId, memberIds)))
+      .groupBy(t.job.assignedToMemberId)
+    return Object.fromEntries(rows.map((r: any) => [String(r.memberId), Number(r.value)]))
+  }
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid team member', details: err.flatten().fieldErrors }, 400)
 
   app.get('/', requirePermission('team:read'), async (c) => {
@@ -87,7 +104,11 @@ export function createTeamRoutes(deps: TeamDeps) {
       rows = [...data, ...logins]
       totalN += logins.length
     }
-    return c.json({ data: rows, pagination: { page, limit, total: totalN, pages } })
+    // Each roster row carries the work it is holding, so "Remove" can say what it will leave unassigned
+    // instead of finding out afterwards. Login rows are read-only here and keep their jobs either way. (T26 L2)
+    const counts = await assignedJobCounts(user.companyId, data.map((m: any) => m.id))
+    const withCounts = rows.map((r: any) => (r._source === 'user' ? r : { ...r, assignedJobs: counts[r.id] || 0 }))
+    return c.json({ data: withCounts, pagination: { page, limit, total: totalN, pages } })
   })
 
   // Assignable staff = the login USERS a job/appointment's assignedToId can point at. This is NOT the
@@ -156,8 +177,12 @@ export function createTeamRoutes(deps: TeamDeps) {
     const id = c.req.param('id')
     const [existing] = await db.select({ id: t.teamMember.id }).from(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId))).limit(1)
     if (!existing) return c.json({ error: 'Team member not found' }, 404)
+    // Their jobs are about to lose their assignee (the column is ON DELETE SET NULL). Count them first and
+    // say so — a caller that only ever sees 204 has no way to learn work was left unassigned. (T26 L2)
+    const counts = await assignedJobCounts(user.companyId, [id])
+    const unassignedJobs = counts[id] || 0
     await db.delete(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId)))
-    return c.body(null, 204)
+    return c.json({ success: true, unassignedJobs })
   })
 
   return app

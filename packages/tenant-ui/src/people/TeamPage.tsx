@@ -8,7 +8,7 @@ import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, er
 import type { Pagination } from '../invoicing/ui'
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
 
-interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; active: boolean; _source?: 'user' }
+interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; active: boolean; assignedJobs?: number; _source?: 'user' }
 const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '' }
 
 export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TeamConfig }) {
@@ -49,7 +49,13 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   }
   const handleDelete = async () => {
     if (!toDelete) return
-    try { await api.delete('/api/team', toDelete.id); toast.success('Team member removed'); setToDelete(null); load() }
+    try {
+      // Say what it cost. Removing someone sets their jobs back to unassigned, which used to happen silently.
+      const res: any = await api.delete('/api/team', toDelete.id)
+      const freed = Number(res?.unassignedJobs || 0)
+      toast.success(freed > 0 ? `Team member removed — ${freed} ${freed === 1 ? 'job is' : 'jobs are'} now unassigned` : 'Team member removed')
+      setToDelete(null); load()
+    }
     catch (e) { toast.error(errMsg(e, 'Failed to remove team member')) }
   }
   const openCreate = () => { setEditing(null); setForm(EMPTY); setFormError(''); setModalOpen(true) }
@@ -95,7 +101,19 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
         </div>
         <div className="flex justify-end gap-3 mt-6"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>
-      <ConfirmModal isOpen={!!toDelete} onClose={() => setToDelete(null)} onConfirm={handleDelete} title="Remove Member" message={`Remove ${toDelete?.name || 'this member'} from the roster?`} confirmText="Remove" />
+      {/* The warning belongs BEFORE the click, not in a toast afterwards: their jobs go back to unassigned. (T26 L2) */}
+      <ConfirmModal
+        isOpen={!!toDelete}
+        onClose={() => setToDelete(null)}
+        onConfirm={handleDelete}
+        title="Remove Member"
+        message={`Remove ${toDelete?.name || 'this member'} from the roster?${
+          Number(toDelete?.assignedJobs || 0) > 0
+            ? ` ${toDelete!.assignedJobs} ${Number(toDelete!.assignedJobs) === 1 ? 'job assigned to them' : 'jobs assigned to them'} will be left unassigned.`
+            : ''
+        }`}
+        confirmText="Remove"
+      />
     </div>
   )
 }
