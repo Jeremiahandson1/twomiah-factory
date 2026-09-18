@@ -7,6 +7,9 @@ import { z } from 'zod'
 import { eq, and, or, count, desc, asc, ilike, inArray } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 
+/** Today at 00:00 UTC — dates are stored as calendar days at UTC midnight, so compare on the same boundary. */
+const startOfToday = () => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())) }
+
 export interface QuoteTables {
   quote: any
   quoteLineItem: any
@@ -175,8 +178,12 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (data.projectId && !(await ownProject(cid, data.projectId))) return c.json({ error: 'That project does not exist.' }, 404)
     const subtotalRaw = rawSubtotal(data.lineItems)
     if (data.discount > subtotalRaw + 0.005) return c.json({ error: `Discount cannot exceed the subtotal (${subtotalRaw.toFixed(2)}).` }, 400)
+    // A quote is a priced offer: it needs something on it, and an expiry date that hasn't already passed — a $0.00
+    // quote with no lines and one expiring in 2020 both saved. (Landscaping T14 L14)
+    if (!data.lineItems.length) return c.json({ error: 'Add at least one line item.' }, 400)
     const exp = normalizeDateInput(data.expiryDate)
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
+    if (exp.value && exp.value < startOfToday()) return c.json({ error: 'Expiry date is in the past — pick today or later.' }, 400)
     const taxRate = data.taxRate ?? defaultTaxRateFrom(await companySettings(cid))
     const totals = calcTotals(data.lineItems, taxRate, data.discount)
     const values: any = { companyId: cid, expiryDate: exp.value ?? null, subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
@@ -227,7 +234,10 @@ export function createQuoteRoutes(deps: QuoteDeps) {
       if (data.lineItems !== undefined) {
         await tx.delete(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id))
         items = data.lineItems.length ? await tx.insert(t.quoteLineItem).values(toRow(data.lineItems, id)).returning() : []
-      } else items = await lineRows(id)
+      // read the existing lines on the SAME connection as the transaction — going back to the pool for them while
+      // this transaction is open waits on a second connection, which deadlocks when the pool is busy (and always on
+      // a single-connection database). Every other caller reads before the transaction opens.
+      } else items = await tx.select().from(t.quoteLineItem).where(eq(t.quoteLineItem.quoteId, id)).orderBy(asc(t.quoteLineItem.sortOrder))
       return { ...updated, lineItems: items }
     })
     emitToCompany(cid, EVENTS.QUOTE_UPDATED, result)

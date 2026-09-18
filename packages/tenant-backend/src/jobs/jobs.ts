@@ -292,10 +292,17 @@ export function createJobRoutes(deps: JobDeps) {
       await jobLock(tx, currentUser.companyId)
       clash = await assigneeConflict(currentUser.companyId, effAssignee, effDate, effTime, id, tx)
       if (clash) return null
+      // Completing a job from the status dropdown must stamp completedAt the same way POST /:id/complete does —
+      // it was only stamped by that route, so "Completed today" stayed 0 and the job had no completion time.
+      // Moving it back out of completed clears the stamp, so the count stays true. (Landscaping T14 L13)
+      const completedAt = data.status === undefined || data.status === existing.status ? undefined
+        : data.status === 'completed' ? (existing.completedAt ?? new Date())
+        : existing.completedAt ? null : undefined
       const [row] = await tx.update(t.job).set({
         ...data,
         scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : undefined,
         estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : undefined,
+        ...(completedAt !== undefined ? { completedAt } : {}),
         updatedAt: new Date(),
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
       return row

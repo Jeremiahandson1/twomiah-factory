@@ -76,6 +76,9 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
 
   const save = async (sendAfter = false) => {
     if (!form.name.trim()) { toast.error('Name is required'); return }
+    // a quote is a priced offer: something on it, and an expiry that hasn't passed (T14 L14)
+    if (linesForSave.length === 0) { toast.error('Add at least one line item'); return }
+    if (!editing && form.expiryDate && form.expiryDate < new Date().toISOString().slice(0, 10)) { toast.error('Expiry date is in the past — pick today or later'); return }
     if (inputError) { toast.error(inputError); return }
     if (totals.discountTooBig) { toast.error('Discount cannot exceed the subtotal'); return }
     setSaving(true)

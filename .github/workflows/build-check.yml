@@ -780,3 +780,14 @@ jobs:
           bun-version: latest
       - name: "Check portal cents, team rate, singular job label and recurring totals"
         run: bun run scripts/check-money-and-labels.ts
+
+  job-quote-rules:
+    name: "Job and quote rules guard"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check job completion stamps and quote line/expiry rules"
+        run: bun run scripts/check-job-quote-rules.ts
