@@ -115,4 +115,29 @@ data are not actionable until Ads is unparked. (#220, #221)
 
 ---
 
+## Real-time updates
+
+### The live-update socket opens once per page LOAD, not per navigation
+
+**Seen:** "a new socket connects on every page navigation" (vet T12 L10).
+
+**Why:** it does not. The socket is opened by `SocketProvider`, which sits above the router, so it survives every
+in-app navigation; a new connection is only made when the browser loads a new document (a hard refresh, or following
+a link that leaves the SPA).
+
+**Measured**, rather than reasoned about — Chrome driven over the DevTools protocol against the live vet tenant,
+counting `Network.webSocketCreated`:
+
+| | |
+|---|---|
+| Log in, then load `/crm` | 2 sockets — one per document load, as expected |
+| Click all ten sidebar links in turn | **+0 sockets**, 0 closes |
+| Hold the session open afterwards | +0 sockets; frames still arriving on the original connection |
+
+What looks like reconnection in a network panel is socket.io's own transport traffic on the one connection.
+`scratchpad/cdp-socket-count2.ts` reproduces the measurement. If a future report says otherwise, run it before
+changing the provider. (#241)
+
+---
+
 *Last updated 2026-09-18.*

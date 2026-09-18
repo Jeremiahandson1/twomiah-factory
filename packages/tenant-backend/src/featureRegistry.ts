@@ -85,15 +85,20 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-touch SMS/email cadences that work long RV/powersports research cycles', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
 
   // Veterinary (crm-vet) — client-relationship + preventive-care record (retention layer, not a clinical PIMS)
-  { id: 'patient_records', name: 'Patient Records', description: 'Pets linked to owners — multi-pet households, signalment, allergies/alerts, weight history, photo', category: 'Veterinary', core: true, templates: ['crm-vet'] },
-  { id: 'appointment_scheduling', name: 'Appointments', description: 'Appointment calendar by provider and type (wellness, sick, surgery, dental) with check-in', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  // The wording here is what a prospect is sold. Three of these described things the app does not do — a
+  // patient photo (the column exists; no screen sets or shows one), a calendar by provider (the schedule is
+  // a day list that names each appointment's provider), and a "controlled-substance" line that read as if
+  // controlled drugs could not be recorded at all, next to a form with exactly that checkbox. Each now says
+  // what the product does. (Vet T12 L6)
+  { id: 'patient_records', name: 'Patient Records', description: 'Pets linked to owners — multi-pet households, signalment, allergies/alerts, weight history', category: 'Veterinary', core: true, templates: ['crm-vet'] },
+  { id: 'appointment_scheduling', name: 'Appointments', description: 'Day schedule showing each appointment\'s provider and type (wellness, sick, surgery, dental), with check-in', category: 'Veterinary', core: true, templates: ['crm-vet'] },
   { id: 'medical_records', name: 'Medical Records', description: 'Per-visit SOAP notes, vitals, problem/diagnosis list and treatments', category: 'Veterinary', core: true, templates: ['crm-vet'] },
   { id: 'vaccinations', name: 'Vaccinations', description: 'Vaccine history with due dates that drive reminders and rabies certificates', category: 'Veterinary', core: true, templates: ['crm-vet'] },
   { id: 'reminders_recall', name: 'Reminders & Recall', description: 'Automated vaccine/wellness-due reminders and lapsed-client reactivation', category: 'Veterinary', core: true, templates: ['crm-vet'] },
   { id: 'wellness_plans', name: 'Wellness Plans', description: 'Recurring preventive-care memberships billed monthly', category: 'Veterinary', core: false, templates: ['crm-vet'] },
   { id: 'lab_results', name: 'Lab Results', description: 'Record and attach lab/diagnostic results to the patient', category: 'Veterinary', core: false, templates: ['crm-vet'] },
   { id: 'rabies_certificates', name: 'Rabies Certificates', description: 'Generate printable rabies vaccination certificates from the vaccine record', category: 'Veterinary', core: false, templates: ['crm-vet'] },
-  { id: 'prescriptions', name: 'Prescriptions', description: 'Non-controlled prescription records (controlled-substance dispensing deferred)', category: 'Veterinary', core: false, templates: ['crm-vet'] },
+  { id: 'prescriptions', name: 'Prescriptions', description: 'Prescription records with prescriber, refills and a controlled-substance flag; dispensing, EPCS and PDMP reporting are not included', category: 'Veterinary', core: false, templates: ['crm-vet'] },
 
   // Salon & Barber (crm-salon) — the retention archetype: service menu → the
   // book → formula record → rebooking reminder. Every id here gates exactly one

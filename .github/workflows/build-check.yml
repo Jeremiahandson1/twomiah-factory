@@ -1000,3 +1000,14 @@ jobs:
           bun-version: latest
       - name: "Check chart lows"
         run: bun run scripts/check-chart-lows.ts
+
+  vet-feature-copy:
+    name: "Vet feature copy: describes what the app does"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check vet feature copy"
+        run: bun run scripts/check-vet-feature-copy.ts

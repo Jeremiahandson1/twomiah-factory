@@ -59,14 +59,14 @@ const CRM_REGISTRY = [
   ]},
   { category: 'Veterinary', features: [
     { id: 'patient_records', name: 'Patient Records', description: 'Pets linked to owners — multi-pet households, allergies/alerts, weight history', core: true },
-    { id: 'appointment_scheduling', name: 'Appointments', description: 'Appointment calendar by provider and type, with check-in', core: true },
+    { id: 'appointment_scheduling', name: 'Appointments', description: 'Day schedule showing each appointment\'s provider and type, with check-in', core: true },
     { id: 'medical_records', name: 'Medical Records', description: 'Per-visit SOAP notes, vitals, diagnoses and treatments', core: true },
     { id: 'vaccinations', name: 'Vaccinations', description: 'Vaccine history with due dates driving reminders', core: true },
     { id: 'reminders_recall', name: 'Reminders & Recall', description: 'Automated vaccine/wellness reminders and lapsed-client reactivation', core: true },
     { id: 'wellness_plans', name: 'Wellness Plans', description: 'Recurring preventive-care memberships', core: false },
     { id: 'lab_results', name: 'Lab Results', description: 'Record and attach lab/diagnostic results', core: false },
     { id: 'rabies_certificates', name: 'Rabies Certificates', description: 'Printable rabies certificates from the vaccine record', core: false },
-    { id: 'prescriptions', name: 'Prescriptions', description: 'Non-controlled prescription records', core: false },
+    { id: 'prescriptions', name: 'Prescriptions', description: 'Prescription records with prescriber, refills and a controlled-substance flag (no dispensing/EPCS)', core: false },
   ]},
   { category: 'Salon & Barber', features: [
     { id: 'client_profiles', name: 'Client Profiles', description: 'Hair type, allergies + patch tests, preferences, regular stylist, lifetime value', core: true },
