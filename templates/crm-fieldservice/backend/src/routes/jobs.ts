@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { createJobRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry, equipment, jobPhoto, company } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, equipment, jobPhoto, company, teamMember } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { cleanText } from '../utils/sanitize.ts'
@@ -15,7 +15,7 @@ import { eq } from 'drizzle-orm'
 
 export default createJobRoutes({
   db,
-  tables: { job, project, contact, user, timeEntry, equipment, jobPhoto },
+  tables: { job, project, contact, user, timeEntry, equipment, jobPhoto, teamMember },
   authenticate,
   emitToCompany,
   EVENTS,

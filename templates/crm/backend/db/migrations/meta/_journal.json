@@ -169,6 +169,13 @@
       "when": 1791400700000,
       "tag": "0023_agreement_renewal_notice",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791400800000,
+      "tag": "0024_job_roster_assignee",
+      "breakpoints": true
     }
   ]
 }

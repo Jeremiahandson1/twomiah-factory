@@ -24,9 +24,22 @@ if (!/\} else \{\s*\n\s*updates\.completedAt = null;/.test(bulkStatus)) fail('a 
 // can log in (with a message that says why), and '' on an edit meaning "clear it" (T21 M5, M6, L1)
 if (!/const m = v\.match\(\/\^\(\\d\{4\}\)-\(\\d\{2\}\)-\(\\d\{2\}\)\/\)/.test(jobs) || !/d\.getUTCFullYear\(\) === \+m\[1\] && d\.getUTCMonth\(\) \+ 1 === \+m\[2\] && d\.getUTCDate\(\) === \+m\[3\]/.test(jobs)) fail('a date-only value must round-trip its own year-month-day (30 February must be refused)')
 if (!/title: cleanText\(1\)\.pipe\(z\.string\(\)\.max\(200, 'Title must be 200 characters or fewer'\)\)/.test(jobs)) fail('a job title must have a maximum length')
-if (!/const assigneeError = async \(companyId: string, assignedToId: unknown\)/.test(jobs) || !/Only team members with a login can be assigned/.test(jobs)) fail('assigning someone without a login must be refused with a message that says why')
-if ((jobs.match(/const badAssignee = await assigneeError\(currentUser\.companyId, data\.assignedToId\)/g) || []).length < 2) fail('both create and edit must check the assignee')
-if (!/for \(const k of \['assignedToId', 'contactId', 'projectId'\] as const\) \{\s*\n\s*if \(Object\.prototype\.hasOwnProperty\.call\(raw, k\) && \(raw\[k\] === '' \|\| raw\[k\] === null\)\) data\[k\] = null/.test(jobs)) fail("an edit sending '' for a link must clear it (Unassign did nothing)")
+// Work is assigned to a login user OR a roster-only crew member — one resolver decides which, so a job never
+// carries both, and the ids that are nobody (or another company's, or inactive) are still refused. (T21 M12, #223)
+if (!/const resolveAssignee = async \(companyId: string, assignedToId: unknown, memberId\?: unknown\): Promise<Assignee>/.test(jobs)) fail('one resolver must decide who a job is assigned to')
+if (!/if \(u\) return \{ assignedToId: u\.id, assignedToMemberId: null \}/.test(jobs) || !/if \(m && m\.active\) return \{ assignedToId: null, assignedToMemberId: m\.id \}/.test(jobs)) fail('a login user and a roster member must land in their own column, never both')
+if (!/That crew member is marked inactive on the Team page/.test(jobs)) fail('an inactive crew member must be refused with a message that says why')
+if (!/That person is not on your team\. Pick someone from the list, or add them on the Team page first\./.test(jobs)) fail('an id that is nobody must still be refused')
+if (/Only team members with a login can be assigned/.test(jobs)) fail('the old "logins only" refusal must be gone — roster crew are assignable now')
+if ((jobs.match(/who = await resolveAssignee\(currentUser\.companyId, data\.assignedToId, data\.assignedToMemberId\)/g) || []).length < 2) fail('both create and edit must resolve the assignee')
+if ((jobs.match(/if \(who\.error\) return c\.json\(\{ error: who\.error \}, 400\)/g) || []).length < 2) fail('both create and edit must refuse when the resolver rejects the person (otherwise the assignee is silently dropped)')
+{
+  const resolver = jobs.slice(jobs.indexOf('const resolveAssignee'), jobs.indexOf('const assigneeIdOf'))
+  if (!/db\.select\(\{ id: t\.user\.id \}\)\.from\(t\.user\)/.test(resolver)) fail('the resolver must look the person up among the login users')
+  if (!/db\.select\(\{ id: t\.teamMember\.id, active: t\.teamMember\.active \}\)\.from\(t\.teamMember\)/.test(resolver)) fail('…and then among the roster')
+}
+if (!/assignedToId \? eq\(t\.job\.assignedToId, assignedToId\) : eq\(t\.job\.assignedToMemberId, memberId as string\)/.test(jobs)) fail('double-booking must be checked for a roster member too')
+if (!/for \(const k of \['assignedToId', 'assignedToMemberId', 'contactId', 'projectId'\] as const\) \{\s*\n\s*if \(Object\.prototype\.hasOwnProperty\.call\(raw, k\) && \(raw\[k\] === '' \|\| raw\[k\] === null\)\) data\[k\] = null/.test(jobs)) fail("an edit sending '' for a link must clear it, including a roster assignee (Unassign did nothing)")
 const jobsPage = read('packages/tenant-ui/src/jobs/JobsPage.tsx')
 if (!/r\.contact \? r\.contact\.name : 'No customer'/.test(jobsPage)) fail('a job with no customer must say so in the list')
 

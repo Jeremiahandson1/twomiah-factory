@@ -2,7 +2,7 @@
 // ../shared at generation. This file only wires the template's tables and services in.
 import { createJobRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry, company } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, company, teamMember } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -11,7 +11,7 @@ import reviews from '../services/reviews.ts'
 
 export default createJobRoutes({
   db,
-  tables: { job, project, contact, user, timeEntry },
+  tables: { job, project, contact, user, timeEntry, teamMember },
   authenticate,
   emitToCompany,
   EVENTS,

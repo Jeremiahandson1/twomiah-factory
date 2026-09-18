@@ -16,7 +16,9 @@ import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInA
 import { nextNumber } from '../invoicing/money'
 import { sniffType, baseMime } from '../files/storage'
 
-export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any }
+export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
+  /** crew roster. Present → roster-only people (no login) can be assigned work, via job.assignedToMemberId. (T21 M12) */
+  teamMember?: any }
 export interface JobPhotoStorage { put: (key: string, body: Buffer, contentType: string) => Promise<void>; deleteFile: (key: string) => boolean | Promise<boolean | void>; storageConfigured?: () => boolean }
 export type JobHook = (ctx: { job: any; companyId: string; userId: string }) => Promise<Record<string, any> | void> | Record<string, any> | void
 
@@ -85,6 +87,8 @@ export function createJobRoutes(deps: JobDeps) {
     projectId: z.string().optional().transform(emptyToUndef as any),
     contactId: z.string().optional().transform(emptyToUndef as any),
     assignedToId: z.string().optional().transform(emptyToUndef as any),
+    /** a roster-only crew member instead of a login user; either field may carry the id (T21 M12) */
+    assignedToMemberId: z.string().optional().transform(emptyToUndef as any),
     priority: z.enum(JOB_PRIORITIES).default('normal'),
     // Constrained to the known status union (see JOB_STATUSES) — the dispatch board only ever sets these,
     // and a free-form string let "banana" through to the dashboard and Reports.
@@ -115,12 +119,29 @@ export function createJobRoutes(deps: JobDeps) {
    * crew member used to reach the database and come back as "A related record does not exist, or is still in use.",
    * which says nothing about why. Name the reason instead. (Landscaping T21 M6)
    */
-  const assigneeError = async (companyId: string, assignedToId: unknown): Promise<string | null> => {
-    if (assignedToId === undefined || assignedToId === null || assignedToId === '') return null
-    const [row] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, String(assignedToId)), eq(t.user.companyId, companyId))).limit(1)
-    if (row) return null
-    return 'That person cannot be assigned work. Only team members with a login can be assigned — add a login for them on the Team page, or pick someone else.'
+  /**
+   * Who a job is assigned to. A LOGIN user goes in assignedToId; a roster-only crew member (a team_member row
+   * with no login — the crew who never touch the app) goes in assignedToMemberId. Exactly one is ever set.
+   * The id may be sent as either field: a picker that only knows one list still works, and the old behaviour —
+   * refusing a roster member outright — is gone. (Landscaping T21 M12)
+   */
+  type Assignee = { assignedToId: string | null; assignedToMemberId: string | null; error?: string }
+  const CLEARED: Assignee = { assignedToId: null, assignedToMemberId: null }
+  const blank = (v: unknown) => v === undefined || v === null || v === ''
+  const resolveAssignee = async (companyId: string, assignedToId: unknown, memberId?: unknown): Promise<Assignee> => {
+    const id = !blank(memberId) ? String(memberId) : !blank(assignedToId) ? String(assignedToId) : null
+    if (!id) return CLEARED
+    const [u] = await db.select({ id: t.user.id }).from(t.user).where(and(eq(t.user.id, id), eq(t.user.companyId, companyId))).limit(1)
+    if (u) return { assignedToId: u.id, assignedToMemberId: null }
+    if (t.teamMember) {
+      const [m] = await db.select({ id: t.teamMember.id, active: t.teamMember.active }).from(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, companyId))).limit(1)
+      if (m && m.active) return { assignedToId: null, assignedToMemberId: m.id }
+      if (m) return { ...CLEARED, error: 'That crew member is marked inactive on the Team page. Make them active again, or pick someone else.' }
+    }
+    return { ...CLEARED, error: 'That person is not on your team. Pick someone from the list, or add them on the Team page first.' }
   }
+  /** the id currently doing the work, whichever kind it is — for double-booking and "who is on this job" */
+  const assigneeIdOf = (j: any) => j?.assignedToId || j?.assignedToMemberId || null
 
   // Reject assigning the same person two live jobs at the same date + time. Online booking already
   // blocked its slot; manual New-Job / edit did not, so a dispatcher could stack two jobs on one tech
@@ -131,13 +152,17 @@ export function createJobRoutes(deps: JobDeps) {
   // salon/vet appointment lock (#116); job volume is low, so a per-company lock is simplest and safe.
   const jobLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':job'}))`)
 
-  const assigneeConflict = async (companyId: string, assignedToId?: string, scheduledDate?: any, scheduledTime?: string, excludeId?: string, exec: any = db) => {
-    if (!assignedToId || !scheduledDate || !scheduledTime) return null
+  // `who` is whichever kind of assignee the job has — a roster member can be double-booked just as a login user can.
+  const assigneeConflict = async (companyId: string, who?: Assignee | null, scheduledDate?: any, scheduledTime?: string, excludeId?: string, exec: any = db) => {
+    const assignedToId = who?.assignedToId || null, memberId = who?.assignedToMemberId || null
+    if ((!assignedToId && !memberId) || !scheduledDate || !scheduledTime) return null
     const dayStart = new Date(scheduledDate); if (isNaN(dayStart.getTime())) return null
     dayStart.setUTCHours(0, 0, 0, 0)
     const dayEnd = new Date(dayStart.getTime() + 86400000)
     const conds = [
-      eq(t.job.companyId, companyId), eq(t.job.assignedToId, assignedToId), eq(t.job.scheduledTime, scheduledTime),
+      eq(t.job.companyId, companyId),
+      assignedToId ? eq(t.job.assignedToId, assignedToId) : eq(t.job.assignedToMemberId, memberId as string),
+      eq(t.job.scheduledTime, scheduledTime),
       gte(t.job.scheduledDate, dayStart), lt(t.job.scheduledDate, dayEnd),
       notInArray(t.job.status, ['cancelled', 'completed']),
     ]
@@ -150,6 +175,8 @@ export function createJobRoutes(deps: JobDeps) {
   /** project / contact / assignedTo (/ equipment) for a set of rows, fetched by id and scoped to the company. */
   const withRelations = async (rows: any[], companyId: string, contactCols?: Record<string, any>) => {
     const projectIds = uniq(rows.map((j) => j.projectId)), contactIds = uniq(rows.map((j) => j.contactId)), userIds = uniq(rows.map((j) => j.assignedToId)), equipmentIds = t.equipment ? uniq(rows.map((j) => j.equipmentId)) : []
+    const memberIds = t.teamMember ? uniq(rows.map((j) => j.assignedToMemberId)) : []
+    const members = memberIds.length ? await db.select({ id: t.teamMember.id, name: t.teamMember.name, role: t.teamMember.role, phone: t.teamMember.phone }).from(t.teamMember).where(and(eq(t.teamMember.companyId, companyId), inArray(t.teamMember.id, memberIds))) : []
     const [projects, contacts, users, equipmentList] = await Promise.all([
       t.project && projectIds.length ? db.select({ id: t.project.id, name: t.project.name }).from(t.project).where(and(eq(t.project.companyId, companyId), inArray(t.project.id, projectIds))) : Promise.resolve([]),
       contactIds.length ? db.select(contactCols || { id: t.contact.id, name: t.contact.name }).from(t.contact).where(and(eq(t.contact.companyId, companyId), inArray(t.contact.id, contactIds))) : Promise.resolve([]),
@@ -157,12 +184,16 @@ export function createJobRoutes(deps: JobDeps) {
       t.equipment && equipmentIds.length ? db.select({ id: t.equipment.id, name: t.equipment.name, manufacturer: t.equipment.manufacturer, model: t.equipment.model }).from(t.equipment).where(and(eq(t.equipment.companyId, companyId), inArray(t.equipment.id, equipmentIds))) : Promise.resolve([]),
     ])
     const by = (xs: any[]) => Object.fromEntries(xs.map((x) => [x.id, x]))
-    const pm = by(projects), cm = by(contacts), um = by(users), em = by(equipmentList)
+    const pm = by(projects), cm = by(contacts), um = by(users), em = by(equipmentList), mm = by(members)
+    // One `assignedTo` whichever kind the person is. A user keeps the shape it always had (firstName/lastName) and
+    // gains name + kind; a roster member is split into the same two fields so every existing caller keeps working.
+    const named = (u: any) => ({ ...u, name: `${u.firstName || ''} ${u.lastName || ''}`.trim(), kind: 'user' as const })
+    const fromMember = (m: any) => { const [first, ...rest] = String(m.name || '').split(' '); return { id: m.id, firstName: first || m.name || '', lastName: rest.join(' '), name: m.name, role: m.role || null, phone: m.phone || null, kind: 'member' as const } }
     return rows.map((j) => ({
       ...j,
       project: j.projectId ? pm[j.projectId] || null : null,
       contact: j.contactId ? cm[j.contactId] || null : null,
-      assignedTo: j.assignedToId ? um[j.assignedToId] || null : null,
+      assignedTo: j.assignedToId ? (um[j.assignedToId] ? named(um[j.assignedToId]) : null) : j.assignedToMemberId ? (mm[j.assignedToMemberId] ? fromMember(mm[j.assignedToMemberId]) : null) : null,
       ...(t.equipment ? { equipment: j.equipmentId ? em[j.equipmentId] || null : null } : {}),
     }))
   }
@@ -265,21 +296,26 @@ export function createJobRoutes(deps: JobDeps) {
       t.equipment && found.equipmentId ? db.select({ id: t.equipment.id, name: t.equipment.name, manufacturer: t.equipment.manufacturer, model: t.equipment.model, serialNumber: t.equipment.serialNumber, location: t.equipment.location }).from(t.equipment).where(and(eq(t.equipment.id, found.equipmentId), eq(t.equipment.companyId, currentUser.companyId))).limit(1) : Promise.resolve([]),
     ])
     const { portalToken, portalTokenExp, ...safeContact } = (jobContact[0] || {}) as any
-    return c.json({ ...found, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}) })
+    // one assignedTo whichever kind of person is on the job — same shape the list gives (T21 M12)
+    const [withAssignee] = await withRelations([found], currentUser.companyId)
+    return c.json({ ...found, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}) })
   })
 
   app.post('/', async (c) => {
     const currentUser = c.get('user') as any
     const data: any = jobSchema.parse(await c.req.json())
-    const badAssignee = await assigneeError(currentUser.companyId, data.assignedToId)
-    if (badAssignee) return c.json({ error: badAssignee }, 400)
+    const who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
+    if (who.error) return c.json({ error: who.error }, 400)
+    data.assignedToId = who.assignedToId
+    if (t.teamMember) data.assignedToMemberId = who.assignedToMemberId
+    else delete data.assignedToMemberId
     // Conflict check + insert run in ONE transaction under the per-company job lock, so two concurrent
     // New-Job requests for the same tech/slot can't both pass the check and double-book (the check ran
     // outside the write before, so a race stacked two jobs at 10:00). (FS double-booking race)
     let clash: any = null
     const created = await db.transaction(async (tx: any) => {
       await jobLock(tx, currentUser.companyId)
-      clash = await assigneeConflict(currentUser.companyId, data.assignedToId, data.scheduledDate, data.scheduledTime, undefined, tx)
+      clash = await assigneeConflict(currentUser.companyId, who, data.scheduledDate, data.scheduledTime, undefined, tx)
       if (clash) return null
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
@@ -307,15 +343,24 @@ export function createJobRoutes(deps: JobDeps) {
     const data: any = jobSchema.partial().parse(Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, v === null ? undefined : v])))
     // On an EDIT, '' (or null) on a link means "clear it" — the schema maps '' to undefined, which leaves the field
     // alone, so Unassign and clearing the customer/project silently did nothing. All three columns are nullable.
-    for (const k of ['assignedToId', 'contactId', 'projectId'] as const) {
+    for (const k of ['assignedToId', 'assignedToMemberId', 'contactId', 'projectId'] as const) {
       if (Object.prototype.hasOwnProperty.call(raw, k) && (raw[k] === '' || raw[k] === null)) data[k] = null
     }
     const existing = await findOwned(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Job not found' }, 404)
-    const badAssignee = await assigneeError(currentUser.companyId, data.assignedToId)
-    if (badAssignee) return c.json({ error: badAssignee }, 400)
+    // Either field can carry the new assignee; touching either one replaces whoever was on the job, so a job
+    // never ends up with a login user AND a roster member on it. (Landscaping T21 M12)
+    const touchesAssignee = data.assignedToId !== undefined || data.assignedToMemberId !== undefined
+    let who: Assignee = { assignedToId: existing.assignedToId ?? null, assignedToMemberId: existing.assignedToMemberId ?? null }
+    if (touchesAssignee) {
+      who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
+      if (who.error) return c.json({ error: who.error }, 400)
+      data.assignedToId = who.assignedToId
+      if (t.teamMember) data.assignedToMemberId = who.assignedToMemberId
+      else delete data.assignedToMemberId
+    }
     // Check the resulting assignee/date/time (only the fields the edit changed override the existing).
-    const effAssignee = data.assignedToId !== undefined ? data.assignedToId : existing.assignedToId
+    const effAssignee = who
     const effDate = data.scheduledDate !== undefined ? data.scheduledDate : existing.scheduledDate
     const effTime = data.scheduledTime !== undefined ? data.scheduledTime : existing.scheduledTime
     // Re-check + update in one transaction under the same per-company job lock, so a concurrent write

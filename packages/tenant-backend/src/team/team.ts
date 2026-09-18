@@ -98,7 +98,16 @@ export function createTeamRoutes(deps: TeamDeps) {
     const user = (c as any).get('user')
     const rows = await db.select({ id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName, email: t.user.email, role: t.user.role, isActive: t.user.isActive })
       .from(t.user).where(and(eq(t.user.companyId, user.companyId), eq(t.user.isActive, true))).orderBy(asc(t.user.firstName))
-    const data = rows.map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, role: u.role, active: u.isActive }))
+    const data = rows.map((u: any) => ({ id: u.id, name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email, email: u.email, role: u.role, active: u.isActive, kind: 'user' as const }))
+    // Roster-only crew can be assigned work too, so they belong in the picker — matched to the login users by
+    // email so somebody who has both a login and a roster card is offered once, as their login. (T21 M12)
+    const seen = new Set(rows.map((u: any) => String(u.email || '').toLowerCase()).filter(Boolean))
+    const members = await db.select({ id: t.teamMember.id, name: t.teamMember.name, email: t.teamMember.email, role: t.teamMember.role })
+      .from(t.teamMember).where(and(eq(t.teamMember.companyId, user.companyId), eq(t.teamMember.active, true))).orderBy(asc(t.teamMember.name))
+    for (const m of members) {
+      if (m.email && seen.has(String(m.email).toLowerCase())) continue
+      data.push({ id: m.id, name: m.name, email: m.email, role: m.role, active: true, kind: 'member' as const } as any)
+    }
     return c.json({ data })
   })
 

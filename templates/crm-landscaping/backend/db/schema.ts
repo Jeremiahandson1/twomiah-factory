@@ -236,6 +236,8 @@ export const job = pgTable('job', {
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  /** roster-only crew (no login) assigned instead of a user — exactly one of the two is set (T21 M12) */
+  assignedToMemberId: text('assigned_to_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
   equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
