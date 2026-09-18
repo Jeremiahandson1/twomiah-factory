@@ -1022,3 +1022,14 @@ jobs:
           bun-version: latest
       - name: "Check T24 re-test fixes"
         run: bun run scripts/check-retest-t24.ts
+
+  search-invoice-status:
+    name: "Search: an overdue invoice reads overdue"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check search invoice status"
+        run: bun run scripts/check-search-invoice-status.ts

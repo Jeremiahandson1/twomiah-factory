@@ -8,6 +8,7 @@
 import { db } from '../../db/index.ts'
 import { contact, project, job, quote, invoice, document, teamMember, rfi, event, eventSpace, menuPackage } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
+import { deriveStatus } from '../shared/index.ts'
 
 interface SearchResult {
   type: string
@@ -173,7 +174,8 @@ export async function globalSearch(
   if (searchTypes.includes('invoice')) {
     searches.push(
       db
-        .select({ id: invoice.id, number: invoice.number, status: invoice.status, total: invoice.total })
+        // everything deriveStatus needs: "overdue" is computed at read time, never stored (T14 H10)
+        .select({ id: invoice.id, number: invoice.number, status: invoice.status, total: invoice.total, dueDate: invoice.dueDate, amountPaid: invoice.amountPaid, amountRefunded: invoice.amountRefunded })
         .from(invoice)
         .where(and(eq(invoice.companyId, companyId), ilike(invoice.number, pattern)))
         .orderBy(desc(invoice.updatedAt))
@@ -181,10 +183,10 @@ export async function globalSearch(
         .then((items) =>
           items.map((item) => ({
             type: 'invoice',
-            subtype: item.status,
+            subtype: deriveStatus(item),
             id: item.id,
             name: item.number,
-            description: `$${Number(item.total).toLocaleString()} - ${item.status}`,
+            description: `$${Number(item.total).toLocaleString()} - ${deriveStatus(item)}`,
             url: `/crm/invoices/${item.id}`,
             icon: 'file-invoice',
           }))
