@@ -218,6 +218,12 @@ app.use('/api/warranties', authenticate, requireEnabledFeature('warranties'))
 app.use('/api/warranties/*', authenticate, requireEnabledFeature('warranties'))
 app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
 app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
+// Photo Capture off means the API says so (403), not "No photo provided" from a validation check that never
+// should have been reached — job photos are uploaded by the mobile app, so the API is the only gate. (T21 L8)
+app.use('/api/photos', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/photos/*', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/jobs/:id/photos', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/jobs/:id/photos/*', authenticate, requireEnabledFeature('photo_capture'))
 
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)

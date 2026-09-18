@@ -281,6 +281,10 @@ app.use('/api/warranties', authenticate, requireEnabledFeature('warranties'))
 app.use('/api/warranties/*', authenticate, requireEnabledFeature('warranties'))
 app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
 app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
+// Photo Capture off means the API says so (403) — this CRM's photos come in through /api/photos (its job routes
+// carry no photo table), and the mobile app is the uploader, so the API is the only gate. (Landscaping T21 L8)
+app.use('/api/photos', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/photos/*', authenticate, requireEnabledFeature('photo_capture'))
 
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)

@@ -33,10 +33,15 @@ for (const t of TEMPLATES) {
 type Gate = [string, string | string[]]
 const FS: Gate[] = [['/api/fleet', 'fleet'], ['/api/locations', 'multi_location'], ['/api/commissions', 'commission_tracking'], ['/api/inventory', ['inventory', 'parts_tracking']], ['/api/equipment', 'equipment_tracking'], ['/api/agreements', ['service_agreements', 'maintenance_contracts']], ['/api/maintenance-contracts', ['service_agreements', 'maintenance_contracts']], ['/api/warranties', 'warranties'], ['/api/recurring', 'recurring_jobs']]
 const CONSTRUCTION: Gate[] = [['/api/rfis', 'rfis'], ['/api/submittals', 'submittals'], ['/api/lien-waivers', 'lien_waivers'], ['/api/draw-schedules', 'draw_schedules'], ['/api/aia-forms', 'aia_forms'], ['/api/gantt-charts', 'gantt_charts'], ['/api/change-orders', 'change_orders'], ['/api/punch-lists', 'punch_lists'], ['/api/daily-logs', 'daily_logs'], ['/api/inspections', 'inspections'], ['/api/bids', 'bid_management'], ['/api/takeoffs', 'takeoff_tools'], ['/api/selections', 'selections']]
+// Photo Capture is a switch in Settings › Features on the four verticals that offer it, and photos are uploaded by
+// the mobile app — so the API is the only place it can be enforced. With it off, POST /api/jobs/:id/photos used to
+// fall through to "No photo provided". crm-roof offers the feature but has no enabled-feature middleware at all.
+// (Landscaping T21 L8)
+const PHOTOS: Gate[] = [['/api/photos', 'photo_capture'], ['/api/jobs/:id/photos', 'photo_capture']]
 const GATES: Record<string, Gate[]> = {
-  'crm': [['/api/projects', 'projects'], ['/api/tasks', 'projects'], ['/api/purchase-orders', 'purchase_orders'], ['/api/bills', 'vendor_bills'], ...CONSTRUCTION, ['/api/fleet', 'fleet'], ['/api/inventory', 'inventory'], ['/api/equipment', 'equipment_tracking'], ['/api/agreements', 'service_agreements'], ['/api/warranties', 'warranties'], ['/api/recurring', 'recurring_jobs']],
-  'crm-fieldservice': FS,
-  'crm-landscaping': [...FS, ['/api/recurring-routes', 'recurring_routes'], ['/api/area-pricing', 'area_pricing'], ['/api/snow', 'snow_billing']],
+  'crm': [['/api/projects', 'projects'], ['/api/tasks', 'projects'], ['/api/purchase-orders', 'purchase_orders'], ['/api/bills', 'vendor_bills'], ...CONSTRUCTION, ['/api/fleet', 'fleet'], ['/api/inventory', 'inventory'], ['/api/equipment', 'equipment_tracking'], ['/api/agreements', 'service_agreements'], ['/api/warranties', 'warranties'], ['/api/recurring', 'recurring_jobs'], ['/api/photos', 'photo_capture']],
+  'crm-fieldservice': [...FS, ...PHOTOS],
+  'crm-landscaping': [...FS, ['/api/recurring-routes', 'recurring_routes'], ['/api/area-pricing', 'area_pricing'], ['/api/snow', 'snow_billing'], ...PHOTOS],
   'crm-rv': [['/api/warranties', 'warranties'], ['/api/inventory', ['inventory', 'parts_tracking']]],
   'crm-vet': [],
   'crm-salon': [['/api/projects', 'projects'], ['/api/jobs', 'jobs'], ['/api/quotes', 'quotes'], ...CONSTRUCTION, ['/api/fleet', 'fleet'], ['/api/inventory', 'inventory'], ['/api/equipment', 'equipment_tracking'], ['/api/pricebook', 'pricebook'], ['/api/memberships', 'salon_memberships'], ['/api/recurring', 'recurring_jobs']],
