@@ -204,7 +204,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{contact.name}</h1>
-              <StatusBadge status={contact.type} />
+              {/* the vertical's own word: an Owner, not a "client" (T24 M11) */}
+              <StatusBadge status={contact.type} label={cfg.types.find((t) => t.value === contact.type)?.label} />
             </div>
             {contact.company && (
               <p className="text-gray-500 flex items-center gap-1 mt-1 dark:text-slate-400"><Building2 className="w-4 h-4" />{contact.company}</p>

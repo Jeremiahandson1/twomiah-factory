@@ -1,9 +1,9 @@
 // Portal home: one card per visible section (counts where the summary has them), quick actions, contact block.
 import React from 'react'
-import { DollarSign, FileText, Receipt, LifeBuoy } from 'lucide-react'
+import { DollarSign, FileText, Receipt, LifeBuoy, CalendarCheck } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { useVisibleSections, SECTION_ICONS } from './PortalLayout'
-import { PLink, moneyShort, card } from './common'
+import { PLink, moneyShort, card, formatDate } from './common'
 import type { PortalSection } from './types'
 import { SECTION_PATH } from './types'
 
@@ -46,6 +46,21 @@ export function PortalDashboard() {
     // vet: how many animals are on the account, and whether anything is overdue (T12 H6)
     if (s === 'pets') { value = summary?.pets ?? 0; label = config.labels.pets }
     stats.push({ key: s, label, value, icon: SECTION_ICONS[s], color: style.color, link: link(s) })
+    // The two things an owner opens the portal to find out. They were in the payload from #227 and nothing
+    // rendered them, so the portal still read like a billing page. (T24 H6)
+    if (s === 'pets') {
+      const due = summary?.vaccinationsDue ?? 0
+      stats.push({
+        key: 'vaccinationsDue', label: due === 1 ? 'Vaccination Due' : 'Vaccinations Due', value: due,
+        icon: SECTION_ICONS.pets, color: due > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600', link: link('pets'),
+      })
+      if (summary?.nextAppointment) {
+        stats.push({
+          key: 'nextAppointment', label: 'Next Appointment', value: formatDate(summary.nextAppointment),
+          icon: CalendarCheck, color: 'bg-teal-100 text-teal-600', link: link('pets'),
+        })
+      }
+    }
     if (s === 'invoices') {
       const balance = summary?.outstandingBalance ?? 0
       stats.push({ key: 'balance', label: 'Outstanding Balance', value: moneyShort(balance), icon: DollarSign, color: balance > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600', link: link('invoices') })

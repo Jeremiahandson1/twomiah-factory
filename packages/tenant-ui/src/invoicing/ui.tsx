@@ -153,8 +153,10 @@ const STATUS_STYLES: Record<string, string> = {
   subcontractor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
   vendor: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
 }
-export function StatusBadge({ status }: { status: string }) {
-  return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}>{status.replace(/_/g, ' ')}</span>
+// `status` picks the colour and is the default text; `label` overrides the text where the vertical calls the
+// same value something else — a clinic's "client" is an Owner. (T24 M11)
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
+  return <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_STYLES[status] || STATUS_STYLES.draft}`}>{(label || status).replace(/_/g, ' ')}</span>
 }
 
 type BtnVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'warn'

@@ -1011,3 +1011,14 @@ jobs:
           bun-version: latest
       - name: "Check vet feature copy"
         run: bun run scripts/check-vet-feature-copy.ts
+
+  retest-t24:
+    name: "T24 re-test: failed sends, vet portal, type labels"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check T24 re-test fixes"
+        run: bun run scripts/check-retest-t24.ts

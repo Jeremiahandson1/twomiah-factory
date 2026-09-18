@@ -170,6 +170,9 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
   let sent = 0
   const failures: string[] = []
   const reached: string[] = []
+  // why nothing went out, when the reason is the same for everybody (an empty usage wallet, say) — the
+  // page shows this instead of a bare "0 sent", which looked like the button had done nothing
+  let blockedReason = ''
   for (const ct of owners) {
     const to = (ct as any).mobile || ct.phone
     if (!to) { failures.push(ct.id); continue }
@@ -182,10 +185,22 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
       clinic_name: clinic?.name || '',
     })
     try {
-      await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message: personalised, userId: u.userId })
+      // sendSMS REFUSES rather than throws when the usage wallet is empty, and returns a row with
+      // status 'failed' when the carrier rejects the number. Either way nothing reached the owner, so
+      // neither may be counted as sent or stamped — a trace that records a text nobody received is worse
+      // than no trace at all. (T24 M9)
+      const result: any = await sendSMS(u.companyId, { contactId: ct.id, toPhone: to, message: personalised, userId: u.userId })
+      if (result?.refused || result?.status === 'failed') {
+        failures.push(ct.id)
+        if (result?.errorMessage && !blockedReason) blockedReason = String(result.errorMessage)
+        continue
+      }
       sent++
       reached.push(ct.id)
-    } catch { failures.push(ct.id) }
+    } catch (err: any) {
+      failures.push(ct.id)
+      if (err?.message && !blockedReason) blockedReason = String(err.message)
+    }
   }
 
   // Only what actually went out is stamped — a reminder nobody received is not a reminder. (T12 M9)
@@ -212,7 +227,12 @@ app.post('/send', requirePermission('contacts:update'), async (c) => {
       }
     }
   }
-  return c.json({ sent, failed: failures.length, failures, remindersRecorded: stamped, remindedAt: reached.length ? now.toISOString() : null })
+  return c.json({
+    sent, failed: failures.length, failures,
+    remindersRecorded: stamped,
+    remindedAt: reached.length ? now.toISOString() : null,
+    ...(sent === 0 && blockedReason ? { error: blockedReason } : {}),
+  })
 })
 
 // GET /reminders/rabies/:vaccinationId — printable rabies vaccination certificate (HTML → print to PDF).

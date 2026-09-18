@@ -141,6 +141,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   }
 
   const typeLabel = (v: string) => cfg.types.find((t) => t.value === v)?.label || v
+  // the stat cards pluralise the vertical's own noun, so a clinic reads "Enquiries" rather than "Enquirys"
+  const plural = (s: string) => (/[^aeiou]y$/i.test(s) ? `${s.slice(0, -1)}ies` : /(s|x|z|ch|sh)$/i.test(s) ? `${s}es` : `${s}s`)
 
   const columns = [
     { key: 'name', label: 'Name', title: (row: ContactRow) => [row.name, row.company].filter(Boolean).join(' · '), render: (val: unknown, row: ContactRow) => (
@@ -149,7 +151,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         {!!row.company && <p className="text-sm text-gray-500 dark:text-slate-400">{row.company}</p>}
       </div>
     ) },
-    { key: 'type', label: 'Type', render: (val: unknown) => <StatusBadge status={String(val || '')} /> },
+    // the vertical's own word for the type, not the stored value — a clinic's rows read Owner, not client (T24 M11)
+    { key: 'type', label: 'Type', render: (val: unknown) => <StatusBadge status={String(val || '')} label={typeLabel(String(val || ''))} /> },
     { key: 'email', label: 'Email', render: (val: unknown) => val ? <a href={`mailto:${val}`} onClick={(e) => e.stopPropagation()} className="text-orange-500 hover:underline">{String(val)}</a> : '-' },
     { key: 'phone', label: 'Phone', render: (val: unknown) => <span className="text-gray-700 dark:text-slate-200">{String(val || '-')}</span> },
     { key: 'city', label: 'Location', render: (_v: unknown, row: ContactRow) => <span className="text-gray-700 dark:text-slate-200">{row.city && row.state ? `${row.city}, ${row.state}` : row.city || row.state || '-'}</span> },
@@ -190,7 +193,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
               className={`p-4 rounded-lg border text-left transition-colors ${typeFilter === t.value ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'bg-white hover:border-gray-300 dark:bg-slate-900 dark:border-slate-800'}`}
             >
               <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats[t.value] || 0}</p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">{t.label}s</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">{plural(t.label)}</p>
             </button>
           ))}
         </div>

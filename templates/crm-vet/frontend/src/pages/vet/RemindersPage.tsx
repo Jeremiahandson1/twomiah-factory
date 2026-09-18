@@ -321,7 +321,7 @@ function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { co
       : "Hi {{owner_name}}, it's {{clinic_name}} — we haven't seen {{pet_name}} in a while. Call us any time to book a check-up."
   );
   const [sending, setSending] = useState<boolean>(false);
-  const [result, setResult] = useState<{ sent?: number; failed?: number } | null>(null);
+  const [result, setResult] = useState<{ sent?: number; failed?: number; error?: string } | null>(null);
 
   const send = async () => {
     if (!message.trim()) { alert('Message is required'); return; }
@@ -348,14 +348,24 @@ function SendReminderModal({ contactIds, vaccinationIds, onDone, onClose }: { co
 
           {result ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-green-700">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="font-medium">{result.sent} reminder{result.sent === 1 ? '' : 's'} sent</span>
-              </div>
+              {/* Nothing sent is not a success. When the reason is the same for everyone — messaging paused
+                  on an empty usage wallet, say — say it, instead of reporting "0 reminders sent" in green
+                  next to a row that claims it was reminded. (T24 M9) */}
+              {(result.sent || 0) > 0 ? (
+                <div className="flex items-center gap-2 text-green-700">
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span className="font-medium">{result.sent} reminder{result.sent === 1 ? '' : 's'} sent</span>
+                </div>
+              ) : (
+                <div role="alert" className="flex items-start gap-2 text-red-700">
+                  <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <span className="font-medium">{result.error || 'Nothing was sent.'}</span>
+                </div>
+              )}
               {(result.failed || 0) > 0 && (
                 <div className="flex items-center gap-2 text-amber-700">
                   <AlertCircle className="w-5 h-5" />
-                  <span>{result.failed} failed to send</span>
+                  <span>{result.failed} could not be reached{(result.sent || 0) > 0 && result.error ? ` — ${result.error}` : ''}</span>
                 </div>
               )}
               <button onClick={onDone} className="w-full px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Done</button>
