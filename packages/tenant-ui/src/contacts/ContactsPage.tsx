@@ -143,7 +143,7 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   const typeLabel = (v: string) => cfg.types.find((t) => t.value === v)?.label || v
 
   const columns = [
-    { key: 'name', label: 'Name', render: (val: unknown, row: ContactRow) => (
+    { key: 'name', label: 'Name', title: (row: ContactRow) => [row.name, row.company].filter(Boolean).join(' · '), render: (val: unknown, row: ContactRow) => (
       <div>
         <p className="font-medium text-gray-900 dark:text-slate-100">{String(val || '')}</p>
         {!!row.company && <p className="text-sm text-gray-500 dark:text-slate-400">{row.company}</p>}

@@ -253,7 +253,9 @@ export function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confi
 }
 
 // ---------------------------------------------------------------- table
-export interface Column<T> { key: string; label: string; className?: string; render?: (value: any, row: T) => React.ReactNode }
+// title: what a truncated cell shows on hover. A plain column needs nothing — the cell text IS the value —
+// but a column that renders its own markup must say, because what it displays may not be the raw field.
+export interface Column<T> { key: string; label: string; className?: string; render?: (value: any, row: T) => React.ReactNode; title?: (row: T) => string | undefined }
 export interface RowAction<T> { label: string; icon?: React.ComponentType<{ className?: string }>; onClick: (row: T) => void; className?: string; show?: (row: T) => boolean }
 export interface Pagination { page: number; limit: number; total: number; pages: number }
 
@@ -289,10 +291,23 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
             {!loading && data.length === 0 && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyMessage}</td></tr>}
             {!loading && data.map(row => (
               <tr key={row.id} onClick={onRowClick ? () => onRowClick(row) : undefined} className={`text-gray-900 dark:text-slate-100 ${onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : ''}`}>
-                {/* Bound cell content so one pathological value (e.g. a 300-char contact name) wraps
-                    instead of stretching its column and pushing every other column off-screen. Normal
-                    content is far under the cap, so ordinary tables are unaffected. */}
-                {columns.map(c => <td key={c.key} className={`px-4 py-3 ${c.className || ''}`}><div className="max-w-[480px] break-words">{c.render ? c.render((row as any)[c.key], row) : String((row as any)[c.key] ?? '-')}</div></td>)}
+                {/* Bound cell content so one pathological value (e.g. a 300-char contact name) neither
+                    stretches its column off-screen nor wraps the row to twice the height of every other
+                    row — it ellipsises at the cap, with the full value on hover and on the detail page.
+                    [&_p]:truncate reaches the stacked name/company lines the column renderers produce;
+                    the wrapper itself handles plain text and links. Normal content is far under the cap,
+                    so ordinary tables look exactly as before. (Vet T12 M2) */}
+                {columns.map(c => {
+                  const raw = (row as any)[c.key]
+                  const full = c.title ? c.title(row)
+                    : !c.render && (typeof raw === 'string' || typeof raw === 'number') ? String(raw)
+                    : undefined
+                  return (
+                    <td key={c.key} className={`px-4 py-3 ${c.className || ''}`}>
+                      <div title={full} className="max-w-[480px] truncate [&_p]:truncate">{c.render ? c.render(raw, row) : String(raw ?? '-')}</div>
+                    </td>
+                  )
+                })}
                 {actions.length > 0 && (
                   <td className="px-2 py-3 text-right" onClick={e => e.stopPropagation()}>
                     <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"><MoreVertical className="w-4 h-4" /></button>
