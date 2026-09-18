@@ -221,7 +221,8 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
         emptyMessage="No contacts found"
       />
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Contact' : 'New Contact'} size="lg">
+      {/* The dialog echoes the button that opened it: "Add Contact" opened something headed "New Contact". (T14 L3) */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Contact' : 'Add Contact'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <Field label="Type">

@@ -18,6 +18,15 @@ if (!/\$\$\{Number\(v\)\.toFixed\(2\)\}\/hr/.test(team.replace(/\$\{/g, '$${')) 
 // on a page whose own Settings › Users calls both of them Staff. One vocabulary, one map. (T14 M10)
 if (!/import \{ ROLE_LABELS \} from '\.\.\/shell\/types'/.test(team)) fail('the Team page must read the shared role vocabulary, not invent a second one')
 if (!/row\._source === 'user' \? ROLE_LABELS\[String\(v\)\] \|\| v \|\| '-' : v \|\| '-'/.test(team)) fail("a login account's role must be shown as the word Settings uses, while a roster member's typed job title is left alone")
+// A dialog echoes the button that opened it: "Add Contact" opened something headed "New Contact", and
+// "Add Job" opened "New Job", while Quotes, Invoices, Expenses and Team already agreed with themselves. (T14 L3)
+const contactsPage = read('packages/tenant-ui/src/contacts/ContactsPage.tsx')
+if (!/title=\{editing \? 'Edit Contact' : 'Add Contact'\}/.test(contactsPage)) fail('the contact dialog must say Add Contact — that is the button that opens it')
+if (/'New Contact'/.test(contactsPage)) fail('…and must not still say New Contact')
+const jobsPage = read('packages/tenant-ui/src/jobs/JobsPage.tsx')
+if (!/title=\{editing \? `Edit \$\{cfg\.labels\.singular\}` : cfg\.labels\.add\}/.test(jobsPage)) fail('the job dialog must reuse the button label, so a vertical that renames the button renames both')
+if (/`New \$\{cfg\.labels\.singular\}`/.test(jobsPage)) fail('…and must not build its own "New X" title')
+
 const labels = read('packages/tenant-ui/src/shell/types.ts')
 for (const [slug, word] of [['field', 'Staff'], ['user', 'Staff'], ['manager', 'Manager'], ['owner', 'Owner']]) {
   if (!new RegExp(`${slug}: '${word}'`).test(labels)) fail(`ROLE_LABELS must map ${slug} → ${word}`)

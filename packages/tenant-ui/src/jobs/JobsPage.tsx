@@ -174,7 +174,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
 
       <DataTable<JobRow> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/crm/jobs/${row.id}`)} actions={actions} emptyMessage={`No ${cfg.labels.plural.toLowerCase()} found`} />
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${cfg.labels.singular}` : `New ${cfg.labels.singular}`} size="lg">
+      {/* The dialog echoes the button that opened it, and keeps echoing it when a vertical renames the button:
+          "Add Job" opened something headed "New Job". (T14 L3) */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? `Edit ${cfg.labels.singular}` : cfg.labels.add} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2"><Field label="Title *"><input value={form.title} onChange={set('title')} className={inputCls} /></Field></div>
           <Field label="Status"><select value={form.status} onChange={set('status')} className={`${inputCls} capitalize`}>{cfg.statuses.map((s) => <option key={s} value={s}>{label(s)}</option>)}{!cfg.statuses.includes(form.status) && form.status && <option value={form.status}>{label(form.status)}</option>}</select></Field>
