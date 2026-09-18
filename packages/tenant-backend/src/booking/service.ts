@@ -261,6 +261,18 @@ export function createBookingService(deps: BookingDeps) {
     return slots.filter(s => s.available).map(({ time, available }) => ({ time, available }))
   }
 
+  // The booking window, derived in ONE place. The first bookable day is today in the business's timezone;
+  // the last is that day plus maxDaysOut — "30 days out" means day 30 is bookable. The date picker, the
+  // slot list and the validator all read it from here, so they cannot drift apart: the picker used to
+  // count `i < maxDaysOut` from the zone-local date while the other two added the days to the server's
+  // clock, which both stopped the picker a day short and let the two boundaries disagree across midnight
+  // in another timezone. (Vet T12 N1, same family as BL1/N7)
+  function bookingWindow(settings: Settings): { first: string; last: string; days: number } {
+    const days = settings.maxDaysOut || 30
+    const first = tzParts(new Date(), settings.timezone).date
+    return { first, last: addDays(first, days), days }
+  }
+
   async function getAvailableSlots(companyId: string, date: string, serviceId?: string, exec: any = db) {
     if (!isIsoDate(date)) throw new BookingError('Date must be YYYY-MM-DD.')
     await expireStaleDepositHolds(companyId)
@@ -269,11 +281,8 @@ export function createBookingService(deps: BookingDeps) {
     // maxDaysOut, has no bookable times — so the slot list must offer none, otherwise the widget shows a
     // normal-looking day, the customer fills the whole form, and the validator then refuses it. That was
     // the N7 regression: the 30-day window landed on createBooking but not on the availability endpoint.
-    const tz = settings.timezone
-    if (date < tzParts(new Date(), tz).date) return []
-    const maxDaysOut = settings.maxDaysOut || 30
-    const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + maxDaysOut)
-    if (date > tzParts(maxDate, tz).date) return []
+    const win = bookingWindow(settings)
+    if (date < win.first || date > win.last) return []
     let service: CatalogService | null = null
     if (serviceId) {
       service = await catalog.resolve(companyId, serviceId, exec)
@@ -286,10 +295,12 @@ export function createBookingService(deps: BookingDeps) {
     const settings = await getSettings(companyId)
     const tz = settings.timezone
     const minTime = Date.now() + settings.leadTimeDays * DAY_MS
-    const today = tzParts(new Date(), tz).date
+    const win = bookingWindow(settings)
     const out: Array<{ date: string; dayOfWeek: string }> = []
-    for (let i = 0; i < Math.min(days, settings.maxDaysOut); i++) {
-      const date = addDays(today, i)
+    // Offer every day of the window, the last one included — `i <= n`, because day 0 is today and day
+    // maxDaysOut is the last date createBooking accepts.
+    for (let i = 0; i <= Math.min(days, win.days); i++) {
+      const date = addDays(win.first, i)
       const weekday = tzParts(zonedWallTimeToUtc(date, '12:00', tz), tz).weekday
       const d = settings.workingHours[weekday]
       if (!d?.enabled) continue
@@ -316,12 +327,11 @@ export function createBookingService(deps: BookingDeps) {
     const settings = await getSettings(companyId)
     if (!settings.enabled) throw new BookingError('Online booking is not enabled.')
     const tz = settings.timezone
-    if (date < tzParts(new Date(), tz).date) throw new BookingError('That date is in the past.')
     // Honour the booking window server-side, not only in the widget's date picker — a raw API call could
     // otherwise book months past maxDaysOut.
-    const maxDaysOut = settings.maxDaysOut || 30
-    const maxDate = new Date(); maxDate.setDate(maxDate.getDate() + maxDaysOut)
-    if (date > tzParts(maxDate, tz).date) throw new BookingError(`Please choose a date within ${maxDaysOut} days.`)
+    const win = bookingWindow(settings)
+    if (date < win.first) throw new BookingError('That date is in the past.')
+    if (date > win.last) throw new BookingError(`Please choose a date within ${win.days} days.`)
     if (requirePhone && !data.phone?.trim()) throw new BookingError('Phone number is required.')
     if (requireAddress && !data.address?.trim()) throw new BookingError('Address is required.')
     if (requirePet && !data.petName?.trim()) throw new BookingError("The pet's name is required.")
