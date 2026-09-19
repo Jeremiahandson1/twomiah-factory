@@ -81,6 +81,12 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
     setCompany(prev => prev ? { ...prev, ...updates } : null)
   }
 
+  // The same for the signed-in person, so correcting your own name in Settings › Profile shows immediately
+  // instead of waiting for the next reload — the header greets you by it. (Contractor T14 M7)
+  const updateUser = (updates: Partial<AuthUser>) => {
+    setUser(prev => prev ? { ...prev, ...updates } : null)
+  }
+
   const role = user?.role ?? ''
   const isAuthenticated = !!user
   // 'owner' outranks 'admin' — treat it as admin-or-higher, otherwise the account owner is locked out
@@ -91,7 +97,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   const hasFeature = (featureId: string): boolean => company?.enabledFeatures?.includes(featureId) ?? false
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, isAdmin, isManager, login, logout, checkAuth, updateCompany, hasFeature, getToken }}>
+    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, isAdmin, isManager, login, logout, checkAuth, updateCompany, updateUser, hasFeature, getToken }}>
       {children}
     </AuthContext.Provider>
   )

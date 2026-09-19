@@ -69,6 +69,8 @@ export interface SettingsAuth {
   user: any
   company: any
   updateCompany: (updates: any) => void
+  /** Optional so a template that has not been re-vendored yet still type-checks; the page falls back to a reload prompt. */
+  updateUser?: (updates: any) => void
 }
 
 export interface SettingsPageProps { api: ShellApi; auth: SettingsAuth; toast: ShellToast; config?: SettingsConfig }

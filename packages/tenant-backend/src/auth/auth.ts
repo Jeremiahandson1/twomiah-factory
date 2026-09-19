@@ -184,6 +184,30 @@ export function createAuthRoutes(deps: AuthDeps) {
     })
   })
 
+  // Your own name and phone. Settings › Profile could only READ these — the only way to correct a misspelled
+  // name was to ask an admin, and an owner had nobody to ask. (Contractor T14 M7)
+  //
+  // Exactly the fields an admin can already change on someone else (company PUT /users/:id), minus the
+  // privileged ones: role, isActive and permission grants stay with an admin, and email is not editable by
+  // anyone — it is the login identity and there is no re-verification flow to make changing it safe.
+  app.put('/profile', authenticate, async (c) => {
+    const currentUser = c.get('user') as any
+    const parsed = z.object({
+      firstName: z.string().trim().min(1, 'First name is required').max(100),
+      lastName: z.string().trim().min(1, 'Last name is required').max(100),
+      phone: z.string().trim().max(40).optional().nullable(),
+    }).safeParse(await c.req.json().catch(() => ({})))
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid profile' }, 400)
+    const data = parsed.data
+    // A cleared phone is absent, not an empty string — otherwise "" is stored and every reader has to treat
+    // it as if it were null anyway.
+    const [updated] = await db.update(user)
+      .set({ firstName: data.firstName, lastName: data.lastName, phone: data.phone ? data.phone : null, updatedAt: new Date() })
+      .where(eq(user.id, currentUser.userId)).returning()
+    if (!updated) return c.json({ error: 'User not found' }, 404)
+    return c.json({ user: userPayload(updated, permissions.normalizeRole(updated.role)) })
+  })
+
   app.put('/password', authenticate, async (c) => {
     const currentUser = c.get('user') as any
     const data = z.object({ currentPassword: z.string(), newPassword: passwordSchema }).parse(await c.req.json().catch(() => ({})))

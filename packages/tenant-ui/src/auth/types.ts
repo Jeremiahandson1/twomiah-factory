@@ -60,6 +60,7 @@ export interface AuthContextValue {
   logout: () => Promise<void>
   checkAuth: () => Promise<void>
   updateCompany: (updates: Partial<AuthCompany>) => void
+  updateUser: (updates: Partial<AuthUser>) => void
   hasFeature: (featureId: string) => boolean
   getToken: () => string | null
 }

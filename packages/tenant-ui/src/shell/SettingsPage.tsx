@@ -32,6 +32,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const [tab, setTab] = useState('company')
   const [form, setForm] = useState<CompanyForm>({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30', logo: '', primaryColor: '' })
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [profile, setProfileForm] = useState({ firstName: '', lastName: '', phone: '' })
   const [users, setUsers] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [addUserOpen, setAddUserOpen] = useState(false)
@@ -55,6 +56,10 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     }
     loadUsers()
   }, [company]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (user) setProfileForm({ firstName: user.firstName || '', lastName: user.lastName || '', phone: user.phone || '' })
+  }, [user])
 
   const loadUsers = async () => {
     try { const data = await api.get('/api/company/users'); setUsers(Array.isArray(data) ? data : (data?.data ?? [])) } catch { /* a staff user has no users:read — the tab just stays empty */ }
@@ -86,6 +91,19 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
       updateCompany(updated)
       toast.success('Company updated')
     } catch (err) { toast.error(errMsg(err, 'Failed to save')) } finally { setSaving(false) }
+  }
+
+  const setProfile = (k: keyof typeof profile) => (e: React.ChangeEvent<HTMLInputElement>) => setProfileForm({ ...profile, [k]: e.target.value })
+  const saveProfile = async () => {
+    if (!profile.firstName.trim()) { toast.error('First name is required'); return }
+    if (!profile.lastName.trim()) { toast.error('Last name is required'); return }
+    setSaving(true)
+    try {
+      const res = await api.put('/api/auth/profile', { firstName: profile.firstName.trim(), lastName: profile.lastName.trim(), phone: profile.phone.trim() || null })
+      // The header greets you by name, so reflect it now rather than at the next reload.
+      auth.updateUser?.(res?.user || res)
+      toast.success('Profile updated')
+    } catch (err) { toast.error(errMsg(err, 'Failed to save profile')) } finally { setSaving(false) }
   }
 
   const changePassword = async () => {
@@ -205,11 +223,20 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
           {tab === 'profile' && (
             <div className="space-y-4 max-w-xl">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Profile</h2>
+              {/* This was read-only: correcting your own misspelled name meant asking an admin, and an owner
+                  had nobody to ask. Email and Role stay fixed — email is the login identity with no
+                  re-verification flow, and role is an admin's to set under Users. (T14 M7) */}
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="First Name"><input value={profile.firstName} onChange={setProfile('firstName')} className={inputCls} /></Field>
+                <Field label="Last Name"><input value={profile.lastName} onChange={setProfile('lastName')} className={inputCls} /></Field>
+              </div>
+              <Field label="Phone"><input value={profile.phone} onChange={setProfile('phone')} className={inputCls} /></Field>
               <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-800 text-gray-900 dark:text-slate-100 space-y-1">
-                <p><span className="font-medium">Name:</span> {user?.firstName} {user?.lastName}</p>
                 <p><span className="font-medium">Email:</span> {user?.email}</p>
                 <p><span className="font-medium">Role:</span> {ROLE_LABELS[user?.role] || user?.role}</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Your email address and role are set by an administrator under Settings › Users.</p>
               </div>
+              <Button onClick={saveProfile} disabled={saving}>{saving ? 'Saving...' : 'Save Profile'}</Button>
             </div>
           )}
 

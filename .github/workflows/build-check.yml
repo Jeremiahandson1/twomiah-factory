@@ -1121,3 +1121,14 @@ jobs:
           bun-version: latest
       - name: "Check seeded logo"
         run: bun run scripts/check-seeded-logo.ts
+
+  profile-editable:
+    name: "You can correct your own name"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check profile editable"
+        run: bun run scripts/check-profile-editable.ts
