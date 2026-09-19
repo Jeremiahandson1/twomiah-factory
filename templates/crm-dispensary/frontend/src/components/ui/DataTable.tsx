@@ -81,12 +81,14 @@ export function DataTable<Row extends { id?: any } = any>({
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full">
+          {/* Column headings were text-gray-600 with no dark variant, so every heading across
+              Products, Orders and Customers sat at 2.36:1 on the dark background. (T21 M2) */}
           <thead className="bg-gray-50 border-b dark:bg-slate-900">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider ${col.className || ''}`}
+                  className={`px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-slate-300 uppercase tracking-wider ${col.className || ''}`}
                 >
                   {col.label}
                 </th>
@@ -130,8 +132,13 @@ export function DataTable<Row extends { id?: any } = any>({
                   className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
                   onClick={() => onRowClick?.(row)}
                 >
+                  {/* Cells are bounded and wrap. One 300-character customer name with no spaces
+                      sized its column to 2,437px and the table to 3,164px inside a 1,222px
+                      container, pushing Tier and every other column off the screen. break-words
+                      breaks a run with nothing to break on; the max width is what stops the column
+                      growing to fit it in the first place. (T21 M1) */}
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-4 py-3 text-gray-700 ${col.cellClassName || ''}`}>
+                    <td key={col.key} className={`px-4 py-3 text-gray-700 max-w-xs break-words ${col.cellClassName || ''}`}>
                       {col.render ? col.render(row[col.key], row) : row[col.key]}
                     </td>
                   ))}

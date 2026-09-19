@@ -172,10 +172,13 @@ export default function OrdersPage() {
           <button
             key={tab.value}
             onClick={() => setStatusFilter(tab.value)}
+            /* White on green-600 is 3.3:1 — under the 4.5:1 a 14px label needs, in either theme.
+               green-700 clears it. The inactive chip had no dark variant at all, so it stayed a
+               white chip on the dark page. (T21 M2) */
             className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
               statusFilter === tab.value
-                ? 'bg-green-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                ? 'bg-green-700 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800'
             }`}
           >
             {tab.label}

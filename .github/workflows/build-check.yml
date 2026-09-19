@@ -1264,3 +1264,14 @@ jobs:
           bun-version: latest
       - name: "Every order state filterable and badged; unknown filter refused"
         run: bun run scripts/check-order-filters-complete.ts
+
+  291:
+    name: "readable in both themes"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Dark mode carries its own colours; a long name cannot take the table"
+        run: bun run scripts/check-readable-in-both-themes.ts

@@ -181,7 +181,8 @@ export default function CustomersPage() {
       label: 'Customer',
       render: (val: string, row: any) => (
         <div>
-          <p className="font-medium text-gray-900 dark:text-slate-100">{val}</p>
+          {/* title, so a name the cell has to wrap is still readable in full on hover (T21 M1) */}
+          <p className="font-medium text-gray-900 dark:text-slate-100 break-words" title={val}>{val}</p>
           {row.phone && <p className="text-sm text-gray-500 dark:text-slate-400">{row.phone}</p>}
         </div>
       ),
@@ -251,8 +252,13 @@ export default function CustomersPage() {
             <button
               key={tier.value}
               onClick={() => setTierFilter(tierFilter === tier.value ? '' : tier.value)}
+              /* The card had no dark variant, so in dark mode it stayed WHITE while its number kept
+                 dark:text-slate-100 — near-white on white, 2.56:1, and the counts were effectively
+                 unreadable. The card follows the theme now, so the text on it can be trusted. (T21 M2) */
               className={`p-4 rounded-lg border transition-colors ${
-                tierFilter === tier.value ? 'border-green-500 bg-green-50' : 'bg-white hover:border-gray-300'
+                tierFilter === tier.value
+                  ? 'border-green-500 bg-green-50 dark:bg-green-900/30 dark:border-green-500'
+                  : 'bg-white hover:border-gray-300 dark:bg-slate-900 dark:border-slate-700 dark:hover:border-slate-500'
               }`}
             >
               <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{stats[tier.value] || 0}</p>

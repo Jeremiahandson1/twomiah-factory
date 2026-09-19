@@ -20,10 +20,20 @@ const stripPortal = (row: any) => { if (!row) return row; const { portalToken, p
 // Free-text fields are stored with markup stripped (QA F-09): a customer named `<script>`
 // was persisted verbatim. React escapes it in the SPA, but receipts, labels, emails and CSV
 // exports are not React. Strip on input; a name that is ONLY markup fails min(1).
-const cleanText = (min = 0) => z.string().transform(stripHtml).pipe(min > 0 ? z.string().min(min) : z.string())
+const cleanText = (min = 0, max?: number) => z.string().transform(stripHtml).pipe(
+  max != null
+    ? (min > 0 ? z.string().min(min).max(max) : z.string().max(max))
+    : (min > 0 ? z.string().min(min) : z.string()),
+)
+
+// A name is a label a person is known by, not a paragraph. The field had a floor and no ceiling, so a
+// 404-character name was stored happily and then rendered in a table cell 2,437px wide, pushing every
+// other column off the screen. The screen now wraps rather than stretching either way, but the record
+// is where the absurd value has to stop. (T21 M1 / L8)
+const NAME_MAX = 200
 
 const contactSchema = z.object({
-  name: cleanText(1),
+  name: cleanText(1, NAME_MAX),
   type: z.enum(['lead', 'client', 'patient', 'vendor']).default('lead'),
   company: cleanText().optional(),
   email: z.string().email().optional().or(z.literal('')),
