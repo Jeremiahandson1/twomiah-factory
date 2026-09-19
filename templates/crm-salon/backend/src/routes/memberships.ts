@@ -7,6 +7,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { billFirstPeriod, settleMembershipBilling } from '../services/membershipBilling.ts'
 
 /**
  * Memberships and prepaid packages — recurring revenue between visits.
@@ -14,7 +15,9 @@ import { createId } from '@paralleldrive/cuid2'
  * a plan with creditsTotal set is a prepaid block that burns down per redeem.
  */
 
-const app = new Hono()
+// Typed context: every handler reads c.get('user'), and an untyped Hono app made each route
+// registration a TS2769 "no overload matches this call". Naming the variable clears them.
+const app = new Hono<{ Variables: { user: any } }>()
 app.use('*', authenticate)
 
 // ==================== ENROLLMENTS ====================
@@ -25,6 +28,10 @@ app.get('/enrollments', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const contactId = c.req.query('contactId')
   const status = c.req.query('status')
+
+  // Settle on read: with no scheduler on a tenant backend, looking at the memberships page is what
+  // brings the overdue ones up to date. Never let a billing hiccup break the list. (T20 H4)
+  try { await settleMembershipBilling(currentUser.companyId) } catch (e: any) { console.warn('[memberships] billing run skipped:', e?.message || e) }
 
   const conditions = [eq(membershipEnrollment.companyId, currentUser.companyId)]
   if (contactId) conditions.push(eq(membershipEnrollment.contactId, contactId))
@@ -80,9 +87,22 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
+  // A membership sold is a membership billed: raise the first period now and set the renewal date, so
+  // the enrolment does not sit at renewsAt null forever collecting nothing. (T20 H4)
+  const firstCharge = await billFirstPeriod(created)
+  const [withBilling] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, created.id)).limit(1)
+
   await audit.log({ action: 'create', entity: 'membership_enrollment', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'membership_enrollment' })
-  return c.json(created, 201)
+  return c.json({ ...(withBilling || created), invoiceId: firstCharge?.invoiceId ?? null, invoiceNumber: firstCharge?.number ?? null }, 201)
+})
+
+// POST /memberships/billing/run — bill every membership that has come due. There is no scheduler on a
+// tenant backend, so this is the explicit handle; the enrolment reads settle as well. (T20 H4)
+app.post('/billing/run', requirePermission('contacts:update'), async (c) => {
+  const currentUser = c.get('user') as any
+  const billed = await settleMembershipBilling(currentUser.companyId)
+  return c.json({ billed: billed.length, invoices: billed })
 })
 
 // PUT /memberships/enrollments/:id

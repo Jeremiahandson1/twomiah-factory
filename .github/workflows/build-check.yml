@@ -1297,3 +1297,14 @@ jobs:
           bun-version: latest
       - name: "A chair-only stylist can be booked, named and filtered"
         run: bun run scripts/check-roster-stylist-bookable.ts
+
+  294:
+    name: "membership billing"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Enrolling bills and schedules; due periods caught up once each"
+        run: bun run scripts/check-membership-billing.ts

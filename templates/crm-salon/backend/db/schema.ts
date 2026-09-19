@@ -3853,6 +3853,11 @@ export const membershipEnrollment = pgTable('membership_enrollment', {
   creditsRemaining: integer('credits_remaining'),
   startDate: date('start_date'),
   renewsAt: date('renews_at'),
+  // The period this enrolment has already been charged for. Billing CLAIMS a period by moving this
+  // forward, so two concurrent runs — or a retry after a half-finished one — can only ever raise one
+  // invoice for it. Without it a membership sold as "$99/month" collected nothing at all. (Salon T20 H4)
+  lastBilledFor: date('last_billed_for'),
+  lastInvoiceId: text('last_invoice_id'),
   cancelledAt: timestamp('cancelled_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -3860,6 +3865,7 @@ export const membershipEnrollment = pgTable('membership_enrollment', {
 }, (t) => [
   index('membership_enrollment_company_id_idx').on(t.companyId),
   index('membership_enrollment_contact_id_idx').on(t.contactId),
+  index('membership_enrollment_renews_at_idx').on(t.renewsAt),
 ])
 
 

@@ -13,10 +13,15 @@ import { emitToCompany, EVENTS } from './socket.ts'
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
-async function nextInvoiceNumber(companyId: string): Promise<string> {
+/**
+ * The next INV- number for this company. Exported so every salon invoice comes from one counter.
+ * `exec` takes the surrounding transaction when there is one — reaching for the pooled `db` from
+ * inside a transaction waits on a connection that transaction is already holding, which deadlocks.
+ */
+export async function nextInvoiceNumber(companyId: string, exec: any = db): Promise<string> {
   // Highest existing number, not the row count — deleting an invoice would otherwise reuse a number.
-  const existing = await db.select({ number: invoice.number }).from(invoice).where(eq(invoice.companyId, companyId))
-  const maxSeq = existing.reduce((max, r) => {
+  const existing = await exec.select({ number: invoice.number }).from(invoice).where(eq(invoice.companyId, companyId))
+  const maxSeq = existing.reduce((max: number, r: { number: string | null }) => {
     const m = String(r.number || '').match(/(\d+)\s*$/)
     return m ? Math.max(max, parseInt(m[1], 10)) : max
   }, 0)
