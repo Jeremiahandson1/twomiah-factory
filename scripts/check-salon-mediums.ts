@@ -87,5 +87,21 @@ if (!/color: c\.link/.test(inbox)) fail('…and so must the lead-sources link, o
   if (!/if \(known\.has\(cat\)\) continue/.test(page)) fail('…and a category the page has NOT heard of must still be rendered — a hardcoded list can always fall behind again')
 }
 
+// H3 and M4 both fixed a write path and left the rows already written alone — "four orphan invoices worth
+// $70.53 are still Open, and the old future-dated visits still head Recent Services". A rule that only
+// applies to future writes leaves the screen wrong for as long as the old rows live, so both come with a
+// repair. Its safety rules are the same as the rules that replaced them, and they are what is guarded:
+// never touch a sale holding money, never invent a date, never take out an invoice a visit still owns.
+{
+  const rec = read(B + 'routes/serviceRecords.ts')
+  if (!/app\.post\('\/repair-legacy'/.test(rec)) fail('the salon must be able to clear up what the old H3 / M4 write paths left behind')
+  if (!/i\.notes = 'Created from the appointment book'/.test(rec)) fail('…voiding only sales a VISIT raised, never an invoice someone entered by hand')
+  if (!/COALESCE\(i\.amount_paid, '0'\)::numeric - COALESCE\(i\.amount_refunded, '0'\)::numeric <= 0\.005/.test(rec)) fail('…and never one still holding money — the same rule the delete enforces')
+  if (!/NOT EXISTS \(SELECT 1 FROM service_record sr WHERE sr\.invoice_id = i\.id\)/.test(rec)) fail('…only where no visit still points at it')
+  if (!/SET status = 'void'/.test(rec)) fail('…voided, not deleted, so the number and the audit trail survive')
+  if (!/WHERE company_id = \$\{cid\} AND performed_at > NOW\(\)/.test(rec)) fail('…and the future-dated visits are the ones dated to a day that has not happened')
+  if (!/SET performed_at = created_at/.test(rec)) fail('…moved to the day the record was actually created, which is the one date we know is true about them')
+}
+
 if (failed) { console.error(`\nsalon mediums: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('salon mediums: the book is clients, a visit has happened, the heading never lies about the day, and the brand palette reads in dark mode')

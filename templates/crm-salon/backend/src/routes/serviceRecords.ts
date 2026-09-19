@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { serviceRecord, serviceMenu, contact, user, appointment, teamMember, invoice } from '../../db/schema.ts'
-import { eq, and, desc, or } from 'drizzle-orm'
+import { eq, and, desc, or, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -66,6 +66,82 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 })
 
 // GET /service-records/:id
+/**
+ * Clear up what the old write paths left behind.
+ *
+ * Two fixes landed on the write path and did nothing for the rows already written, which the retest
+ * called out by name: "Both H3 and M4 fixed the write path without backfilling — four orphan invoices
+ * worth $70.53 are still Open, and the old future-dated visits still head Recent Services."
+ *
+ *   H3 — deleting a visit now voids the sale it raised. Before that the invoice survived its visit:
+ *        Open, owed, and pointing back at a record that no longer exists. Those are voided here, by
+ *        the same rule the delete uses — an invoice holding money is never touched, and voiding keeps
+ *        the number and the audit trail rather than deleting anything.
+ *   M4 — a visit must be dated to a day that has happened. The ones accepted before that rule still
+ *        sit at the top of Recent Services, because that panel orders by performedAt and theirs are in
+ *        the future. They are moved back to the day the record was actually created, which is the one
+ *        date we know is true about them.
+ *
+ * Deliberately an endpoint an operator calls, not a boot job: it voids invoices and moves dates on a
+ * clinical record, and that should be something a person triggers and sees the result of. It reports
+ * every row it touched, and it is idempotent.
+ */
+app.post('/repair-legacy', requirePermission('contacts:update'), async (c: any) => {
+  const currentUser = c.get('user') as any
+  const cid = currentUser.companyId
+
+  // ── H3: sales whose visit is gone ───────────────────────────────────────────────────────────────
+  const orphans: any = await db.execute(sql`
+    SELECT i.id, i.number, i.total, i.amount_paid, i.amount_refunded
+    FROM invoice i
+    WHERE i.company_id = ${cid}
+      AND i.notes = 'Created from the appointment book'
+      AND i.status <> 'void'
+      AND COALESCE(i.amount_paid, '0')::numeric - COALESCE(i.amount_refunded, '0')::numeric <= 0.005
+      AND NOT EXISTS (SELECT 1 FROM service_record sr WHERE sr.invoice_id = i.id)
+      AND (i.appointment_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM service_record sr2 WHERE sr2.appointment_id = i.appointment_id AND sr2.company_id = ${cid}
+      ))
+  `)
+  const orphanRows = ((orphans as any).rows || orphans) as any[]
+  for (const row of orphanRows) {
+    await db.execute(sql`
+      UPDATE invoice
+      SET status = 'void',
+          notes = COALESCE(notes || E'\n', '') || 'Voided: the visit this sale came from was deleted before the sale was linked to it.',
+          updated_at = NOW()
+      WHERE id = ${row.id} AND company_id = ${cid}
+    `)
+  }
+
+  // ── M4: visits dated to a day that has not happened ─────────────────────────────────────────────
+  const future: any = await db.execute(sql`
+    SELECT id, performed_at, created_at FROM service_record
+    WHERE company_id = ${cid} AND performed_at > NOW()
+  `)
+  const futureRows = ((future as any).rows || future) as any[]
+  for (const row of futureRows) {
+    await db.execute(sql`
+      UPDATE service_record SET performed_at = created_at, updated_at = NOW()
+      WHERE id = ${row.id} AND company_id = ${cid}
+    `)
+  }
+
+  await audit.log({
+    action: 'update', entity: 'service_record', entityId: 'repair-legacy',
+    metadata: { invoicesVoided: orphanRows.length, visitsRedated: futureRows.length },
+    req: { user: currentUser },
+  })
+  if (orphanRows.length || futureRows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'service_record' })
+
+  return c.json({
+    invoicesVoided: orphanRows.length,
+    invoices: orphanRows.map((r) => ({ id: r.id, number: r.number, total: r.total })),
+    visitsRedated: futureRows.length,
+    visits: futureRows.map((r) => ({ id: r.id, was: r.performed_at, now: r.created_at })),
+  })
+})
+
 app.get('/:id', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
