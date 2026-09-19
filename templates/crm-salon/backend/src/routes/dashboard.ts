@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice } from '../../db/schema.ts'
+import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice, teamMember } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -12,13 +12,20 @@ import { authenticate } from '../middleware/auth.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Cancelled and no-show rows are not appointments the desk has to serve; upcoming excludes completed
+// too. (SALON-N9)
+//
+// These live at MODULE scope because two handlers need them. They used to be declared inside /stats,
+// and /recent-activity referenced UPCOMING_APPT anyway — a ReferenceError on every single request,
+// swallowed by the safe() wrapper below, which is why the Upcoming Appointments panel was ALWAYS empty
+// while the tile above it counted the same appointments correctly. (Salon T20 M1)
+const LIVE_APPT = sql`${appointment.status} NOT IN ('cancelled', 'no_show')`
+const UPCOMING_APPT = sql`${appointment.status} NOT IN ('cancelled', 'no_show', 'completed')`
+
 app.get('/stats', async (c) => {
   const user_ = c.get('user') as any
   const companyId = user_.companyId
   const now = new Date()
-  // Cancelled and no-show rows are not appointments the desk has to serve; upcoming excludes completed too. (SALON-N9)
-  const LIVE_APPT = sql`${appointment.status} NOT IN ('cancelled', 'no_show')`
-  const UPCOMING_APPT = sql`${appointment.status} NOT IN ('cancelled', 'no_show', 'completed')`
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const tomorrow = new Date(today.getTime() + 86400000)
   const in7 = new Date(today.getTime() + 7 * 86400000)
@@ -26,7 +33,10 @@ app.get('/stats', async (c) => {
   const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
-    try { return await fn() } catch { return fallback }
+    // A panel that cannot load should degrade, not take the dashboard down — but it must SAY so. Swallowing
+    // this silently is how a ReferenceError became a panel that was empty on every request for six
+    // builds without anyone seeing a reason. (Salon T20 M1)
+    try { return await fn() } catch (err: any) { console.error('[dashboard] panel failed to load:', err?.message || err); return fallback }
   }
 
   const [clientRows, todayApptRows, upcomingApptRows, apptsByStatus, visitsMonthRows, revenueRows, byStylistRows, membershipRows, dueRows] = await Promise.all([
@@ -113,7 +123,10 @@ app.get('/recent-activity', async (c) => {
   const companyId = user_.companyId
   const now = new Date()
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
-    try { return await fn() } catch { return fallback }
+    // A panel that cannot load should degrade, not take the dashboard down — but it must SAY so. Swallowing
+    // this silently is how a ReferenceError became a panel that was empty on every request for six
+    // builds without anyone seeing a reason. (Salon T20 M1)
+    try { return await fn() } catch (err: any) { console.error('[dashboard] panel failed to load:', err?.message || err); return fallback }
   }
 
   const [recentClients, recentServices, upcomingAppointments] = await Promise.all([
@@ -125,15 +138,28 @@ app.get('/recent-activity', async (c) => {
       .leftJoin(contact, eq(serviceRecord.contactId, contact.id))
       .leftJoin(user, eq(serviceRecord.stylistId, user.id))
       .where(eq(serviceRecord.companyId, companyId)).orderBy(desc(serviceRecord.performedAt)).limit(5), []),
-    safe(() => db.select({ id: appointment.id, startTime: appointment.startTime, status: appointment.status, station: appointment.station, serviceName: serviceMenu.name, clientName: contact.name, stylistFirstName: user.firstName, stylistLastName: user.lastName })
+    safe(() => db.select({ id: appointment.id, startTime: appointment.startTime, status: appointment.status, station: appointment.station, serviceName: serviceMenu.name, clientName: contact.name, stylistFirstName: user.firstName, stylistLastName: user.lastName, stylistMemberName: teamMember.name })
       .from(appointment)
       .leftJoin(serviceMenu, eq(appointment.serviceId, serviceMenu.id))
       .leftJoin(contact, eq(appointment.contactId, contact.id))
       .leftJoin(user, eq(appointment.stylistId, user.id))
+      // a chair-only stylist's name lives in team_member, and they can hold a chair now (T20 H1)
+      .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
       .where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), UPCOMING_APPT)).orderBy(appointment.startTime).limit(8), []),
   ])
 
-  return c.json({ recentClients, recentServices, upcomingAppointments })
+  return c.json({
+    recentClients,
+    recentServices,
+    upcomingAppointments: (upcomingAppointments as any[]).map((a: any) => {
+      const parts = String(a.stylistMemberName || '').trim().split(/\s+/)
+      return {
+        ...a,
+        stylistFirstName: a.stylistFirstName ?? (parts[0] || null),
+        stylistLastName: a.stylistLastName ?? (parts.slice(1).join(' ') || null),
+      }
+    }),
+  })
 })
 
 export default app

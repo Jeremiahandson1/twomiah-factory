@@ -120,10 +120,45 @@ async function billPeriod(row: any, period: string): Promise<BilledOne | null> {
 }
 
 /**
+ * Give a renewal date to active enrolments that never got one.
+ *
+ * Every membership sold before this feature existed sits at renewsAt null, and the settle pass below
+ * only looks at enrolments that HAVE a renewal date — so without this they would stay invisible
+ * forever, which is exactly what the report found: an enrolment from nine days earlier still null,
+ * with nothing filling it in later. (Salon T20 H4)
+ *
+ * They are adopted from TODAY, not back-billed. The periods that were never charged are not
+ * retroactively invoiced: raising a pile of surprise invoices against real clients for months the
+ * system never asked them to pay is not a decision this should make on its own. Anyone who wants that
+ * history billed can set the renewal date back by hand. From here they bill normally.
+ */
+async function adoptUnscheduled(companyId?: string): Promise<number> {
+  const orphans = await db.select().from(membershipEnrollment).where(and(
+    eq(membershipEnrollment.status, 'active'),
+    sql`${membershipEnrollment.renewsAt} IS NULL`,
+    ...(companyId ? [eq(membershipEnrollment.companyId, companyId)] : []),
+  ))
+  for (const row of orphans) {
+    const [plan] = await db.select().from(membershipPlan).where(eq(membershipPlan.id, row.planId)).limit(1)
+    const cycle = cycleOf(plan)
+    // A one-off package has nothing to renew; leave it alone rather than inventing a schedule.
+    if (isOneTime(cycle)) continue
+    const from = today()
+    await db.update(membershipEnrollment)
+      // last_billed_for is set to today as well: the current period is treated as settled, so the
+      // adoption itself never raises a charge.
+      .set({ renewsAt: nextRenewal(from, cycle), lastBilledFor: from, updatedAt: new Date() } as any)
+      .where(and(eq(membershipEnrollment.id, row.id), sql`${membershipEnrollment.renewsAt} IS NULL`))
+  }
+  return orphans.length
+}
+
+/**
  * Bill every active enrolment that has come due. Catches up one period at a time — a membership nobody
  * looked at for three months raises three invoices, one per period — up to a ceiling per run.
  */
 export async function settleMembershipBilling(companyId?: string, maxPeriodsPerEnrollment = 12): Promise<BilledOne[]> {
+  await adoptUnscheduled(companyId)
   const billed: BilledOne[] = []
   const due = await db.select().from(membershipEnrollment).where(and(
     eq(membershipEnrollment.status, 'active'),
