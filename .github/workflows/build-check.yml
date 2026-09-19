@@ -1165,3 +1165,14 @@ jobs:
           bun-version: latest
       - name: "The last day is in the window and a refunded sale still counts"
         run: bun run scripts/check-compliance-report-window.ts
+
+  audit-log-readable:
+    name: "Audit log readable"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Rows are presented in the shape the page reads"
+        run: bun run scripts/check-audit-log-readable.ts

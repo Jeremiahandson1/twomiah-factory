@@ -105,6 +105,41 @@ export function diff(oldData: Record<string, unknown> | null, newData: Record<st
 /**
  * Query audit logs
  */
+/**
+ * A log row as the Audit Log page reads it.
+ *
+ * The rows come back from raw SQL in snake_case and were returned exactly as they came, while the page reads
+ * log.createdAt, log.userName / log.userEmail and log.description — so every one of 262 events rendered with
+ * an em-dash for its time, "System" for its user and an em-dash for what happened. The data was all there.
+ * (Dispensary T20 H — same class as the camel() note in kiosk.ts and cash.ts.)
+ *
+ * `description` is composed here because no column holds one: the row knows the action, the kind of thing and
+ * often its name, which is the sentence a person wants to read.
+ */
+const ACTION_WORDS: Record<string, string> = {
+  create: 'Created', update: 'Updated', delete: 'Deleted', login: 'Signed in', logout: 'Signed out',
+  refund: 'Refunded', void: 'Voided', complete: 'Completed', export: 'Exported', status_change: 'Changed the status of',
+}
+const readable = (s: unknown) => String(s || '').replace(/_/g, ' ').trim()
+
+export function describeLog(row: any): string {
+  if (row?.details) return String(row.details)
+  const what = readable(row?.entity || row?.entity_type) || 'record'
+  const verb = ACTION_WORDS[String(row?.action || '').toLowerCase()] || (readable(row?.action) ? readable(row.action).replace(/^./, (ch) => ch.toUpperCase()) : 'Changed')
+  const name = row?.entity_name ? ` "${row.entity_name}"` : ''
+  return `${verb} ${what}${name}`.replace(/\s+/g, ' ').trim()
+}
+
+export function presentLog(row: any): any {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  // both spellings stay on the row: older callers read snake_case, the page reads camelCase
+  Object.assign(out, row)
+  out.description = describeLog(row)
+  return out
+}
+
 export async function query({
   companyId,
   entity,
@@ -145,7 +180,7 @@ export async function query({
     sql`SELECT COUNT(*)::int as total FROM audit_log WHERE ${where}`
   );
 
-  const data = (dataResult as any).rows || dataResult;
+  const data = ((dataResult as any).rows || dataResult).map(presentLog);
   const total = Number((countResult as any).rows?.[0]?.total || 0);
 
   return { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
@@ -161,7 +196,8 @@ export async function getHistory(companyId: string, entity: string, entityId: st
     ORDER BY created_at DESC
     LIMIT 100
   `);
-  return (result as any).rows || result;
+  // the same shape the list returns, so an entity's history is readable too
+  return ((result as any).rows || result).map(presentLog);
 }
 
 export default { log, diff, query, getHistory, ACTIONS, ENTITIES };
