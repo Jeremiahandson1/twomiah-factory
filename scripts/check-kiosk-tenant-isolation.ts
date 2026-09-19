@@ -34,7 +34,11 @@ if (/SET age_verified = true, id_verified = true/.test(src)) fail(`${file}: a ki
 if (/verified: z\.boolean\(\),/.test(src)) fail(`${file}: a REQUIRED \`verified\` boolean is the old gate — the date of birth is the gate now`)
 const ordersSrc = (() => { try { return readFileSync(new URL('../templates/crm-dispensary/backend/src/routes/orders.ts', import.meta.url), 'utf8') } catch { return '' } })()
 if (/^function ageFromDob\(/m.test(ordersSrc)) fail('orders.ts must not keep a second copy of the age calculation')
-if (!/const minAge = minimumAgeFor\(ord\)/.test(ordersSrc)) fail('the register must use the shared minimum-age rule, so the two paths cannot drift')
+// Pinned on the shared RULE, not on one argument shape: the register now folds in the medical card
+// held on the customer record (T21 M8), so what it passes has grown — but it must still be this one
+// function, never a second age constant written out at the register.
+if (!/const minAge = minimumAgeFor\(/.test(ordersSrc)) fail('the register must use the shared minimum-age rule, so the two paths cannot drift')
+if (/const minAge = (21|18)\b/.test(ordersSrc)) fail('…and must never hardcode the age it enforces')
 
 // The kiosk is anonymous by design, so the ceiling on what an anonymous caller can MAKE is the control. The
 // app-wide write bucket allows 1,200 per 15 minutes — 1,200 fabricated orders — so the two creating endpoints

@@ -5,7 +5,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
-import { ConfirmModal } from '../components/ui/Modal';
+import { Modal } from '../components/ui/Modal';
 
 const statusSteps = ['pending', 'processing', 'completed'];
 
@@ -27,6 +27,14 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [refundOpen, setRefundOpen] = useState(false);
   const [refunding, setRefunding] = useState(false);
+  // A refund is either UNITS coming back off the shelf or MONEY going back with the goods kept.
+  // The screen used to offer neither choice: one button refunded the whole order as a dollar
+  // amount, so a single returned gummy was impossible and nothing ever came back to inventory. (T21 M10)
+  const [refundMode, setRefundMode] = useState<'items' | 'amount'>('items');
+  const [refundQty, setRefundQty] = useState<Record<string, number>>({});
+  const [restock, setRestock] = useState(true);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
 
   useEffect(() => {
     loadOrder();
@@ -48,11 +56,48 @@ export default function OrderDetailPage() {
     }
   };
 
+  // Units left on a line after any earlier partial refund — the ceiling for this one.
+  const remainingOf = (item: any) => Math.max(0, Number(item.quantity || 0) - Number(item.refundedQuantity || 0));
+  const orderItems: any[] = order?.items || [];
+  const remainingUnits = orderItems.reduce((s, it) => s + remainingOf(it), 0);
+  const selectedUnits = orderItems.reduce((s, it) => s + Math.min(remainingOf(it), Number(refundQty[it.id] || 0)), 0);
+  const refundedSoFar = Number(order?.refundedAmount || 0);
+  const remainingRefundable = Math.max(0, Number(order?.total || 0) - refundedSoFar);
+
+  const openRefund = () => {
+    // Default to bringing back everything still outstanding: the common case is the whole
+    // sale coming back, and a budtender then types down the one line that did.
+    const seed: Record<string, number> = {};
+    for (const it of (order?.items || [])) seed[it.id] = remainingOf(it);
+    setRefundQty(seed);
+    setRestock(true);
+    setRefundMode('items');
+    setRefundAmount('');
+    setRefundReason('');
+    setRefundOpen(true);
+  };
+
   const handleRefund = async () => {
+    const reason = refundReason.trim() || 'Refund requested by manager';
+    const body: any = { reason };
+    if (refundMode === 'amount') {
+      const amt = Number(refundAmount);
+      if (!(amt > 0)) { toast.error('Enter an amount to refund'); return; }
+      if (amt > remainingRefundable + 0.005) { toast.error(`Only $${remainingRefundable.toFixed(2)} remains refundable`); return; }
+      body.amount = amt;
+    } else {
+      // Units, with the shelf decision made explicitly: product that came back gets restocked,
+      // product that was destroyed or kept does not.
+      body.restoreInventory = restock;
+      body.partialItems = orderItems
+        .map((it) => ({ orderItemId: it.id, quantity: Math.min(remainingOf(it), Number(refundQty[it.id] || 0)) }))
+        .filter((p) => p.quantity > 0);
+      if (!body.partialItems.length && remainingUnits > 0) { toast.error('Choose at least one item to refund'); return; }
+    }
     setRefunding(true);
     try {
-      await api.post(`/api/orders/${id}/refund`, { reason: 'Refund requested by manager' });
-      toast.success('Order refunded');
+      await api.post(`/api/orders/${id}/refund`, body);
+      toast.success(refundMode === 'amount' ? 'Refund issued' : `Refunded ${selectedUnits} item${selectedUnits === 1 ? '' : 's'}${restock ? ' and returned them to inventory' : ''}`);
       loadOrder();
       setRefundOpen(false);
     } catch (err: any) {
@@ -108,7 +153,7 @@ export default function OrderDetailPage() {
           </button>
           {isManager && order.status !== 'refunded' && order.status !== 'cancelled' && (
             <button
-              onClick={() => setRefundOpen(true)}
+              onClick={openRefund}
               className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium flex items-center gap-2"
             >
               <RotateCcw className="w-4 h-4" /> Refund
@@ -194,6 +239,13 @@ export default function OrderDetailPage() {
                     <p className="font-medium text-gray-900 dark:text-slate-100">{item.productName || item.name}</p>
                     {item.strainType && (
                       <span className="text-xs text-gray-500 dark:text-slate-400">{item.strainType}</span>
+                    )}
+                    {/* What actually came back, on the line it came back from — the order page
+                        showed no trace of a return, so a refund looked like it had done nothing. (T21 M10) */}
+                    {Number(item.refundedQuantity || 0) > 0 && (
+                      <span className="ml-2 text-xs font-medium text-red-600 dark:text-red-400">
+                        {Number(item.refundedQuantity)} returned
+                      </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-center text-gray-700 dark:text-slate-200">{item.quantity}</td>
@@ -308,16 +360,123 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Refund Modal */}
-      <ConfirmModal
+      {/* Refund Modal — pick the units coming back, or refund a dollar amount instead. (T21 M10) */}
+      <Modal
         isOpen={refundOpen}
-        onClose={() => setRefundOpen(false)}
-        onConfirm={handleRefund}
-        title="Refund Order"
-        message={`Are you sure you want to refund order #${order.orderNumber || order.id?.slice(0, 8)} for $${Number(order.total || 0).toFixed(2)}? This action cannot be undone.`}
-        confirmText="Process Refund"
-        loading={refunding}
-      />
+        onClose={() => !refunding && setRefundOpen(false)}
+        title={`Refund order #${order.orderNumber || order.id?.slice(0, 8)}`}
+        size="lg"
+      >
+        <div className="space-y-5">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setRefundMode('items')}
+              className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium ${refundMode === 'items' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-gray-300 text-gray-700 dark:border-slate-700 dark:text-slate-300'}`}
+            >
+              Return items
+            </button>
+            <button
+              type="button"
+              onClick={() => setRefundMode('amount')}
+              className={`flex-1 px-3 py-2 rounded-lg border text-sm font-medium ${refundMode === 'amount' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'border-gray-300 text-gray-700 dark:border-slate-700 dark:text-slate-300'}`}
+            >
+              Refund an amount
+            </button>
+          </div>
+
+          {refundMode === 'items' ? (
+            <div className="space-y-3">
+              {remainingUnits === 0 ? (
+                <p className="text-sm text-gray-600 dark:text-slate-400">
+                  Every item on this order has already been returned. ${remainingRefundable.toFixed(2)} of money is still outstanding and will be refunded.
+                </p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs uppercase text-gray-500 dark:text-slate-400">
+                      <th className="text-left py-1">Item</th>
+                      <th className="text-center py-1">Sold</th>
+                      <th className="text-center py-1">Already back</th>
+                      <th className="text-center py-1">Refund</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y dark:divide-slate-700">
+                    {orderItems.map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="py-2 text-gray-900 dark:text-slate-100">{item.productName || item.name}</td>
+                        <td className="py-2 text-center text-gray-700 dark:text-slate-300">{item.quantity}</td>
+                        <td className="py-2 text-center text-gray-700 dark:text-slate-300">{Number(item.refundedQuantity || 0)}</td>
+                        <td className="py-2 text-center">
+                          <input
+                            type="number"
+                            min={0}
+                            max={remainingOf(item)}
+                            aria-label={`Quantity to refund for ${item.productName || item.name}`}
+                            value={refundQty[item.id] ?? 0}
+                            disabled={remainingOf(item) === 0}
+                            onChange={(e) => {
+                              const v = Math.max(0, Math.min(remainingOf(item), Math.floor(Number(e.target.value) || 0)));
+                              setRefundQty((q) => ({ ...q, [item.id]: v }));
+                            }}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-center dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 disabled:opacity-50"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {remainingUnits > 0 && (
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-300">
+                  <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} className="rounded" />
+                  Return these items to inventory
+                </label>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Amount to refund</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                max={remainingRefundable}
+                aria-label="Amount to refund"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                className="w-40 px-3 py-2 border border-gray-300 rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+              />
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                ${remainingRefundable.toFixed(2)} of the ${Number(order.total || 0).toFixed(2)} total remains refundable. Money only — the items stay sold and nothing returns to inventory.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Reason</label>
+            <input
+              type="text"
+              aria-label="Reason"
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+              placeholder="Refund requested by manager"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setRefundOpen(false)} disabled={refunding}>Cancel</Button>
+            <Button
+              variant="danger"
+              onClick={handleRefund}
+              disabled={refunding || (refundMode === 'items' && remainingUnits > 0 && selectedUnits === 0)}
+            >
+              {refunding ? 'Processing…' : refundMode === 'amount' ? 'Process Refund' : `Refund ${selectedUnits} item${selectedUnits === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

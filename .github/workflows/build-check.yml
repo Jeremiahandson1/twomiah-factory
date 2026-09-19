@@ -1198,3 +1198,14 @@ jobs:
           bun-version: latest
       - name: "The buyer is findable, visible and keeps their spend"
         run: bun run scripts/check-customer-on-sale.ts
+
+  284:
+    name: "refund units and gates"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Refund returns units; sale records grams; card on file lowers age"
+        run: bun run scripts/check-refund-units-and-gates.ts

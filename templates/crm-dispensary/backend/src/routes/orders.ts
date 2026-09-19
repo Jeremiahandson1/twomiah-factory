@@ -53,12 +53,22 @@ async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promis
   const hasCannabis = items.some(i => isCannabisLine(i))
   if (!hasCannabis) return null
   let dob: string | null = ord.customerDob || null
-  if (!dob && ord.contactId) {
-    const [ct] = await db.select({ dob: contact.dateOfBirth }).from(contact).where(eq(contact.id, ord.contactId)).limit(1)
-    dob = (ct?.dob as any) || null
+  // The medical card lives on the CONTACT, with its expiry — the order only carries one if the till happened
+  // to repeat it. So an 18-to-20-year-old patient with a card on file was enrolled happily and then refused
+  // at every sale, "cannabis sales require 21+", even with isMedical set on the order. Read the card the
+  // same way the date of birth is read. An EXPIRED card is no card. (Dispensary T20 M8)
+  let cardOnFile: string | null = null
+  if (ord.contactId) {
+    const [ct] = await db.select({ dob: contact.dateOfBirth, card: contact.medicalCardNumber, expiry: contact.medicalCardExpiry })
+      .from(contact).where(eq(contact.id, ord.contactId)).limit(1)
+    if (!dob) dob = (ct?.dob as any) || null
+    // A card is good for the whole of its expiry day.
+    const endOfExpiryDay = (d: any) => { const x = new Date(d); x.setHours(23, 59, 59, 999); return x.getTime() }
+    const expired = ct?.expiry ? endOfExpiryDay(ct.expiry) < Date.now() : false
+    cardOnFile = ct?.card && !expired ? (ct.card as any) : null
   }
   const age = ageFromDob(dob)
-  const minAge = minimumAgeFor(ord)
+  const minAge = minimumAgeFor({ isMedical: ord.isMedical || !!cardOnFile, medicalCardNumber: ord.medicalCardNumber || cardOnFile })
   if (age != null && age < minAge) {
     return { status: 403, body: { error: `Customer is ${age} — cannabis sales require ${minAge}+`, code: 'underage', age, minAge } }
   }
@@ -239,6 +249,10 @@ app.post('/', async (c) => {
       totalPrice: String(lineTotal),
       weight: prod.weight,
       weightUnit: prod.weightUnit,
+      // The line's own weight in grams, resolved the same way the purchase limit resolves it. The column
+      // existed and was always null, so a line could not say what it weighed even though the order total
+      // could — and a state report or an audit is built from LINES. (Dispensary T20 M11)
+      weightGrams: unitGramsOf(prod) > 0 ? String(round2(unitGramsOf(prod) * item.quantity)) : null,
       // Persist the RESOLVED tax category so reports, refunds and the age gate read the same
       // answer the tax math used (seeded products have tax_category NULL).
       taxCategory: isCannabis ? 'cannabis' : 'non_cannabis',
