@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { Briefcase, DollarSign, FileText, FolderKanban, Receipt, Users } from 'lucide-react'
 import { NavLink, StatusBadge, money } from '../invoicing/ui'
+import { useAuth } from '../auth/AuthContext'
 import type { JobsDashboardPageProps } from './types'
 import { resolveJobsDashboardConfig } from './types'
 
@@ -32,6 +33,12 @@ const muted = 'text-gray-500 dark:text-slate-400'
 
 export function JobsDashboardPage({ api, user, company, config }: JobsDashboardPageProps) {
   const cfg = resolveJobsDashboardConfig(config)
+  const { hasFeature } = useAuth()
+  // Two different questions, and only the first was being asked: the config says whether this VERTICAL has projects
+  // at all, hasFeature says whether THIS tenant has the module. Without the second, a contractor whose plan leaves
+  // projects off got a card linking to a page that answers "Projects isn't part of this CRM" — the sidebar hides the
+  // same item on exactly this test. (Contractor T29 L2)
+  const showProjects = cfg.projects && hasFeature('projects')
   const [stats, setStats] = useState<Stats | null>(null)
   const [activity, setActivity] = useState<Activity | null>(null)
   const [loading, setLoading] = useState(true)
@@ -51,7 +58,7 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
   const single = cfg.jobsLabel.replace(/s$/, '')
   const cards: Array<{ label: string; value: string | number; icon: React.ComponentType<{ className?: string }>; color: string; link: string }> = [
     { label: 'Contacts', value: stats?.contacts || 0, icon: Users, color: 'blue', link: '/crm/contacts' },
-    ...(cfg.projects ? [{ label: 'Active projects', value: stats?.projects?.byStatus?.active || 0, icon: FolderKanban, color: 'green', link: '/crm/projects' }] : []),
+    ...(showProjects ? [{ label: 'Active projects', value: stats?.projects?.byStatus?.active || 0, icon: FolderKanban, color: 'green', link: '/crm/projects' }] : []),
     { label: `${cfg.jobsLabel} today`, value: stats?.jobs?.today || 0, icon: Briefcase, color: 'purple', link: cfg.jobsPath },
     { label: 'Pending quotes', value: stats?.quotes?.pending || 0, icon: FileText, color: 'orange', link: '/crm/quotes' },
     { label: 'Open invoices', value: stats?.invoices?.outstanding || 0, icon: Receipt, color: 'red', link: '/crm/invoices' },

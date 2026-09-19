@@ -26,5 +26,17 @@ if (!/const other = Math\.max\(0, \(Number\(jobs\.total\) \|\| 0\) - charted\)/.
 if (!/if \(other > 0\) segments\.push\(\['other', 'Other', 'bg-gray-300'\]\)/.test(reports)) fail('the Other segment must appear when there is something in it')
 if (/segments=\{\[\['scheduled', 'Scheduled', 'bg-blue-500'\], \['in_progress'/.test(reports)) fail('the hard-coded four-segment job bar must be gone')
 
+// A card is only offered if the tenant can actually open what it links to. The config answers whether the VERTICAL
+// has projects; only hasFeature answers whether THIS tenant does, and without it the home dashboard offered an
+// "Active projects" card — and Reports a "Project summary" — pointing at a page that says "Projects isn't part of
+// this CRM", which is precisely what the sidebar hides on `features: ['projects']`. (Contractor T29 L2)
+const home = read('packages/tenant-ui/src/reporting/JobsDashboardPage.tsx')
+for (const [file, src] of [['JobsDashboardPage', home], ['ReportsPage', reports]] as Array<[string, string]>) {
+  if (!/const \{ hasFeature \} = useAuth\(\)/.test(src)) fail(`${file} must ask what this tenant has, not only what the vertical has`)
+  if (!/const showProjects = cfg\.projects && hasFeature\('projects'\)/.test(src)) fail(`${file}: the projects gate must be BOTH the vertical config and the tenant's feature`)
+}
+if (!/\.\.\.\(showProjects \? \[\{ label: 'Active projects'/.test(home)) fail('the Active projects card must sit behind that gate')
+if (!/\{showProjects && \(\n\s*<div className=\{card\}>\n\s*<h3 className=\{h3\}>Project summary<\/h3>/.test(reports)) fail('the Reports project summary must sit behind that gate')
+
 if (failed) { console.error(`\ndashboard counts: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('dashboard counts: Open Jobs = still to do; billed totals keep refunded sales; every job is on the Reports status bar')

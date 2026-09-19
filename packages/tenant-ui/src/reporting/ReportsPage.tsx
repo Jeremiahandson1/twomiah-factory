@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, FileText, Loader2, Users } from 'lucide-react'
 import { StatusBadge, dateOnly, inputCls, money, selectCls } from '../invoicing/ui'
+import { useAuth } from '../auth/AuthContext'
 import type { ReportsPageProps } from './types'
 import { resolveReportingConfig } from './types'
 
@@ -31,6 +32,10 @@ const compact = (n: number) => (Math.abs(n) >= 1000 ? `$${(n / 1000).toFixed(n >
 
 export function ReportsPage({ api, config }: ReportsPageProps) {
   const cfg = resolveReportingConfig(config)
+  const { hasFeature } = useAuth()
+  // The config says whether this VERTICAL has projects; hasFeature says whether this tenant has the module. Reports
+  // carried the same ungated Project summary the dashboard carried an Active projects card for. (Contractor T29 L2)
+  const showProjects = cfg.projects && hasFeature('projects')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [data, setData] = useState<Summary | null>(null)
@@ -187,7 +192,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
               </div>
             </div>
 
-            {cfg.projects && (
+            {showProjects && (
               <div className={card}>
                 <h3 className={h3}>Project summary</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
