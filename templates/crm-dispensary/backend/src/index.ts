@@ -108,6 +108,7 @@ import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import onboardingRoutes from './routes/onboarding.ts'
 import mediaRoutes from './routes/media.ts'
+import { normalizeTimestamps } from './utils/isoTime.ts'
 
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
@@ -177,6 +178,23 @@ app.use('/api/*', async (c, next) => {
     return c.json({ error: `Invalid limit: must be an integer between 1 and ${MAX_PAGE_LIMIT}`, code: 'invalid_pagination', limit: limitRaw, max: MAX_PAGE_LIMIT }, 400)
   }
   await next()
+})
+
+// Every time this API returns carries its zone. A timestamp column read through a TYPED drizzle select
+// serialises as an instant ("…T06:14:42.188Z"); read through RAW SQL it comes back as the driver's bare
+// text ("2026-09-19 06:14:42.188302"), which a browser then reads as LOCAL time — a drawer opened at
+// 01:14 Chicago displayed as 6:14 AM. Orders were right and cash was wrong for exactly that reason, and
+// the audit log joined them the moment it started working. Any route reaching for db.execute inherits
+// it, so the marker is stamped once here rather than in each of the ~40 routes that use raw SQL.
+// The stored values are already UTC: this adds the Z, it does not shift anything. (T21 M3)
+app.use('/api/*', async (c, next) => {
+  await next()
+  if (!(c.res.headers.get('content-type') || '').includes('application/json')) return
+  let body: unknown
+  try { body = await c.res.clone().json() } catch { return }
+  const headers = new Headers(c.res.headers)
+  headers.delete('content-length') // the body is about to change length
+  c.res = new Response(JSON.stringify(normalizeTimestamps(body)), { status: c.res.status, headers })
 })
 
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))

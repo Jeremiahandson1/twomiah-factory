@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { sql } from 'drizzle-orm'
+import { company } from '../../db/schema.ts'
+import { sql, eq } from 'drizzle-orm'
 import { settledSale, netExprBare, refundedExprBare } from '../utils/revenue.ts'
+import { storeTimeZone } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 
@@ -205,9 +207,17 @@ app.get('/peak-hours', async (c) => {
   const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
   const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
 
+  // Bucketed on the STORE's clock, not the server's. EXTRACT(HOUR FROM created_at) reads UTC, so a
+  // 7pm Friday rush was charted in the small hours of Saturday and "peak hour" named a time the shop
+  // was shut. created_at is a naive UTC timestamp: label it UTC, then convert to the store's zone.
+  // (T21 M3)
+  const [coRow] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const tz = storeTimeZone(coRow)
+
   const result = await db.execute(sql`
     SELECT
-      EXTRACT(HOUR FROM created_at)::int as hour,
+      EXTRACT(HOUR FROM (created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tz}))::int as hour,
       COUNT(*)::int as order_count,
       COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as revenue,
       COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
@@ -227,7 +237,8 @@ app.get('/peak-hours', async (c) => {
     Number(row.order_count) > Number(max?.order_count || 0) ? row : max
   , null)
 
-  return c.json({ data, peakHour: peak?.hour ?? null, startDate: start, endDate: end })
+  // Name the clock, so a chart that reads "7pm" can be trusted to mean 7pm at the shop.
+  return c.json({ data, peakHour: peak?.hour ?? null, timeZone: tz, startDate: start, endDate: end })
 })
 
 // Customer insights

@@ -1231,3 +1231,14 @@ jobs:
           bun-version: latest
       - name: "Loyalty settings persist where read; welcome + birthday bonuses paid"
         run: bun run scripts/check-loyalty-bonuses.ts
+
+  288:
+    name: "times carry their zone"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "API times leave as instants; Peak Hours on the shop clock"
+        run: bun run scripts/check-times-carry-their-zone.ts
