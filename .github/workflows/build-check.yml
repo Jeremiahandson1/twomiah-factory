@@ -1209,3 +1209,14 @@ jobs:
           bun-version: latest
       - name: "Refund returns units; sale records grams; card on file lowers age"
         run: bun run scripts/check-refund-units-and-gates.ts
+
+  285:
+    name: "register tells the cashier"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Blocked sale states its reason; POS tiles re-read stock"
+        run: bun run scripts/check-register-tells-the-cashier.ts

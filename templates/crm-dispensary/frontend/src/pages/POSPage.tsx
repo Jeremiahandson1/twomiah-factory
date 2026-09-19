@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Minus, Trash2, User, CreditCard, Banknote, ShieldCheck, Gift, X, Check } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, User, CreditCard, Banknote, ShieldCheck, Gift, X, Check, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -230,6 +230,25 @@ export default function POSPage() {
     return typeof stock === 'number' && i.quantity > stock;
   });
 
+  // Why Complete Sale is dead, in the cashier's words. The button greyed itself out and said
+  // nothing: an over-limit basket turned the meter red and the sale simply stopped working, with
+  // no title and no text anywhere on the panel. The server's refusal has always been clear —
+  // it was just never reached, so nobody ever saw it. (T21 M5)
+  const overStockLine = cart.find(i => {
+    const stock = products.find(p => p.id === i.productId)?.stockQuantity;
+    return typeof stock === 'number' && i.quantity > stock;
+  });
+  const blockReason = (() => {
+    if (cart.length === 0) return '';
+    if (overWeight) return `Over the legal limit: ${Number(totalWeightOz).toFixed(2)} oz exceeds the ${WEIGHT_LIMIT_OZ} oz maximum. Remove items to continue.`;
+    if (overStockLine) {
+      const stock = products.find(p => p.id === overStockLine.productId)?.stockQuantity;
+      return `Only ${stock} of ${overStockLine.name} in stock — the basket asks for ${overStockLine.quantity}.`;
+    }
+    if (!idVerified) return 'Check the customer’s ID and tick “ID Verified” to complete this sale.';
+    return '';
+  })();
+
   // Price a catalog reward against the current cart (mirrors the server — the server's number wins).
   const rewardValue = (r: any): { discount: number; problem?: string } => {
     const val = Number(r.discountValue || 0);
@@ -369,6 +388,10 @@ export default function POSPage() {
         });
       }
       toast.success('Order completed!');
+      // The sale just moved the shelf. The tiles kept the counts loaded when the page opened, so
+      // after selling 8 of 40 the grid still read "40 left" and the next customer was rung up
+      // against a number that no longer existed. Re-read the catalog. (T21 M6)
+      loadProducts();
       // Reset
       setCart([]);
       setCustomer(null);
@@ -728,9 +751,18 @@ export default function POSPage() {
             <span className="text-sm text-gray-700 dark:text-slate-200">ID Verified (21+)</span>
           </label>
 
+          {/* Why the sale cannot go through, said out loud rather than left to a grey button. (T21 M5) */}
+          {blockReason && (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400 flex items-start gap-1.5">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{blockReason}</span>
+            </p>
+          )}
+
           {/* Complete */}
           <button
             onClick={completeOrder}
+            title={blockReason || undefined}
             disabled={processing || cart.length === 0 || !idVerified || overWeight || overStock}
             className={`w-full py-3 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-colors ${
               processing || cart.length === 0 || !idVerified || overWeight || overStock
