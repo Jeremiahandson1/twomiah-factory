@@ -28,7 +28,9 @@ if (!/const endDate = endOfDayIfDateOnly\(data\.endDate\)/.test(src)) fail('the 
 if (/const endDate = new Date\(data\.endDate\)/.test(src)) fail('…and must not go back to the raw midnight parse, which drops the last day from every query below it')
 
 // 2 — a refunded sale is still a sale
-if (!/const settledSale = sql`\('completed', 'partially_refunded', 'refunded'\)`/.test(src)) fail('there must be one definition of a SETTLED sale')
+// The definition moved to utils/revenue.ts, shared with analytics and the dashboard, when those three
+// surfaces were reconciled (T21 H8). What this guard cares about is that the report USES it.
+if (!/import \{ settledSale \} from '\.\.\/utils\/revenue\.ts'/.test(src)) fail('the report must take the settled-sale definition from utils/revenue.ts')
 const daily = src.slice(src.indexOf("case 'daily_sales'"), src.indexOf("case 'inventory_snapshot'"))
 if (!daily) fail('the daily_sales report is missing')
 if (/AND o\.status = 'completed'/.test(daily)) fail("daily_sales must not count only status = 'completed' — every refunded sale disappears from the report a regulator reads as what you sold")

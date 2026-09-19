@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
+import { settledSale } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -59,7 +60,6 @@ const endOfDayIfDateOnly = (v: string): Date => {
  * The TAX report deliberately keeps its own narrower set (it nets a fully refunded sale out of what is owed),
  * so it is left alone here — what tax you owe and what you sold are different questions.
  */
-const settledSale = sql`('completed', 'partially_refunded', 'refunded')`
 
 const REPORT_TYPES = ['daily_sales', 'inventory_snapshot', 'waste', 'transfer', 'metrc_reconciliation', 'tax', 'patient_count', 'diversion'] as const
 type ReportType = typeof REPORT_TYPES[number]

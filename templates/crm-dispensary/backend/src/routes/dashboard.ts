@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { product, contact } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql } from 'drizzle-orm'
+import { settledSale, netExprBare, refundedExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -36,9 +37,13 @@ app.get('/stats', async (c) => {
         COUNT(*)::int as total_orders,
         COUNT(CASE WHEN status = 'completed' THEN 1 END)::int as completed,
         COUNT(CASE WHEN status = 'pending' OR status = 'processing' OR status = 'ready' THEN 1 END)::int as pending,
-        COALESCE(SUM(CASE WHEN status = 'completed' THEN total::numeric ELSE 0 END), 0) as revenue,
+        -- Revenue is what the business KEPT, over every settled sale — not the gross of the ones that happen
+        -- not to have been refunded. This tile, Analytics and the compliance report each used to answer this
+        -- differently on the same day ($2,395 / $2,825 / $3,395). See utils/revenue.ts. (T21 H8)
+        COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0) as revenue,
+        COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${refundedExprBare} ELSE 0 END), 0) as refunded,
         COALESCE(SUM(CASE WHEN status = 'completed' THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
-        COALESCE(AVG(CASE WHEN status = 'completed' THEN total::numeric END), 0) as avg_order_value,
+        COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0) as avg_order_value,
         COUNT(CASE WHEN is_medical = true AND status = 'completed' THEN 1 END)::int as medical_orders
       FROM orders
       WHERE company_id = ${companyId}
@@ -49,11 +54,11 @@ app.get('/stats', async (c) => {
     // 30-day revenue
     safe(() => db.execute(sql`
       SELECT
-        COALESCE(SUM(total::numeric), 0) as revenue,
+        COALESCE(SUM(${netExprBare}), 0) as revenue,
         COUNT(*)::int as order_count
       FROM orders
       WHERE company_id = ${companyId}
-        AND status = 'completed'
+        AND status IN ${settledSale}
         AND completed_at >= ${thirtyDaysAgo}
     `), { rows: [{ revenue: 0, order_count: 0 }] }),
 
@@ -109,6 +114,8 @@ app.get('/stats', async (c) => {
     customers: contactCount[0]?.value ?? 0,
     today: {
       revenue: Number(todayOrders.revenue || 0),
+      /** What went back, beside what was kept — reported, never applied by omission. (T21 H8) */
+      refunded: Number(todayOrders.refunded || 0),
       orderCount: Number(todayOrders.total_orders || 0),
       completedOrders: Number(todayOrders.completed || 0),
       pendingOrders: Number(todayOrders.pending || 0),

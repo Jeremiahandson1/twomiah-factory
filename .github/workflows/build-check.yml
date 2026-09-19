@@ -1176,3 +1176,14 @@ jobs:
           bun-version: latest
       - name: "Rows are presented in the shape the page reads"
         run: bun run scripts/check-audit-log-readable.ts
+
+  revenue-one-definition:
+    name: "Revenue one definition"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Settled sales, gross/refunded/net shared by every surface"
+        run: bun run scripts/check-revenue-one-definition.ts

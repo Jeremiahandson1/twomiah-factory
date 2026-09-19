@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { sql } from 'drizzle-orm'
+import { settledSale, netExprBare, refundedExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 
@@ -46,7 +47,7 @@ app.get('/sales', async (c) => {
       COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status IN ('completed', 'partially_refunded')
+      AND status IN ${settledSale}
       AND COALESCE(completed_at, created_at) >= ${start}
       AND COALESCE(completed_at, created_at) <= ${end}
     GROUP BY 1
@@ -82,21 +83,27 @@ app.get('/products', async (c) => {
   const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
 
   const result = await db.execute(sql`
+    -- One row per PRODUCT. An order line keeps a snapshot of the name and category as they were at the time
+    -- of sale, so grouping by those split a renamed product in two: Blue Dream appeared twice under the same
+    -- product_id, 20 sold / $700 and 8 sold / $280, as if they were different things. Group by the id — the
+    -- only thing that identifies a product — and show the name it has NOW, which is what a mix chart is for.
+    -- A line with no product_id (an ad-hoc sale) has nothing but its name, so it groups by that. (T21)
     SELECT
       oi.product_id,
-      oi.product_name,
-      oi.category,
+      COALESCE(MAX(p.name), MAX(oi.product_name)) as product_name,
+      COALESCE(MAX(p.category), MAX(oi.category)) as category,
       SUM(oi.quantity)::int as total_sold,
       COALESCE(SUM(oi.line_total::numeric), 0) as total_revenue,
       COUNT(DISTINCT oi.order_id)::int as order_count,
       COALESCE(AVG(oi.unit_price::numeric), 0) as avg_price
     FROM order_items oi
     JOIN orders o ON o.id = oi.order_id
+    LEFT JOIN products p ON p.id = oi.product_id
     WHERE o.company_id = ${currentUser.companyId}
-      AND o.status = 'completed'
+      AND o.status IN ${settledSale}
       AND COALESCE(o.completed_at, o.created_at) >= ${start}
       AND COALESCE(o.completed_at, o.created_at) <= ${end}
-    GROUP BY oi.product_id, oi.product_name, oi.category
+    GROUP BY oi.product_id, CASE WHEN oi.product_id IS NULL THEN oi.product_name END
     ORDER BY total_revenue DESC
     LIMIT ${limit}
   `)
@@ -123,15 +130,15 @@ app.get('/summary', async (c) => {
     db.execute(sql`
       SELECT
         COUNT(*)::int as total_orders,
-        COUNT(CASE WHEN status IN ('completed', 'partially_refunded') THEN 1 END)::int as completed_orders,
+        COUNT(CASE WHEN status IN ${settledSale} THEN 1 END)::int as completed_orders,
         COUNT(CASE WHEN status = 'refunded' THEN 1 END)::int as refunded_orders,
         -- Revenue is NET of refunds: a partially-refunded sale counts what the customer kept,
         -- a fully-refunded one counts $0 (go-live QA V-3).
-        COALESCE(SUM(CASE WHEN status IN ('completed', 'partially_refunded') THEN total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0) ELSE 0 END), 0) as revenue,
+        COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0) as revenue,
         COALESCE(SUM(CASE WHEN status = 'completed' THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
-        COALESCE(SUM(CASE WHEN status IN ('completed', 'partially_refunded') THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
+        COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
         -- AOV on the same NET basis as revenue (AOV × completed orders = revenue). (retest: AOV vs revenue)
-        COALESCE(AVG(CASE WHEN status IN ('completed', 'partially_refunded') THEN total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0) END), 0) as avg_order_value,
+        COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0) as avg_order_value,
         COALESCE(SUM(CASE WHEN status IN ('refunded', 'partially_refunded') THEN COALESCE(NULLIF(refunded_amount, '')::numeric, total::numeric) ELSE 0 END), 0) as refunds_total,
         COUNT(CASE WHEN type = 'walk_in' THEN 1 END)::int as walk_in_count,
         COUNT(CASE WHEN type = 'delivery' THEN 1 END)::int as delivery_count,
@@ -206,7 +213,7 @@ app.get('/peak-hours', async (c) => {
       COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status IN ('completed', 'partially_refunded')
+      AND status IN ${settledSale}
       AND created_at >= ${start}
       AND created_at <= ${end}
     GROUP BY 1
