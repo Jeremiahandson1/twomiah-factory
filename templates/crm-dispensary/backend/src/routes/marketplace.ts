@@ -173,7 +173,7 @@ app.post('/install/:partnerId', requireRole('manager'), async (c) => {
     entityId: integration?.id,
     entityName: partner.name,
     metadata: { partnerId, partnerSlug: partner.slug },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(integration), partnerName: partner.name }, 201)
@@ -200,7 +200,7 @@ app.put('/installed/:id/config', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.UPDATE,
     entity: 'company_integration',
     entityId: id,
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -243,7 +243,7 @@ app.put('/installed/:id/activate', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: integration.partner_name,
     changes: { status: { old: integration.status, new: 'active' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -269,7 +269,7 @@ app.put('/installed/:id/disable', requireRole('manager'), async (c) => {
     entity: 'company_integration',
     entityId: id,
     changes: { status: { old: 'active', new: 'disabled' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -293,7 +293,7 @@ app.delete('/installed/:id', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.DELETE,
     entity: 'company_integration',
     entityId: id,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -370,7 +370,7 @@ app.post('/installed/:id/sync', async (c) => {
     entityId: id,
     entityName: integration.partner_name,
     metadata: { action: 'manual_sync' },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Sync triggered for ${integration.partner_name}`, syncedAt: new Date().toISOString() })
@@ -404,7 +404,7 @@ app.post('/seed-partners', requireRole('admin'), async (c) => {
     entity: 'integration_partner',
     entityName: 'Seed marketplace partners',
     metadata: { partnersSeeded: inserted.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Seeded ${inserted.length} integration partners`, partners: inserted }, 201)

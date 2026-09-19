@@ -208,7 +208,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const [newContact] = await db.insert(contact).values({ ...data, companyId: currentUser.companyId }).returning()
   const safeNew = stripPortal(newContact)
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, safeNew)
-  audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, metadata: warnings.length ? { warnings } : undefined, req: c.req })
+  audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, metadata: warnings.length ? { warnings } : undefined, req: c })
   return c.json(warnings.length ? { ...safeNew, warnings } : safeNew, 201)
 })
 
@@ -226,7 +226,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const safeUpdated = stripPortal(updated)
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safeUpdated)
   const changes = audit.diff(existing, updated)
-  if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c.req })
+  if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c })
   return c.json(safeUpdated)
 })
 
@@ -251,7 +251,7 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
 
   await db.delete(contact).where(eq(contact.id, id))
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id })
-  audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: existing.id, entityName: existing.name, req: c.req })
+  audit.log({ action: audit.ACTIONS.DELETE, entity: 'contact', entityId: existing.id, entityName: existing.name, req: c })
   return c.body(null, 204)
 })
 
@@ -266,7 +266,7 @@ app.post('/:id/convert', requirePermission('contacts:update'), async (c) => {
   const [updated] = await db.update(contact).set({ type: 'client', updatedAt: new Date() }).where(eq(contact.id, id)).returning()
   const safeConverted = stripPortal(updated)
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safeConverted)
-  audit.log({ action: audit.ACTIONS.STATUS_CHANGE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes: { type: { old: 'lead', new: 'client' } }, req: c.req })
+  audit.log({ action: audit.ACTIONS.STATUS_CHANGE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes: { type: { old: 'lead', new: 'client' } }, req: c })
   return c.json(safeConverted)
 })
 

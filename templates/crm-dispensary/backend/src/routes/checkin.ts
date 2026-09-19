@@ -156,7 +156,7 @@ app.post('/', async (c) => {
     entityId: entry?.id,
     entityName: data.customerName,
     metadata: { source: data.source, position: nextPosition, isMedical: data.isMedical },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ entry, estimatedWaitMinutes: estimatedWait }, 201)
@@ -251,7 +251,7 @@ app.post('/queue', async (c) => {
     entityId: entry?.id,
     entityName: name,
     metadata: { source: data.source, position: nextPosition, isMedical: data.isMedical },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ entry: shapeEntry(entry), estimatedWaitMinutes: nextPosition * 4 }, 201)
@@ -293,7 +293,7 @@ app.put('/queue/:id/status', async (c) => {
     entityId: id,
     entityName: updated.customer_name,
     changes: { status: { old: null, new: data.status } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(shapeEntry(updated))
@@ -334,7 +334,7 @@ app.put('/:id/call', async (c) => {
     entityId: id,
     entityName: updated.customer_name,
     changes: { status: { old: 'waiting', new: 'called' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -361,7 +361,7 @@ app.put('/:id/serve', async (c) => {
     entityId: id,
     entityName: updated.customer_name,
     changes: { status: { old: 'called', new: 'serving' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -388,7 +388,7 @@ app.put('/:id/complete', async (c) => {
     entityId: id,
     entityName: updated.customer_name,
     changes: { status: { old: 'serving', new: 'completed' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -415,7 +415,7 @@ app.put('/:id/no-show', async (c) => {
     entityId: id,
     entityName: updated.customer_name,
     changes: { status: { old: updated.status, new: 'no_show' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

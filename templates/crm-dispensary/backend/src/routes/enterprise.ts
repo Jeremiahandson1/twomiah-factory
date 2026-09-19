@@ -77,7 +77,7 @@ app.post('/store-groups', requireRole('manager'), async (c) => {
     entity: 'store_group',
     entityId: group?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(group), 201)
@@ -116,7 +116,7 @@ app.put('/store-groups/:id', requireRole('manager'), async (c) => {
     entity: 'store_group',
     entityId: id,
     entityName: updated.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -154,7 +154,7 @@ app.post('/store-groups/:id/members', requireRole('manager'), async (c) => {
     entity: 'store_group_member',
     entityId: member?.id,
     entityName: `${group.name} - ${data.locationId}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(member), 201)
@@ -187,7 +187,7 @@ app.delete('/store-groups/:id/members/:locationId', requireRole('manager'), asyn
     entity: 'store_group_member',
     entityId: deleted.id,
     entityName: `${group.name} - ${locationId}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ok: true })
@@ -477,7 +477,7 @@ app.post('/ach/setup', requireRole('admin'), async (c) => {
     entity: 'company',
     entityId: currentUser.companyId,
     entityName: 'ACH Setup',
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ok: true, bankName: data.bankName, accountType: data.accountType, lastFour: data.accountNumber.slice(-4) })
@@ -520,7 +520,7 @@ app.post('/ach/charge', requireRole('manager'), async (c) => {
     entity: 'ach_transaction',
     entityId: transaction?.id,
     entityName: `ACH charge $${data.amount} for order ${orderRow.number}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(transaction), 201)

@@ -80,7 +80,7 @@ app.post('/rules', requireRole('manager'), async (c) => {
     entityId: rule?.id,
     entityName: `${data.state || 'All'} - ${data.category}`,
     metadata: { state: data.state, category: data.category, factor },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(rule), 201)
@@ -126,7 +126,7 @@ app.put('/rules/:id', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.UPDATE,
     entity: 'equivalency_rule',
     entityId: id,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -150,7 +150,7 @@ app.delete('/rules/:id', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.DELETE,
     entity: 'equivalency_rule',
     entityId: id,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -193,7 +193,7 @@ app.post('/rules/seed', requireRole('manager'), async (c) => {
     entity: 'equivalency_rule',
     entityName: `Seed ${state} rules`,
     metadata: { state, rulesCreated: inserted.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Seeded ${inserted.length} equivalency rules for ${state}`, rules: inserted.map(camel) }, 201)
@@ -231,7 +231,7 @@ app.post('/rules/seed-defaults', requireRole('manager'), async (c) => {
     entity: 'equivalency_rule',
     entityName: 'Seed default rules',
     metadata: { rulesCreated: inserted.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Seeded ${inserted.length} default equivalency rules`, rules: inserted.map(camel) }, 201)

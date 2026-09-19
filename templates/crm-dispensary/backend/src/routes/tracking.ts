@@ -219,7 +219,7 @@ app.post('/routes', requireRole('manager'), async (c) => {
     entity: 'delivery_route',
     entityId: route?.id,
     entityName: `Route for ${stopsJson.length} stops`,
-    req: c.req,
+    req: c,
   })
 
   return c.json(route, 201)
@@ -308,7 +308,7 @@ app.put('/routes/:id/start', async (c) => {
     entity: 'delivery_route',
     entityId: id,
     changes: { status: { old: 'planned', new: 'active' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(route)
@@ -392,7 +392,7 @@ app.put('/routes/:id/complete', async (c) => {
     entity: 'delivery_route',
     entityId: id,
     changes: { status: { old: 'active', new: 'completed' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(route)

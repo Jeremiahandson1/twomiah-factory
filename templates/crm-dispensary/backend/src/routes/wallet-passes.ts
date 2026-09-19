@@ -207,7 +207,7 @@ app.post('/generate', async (c) => {
     entityId: walletPass?.id,
     entityName: `${data.platform} pass for ${member.customer_name}`,
     metadata: { platform: data.platform, contactId: data.contactId, serialNumber },
-    req: c.req,
+    req: c,
   })
 
   if (data.platform === 'apple') {
@@ -325,7 +325,7 @@ app.post('/update/:contactId', requireRole('manager'), async (c) => {
     entityId: contactId,
     entityName: `Pass update for ${member.customer_name}`,
     metadata: { passCount: passes.length, deviceCount: devices.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({
@@ -399,7 +399,7 @@ app.delete('/:id', async (c) => {
     entity: 'wallet_pass',
     entityId: id,
     entityName: `Pass ${pass.serial_number}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })

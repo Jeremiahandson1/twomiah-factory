@@ -187,7 +187,7 @@ app.post('/licenses', requireRole('manager'), async (c) => {
     entity: 'license',
     entityId: created.id,
     entityName: `${created.license_type} - ${created.license_number}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(created), 201)
@@ -231,7 +231,7 @@ app.put('/licenses/:id', requireRole('manager'), async (c) => {
     entity: 'license',
     entityId: updated.id,
     entityName: `${updated.license_type} - ${updated.license_number}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -259,7 +259,7 @@ app.delete('/licenses/:id', requireRole('manager'), async (c) => {
     entity: 'license',
     entityId: found.id,
     entityName: `${found.license_type} - ${found.license_number}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -585,7 +585,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
     entity: 'compliance_report',
     entityId: report.id,
     metadata: { reportType: data.reportType, startDate: data.startDate, endDate: data.endDate },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(report), printUrl: `/api/compliance/reports/${report.id}/export?format=html` }, 201)
@@ -709,7 +709,7 @@ app.post('/reports/:id/submit', requireRole('manager'), async (c) => {
     entity: 'compliance_report',
     entityId: id,
     changes: { status: { from: found.status, to: 'submitted' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -795,7 +795,7 @@ app.post('/waste', requireRole('manager'), async (c) => {
       unitOfMeasure: data.unitOfMeasure,
       reason: data.reason,
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(created), 201)
@@ -828,7 +828,7 @@ app.put('/waste/:id/metrc', requireRole('manager'), async (c) => {
     entity: 'waste_log',
     entityId: id,
     changes: { metrc_reported: { from: false, to: true } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))

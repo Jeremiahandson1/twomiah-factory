@@ -216,7 +216,7 @@ app.post('/scan', async (c) => {
     entityId: scan?.id,
     entityName: `${parsed.firstName || 'Unknown'} ${parsed.lastName || ''}`.trim(),
     metadata: { scanMethod: data.scanMethod, isUnderage, isExpired, age, matchedContactId, status },
-    req: c.req,
+    req: c,
   })
 
   // Shape covers both consumers: the IDScannerPage result card reads status/name/dob/expiry/
@@ -299,7 +299,7 @@ app.post('/scan/verify', async (c) => {
     entityId: data.checkinId,
     entityName: updated.customer_name,
     metadata: { idScanned: true, idVerified: isVerified, isExpired, isUnderage, age },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ entry: updated, parsed, isVerified, isExpired, isUnderage, age })
@@ -455,7 +455,7 @@ app.post('/flag', requireRole('manager'), async (c) => {
     entityId: data.scanId,
     entityName: `${updated.first_name || 'Unknown'} ${updated.last_name || ''}`.trim(),
     metadata: { flagged: true, reason: data.reason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

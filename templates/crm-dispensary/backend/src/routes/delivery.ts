@@ -56,7 +56,7 @@ app.post('/zones', requireRole('manager'), async (c) => {
     entity: 'delivery_zone',
     entityId: zone?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(zone, 201)
@@ -182,7 +182,7 @@ app.put('/orders/:id/assign', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: existing.number,
     changes: { driverId: { old: null, new: driverId }, deliveryStatus: { old: existing.status, new: 'assigned' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -231,7 +231,7 @@ app.put('/orders/:id/status', async (c) => {
     entityId: id,
     entityName: existing.number,
     changes: { deliveryStatus: { old: (existing as any).deliveryStatus, new: data.deliveryStatus } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

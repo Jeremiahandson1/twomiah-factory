@@ -300,7 +300,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     entityId: savedReport?.id,
     entityName: `EOD Report ${reportDate}`,
     metadata: { date: reportDate, locationId: locId, orderCount: report.orders.count, revenue: report.orders.totalRevenue },
-    req: c.req,
+    req: c,
   })
 
   // Shape the response to the flat camelCase fields the EOD page renders.
@@ -498,7 +498,7 @@ app.put('/:id/review', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: `EOD Report ${updated.date}`,
     changes: { status: { old: 'draft', new: 'reviewed' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -526,7 +526,7 @@ app.put('/:id/submit', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: `EOD Report ${updated.date}`,
     changes: { status: { old: updated.status, new: 'submitted' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -573,7 +573,7 @@ app.put('/:id/checklist', async (c) => {
     entityId: id,
     entityName: `EOD Checklist`,
     metadata: { checkedCount: data.checklist.filter(i => i.checked).length, totalCount: data.checklist.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

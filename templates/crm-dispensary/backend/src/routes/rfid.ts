@@ -99,7 +99,7 @@ app.post('/tags', requireRole('manager'), async (c) => {
     entity: 'rfid_tag',
     entityId: tag?.id,
     entityName: data.epc,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(tag), 201)
@@ -138,7 +138,7 @@ app.post('/tags/bulk', requireRole('manager'), async (c) => {
     entity: 'rfid_tag',
     entityId: null,
     entityName: `Bulk: ${created.length} tags`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ created: created.length, tags: created.map(camel) }, 201)
@@ -200,7 +200,7 @@ app.delete('/tags/:id', requireRole('manager'), async (c) => {
     entity: 'rfid_tag',
     entityId: id,
     entityName: deactivated.epc,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -324,7 +324,7 @@ app.post('/scan/bulk', async (c) => {
     entity: 'rfid_bulk_scan',
     entityId: data.locationId,
     entityName: `Bulk scan: ${data.scans.length} tags, ${unmatched.length} unmatched, ${expected.length} missing`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({
@@ -378,7 +378,7 @@ app.post('/inventory-count/accept', requireRole('manager'), async (c) => {
     entityId: null,
     entityName: `Inventory count accepted${location ? ` @ ${location}` : ''}`,
     metadata: { location, scanned: scannedEpcs.length, missing: missingIds.length, markedLost },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, accepted: scannedEpcs.length, missing: missingIds.length, markedLost, location })

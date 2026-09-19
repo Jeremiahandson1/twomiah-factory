@@ -182,7 +182,7 @@ app.post('/sync', async (c) => {
     entity: 'offline_sync',
     entityName: 'Offline Transaction Sync',
     metadata: { synced: results.synced, failed: results.failed, conflicts: results.conflicts.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json(results)
@@ -280,7 +280,7 @@ app.put('/:id/resolve', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: `Offline ${txn.transaction_type}`,
     metadata: { resolution: data.resolution, manualNotes: data.manualNotes },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Transaction ${data.resolution}d`, id })
@@ -390,7 +390,7 @@ app.put('/config', requireRole('manager'), async (c) => {
     entity: 'offline_config',
     entityName: 'Offline Configuration',
     metadata: data,
-    req: c.req,
+    req: c,
   })
 
   return c.json(shapeOfflineConfig(newSettings, merged))

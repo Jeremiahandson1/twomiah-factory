@@ -113,7 +113,7 @@ app.put('/config', requireRole('manager'), async (c) => {
     entityId: config?.id,
     entityName: 'Plaid Configuration',
     metadata: { environment: data.environment, enabled: data.enabled },
-    req: c.req,
+    req: c,
   })
 
   return c.json(config)
@@ -256,7 +256,7 @@ app.post('/exchange-token', async (c) => {
     entityId: bankAccount?.id,
     entityName: `Bank account ***${account?.mask || '****'}`,
     metadata: { contactId: data.contactId, institution },
-    req: c.req,
+    req: c,
   })
 
   return c.json(bankAccount, 201)
@@ -303,7 +303,7 @@ app.delete('/accounts/:id', async (c) => {
     entity: 'customer_bank_account',
     entityId: id,
     entityName: `Bank account ***${account.account_mask || '****'}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -394,7 +394,7 @@ app.post('/charge', async (c) => {
     entityId: transaction?.id,
     entityName: `ACH $${data.amount.toFixed(2)} for order ${data.orderId}`,
     metadata: { amount: data.amount, orderId: data.orderId, plaidTransferId },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ transactionId: transaction?.id, status: 'processing', plaidTransferId }, 201)

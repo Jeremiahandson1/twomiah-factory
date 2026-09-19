@@ -117,7 +117,7 @@ app.post('/templates', requireRole('manager'), async (c) => {
     entity: 'label_template',
     entityId: created.id,
     entityName: created.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(created), 201)
@@ -178,7 +178,7 @@ app.put('/templates/:id', requireRole('manager'), async (c) => {
     entity: 'label_template',
     entityId: updated.id,
     entityName: updated.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -206,7 +206,7 @@ app.delete('/templates/:id', requireRole('manager'), async (c) => {
     entity: 'label_template',
     entityId: found.id,
     entityName: found.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -332,7 +332,7 @@ app.post('/print', async (c) => {
     entity: 'label_print_job',
     entityId: job.id,
     metadata: { templateId: data.templateId, quantity: data.quantity },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ job: camel(job), labelData, html }, 201)
@@ -405,7 +405,7 @@ app.put('/print-jobs/:id/status', async (c) => {
     entity: 'label_print_job',
     entityId: id,
     changes: { status: { from: found.status, to: status } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))

@@ -184,7 +184,7 @@ app.post('/request', async (c) => {
     entityId: request?.id,
     entityName: `${data.type} approval`,
     metadata: { type: data.type, orderId: data.orderId, amount: data.amount, reason: data.reason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(request, 201)
@@ -321,7 +321,7 @@ app.put('/:id/approve', requireRole('manager'), async (c) => {
     entityName: `${request.type} approved`,
     changes: { status: { old: 'pending', new: 'approved' } },
     metadata: { type: request.type, orderId: request.order_id, amount: request.amount },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...updated, actionResult })
@@ -362,7 +362,7 @@ app.put('/:id/reject', requireRole('manager'), async (c) => {
     entityName: `${request.type} rejected`,
     changes: { status: { old: 'pending', new: 'rejected' } },
     metadata: { type: request.type, rejectedReason: data.rejectedReason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -443,7 +443,7 @@ app.put('/config', requireRole('admin'), async (c) => {
     entityId: currentUser.companyId,
     entityName: 'Approval thresholds',
     metadata: data,
-    req: c.req,
+    req: c,
   })
 
   return c.json(updatedApproval)

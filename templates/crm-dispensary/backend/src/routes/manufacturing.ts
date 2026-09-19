@@ -140,7 +140,7 @@ app.post('/jobs', async (c) => {
     entity: 'manufacturing_jobs',
     entityId: job?.id,
     entityName: jobNumber,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(job), 201)
@@ -215,7 +215,7 @@ app.put('/jobs/:id/start', async (c) => {
     entityId: id,
     entityName: existing.job_number,
     changes: { status: { old: 'pending', new: 'in_progress' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -277,7 +277,7 @@ app.put('/jobs/:id/complete', async (c) => {
     entityId: id,
     entityName: existing.job_number,
     changes: { status: { old: 'in_progress', new: 'completed' }, outputWeight: data.outputWeight, yieldPercentage },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -318,7 +318,7 @@ app.put('/jobs/:id/fail', async (c) => {
     entityId: id,
     entityName: existing.job_number,
     changes: { status: { old: existing.status, new: 'failed' }, reason: data.reason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -353,7 +353,7 @@ app.delete('/jobs/:id', async (c) => {
     entity: 'manufacturing_jobs',
     entityId: id,
     entityName: existing.job_number,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })

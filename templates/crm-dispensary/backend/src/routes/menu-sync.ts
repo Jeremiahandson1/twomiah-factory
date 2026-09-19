@@ -276,7 +276,7 @@ app.post('/configs', async (c) => {
     entityId: config?.id,
     entityName: `${data.platform} Menu Sync`,
     metadata: { platform: data.platform, storeId: data.storeId, autoSync: data.autoSync },
-    req: c.req,
+    req: c,
   })
 
   return c.json(config, 201)
@@ -331,7 +331,7 @@ app.put('/configs/:id', async (c) => {
     entityId: id,
     entityName: `${updated.platform} Menu Sync`,
     metadata: { updatedFields: Object.keys(data) },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -358,7 +358,7 @@ app.delete('/configs/:id', async (c) => {
     entity: 'menu_sync_config',
     entityId: id,
     entityName: `${updated.platform} Menu Sync`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Config deactivated' })
@@ -644,7 +644,7 @@ app.post('/connections/:platformId', async (c) => {
       entity: 'menu_sync_config',
       entityId: existing.id,
       entityName: `${platform} Menu Sync`,
-      req: c.req,
+      req: c,
     })
 
     return c.json({ id: existing.id, platformId: slug, message: 'Connection updated' })
@@ -666,7 +666,7 @@ app.post('/connections/:platformId', async (c) => {
     entityId: created?.id,
     entityName: `${platform} Menu Sync`,
     metadata: { platform },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ id: created?.id, platformId: slug, message: 'Connection created' }, 201)
@@ -691,7 +691,7 @@ app.delete('/connections/:platformId', async (c) => {
     entity: 'menu_sync_config',
     entityId: row.id,
     entityName: `${platform} Menu Sync`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Disconnected' })

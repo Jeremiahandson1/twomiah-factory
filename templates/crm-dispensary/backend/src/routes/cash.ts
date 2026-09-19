@@ -206,7 +206,7 @@ app.post('/sessions/open', async (c) => {
     entityId: session?.id,
     entityName: `Register: ${data.register}`,
     metadata: { openingAmount: data.openingAmount, register: data.register },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(session), 201)
@@ -303,7 +303,7 @@ app.post('/sessions/:id/close', async (c) => {
       expectedCash,
       variance,
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json({

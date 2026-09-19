@@ -229,7 +229,7 @@ app.post('/', requireRole('manager'), async (c) => {
     entityId: po.id,
     entityName: poNumber,
     metadata: { supplier: data.supplierName, itemCount: data.items.length, subtotal },
-    req: c.req,
+    req: c,
   })
 
   return c.json(po, 201)
@@ -316,7 +316,7 @@ app.post('/from-suggestions', requireRole('manager'), async (c) => {
     entity: 'purchase_order',
     entityName: 'Auto-created POs from suggestions',
     metadata: { count: createdPOs.length, suggestionCount: suggestions.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ created: createdPOs.length, purchaseOrders: createdPOs })
@@ -413,7 +413,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: existing.po_number,
     metadata: { updatedFields: Object.keys(data) },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -457,7 +457,7 @@ app.put('/:id/submit', requireRole('manager'), async (c) => {
     entityName: updated.po_number,
     changes: { status: { old: 'draft', new: 'submitted' } },
     metadata: { emailSent },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...updated, emailSent })
@@ -592,7 +592,7 @@ app.put('/:id/receive', requireRole('manager'), async (c) => {
     entityName: po.po_number,
     changes: { status: { old: po.status, new: newStatus } },
     metadata: { receivedItems: data.items.length, fullyReceived: allFullyReceived },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: allFullyReceived ? 'All items received' : 'Partial receive recorded', status: newStatus })
@@ -620,7 +620,7 @@ app.put('/:id/cancel', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated.po_number,
     changes: { status: { old: updated.status, new: 'cancelled' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -655,7 +655,7 @@ app.delete('/:id', requireRole('manager'), async (c) => {
       entity: 'purchase_order',
       entityId: id,
       entityName: existing.po_number,
-      req: c.req,
+      req: c,
     })
 
     return c.json({ success: true })
@@ -708,7 +708,7 @@ app.delete('/:id', requireRole('manager'), async (c) => {
     entityName: existing.po_number,
     changes: { status: { old: existing.status, new: 'voided' } },
     metadata: { reason: reason || null },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, voided: true })

@@ -48,18 +48,49 @@ interface AuditLogInput {
   entityName?: string;
   changes?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
-  req?: {
-    user?: { userId?: string; email?: string; companyId?: string };
-    ip?: string;
-    headers?: Record<string, string | string[] | undefined>;
-  };
+  /**
+   * The Hono CONTEXT (`c`) — the signed-in user lives on the context, not on the request. A plain
+   * `{ user }` is accepted too, for the few callers that have a user but no context. (Dispensary T20)
+   */
+  req?: any;
 }
 
 /**
  * Create audit log entry
  */
+/**
+ * Who did it, from whatever the caller handed over.
+ *
+ * Nearly every route passed the Hono REQUEST (`c.req`) while this service read req.user.*. Hono keeps
+ * the signed-in user on the CONTEXT, not the request, so user, email and company all came out null and the
+ * insert then failed the company_id NOT NULL: the action was never recorded at all. Accept the context (what
+ * callers now pass), the plain { user } shape, and a bare request, so no caller can quietly write nothing.
+ * (Dispensary T20)
+ */
+function resolveActor(req: any): { userId: string | null; email: string | null; companyId: string | null; ip: string | null; userAgent: string | null } {
+  const user = typeof req?.get === 'function' ? req.get('user') : req?.user
+  const header = (name: string): string | null => {
+    const h = typeof req?.req?.header === 'function' ? req.req.header(name) : typeof req?.header === 'function' ? req.header(name) : req?.headers?.[name]
+    return (h as string) || null
+  }
+  return {
+    userId: user?.userId || user?.id || null,
+    email: user?.email || null,
+    companyId: user?.companyId || null,
+    ip: req?.ip || header('x-forwarded-for'),
+    userAgent: header('user-agent'),
+  }
+}
+
 export async function log({ action, entity, entityId, entityName, changes, metadata, req }: AuditLogInput): Promise<void> {
   try {
+    const actor = resolveActor(req)
+    // No company means no row: the column is NOT NULL, so this would throw and be swallowed below. Say so
+    // once, loudly, rather than losing the event in silence.
+    if (!actor.companyId) {
+      console.error(`Audit log skipped (no company on the actor): ${action} ${entity}`)
+      return
+    }
     await db.insert(auditLog).values({
       action,
       entity,
@@ -67,12 +98,12 @@ export async function log({ action, entity, entityId, entityName, changes, metad
       entityName: entityName || null,
       changes: changes || null,
       metadata: metadata || null,
-      userId: req?.user?.userId || null,
-      userName: req?.user?.email || null,
-      userEmail: req?.user?.email || null,
-      companyId: req?.user?.companyId || null,
-      ipAddress: (req?.ip || req?.headers?.['x-forwarded-for']) as string || null,
-      userAgent: req?.headers?.['user-agent'] as string || null,
+      userId: actor.userId,
+      userName: actor.email,
+      userEmail: actor.email,
+      companyId: actor.companyId,
+      ipAddress: actor.ip,
+      userAgent: actor.userAgent,
     });
   } catch (error: unknown) {
     console.error('Audit log error:', (error as Error).message);

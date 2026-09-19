@@ -83,7 +83,7 @@ app.post('/challenges', requireRole('manager'), async (c) => {
     entityId: created?.id,
     entityName: data.name,
     metadata: { type: data.type, rewardType: data.rewardType },
-    req: c.req,
+    req: c,
   })
 
   return c.json(created, 201)
@@ -125,7 +125,7 @@ app.put('/challenges/:id', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated.name,
     metadata: { fields: Object.keys(data) },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -151,7 +151,7 @@ app.delete('/challenges/:id', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated.name,
     metadata: { type: 'deactivate' },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, deactivated: updated.name })
@@ -432,7 +432,7 @@ app.post('/challenges/:challengeId/claim', async (c) => {
     entity: 'loyalty_challenge_progress',
     entityId: progress.id,
     metadata: { type: 'claim_reward', challengeId, memberId: data.memberId, rewardType: progress.reward_type },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, reward: rewardDetails })
@@ -496,7 +496,7 @@ app.post('/multiplier-events', requireRole('manager'), async (c) => {
     entityId: created?.id,
     entityName: data.name,
     metadata: { type: 'bonus_multiplier', multiplier: data.multiplier },
-    req: c.req,
+    req: c,
   })
 
   return c.json(created, 201)

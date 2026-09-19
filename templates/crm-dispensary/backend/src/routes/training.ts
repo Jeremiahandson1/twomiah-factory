@@ -118,7 +118,7 @@ app.post('/courses', requireRole('manager'), async (c) => {
     entityId: course?.id,
     entityName: data.title,
     metadata: { category: data.category, required: data.required, steps: content.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json(course, 201)
@@ -180,7 +180,7 @@ app.put('/courses/:id', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated?.title,
     changes: audit.diff(existing, updated),
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -204,7 +204,7 @@ app.delete('/courses/:id', requireRole('manager'), async (c) => {
     entity: 'training_course',
     entityId: id,
     entityName: updated.title,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Course deactivated' })
@@ -250,7 +250,7 @@ app.post('/courses/:id/assign', requireRole('manager'), async (c) => {
     entity: 'training_enrollment',
     entityName: `Assigned "${course.title}" to ${created.length} user(s)`,
     metadata: { courseId: id, userIds: data.userIds, enrollmentsCreated: created.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Assigned to ${created.length} user(s)`, enrollments: created }, 201)
@@ -300,7 +300,7 @@ app.post('/courses/:id/assign-role', requireRole('manager'), async (c) => {
     entity: 'training_enrollment',
     entityName: `Assigned "${course.title}" to role "${data.role}"`,
     metadata: { courseId: id, role: data.role, usersFound: users.length, enrolled },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Assigned to ${enrolled} user(s) with role "${data.role}"`, usersFound: users.length, enrolled }, 201)
@@ -457,7 +457,7 @@ app.put('/enrollments/:id/progress', async (c) => {
     entity: 'training_enrollment',
     entityId: id,
     metadata: { currentStep: data.currentStep, percentComplete, status, score },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -827,7 +827,7 @@ app.post('/assign', requireRole('manager'), async (c) => {
     entity: 'training_enrollment',
     entityName: `Assigned "${course.title}" to ${enrolled} user(s)`,
     metadata: { courseId: data.courseId, role: data.role || null, userIds: data.userIds || null, enrolled },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: `Assigned to ${enrolled} user(s)`, enrolled }, 201)
@@ -875,7 +875,7 @@ app.post('/enrollments/:id/advance', async (c) => {
     entity: 'training_enrollment',
     entityId: id,
     metadata: { currentStep: newStep, percent, status },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -942,7 +942,7 @@ app.post('/enrollments/:id/quiz', async (c) => {
     entity: 'training_enrollment',
     entityId: id,
     metadata: { stepOrder: data.stepOrder, correct, status },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

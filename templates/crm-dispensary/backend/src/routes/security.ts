@@ -210,7 +210,7 @@ app.post('/mfa/setup', async (c) => {
     entity: 'mfa_device',
     entityId: device.id,
     metadata: { type: data.type },
-    req: c.req,
+    req: c,
   })
 
   const response: any = { device }
@@ -291,7 +291,7 @@ app.post('/mfa/verify', async (c) => {
     entity: 'mfa_device',
     entityId: data.deviceId,
     metadata: { event: 'verified' },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -434,7 +434,7 @@ app.post('/mfa/challenge/verify', async (c) => {
     entity: 'mfa_challenge',
     entityId: data.challengeId,
     metadata: { event: 'challenge_verified' },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -496,7 +496,7 @@ app.delete('/mfa/devices/:id', async (c) => {
     entity: 'mfa_device',
     entityId: id,
     metadata: { deviceType: device.type },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -542,7 +542,7 @@ app.get('/mfa/backup-codes', async (c) => {
     entity: 'mfa_backup_codes',
     entityId: currentUser.userId,
     metadata: { codeCount: 10 },
-    req: c.req,
+    req: c,
   })
 
   // Return plaintext codes — only shown once
@@ -641,7 +641,7 @@ app.put('/password-policy', requireRole('owner'), async (c) => {
     entity: 'password_policy',
     entityId: updated.id,
     metadata: data,
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -780,7 +780,7 @@ app.delete('/sessions/:id', async (c) => {
     entity: 'session',
     entityId: id,
     metadata: { event: 'session_revoked' },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -808,7 +808,7 @@ app.post('/sessions/revoke-all', async (c) => {
     entity: 'session',
     entityId: currentUser.userId,
     metadata: { event: 'revoke_all_sessions', count: revoked.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, revokedCount: revoked.length })
@@ -835,7 +835,7 @@ app.post('/sessions/revoke-user/:userId', requireRole('owner'), async (c) => {
     entity: 'session',
     entityId: userId,
     metadata: { event: 'revoke_active_sessions', targetUserId: userId, count: revoked.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, revokedCount: revoked.length })
@@ -1001,7 +1001,7 @@ app.put('/events/:id/acknowledge', requireRole('manager'), async (c) => {
     entity: 'security_event',
     entityId: id,
     metadata: { event: 'acknowledged' },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -1112,7 +1112,7 @@ app.post('/encryption/keys/rotate', requireRole('owner'), async (c) => {
       oldVersion: currentKey.key_version,
       newVersion: newKey.version,
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json(newKey, 201)

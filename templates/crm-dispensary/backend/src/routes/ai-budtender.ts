@@ -385,7 +385,7 @@ app.put('/config', requireRole('manager'), async (c) => {
     entityId: config?.id,
     entityName: 'AI Budtender Configuration',
     metadata: { enabled: data.enabled, personality: data.personality, channels: data.enabledChannels },
-    req: c.req,
+    req: c,
   })
 
   return c.json(config)
@@ -978,7 +978,7 @@ app.post('/chat/:sessionToken/complete', async (c) => {
       cartTotal,
       orderId,
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json({

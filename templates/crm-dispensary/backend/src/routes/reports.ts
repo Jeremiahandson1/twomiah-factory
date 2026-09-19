@@ -77,7 +77,7 @@ app.post('/saved', async (c) => {
     entity: 'saved_report',
     entityId: report?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(report), 201)
@@ -152,7 +152,7 @@ app.delete('/saved/:id', async (c) => {
     entity: 'saved_report',
     entityId: id,
     entityName: deleted.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -306,7 +306,7 @@ app.post('/widgets', async (c) => {
     entity: 'bi_widget',
     entityId: widget?.id,
     entityName: data.title,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(widget), 201)
@@ -368,7 +368,7 @@ app.delete('/widgets/:id', async (c) => {
     entity: 'bi_widget',
     entityId: id,
     entityName: deleted.title,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })

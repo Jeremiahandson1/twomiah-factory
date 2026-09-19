@@ -102,7 +102,7 @@ app.post('/shifts', requireRole('manager'), async (c) => {
     entity: 'shift',
     entityName: `${created.length} shift(s)`,
     metadata: { count: created.length, dates: parsed.map(s => s.date) },
-    req: c.req,
+    req: c,
   })
 
   return c.json(created.length === 1 ? camel(created[0]) : created.map(camel), 201)
@@ -152,7 +152,7 @@ app.put('/shifts/:id', requireRole('manager'), async (c) => {
     entity: 'shift',
     entityId: id,
     changes: audit.diff(existing, updated),
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -176,7 +176,7 @@ app.delete('/shifts/:id', requireRole('manager'), async (c) => {
     entity: 'shift',
     entityId: id,
     changes: { status: { old: 'scheduled', new: 'cancelled' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -209,7 +209,7 @@ app.post('/shifts/:id/clock-in', async (c) => {
     entity: 'shift',
     entityId: id,
     changes: { status: { old: 'scheduled', new: 'clocked_in' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -253,7 +253,7 @@ app.post('/shifts/:id/clock-out', async (c) => {
     entityId: id,
     changes: { status: { old: 'clocked_in', new: 'clocked_out' } },
     metadata: { actualHours, overtimeHours },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -291,7 +291,7 @@ app.post('/shifts/:id/swap-request', async (c) => {
     entityId: id,
     entityName: 'Swap request',
     metadata: { swapWithUserId: data.swapWithUserId },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -347,7 +347,7 @@ app.put('/shifts/:id/swap-approve', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: 'Swap approved',
     metadata: { originalUserId, swapUserId, targetShiftId: targetShift?.id || null },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Swap approved', shiftId: id, targetShiftId: targetShift?.id || null })
@@ -381,7 +381,7 @@ app.post('/swap-requests/:id/:action', requireRole('manager'), async (c) => {
       entity: 'shift',
       entityId: id,
       entityName: 'Swap rejected',
-      req: c.req,
+      req: c,
     })
     return c.json({ message: 'Swap rejected', shiftId: id })
   }
@@ -424,7 +424,7 @@ app.post('/swap-requests/:id/:action', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: 'Swap approved',
     metadata: { originalUserId, swapUserId, targetShiftId: targetShift?.id || null },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Swap approved', shiftId: id, targetShiftId: targetShift?.id || null })
@@ -476,7 +476,7 @@ app.post('/templates', requireRole('manager'), async (c) => {
     entity: 'schedule_template',
     entityId: template?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(template), 201)
@@ -530,7 +530,7 @@ app.post('/templates/:id/apply', requireRole('manager'), async (c) => {
     entity: 'shift',
     entityName: `Template "${template.name}" applied`,
     metadata: { templateId: id, startDate: data.startDate, endDate: data.endDate, shiftsCreated: createdShifts.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Template applied', shiftsCreated: createdShifts.length, shifts: createdShifts.map(camel) }, 201)
@@ -608,7 +608,7 @@ app.put('/time-entries/:id/approve', requireRole('manager'), async (c) => {
     entity: 'time_entry',
     entityId: id,
     entityName: 'Approved',
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(updated), approved: true })
@@ -653,7 +653,7 @@ app.get('/payroll-export', requireRole('manager'), async (c) => {
     entity: 'payroll',
     entityName: `Payroll ${startDate} to ${endDate}`,
     metadata: { startDate, endDate, employeeCount: data.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ data, period: { startDate, endDate } })

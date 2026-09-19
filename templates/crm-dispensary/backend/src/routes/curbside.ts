@@ -172,7 +172,7 @@ app.put('/pickups/:id/status', async (c) => {
     entity: 'curbside_checkin',
     entityId: id,
     changes: { status: { new: status } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -200,7 +200,7 @@ app.put('/:id/assign', async (c) => {
     entity: 'curbside_checkin',
     entityId: id,
     changes: { status: { old: 'waiting', new: 'assigned' }, assignedStaffId: { old: null, new: staffId } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -228,7 +228,7 @@ app.put('/:id/bringing-out', async (c) => {
     entity: 'curbside_checkin',
     entityId: id,
     changes: { status: { new: 'bringing_out' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -254,7 +254,7 @@ app.put('/:id/complete', async (c) => {
     entity: 'curbside_checkin',
     entityId: id,
     changes: { status: { new: 'completed' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

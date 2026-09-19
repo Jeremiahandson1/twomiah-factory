@@ -93,7 +93,7 @@ app.get('/export', async (c) => {
     action: audit.ACTIONS.EXPORT,
     entity: 'audit_log',
     metadata: { rowCount: rows.length, filters: { entity, action, userId, startDate, endDate } },
-    req: c.req,
+    req: c,
   })
 
   c.header('Content-Type', 'text/csv')

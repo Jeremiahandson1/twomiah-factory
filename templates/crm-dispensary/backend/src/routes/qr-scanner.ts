@@ -653,7 +653,7 @@ app.post('/scan', async (c) => {
     entityId,
     entityName: `${entityType}:${entityId}`,
     metadata: { context: body.context, scannerType: body.scannerType, entityType },
-    req: c.req,
+    req: c,
   })
 
   return c.json(responseData)

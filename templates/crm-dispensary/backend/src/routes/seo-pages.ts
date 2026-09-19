@@ -273,7 +273,7 @@ const generateSeoPages = async (c: any) => {
     action: audit.ACTIONS.CREATE,
     entity: 'seo_product_page',
     metadata: { type: 'bulk_generate', generated, totalProducts: products.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ generated, alreadyExisted: 0, message: `Generated ${generated} SEO pages` })
@@ -335,7 +335,7 @@ const updateSeoPage = async (c: any) => {
     entity: 'seo_product_page',
     entityId: id,
     metadata: { fields: Object.keys(data) },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -362,7 +362,7 @@ app.delete('/products/:id', requireRole('manager'), async (c) => {
     entity: 'seo_product_page',
     entityId: id,
     metadata: { type: 'unpublish', slug: updated.slug },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, unpublished: updated.slug })

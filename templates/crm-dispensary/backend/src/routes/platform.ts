@@ -206,7 +206,7 @@ app.post('/health/incidents', requireRole('admin'), async (c) => {
     entityId: incident?.id,
     entityName: data.title,
     metadata: { severity: data.severity },
-    req: c.req,
+    req: c,
   })
 
   return c.json(incident, 201)
@@ -255,7 +255,7 @@ app.put('/health/incidents/:id', requireRole('admin'), async (c) => {
     entityId: id,
     entityName: updated.title,
     changes: data.status ? { status: { old: null, new: data.status } } : undefined,
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -369,7 +369,7 @@ app.post('/onboarding/initialize', requireRole('manager'), async (c) => {
     entityId: checklist.id,
     entityName: 'Onboarding initialized',
     metadata: { stepsCreated: steps.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(checklist), steps }, 201)
@@ -411,7 +411,7 @@ app.put('/onboarding/steps/:stepId', async (c) => {
     entityId: stepId,
     entityName: steps[stepIndex].title,
     changes: { completed: { old: false, new: true } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(steps[stepIndex])
@@ -562,7 +562,7 @@ app.post('/hardware/orders', async (c) => {
     entityId: hwOrder?.id,
     entityName: orderNumber,
     metadata: { itemCount: data.items.length, total },
-    req: c.req,
+    req: c,
   })
 
   return c.json(hwOrder, 201)

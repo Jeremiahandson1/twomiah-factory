@@ -88,7 +88,7 @@ app.post('/customers', async (c) => {
     entity: 'wholesale_customers',
     entityId: customer?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(customer), 201)
@@ -173,7 +173,7 @@ app.delete('/customers/:id', async (c) => {
     entity: 'wholesale_customers',
     entityId: id,
     entityName: existing.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -305,7 +305,7 @@ app.post('/orders', async (c) => {
     entity: 'wholesale_orders',
     entityId: order?.id,
     entityName: orderNumber,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(order), 201)
@@ -385,7 +385,7 @@ app.put('/orders/:id/confirm', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: existing.order_number,
     changes: { status: { old: existing.status, new: 'confirmed' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -458,7 +458,7 @@ app.put('/orders/:id/ship', async (c) => {
     entityName: existing.order_number,
     changes: { status: { old: 'confirmed', new: 'shipped' }, manifestNumber: data.manifestNumber },
     metadata: { inventoryDecremented: true, lines: items.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -492,7 +492,7 @@ app.put('/orders/:id/deliver', async (c) => {
     entityId: id,
     entityName: existing.order_number,
     changes: { status: { old: 'shipped', new: 'delivered' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -533,7 +533,7 @@ app.put('/orders/:id/invoice', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: existing.order_number,
     changes: { status: { old: existing.status, new: 'invoiced' }, invoiceNumber },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -621,7 +621,7 @@ app.put('/orders/:id/payment', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: existing.order_number,
     changes: { amountPaid: { old: currentPaid, new: newPaid }, paymentMethod: data.method },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(updated), balanceDue: Math.max(0, total - newPaid) })
@@ -653,7 +653,7 @@ app.delete('/orders/:id', requireRole('manager'), async (c) => {
     DELETE FROM wholesale_orders
     WHERE id = ${id} AND company_id = ${currentUser.companyId}
   `)
-  audit.log({ action: audit.ACTIONS.DELETE, entity: 'wholesale_orders', entityId: id, entityName: existing.order_number, req: c.req })
+  audit.log({ action: audit.ACTIONS.DELETE, entity: 'wholesale_orders', entityId: id, entityName: existing.order_number, req: c })
   return c.json({ success: true })
 })
 
@@ -736,7 +736,7 @@ app.post('/lab-tests', async (c) => {
     entity: 'lab_tests',
     entityId: test?.id,
     entityName: `${data.labName} - ${data.testType}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(test), 201)
@@ -851,7 +851,7 @@ app.put('/lab-tests/:id/results', async (c) => {
     entityId: id,
     entityName: updated.lab_name || 'Lab test',
     changes: { overallResult: overall, status },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))

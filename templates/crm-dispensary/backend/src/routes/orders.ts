@@ -465,7 +465,7 @@ app.post('/', async (c) => {
       discount: totalDiscount,
       ...(approvals.length ? { approvals } : {}),
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...result, items: resolvedItems, ...(approvals.length ? { approvals } : {}), ...(rewardId ? { reward: { id: rewardId, name: rewardName, discount: loyaltyApplied, pointsCost: data.loyaltyPointsRedeemed } } : {}) }, 201)
@@ -538,7 +538,7 @@ app.put('/:id/status', async (c) => {
     entityName: existing.number,
     changes: { status: { old: existing.status, new: status } },
     metadata: voidApproval ? { approvedBy: voidApproval.approvedBy, approvalVia: voidApproval.via } : undefined,
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -770,7 +770,7 @@ app.post('/:id/complete', async (c) => {
       total: existing.total,
       itemCount: items.length,
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Order completed', changeDue })
@@ -1003,7 +1003,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       unitsReturned: refundPlan.map(r => ({ orderItemId: r.line.id, productId: r.line.productId, quantity: r.qty })),
       ...(refundApproval ? { approvedBy: refundApproval.approvedBy, approvalVia: refundApproval.via } : {}),
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json({

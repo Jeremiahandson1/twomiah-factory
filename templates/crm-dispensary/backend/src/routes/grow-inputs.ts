@@ -411,7 +411,7 @@ app.post('/', requireRole('manager'), async (c) => {
     entityId: input?.id,
     entityName: data.name,
     metadata: bannedWarnings.length > 0 ? { bannedWarnings } : undefined,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(input), warnings: bannedWarnings.length > 0 ? bannedWarnings : undefined }, 201)
@@ -482,7 +482,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
     entity: 'grow_input',
     entityId: id,
     entityName: updated.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -518,7 +518,7 @@ app.delete('/:id', requireRole('manager'), async (c) => {
     entity: 'grow_input',
     entityId: id,
     entityName: existing.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Grow input deleted' })
@@ -561,7 +561,7 @@ app.post('/:id/adjust-stock', requireRole('manager'), async (c) => {
     entityName: existing.name,
     changes: { currentStock: { old: oldStock, new: newStock } },
     metadata: { type: 'stock_adjustment', adjustment: data.quantity, reason: data.reason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -767,7 +767,7 @@ app.post('/applications', async (c) => {
       quantity: data.quantity,
       warnings: warnings.length > 0 ? warnings : undefined,
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(application), warnings: warnings.length > 0 ? warnings : undefined }, 201)
@@ -913,7 +913,7 @@ app.post('/policies', requireRole('manager'), async (c) => {
     entity: 'input_policy',
     entityId: policy?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(policy), 201)
@@ -960,7 +960,7 @@ app.put('/policies/:id', requireRole('manager'), async (c) => {
     entity: 'input_policy',
     entityId: id,
     entityName: updated.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))

@@ -99,7 +99,7 @@ app.post('/retention/policies', requireRole('owner'), async (c) => {
     entity: 'data_retention_policy',
     entityId: created.id,
     metadata: { dataCategory: data.dataCategory, retentionDays: data.retentionDays, action: data.action },
-    req: c.req,
+    req: c,
   })
 
   return c.json(created, 201)
@@ -137,7 +137,7 @@ app.put('/retention/policies/:id', requireRole('owner'), async (c) => {
     entity: 'data_retention_policy',
     entityId: id,
     changes: data,
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -404,7 +404,7 @@ app.post('/access-reviews', requireRole('owner'), async (c) => {
     entity: 'access_review',
     entityId: review.id,
     metadata: { userCount: users.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(review), entryCount: users.length }, 201)
@@ -450,7 +450,7 @@ app.put('/access-reviews/:id', requireRole('owner'), async (c) => {
     entity: 'access_review',
     entityId: id,
     metadata: { entriesUpdated: data.entries.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, entriesUpdated: data.entries.length })
@@ -571,7 +571,7 @@ app.post('/access-reviews/:id/complete', requireRole('owner'), async (c) => {
     entityId: id,
     changes: { status: { from: 'in_progress', to: 'completed' } },
     metadata: { revokeCount, modifyCount, totalEntries: entries.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, revokeCount, modifyCount, totalEntries: entries.length })
@@ -662,7 +662,7 @@ app.post('/changes', requireRole('manager'), async (c) => {
     entity: 'change_log',
     entityId: created.id,
     metadata: { changeType: data.changeType, category: data.category, riskLevel: data.riskLevel },
-    req: c.req,
+    req: c,
   })
 
   return c.json(created, 201)
@@ -696,7 +696,7 @@ app.post('/changes/:id/rollback', requireRole('manager'), async (c) => {
     entity: 'change_log',
     entityId: id,
     metadata: { event: 'rolled_back' },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -767,7 +767,7 @@ app.post('/backups/verify', requireRole('manager'), async (c) => {
     entity: 'backup_verification',
     entityId: created.id,
     metadata: { status, backupType: data.backupType || 'database' },
-    req: c.req,
+    req: c,
   })
 
   return c.json(created, 201)
@@ -843,7 +843,7 @@ app.post('/backups/test-restore', requireRole('owner'), async (c) => {
     entity: 'backup_verification',
     entityId: currentUser.companyId,
     metadata: { type: 'restore_test', status },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ status, ...results })
@@ -1156,7 +1156,7 @@ app.post('/dashboard/assess', requireRole('manager'), async (c) => {
     entity: 'soc2_assessment',
     entityId: companyId,
     metadata: { overallScore: dashboard.overallScore },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...dashboard, assessmentTriggered: true })
@@ -1210,7 +1210,7 @@ app.post('/dashboard/schedule', requireRole('manager'), async (c) => {
     entity: 'soc2_assessment_schedule',
     entityId: companyId,
     metadata: { nextAssessmentDue: date },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, nextAssessmentDue: date })

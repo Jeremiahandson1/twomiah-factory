@@ -107,7 +107,7 @@ app.post('/', requireRole('manager'), async (c) => {
     entity: 'location',
     entityId: location?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(location), 201)
@@ -189,7 +189,7 @@ app.delete('/:id', requireRole('manager'), async (c) => {
     entity: 'location',
     entityId: id,
     entityName: deleted.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -270,7 +270,7 @@ app.post('/:id/count', requireRole('manager'), async (c) => {
     entity: 'inventory_count',
     entityId: locationId,
     entityName: `Count: ${data.items.length} items, ${adjustments.length} discrepancies`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ counted: data.items.length, discrepancies: adjustments.length, adjustments: adjustments.map(camel) })
@@ -379,7 +379,7 @@ app.post('/transfers', requireRole('manager'), async (c) => {
     entity: 'inventory_transfer',
     entityId: transfer.id,
     entityName: `Transfer: ${data.items.length} items`,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...camel(transfer), items: createdItems }, 201)
@@ -454,7 +454,7 @@ app.put('/transfers/:id/ship', requireRole('manager'), async (c) => {
     entity: 'inventory_transfer',
     entityId: id,
     changes: { status: { old: 'pending', new: 'in_transit' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -565,7 +565,7 @@ app.put('/transfers/:id/receive', requireRole('manager'), async (c) => {
     entity: 'inventory_transfer',
     entityId: id,
     changes: { status: { old: 'in_transit', new: updated?.status } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -587,7 +587,7 @@ app.delete('/transfers/:id', requireRole('manager'), async (c) => {
   }
   await db.execute(sql`DELETE FROM inventory_transfer_items WHERE transfer_id = ${id}`)
   await db.execute(sql`DELETE FROM inventory_transfers WHERE id = ${id} AND company_id = ${currentUser.companyId}`)
-  audit.log({ action: audit.ACTIONS.DELETE, entity: 'inventory_transfer', entityId: id, req: c.req })
+  audit.log({ action: audit.ACTIONS.DELETE, entity: 'inventory_transfer', entityId: id, req: c })
   return c.json({ success: true })
 })
 

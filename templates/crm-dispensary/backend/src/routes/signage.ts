@@ -197,7 +197,7 @@ app.post('/screens', requireRole('manager'), async (c) => {
     entityId: created?.id,
     entityName: data.name,
     metadata: { type: data.type, deviceId },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(created), 201)
@@ -247,7 +247,7 @@ app.put('/screens/:id', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated.name,
     metadata: { fields: Object.keys(data) },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -273,7 +273,7 @@ app.delete('/screens/:id', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated.name,
     metadata: { type: 'deactivate' },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true, deactivated: updated.name })
@@ -317,7 +317,7 @@ app.put('/screens/:id/content', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated.name,
     metadata: { type: 'content_update' },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))

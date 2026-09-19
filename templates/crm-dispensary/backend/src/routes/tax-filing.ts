@@ -211,7 +211,7 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     entityId: filing?.id,
     entityName: filingNumber,
     metadata: { filingType, period: data.period, state, totalTaxDue },
-    req: c.req,
+    req: c,
   })
 
   return c.json(filing, 201)
@@ -239,7 +239,7 @@ app.put('/filings/:id/review', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: updated.filing_number,
     changes: { status: { old: 'calculated', new: 'reviewed' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -269,7 +269,7 @@ app.put('/filings/:id/file', requireRole('manager'), async (c) => {
     entityName: updated.filing_number,
     changes: { status: { old: updated.status, new: 'filed' } },
     metadata: { confirmationNumber },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

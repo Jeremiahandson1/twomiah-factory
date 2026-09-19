@@ -207,7 +207,7 @@ app.post('/', requireRole('manager'), async (c) => {
     entity: 'product',
     entityId: created.id,
     entityName: created.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(created, 201)
@@ -243,7 +243,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
       entityName: updated.name,
       changes,
       metadata: isPriceChange ? { type: 'price_change' } : undefined,
-      req: c.req,
+      req: c,
     })
   }
 
@@ -267,7 +267,7 @@ app.delete('/:id', requireRole('manager'), async (c) => {
     entity: 'product',
     entityId: existing.id,
     entityName: existing.name,
-    req: c.req,
+    req: c,
   })
 
   return c.body(null, 204)
@@ -313,7 +313,7 @@ app.post('/:id/adjust-stock', requireRole('manager'), async (c) => {
       notes: data.notes,
       batchNumber: data.batchNumber,
     },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -375,7 +375,7 @@ app.post('/import', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'product',
     metadata: { type: 'csv_import', imported: results.imported, errors: results.errors.length },
-    req: c.req,
+    req: c,
   })
 
   return c.json(results)

@@ -132,7 +132,7 @@ app.post('/plants', async (c) => {
     entity: 'plant',
     entityId: plants[0]?.id,
     entityName: `${data.strainName} x${data.quantity}`,
-    req: c.req,
+    req: c,
   })
 
   return c.json(data.quantity === 1 ? camel(plants[0]) : plants.map(camel), 201)
@@ -197,7 +197,7 @@ app.delete('/plants/:id', async (c) => {
     entity: 'plant',
     entityId: id,
     entityName: existing.strain_name,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })
@@ -244,7 +244,7 @@ app.put('/plants/:id/phase', async (c) => {
     entityId: id,
     entityName: existing.strain_name,
     changes: { phase: { old: existing.phase, new: data.phase } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -295,7 +295,7 @@ app.post('/plants/:id/harvest', async (c) => {
     entityId: id,
     entityName: existing.strain_name,
     changes: { phase: { old: existing.phase, new: 'harvested' }, wetWeight: { old: null, new: data.wetWeight } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -341,7 +341,7 @@ app.post('/plants/:id/destroy', async (c) => {
     entityId: id,
     entityName: existing.strain_name,
     changes: { phase: { old: existing.phase, new: 'destroyed' }, reason: data.reason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -397,7 +397,7 @@ app.post('/rooms', requireRole('manager'), async (c) => {
     entity: 'grow_rooms',
     entityId: room?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(room), 201)
@@ -504,7 +504,7 @@ app.post('/harvests', async (c) => {
     entity: 'harvest',
     entityId: harvest?.id,
     entityName: data.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(harvest), 201)

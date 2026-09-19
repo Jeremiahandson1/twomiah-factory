@@ -96,7 +96,7 @@ app.post('/forecast', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'inventory_forecast',
     metadata: { type: 'bulk_forecast', productsForecasted: forecastCount },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ forecastCount, message: `Generated forecasts for ${forecastCount} products` })
@@ -260,7 +260,7 @@ app.post('/reorder-suggestions/generate', requireRole('manager'), async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'reorder_suggestion',
     metadata: { type: 'bulk_generate', generated },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ generated, message: `Generated ${generated} reorder suggestions` })
@@ -287,7 +287,7 @@ app.put('/reorder-suggestions/:id/approve', requireRole('manager'), async (c) =>
     entity: 'reorder_suggestion',
     entityId: id,
     metadata: { type: 'approve', productId: updated.productId },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -314,7 +314,7 @@ app.put('/reorder-suggestions/:id/dismiss', requireRole('manager'), async (c) =>
     entity: 'reorder_suggestion',
     entityId: id,
     metadata: { type: 'dismiss', productId: updated.productId },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

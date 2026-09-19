@@ -76,7 +76,7 @@ app.put('/config', requireRole('manager'), async (c) => {
     entity: 'referral_config',
     entityId: config?.id,
     entityName: 'Referral Config',
-    req: c.req,
+    req: c,
   })
 
   return c.json(config)
@@ -228,7 +228,7 @@ app.post('/', async (c) => {
     entity: 'referral',
     entityId: referral?.id,
     entityName: code,
-    req: c.req,
+    req: c,
   })
 
   return c.json(referral, 201)
@@ -290,7 +290,7 @@ app.post('/redeem', async (c) => {
     entityId: referral.id,
     entityName: data.referralCode,
     changes: { status: { old: 'pending', new: 'signed_up' }, referredId: { old: null, new: data.contactId } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -382,7 +382,7 @@ app.post('/:id/reward', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: referral.referral_code,
     changes: { status: { old: referral.status, new: 'rewarded' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)

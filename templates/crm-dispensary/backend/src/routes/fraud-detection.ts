@@ -84,7 +84,7 @@ app.put('/alerts/:id/investigate', requireRole('manager'), async (c) => {
     entity: 'fraud_alert',
     entityId: id,
     changes: { status: { old: updated.status, new: 'investigating' } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -121,7 +121,7 @@ app.put('/alerts/:id/resolve', requireRole('manager'), async (c) => {
     entityId: id,
     changes: { status: { old: updated.status, new: 'resolved' } },
     metadata: { resolution },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -157,7 +157,7 @@ app.put('/alerts/:id/dismiss', requireRole('manager'), async (c) => {
     entityId: id,
     changes: { status: { old: updated.status, new: 'dismissed' } },
     metadata: { reason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -215,7 +215,7 @@ app.post('/rules', requireRole('admin'), async (c) => {
     entityId: rule?.id,
     entityName: data.name,
     metadata: { type: data.type, threshold: data.threshold },
-    req: c.req,
+    req: c,
   })
 
   return c.json(rule, 201)
@@ -259,7 +259,7 @@ app.put('/rules/:id', requireRole('admin'), async (c) => {
     entityId: id,
     entityName: updated?.name,
     changes: audit.diff(existing, updated),
-    req: c.req,
+    req: c,
   })
 
   return c.json(updated)
@@ -283,7 +283,7 @@ app.delete('/rules/:id', requireRole('admin'), async (c) => {
     entity: 'fraud_rule',
     entityId: id,
     entityName: updated.name,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ message: 'Rule deactivated' })
@@ -473,7 +473,7 @@ app.post('/scan', requireRole('manager'), async (c) => {
     entity: 'fraud_scan',
     entityName: 'Fraud detection scan',
     metadata: { rulesChecked: rules.length, alertsGenerated: alertsGenerated.length },
-    req: c.req,
+    req: c,
   })
 
   // The page reports "N transactions scanned" from transactionsScanned, which this never

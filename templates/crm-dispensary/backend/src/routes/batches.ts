@@ -157,7 +157,7 @@ app.post('/', requireRole('manager'), async (c) => {
     entityId: batch?.id,
     entityName: data.batchNumber,
     metadata: { status, harvestDate: harvest, packageDate: packaged, expirationDate: expiration },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ ...presentBatch(batch), ...(status === 'expired' ? { warning: 'Expiration date is in the past — batch recorded as expired' } : {}) }, 201)
@@ -271,7 +271,7 @@ app.put('/:id/status', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: current.batch_number,
     changes: { status: { old: current.status, new: data.status } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -338,7 +338,7 @@ app.post('/:id/deplete', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: current.batch_number,
     changes: { currentQuantity: { old: current.current_quantity, new: newQuantity }, reason },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -380,7 +380,7 @@ app.post('/:id/:action', requireRole('manager'), async (c) => {
     entityId: id,
     entityName: current.batch_number,
     changes: { status: { old: current.status, new: status } },
-    req: c.req,
+    req: c,
   })
 
   return c.json(camel(updated))
@@ -500,7 +500,7 @@ app.delete('/:id', requireRole('manager'), async (c) => {
     entity: 'batch',
     entityId: id,
     entityName: existing.batch_number,
-    req: c.req,
+    req: c,
   })
 
   return c.json({ success: true })

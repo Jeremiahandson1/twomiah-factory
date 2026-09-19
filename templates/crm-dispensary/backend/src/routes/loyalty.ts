@@ -119,7 +119,7 @@ app.post('/members', async (c) => {
     entityId: member?.id,
     entityName: foundContact.name,
     metadata: { tier: data.tier, initialPoints: data.initialPoints },
-    req: c.req,
+    req: c,
   })
 
   return c.json(member, 201)
@@ -182,7 +182,7 @@ app.post('/members/:id/adjust', requireRole('manager'), async (c) => {
     entityName: member.customer_name,
     changes: { points_balance: { old: member.points_balance, new: newBalance } },
     metadata: { reason: data.reason, adjustment: data.points },
-    req: c.req,
+    req: c,
   })
 
   return c.json({ pointsBalance: newBalance, adjustment: data.points })

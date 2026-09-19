@@ -33,5 +33,19 @@ if (page) {
   if (!/log\.description/.test(page)) fail('AuditLogPage no longer reads description — update this guard and the presenter together')
 }
 
+// …and it has to be WRITTEN in the first place. Nearly every route passed `req: c.req` while this service read
+// req.user.* — Hono keeps the signed-in user on the CONTEXT, not the request — so company_id came out null,
+// the insert failed its NOT NULL, and the catch swallowed it. Creating an order recorded nothing at all.
+if (!/function resolveActor\(req: any\)/.test(svc)) fail('the service must work out the actor from whatever it is handed')
+if (!/const user = typeof req\?\.get === 'function' \? req\.get\('user'\) : req\?\.user/.test(svc)) fail('…reading the user from the Hono CONTEXT, and still accepting a plain { user }')
+if (!/if \(!actor\.companyId\)/.test(svc)) fail('…and refusing to attempt a row it knows cannot be inserted')
+if (!/console\.error\(`Audit log skipped/.test(svc)) fail('…saying so, rather than losing the event in a swallowed catch')
+if (/userId: req\?\.user\?\.userId/.test(svc)) fail('the insert must use the resolved actor, not req.user, which a Hono request never has')
+const ROUTES = 'templates/crm-dispensary/backend/src/routes/'
+for (const f of ['orders.ts', 'contacts.ts', 'compliance.ts', 'cash.ts', 'inventory.ts']) {
+  const r = read(ROUTES + f)
+  if (r && /req: c\.req\b/.test(r)) fail(`${f} still hands audit.log the REQUEST — the user is on the context, so nothing is recorded`)
+}
+
 if (failed) { console.error(`\naudit log readable: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('audit log readable: rows are presented in the shape the page reads, with a description composed from what happened')
