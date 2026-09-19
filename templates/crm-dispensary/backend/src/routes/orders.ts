@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { order, orderItem, product, contact, company } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc, count, sql } from 'drizzle-orm'
+import { eq, and, gte, lte, desc, count, sql, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -104,6 +104,17 @@ app.get('/', async (c) => {
   const counts = await db.execute(sql`SELECT order_id, COALESCE(SUM(quantity), 0)::int as cnt FROM order_items WHERE company_id = ${currentUser.companyId} GROUP BY order_id`)
   const cmap = new Map(((counts as any).rows || counts).map((r: any) => [r.order_id, Number(r.cnt)]))
   for (const o of data as any[]) o.itemCount = cmap.get(o.id) || 0
+
+  // The Customer column reads customerName, which is only filled in for a walk-in whose name was typed. An
+  // order with a real customer ATTACHED left it null, so the one order that knows exactly who bought it
+  // showed nothing at all. Resolve the linked contact's name for those rows. (Dispensary T20)
+  const linked = [...new Set((data as any[]).filter((o) => o.contactId && !o.customerName).map((o) => o.contactId))]
+  if (linked.length) {
+    const names = await db.select({ id: contact.id, name: contact.name }).from(contact)
+      .where(and(eq(contact.companyId, currentUser.companyId), inArray(contact.id, linked as string[])))
+    const nmap = new Map(names.map((n: any) => [n.id, n.name]))
+    for (const o of data as any[]) if (o.contactId && !o.customerName) o.customerName = nmap.get(o.contactId) || null
+  }
 
   return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })

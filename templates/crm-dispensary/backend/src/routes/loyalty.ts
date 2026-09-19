@@ -307,12 +307,18 @@ app.get('/check', async (c) => {
   const phone = c.req.query('phone')
   if (!phone) return c.json({ error: 'Phone number required' }, 400)
 
+  // Match on DIGITS, both sides. The old pattern was ILIKE '%' + the caller's digits, against the phone
+  // exactly as stored — and a phone is stored the way a person typed it, "715-555-0121". That string does
+  // not end with the contiguous digits 7155550121, so the lookup found nobody, ever: every member came back
+  // found:false and no till could pull up a loyalty balance. (Dispensary T20)
+  const digits = phone.replace(/\D/g, '').slice(-10)
+  if (digits.length < 7) return c.json({ found: false })
   const result = await db.execute(sql`
     SELECT lm.id, lm.points_balance, lm.tier, lm.total_visits, lm.total_spent,
            c.name as customer_name, c.phone as customer_phone, c.id as contact_id
     FROM loyalty_members lm
     JOIN contact c ON c.id = lm.contact_id
-    WHERE c.phone ILIKE ${'%' + phone.replace(/\D/g, '').slice(-10)}
+    WHERE RIGHT(regexp_replace(COALESCE(c.phone, ''), '[^0-9]', '', 'g'), ${digits.length}) = ${digits}
       AND lm.company_id = ${currentUser.companyId}
     LIMIT 1
   `)

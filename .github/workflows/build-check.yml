@@ -1187,3 +1187,14 @@ jobs:
           bun-version: latest
       - name: "Settled sales, gross/refunded/net shared by every surface"
         run: bun run scripts/check-revenue-one-definition.ts
+
+  customer-on-sale:
+    name: "Customer on sale"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "The buyer is findable, visible and keeps their spend"
+        run: bun run scripts/check-customer-on-sale.ts

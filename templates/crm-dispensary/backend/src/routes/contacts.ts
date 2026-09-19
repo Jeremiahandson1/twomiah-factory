@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { contact, order, loyaltyMember, loyaltyTransaction } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
+import { settledSale, netExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -82,10 +83,21 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   // because the list omitted totalSpent/loyaltyTier/loyaltyPoints (only the detail had
   // them). Attach per-contact spend + loyalty so the columns populate. (retest#5 N2)
   const [spentRes, loyRes] = await Promise.all([
-    // Spend/order-count/last-visit are COMPLETED-only. Using status != 'cancelled' still
-    // counted refunded orders, so a refund reversed points but left spend and count inflated —
-    // a customer could bank spend (and any spend-keyed tier) from returned goods. (retest#10)
-    db.execute(sql`SELECT contact_id, COALESCE(SUM(COALESCE(total::numeric, 0)), 0)::numeric as spent, COUNT(*)::int as order_count, MAX(created_at) as last_order FROM orders WHERE company_id = ${currentUser.companyId} AND status = 'completed' AND contact_id IS NOT NULL GROUP BY contact_id`),
+    // Spend is what the customer actually spent: every SETTLED sale, NET of what was refunded.
+    //
+    // This was completed-only, to stop a refunded order counting at full value (retest#10) — but refunding
+    // ten pounds flips an order to 'partially_refunded', which dropped it out of the sum entirely. A
+    // customer with one order went to ZERO lifetime spend over a $10 refund (Dispensary T20), and their
+    // order count and last visit went with it. Netting over the settled set fixes both at once: nothing is
+    // banked from returned goods, and nothing disappears because part of it came back. Same definition as
+    // utils/revenue.ts, which is where the reporting surfaces get it.
+    db.execute(sql`SELECT contact_id,
+        COALESCE(SUM(${netExprBare}), 0)::numeric as spent,
+        COUNT(*)::int as order_count,
+        MAX(created_at) as last_order
+      FROM orders
+      WHERE company_id = ${currentUser.companyId} AND status IN ${settledSale} AND contact_id IS NOT NULL
+      GROUP BY contact_id`),
     db.execute(sql`SELECT contact_id, tier, points_balance FROM loyalty_members WHERE company_id = ${currentUser.companyId}`),
   ])
   const spentMap = new Map(((spentRes as any).rows || spentRes).map((r: any) => [r.contact_id, r]))
