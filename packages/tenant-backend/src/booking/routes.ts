@@ -54,6 +54,13 @@ export function createBookingRoutes(deps: BookingDeps) {
   const svc = createBookingService(deps)
   const app = new Hono()
 
+  // Jobs booked through the widget used to be written with a date and no clock time, so the board and the
+  // tech's list had nothing to place them by. Fixing the write path leaves the ones already booked broken,
+  // so they are repaired here — once, at startup, where every template wires this in. (Field service T22 H1)
+  svc.backfillJobTimes()
+    .then((n: number) => { if (n) console.log(`[booking] filled in the scheduled time on ${n} job${n === 1 ? '' : 's'} booked before it was recorded`) })
+    .catch((err: any) => console.error('[booking] scheduled-time backfill failed:', err?.message || err))
+
   // A bad public request (closed day, past date, taken slot, malformed time) is the caller's problem,
   // not a server error — bots and broken widgets used to 500 these endpoints.
   app.use('/public/*', async (c, next) => {

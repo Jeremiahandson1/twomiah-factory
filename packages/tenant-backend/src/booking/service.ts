@@ -378,7 +378,7 @@ export function createBookingService(deps: BookingDeps) {
       const depositAmount = depositRequired ? service!.depositAmount : 0
 
       const entry = await calendar.create(tx, {
-        companyId, contactId: theContact.id, start, end, durationMinutes,
+        companyId, contactId: theContact.id, start, end, timeZone: tz, durationMinutes,
         serviceName: service?.name || null, serviceRef: service?.menuServiceId || null,
         price: service ? service.price : null,
         customerNotes: [bookedByNote, data.notes?.trim()].filter(Boolean).join(' — ') || null,
@@ -556,6 +556,9 @@ ${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit
     catalogRetired: (companyId: string) => (catalog.retired ? catalog.retired(companyId) : Promise.resolve(false)),
     publicServices,
     expireStaleDepositHolds, getAvailableSlots, getAvailableDates,
+    /** Repair jobs booked before the calendar wrote a clock time. No-op where there is nothing to repair. */
+    backfillJobTimes: async (): Promise<number> =>
+      calendar.backfillTimes ? calendar.backfillTimes(db, async (companyId: string) => (await getSettings(companyId)).timezone) : 0,
     createBooking,
     listBookings, getBooking, getBookingByCode, setBookingStatus, cancelBooking,
     embedCode,

@@ -1,6 +1,7 @@
 // The two calendars an online booking can land on. Each template picks one and passes its table.
-import { eq, and, gte, lte, ne, inArray, notInArray } from 'drizzle-orm'
+import { eq, and, gte, lte, ne, inArray, notInArray, isNull, isNotNull } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
+import { tzParts, minutesToHm } from './time'
 import type { BookingCalendar, BookingStatus } from './types'
 
 const hoursToMs = (h: unknown) => (Number(h) || 1) * 3_600_000
@@ -61,10 +62,36 @@ export function jobCalendar(job: any, opts: { numbering?: { prefix: string; pad?
         status: i.pendingDeposit ? 'pending' : 'scheduled',
         priority: 'normal',
         scheduledDate: i.start,
+        // A trades job keeps the clock time in its OWN column, and this wrote only the date — so every job
+        // that arrived through the booking widget landed with scheduled_time NULL. The customer picked
+        // 10:00, the confirmation said 10:00, and the board, the tech's list and the day's ordering all
+        // had nothing to place it by. Written in the shop's timezone, because that is the wall clock the
+        // crew reads and the same one the customer chose from. (Field service T22 H1)
+        scheduledTime: minutesToHm(tzParts(i.start, i.timeZone).minutes),
         estimatedHours: String(Math.round((i.durationMinutes / 60) * 100) / 100),
         source: 'online_booking',
       }).returning({ id: job.id, number: job.number })
       return { id: row.id, label: row.number }
+    },
+    // The jobs booked BEFORE the clock time was being written still have none, and a fixed write path does
+    // nothing for them — they sit on the board undated to the hour for ever. Only rows the widget made,
+    // that have a date and no time, so a job somebody deliberately left unscheduled is never given one.
+    // (Field service T22 H1)
+    async backfillTimes(exec, tzFor) {
+      const rows = await exec.select({ id: job.id, companyId: job.companyId, start: job.scheduledDate })
+        .from(job)
+        .where(and(eq(job.source, 'online_booking'), isNull(job.scheduledTime), isNotNull(job.scheduledDate)))
+        .limit(2000)
+      const tzCache = new Map<string, string>()
+      let fixed = 0
+      for (const r of rows as any[]) {
+        if (!r.start) continue
+        let tz = tzCache.get(r.companyId)
+        if (!tz) { tz = await tzFor(r.companyId); tzCache.set(r.companyId, tz) }
+        await exec.update(job).set({ scheduledTime: minutesToHm(tzParts(new Date(r.start), tz).minutes) }).where(eq(job.id, r.id))
+        fixed++
+      }
+      return fixed
     },
     async setStatus(exec, id, status) {
       await exec.update(job).set({ status: statusFor(status), updatedAt: new Date() }).where(eq(job.id, id))

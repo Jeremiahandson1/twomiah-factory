@@ -29,6 +29,8 @@ export interface BookingCalendar {
     contactId: string
     start: Date
     end: Date
+    /** the shop's timezone — a trades job records its clock time separately, in local wall time */
+    timeZone: string
     durationMinutes: number
     serviceName: string | null
     /** the vertical's own service reference (salon: service_menu id) when the catalog resolved one */
@@ -41,6 +43,12 @@ export interface BookingCalendar {
     petName?: string | null
     petSpecies?: string | null
   }): Promise<CalendarEntry>
+  /**
+   * One-shot repair for rows written before this calendar recorded a clock time. Implemented only where
+   * the calendar keeps time in a column of its own (a trades job); an appointment book stores a real
+   * start and end, so it has nothing to repair. Idempotent — it only touches rows still missing one.
+   */
+  backfillTimes?(exec: any, tzFor: (companyId: string) => Promise<string>): Promise<number>
   /** Mirror a booking status onto the calendar row. */
   setStatus(exec: any, id: string, status: BookingStatus): Promise<void>
   /** Label + status (+ the service name the calendar row carries, if any) for the owner's list, keyed by calendar row id. */
