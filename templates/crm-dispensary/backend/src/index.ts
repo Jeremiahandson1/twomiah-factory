@@ -2,6 +2,7 @@ import './config/publicUrl.ts'
 import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
 import { cors } from 'hono/cors'
+import { createRateLimiter, isWrite } from './middleware/rateLimit.ts'
 import { secureHeaders } from 'hono/secure-headers'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -152,29 +153,7 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID', 'X-Integration-Key'],
 }))
 
-function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean) {
-  const hits = new Map<string, { count: number; resetAt: number }>()
-  return async (c: Context, next: Next) => {
-    if (countMethod && !countMethod(c.req.method)) return next()
-    // Key on the CLIENT address only. x-forwarded-for is "client, hop, hop" and Render's edge appends a
-    // varying hop, so keying on the whole header gave every request its own counter — 30 wrong
-    // passwords in a row never hit the limit. (SALON-H5)
-    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
-    const now = Date.now()
-    const entry = hits.get(key)
-    if (!entry || now > entry.resetAt) {
-      hits.set(key, { count: 1, resetAt: now + windowMs })
-    } else {
-      entry.count++
-      if (entry.count > max) {
-        return c.json({ error: 'Too many requests, please try again later' }, 429)
-      }
-    }
-    await next()
-  }
-}
-
-const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE'
+// createRateLimiter moved to middleware/rateLimit.ts so the kiosk routes can use the same one. (T20 B2)
 // Reads and writes get independent buckets so browsing can't lock out saving.
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))

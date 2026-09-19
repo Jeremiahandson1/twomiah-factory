@@ -36,5 +36,21 @@ const ordersSrc = (() => { try { return readFileSync(new URL('../templates/crm-d
 if (/^function ageFromDob\(/m.test(ordersSrc)) fail('orders.ts must not keep a second copy of the age calculation')
 if (!/const minAge = minimumAgeFor\(ord\)/.test(ordersSrc)) fail('the register must use the shared minimum-age rule, so the two paths cannot drift')
 
+// The kiosk is anonymous by design, so the ceiling on what an anonymous caller can MAKE is the control. The
+// app-wide write bucket allows 1,200 per 15 minutes — 1,200 fabricated orders — so the two creating endpoints
+// carry their own, far smaller buckets. ONE limiter implementation: it used to be private to index.ts, which a
+// route cannot import, and website-analytics.ts had already grown a second copy. (Dispensary T20 B2)
+const readFile = (p: string) => { try { return readFileSync(new URL(`../${p}`, import.meta.url), 'utf8') } catch { return '' } }
+const limiter = readFile('templates/crm-dispensary/backend/src/middleware/rateLimit.ts')
+if (!limiter) fail('middleware/rateLimit.ts is missing — the limiter must have one home the routes can import')
+if (!/export function createRateLimiter\(/.test(limiter)) fail('…exporting createRateLimiter')
+if (!/cf-connecting-ip'\) \|\| \(c\.req\.header\('x-forwarded-for'\) \|\| ''\)\.split\(','\)\[0\]/.test(limiter)) fail("…keyed on the CLIENT address only — Render's edge appends a varying hop, and keying on the whole header gave every request its own counter (SALON-H5)")
+if (!/export const KIOSK_MAX_SESSIONS = /.test(limiter) || !/export const KIOSK_MAX_CHECKOUTS = /.test(limiter)) fail('…and stating the kiosk ceilings where they can be read')
+const dispIndex = readFile('templates/crm-dispensary/backend/src/index.ts')
+if (/^function createRateLimiter\(/m.test(dispIndex)) fail('index.ts must not keep a private copy of the limiter')
+if (!/from '\.\/middleware\/rateLimit\.ts'/.test(dispIndex)) fail('index.ts must use the shared limiter')
+if (!/app\.use\('\/session\/start', createRateLimiter\(KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS/.test(src)) fail(`${file}: starting a session must be bucketed — it is anonymous and it writes`)
+if (!/app\.use\('\/session\/:token\/checkout', createRateLimiter\(KIOSK_WINDOW_MS, KIOSK_MAX_CHECKOUTS/.test(src)) fail(`${file}: creating an order must be bucketed — that is the one that makes real rows`)
+
 if (failed) { console.error(`\nkiosk tenant isolation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('kiosk tenant isolation: company is resolved by the owner account, never an arbitrary row; the age gate is computed from a date of birth, not asserted by the device')

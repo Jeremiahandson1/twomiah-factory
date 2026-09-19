@@ -6,8 +6,17 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { ageFromDob, ADULT_USE_MIN_AGE } from '../utils/cannabis.ts'
+import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 
 const app = new Hono()
+
+// The two endpoints an anonymous caller can use to MAKE something — a session and an order — are bucketed
+// well below the app-wide write allowance (1,200 per 15 minutes, i.e. 1,200 fabricated orders). Sized for a
+// busy shop sharing one public address, not for one customer. Reads (the menu) are left alone: the menu is
+// public by design and browsing it costs nothing. See middleware/rateLimit.ts for why this is mitigation
+// rather than a cure. (Dispensary T20 B2)
+app.use('/session/start', createRateLimiter(KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, isWrite))
+app.use('/session/:token/checkout', createRateLimiter(KIOSK_WINDOW_MS, KIOSK_MAX_CHECKOUTS, isWrite))
 
 // Raw-SQL rows come back snake_case, but the kiosk UI and the manager Sessions page read
 // camelCase (sessionToken, ageVerified, locationName, strainType, thcPercent, imageUrl...).
