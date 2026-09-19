@@ -47,14 +47,49 @@ export function unitGramsOf(p: { weightGrams?: any; weight?: any; weightUnit?: s
 }
 
 /** Cannabis grams on a cart. Non-cannabis lines weigh nothing toward the limit. */
-export function cartCannabisGrams(lines: Array<{ product: any; quantity: any }>): number {
+export function cartCannabisGrams(lines: Array<{ product: any; quantity: any }>, factors?: EquivalencyFactors): number {
   let grams = 0
   for (const { product, quantity } of lines) {
     if (!isCannabisLine(product)) continue
-    const unit = unitGramsOf(product)
+    const unit = lineFlowerEquivalentGrams(product, factors)
     if (unit > 0) grams += unit * (Number(quantity) || 0)
   }
   return grams
+}
+
+// ── Equivalency ────────────────────────────────────────────────────────────────────────────────
+// A limit expressed in flower is not a limit on raw mass: the Equivalency module already stores what a gram
+// of each category is WORTH in flower (1 g concentrate = 2.5 g flower, 10 mg THC of edible = 1 g flower,
+// topicals count for nothing), per company and state. Nothing read those rules — the limit counted raw grams
+// — so 25 g of concentrate, which is 62.5 g of flower equivalent, walked under a 1 oz cap. (Dispensary T20 H5)
+export type EquivalencyFactors = Map<string, { factor: number; unit: string }>
+
+/** 'preroll' and 'pre_roll' are the same category; rules are keyed the way the enum spells it. */
+export const equivalencyKey = (p: { category?: string | null; productCategory?: string | null }): string => {
+  const raw = String(p?.category || p?.productCategory || '').toLowerCase()
+  return raw === 'preroll' ? 'pre_roll' : raw
+}
+
+/**
+ * One unit of this product, in grams of FLOWER EQUIVALENT.
+ *
+ * With no rule for the category, this is the product's own weight — the behaviour before the rules were read,
+ * so an unconfigured tenant is never worse off. Where the rule is written in mg of THC, the potency has to
+ * come from somewhere: a product carries thc_percent and a weight, so mg = grams x percent x 10. A product
+ * with no usable potency falls back to its own weight rather than to zero, because counting an edible as
+ * nothing is the very under-count this fixes. There is no per-unit mg-THC field on a product; adding one is
+ * the way to make edibles exact, and that is a product decision, not something to infer here.
+ */
+export function lineFlowerEquivalentGrams(product: any, factors?: EquivalencyFactors): number {
+  const grams = unitGramsOf(product)
+  const rule = factors?.get(equivalencyKey(product))
+  if (!rule) return grams
+  if (rule.unit === 'mg_thc') {
+    const pct = Number(product?.thcPercent ?? product?.thc_percent)
+    const mg = Number.isFinite(pct) && pct > 0 && grams > 0 ? grams * pct * 10 : 0
+    return mg > 0 ? mg * rule.factor : grams
+  }
+  return grams * rule.factor
 }
 
 /** The one over-limit answer, so every till says the same thing. Null when the basket is allowed. */

@@ -18,27 +18,9 @@ const camel = (row: any): any => {
   return out
 }
 
-// Standard equivalency factors by state (used for seeding)
-const DEFAULT_RULES: Record<string, Array<{ category: string; equivalencyFactor: number; unitOfMeasure: string; description: string }>> = {
-  MI: [
-    { category: 'flower', equivalencyFactor: 1, unitOfMeasure: 'g', description: '1g flower = 1g flower equivalent' },
-    { category: 'concentrate', equivalencyFactor: 2.5, unitOfMeasure: 'g', description: '1g concentrate = 2.5g flower equivalent' },
-    { category: 'edible', equivalencyFactor: 0.1, unitOfMeasure: 'mg_thc', description: '10mg THC = 1g flower equivalent' },
-    { category: 'tincture', equivalencyFactor: 0.1, unitOfMeasure: 'mg_thc', description: '10mg THC = 1g flower equivalent' },
-    { category: 'pre_roll', equivalencyFactor: 1, unitOfMeasure: 'g', description: '1g pre-roll = 1g flower equivalent' },
-    { category: 'vape', equivalencyFactor: 2.5, unitOfMeasure: 'g', description: '1g vape = 2.5g flower equivalent' },
-    { category: 'topical', equivalencyFactor: 0, unitOfMeasure: 'g', description: 'Topicals not counted toward purchase limit' },
-  ],
-  CO: [
-    { category: 'flower', equivalencyFactor: 1, unitOfMeasure: 'g', description: '1g flower = 1g flower equivalent' },
-    { category: 'concentrate', equivalencyFactor: 2.5, unitOfMeasure: 'g', description: '1g concentrate = 2.5g flower equivalent' },
-    { category: 'edible', equivalencyFactor: 0.1, unitOfMeasure: 'mg_thc', description: '10mg THC = 1g flower equivalent' },
-    { category: 'tincture', equivalencyFactor: 0.1, unitOfMeasure: 'mg_thc', description: '10mg THC = 1g flower equivalent' },
-    { category: 'pre_roll', equivalencyFactor: 1, unitOfMeasure: 'g', description: '1g pre-roll = 1g flower equivalent' },
-    { category: 'vape', equivalencyFactor: 2.5, unitOfMeasure: 'g', description: '1g vape = 2.5g flower equivalent' },
-    { category: 'topical', equivalencyFactor: 0, unitOfMeasure: 'g', description: 'Topicals not counted toward purchase limit' },
-  ],
-}
+// Standard factors by state live in services/equivalency.ts, so the page that SEEDS them and the till
+// that ENFORCES them cannot describe the same state differently. (T20 H5)
+import { DEFAULT_RULES } from '../services/equivalency.ts'
 
 // Purchase limit in oz (most states: 2.5 oz recreational)
 const PURCHASE_LIMIT_OZ = 2.5

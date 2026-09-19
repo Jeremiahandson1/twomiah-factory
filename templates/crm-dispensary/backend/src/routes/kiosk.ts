@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ } from '../utils/cannabis.ts'
+import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 
 const app = new Hono()
@@ -320,7 +321,8 @@ app.post('/session/:token/checkout', async (c) => {
     const byId = new Map(rows(pr).map((p: any) => [String(p.id), camel(p)]))
     for (const i of items as any[]) if (!i.product && i.productId) i.product = byId.get(String(i.productId)) || null
   }
-  const totalGrams = cartCannabisGrams(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })))
+  const factors = await loadEquivalencyFactors(companyId)
+  const totalGrams = cartCannabisGrams(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })), factors)
   const [companyRow] = rows(await db.execute(sql`SELECT purchase_limit_oz, state FROM company WHERE id = ${companyId} LIMIT 1`))
   const limitOz = resolvePurchaseLimitOz(camel(companyRow) as any)
   const over = overPurchaseLimit(totalGrams, limitOz)

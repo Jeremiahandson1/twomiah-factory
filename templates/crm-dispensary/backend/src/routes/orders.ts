@@ -8,7 +8,8 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams } from '../utils/cannabis.ts'
+import { loadEquivalencyFactors } from '../services/equivalency.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -175,6 +176,8 @@ app.post('/', async (c) => {
   const productMap = new Map(products.filter(p => productIds.includes(p.id)).map(p => [p.id, p]))
 
   // Validate all products exist and check stock
+  // The tenant's flower-equivalency rules, read once for the whole basket. (T20 H5)
+  const equivalencyFactors = await loadEquivalencyFactors(currentUser.companyId)
   let totalWeightGrams = 0
   let subtotal = 0
   const resolvedItems: any[] = []
@@ -195,9 +198,12 @@ app.post('/', async (c) => {
     // in weight_grams (grams); older rows use weight + weight_unit. Reading only `weight`
     // meant every seeded flower rang up as 0g, so a 3.09oz cart passed the 2.5oz limit and
     // the order stored weight 0 — breaking EOD/Metrc/audit reconstruction. (retest#7)
+    // …and it is FLOWER EQUIVALENT that the limit is written in, not raw mass: a gram of concentrate is
+    // worth 2.5 g of flower, so 25 g of it is 62.5 g against a 1 oz cap. The tenant's own equivalency rules
+    // decide that; with none configured this is the product's own weight, exactly as before. (T20 H5)
     const isCannabis = isCannabisLine(prod)
     if (isCannabis) {
-      const unitGrams = unitGramsOf(prod)
+      const unitGrams = lineFlowerEquivalentGrams(prod, equivalencyFactors)
       if (unitGrams > 0) totalWeightGrams += unitGrams * item.quantity
     }
 
