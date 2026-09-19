@@ -16,7 +16,16 @@ app.use('*', authenticate)
 // `<img src=x onerror=alert(1)>` was persisted verbatim. React escapes it in the SPA, but
 // receipts, labels, signage, emails and CSV exports are not React. Strip on input so no
 // output path can ever execute it; a name that is ONLY markup fails min(1).
-const cleanText = (min = 0) => z.string().transform(stripHtml).pipe(min > 0 ? z.string().min(min) : z.string())
+const cleanText = (min = 0, max?: number) => z.string().transform(stripHtml).pipe(
+  max != null
+    ? (min > 0 ? z.string().min(min).max(max) : z.string().max(max))
+    : (min > 0 ? z.string().min(min) : z.string()),
+)
+
+// A product name is a label on a shelf, not a paragraph: the field had a floor and no ceiling, so a
+// 404-character name was accepted with a 201. Same ceiling as a contact name, for the same reason —
+// one absurd value should not be able to size a column. (T21 L8, the root of M1)
+const NAME_MAX = 200
 
 // Upload a product image → private R2 (public key under products/), served back
 // publicly via the /media proxy. Returns the URL to store in product.imageUrl.
@@ -41,7 +50,7 @@ app.post('/upload-image', requireRole('manager'), async (c) => {
 })
 
 const productSchema = z.object({
-  name: cleanText(1),
+  name: cleanText(1, NAME_MAX),
   description: cleanText().optional(),
   sku: cleanText().optional(),
   barcode: cleanText().optional(),
@@ -326,7 +335,7 @@ app.post('/import', requireRole('manager'), async (c) => {
 
   const importSchema = z.object({
     products: z.array(z.object({
-      name: z.string().min(1),
+      name: z.string().min(1).max(NAME_MAX),
       sku: z.string().optional(),
       category: z.string(),
       brand: z.string().optional(),

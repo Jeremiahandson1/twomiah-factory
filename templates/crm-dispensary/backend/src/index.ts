@@ -109,6 +109,7 @@ import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import onboardingRoutes from './routes/onboarding.ts'
 import mediaRoutes from './routes/media.ts'
 import { normalizeTimestamps } from './utils/isoTime.ts'
+import { ensureIntegrationPartners } from './services/integrationCatalog.ts'
 
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
@@ -426,6 +427,12 @@ initializeSocket(server as any)
 syncFeatures().catch(console.error)
 // Pull the current subscription from the Factory at boot so the mirror is right even if a push was missed.
 refreshSubscriptionFromFactory(subscriptionDeps).catch(console.error)
+// Stock the integrations catalogue. integration_partners is a catalogue table nothing ever populated,
+// so the Marketplace page faithfully showed an empty shelf. Idempotent on slug, and at BOOT rather
+// than at tenant creation so the dispensaries already running get it too. (T21 L7)
+ensureIntegrationPartners()
+  .then((n) => logger.info(`[marketplace] ${n} integration partners in the catalogue`))
+  .catch((err) => console.error('[marketplace] catalogue seed failed:', err?.message || err))
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

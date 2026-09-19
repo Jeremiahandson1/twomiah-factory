@@ -423,8 +423,6 @@ app.post('/', async (c) => {
   const totalTax = round2(exciseTax + salesTax)
   const grandTotal = round2(subtotal + totalTax - totalDiscount)
 
-  // Generate order number
-  const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`
 
   // Create order in transaction
   const result = await db.transaction(async (tx) => {
@@ -437,6 +435,11 @@ app.post('/', async (c) => {
       .from(order)
       .where(eq(order.companyId, currentUser.companyId))
     const nextOrderNumber = Number(maxNum) + 1
+    // ONE identifier for one order. The register stamped `number` with a base-36 timestamp while the
+    // kiosk stamped it 'K-' + the sequence, so the same sale answered to three different names
+    // depending on the surface: "K-1075" on the kiosk, "#1075" in the Orders list, "ORD-MU8DGOWY" in
+    // the audit log. Both doors now derive the code from the SAME sequence the list shows. (T21 L4)
+    const orderNumber = `ORD-${nextOrderNumber}`
 
     const [newOrder] = await tx.insert(order).values({
       number: orderNumber,
@@ -493,7 +496,8 @@ app.post('/', async (c) => {
     action: audit.ACTIONS.CREATE,
     entity: 'order',
     entityId: result.id,
-    entityName: orderNumber,
+    // the code the order was actually given, read back off the row (T21 L4)
+    entityName: (result as any).number,
     metadata: {
       type: data.type,
       itemCount: data.items.length,

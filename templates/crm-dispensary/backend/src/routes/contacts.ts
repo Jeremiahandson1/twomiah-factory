@@ -34,7 +34,14 @@ const NAME_MAX = 200
 
 const contactSchema = z.object({
   name: cleanText(1, NAME_MAX),
-  type: z.enum(['lead', 'client', 'patient', 'vendor']).default('lead'),
+  // A dispensary calls the people it serves CUSTOMERS — it is the word on the screen, in the nav and
+  // in every toast. The stored vocabulary calls them clients, and the API refused "customer" outright,
+  // so the one word the product uses everywhere was the one word its own API would not take. Accepted
+  // now and normalised to the stored value, which leaves the data exactly as it was. (T21 L3)
+  type: z.preprocess(
+    (v) => (v === 'customer' ? 'client' : v),
+    z.enum(['lead', 'client', 'patient', 'vendor']),
+  ).default('lead'),
   company: cleanText().optional(),
   email: z.string().email().optional().or(z.literal('')),
   // Same phone rule as the shared contacts module: phone punctuation only and at least 7 digits.

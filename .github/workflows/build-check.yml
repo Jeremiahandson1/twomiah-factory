@@ -1275,3 +1275,14 @@ jobs:
           bun-version: latest
       - name: "Dark mode carries its own colours; a long name cannot take the table"
         run: bun run scripts/check-readable-in-both-themes.ts
+
+  292:
+    name: "dispensary lows"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "One home per value, one order name, customer understood, stocked shelf"
+        run: bun run scripts/check-dispensary-lows.ts

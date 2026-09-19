@@ -68,6 +68,24 @@ app.put('/', requireAdmin, async (c) => {
   }
   // MERGE a partial settings object into the stored one — never replace it (see the shared company route:
   // a partial write used to wipe the whole blob). The UI sends the full object; any partial writer must not.
+  // These five have a real column, which is where the pricing engine and the register read them, and
+  // where they are validated — a rate outside 0–100 is refused above. Writing them into the settings
+  // blob as well gave every one of them two homes holding two different answers, and the blob was
+  // validated by nobody: {settings:{taxRate:"abc"}} was stored verbatim with a 200. It is only
+  // harmless while nothing reads it, which is not a property worth relying on. Refuse the shadow copy
+  // and name the field that does the work. (T21 L1, and the root of L2)
+  const SHADOWED = ['taxRate', 'localTaxRate', 'exciseTaxRate', 'purchaseLimitOz', 'storeHours'] as const
+  if (data.settings && typeof data.settings === 'object') {
+    const shadowed = SHADOWED.filter(k => (data.settings as any)[k] !== undefined)
+    if (shadowed.length) {
+      return c.json({
+        error: `${shadowed.join(', ')} ${shadowed.length === 1 ? 'is' : 'are'} stored on the company record, not in settings. Send ${shadowed.length === 1 ? 'it' : 'them'} as a top-level field so the value is validated and there is only one of it.`,
+        code: 'SETTING_HAS_A_COLUMN',
+        fields: shadowed,
+      }, 400)
+    }
+  }
+
   const updates: any = { ...data, updatedAt: new Date() }
   // The loyalty settings live under settings.loyalty — the one place the award engine reads. Lift them
   // out of the flat body the screen sends and merge them in, leaving the rest of the blob alone. (T21 M7)

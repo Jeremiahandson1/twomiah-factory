@@ -427,7 +427,7 @@ app.post('/session/:token/checkout', async (c) => {
     SELECT COALESCE(MAX(order_number), 1000)::int as maxnum FROM orders WHERE company_id = ${companyId}
   `)
   const nextNumber = Number(rows(maxResult)?.[0]?.maxnum || 1000) + 1
-  const orderCode = 'K-' + String(nextNumber)
+  const orderCode = 'ORD-' + String(nextNumber)
 
   const noteParts = [customerName ? `Kiosk order for ${customerName}` : 'Kiosk order']
   if (customerPhone) noteParts.push(`Phone: ${customerPhone}`)
