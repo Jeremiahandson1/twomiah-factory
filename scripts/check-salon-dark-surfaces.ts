@@ -53,5 +53,38 @@ for (const page of ['ServiceMenuPage', 'MembershipsPage', 'DashboardPage', 'Remi
 }
 if (offenders.length) fail(`a card or panel is painted light with no dark counterpart: ${offenders.join(' | ')}`)
 
+// The other half of the same habit, measured across all seventeen pages for the first time: an ACCENT with
+// no dark-mode variant. Two shapes, ten instances (FS T22's six, salon M6's four).
+//
+//   brand accents   text-orange-* is not orange — each template's tailwind.config overrides the palette
+//                   with the tenant's own hue, so an active tab or section label lands wherever that hue
+//                   falls. Shade 400 is the hue at 55% lightness and measured 3.72:1; shade 200 is at 80%
+//                   and clears AA for every hue, which is why the fixes use 200 and not 400.
+//   muted labels    a badge or hint that keeps its light-mode gray: slate-600 read 2.36:1, gray-500 3.69:1
+//                   and slate-500 3.75:1 on the dark table.
+//   destructive     red-600 / red-700 on a dark panel: 3.70:1 and 2.75:1. red-400 clears it.
+{
+  const U = 'packages/tenant-ui/src/'
+  const S = 'templates/crm-salon/frontend/src/pages/salon/'
+  const needs: Array<[string, string, string]> = [
+    [U + 'marketing/MarketingPage.tsx', 'text-orange-600 dark:text-orange-200', 'the Marketing active tab was the worst of them at 2.34:1 — harder to read than the inactive tabs beside it'],
+    [U + 'shell/SettingsPage.tsx', 'dark:text-orange-200', 'the Settings active section must use shade 200 — shade 400 is the brand hue at 55% lightness and measured 3.72:1'],
+    [U + 'schedule/SchedulePage.tsx', 'dark:text-slate-400 text-center', 'the Schedule drop hint measured 2.36:1'],
+    [U + 'people/TeamPage.tsx', 'text-gray-400 dark:text-slate-400', 'the Team login badge measured 3.75:1'],
+    [U + 'booking/BookingsPage.tsx', "refunded: 'text-gray-500 dark:text-slate-400'", 'a refunded deposit badge kept its light-mode gray'],
+    [U + 'booking/BookingsPage.tsx', "expired: 'text-gray-500 dark:text-slate-400'", 'an expired deposit badge measured 3.69:1'],
+    [S + 'RemindersPage.tsx', 'text-red-700 dark:text-red-400 font-medium', 'the Rebooking overdue date measured 2.75:1'],
+    [S + 'MembershipsPage.tsx', 'text-red-600 hover:text-red-700 dark:text-red-400', 'the Memberships Cancel link measured 3.70:1'],
+    [S + 'ServiceMenuPage.tsx', 'bg-teal-700 text-white', 'white on teal-600 measured 3.74:1 — the button did not carry enough contrast for its own label'],
+  ]
+  for (const [file, needle, why] of needs) {
+    let src = ''
+    try { src = read(file) } catch { /* reported below */ }
+    if (!src.includes(needle)) fail(`${file}: ${why}`)
+  }
+  // shade 400 must not come back as the answer for a brand accent on a dark surface
+  if (/dark:text-orange-400/.test(read(U + 'shell/SettingsPage.tsx'))) fail('the Settings nav is back on shade 400, which does not clear AA at every brand hue')
+}
+
 if (failed) { console.error(`\nsalon dark surfaces: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('salon dark surfaces: cards, the rebook alert and the overdue row all follow the theme their text follows')

@@ -10,7 +10,9 @@ import { resolveBookingConfig } from './types'
 
 type Tab = 'bookings' | 'services' | 'settings' | 'embed'
 const STATUS_FILTERS: Array<[string, string]> = [['', 'All statuses'], ['pending', 'Pending (deposit unpaid)'], ['confirmed', 'Confirmed'], ['completed', 'Completed'], ['no_show', 'No-show'], ['cancelled', 'Cancelled']]
-const DEPOSIT_CLS: Record<string, string> = { pending: 'text-amber-600 dark:text-amber-300', paid: 'text-green-600 dark:text-green-300', failed: 'text-red-600 dark:text-red-300', refunded: 'text-gray-500', expired: 'text-gray-500' }
+// The settled states had no dark-mode variant, so they kept the light-mode gray and read at 3.69:1 on the
+// dark table — the two that say a deposit is no longer coming were the hardest to read. (FS T22)
+const DEPOSIT_CLS: Record<string, string> = { pending: 'text-amber-600 dark:text-amber-300', paid: 'text-green-600 dark:text-green-300', failed: 'text-red-600 dark:text-red-300', refunded: 'text-gray-500 dark:text-slate-400', expired: 'text-gray-500 dark:text-slate-400' }
 
 const whenIn = (iso: string, tz?: string) => {
   const d = new Date(iso)

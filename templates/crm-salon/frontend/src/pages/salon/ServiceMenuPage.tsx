@@ -98,7 +98,7 @@ export default function ServiceMenuPage() {
           </h1>
           <p className="text-gray-500 dark:text-slate-400">What you offer, how long it takes, when they're due back</p>
         </div>
-        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+        <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
           <Plus className="w-4 h-4" /> New Service
         </button>
       </div>

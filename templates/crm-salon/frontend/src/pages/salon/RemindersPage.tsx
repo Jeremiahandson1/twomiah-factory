@@ -200,7 +200,7 @@ export default function RemindersPage() {
                 <option value={30}>30 days</option>
               </select>
               <span className="text-sm text-gray-500 dark:text-slate-400">
-                {dueCount} due · <span className="text-red-600 font-medium">{overdueCount} overdue</span>
+                {dueCount} due · <span className="text-red-600 dark:text-red-400 font-medium">{overdueCount} overdue</span>
               </span>
             </>
           )}
@@ -293,7 +293,7 @@ export default function RemindersPage() {
                       <span className="block text-xs text-gray-400">with {[r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ')}</span>
                     )}
                   </td>
-                  <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 font-medium' : 'text-gray-600'}`}>
+                  <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-600'}`}>
                     {fmtDate(r.dueDate)}{r.overdue ? ' (overdue)' : ''}
                   </td>
                 </tr>

@@ -72,7 +72,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const columns = [
     // The badge says "this person can sign in", so it follows the login — not which table the row came from.
     // Giving someone a roster card used to take their badge away while their login carried on working. (T30 N3)
-    { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{(row.hasLogin || row._source === 'user') && <span className="ml-2 text-xs font-normal text-gray-400 dark:text-slate-500">login</span>}</span> },
+    { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{(row.hasLogin || row._source === 'user') && <span className="ml-2 text-xs font-normal text-gray-400 dark:text-slate-400">login</span>}</span> },
     // Two different things share this column: a roster member's job title is free text they typed, but a login
     // account's is a permission role, and that was printing the stored slug — "field" and "user" on a page whose
     // own Settings › Users calls them Staff. ROLE_LABELS is the one vocabulary for that. (Contractor T14 M10)

@@ -74,8 +74,8 @@ export function MessagesPage({ api, toast, config }: { api: MarketingApi; toast:
             <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search conversations..." className={`${inputCls} pl-10 text-sm`} />
           </div>
           <div className="flex gap-2 mt-2">
-            <button onClick={() => setUnreadOnly(false)} className={`flex-1 py-1.5 text-sm rounded-lg ${!unreadOnly ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100' : 'text-gray-500'}`}>All</button>
-            <button onClick={() => setUnreadOnly(true)} className={`flex-1 py-1.5 text-sm rounded-lg ${unreadOnly ? 'bg-orange-100 text-orange-700' : 'text-gray-500'}`}>Unread</button>
+            <button onClick={() => setUnreadOnly(false)} className={`flex-1 py-1.5 text-sm rounded-lg ${!unreadOnly ? 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100' : 'text-gray-500 dark:text-slate-400'}`}>All</button>
+            <button onClick={() => setUnreadOnly(true)} className={`flex-1 py-1.5 text-sm rounded-lg ${unreadOnly ? 'bg-orange-100 text-orange-700' : 'text-gray-500 dark:text-slate-400'}`}>Unread</button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">

@@ -226,7 +226,7 @@ export default function MembershipsPage() {
                             <button onClick={() => redeem(e)} className="text-xs text-teal-600 hover:text-teal-700">Use a credit</button>
                           )}
                           {e.status === 'active' && (
-                            <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700">Cancel</button>
+                            <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700 dark:text-red-400">Cancel</button>
                           )}
                         </td>
                       </tr>
