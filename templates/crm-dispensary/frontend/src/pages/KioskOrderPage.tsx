@@ -29,6 +29,8 @@ const INACTIVITY_TIMEOUT = 60000; // 60 seconds
 export default function KioskOrderPage() {
   const [step, setStep] = useState<KioskStep>('age-verify');
   const [sessionToken, setSessionToken] = useState('');
+  /** The customer's own date of birth — the server decides the age from this. (T20 B2) */
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -82,6 +84,10 @@ export default function KioskOrderPage() {
   };
 
   const handleAgeVerify = async () => {
+    // Tapping a button is not a claim about anyone's age. The customer enters their date of birth and the
+    // SERVER works out whether they may buy — it used to accept {verified:true} on its own, which is how a
+    // date of birth in 2012 reached a real order. (Dispensary T20 B2)
+    if (!dateOfBirth) { setError('Please enter your date of birth.'); return; }
     setLoading(true);
     setError('');
     try {
@@ -90,15 +96,15 @@ export default function KioskOrderPage() {
       const data = await api.post('/api/kiosk/session/start', locationId ? { locationId } : {});
       const token = data.token || data.sessionToken || '';
       setSessionToken(token);
-      // Tapping "I am 21 or older" IS the age verification — record it on the session so the
-      // backend lets add-item / checkout through (both require age_verified).
       if (token) {
-        await api.post(`/api/kiosk/session/${token}/verify-age`, { verified: true });
+        await api.post(`/api/kiosk/session/${token}/verify-age`, { verified: true, dobProvided: dateOfBirth });
       }
       await loadMenu();
       setStep('browse');
     } catch (err: any) {
-      setError(err.message || 'Failed to start session');
+      // The server's own words: "Cannabis sales require 21+." / "Enter your date of birth to continue."
+      setError(err.message || 'We could not verify your age.');
+      setSessionToken('');
     } finally {
       setLoading(false);
     }
@@ -212,12 +218,21 @@ export default function KioskOrderPage() {
               {error}
             </div>
           )}
+          <label className="block text-left text-gray-300 text-lg mb-2" htmlFor="kiosk-dob">Date of birth</label>
+          <input
+            id="kiosk-dob"
+            type="date"
+            value={dateOfBirth}
+            max={new Date().toISOString().split('T')[0]}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+            className="w-full py-5 px-6 mb-6 bg-gray-800 border border-gray-700 text-white text-2xl rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation"
+          />
           <button
             onClick={handleAgeVerify}
-            disabled={loading}
+            disabled={loading || !dateOfBirth}
             className="w-full py-6 px-8 bg-green-600 hover:bg-green-700 text-white text-2xl font-bold rounded-2xl transition-colors disabled:opacity-50 touch-manipulation"
           >
-            {loading ? 'Starting...' : 'I am 21 or older'}
+            {loading ? 'Checking...' : 'Continue'}
           </button>
           <p className="text-gray-500 text-sm mt-6 dark:text-slate-400">
             You must be 21 years or older to use this service. Valid ID required at pickup.

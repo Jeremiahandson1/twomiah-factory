@@ -345,7 +345,7 @@ app.post('/session/:token/checkout', async (c) => {
 
   // Create order (walk-in style; a budtender reviews and completes it at the register).
   const orderResult = await db.execute(sql`
-    INSERT INTO orders(id, order_number, number, type, status, subtotal, total, total_cannabis_weight_oz, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
+    INSERT INTO orders(id, order_number, number, type, status, subtotal, total, total_cannabis_weight_oz, total_weight_grams, customer_dob, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
     VALUES (
       gen_random_uuid(),
       ${nextNumber},
@@ -355,6 +355,11 @@ app.post('/session/:token/checkout', async (c) => {
       ${String(subtotal)},
       ${String(subtotal)},
       ${totalCannabisWeightOz},
+      -- the register writes grams too, and EOD/Metrc read that column; a kiosk order left it at 0 (T21 M13)
+      ${totalGrams.toFixed(2)},
+      -- the date of birth the customer actually passed the gate with, so the budtender's own age check at the
+      -- register has something to check against instead of starting blank (T21 M13)
+      ${session.dob_provided || null},
       ${session.id},
       ${session.location_id || null},
       ${companyId},

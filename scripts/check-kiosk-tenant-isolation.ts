@@ -85,5 +85,21 @@ if (!/const unitGrams = lineFlowerEquivalentGrams\(prod, equivalencyFactors\)/.t
 if (!/const equivalencyFactors = await loadEquivalencyFactors\(currentUser\.companyId\)/.test(ordersSrc)) fail('…from the tenant\'s own rules')
 if (!/cartCannabisGrams\(items\.map\(\(i: any\) => \(\{ product: i\.product \|\| \{\}, quantity: i\.quantity \}\)\), factors\)/.test(src)) fail(`${file}: the kiosk must weigh in flower equivalent too, or the two tills disagree`)
 
+// The SCREEN has to ask for what the server now requires. Making the date of birth mandatory server-side
+// without this would have left a real customer at a real kiosk stuck on "Enter your date of birth to
+// continue." — the API probes that proved the gate could never have caught it. (Dispensary T20 B2 / T21)
+const kioskPage = readFile('templates/crm-dispensary/frontend/src/pages/KioskOrderPage.tsx')
+if (!kioskPage) fail('the kiosk order page is missing')
+else {
+  if (!/id="kiosk-dob"/.test(kioskPage)) fail('the kiosk age screen must ask for a date of birth')
+  if (!/dobProvided: dateOfBirth/.test(kioskPage)) fail('…and send it to the gate')
+  if (/verify-age`, \{ verified: true \}\)/.test(kioskPage)) fail('…a bare {verified:true} is the old gate, and the server now refuses it — the screen would dead-end')
+  if (!/disabled=\{loading \|\| !dateOfBirth\}/.test(kioskPage)) fail('…and must not let the customer continue without one')
+}
+// the order has to carry what the register and the state reports read afterwards (T21 M13)
+if (!/total_cannabis_weight_oz, total_weight_grams, customer_dob/.test(src)) fail('a kiosk order must record grams and the date of birth it checked, not just the ounces')
+if (!/\$\{totalGrams\.toFixed\(2\)\}/.test(src)) fail('…the computed grams, which EOD and Metrc read')
+if (!/\$\{session\.dob_provided \|\| null\}/.test(src)) fail("…and the date of birth from the session, so the budtender's own check does not start blank")
+
 if (failed) { console.error(`\nkiosk tenant isolation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('kiosk tenant isolation: company is resolved by the owner account, never an arbitrary row; the age gate is computed from a date of birth, not asserted by the device')
