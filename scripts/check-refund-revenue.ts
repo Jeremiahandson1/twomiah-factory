@@ -26,6 +26,15 @@ if (!/if \(inv\.status !== 'draft' && inv\.status !== 'void'\) stats\.totalAmoun
 if (!/if \(inv\.status !== 'draft' && inv\.status !== 'void' && inv\.status !== 'refunded'\) stats\.outstanding = /.test(inv)) fail('invoice stats outstanding must still exclude refunded')
 if (!/stats\.refundedAmount = round2\(stats\.refundedAmount \+ Number\(inv\.amountRefunded \|\| 0\)\)/.test(inv)) fail('invoice stats must report refundedAmount')
 
+// T29 L3 — money returned is money returned, whatever became of the invoice. Voiding is only permitted once the
+// money is back ("Refund them first, then void"), so a void invoice is exactly where a refunded deposit ends up;
+// skipping void here left the stats $489.84 short of Reports, which counts the refund ledger and sees no status.
+if (/if \(inv\.status !== 'void'\) \{[\s\S]{0,400}?stats\.refundedAmount/.test(inv)) fail('invoice stats refundedAmount must not skip void invoices — that is the disagreement with Reports')
+if (!/if \(inv\.status !== 'void'\) stats\.paidAmount = round2\(/.test(inv)) fail('…while money KEPT still skips void (a void invoice nets to zero by the void rule anyway)')
+const refQuery = (overview.match(/const \[ref\] = await db[\s\S]*?\n(?=\s*\/\/|\s*const )/) || [''])[0]
+if (!refQuery) fail('revenueOverview must have a refund query to check')
+else if (/\bbilled\b|\bissued\b/.test(refQuery)) fail('the refund figure must not be narrowed by invoice status — the refund ledger is the record of what went back')
+
 const page = read('packages/tenant-ui/src/reporting/ReportsPage.tsx')
 if (!/\$\{revenue\.refunded \? ` · \$\{money\(revenue\.refunded\)\} refunded` : ''\}/.test(page)) fail('the Reports page must show refunds next to invoiced')
 if (failed) { console.error(`\nrefund revenue: ${failed} check(s) FAILED`); process.exit(1) }

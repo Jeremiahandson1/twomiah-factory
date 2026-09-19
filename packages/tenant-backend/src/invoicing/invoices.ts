@@ -471,7 +471,8 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   //                    exclusion is safe ONLY because 'refunded' means the whole sale came back — a status a
   //                    partial refund must never carry (see reconcileInvoiceStatuses)
   //   paidAmount     = money actually kept: amountPaid − amountRefunded on every non-void invoice
-  //   refundedAmount = money returned: amountRefunded on every non-void invoice
+  //   refundedAmount = money returned: amountRefunded on EVERY invoice, void included — void is only allowed once
+  //                    the money is refunded, so that is where refunds sit, and Reports counts them (T29 L3)
   app.get('/stats', requirePermission('invoices:read'), async (c) => {
     const currentUser = c.get('user') as any
     const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))
@@ -481,10 +482,13 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
       stats[s] = (stats[s] || 0) + 1
       if (inv.status !== 'draft' && inv.status !== 'void') stats.totalAmount = round2(stats.totalAmount + Number(inv.total))
       if (inv.status !== 'draft' && inv.status !== 'void' && inv.status !== 'refunded') stats.outstanding = round2(stats.outstanding + invoiceBalance(inv))
-      if (inv.status !== 'void') {
-        stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
-        stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
-      }
+      if (inv.status !== 'void') stats.paidAmount = round2(stats.paidAmount + Number(inv.amountPaid || 0) - Number(inv.amountRefunded || 0))
+      // Money that went back went back, whatever became of the invoice afterwards — and voiding REQUIRES the
+      // refund first ("Refund them first, then void"), so a void invoice is precisely where refunds end up. That
+      // is why skipping them here disagreed with Reports, which counts the refund ledger and cannot see a status.
+      // paidAmount still skips void, and does not need to: a void invoice's paid − refunded is 0 by that rule.
+      // (Contractor T29 L3)
+      stats.refundedAmount = round2(stats.refundedAmount + Number(inv.amountRefunded || 0))
     }
     return c.json(stats)
   })
