@@ -305,7 +305,13 @@ export default function OrderDetailPage() {
                 <span className="text-gray-500 dark:text-slate-400">Method</span>
                 <span className="capitalize font-medium text-gray-900 dark:text-slate-100">{order.paymentMethod || '—'}</span>
               </div>
-              {order.paymentMethod === 'cash' && (
+              {/* Only once money has actually been taken. A pending cash order has tendered nothing, and
+                  this block used to render anyway and RE-DERIVE the change as tendered − total, so an
+                  unpaid $25 order read "Change $-25.00" — a figure the register can never produce, since
+                  the server refuses an under-tender and stores change as never-negative. Read what was
+                  stored rather than recomputing it, so there is one change rule and it lives at the till.
+                  (Dispensary T23) */}
+              {order.paymentMethod === 'cash' && (order.paymentStatus === 'paid' || order.cashTendered != null) && (
                 <>
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-slate-400">Cash Tendered</span>
@@ -313,7 +319,7 @@ export default function OrderDetailPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 dark:text-slate-400">Change</span>
-                    <span className="text-gray-900 dark:text-slate-100">${(Number(order.cashTendered || 0) - Number(order.total || 0)).toFixed(2)}</span>
+                    <span className="text-gray-900 dark:text-slate-100">${Number(order.changeDue || 0).toFixed(2)}</span>
                   </div>
                 </>
               )}

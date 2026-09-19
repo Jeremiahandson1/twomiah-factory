@@ -39,5 +39,27 @@ else {
 }
 if (!/\{product\.stockQuantity\} left/.test(pos)) fail('the tile must show the stock it just re-read')
 
+// ── Change is the till's figure, and it is never negative ─────────────────────────────────────────
+// The server refuses an under-tender outright and clamps change at zero (F-08), so a negative change
+// cannot come from a sale. It came from the order detail page RE-DERIVING it as tendered − total: an
+// unpaid $25 order rendered its own total back as "Change $-25.00", and so would any paid order whose
+// tender was not recorded (an integration, an offline sync). Read the stored column. (Dispensary T23)
+const orders = read('templates/crm-dispensary/backend/src/routes/orders.ts')
+// BOTH tender paths, counted — cash and split each carry this code, so matching it once let a plant
+// that gutted the cash branch sail past while the split branch still satisfied the regex.
+if ((orders.match(/code: 'insufficient_tender'/g) || []).length < 2) fail('the register must refuse a tender that does not cover the total — on cash AND on a split')
+if (!/Cash tendered \$\$\{data\.cashTendered\.toFixed\(2\)\} is less than the order total/.test(orders)) fail('…telling the cashier what was short on cash')
+if (!/Split payments total \$\$\{paid\.toFixed\(2\)\}, order total is/.test(orders)) fail('…and on a split')
+if (!/Math\.max\(0, round2\(data\.cashTendered - orderTotal\)\)/.test(orders)) fail('…and must never store a negative change')
+const detail = read('templates/crm-dispensary/frontend/src/pages/OrderDetailPage.tsx')
+if (!detail) fail('the order detail page is missing')
+else {
+  if (/Number\(order\.cashTendered \|\| 0\) - Number\(order\.total \|\| 0\)/.test(detail)) fail('the order detail must not re-derive change as tendered − total — that is what printed "Change $-25.00" on an unpaid order')
+  if (!/\$\{Number\(order\.changeDue \|\| 0\)\.toFixed\(2\)\}/.test(detail)) fail('…it must show the change the till STORED')
+  if (!/order\.paymentMethod === 'cash' && \(order\.paymentStatus === 'paid' \|\| order\.cashTendered != null\)/.test(detail)) fail('…and must not show tender or change at all until money has actually been taken')
+}
+// The POS shows change while the cashier types, so it only shows it once the tender covers the total.
+if (!/\{parseFloat\(cashTendered \|\| '0'\) >= total && total > 0 && \(/.test(pos)) fail('the register must only offer change once the tender covers the total')
+
 if (failed) { console.error(`\nregister tells the cashier: ${failed} check(s) FAILED`); process.exit(1) }
-console.log('register tells the cashier: a blocked sale says why, on the panel and on the button, and the tiles re-read the shelf after every sale')
+console.log('register tells the cashier: a blocked sale says why, on the panel and on the button, the tiles re-read the shelf after every sale, and change is the till\'s stored figure — never re-derived, never negative')
