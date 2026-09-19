@@ -101,5 +101,22 @@ if (!/total_cannabis_weight_oz, total_weight_grams, customer_dob/.test(src)) fai
 if (!/\$\{totalGrams\.toFixed\(2\)\}/.test(src)) fail('…the computed grams, which EOD and Metrc read')
 if (!/\$\{session\.dob_provided \|\| null\}/.test(src)) fail("…and the date of birth from the session, so the budtender's own check does not start blank")
 
+// The kiosk API had no credential at all: anyone with the hostname could create real orders. A customer is
+// standing at the device, so the credential belongs to the DEVICE — paired once from Settings, revocable on
+// its own, which is what Stripe Terminal and Square do with their terminals. (Dispensary T21 B1)
+const devices = readFile('templates/crm-dispensary/backend/src/services/kioskDevice.ts')
+if (!devices) fail('services/kioskDevice.ts is missing — pairing must have one home')
+if (!/createHash\('sha256'\)\.update\(String\(token\)\)\.digest\('hex'\)/.test(devices)) fail('a device token must be stored as a HASH — a leaked row must not hand anyone a working kiosk')
+if (!/WHERE token_hash = \$\{hashToken\(token\)\} AND status = 'active'/.test(devices)) fail('…and looked up by that hash, active devices only')
+if (!/pairing_code = NULL, pairing_expires_at = NULL/.test(devices)) fail('a pairing code must be spent on use — one code, one tablet')
+if (!/return mode === 'enforce' \? 'enforce' : 'warn'/.test(devices)) fail("enforcement must default to WARN, so switching this on cannot black out a shop that has not paired its tablets")
+if (!/const requireDevice = async \(c: any, next: any\) =>/.test(src)) fail('the kiosk write endpoints must identify the device')
+for (const route of ["'/session/start'", "'/session/:token/add-item'", "'/session/:token/checkout'"]) {
+  if (!new RegExp(`app\\.use\\(${route.replace(/[/:]/g, '\\$&')}, requireDevice\\)`).test(src)) fail(`${route} must go through the device check — it writes`)
+}
+if (!/code: 'kiosk_not_paired'/.test(src)) fail('…refusing an unpaired kiosk under a code the screen can act on')
+if (/app\.use\('\/menu', requireDevice\)/.test(src)) fail('the public menu must stay public — it is a menu')
+if (!/kiosk_device_id/.test(src)) fail('a session must record WHICH tablet started it')
+
 if (failed) { console.error(`\nkiosk tenant isolation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('kiosk tenant isolation: company is resolved by the owner account, never an arbitrary row; the age gate is computed from a date of birth, not asserted by the device')

@@ -1081,11 +1081,40 @@ export const deliveryRoute = pgTable('delivery_routes', {
 
 // ==================== KIOSK ====================
 
+/**
+ * A paired kiosk tablet. The kiosk API is used by a customer with nobody to sign in as, so the credential
+ * belongs to the DEVICE: a manager adds a kiosk in Settings, gets a one-time pairing code, and the tablet
+ * exchanges it once for a token of its own. Per device rather than per shop, because that is what turns
+ * "this tablet walked out of the building" into a one-click revoke. (Dispensary T21 B1)
+ */
+export const kioskDevice = pgTable('kiosk_devices', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  locationId: text('location_id'),
+  name: text('name').notNull(),
+  /** SHA-256 of the token — a leaked row must not hand anyone a working kiosk. */
+  tokenHash: text('token_hash'),
+  /** Last four characters, in the clear, so a manager can tell two devices apart. */
+  tokenLast4: text('token_last4'),
+  pairingCode: text('pairing_code'),
+  pairingExpiresAt: timestamp('pairing_expires_at'),
+  status: text('status').notNull().default('pending'), // pending|active|revoked
+  lastSeenAt: timestamp('last_seen_at'),
+  pairedAt: timestamp('paired_at'),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('kiosk_device_company_idx').on(t.companyId),
+])
+
 export const kioskSession = pgTable('kiosk_sessions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   locationId: text('location_id').references(() => location.id),
   kioskId: text('kiosk_id'), // Physical device identifier
+  /** Which paired tablet took this session, so the log can say WHICH kiosk. (T21 B1) */
+  kioskDeviceId: text('kiosk_device_id'),
   sessionToken: text('session_token'),
   customerId: text('customer_id').references(() => contact.id),
   orderId: text('order_id').references(() => order.id),

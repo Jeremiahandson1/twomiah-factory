@@ -8,8 +8,11 @@ import audit from '../services/audit.ts'
 import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
+import { deviceForToken, claimPairingCode, kioskEnforcement, newPairingCode, PAIRING_TTL_MS, type PairedDevice } from '../services/kioskDevice.ts'
 
-const app = new Hono()
+// Typed context: the signed-in user on the manager routes, and the paired tablet on the customer ones.
+// Untyped, every c.get(...) in this file was a TS2769 — two of them before this change, six after it.
+const app = new Hono<{ Variables: { user: any; kioskDevice?: PairedDevice; kioskCompanyId?: string } }>()
 
 // The two endpoints an anonymous caller can use to MAKE something — a session and an order — are bucketed
 // well below the app-wide write allowance (1,200 per 15 minutes, i.e. 1,200 fabricated orders). Sized for a
@@ -18,6 +21,29 @@ const app = new Hono()
 // rather than a cure. (Dispensary T20 B2)
 app.use('/session/start', createRateLimiter(KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, isWrite))
 app.use('/session/:token/checkout', createRateLimiter(KIOSK_WINDOW_MS, KIOSK_MAX_CHECKOUTS, isWrite))
+
+/**
+ * Which paired tablet this is. The kiosk cannot authenticate a USER — a customer is standing at it — so the
+ * credential belongs to the device: paired once from Settings, revocable on its own. Until an operator
+ * switches enforcement on, an unpaired kiosk still works and is recorded instead, so turning this on cannot
+ * black out a shop that has not paired its tablets yet. (Dispensary T21 B1)
+ */
+const requireDevice = async (c: any, next: any) => {
+  const token = c.req.header('x-kiosk-token') || c.req.header('X-Kiosk-Token')
+  const device = await deviceForToken(token)
+  if (device) { c.set('kioskDevice', device); return next() }
+  // No company is known yet at /session/start, so read the mode from the company this request resolves to.
+  const companyId = c.get('kioskCompanyId') || (await resolveCompanyId(null))
+  const mode = companyId ? await kioskEnforcement(companyId) : 'warn'
+  if (mode === 'enforce') {
+    return c.json({ error: 'This kiosk is not paired. Pair it from Settings → Kiosks.', code: 'kiosk_not_paired' }, 401)
+  }
+  console.warn(`[kiosk] unpaired device used ${c.req.method} ${c.req.path}${token ? ' (token not recognised)' : ' (no token)'}`)
+  return next()
+}
+app.use('/session/start', requireDevice)
+app.use('/session/:token/add-item', requireDevice)
+app.use('/session/:token/checkout', requireDevice)
 
 // Raw-SQL rows come back snake_case, but the kiosk UI and the manager Sessions page read
 // camelCase (sessionToken, ageVerified, locationName, strainType, thcPercent, imageUrl...).
@@ -76,7 +102,67 @@ async function getSession(token: string) {
   return rows(result)?.[0]
 }
 
-// ===== SESSION MANAGEMENT (no auth — kiosk device) =====
+// ===== PAIRING =====
+// The tablet is paired ONCE: a manager adds the kiosk in Settings, reads out the code, and the device
+// exchanges it for a token it keeps. The code is spent on first use and expires on its own. (T21 B1)
+app.post('/pair', createRateLimiter(KIOSK_WINDOW_MS, 20, isWrite), async (c) => {
+  const body = await c.req.json().catch(() => ({} as any))
+  const result = await claimPairingCode(String(body?.code || ''))
+  if ('error' in result) return c.json({ error: result.error }, 400)
+  audit.log({ action: 'create', entity: 'kiosk_device', entityId: result.device.id, entityName: result.device.name, metadata: { paired: true }, req: { user: { companyId: result.device.companyId } } })
+  return c.json({ token: result.token, device: { id: result.device.id, name: result.device.name, locationId: result.device.locationId } }, 201)
+})
+
+// Does this device still count as paired? The kiosk asks on load so it can show the pairing screen again
+// after a manager revokes it, rather than failing at checkout with a cart already full.
+app.get('/pair/status', async (c) => {
+  const device = await deviceForToken(c.req.header('x-kiosk-token'))
+  const companyId = device?.companyId || (await resolveCompanyId(null))
+  return c.json({ paired: !!device, device: device ? { id: device.id, name: device.name } : null, enforcement: companyId ? await kioskEnforcement(companyId) : 'warn' })
+})
+
+// ===== DEVICE MANAGEMENT (manager) =====
+app.get('/devices', authenticate, requireRole('manager'), async (c) => {
+  const user = c.get('user') as any
+  const r = await db.execute(sql`
+    SELECT id, name, location_id, status, token_last4, pairing_code, pairing_expires_at, last_seen_at, paired_at, created_at
+    FROM kiosk_devices WHERE company_id = ${user.companyId} ORDER BY created_at DESC
+  `)
+  return c.json({ data: rows(r).map(camel), enforcement: await kioskEnforcement(user.companyId) })
+})
+
+app.post('/devices', authenticate, requireRole('manager'), async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json().catch(() => ({} as any))
+  const name = String(body?.name || '').trim()
+  if (!name) return c.json({ error: 'Give the kiosk a name, so you can tell it from the others.' }, 400)
+  const code = newPairingCode()
+  const r = await db.execute(sql`
+    INSERT INTO kiosk_devices(id, company_id, location_id, name, pairing_code, pairing_expires_at, status, created_at, updated_at)
+    VALUES (gen_random_uuid(), ${user.companyId}, ${body?.locationId || null}, ${name}, ${code},
+            NOW() + ${`${Math.round(PAIRING_TTL_MS / 1000)} seconds`}::interval, 'pending', NOW(), NOW())
+    RETURNING *
+  `)
+  const row = rows(r)?.[0]
+  audit.log({ action: 'create', entity: 'kiosk_device', entityId: row?.id, entityName: name, req: c })
+  // The code is shown once, here. It is not retrievable later — generate a new one instead.
+  return c.json({ ...camel(row), pairingCode: code }, 201)
+})
+
+app.post('/devices/:id/revoke', authenticate, requireRole('manager'), async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const r = await db.execute(sql`
+    UPDATE kiosk_devices SET status = 'revoked', token_hash = NULL, pairing_code = NULL, revoked_at = NOW(), updated_at = NOW()
+    WHERE id = ${id} AND company_id = ${user.companyId} RETURNING *
+  `)
+  const row = rows(r)?.[0]
+  if (!row) return c.json({ error: 'Kiosk not found' }, 404)
+  audit.log({ action: 'delete', entity: 'kiosk_device', entityId: id, entityName: row.name, req: c })
+  return c.json({ success: true, device: camel(row) })
+})
+
+// ===== SESSION MANAGEMENT (no user auth — a customer is standing at the device) =====
 
 // POST /session/start — Start a kiosk session.
 // kioskId is optional: the customer-facing kiosk has no kiosk-provisioning concept, it only
@@ -91,15 +177,18 @@ app.post('/session/start', async (c) => {
   const body = await c.req.json().catch(() => ({}))
   const data = sessionSchema.parse(body ?? {})
 
-  const companyId = await resolveCompanyId(data.locationId)
+  // A paired device settles both the company and the location without the caller being asked. (T21 B1)
+  const device = c.get('kioskDevice') as { id: string; companyId: string; locationId: string | null } | undefined
+  const companyId = device?.companyId || (await resolveCompanyId(data.locationId))
   if (!companyId) return c.json({ error: 'No company configured' }, 400)
 
   const sessionToken = crypto.randomUUID()
-  const kioskId = data.kioskId || data.locationId || 'default'
+  const locationId = data.locationId || device?.locationId || null
+  const kioskId = data.kioskId || device?.id || locationId || 'default'
 
   const result = await db.execute(sql`
-    INSERT INTO kiosk_sessions(id, company_id, session_token, kiosk_id, location_id, status, age_verified, items, started_at, updated_at)
-    VALUES (gen_random_uuid(), ${companyId}, ${sessionToken}, ${kioskId}, ${data.locationId || null}, 'started', false, '[]'::json, NOW(), NOW())
+    INSERT INTO kiosk_sessions(id, company_id, session_token, kiosk_id, kiosk_device_id, location_id, status, age_verified, items, started_at, updated_at)
+    VALUES (gen_random_uuid(), ${companyId}, ${sessionToken}, ${kioskId}, ${device?.id || null}, ${locationId}, 'started', false, '[]'::json, NOW(), NOW())
     RETURNING *
   `)
 
