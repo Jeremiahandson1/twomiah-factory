@@ -65,5 +65,27 @@ if (/<span style=\{\{ color: '#1565c0' \}\}>\{stats/.test(inbox)) fail('the stat
 if (!/color: c\.statNew/.test(inbox)) fail('…they must read the palette')
 if (!/color: c\.link/.test(inbox)) fail('…and so must the lead-sources link, or the palette entry is decoration (FS T20 M4)')
 
+// H5 (open since T20) — the Service Menu must be able to SHOW every category the API accepts. It listed
+// seven of twelve, and built its sections from its own list, so a service saved in barber / lashes / brows
+// / makeup / the US 'color' matched no section and vanished from the page. Read both lists rather than
+// pinning names, so the server can grow its vocabulary and this still holds.
+{
+  const api = read('templates/crm-salon/backend/src/routes/serviceMenu.ts')
+  const page = read('templates/crm-salon/frontend/src/pages/salon/ServiceMenuPage.tsx')
+  const listOf = (src: string, re: RegExp) => {
+    const m = src.match(re)
+    return m ? m[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean) : []
+  }
+  const server = listOf(api, /const CATEGORIES = \[([^\]]*)\]/)
+  const ui = listOf(page, /const CATEGORIES = \[([^\]]*)\]/)
+  if (!server.length) fail('serviceMenu.ts must state the categories it accepts')
+  if (!ui.length) fail('the Service Menu page must state the categories it shows')
+  // 'color' is the same section as 'colour' — the page folds the two spellings together on purpose
+  const missing = server.filter((c) => c !== 'color' && !ui.includes(c))
+  if (missing.length) fail(`the Service Menu cannot display ${missing.length} categor${missing.length === 1 ? 'y' : 'ies'} the server accepts (${missing.join(', ')}) — a service saved in one of them disappears from the page`)
+  if (!/const canonicalCategory = /.test(page)) fail("…and 'color' must fold into 'colour', or the US spelling gets a section of its own")
+  if (!/if \(known\.has\(cat\)\) continue/.test(page)) fail('…and a category the page has NOT heard of must still be rendered — a hardcoded list can always fall behind again')
+}
+
 if (failed) { console.error(`\nsalon mediums: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('salon mediums: the book is clients, a visit has happened, the heading never lies about the day, and the brand palette reads in dark mode')

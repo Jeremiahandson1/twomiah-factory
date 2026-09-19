@@ -10,7 +10,18 @@ import api from '../../services/api';
  * the form says so out loud rather than leaving an owner guessing.
  */
 
-const CATEGORIES = ['hair', 'colour', 'nails', 'skin', 'massage', 'waxing', 'other'];
+// The categories the API accepts (backend/src/routes/serviceMenu.ts). This list was five short — barber,
+// lashes, brows, makeup and the US spelling of colour — so a salon could save a service the server was
+// perfectly happy with and then never see it again: the grouping below built its sections from this list
+// alone, and anything outside it matched no section and was dropped from the page. A barbering salon's
+// whole menu could be invisible. (Salon H5, open since T20)
+const CATEGORIES = ['hair', 'colour', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other'];
+/** 'color' and 'colour' are one category — the API accepts either spelling, so they share a section. */
+const canonicalCategory = (c?: string | null) => {
+  const k = String(c || 'other').trim().toLowerCase();
+  return k === 'color' ? 'colour' : k;
+};
+const CATEGORY_LABELS: Record<string, string> = { colour: 'colour / color' };
 
 interface Service {
   id: string;
@@ -61,9 +72,22 @@ export default function ServiceMenuPage() {
     }
   };
 
-  const byCategory = CATEGORIES
-    .map((cat) => ({ cat, items: services.filter((s) => (s.category || 'other') === cat) }))
-    .filter((g) => g.items.length > 0);
+  // Known categories in their usual order, then any category this page has NOT heard of, under its own
+  // heading. A service the server accepted must never be invisible here because the list above is behind —
+  // that is how five categories' worth of menu went missing, and a list can always fall behind again.
+  const byCategory = (() => {
+    const known = new Set(CATEGORIES);
+    const groups = CATEGORIES.map((cat) => ({ cat, items: services.filter((s) => canonicalCategory(s.category) === cat) }));
+    const unknown = new Map<string, any[]>();
+    for (const s of services) {
+      const cat = canonicalCategory(s.category);
+      if (known.has(cat)) continue;
+      if (!unknown.has(cat)) unknown.set(cat, []);
+      unknown.get(cat)!.push(s);
+    }
+    return [...groups, ...[...unknown.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([cat, items]) => ({ cat, items }))]
+      .filter((g) => g.items.length > 0);
+  })();
 
   return (
     <div className="space-y-6">
@@ -89,7 +113,7 @@ export default function ServiceMenuPage() {
         <div className="space-y-6">
           {byCategory.map((group) => (
             <div key={group.cat}>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-slate-400">{group.cat}</h2>
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-slate-400">{CATEGORY_LABELS[group.cat] || group.cat}</h2>
               {/* The card stayed white in dark mode while its text switched to the dark-mode
                   near-white: the service name and the price rendered at 1.10:1 and the whole
                   catalogue was unusable. (T20 H2) */}
