@@ -103,7 +103,8 @@ export default function ProductsPage() {
     setPage(1);
   }, [search, category]);
 
-  const handleCreate = async () => {
+  const handleCreate = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!formData.name.trim()) {
       toast.error('Product name is required');
       return;
@@ -118,6 +119,14 @@ export default function ProductsPage() {
     for (const [label, raw] of numericChecks) {
       if (raw !== '' && raw != null && Number(raw) < 0) {
         toast.error(`${label} cannot be negative`);
+        return;
+      }
+    }
+    // Only the LOWER bound was ever checked here, so THC 150% sailed past the max="100" on the input
+    // and went to the server. A potency is a percentage of the flower; it cannot exceed 100. (T21 M4)
+    for (const [label, raw] of [['THC %', formData.thcPercent], ['CBD %', formData.cbdPercent]] as Array<[string, string]>) {
+      if (raw !== '' && raw != null && Number(raw) > 100) {
+        toast.error(`${label} cannot be more than 100`);
         return;
       }
     }
@@ -280,6 +289,11 @@ export default function ProductsPage() {
         title="Add Product"
         size="lg"
       >
+        {/* A real form, so the min/max/step already on these inputs actually mean something. Without
+            one, document.forms.length was 0: the browser never validated, "Create Product" was wired
+            to a click handler that returned early, and an out-of-range value looked like a dead
+            button — no toast, no inline error, no request. (T21 M4) */}
+        <form onSubmit={handleCreate} noValidate={false}>
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Product Name *</label>
@@ -457,15 +471,18 @@ export default function ProductsPage() {
         </div>
         <div className="flex justify-end gap-3 mt-6">
           <button
+            type="button"
             onClick={() => setModalOpen(false)}
             className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium dark:text-slate-200"
           >
             Cancel
           </button>
-          <Button onClick={handleCreate} disabled={saving}>
+          {/* type=submit, so the browser checks the inputs before this ever reaches handleCreate */}
+          <Button type="submit" disabled={saving}>
             {saving ? 'Creating...' : 'Create Product'}
           </Button>
         </div>
+        </form>
       </Modal>
     </div>
   );

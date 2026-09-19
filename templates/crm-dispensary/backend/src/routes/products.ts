@@ -332,8 +332,10 @@ app.post('/import', requireRole('manager'), async (c) => {
       brand: z.string().optional(),
       strain: z.string().optional(),
       strainType: z.string().optional(),
-      thcPercent: z.number().optional(),
-      cbdPercent: z.number().optional(),
+      // Bounded like the create route: the form refuses 150% THC, and a spreadsheet must not be
+      // the door that lets it in. A potency is a percentage of the flower. (T21 M4)
+      thcPercent: z.number().min(0).max(100).optional(),
+      cbdPercent: z.number().min(0).max(100).optional(),
       price: z.number().min(0),
       costPrice: z.number().min(0).optional(),
       stockQuantity: z.number().int().min(0).default(0),

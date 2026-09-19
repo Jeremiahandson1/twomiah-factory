@@ -1242,3 +1242,14 @@ jobs:
           bun-version: latest
       - name: "API times leave as instants; Peak Hours on the shop clock"
         run: bun run scripts/check-times-carry-their-zone.ts
+
+  289:
+    name: "product form validates"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Add Product is a real form; both bounds enforced; import agrees"
+        run: bun run scripts/check-product-form-validates.ts
