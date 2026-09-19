@@ -8,7 +8,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -197,9 +197,7 @@ app.post('/', async (c) => {
     // the order stored weight 0 — breaking EOD/Metrc/audit reconstruction. (retest#7)
     const isCannabis = isCannabisLine(prod)
     if (isCannabis) {
-      const unitGrams = prod.weightGrams != null && String(prod.weightGrams) !== ''
-        ? Number(prod.weightGrams)
-        : (prod.weight ? (prod.weightUnit === 'oz' ? Number(prod.weight) * 28.3495 : Number(prod.weight)) : 0)
+      const unitGrams = unitGramsOf(prod)
       if (unitGrams > 0) totalWeightGrams += unitGrams * item.quantity
     }
 
@@ -247,13 +245,9 @@ app.post('/', async (c) => {
     purchaseLimitOz: company.purchaseLimitOz, state: company.state, settings: company.settings,
   }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   const limitOz = resolvePurchaseLimitOz(companyRow)
-  if (totalWeightGrams > limitOz * GRAMS_PER_OZ + 1e-6) {
-    return c.json({
-      error: `Purchase exceeds limit: ${(totalWeightGrams / GRAMS_PER_OZ).toFixed(2)}oz exceeds the ${limitOz}oz maximum`,
-      totalWeightOz: (totalWeightGrams / GRAMS_PER_OZ).toFixed(2),
-      limitOz: String(limitOz),
-    }, 400)
-  }
+  // The over-limit answer is shared with the kiosk, so both tills refuse the same basket the same way.
+  const overLimit = overPurchaseLimit(totalWeightGrams, limitOz)
+  if (overLimit) return c.json(overLimit, 400)
 
   // Merchandise split for tax: excise applies to cannabis lines only, sales tax to everything.
   const cannabisSubtotal = resolvedItems

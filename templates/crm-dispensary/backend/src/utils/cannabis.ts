@@ -33,6 +33,40 @@ export function isCannabisLine(p: { taxCategory?: string | null; category?: stri
   return CANNABIS_CATEGORIES.has(String(p.category || p.productCategory || '').toLowerCase())
 }
 
+// ── Weight ─────────────────────────────────────────────────────────────────────────────────────
+// Per-unit cannabis weight in grams. Seeded products store it in weight_grams; older rows use
+// weight + weight_unit. Reading only `weight` meant every seeded flower rang up as 0 g, so a 3.09 oz
+// cart passed the limit and the order stored weight 0, breaking EOD/Metrc/audit reconstruction
+// (retest#7). The kiosk had no weight logic AT ALL — it counted nothing, enforced nothing and wrote
+// 0 — so 2.47 oz went through a till that refuses 1.11 oz at the register. (Dispensary T20 B1)
+export function unitGramsOf(p: { weightGrams?: any; weight?: any; weightUnit?: string | null }): number {
+  if (p?.weightGrams != null && String(p.weightGrams) !== '') return Number(p.weightGrams) || 0
+  if (!p?.weight) return 0
+  const n = Number(p.weight) || 0
+  return p.weightUnit === 'oz' ? n * GRAMS_PER_OZ : n
+}
+
+/** Cannabis grams on a cart. Non-cannabis lines weigh nothing toward the limit. */
+export function cartCannabisGrams(lines: Array<{ product: any; quantity: any }>): number {
+  let grams = 0
+  for (const { product, quantity } of lines) {
+    if (!isCannabisLine(product)) continue
+    const unit = unitGramsOf(product)
+    if (unit > 0) grams += unit * (Number(quantity) || 0)
+  }
+  return grams
+}
+
+/** The one over-limit answer, so every till says the same thing. Null when the basket is allowed. */
+export function overPurchaseLimit(totalGrams: number, limitOz: number): { error: string; totalWeightOz: string; limitOz: string } | null {
+  if (totalGrams <= limitOz * GRAMS_PER_OZ + 1e-6) return null
+  return {
+    error: `Purchase exceeds limit: ${(totalGrams / GRAMS_PER_OZ).toFixed(2)}oz exceeds the ${limitOz}oz maximum`,
+    totalWeightOz: (totalGrams / GRAMS_PER_OZ).toFixed(2),
+    limitOz: String(limitOz),
+  }
+}
+
 // ── Age ────────────────────────────────────────────────────────────────────────────────────────
 // 21 to buy cannabis; 18 on a medical sale with a card on file. The register has enforced this
 // server-side since QA F-02 ("client-side-only enforcement is not a compliance control"), and the

@@ -52,5 +52,20 @@ if (!/from '\.\/middleware\/rateLimit\.ts'/.test(dispIndex)) fail('index.ts must
 if (!/app\.use\('\/session\/start', createRateLimiter\(KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS/.test(src)) fail(`${file}: starting a session must be bucketed — it is anonymous and it writes`)
 if (!/app\.use\('\/session\/:token\/checkout', createRateLimiter\(KIOSK_WINDOW_MS, KIOSK_MAX_CHECKOUTS/.test(src)) fail(`${file}: creating an order must be bucketed — that is the one that makes real rows`)
 
+// The purchase limit is what makes this a legal till rather than a shopping cart, and the kiosk had none of
+// it: no weight counted, no limit applied, total_cannabis_weight_oz written as 0. 20 eighths (2.47 oz) went
+// through a shop whose register refuses 1.11 oz. One weight rule and one refusal, used by both. (T20 B1)
+if (!/export function unitGramsOf\(/.test(cannabis)) fail('utils/cannabis.ts must own the per-unit weight rule (weight_grams, else weight + weight_unit)')
+if (!/export function cartCannabisGrams\(/.test(cannabis)) fail('…and the cart total, so non-cannabis lines weigh nothing toward the limit')
+if (!/if \(!isCannabisLine\(product\)\) continue/.test(cannabis)) fail('…which must actually SKIP the non-cannabis lines — a t-shirt counting toward a cannabis limit refuses a legal basket')
+if (!/export function overPurchaseLimit\(/.test(cannabis)) fail('…and the one over-limit answer, so both tills refuse the same basket the same way')
+if (!/const totalGrams = cartCannabisGrams\(/.test(src)) fail(`${file}: the kiosk must WEIGH the basket`)
+if (!/const over = overPurchaseLimit\(totalGrams, limitOz\)/.test(src)) fail(`${file}: …and apply the company's purchase limit to it`)
+if (!/if \(over\) \{/.test(src)) fail(`${file}: …and refuse when it is over`)
+if (!/total_cannabis_weight_oz/.test(src)) fail(`${file}: the order must RECORD the cannabis weight — a zero there breaks EOD, Metrc and any audit reconstruction`)
+if (!/\$\{totalCannabisWeightOz\}/.test(src)) fail(`${file}: …the computed figure, not a literal`)
+if (!/const unitGrams = unitGramsOf\(prod\)/.test(ordersSrc)) fail('the register must use the shared weight rule, not a second copy')
+if (!/const overLimit = overPurchaseLimit\(totalWeightGrams, limitOz\)/.test(ordersSrc)) fail('…and the shared over-limit answer')
+
 if (failed) { console.error(`\nkiosk tenant isolation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('kiosk tenant isolation: company is resolved by the owner account, never an arbitrary row; the age gate is computed from a date of birth, not asserted by the device')

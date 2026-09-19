@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { ageFromDob, ADULT_USE_MIN_AGE } from '../utils/cannabis.ts'
+import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ } from '../utils/cannabis.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 
 const app = new Hono()
@@ -287,7 +287,8 @@ app.post('/session/:token/checkout', async (c) => {
     for (const bi of body.items) {
       if (!bi?.productId) continue
       const pr = await db.execute(sql`
-        SELECT id, name, price, sale_price FROM products
+        SELECT id, name, price, sale_price, category, tax_category, weight_grams, weight, weight_unit
+        FROM products
         WHERE id = ${bi.productId} AND company_id = ${companyId} AND active = true
         LIMIT 1
       `)
@@ -295,13 +296,39 @@ app.post('/session/:token/checkout', async (c) => {
       if (!p) continue
       const qty = Math.max(1, Number(bi.quantity) || 1)
       const unitPrice = Number(p.sale_price || p.price)
-      items.push({ productId: p.id, productName: p.name, quantity: qty, unitPrice, total: unitPrice * qty })
+      // The weight has to be carried with the line, or the limit has nothing to count. (T20 B1)
+      items.push({ productId: p.id, productName: p.name, quantity: qty, unitPrice, total: unitPrice * qty, product: camel(p) })
     }
   }
   if (!items.length) items = sessionItems(session)
   if (!items.length) return c.json({ error: 'No items in order' }, 400)
 
   const subtotal = items.reduce((sum: number, item: any) => sum + Number(item.total || 0), 0)
+
+  // The cannabis purchase limit — the thing that makes this a legal till rather than a shopping cart. The
+  // kiosk had none of it: no weight counted, no limit checked, and total_cannabis_weight_oz written as 0, so
+  // 20 eighths (2.47 oz) were accepted and completed at a register that refuses 1.11 oz over the counter, and
+  // the state-reportable weight on the order read zero. Same helpers, same limit, same message as the
+  // register. Items that arrived through add-item carry no product, so look those up. (Dispensary T20 B1)
+  const missing = items.filter((i: any) => !i.product && i.productId).map((i: any) => String(i.productId))
+  if (missing.length) {
+    const pr = await db.execute(sql`
+      SELECT id, category, tax_category, weight_grams, weight, weight_unit
+      FROM products WHERE company_id = ${companyId}
+        AND id IN (${sql.join(missing.map((m) => sql`${m}`), sql`, `)})
+    `)
+    const byId = new Map(rows(pr).map((p: any) => [String(p.id), camel(p)]))
+    for (const i of items as any[]) if (!i.product && i.productId) i.product = byId.get(String(i.productId)) || null
+  }
+  const totalGrams = cartCannabisGrams(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })))
+  const [companyRow] = rows(await db.execute(sql`SELECT purchase_limit_oz, state FROM company WHERE id = ${companyId} LIMIT 1`))
+  const limitOz = resolvePurchaseLimitOz(camel(companyRow) as any)
+  const over = overPurchaseLimit(totalGrams, limitOz)
+  if (over) {
+    audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: over, req: { user: { companyId } } })
+    return c.json(over, 400)
+  }
+  const totalCannabisWeightOz = (totalGrams / GRAMS_PER_OZ).toFixed(2)
 
   // Sequential per-company order number for the Orders list (integer order_number); the
   // `number` text column holds the human-facing kiosk code shown on the thank-you screen.
@@ -316,7 +343,7 @@ app.post('/session/:token/checkout', async (c) => {
 
   // Create order (walk-in style; a budtender reviews and completes it at the register).
   const orderResult = await db.execute(sql`
-    INSERT INTO orders(id, order_number, number, type, status, subtotal, total, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
+    INSERT INTO orders(id, order_number, number, type, status, subtotal, total, total_cannabis_weight_oz, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
     VALUES (
       gen_random_uuid(),
       ${nextNumber},
@@ -325,6 +352,7 @@ app.post('/session/:token/checkout', async (c) => {
       'pending',
       ${String(subtotal)},
       ${String(subtotal)},
+      ${totalCannabisWeightOz},
       ${session.id},
       ${session.location_id || null},
       ${companyId},
