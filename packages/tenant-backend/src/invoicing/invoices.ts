@@ -482,6 +482,47 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   //   paidAmount     = money actually kept: amountPaid − amountRefunded on every non-void invoice
   //   refundedAmount = money returned: amountRefunded on EVERY invoice, void included — void is only allowed once
   //                    the money is refunded, so that is where refunds sit, and Reports counts them (T29 L3)
+  // Repair invoices whose own figures do not match their payment ledger.
+  //
+  // Reports read the ledger; the invoice list reads amount_paid / amount_refunded. Both are right about a
+  // row where the two agree, and the model makes sure they do — a payment and a refund each write the row
+  // AND the field, in one transaction. On the field service tenant eight invoices carried a +120 payment
+  // and a -120 refund with both fields still at 0.00, so Reports counted $960 of refunds that no invoice
+  // accounted for. No path in this module can produce that; they predate it or were written around it.
+  // Rather than teach one of the two surfaces to disregard the other, the row is restated from its own
+  // ledger, which is the record of what actually moved. Only rows that disagree are touched.
+  // (Field service T22 H2)
+  app.post('/reconcile-ledger', requirePermission('invoices:update'), async (c: any) => {
+    const currentUser = c.get('user') as any
+    const drifted: any = await db.execute(sql`
+      SELECT i.id,
+             i.amount_paid AS was_paid,
+             i.amount_refunded AS was_refunded,
+             COALESCE(SUM(GREATEST(p.amount::numeric, 0)), 0) AS ledger_paid,
+             COALESCE(SUM(GREATEST(-(p.amount::numeric), 0)), 0) AS ledger_refunded
+      FROM invoice i
+      JOIN payment p ON p.invoice_id = i.id
+      WHERE i.company_id = ${currentUser.companyId}
+      GROUP BY i.id, i.amount_paid, i.amount_refunded
+      HAVING COALESCE(SUM(GREATEST(p.amount::numeric, 0)), 0) <> i.amount_paid::numeric
+          OR COALESCE(SUM(GREATEST(-(p.amount::numeric), 0)), 0) <> COALESCE(i.amount_refunded, '0')::numeric
+    `)
+    const list = (drifted.rows || drifted) as any[]
+    for (const row of list) {
+      await db.execute(sql`
+        UPDATE invoice
+        SET amount_paid = ${String(round2(Number(row.ledger_paid)))},
+            amount_refunded = ${String(round2(Number(row.ledger_refunded)))},
+            updated_at = NOW()
+        WHERE id = ${row.id} AND company_id = ${currentUser.companyId}
+      `)
+    }
+    return c.json({
+      repaired: list.length,
+      invoices: list.map((r) => ({ id: r.id, amountPaid: round2(Number(r.ledger_paid)), amountRefunded: round2(Number(r.ledger_refunded)), wasPaid: r.was_paid, wasRefunded: r.was_refunded })),
+    })
+  })
+
   app.get('/stats', requirePermission('invoices:read'), async (c) => {
     const currentUser = c.get('user') as any
     const invoices = await db.select({ status: t.invoice.status, total: t.invoice.total, amountPaid: t.invoice.amountPaid, amountRefunded: t.invoice.amountRefunded, dueDate: t.invoice.dueDate }).from(t.invoice).where(eq(t.invoice.companyId, currentUser.companyId))

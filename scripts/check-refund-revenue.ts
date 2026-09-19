@@ -35,6 +35,22 @@ const refQuery = (overview.match(/const \[ref\] = await db[\s\S]*?\n(?=\s*\/\/|\
 if (!refQuery) fail('revenueOverview must have a refund query to check')
 else if (/\bbilled\b|\bissued\b/.test(refQuery)) fail('the refund figure must not be narrowed by invoice status — the refund ledger is the record of what went back')
 
+// Reports read the ledger, the invoice list reads the invoice's own fields, and the two agree on any row
+// where those match — which the write paths guarantee, since a payment and a refund each write the row AND
+// the field together. Eight invoices on the field service tenant carried a +120 payment and a -120 refund
+// with both fields still 0.00, so Reports showed $960 of refunds no invoice accounted for. Nothing above
+// changes: the repair restates the ROW from its own ledger. Guarded so nobody "fixes" the gap next time by
+// teaching one of the two surfaces to disregard the other, which would quietly undo T29 L3.
+// (Field service T22 H2)
+if (!/app\.post\('\/reconcile-ledger'/.test(inv)) fail('the invoicing module must be able to restate an invoice whose figures disagree with its own payment ledger')
+if (!/HAVING COALESCE\(SUM\(GREATEST\(p\.amount::numeric, 0\)\), 0\) <> i\.amount_paid::numeric/.test(inv)) fail('…selecting only the rows that actually disagree, so a healthy invoice is never rewritten')
+if (!/SET amount_paid = /.test(inv) || !/amount_refunded = /.test(inv)) fail('…and restating both figures from the ledger')
+{
+  // the reporting side must keep reading the ledger with no status filter — the T29 L3 decision
+  const col = (overview.match(/const \[col\] = await db[\s\S]*?\n(?=\s*\/\/|\s*const )/) || [''])[0]
+  if (/notVoid|status\} <> 'void'|status <> 'void'/.test(col + refQuery)) fail("Reports must not exclude void invoices from the payment ledger — voiding REQUIRES the refund first, so that is where refunds legitimately sit (T29 L3). Reconcile the drifted rows instead.")
+}
+
 const page = read('packages/tenant-ui/src/reporting/ReportsPage.tsx')
 if (!/\$\{revenue\.refunded \? ` · \$\{money\(revenue\.refunded\)\} refunded` : ''\}/.test(page)) fail('the Reports page must show refunds next to invoiced')
 if (failed) { console.error(`\nrefund revenue: ${failed} check(s) FAILED`); process.exit(1) }
