@@ -27,6 +27,21 @@ const jobsPage = read('packages/tenant-ui/src/jobs/JobsPage.tsx')
 if (!/title=\{editing \? `Edit \$\{cfg\.labels\.singular\}` : cfg\.labels\.add\}/.test(jobsPage)) fail('the job dialog must reuse the button label, so a vertical that renames the button renames both')
 if (/`New \$\{cfg\.labels\.singular\}`/.test(jobsPage)) fail('…and must not build its own "New X" title')
 
+// One name per thing: the sidebar's "Email" item opened a page headed "Inbound Messages", while the SMS page
+// next door was headed "Messages" like its own nav item — three names for two things. (T14 L2)
+const inbox = read('packages/tenant-ui/src/settings/InboundMessagesPage.tsx')
+if (!/<h1 className="text-2xl font-bold mb-2">Email<\/h1>/.test(inbox)) fail('the inbound-email page must be headed "Email", the name of the nav item that opens it')
+// rendered text only — the comment above the heading, and the component's own filename, both say the old name
+if (/>Inbound Messages</.test(inbox)) fail('…and must not still render "Inbound Messages" as a heading')
+if (!/Emails received on your "route into CRM" aliases/.test(inbox)) fail('…keeping the subtitle that explains what the page actually lists')
+const sms = read('packages/tenant-ui/src/marketing/MessagesPage.tsx')
+if (!/>Messages<\/h1>/.test(sms)) fail('the SMS page must stay headed "Messages", matching its own nav item')
+for (const t of ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']) {
+  const shell = read(`templates/${t}/frontend/src/shellConfig.ts`)
+  if (!shell) continue
+  if (/label: 'Email'/.test(shell) && !/to: '\/crm\/email', icon: Mail, label: 'Email'/.test(shell)) fail(`${t}: the Email nav item changed shape — the page heading is matched to it`)
+}
+
 const labels = read('packages/tenant-ui/src/shell/types.ts')
 for (const [slug, word] of [['field', 'Staff'], ['user', 'Staff'], ['manager', 'Manager'], ['owner', 'Owner']]) {
   if (!new RegExp(`${slug}: '${word}'`).test(labels)) fail(`ROLE_LABELS must map ${slug} → ${word}`)

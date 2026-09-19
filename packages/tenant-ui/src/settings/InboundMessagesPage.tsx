@@ -50,7 +50,10 @@ export function InboundMessagesPage(): React.ReactElement {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-2">Inbound Messages</h1>
+      {/* The sidebar item that opens this is "Email"; it used to land on a page headed "Inbound Messages",
+          which with the SMS page next door made three names for two things. The subtitle below carries the
+          detail the old heading was trying to. (Contractor T14 L2) */}
+      <h1 className="text-2xl font-bold mb-2">Email</h1>
       <p className="text-sm text-gray-500 mb-6">Emails received on your "route into CRM" aliases. Newest first.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
