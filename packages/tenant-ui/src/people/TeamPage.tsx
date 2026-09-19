@@ -9,7 +9,7 @@ import type { Pagination } from '../invoicing/ui'
 import { ROLE_LABELS } from '../shell/types'
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
 
-interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; active: boolean; assignedJobs?: number; _source?: 'user' }
+interface Member { id: string; name: string; email?: string | null; phone?: string | null; role?: string | null; department?: string | null; hourlyRate?: string | number | null; active: boolean; assignedJobs?: number; hasLogin?: boolean; _source?: 'user' }
 const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '' }
 
 export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TeamConfig }) {
@@ -70,7 +70,9 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const openEdit = (m: Member) => { setEditing(m); setForm({ name: m.name || '', email: m.email || '', phone: m.phone || '', role: m._source === 'user' ? '' : (m.role || ''), department: m.department || '', hourlyRate: m.hourlyRate == null ? '' : String(m.hourlyRate) }); setFormError(''); setModalOpen(true) }
 
   const columns = [
-    { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{row._source === 'user' && <span className="ml-2 text-xs font-normal text-gray-400 dark:text-slate-500">login</span>}</span> },
+    // The badge says "this person can sign in", so it follows the login — not which table the row came from.
+    // Giving someone a roster card used to take their badge away while their login carried on working. (T30 N3)
+    { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{(row.hasLogin || row._source === 'user') && <span className="ml-2 text-xs font-normal text-gray-400 dark:text-slate-500">login</span>}</span> },
     // Two different things share this column: a roster member's job title is free text they typed, but a login
     // account's is a permission role, and that was printing the stored slug — "field" and "user" on a page whose
     // own Settings › Users calls them Staff. ROLE_LABELS is the one vocabulary for that. (Contractor T14 M10)

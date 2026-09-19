@@ -107,7 +107,18 @@ export function createTeamRoutes(deps: TeamDeps) {
     // Each roster row carries the work it is holding, so "Remove" can say what it will leave unassigned
     // instead of finding out afterwards. Login rows are read-only here and keep their jobs either way. (T26 L2)
     const counts = await assignedJobCounts(user.companyId, data.map((m: any) => m.id))
-    const withCounts = rows.map((r: any) => (r._source === 'user' ? r : { ...r, assignedJobs: counts[r.id] || 0 }))
+    // …and whether the person can sign in, which has to be answered by "is there a login with this email",
+    // NOT by "which table did this row come from". Giving someone a roster card moved them from the user
+    // branch above to the roster branch, and their "login" badge vanished with them — on the one page where
+    // that badge is the only at-a-glance sign of who has access, and precisely for the people you had just
+    // taken the trouble to set up. (Contractor T30 N3)
+    const loginEmails = new Set<string>()
+    if (data.length) {
+      const logins = await db.select({ email: t.user.email }).from(t.user).where(eq(t.user.companyId, user.companyId))
+      for (const u of logins) { const e = String(u.email || '').toLowerCase(); if (e) loginEmails.add(e) }
+    }
+    const hasLogin = (r: any) => r._source === 'user' || loginEmails.has(String(r.email || '').toLowerCase())
+    const withCounts = rows.map((r: any) => (r._source === 'user' ? { ...r, hasLogin: true } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r) }))
     return c.json({ data: withCounts, pagination: { page, limit, total: totalN, pages } })
   })
 

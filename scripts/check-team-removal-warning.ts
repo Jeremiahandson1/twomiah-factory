@@ -23,7 +23,7 @@ if (!/if \(!t\.job\?\.assignedToMemberId \|\| memberIds\.length === 0\) return \
 
 // the list carries it, so the dialog can warn before the click
 if (!/const counts = await assignedJobCounts\(user\.companyId, data\.map/.test(team)) fail('the roster list must carry each member\'s workload')
-if (!/r\._source === 'user' \? r : \{ \.\.\.r, assignedJobs: counts\[r\.id\] \|\| 0 \}/.test(team)) fail('…on the roster rows only — login accounts are read-only on that page')
+if (!/r\._source === 'user' \? \{[^}]*\} : \{ \.\.\.r, assignedJobs: counts\[r\.id\] \|\| 0/.test(team)) fail('…on the roster rows only — a borrowed login row has no roster workload to report')
 
 // the delete reports what it did
 const del = team.match(/app\.delete\('\/:id'[\s\S]*?\n  \}\)/)?.[0] || ''
@@ -58,6 +58,17 @@ if (!/editing && editing\._source !== 'user'/.test(page)) fail('saving a login a
 if (!/editing\?\._source === 'user' && \(/.test(page)) fail('…and the dialog must say that is what it is about to do')
 if (!/label: 'Delete'[^}]*show: \(r\) => r\._source !== 'user'/.test(page)) fail('Delete must stay off login accounts — removing a login belongs to Settings › Users')
 if (!/m\._source === 'user' \? '' : \(m\.role \|\| ''\)/.test(page)) fail("a login account's permission role must not be carried into the trade field")
+
+// …and that card must not cost them the badge. "Can this person sign in" is answered by whether a login EXISTS
+// with their email, never by which table the row was read from — keying it off the row's origin meant the badge
+// vanished the moment someone was given a roster card, on the one page where it is the only sign of who has
+// access, and precisely for the people just set up. (Contractor T30 N3)
+if (!/const loginEmails = new Set<string>\(\)/.test(team)) fail('the roster list must work out who can sign in')
+if (!/db\.select\(\{ email: t\.user\.email \}\)\.from\(t\.user\)\.where\(eq\(t\.user\.companyId, user\.companyId\)\)/.test(team)) fail('…from the login table, inside the company')
+if (!/for \(const u of logins\) \{ const e = String\(u\.email \|\| ''\)\.toLowerCase\(\); if \(e\) loginEmails\.add\(e\) \}/.test(team)) fail('…and actually fill that set — an empty one badges nobody, silently')
+if (!/loginEmails\.has\(String\(r\.email \|\| ''\)\.toLowerCase\(\)\)/.test(team)) fail('…matched on email, case-insensitively — the roster and the login are separate records')
+if (!/hasLogin: true \} : \{ \.\.\.r, assignedJobs: counts\[r\.id\] \|\| 0, hasLogin: hasLogin\(r\) \}/.test(team)) fail('every row must carry hasLogin — the borrowed login rows too')
+if (!/\(row\.hasLogin \|\| row\._source === 'user'\) && <span/.test(page)) fail('the login badge must follow the login, not the row\'s origin')
 
 if (failed) { console.error(`\nteam removal warning: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('team removal warning: removing someone from the roster says what work it leaves unassigned')
