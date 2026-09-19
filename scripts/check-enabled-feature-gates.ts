@@ -77,6 +77,31 @@ for (const t of TEMPLATES) {
   }
 }
 
+// Reviews is the third family that cannot be gated at the mount — the link in the customer's text is public — so it
+// gates itself too. Unlike call tracking, the routes are ONE shared implementation, so the gate lives there and each
+// template hands its own middleware in. With it missing, settings, stats and the whole request list answered 200 on
+// a tenant whose menu has no Reviews item at all. (Contractor T29 N1)
+{
+  const src = read('packages/tenant-backend/src/integrations/reviews.ts')
+  const trackAt = src.indexOf("app.get('/track/:requestId/click'")
+  const authAt = src.indexOf("app.use('*', authenticate)")
+  const gateAt = src.indexOf("if (deps.requireEnabledFeature) app.use('*', deps.requireEnabledFeature(deps.feature || 'google_reviews'))")
+  if (gateAt < 0) fail('the shared reviews routes must refuse their own endpoints when the module is off')
+  else {
+    if (authAt < 0 || gateAt < authAt) fail('the reviews gate must sit after authenticate (it needs the caller\'s company)')
+    if (trackAt < 0 || trackAt > gateAt) fail('the public review-click link must be registered ABOVE the gate, or the customer\'s link stops working')
+  }
+  if (!/requireEnabledFeature\?: \(feature: string \| string\[\]\) => any/.test(src)) fail('createReviewsRoutes must accept the template\'s gate')
+  for (const t of TEMPLATES) {
+    const wiring = read(`templates/${t}/backend/src/routes/reviews.ts`)
+    if (!/import \{ requireEnabledFeature \} from '\.\.\/middleware\/enabledFeature\.ts'/.test(wiring)) fail(`${t} reviews.ts does not import its enabled-feature gate`)
+    if (!/authenticate, requireRole, audit, requireEnabledFeature \}\)/.test(wiring)) fail(`${t} reviews.ts does not hand the gate to the shared routes — its Reviews API stays open`)
+    // the API and the menu must be gated on the SAME id, or one of them is wrong
+    const shell = read(`templates/${t}/frontend/src/shellConfig.ts`)
+    if (/\/crm\/reviews/.test(shell) && !/google_reviews/.test(shell)) fail(`${t} gates /crm/reviews on something other than google_reviews — the API and the menu must agree`)
+  }
+}
+
 // the Schedule board is the Scheduling module: with it switched off the entry must leave the menu and the URL must be
 // blocked (T14 M5: the drag & drop board stayed fully usable). Salon and restaurant gate it through routeGates; RV's
 // schedule is its own module.

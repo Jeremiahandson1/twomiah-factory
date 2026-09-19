@@ -5,7 +5,8 @@ import { db } from '../../db/index.ts'
 import { reviewRequest } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
+import { requireEnabledFeature } from '../middleware/enabledFeature.ts'
 import audit from '../services/audit.ts'
 import reviews from '../services/reviews.ts'
 
-export default createReviewsRoutes({ service: reviews, db, tables: { reviewRequest }, authenticate, requireRole, audit })
+export default createReviewsRoutes({ service: reviews, db, tables: { reviewRequest }, authenticate, requireRole, audit, requireEnabledFeature })

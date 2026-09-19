@@ -295,6 +295,14 @@ export interface ReviewsRoutesDeps {
   authenticate: any
   requireRole: (...roles: string[]) => any
   audit?: { log: (input: any) => any }
+  /**
+   * The template's enabled-feature gate, applied to the AUTHENTICATED endpoints only. This family cannot be
+   * gated at the mount — the customer's review link is public — so it gates itself, exactly as call tracking
+   * and the AI receptionist do. Optional: the two templates outside the shared gate (roof, store) pass nothing.
+   */
+  requireEnabledFeature?: (feature: string | string[]) => any
+  /** Feature this module is sold under; every vertical that offers it gates /crm/reviews on the same id. */
+  feature?: string
 }
 
 export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
@@ -315,6 +323,11 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
   })
 
   app.use('*', authenticate)
+  // Switched off means switched off at the API, not just hidden in the menu: every vertical that offers this
+  // module gates /crm/reviews on the same feature, but the routes answered with settings, stats and the request
+  // list regardless. The gate sits AFTER authenticate and after the public tracking link above, so a customer
+  // clicking through still lands on the review page. (Contractor T29 N1)
+  if (deps.requireEnabledFeature) app.use('*', deps.requireEnabledFeature(deps.feature || 'google_reviews'))
   const user = (c: any) => c.get('user') as any
 
   app.get('/settings', async (c) => c.json(await reviews.getReviewSettings(user(c).companyId)))
