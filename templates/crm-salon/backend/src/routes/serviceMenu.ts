@@ -47,7 +47,11 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (body.category != null && body.category !== '' && !CATEGORIES.includes(String(body.category).toLowerCase())) {
     return c.json({ error: `Category must be one of: ${CATEGORIES.join(', ')}.` }, 400)
   }
-  if (body.price != null && (isNaN(Number(body.price)) || Number(body.price) < 0)) {
+  // "abc" is not a negative price, it is not a price at all — one check answered for both. (T20 L2)
+  if (body.price != null && isNaN(Number(body.price))) {
+    return c.json({ error: 'Price must be a number.' }, 400)
+  }
+  if (body.price != null && Number(body.price) < 0) {
     return c.json({ error: 'Price cannot be negative.' }, 400)
   }
   if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1 || Number(body.durationMin) > 720)) {
@@ -92,7 +96,11 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Service not found' }, 404)
 
-  if (body.price != null && (isNaN(Number(body.price)) || Number(body.price) < 0)) {
+  // "abc" is not a negative price, it is not a price at all — one check answered for both. (T20 L2)
+  if (body.price != null && isNaN(Number(body.price))) {
+    return c.json({ error: 'Price must be a number.' }, 400)
+  }
+  if (body.price != null && Number(body.price) < 0) {
     return c.json({ error: 'Price cannot be negative.' }, 400)
   }
   if (body.durationMin != null && (isNaN(Number(body.durationMin)) || Number(body.durationMin) < 1)) {

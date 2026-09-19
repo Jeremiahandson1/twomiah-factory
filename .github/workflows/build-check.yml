@@ -1352,3 +1352,14 @@ jobs:
           bun-version: latest
       - name: "Client book is clients; visits happened; heading honest; brand reads dark"
         run: bun run scripts/check-salon-mediums.ts
+
+  299:
+    name: "salon lows"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Settings keys removable; refusals honest; no portal secret; theme at boot"
+        run: bun run scripts/check-salon-lows.ts

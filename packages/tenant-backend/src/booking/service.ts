@@ -6,7 +6,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { BookingError } from './types'
 import type { BookingDeps, BookingStatus, CatalogService } from './types'
 import { createWidgetCatalog } from './catalog'
-import { DAYS, DAY_MS, addDays, defaultWorkingHours, formatWhen, hmToMinutes, isHm, isIsoDate, isValidTz, minutesToHm, parseHours, safeTz, tzParts, zonedWallTimeToUtc } from './time'
+import { DAYS, DAY_MS, addDays, defaultWorkingHours, formatWhen, hmToMinutes, isHm, isIsoDate, isRealDate, isValidTz, minutesToHm, parseHours, safeTz, tzParts, zonedWallTimeToUtc } from './time'
 import type { WorkingHours } from './time'
 
 const BOOKING_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show']
@@ -274,7 +274,9 @@ export function createBookingService(deps: BookingDeps) {
   }
 
   async function getAvailableSlots(companyId: string, date: string, serviceId?: string, exec: any = db) {
+    // shape AND reality: "2026-02-30" is shaped right and is not a day (T20 L2)
     if (!isIsoDate(date)) throw new BookingError('Date must be YYYY-MM-DD.')
+    if (!isRealDate(date)) throw new BookingError(`${date} is not a real date — check the month and day.`)
     await expireStaleDepositHolds(companyId)
     const settings = await getSettings(companyId)
     // Only advertise slots inside the same window createBooking will accept. A past date, or one beyond
@@ -323,6 +325,9 @@ export function createBookingService(deps: BookingDeps) {
   async function createBooking(companyId: string, data: BookingInput) {
     const { serviceId, date, time } = data
     if (!isIsoDate(date)) throw new BookingError('Date must be YYYY-MM-DD.')
+    // A date that is not a day must be refused for THAT, not judged against the booking window and
+    // answered with "That date is in the past." or "within 30 days." (T20 L2)
+    if (!isRealDate(date)) throw new BookingError(`${date} is not a real date — check the month and day.`)
     if (!isHm(time)) throw new BookingError('Time must be HH:MM (24-hour).')
     const settings = await getSettings(companyId)
     if (!settings.enabled) throw new BookingError('Online booking is not enabled.')

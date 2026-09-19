@@ -2,6 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { applyStoredTheme } from './shared';
+
+// Put the saved theme on <html> BEFORE the first render. useTheme() only runs inside the shell, so any
+// page outside it — the 404 catch-all above all — loaded in full light theme whatever the user chose.
+// (Salon T20 L5)
+applyStoredTheme();
 
 // Error boundary for the entire app
 class GlobalErrorBoundary extends React.Component<any, any> {

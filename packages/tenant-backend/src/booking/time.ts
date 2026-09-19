@@ -9,6 +9,22 @@ export interface DayHours { start: string; end: string; enabled: boolean }
 export type WorkingHours = Record<string, DayHours>
 
 export const isIsoDate = (s: unknown) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
+
+/**
+ * A date that is SHAPED like YYYY-MM-DD and is also a real day.
+ *
+ * isIsoDate only checks the shape, so "2026-02-30" and "2026-13-01" passed it and were then judged by
+ * string comparison against the booking window — answering "That date is in the past." and "Please
+ * choose a date within 30 days." Both refusals were correct and both reasons were untrue. A date that
+ * is not a day has to be refused for being one. (Salon T20 L2)
+ */
+export const isRealDate = (s: unknown): boolean => {
+  if (!isIsoDate(s)) return false
+  const [y, m, d] = String(s).split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  // A rolled-over date (Feb 30 → Mar 2) comes back with different parts than it went in with.
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
 export const isHm = (s: unknown) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s)
 export const hmToMinutes = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m }
 export const minutesToHm = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`

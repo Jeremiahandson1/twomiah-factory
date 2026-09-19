@@ -79,10 +79,16 @@ export function createCompanyRoutes(deps: CompanyDeps) {
     // { settings: { defaultTaxRate } } used to overwrite the whole JSON blob, wiping plan, seat limit,
     // payment terms and onboarding flags. The UI sends the full object (safe either way); any partial
     // writer (or a future one) must not destroy the rest. (settings-blob wipe)
+    // Merging alone means a key can only ever be ADDED: writing one back as null stored null rather
+    // than removing it, so the blob grew in one direction and nothing could ever be taken out of it.
+    // An explicit null is how a caller says "remove this" — it is the only way to say it, and storing
+    // the null instead is the one reading that means nothing to anybody. (Salon T20 L1)
     const updates: any = { ...data, updatedAt: new Date() }
     if (data.settings && typeof data.settings === 'object') {
       const [cur] = await db.select({ settings: t.company.settings }).from(t.company).where(eq(t.company.id, currentUser.companyId)).limit(1)
-      updates.settings = { ...((cur?.settings as any) || {}), ...data.settings }
+      const merged: Record<string, unknown> = { ...((cur?.settings as any) || {}), ...data.settings }
+      for (const [k, v] of Object.entries(data.settings as Record<string, unknown>)) if (v === null) delete merged[k]
+      updates.settings = merged
     }
     const [row] = await db.update(t.company).set(updates).where(eq(t.company.id, currentUser.companyId)).returning()
     if (!row) return c.json({ error: 'Company not found' }, 404)

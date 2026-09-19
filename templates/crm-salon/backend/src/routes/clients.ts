@@ -66,12 +66,20 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 
   // Flatten contact + profile to one row level so the list can read
   // `row.name` / `row.hairType` / `row.stylistFirstName` directly.
-  const rows = data.map((r: any) => ({
-    ...r.contact,
-    ...(r.profile ? { ...r.profile, id: r.contact.id, profileId: r.profile.id } : {}),
-    stylistFirstName: r.stylistFirstName,
-    stylistLastName: r.stylistLastName,
-  }))
+  const rows = data.map((r: any) => {
+    // portalToken is a bearer credential for the client portal: anyone holding it can open that
+    // client's records. It was going out in a LIST response, for every client that had one, to a
+    // vertical with no client-portal UI at all — nothing in the salon bundle reads it and
+    // /api/portal/contacts/:token 404s here. A secret handed out for a feature that does not exist
+    // is pure downside. (T20 L4)
+    const { portalToken, portalTokenExp, ...contactSafe } = r.contact
+    return {
+      ...contactSafe,
+      ...(r.profile ? { ...r.profile, id: r.contact.id, profileId: r.profile.id } : {}),
+      stylistFirstName: r.stylistFirstName,
+      stylistLastName: r.stylistLastName,
+    }
+  })
   return c.json({ data: rows, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })
 

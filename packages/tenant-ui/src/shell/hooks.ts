@@ -12,6 +12,19 @@ function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle('dark', resolved === 'dark')
 }
 
+/**
+ * Put the saved theme on <html> at startup, before anything renders.
+ *
+ * useTheme() only applies the class when a component that CALLS it mounts, and the only such component
+ * is the shell. Anything rendered outside the shell — the 404 catch-all, most obviously — therefore
+ * loaded in full light theme no matter what the user had chosen, because nothing had told the document
+ * yet. Calling this from the entry point also removes the flash of light theme on a cold load of any
+ * page. (Salon T20 L5)
+ */
+export function applyStoredTheme(): void {
+  try { applyTheme((localStorage.getItem('theme') as Theme) || 'light') } catch { /* private mode */ }
+}
+
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(() => {
     try { return (localStorage.getItem('theme') as Theme) || 'light' } catch { return 'light' }
