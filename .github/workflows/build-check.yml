@@ -1110,3 +1110,14 @@ jobs:
           bun-version: latest
       - name: "Check branding settings"
         run: bun run scripts/check-branding-settings.ts
+
+  seeded-logo:
+    name: "A new CRM points at the logo it was given"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check seeded logo"
+        run: bun run scripts/check-seeded-logo.ts

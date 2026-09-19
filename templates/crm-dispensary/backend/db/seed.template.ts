@@ -28,6 +28,7 @@ async function main() {
       zip: '{{ZIP}}',
       primaryColor: '{{PRIMARY_COLOR}}',
       secondaryColor: '{{SECONDARY_COLOR}}',
+      logo: '{{COMPANY_LOGO}}',
       website: '{{SITE_URL}}',
       enabledFeatures,
       taxRate: '10',

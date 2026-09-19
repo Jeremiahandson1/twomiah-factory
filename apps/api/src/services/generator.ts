@@ -565,6 +565,13 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{PRIMARY_COLOR}}': b.primaryColor || (isStore ? '#4f46e5' : industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
     '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
     '{{ACCENT_COLOR}}': b.accentColor || '#f59e0b',
+    // The path writeBrandingAssets is about to write into the CRM's frontend/public, so the seeded company row
+    // can point at it. Colours already reached company.primaryColor/secondaryColor through the seed; the logo
+    // only ever became a FILE, and company.logo — which the customer portal and the public booking page read —
+    // was left empty on every tenant. Mirrors writeBrandingAssets exactly: an uploaded data URL keeps its own
+    // extension, anything else gets the synthesized monogram. Root-relative, so it is served by the CRM itself
+    // and does not depend on the tenant's website still existing. (Contractor T14 M8)
+    '{{COMPANY_LOGO}}': b.logo?.startsWith('data:') ? '/logo.' + (getExtFromDataUrl(b.logo) || 'png') : '/logo.svg',
     '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : industry === 'dispensary' ? '#f0fdf4' : '#f8f9fa',
     '{{PRODUCTS_JSON}}': JSON.stringify((() => {
       const prods = [...(config.products || ['crm'])]
