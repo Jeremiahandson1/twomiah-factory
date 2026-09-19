@@ -26,6 +26,12 @@ const MANAGER_ROLES = new Set(['owner', 'admin', 'manager'])
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt }
 const stripTags = (s: string) => s.replace(/<[^>]*>/g, '').trim()
 const validDate = (v: unknown) => !v || !isNaN(new Date(String(v)).getTime())
+/** A timesheet records work already done, so a date years out is a typo — and a SILENT one: the entry sits outside
+ *  every dated window, so the hours don't show up wrong in Reports, they don't show up at all (contractor T29 L1 —
+ *  a 2099 row made a 9.5-hour month read 7.5). A whole day of slack covers a caller whose local date is already
+ *  ahead of UTC, since a date-only string is parsed at UTC midnight. */
+const DATE_SLACK_MS = 24 * 60 * 60 * 1000
+const notFuture = (v: unknown) => { if (!v) return true; const ms = new Date(String(v)).getTime(); return isNaN(ms) || ms <= Date.now() + DATE_SLACK_MS }
 const fk = z.string().optional().nullable().transform((v) => (v ? v : null))
 const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -52,7 +58,7 @@ export function createTimeRoutes(deps: TimeDeps) {
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid time entry', details: err.flatten().fieldErrors }, 400)
 
   const entrySchema = z.object({
-    date: z.string().optional().nullable().refine(validDate, { message: 'Enter a valid date' }),
+    date: z.string().optional().nullable().refine(validDate, { message: 'Enter a valid date' }).refine(notFuture, { message: 'Time can only be logged for a date that has happened' }),
     hours: z.coerce.number().positive('Hours must be greater than 0').max(maxHours, `Hours cannot exceed ${maxHours} for one entry`).optional(),
     startTime: z.string().regex(TIME_RE, 'Start time must be HH:MM').optional(),
     endTime: z.string().regex(TIME_RE, 'End time must be HH:MM').optional(),

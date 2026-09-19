@@ -11,7 +11,9 @@ import type { PeopleApi, PeopleToast, TimeConfig } from './types'
 import { isManagerRole } from './types'
 
 interface Entry { id: string; date: string; hours: string | number; description?: string | null; billable: boolean; approved?: boolean; clockIn?: string | null; clockOut?: string | null; userId: string; projectId?: string | null; jobId?: string | null; user?: { firstName: string; lastName: string } | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
-const today = () => new Date().toISOString().split('T')[0]
+// The person's own date, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this pre-filled
+// TOMORROW all evening, and it is also the ceiling the date box is given. (Contractor T29 L1)
+const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0] }
 const fmtElapsed = (ms: number) => { const m = Math.max(0, Math.floor(ms / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` }
 
 export function TimePage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TimeConfig }) {
@@ -126,7 +128,9 @@ export function TimePage({ api, toast, config }: { api: PeopleApi; toast: People
         <div className="space-y-4">
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Date"><input type="date" value={form.date} onChange={set('date')} className={inputCls} /></Field>
+            {/* Hours are worked before they are logged, so the picker stops at today — a mistyped year used to be
+                accepted and then vanish from every dated report instead of reading wrong. (T29 L1) */}
+            <Field label="Date"><input type="date" max={today()} value={form.date} onChange={set('date')} className={inputCls} /></Field>
             <Field label="Enter as"><select value={form.mode} onChange={set('mode')} className={inputCls}><option value="hours">Hours</option><option value="span">Start / end time</option></select></Field>
           </div>
           {form.mode === 'hours' ? (

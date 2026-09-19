@@ -37,5 +37,15 @@ if (!/if \(worked <= 0\) return c\.json\(\{ error: 'Break is longer than the tim
 const timePage = read('packages/tenant-ui/src/people/TimePage.tsx')
 if (!/r\?\.discarded \? \(r\.message \|\| 'That clock-in was too short to record'\)/.test(timePage)) fail('the Time page must not report a discarded clock-in as "Clocked out — 0.00 h"')
 
+// T29 L1 — hours are worked before they are logged. A mistyped year was accepted and then fell outside every dated
+// window, so the hours did not read wrong in Reports, they disappeared: 22.5 worked, 18.5 reported.
+if (!/const DATE_SLACK_MS = 24 \* 60 \* 60 \* 1000/.test(time)) fail('the slack a date-only string needs (UTC midnight vs a caller already on tomorrow) must be stated, not buried in a literal')
+if (!/const notFuture = \(v: unknown\) =>/.test(time)) fail('a time entry date must be bounded — an unbounded one goes missing rather than reading wrong')
+// anchored on the end of the expression: a bound multiplied back out to a century reads the same up to here
+if (!/ms <= Date\.now\(\) \+ DATE_SLACK_MS \}/.test(time)) fail('…bounded at one day out, and no further')
+if (!/\.refine\(notFuture, \{ message: 'Time can only be logged for a date that has happened' \}\)/.test(time)) fail('…on the shared entry schema, so the bound covers the edit as well as the entry')
+if (!/d\.getTime\(\) - d\.getTimezoneOffset\(\) \* 60000/.test(timePage)) fail("the Time page must date an entry by the person's own day — toISOString() rolls over at UTC midnight and pre-filled tomorrow all evening")
+if (!/<input type="date" max=\{today\(\)\}/.test(timePage)) fail('the date box must stop at today, so the typo is caught at the picker and not only by the API')
+
 if (failed) { console.error(`\naudience, quote stats, lead sources and the clock: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('audience, quote stats, lead sources and the clock: an unknown audience is refused, one refused bucket, lead sources are named, a mis-clicked clock-in is discarded')
