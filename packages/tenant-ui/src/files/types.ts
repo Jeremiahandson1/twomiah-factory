@@ -1,7 +1,13 @@
 // Shared Documents page — the contract between a template and the vendored page.
 import type { InvoicingApi, InvoicingToast } from '../invoicing/types'
 
-export type FilesApi = InvoicingApi & { baseUrl?: string }
+/**
+ * `refreshAccessToken` is the api client's own single-flight refresh. The file requests are raw fetches
+ * (multipart uploads, byte previews), so they need a way to recover from an expired access token without
+ * standing up a second refresh of their own. Optional, so a template passing a plain object still works —
+ * it simply gets the old behaviour. (Salon T22 M3)
+ */
+export type FilesApi = InvoicingApi & { baseUrl?: string; refreshAccessToken?: () => Promise<'ok' | 'revoked' | 'retry'> }
 export type FilesToast = InvoicingToast
 
 export interface DocumentsConfig {

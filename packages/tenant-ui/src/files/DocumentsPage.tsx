@@ -11,8 +11,25 @@ import { resolveDocumentsConfig } from './types'
 // ---------------------------------------------------------------- authenticated file access
 const token = () => { try { return localStorage.getItem('accessToken') || localStorage.getItem('token') || '' } catch { return '' } }
 const absolute = (api: FilesApi, url: string) => (url.startsWith('http') ? url : (api.baseUrl || '') + url)
-async function authedFetch(api: FilesApi, url: string, init: RequestInit = {}) {
+/**
+ * Every file request here is a raw fetch — it has to be, because an upload is multipart and a preview
+ * needs the bytes — so none of them went through the api client, and none of them refreshed. An access
+ * token that aged out while the salon left the CRM open turned the first upload of the afternoon into a
+ * red "Invalid token", with a perfectly good refresh token sitting in storage and nothing retried. The
+ * only hint that a reload would fix it was knowing that already.
+ *
+ * So: on a 401, refresh ONCE through the client's own single-flight path — not a second implementation,
+ * because the server rotates refresh tokens and two refreshes racing is how people got logged out
+ * mid-session (F-02) — and replay the request. A FormData body can be sent again, so the upload itself
+ * survives the retry. If the refresh says the session is genuinely revoked, the 401 stands and the
+ * client's normal expiry handling takes it from there. (Salon T22 M3)
+ */
+export async function authedFetch(api: FilesApi, url: string, init: RequestInit = {}, retried = false): Promise<Response> {
   const res = await fetch(absolute(api, url), { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token()}` } })
+  if (res.status === 401 && !retried && typeof api.refreshAccessToken === 'function') {
+    const outcome = await api.refreshAccessToken()
+    if (outcome === 'ok') return authedFetch(api, url, init, true)
+  }
   return res
 }
 async function blobUrl(api: FilesApi, url: string): Promise<string> {
