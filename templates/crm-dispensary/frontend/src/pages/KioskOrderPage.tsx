@@ -31,6 +31,13 @@ export default function KioskOrderPage() {
   const [sessionToken, setSessionToken] = useState('');
   /** The customer's own date of birth — the server decides the age from this. (T20 B2) */
   const [dateOfBirth, setDateOfBirth] = useState('');
+  /**
+   * This tablet's own credential. The kiosk has no user to sign in as, so it is paired once from
+   * Settings → Kiosks and keeps a token of its own. (T21 B1)
+   */
+  const [kioskToken, setKioskToken] = useState(() => { try { return localStorage.getItem('kioskToken') || ''; } catch { return ''; } });
+  const [needsPairing, setNeedsPairing] = useState(false);
+  const [pairingCode, setPairingCode] = useState('');
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -83,6 +90,37 @@ export default function KioskOrderPage() {
     setError('');
   };
 
+  /** Every kiosk call carries this tablet's token, when it has one. (T21 B1) */
+  const kioskPost = (path: string, body: any = {}) =>
+    api.request(path, { method: 'POST', body: JSON.stringify(body), headers: kioskToken ? { 'X-Kiosk-Token': kioskToken } : {} });
+
+  // Ask on load whether this tablet still counts as paired, so a revoked kiosk shows the pairing screen
+  // rather than failing at checkout with a full cart. While the shop is still in warn mode, an unpaired
+  // kiosk carries on working — that is the point of warn mode.
+  useEffect(() => {
+    let cancelled = false;
+    api.request('/api/kiosk/pair/status', { method: 'GET', headers: kioskToken ? { 'X-Kiosk-Token': kioskToken } : {} })
+      .then((s: any) => { if (!cancelled) setNeedsPairing(!s?.paired && s?.enforcement === 'enforce'); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [kioskToken]);
+
+  const handlePair = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api.post('/api/kiosk/pair', { code: pairingCode.trim().toUpperCase() });
+      try { localStorage.setItem('kioskToken', data.token); } catch { /* a locked-down browser still runs for this session */ }
+      setKioskToken(data.token);
+      setNeedsPairing(false);
+      setPairingCode('');
+    } catch (err: any) {
+      setError(err.message || 'That pairing code was not accepted.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAgeVerify = async () => {
     // Tapping a button is not a claim about anyone's age. The customer enters their date of birth and the
     // SERVER works out whether they may buy — it used to accept {verified:true} on its own, which is how a
@@ -93,11 +131,11 @@ export default function KioskOrderPage() {
     try {
       const params = new URLSearchParams(window.location.search);
       const locationId = params.get('location') || undefined;
-      const data = await api.post('/api/kiosk/session/start', locationId ? { locationId } : {});
+      const data = await kioskPost('/api/kiosk/session/start', locationId ? { locationId } : {});
       const token = data.token || data.sessionToken || '';
       setSessionToken(token);
       if (token) {
-        await api.post(`/api/kiosk/session/${token}/verify-age`, { verified: true, dobProvided: dateOfBirth });
+        await kioskPost(`/api/kiosk/session/${token}/verify-age`, { verified: true, dobProvided: dateOfBirth });
       }
       await loadMenu();
       setStep('browse');
@@ -145,7 +183,7 @@ export default function KioskOrderPage() {
     // Sync with backend
     if (sessionToken) {
       try {
-        await api.post(`/api/kiosk/session/${sessionToken}/add-item`, {
+        await kioskPost(`/api/kiosk/session/${sessionToken}/add-item`, {
           productId: product.id,
           quantity: 1,
         });
@@ -189,7 +227,7 @@ export default function KioskOrderPage() {
     setSubmitting(true);
     setError('');
     try {
-      const data = await api.post(`/api/kiosk/session/${sessionToken}/checkout`, {
+      const data = await kioskPost(`/api/kiosk/session/${sessionToken}/checkout`, {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         items: cart.map(item => ({ productId: item.productId, quantity: item.quantity })),
@@ -202,6 +240,45 @@ export default function KioskOrderPage() {
       setSubmitting(false);
     }
   };
+
+  // Pairing — this tablet has no credential and the shop is enforcing them. Shown before anything else,
+  // because an unpaired kiosk cannot start a session. A manager adds the kiosk under Settings → Kiosks and
+  // reads out the code. (T21 B1)
+  if (needsPairing) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-8">
+        <div className="text-center max-w-lg w-full">
+          <div className="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-8">
+            <Leaf className="w-12 h-12 text-white" />
+          </div>
+          <h1 className="text-4xl font-bold text-white mb-4">Pair this kiosk</h1>
+          <p className="text-xl text-gray-300 mb-8">
+            Add this device under Settings &rarr; Kiosks, then enter the pairing code shown there.
+          </p>
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/50 text-red-300 rounded-xl p-4 mb-6">{error}</div>
+          )}
+          <input
+            id="kiosk-pairing-code"
+            value={pairingCode}
+            onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
+            placeholder="ABC123"
+            maxLength={6}
+            autoCapitalize="characters"
+            className="w-full py-5 px-6 mb-6 bg-gray-800 border border-gray-700 text-white text-3xl tracking-[0.3em] text-center rounded-2xl focus:outline-none focus:ring-2 focus:ring-green-500 touch-manipulation"
+          />
+          <button
+            onClick={handlePair}
+            disabled={loading || pairingCode.trim().length < 6}
+            className="w-full py-6 px-8 bg-green-600 hover:bg-green-700 text-white text-2xl font-bold rounded-2xl transition-colors disabled:opacity-50 touch-manipulation"
+          >
+            {loading ? 'Pairing...' : 'Pair kiosk'}
+          </button>
+          <p className="text-gray-500 text-sm mt-6">This is done once per device. Staff only.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Age Verification
   if (step === 'age-verify') {

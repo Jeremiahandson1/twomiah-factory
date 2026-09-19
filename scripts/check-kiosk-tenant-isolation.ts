@@ -117,6 +117,15 @@ for (const route of ["'/session/start'", "'/session/:token/add-item'", "'/sessio
 if (!/code: 'kiosk_not_paired'/.test(src)) fail('…refusing an unpaired kiosk under a code the screen can act on')
 if (/app\.use\('\/menu', requireDevice\)/.test(src)) fail('the public menu must stay public — it is a menu')
 if (!/kiosk_device_id/.test(src)) fail('a session must record WHICH tablet started it')
+// …and the tablet needs a way to GET a token, or the credential can never be used at all.
+if (kioskPage) {
+  if (!/id="kiosk-pairing-code"/.test(kioskPage)) fail('the kiosk page must offer a pairing screen')
+  if (!/localStorage\.setItem\('kioskToken', data\.token\)/.test(kioskPage)) fail('…and keep the token for next time')
+  // BOTH places send it: the write helper and the "am I still paired?" check. One of them alone is a kiosk
+  // that works until a manager revokes it and then never notices.
+  if ((kioskPage.match(/'X-Kiosk-Token': kioskToken/g) || []).length < 2) fail('…and send it on every kiosk call, including the pairing check')
+  if (!/setNeedsPairing\(!s\?\.paired && s\?\.enforcement === 'enforce'\)/.test(kioskPage)) fail("…showing the pairing screen only when the shop is enforcing, so warn mode keeps an unpaired kiosk working")
+}
 
 if (failed) { console.error(`\nkiosk tenant isolation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('kiosk tenant isolation: company is resolved by the owner account, never an arbitrary row; the age gate is computed from a date of birth, not asserted by the device')
