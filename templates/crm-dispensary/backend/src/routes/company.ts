@@ -10,6 +10,7 @@ import { requirePermission, invalidateExtraPermissions } from '../middleware/per
 import { getFeaturesForTemplate } from '../shared/featureRegistry.ts'
 import { passwordSchema } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
+import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyConfig.ts'
 
 const app = new Hono()
 // Never serialize provider secrets to the client (VET-41 / F-26): GET & PUT /api/company
@@ -20,6 +21,9 @@ function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   if (!row) return row
   const clone: any = { ...row }
   for (const f of COMPANY_SECRETS) delete clone[f]
+  // Settings → Loyalty reads these flat keys; they live under settings.loyalty. Without them the
+  // screen fell back to its own placeholder numbers and looked like it had loaded a saved config. (T21 M7)
+  Object.assign(clone, loyaltyConfigResponse(row))
   return clone
 }
 
@@ -34,7 +38,14 @@ app.get('/', async (c) => {
 
 app.put('/', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
-  const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), taxRate: z.union([z.string(), z.number()]).optional(), localTaxRate: z.union([z.string(), z.number()]).optional(), exciseTaxRate: z.union([z.string(), z.number()]).optional(), purchaseLimitOz: z.union([z.string(), z.number()]).optional(), settings: z.record(z.any()).optional() })
+  const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), taxRate: z.union([z.string(), z.number()]).optional(), localTaxRate: z.union([z.string(), z.number()]).optional(), exciseTaxRate: z.union([z.string(), z.number()]).optional(), purchaseLimitOz: z.union([z.string(), z.number()]).optional(), settings: z.record(z.any()).optional(),
+    // Settings → Loyalty sends these five. They had no place in this schema, so zod stripped every one
+    // and the screen reported a save that never happened. (T21 M7)
+    loyaltyPointsPerDollar: z.number().min(0).optional(),
+    loyaltyWelcomePoints: z.number().int().min(0).optional(),
+    loyaltyBirthdayBonus: z.number().int().min(0).optional(),
+    loyaltyEnabled: z.boolean().optional(),
+    loyaltyTierThresholds: z.record(z.number()).optional() })
   // .catch: a missing or malformed body must not throw past validation into a
   // 500 — the caller gets a 400 that names the problem instead.
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -58,9 +69,18 @@ app.put('/', requireAdmin, async (c) => {
   // MERGE a partial settings object into the stored one — never replace it (see the shared company route:
   // a partial write used to wipe the whole blob). The UI sends the full object; any partial writer must not.
   const updates: any = { ...data, updatedAt: new Date() }
-  if (data.settings && typeof data.settings === 'object') {
+  // The loyalty settings live under settings.loyalty — the one place the award engine reads. Lift them
+  // out of the flat body the screen sends and merge them in, leaving the rest of the blob alone. (T21 M7)
+  const loyaltyPatch: Record<string, any> = {}
+  for (const [bodyKey, settingKey] of Object.entries(LOYALTY_SETTING_KEYS)) {
+    if (data[bodyKey] !== undefined) { loyaltyPatch[settingKey] = data[bodyKey]; delete updates[bodyKey] }
+  }
+  if ((data.settings && typeof data.settings === 'object') || Object.keys(loyaltyPatch).length) {
     const [cur] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-    updates.settings = { ...((cur?.settings as any) || {}), ...data.settings }
+    const base = { ...((cur?.settings as any) || {}), ...(data.settings && typeof data.settings === 'object' ? data.settings : {}) }
+    updates.settings = Object.keys(loyaltyPatch).length
+      ? { ...base, loyalty: { ...((base as any).loyalty || {}), ...loyaltyPatch } }
+      : base
   }
   const [result] = await db.update(company).set(updates).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)

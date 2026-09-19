@@ -1220,3 +1220,14 @@ jobs:
           bun-version: latest
       - name: "Blocked sale states its reason; POS tiles re-read stock"
         run: bun run scripts/check-register-tells-the-cashier.ts
+
+  286:
+    name: "loyalty bonuses"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Loyalty settings persist where read; welcome + birthday bonuses paid"
+        run: bun run scripts/check-loyalty-bonuses.ts

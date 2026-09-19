@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact } from '../../db/schema.ts'
+import { contact, company } from '../../db/schema.ts'
+import { loyaltyConfig } from '../utils/loyaltyConfig.ts'
 import { eq, and, ilike, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -106,12 +107,26 @@ app.post('/members', async (c) => {
   const existing = ((existingResult as any).rows || existingResult)?.[0]
   if (existing) return c.json({ error: 'Customer is already a loyalty member' }, 409)
 
+  // Joining is joining however it happens: a customer signed up at the counter gets the same welcome
+  // bonus Settings → Loyalty promises as one enrolled by their first purchase. (T21 M7)
+  const [coRow] = await db.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const cfg = loyaltyConfig(coRow)
+  const welcomeBonus = cfg.enabled ? cfg.welcomePoints : 0
+  const startingPoints = data.initialPoints + welcomeBonus
+
   const result = await db.execute(sql`
     INSERT INTO loyalty_members(id, contact_id, tier, points_balance, total_points_earned, lifetime_points, total_visits, total_spent, notes, company_id, created_at, updated_at)
-    VALUES (gen_random_uuid(), ${data.contactId}, ${data.tier}, ${data.initialPoints}, ${data.initialPoints}, ${data.initialPoints}, 0, 0, ${data.notes || null}, ${currentUser.companyId}, NOW(), NOW())
+    VALUES (gen_random_uuid(), ${data.contactId}, ${data.tier}, ${startingPoints}, ${startingPoints}, ${startingPoints}, 0, 0, ${data.notes || null}, ${currentUser.companyId}, NOW(), NOW())
     RETURNING *
   `)
   const member = ((result as any).rows || result)?.[0]
+  if (welcomeBonus > 0 && member?.id) {
+    await db.execute(sql`
+      INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, description, company_id, created_at)
+      VALUES (gen_random_uuid(), ${member.id}, 'bonus', ${welcomeBonus}, ${startingPoints}, 'Welcome bonus', ${currentUser.companyId}, NOW())
+    `)
+  }
 
   audit.log({
     action: audit.ACTIONS.CREATE,

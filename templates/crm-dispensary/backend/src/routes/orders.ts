@@ -10,6 +10,7 @@ import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequir
 import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
+import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -17,11 +18,8 @@ app.use('*', authenticate)
 // Cannabis purchase limit: company.purchase_limit_oz → state default → 2.5 oz (utils/cannabis.ts).
 // It used to be a hardcoded 2.5 oz here regardless of Settings or state (go-live QA V-1).
 const LOYALTY_POINTS_PER_DOLLAR = 1
-// Points-per-dollar from Settings → Loyalty (company.settings.loyalty.pointsPerDollar), else 1.
-const pointsRate = (settings: any): number => {
-  const r = Number(settings?.loyalty?.pointsPerDollar)
-  return Number.isFinite(r) && r >= 0 ? r : LOYALTY_POINTS_PER_DOLLAR
-}
+// Points-per-dollar, the welcome bonus and the birthday bonus all come from the one reader in
+// utils/loyaltyConfig.ts, which is also what the API hands back to Settings → Loyalty. (T21 M7)
 // Points accrue on what the customer paid for MERCHANDISE (subtotal − discounts), not on tax.
 // Earning on the tax-inclusive total (the old behaviour, QA V-2) paid points for money that
 // goes to the state. Reversals use the points recorded on the order, so this is consistent.
@@ -683,8 +681,9 @@ app.post('/:id/complete', async (c) => {
     // (no stock decrement, no payment) for any sale with a customer attached. Cast to
     // numeric so the arithmetic works whatever the column type is. (register/M5)
     if (existing.contactId) {
-      const [coRow] = await tx.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-      const pointsEarned = Math.floor(pointsBasis(existing) * pointsRate(coRow?.settings))
+      const [coRow] = await tx.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+      const loyalty = loyaltyConfig(coRow)
+      const pointsEarned = Math.floor(pointsBasis(existing) * loyalty.pointsPerDollar)
       // A redeemed catalog reward counts a use once the sale actually settles.
       if ((existing as any).loyaltyRewardId) {
         await tx.execute(sql`UPDATE loyalty_rewards SET usage_count = COALESCE(usage_count, 0) + 1, updated_at = NOW() WHERE id = ${(existing as any).loyaltyRewardId} AND company_id = ${currentUser.companyId}`)
@@ -693,14 +692,39 @@ app.post('/:id/complete', async (c) => {
       // UPDATE keyed on contact_id; with no membership row it hit 0 rows, so a customer with
       // real spend showed points 0 / tier null and every loyalty counter read zero. Create
       // the row first (no unique constraint to ON CONFLICT on, so guard with NOT EXISTS). (retest#8)
-      await tx.execute(sql`
+      const enrolled: any = await tx.execute(sql`
         INSERT INTO loyalty_members (id, company_id, contact_id, points_balance, tier, joined_at, updated_at)
         SELECT gen_random_uuid(), ${currentUser.companyId}, ${existing.contactId}, 0, 'bronze', NOW(), NOW()
         WHERE NOT EXISTS (
           SELECT 1 FROM loyalty_members
           WHERE contact_id = ${existing.contactId} AND company_id = ${currentUser.companyId}
         )
+        RETURNING id
       `)
+      // A row comes back only when this sale is the one that enrolled them, so the welcome bonus is
+      // granted exactly once — on joining, not on every visit. Settings → Loyalty offered it and
+      // nothing ever paid it out: a new customer's $80 first purchase ended on exactly 80 points. (T21 M7)
+      const justEnrolled = ((enrolled as any).rows || enrolled)?.length > 0
+      const welcomeBonus = loyalty.enabled && justEnrolled ? loyalty.welcomePoints : 0
+
+      // The birthday bonus, once per calendar year, on their first settled sale in their birthday
+      // month — a reward tied to the day itself would go unclaimed by anyone who did not happen to
+      // shop that day.
+      let birthdayBonus = 0
+      if (loyalty.enabled && loyalty.birthdayBonus > 0) {
+        const [ct] = await tx.select({ dob: contact.dateOfBirth }).from(contact).where(eq(contact.id, existing.contactId)).limit(1)
+        if (inBirthdayMonth(ct?.dob)) {
+          const already: any = await tx.execute(sql`
+            SELECT 1 FROM loyalty_transactions lt
+            JOIN loyalty_members lm ON lm.id = lt.member_id
+            WHERE lm.contact_id = ${existing.contactId} AND lt.company_id = ${currentUser.companyId}
+              AND lt.type = 'bonus' AND lt.description LIKE 'Birthday bonus%'
+              AND lt.created_at >= date_trunc('year', NOW())
+            LIMIT 1
+          `)
+          if (!((already as any).rows || already)?.length) birthdayBonus = loyalty.birthdayBonus
+        }
+      }
       await tx.execute(sql`
         UPDATE loyalty_members
         SET points_balance = COALESCE(points_balance::numeric, 0) + ${pointsEarned},
@@ -728,6 +752,32 @@ app.post('/:id/complete', async (c) => {
         FROM loyalty_members lm
         WHERE lm.contact_id = ${existing.contactId} AND lm.company_id = ${currentUser.companyId}
       `)
+
+      // The bonuses land as their own ledger entries, applied after the purchase award so each row's
+      // balance_after is the balance at that moment. They are deliberately NOT written to the order's
+      // loyalty_points_earned: a refund reverses what the PURCHASE awarded, and a welcome or birthday
+      // bonus is not something the customer bought. (T21 M7)
+      for (const bonus of [
+        { points: welcomeBonus, description: 'Welcome bonus' },
+        { points: birthdayBonus, description: `Birthday bonus ${new Date().getFullYear()}` },
+      ]) {
+        if (bonus.points <= 0) continue
+        await tx.execute(sql`
+          UPDATE loyalty_members
+          SET points_balance = COALESCE(points_balance::numeric, 0) + ${bonus.points},
+              total_points_earned = COALESCE(total_points_earned::numeric, 0) + ${bonus.points},
+              lifetime_points = COALESCE(lifetime_points, 0) + ${bonus.points},
+              last_activity_at = NOW(),
+              updated_at = NOW()
+          WHERE contact_id = ${existing.contactId} AND company_id = ${currentUser.companyId}
+        `)
+        await tx.execute(sql`
+          INSERT INTO loyalty_transactions(id, member_id, type, points, balance_after, order_id, description, company_id, created_at)
+          SELECT gen_random_uuid(), lm.id, 'bonus', ${bonus.points}, COALESCE(lm.points_balance::numeric, 0), ${id}, ${bonus.description}, ${currentUser.companyId}, NOW()
+          FROM loyalty_members lm
+          WHERE lm.contact_id = ${existing.contactId} AND lm.company_id = ${currentUser.companyId}
+        `)
+      }
 
       // Spend the points that were redeemed for this order's discount — previously the discount was
       // applied but the points were never deducted, so redemption was free and the balance only ever
