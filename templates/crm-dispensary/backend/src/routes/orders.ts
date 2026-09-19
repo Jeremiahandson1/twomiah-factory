@@ -11,9 +11,17 @@ import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
+import { checkFilter } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// The vocabulary an order's status and type are drawn from, stated once. STATUS_FLOW is what a caller
+// may SET through /status; the two refund states are reached by refunding, never by asking. Filtering
+// is validated against the whole set, because every one of them is a state an order can be found in.
+export const STATUS_FLOW = ['pending', 'processing', 'ready', 'completed', 'cancelled'] as const
+export const ORDER_STATUSES = [...STATUS_FLOW, 'refunded', 'partially_refunded'] as const
+export const ORDER_TYPES = ['walk_in', 'delivery', 'online'] as const
 
 // Cannabis purchase limit: company.purchase_limit_oz → state default → 2.5 oz (utils/cannabis.ts).
 // It used to be a hardcoded 2.5 oz here regardless of Settings or state (go-live QA V-1).
@@ -92,6 +100,14 @@ app.get('/', async (c) => {
   const page = Math.max(1, Math.floor(+(c.req.query('page') || '1') || 1))
   const limit = Math.min(500, Math.max(1, Math.floor(+(c.req.query('limit') || '25') || 25)))
 
+  // A filter naming a status this CRM does not have is a typo, not a result: answering it with an
+  // empty list tells the caller, in the ordinary way, that there are no orders. Name what is
+  // accepted instead — the same rule the rest of the fleet follows. (T21 M9)
+  const badStatus = checkFilter(c, 'status', status, ORDER_STATUSES)
+  if (badStatus) return badStatus
+  const badType = checkFilter(c, 'type', type, ORDER_TYPES)
+  if (badType) return badType
+
   const conditions: any[] = [eq(order.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(order.status, status))
   if (type) conditions.push(eq(order.type, type))
@@ -154,7 +170,7 @@ app.post('/', async (c) => {
   const currentUser = c.get('user') as any
 
   const orderSchema = z.object({
-    type: z.enum(['walk_in', 'delivery', 'online']).default('walk_in'),
+    type: z.enum(ORDER_TYPES).default('walk_in'),
     // A walk-in register has no customer, so the POS sends contactId: null.
     // `.optional()` rejected explicit null → 400 and a silent dead checkout. (B1)
     contactId: z.string().nullish(),
@@ -499,7 +515,7 @@ app.put('/:id/status', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const statusBody = await c.req.json()
-  const { status } = z.object({ status: z.enum(['pending', 'processing', 'ready', 'completed', 'cancelled']) }).parse(statusBody)
+  const { status } = z.object({ status: z.enum(STATUS_FLOW) }).parse(statusBody)
 
   const [existing] = await db.select().from(order)
     .where(and(eq(order.id, id), eq(order.companyId, currentUser.companyId)))

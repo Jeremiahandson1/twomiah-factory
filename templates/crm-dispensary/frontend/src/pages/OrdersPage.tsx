@@ -10,9 +10,17 @@ const statusTabs = [
   { value: '', label: 'All', param: '' },
   { value: 'type:walk_in', label: 'Walk-in', param: 'type' },
   { value: 'type:delivery', label: 'Delivery', param: 'type' },
+  { value: 'type:online', label: 'Online', param: 'type' },
+  // Every status an order can actually hold. The list offered only Completed, Cancelled and Refunded,
+  // so on a day of 45 orders with 18 completed the majority could not be listed or worked in bulk —
+  // and a partially refunded sale was invisible under every filter there was. (T21 M9)
+  { value: 'status:pending', label: 'Pending', param: 'status' },
+  { value: 'status:processing', label: 'Processing', param: 'status' },
+  { value: 'status:ready', label: 'Ready', param: 'status' },
   { value: 'status:completed', label: 'Completed', param: 'status' },
-  { value: 'status:cancelled', label: 'Cancelled', param: 'status' },
+  { value: 'status:partially_refunded', label: 'Partly refunded', param: 'status' },
   { value: 'status:refunded', label: 'Refunded', param: 'status' },
+  { value: 'status:cancelled', label: 'Cancelled', param: 'status' },
 ];
 
 const statusColors: Record<string, string> = {
@@ -21,6 +29,8 @@ const statusColors: Record<string, string> = {
   completed: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
   refunded: 'bg-gray-100 text-gray-700',
+  partially_refunded: 'bg-orange-100 text-orange-700',
+  ready: 'bg-teal-100 text-teal-700',
   walk_in: 'bg-emerald-100 text-emerald-700',
   delivery: 'bg-purple-100 text-purple-700',
   online: 'bg-indigo-100 text-indigo-700',

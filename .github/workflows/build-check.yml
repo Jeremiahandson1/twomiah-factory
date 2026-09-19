@@ -1253,3 +1253,14 @@ jobs:
           bun-version: latest
       - name: "Add Product is a real form; both bounds enforced; import agrees"
         run: bun run scripts/check-product-form-validates.ts
+
+  290:
+    name: "order filters complete"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Every order state filterable and badged; unknown filter refused"
+        run: bun run scripts/check-order-filters-complete.ts
