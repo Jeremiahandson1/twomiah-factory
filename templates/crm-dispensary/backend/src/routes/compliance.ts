@@ -40,6 +40,27 @@ const licenseSchema = z.object({
 // sales_tax / excise_tax / inventory_summary / waste_disposal / track_trace / patient_count /
 // diversion_prevention — which used to fail the enum with a 400 the UI swallowed, so
 // "Generate" did nothing (go-live QA H-1). Accept the aliases and map them here.
+/**
+ * A date-only end of range means the whole of that day. Every query here compares `<= endDate`, so a bare
+ * "2026-09-19" (midnight) silently dropped the 19th from a 1–19 September report. A caller that sends a real
+ * timestamp is asking for that instant and gets it. (Dispensary T20 B3)
+ */
+const endOfDayIfDateOnly = (v: string): Date => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(`${v}T23:59:59.999Z`)
+  return new Date(v)
+}
+
+/**
+ * A SETTLED sale: money changed hands. A sale that was later refunded still happened and still belongs in a
+ * compliance report — the refund is its own event, reported separately, exactly as the tax, patient-count and
+ * diversion reports in this same file already have it. Only daily_sales asked for `= 'completed'`, so every
+ * refunded sale vanished from the one report a regulator reads as "what did you sell". (Dispensary T20 B3)
+ *
+ * The TAX report deliberately keeps its own narrower set (it nets a fully refunded sale out of what is owed),
+ * so it is left alone here — what tax you owe and what you sold are different questions.
+ */
+const settledSale = sql`('completed', 'partially_refunded', 'refunded')`
+
 const REPORT_TYPES = ['daily_sales', 'inventory_snapshot', 'waste', 'transfer', 'metrc_reconciliation', 'tax', 'patient_count', 'diversion'] as const
 type ReportType = typeof REPORT_TYPES[number]
 const REPORT_TYPE_ALIASES: Record<string, ReportType> = {
@@ -305,8 +326,12 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const data = reportGenerateSchema.parse(await c.req.json())
 
+  // A report for 1–19 September has to CONTAIN the 19th. "2026-09-19" parses to midnight, and every query
+  // below asks for `<= endDate`, so the whole of the last day fell outside the window and the report came
+  // back silently short — no error, no gap, just a missing day. A date-only end is the END of that day; a
+  // caller who sends a full timestamp means that instant and is left alone. (Dispensary T20 B3)
   const startDate = new Date(data.startDate)
-  const endDate = new Date(data.endDate)
+  const endDate = endOfDayIfDateOnly(data.endDate)
   let reportData: any = null
 
   switch (data.reportType) {
@@ -316,6 +341,9 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           o.completed_at::date as sale_date,
           COUNT(*)::int as total_orders,
           COALESCE(SUM(o.total::numeric), 0) as total_revenue,
+          -- what was given back, reported rather than deducted by omission
+          COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as total_refunded,
+          COALESCE(SUM(o.total::numeric), 0) - COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as net_revenue,
           COALESCE(SUM(o.total_tax::numeric), 0) as total_tax,
           COALESCE(SUM(o.discount_amount::numeric), 0) as total_discounts,
           COUNT(CASE WHEN o.is_medical = true THEN 1 END)::int as medical_orders,
@@ -323,7 +351,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           COUNT(CASE WHEN o.type = 'delivery' THEN 1 END)::int as delivery_orders
         FROM orders o
         WHERE o.company_id = ${currentUser.companyId}
-          AND o.status = 'completed'
+          AND o.status IN ${settledSale}
           AND o.completed_at >= ${startDate}
           AND o.completed_at <= ${endDate}
         GROUP BY 1

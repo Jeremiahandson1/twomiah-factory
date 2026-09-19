@@ -1154,3 +1154,14 @@ jobs:
           bun-version: latest
       - name: "An unknown status, type or category is refused by name"
         run: bun run scripts/check-list-filter-vocabulary.ts
+
+  compliance-report-window:
+    name: "Compliance report window"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "The last day is in the window and a refunded sale still counts"
+        run: bun run scripts/check-compliance-report-window.ts
