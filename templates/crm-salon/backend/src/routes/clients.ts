@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
+import { isClient } from '../utils/clientTypes.ts'
 import { createId } from '@paralleldrive/cuid2'
 
 /**
@@ -29,8 +30,10 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
 
-  // The client book is people who sit in the chair — not vendors/suppliers. (CC-20)
-  const conditions = [eq(contact.companyId, currentUser.companyId), ne(contact.type, 'vendor')]
+  // The client book is people who sit in the chair — not vendors/suppliers (CC-20), and not leads
+  // either: a lead has not been in the chair yet. They belong on Contacts, where they carry a Lead
+  // badge, and become a client the moment they are converted. (T20 M2)
+  const conditions = [eq(contact.companyId, currentUser.companyId), isClient()]
   if (search) {
     conditions.push(or(
       ilike(contact.name, `%${search}%`),

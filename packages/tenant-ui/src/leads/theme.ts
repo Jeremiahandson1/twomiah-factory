@@ -27,6 +27,13 @@ export interface LeadPalette {
   infoBorder: string  // (#e8ecff in light)
   infoHead: string    // (#333 in light)
   infoBody: string    // (#555 in light)
+  // The stat-line colours under each card total. These were inline hexes chosen for a white card, on
+  // the assumption noted above that a semantic colour "reads on both themes". It does not: #1565c0 on
+  // the dark surface (#1e293b) measures 2.55:1, and its two neighbours are no better at ~3.1 and ~3.4.
+  // They are structural after all, because what they sit on changes. (Salon T20 M6)
+  statNew: string       // (#1565c0 in light)
+  statContacted: string // (#e65100 in light)
+  statConverted: string // (#2e7d32 in light)
 }
 
 const LIGHT: LeadPalette = {
@@ -35,6 +42,7 @@ const LIGHT: LeadPalette = {
   inputBorder: '#ddd', activeBtn: '#f0f0f0', mutedBtnBg: '#f5f5f5', codeBg: '#f5f5f5',
   errBg: '#fdecea', errText: '#b71c1c',
   infoBg: '#f8f9ff', infoBorder: '#e8ecff', infoHead: '#333', infoBody: '#555',
+  statNew: '#1565c0', statContacted: '#e65100', statConverted: '#2e7d32',
 }
 
 const DARK: LeadPalette = {
@@ -43,6 +51,8 @@ const DARK: LeadPalette = {
   inputBorder: '#475569', activeBtn: '#334155', mutedBtnBg: '#334155', codeBg: '#0f172a',
   errBg: '#3b1f1f', errText: '#fca5a5',
   infoBg: '#1e2a44', infoBorder: '#334155', infoHead: '#cbd5e1', infoBody: '#94a3b8',
+  // lifted onto the dark card: ~9:1 each, against 2.55/3.1/3.4 for the light-mode hexes
+  statNew: '#90caf9', statContacted: '#ffb74d', statConverted: '#81c784',
 }
 
 /** Structural colour palette for the lead pages, resolved from the live (class-strategy) theme. */

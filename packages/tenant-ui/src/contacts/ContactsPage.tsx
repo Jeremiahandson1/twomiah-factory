@@ -153,7 +153,10 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
     ) },
     // the vertical's own word for the type, not the stored value — a clinic's rows read Owner, not client (T24 M11)
     { key: 'type', label: 'Type', render: (val: unknown) => <StatusBadge status={String(val || '')} label={typeLabel(String(val || ''))} /> },
-    { key: 'email', label: 'Email', render: (val: unknown) => val ? <a href={`mailto:${val}`} onClick={(e) => e.stopPropagation()} className="text-orange-500 hover:underline">{String(val)}</a> : '-' },
+    // text-orange-500 is the tenant's brand hex itself, and dark mode reused it unchanged: 2.70:1 on
+    // the dark table for a blue brand, across every email cell in the list. Shade 200 is the same hue
+    // lifted to 80% lightness and clears AA whatever the brand colour is. (Salon T20 M6)
+    { key: 'email', label: 'Email', render: (val: unknown) => val ? <a href={`mailto:${val}`} onClick={(e) => e.stopPropagation()} className="text-orange-500 dark:text-orange-200 hover:underline">{String(val)}</a> : '-' },
     { key: 'phone', label: 'Phone', render: (val: unknown) => <span className="text-gray-700 dark:text-slate-200">{String(val || '-')}</span> },
     { key: 'city', label: 'Location', render: (_v: unknown, row: ContactRow) => <span className="text-gray-700 dark:text-slate-200">{row.city && row.state ? `${row.city}, ${row.state}` : row.city || row.state || '-'}</span> },
   ]

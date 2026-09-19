@@ -9,6 +9,7 @@ import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
 import { resolveStylist, unknownStylist, stylistIdOf } from '../utils/stylist.ts'
+import { hasHappened } from '../shared/index.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 
 /**
@@ -101,6 +102,13 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   // A negative price charged dragged the client's lifetime value negative. (CC-18)
   if (body.priceCharged != null && (isNaN(Number(body.priceCharged)) || Number(body.priceCharged) < 0)) {
     return c.json({ error: 'Price charged cannot be negative.' }, 400)
+  }
+  // A visit is something that HAPPENED. performedAt 2027-06-15 was accepted without a word and then
+  // headed Recent Services on the dashboard and Recent Activity on the owner portal, above every real
+  // visit — the "most recent" panels were showing the furthest-FUTURE records. Same rule expenses and
+  // time entries already follow. (T20 M4)
+  if (!hasHappened(body.performedAt)) {
+    return c.json({ error: 'A visit can only be dated to a day that has happened. Check the year.', code: 'FUTURE_VISIT', field: 'performedAt' }, 400)
   }
 
   // The person who did the work may be a login user or a roster-only stylist; work out which before
@@ -195,6 +203,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     if (!resolved) return unknownStylist(c, updates.stylistId)
     updates.stylistId = resolved.stylistId
     updates.stylistMemberId = resolved.stylistMemberId
+  }
+  // an edit must not be the way a future visit gets in (T20 M4)
+  if ('performedAt' in updates && !hasHappened(updates.performedAt)) {
+    return c.json({ error: 'A visit can only be dated to a day that has happened. Check the year.', code: 'FUTURE_VISIT', field: 'performedAt' }, 400)
   }
   if (updates.performedAt) updates.performedAt = new Date(updates.performedAt)
 

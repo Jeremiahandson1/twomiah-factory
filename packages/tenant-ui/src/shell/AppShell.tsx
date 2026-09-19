@@ -28,7 +28,12 @@ function RouterLink({ to, end, className, children, onClick, role, ...rest }: { 
   )
 }
 
-const linkCls = (active: boolean) => `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}`
+// dark:text-orange-200, not -400. Every template overrides orange-* with the TENANT'S brand palette, so
+// shade 400 is that brand's hue at a fixed 55% lightness — bright for a warm hue, dark for a cool one.
+// On the tinted sidebar that computes to 5.85:1 for an orange brand and 3.04:1 for a blue one, which is
+// why two testers measured the same class at 6.8:1 and 3.25:1 and why it looked unreproducible. Shade
+// 200 clears 4.5:1 for EVERY hue (worst 7.24:1, at hue 240); 300 does not (worst 3.33:1). (Salon T20 M6)
+const linkCls = (active: boolean) => `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}`
 
 export function AppShell({ api, auth, connected = false, config }: AppShellProps) {
   const { user, company, logout, hasFeature } = auth

@@ -267,7 +267,7 @@ export default function AppLayout() {
                     ${isActive
                       /* orange-400 on the tinted dark panel measured 3.25:1 — the item telling you
                          where you are was the hardest one to read. orange-300 clears 4.5:1. (T21 M2) */
-                      ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300'
+                      ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200'
                       : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'
                     }
                   `}
@@ -287,7 +287,7 @@ export default function AppLayout() {
             to="/crm/settings"
             className={({ isActive }) => `
               flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
-              ${isActive ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}
+              ${isActive ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}
             `}
           >
             <Settings className="w-5 h-5" aria-hidden="true" />

@@ -3,6 +3,7 @@ import { db } from '../../db/index.ts'
 import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice, teamMember } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { clientsOf } from '../utils/clientTypes.ts'
 
 /**
  * Salon dashboard — the book today, revenue in the chair, who is due back, and
@@ -40,7 +41,9 @@ app.get('/stats', async (c) => {
   }
 
   const [clientRows, todayApptRows, upcomingApptRows, apptsByStatus, visitsMonthRows, revenueRows, byStylistRows, membershipRows, dueRows] = await Promise.all([
-    safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }]),
+    // The tile says "Clients … In your book", so it counts CLIENTS — not every contact row including
+    // leads and vendors, which is what it used to do. Same rule the Clients page lists by. (T20 M2)
+    safe(() => db.select({ value: count() }).from(contact).where(clientsOf(companyId)), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, tomorrow), LIVE_APPT)), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, now), lt(appointment.startTime, in7), UPCOMING_APPT)), [{ value: 0 }]),
     safe(() => db.select({ status: appointment.status, c: count() }).from(appointment).where(and(eq(appointment.companyId, companyId), gte(appointment.startTime, today), lt(appointment.startTime, in7))).groupBy(appointment.status), [] as { status: string; c: number }[]),

@@ -71,11 +71,31 @@ function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+/**
+ * A day the book can actually be shown for.
+ *
+ * The date input reports every keystroke, so a half-typed or cleared date reached dayBounds as
+ * something like "2026-0" — new Date(...) is Invalid Date and toISOString() throws RangeError. The
+ * load failed, the rows from the previous day stayed on screen, and the heading above them rendered
+ * "Chairs on Invalid Date": a day that reads as though it has those appointments. (Salon T20 M5)
+ */
+export function isDayComplete(day: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day || ''))) return false;
+  return !Number.isNaN(new Date(`${day}T12:00:00`).getTime());
+}
+
 function dayBounds(day: string): { from: string; to: string } {
   // Local-day bounds, sent as ISO.
   const start = new Date(`${day}T00:00:00`);
   const end = new Date(`${day}T23:59:59.999`);
   return { from: start.toISOString(), to: end.toISOString() };
+}
+
+/** The heading for a day, or null while the one being typed is not a day yet. */
+export function dayHeading(day: string, today: string): string | null {
+  if (!isDayComplete(day)) return null;
+  if (day === today) return "Today's chairs";
+  return `Chairs on ${new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`;
 }
 
 function fmtTime(s?: string): string {
@@ -98,6 +118,12 @@ export default function AppointmentsPage() {
   const [resched, setResched] = useState<Appointment | null>(null);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const navigate = useNavigate();
+  // The heading for the day whose rows are actually on screen — held while a new date is being typed.
+  const [shownHeading, setShownHeading] = useState<string>(() => dayHeading(todayStr(), todayStr()) ?? "Today's chairs");
+  useEffect(() => {
+    const h = dayHeading(day, todayStr());
+    if (h) setShownHeading(h);
+  }, [day]);
   useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
 
   // Closing a visit creates the sale (backend); offer to take payment right away. (SALON-H4)
@@ -106,6 +132,9 @@ export default function AppointmentsPage() {
   };
 
   const load = useCallback(async () => {
+    // Mid-keystroke the date is not a day yet. Don't fetch, don't throw, and above all don't leave the
+    // previous day's rows under a heading claiming to be some other day. (T20 M5)
+    if (!isDayComplete(day)) return;
     setLoading(true);
     try {
       const { from, to } = dayBounds(day);
@@ -158,7 +187,9 @@ export default function AppointmentsPage() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">The Book</h1>
-          <p className="text-gray-500 dark:text-slate-400">{day === todayStr() ? "Today's chairs" : `Chairs on ${new Date(day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}`}</p>
+          {/* While a date is half-typed the heading HOLDS what is actually on screen rather than
+              rendering "Chairs on Invalid Date" over the previous day's rows. (T20 M5) */}
+          <p className="text-gray-500 dark:text-slate-400">{dayHeading(day, todayStr()) ?? shownHeading}</p>
         </div>
         <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
           <Plus className="w-4 h-4" /> New Appointment

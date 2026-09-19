@@ -1341,3 +1341,14 @@ jobs:
           bun-version: latest
       - name: "Shared predicates module-scoped; panel failures logged"
         run: bun run scripts/check-dashboard-panels-load.ts
+
+  298:
+    name: "salon mediums"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Client book is clients; visits happened; heading honest; brand reads dark"
+        run: bun run scripts/check-salon-mediums.ts

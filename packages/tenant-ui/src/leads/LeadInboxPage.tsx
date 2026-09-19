@@ -118,9 +118,9 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
             <div style={{ fontSize: 12, color: c.muted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total (30d)</div>
             <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>{stats.totals.total}</div>
             <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 12 }}>
-              <span style={{ color: '#1565c0' }}>{stats.totals.new} new</span>
-              <span style={{ color: '#e65100' }}>{stats.totals.contacted} contacted</span>
-              <span style={{ color: '#2e7d32' }}>{stats.totals.converted} converted</span>
+              <span style={{ color: c.statNew }}>{stats.totals.new} new</span>
+              <span style={{ color: c.statContacted }}>{stats.totals.contacted} contacted</span>
+              <span style={{ color: c.statConverted }}>{stats.totals.converted} converted</span>
             </div>
           </div>
           {stats.stats.map((s) => {
