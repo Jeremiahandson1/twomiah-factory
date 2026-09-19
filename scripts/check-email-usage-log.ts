@@ -21,7 +21,12 @@ if (!/export function createEmailLogger/.test(mod)) fail('createEmailLogger must
 if (!/export \{ createEmailLogger \} from '\.\/emailLog'/.test(read('packages/tenant-backend/src/index.ts'))) fail('…and re-exported, or a tenant cannot import it')
 // recording is best-effort: the mail already went out
 if (!/catch \(err\)/.test(mod) || !/logger\?\.warn/.test(mod)) fail('a logging failure must be swallowed — it must never turn a delivered email into a failed send')
-if (!/if \(!t\?\.emailLog \|\| !t\?\.company\) return/.test(mod)) fail('a vertical without the table must be skipped rather than throwing')
+if (!/if \(!t\?\.emailLog \|\| !t\?\.company \|\| !t\?\.user\) return/.test(mod)) fail('a vertical without the tables must be skipped rather than throwing')
+// The company cannot be guessed. `select company limit 1` assumed a tenant holds exactly one; the live
+// contractor tenant holds two, so every row was written against a company nobody is signed in to and every
+// counter missed it — silently. Resolve it from the users, the way every authenticated request does.
+if (!/\.from\(t\.user\)\.where\(isNotNull\(t\.user\.companyId\)\)/.test(mod)) fail('the company must be resolved from the users, not by taking whichever company row comes first')
+if (/const \[row\] = await db\.select\(\{ id: t\.company\.id \}\)\.from\(t\.company\)\.limit\(1\)\s*\n\s*companyId = row\?\.id/.test(mod)) fail('the bare company lookup is back — that is the bug that made this silent')
 if (!/sentAt: entry\.status === 'sent' \? new Date\(\) : null/.test(mod)) fail('only a sent email gets a sent time')
 if (!/\.slice\(0, 500\)/.test(mod)) fail('the provider reason must be truncated before it is stored')
 
@@ -42,7 +47,7 @@ for (const t of TEMPLATES) {
   if (/recordEmail/.test(sendRaw)) fail(`${t}: sendRaw must NOT record — marketing.ts already writes those rows, this would double-count campaigns`)
 
   // registered once, at startup
-  if (!/setEmailRecorder\(createEmailLogger\(\{ db, tables: \{ emailLog, company \}, logger \}\)\)/.test(index)) fail(`${t}: the recorder must be registered at startup`)
+  if (!/setEmailRecorder\(createEmailLogger\(\{ db, tables: \{ emailLog, company, user \}, logger \}\)\)/.test(index)) fail(`${t}: the recorder must be registered at startup`)
   if (!/import \{ setEmailRecorder \} from '\.\/services\/email\.ts'/.test(index)) fail(`${t}: index must import the hook`)
   if (!/emailLog\b/.test(index.match(/^import \{[^}]*\} from '\.\.\/db\/schema\.ts'/m)?.[0] || '')) fail(`${t}: index must import the emailLog table`)
 }

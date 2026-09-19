@@ -91,7 +91,7 @@ handleUncaughtExceptions()
 // campaign sender ever wrote to email_log before, so a tenant who had emailed invoices all month read 0.
 // Registered once here rather than at each send site, so a new kind of email cannot be added and forgotten.
 // (Contractor T14 M23)
-setEmailRecorder(createEmailLogger({ db, tables: { emailLog, company }, logger }))
+setEmailRecorder(createEmailLogger({ db, tables: { emailLog, company, user }, logger }))
 
 const app = new Hono()
 
