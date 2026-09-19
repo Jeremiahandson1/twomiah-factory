@@ -5,6 +5,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, gte, lte, count, desc, sql, inArray } from 'drizzle-orm'
+import { checkFilter } from '../listFilter'
 
 export interface ExpenseTables { expense: any; project?: any; job?: any }
 export interface ExpenseDeps {
@@ -74,6 +75,10 @@ export function createExpenseRoutes(deps: ExpenseDeps) {
     const q = c.req.query()
     const page = clampInt(q.page, 1, 1_000_000, 1)
     const limit = clampInt(q.limit, 1, maxLimit, 50)
+    // The same vocabulary that refuses an unknown category on the way IN refuses it as a filter, instead of
+    // answering with an empty expense sheet. (T29 N2)
+    const badCategory = checkFilter(c, 'category', q.category, categories)
+    if (badCategory) return badCategory
     const conditions: any[] = [eq(t.expense.companyId, currentUser.companyId)]
     if (q.category) conditions.push(eq(t.expense.category, String(q.category).slice(0, 40)))
     if (q.projectId) conditions.push(eq(t.expense.projectId, q.projectId))

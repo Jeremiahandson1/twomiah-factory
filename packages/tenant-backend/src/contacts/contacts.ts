@@ -15,6 +15,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { normaliseState, normaliseZip, STATE_ERROR, ZIP_ERROR } from '../address'
+import { checkFilter } from '../listFilter'
 import { eq, ne, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 
 export const DEFAULT_CONTACT_TYPES = ['lead', 'client', 'subcontractor', 'vendor']
@@ -160,6 +161,11 @@ export function createContactRoutes(deps: ContactDeps) {
     const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
     const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '25', 10) || 25), maxLimit)
 
+    // A type this CRM has no word for is a typo, not an empty page — and the words differ per vertical (the RV
+    // dealership keeps 'customer' where the others keep 'client'), so the vocabulary is the same list that
+    // governs writes rather than a second copy. (T29 N2)
+    const badType = checkFilter(c, 'type', type, types)
+    if (badType) return badType
     const conditions: any[] = [eq(t.contact.companyId, currentUser.companyId)]
     if (type) conditions.push(eq(t.contact.type, type))
     if (search) {

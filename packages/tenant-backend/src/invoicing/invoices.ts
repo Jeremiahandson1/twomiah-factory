@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { mailFailureReason } from '../integrations/mailError'
+import { checkFilter } from '../listFilter'
 
 export interface InvoiceTables {
   invoice: any
@@ -383,6 +384,9 @@ async function reconcileInvoiceStatuses(db: any, invoice: any) {
 export function createInvoiceRoutes(deps: InvoiceDeps) {
   const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, sendInvoiceEmail, loadPdf } = deps
   const openStatuses = deps.options?.openStatuses || DEFAULT_OPEN_STATUSES
+  // What ?status= may name: this template's open statuses (the list picker offers exactly these, plus 'open' on
+  // the verticals that use it), the terminal ones, and 'overdue', which is derived rather than stored. (T29 N2)
+  const statusFilters = [...new Set([...openStatuses, 'draft', 'paid', 'refunded', 'void', 'overdue'])]
   const numbering: NumberingOptions = deps.options?.numbering || { prefix: 'INV', pad: 5, seed: 0 }
   const tips = !!deps.options?.tips
   const maxLimit = deps.options?.maxLimit ?? 100
@@ -431,6 +435,11 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
     const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '50', 10) || 50), maxLimit)
 
+    // A status this CRM has no word for is a typo, not an empty page: 'banana' returned 0 of 78 invoices, which
+    // reads exactly like a company with nothing on its books. The vocabulary is this template's open statuses
+    // (the list picker's own options) plus the terminal ones and the derived 'overdue'. (T29 N2)
+    const badStatus = checkFilter(c, 'status', status, statusFilters)
+    if (badStatus) return badStatus
     const conditions: any[] = [eq(t.invoice.companyId, currentUser.companyId)]
     // 'overdue' is derived, never stored: translate the filter instead of matching a status that no row
     // has, and keep past-due rows out of the plain open-status filters so the page and its count agree.

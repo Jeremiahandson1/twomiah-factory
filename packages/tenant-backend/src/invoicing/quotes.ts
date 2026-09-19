@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, ilike, inArray } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { checkFilter } from '../listFilter'
 
 /** Today at 00:00 UTC — dates are stored as calendar days at UTC midnight, so compare on the same boundary. */
 const startOfToday = () => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())) }
@@ -119,6 +120,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const search = c.req.query('search')
     const page = Math.max(1, parseInt(c.req.query('page') || '1', 10) || 1)
     const limit = Math.min(Math.max(1, parseInt(c.req.query('limit') || '50', 10) || 50), maxLimit)
+    // A status this CRM has no word for is a typo, not an empty page. (T29 N2)
+    const badStatus = checkFilter(c, 'status', status, QUOTE_STATUSES)
+    if (badStatus) return badStatus
     const conditions: any[] = [eq(t.quote.companyId, currentUser.companyId)]
     if (status) conditions.push(eq(t.quote.status, status))
     if (contactId) conditions.push(eq(t.quote.contactId, contactId))

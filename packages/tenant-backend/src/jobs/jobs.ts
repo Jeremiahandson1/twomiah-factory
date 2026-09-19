@@ -14,6 +14,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
+import { checkFilter } from '../listFilter'
 import { sniffType, baseMime } from '../files/storage'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
@@ -209,6 +210,9 @@ export function createJobRoutes(deps: JobDeps) {
     const q = c.req.query()
     const page = Math.max(1, parseInt(q.page || '1', 10) || 1)
     const limit = Math.min(Math.max(1, parseInt(q.limit || '50', 10) || 50), maxLimit)
+    // A status this CRM has no word for is a typo, not an empty page. (T29 N2)
+    const badStatus = checkFilter(c, 'status', q.status, JOB_STATUSES)
+    if (badStatus) return badStatus
     const conditions: any[] = [eq(t.job.companyId, currentUser.companyId)]
     if (q.status) conditions.push(eq(t.job.status, q.status))
     if (q.projectId) conditions.push(eq(t.job.projectId, q.projectId))

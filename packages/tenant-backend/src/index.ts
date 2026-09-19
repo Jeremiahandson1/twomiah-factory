@@ -178,3 +178,7 @@ export type { WarrantiesService, WarrantiesServiceDeps, WarrantiesRoutesDeps, Wa
 // emailService (low-stock alerts) and audit are injected via deps; company table needed for the alert.
 export { createInventoryService, createInventoryRoutes, InventoryError } from './inventory/inventory'
 export type { InventoryService, InventoryServiceDeps, InventoryRoutesDeps, InventoryTables, InventoryEmail, InventoryAudit } from './inventory/inventory'
+
+// Refusing a list filter whose value is outside the vocabulary (invoice/job/quote status, contact type, expense
+// category), instead of answering with an empty list that reads like "nothing here". (Contractor T29 N2)
+export { checkFilter, invalidFilter, filterGiven } from './listFilter'
