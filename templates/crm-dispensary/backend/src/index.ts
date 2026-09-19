@@ -110,6 +110,7 @@ import onboardingRoutes from './routes/onboarding.ts'
 import mediaRoutes from './routes/media.ts'
 import { normalizeTimestamps } from './utils/isoTime.ts'
 import { ensureIntegrationPartners } from './services/integrationCatalog.ts'
+import { ensureEquivalencyRules } from './services/equivalency.ts'
 
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
@@ -433,6 +434,14 @@ refreshSubscriptionFromFactory(subscriptionDeps).catch(console.error)
 ensureIntegrationPartners()
   .then((n) => logger.info(`[marketplace] ${n} integration partners in the catalogue`))
   .catch((err) => console.error('[marketplace] catalogue seed failed:', err?.message || err))
+
+// A purchase limit written in flower cannot be enforced without an equivalency table, and every tenant
+// shipped with an empty one — so the cap was counting raw mass and concentrate walked through it. Seeded
+// at boot for the same reason as the catalogue above: the shops already trading need it, not just the
+// next one provisioned. Only ever fills a company that has none. (Dispensary T23, following T20 H5)
+ensureEquivalencyRules()
+  .then((n) => { if (n) logger.info(`[equivalency] seeded standard flower-equivalency rules for ${n} compan${n === 1 ? 'y' : 'ies'}`) })
+  .catch((err) => console.error('[equivalency] rule seed failed:', err?.message || err))
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

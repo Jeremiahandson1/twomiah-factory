@@ -183,6 +183,17 @@ export default function EquivalencyPage() {
         </div>
       </div>
 
+      {/* These rules are what the register converts a basket with before applying the purchase limit, so
+          they decide which sales it refuses. They are seeded with the common standard table rather than
+          left empty (an empty table lets concentrate through a flower cap), which means they are a
+          starting point and not a statement of any state's law. Say so, where the operator sets them. */}
+      <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200" role="note">
+        <span className="font-medium">These factors decide which sales the register refuses.</span>{' '}
+        New accounts start from a standard equivalency table — concentrates and vapes at 2.5&times;, edibles
+        and tinctures at 10&nbsp;mg THC to the gram, topicals not counted. They are a starting point, not
+        legal advice: check them against your state&rsquo;s rules and edit them here.
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b">
         {tabs.map(t => (

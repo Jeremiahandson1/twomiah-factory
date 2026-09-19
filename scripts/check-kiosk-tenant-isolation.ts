@@ -81,6 +81,20 @@ if (!equivService) fail('services/equivalency.ts is missing — the rules a till
 if (!/export async function loadEquivalencyFactors\(companyId: string\)/.test(equivService)) fail('…exporting the loader both tills use')
 if (!/WHERE company_id = \$\{companyId\} AND is_active IS NOT FALSE/.test(equivService)) fail("…reading only the company's ACTIVE rules")
 if (!/export const DEFAULT_RULES/.test(equivService)) fail('…and owning the seedable defaults')
+// An empty equivalency table is not neutral: the limit is written in flower, so with no rules the till
+// counts raw mass and 25 g of concentrate walks through a 1 oz cap. Every tenant shipped empty, which is
+// why H5's engine never bit. Seeded at boot — the shops already trading need it, not just the next one
+// provisioned — and only for a company that has none, so an operator's own factors are never touched.
+// (Dispensary T23)
+if (!/export async function ensureEquivalencyRules\(/.test(equivService)) fail('a dispensary must not be left with an empty equivalency table — the cap silently stops applying to concentrate')
+if (!/WHERE NOT EXISTS \(\s*SELECT 1 FROM equivalency_rules e WHERE e\.company_id = c\.id AND e\.is_active IS NOT FALSE/.test(equivService.replace(/\r\n/g, '\n'))) fail('…seeding ONLY a company with no active rules, so nothing an operator set is overwritten')
+if (!/const rules = \(state && DEFAULT_RULES\[state\]\) \|\| STANDARD/.test(equivService)) fail('…using a state\'s own factors where we hold them, and the standard table where we do not')
+if (!/ensureEquivalencyRules\(\)/.test(dispIndex)) fail('index.ts must seed the equivalency table at boot, as it does the integrations catalogue')
+// The factors decide which sales the register refuses, so the page where they are edited must not let
+// them be mistaken for a statement of state law.
+const equivPage = readFile('templates/crm-dispensary/frontend/src/pages/EquivalencyPage.tsx')
+if (!equivPage) fail('the Equivalency page is missing')
+else if (!/not\s*\n?\s*legal advice/.test(equivPage) || !/state&rsquo;s rules/.test(equivPage)) fail('the Equivalency page must say the seeded factors are a starting point to check against the operator\'s own state, not legal advice')
 if (/^const DEFAULT_RULES/m.test(readFile('templates/crm-dispensary/backend/src/routes/equivalency.ts'))) fail('routes/equivalency.ts must not keep a second copy of the defaults — the page that seeds and the till that enforces would describe the same state differently')
 if (!/export function lineFlowerEquivalentGrams\(/.test(cannabis)) fail('utils/cannabis.ts must convert a line to FLOWER EQUIVALENT grams')
 if (!/if \(!rule\) return grams/.test(cannabis)) fail('…falling back to the raw weight when a tenant has configured no rule, so nobody is worse off for not setting them up')

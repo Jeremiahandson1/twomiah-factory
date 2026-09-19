@@ -26,6 +26,53 @@ const STANDARD: DefaultRule[] = [
 export const DEFAULT_RULES: Record<string, DefaultRule[]> = { MI: STANDARD, CO: STANDARD }
 
 /**
+ * Give every company a table to enforce against, because an empty one is not neutral.
+ *
+ * The limit is written in FLOWER, so with no rules the till falls back to counting raw mass and 25 g of
+ * concentrate — 62.5 g of flower equivalent — walks through a 1 oz cap. That fallback was the right call
+ * when nothing read these rules at all, but once the till does read them, shipping a tenant with none
+ * means shipping the cap with a hole in it. Every dispensary the fleet has run so far had zero rows here.
+ *
+ * Which way to be wrong matters. Seeding factors that turn out stricter than a state's own refuses a sale
+ * the shop could legally have made, and the operator fixes it by editing the table. NOT seeding lets an
+ * over-limit sale complete, which is the shop's licence. So: seed.
+ *
+ * What is seeded is the standard table — concentrate and vape at 2.5, edibles and tinctures at 10 mg THC
+ * to the gram, topicals exempt — which is the common convention, not a citation of anybody's statute. The
+ * Equivalency page says as much, so nobody mistakes a default for legal advice. A state we actually hold
+ * factors for uses those instead.
+ *
+ * Idempotent, and at BOOT rather than at tenant creation so the dispensaries already running get it too —
+ * the same reason the integrations catalogue seeds there. Touches only a company with NO active rules, so
+ * anything an operator has set is never overwritten. (Dispensary T23, following T20 H5)
+ */
+export async function ensureEquivalencyRules(): Promise<number> {
+  let seeded = 0
+  try {
+    const r: any = await db.execute(sql`
+      SELECT c.id, c.state FROM company c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM equivalency_rules e WHERE e.company_id = c.id AND e.is_active IS NOT FALSE
+      )
+    `)
+    for (const row of ((r as any).rows || r) as any[]) {
+      const state = String(row.state || '').toUpperCase().slice(0, 2) || null
+      const rules = (state && DEFAULT_RULES[state]) || STANDARD
+      for (const rule of rules) {
+        await db.execute(sql`
+          INSERT INTO equivalency_rules (id, state, category, equivalency_factor, unit_of_measure, description, is_active, company_id, created_at)
+          VALUES (gen_random_uuid(), ${state}, ${rule.category}, ${rule.equivalencyFactor}, ${rule.unitOfMeasure}, ${rule.description}, true, ${row.id}, NOW())
+        `)
+      }
+      seeded++
+    }
+  } catch {
+    // A tenant whose migrations have not reached equivalency_rules must still boot and still sell.
+  }
+  return seeded
+}
+
+/**
  * The company's ACTIVE rules, as category → { factor, unit }.
  *
  * Empty when the tenant has configured none: the till then falls back to counting the product's own weight,
