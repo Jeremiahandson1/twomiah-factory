@@ -42,6 +42,20 @@ if (/SUM\(CASE WHEN status = 'completed' THEN total::numeric ELSE 0 END\), 0\) a
 if (!/as refunded/.test(dash)) fail('…and must say what went back beside what was kept')
 if (!/refunded: Number\(todayOrders\.refunded \|\| 0\)/.test(dash)) fail('…including in the response the tile actually reads')
 
+// The same rule for the people behind the sales. Unique Customers counted status='completed' only, so
+// refunding anything erased that customer: four people bought on the live tenant and the tile read 1,
+// because three of their orders had been refunded. A customer who returns something still walked in. (T21 M12)
+const cust = read(R + 'routes/analytics.ts')
+const custStart = cust.indexOf("app.get('/customers'")
+// to the end of THIS handler, so the checks below cannot be satisfied by a neighbouring endpoint
+const custRest = custStart >= 0 ? cust.slice(custStart + 20) : ''
+const custEnd = custRest.indexOf('\napp.get(')
+const customersBlock = custStart < 0 ? '' : cust.slice(custStart, custEnd >= 0 ? custStart + 20 + custEnd : undefined)
+if (!customersBlock) fail('the customer insights endpoint is missing')
+if (/AND status = 'completed'/.test(customersBlock)) fail('customer insights must not count completed-only — a refund drops the customer out of Unique Customers entirely')
+if ((customersBlock.match(/AND status IN \$\{settledSale\}/g) || []).length < 3) fail('…every cohort in it (in-range, first-ever, first-order) must run over settled sales')
+if (!/SELECT contact_id, SUM\(\$\{netExprBare\}\) AS spend/.test(customersBlock)) fail('…and lifetime value must be NET of refunds, on the one revenue definition')
+
 // Product Mix: one row per product, not one per name it has ever had
 const an = read(R + 'routes/analytics.ts')
 if (/GROUP BY oi\.product_id, oi\.product_name, oi\.category/.test(an)) fail('Product Mix must not group by the name and category SNAPSHOT on the line — renaming a product split it in two under one id (T21)')

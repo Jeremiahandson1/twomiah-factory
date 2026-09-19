@@ -245,11 +245,16 @@ app.get('/customers', async (c) => {
     // Bucket by COALESCE(completed_at, created_at) like the other analytics fixes so completed
     // orders with a NULL completed_at still fall inside the window.
     db.execute(sql`
+      -- Counted over SETTLED sales, not status='completed'. Refunding anything flips the order to
+      -- 'refunded'/'partially_refunded', which dropped that customer out of the count entirely: on the
+      -- live tenant four people bought today and Unique Customers read 1, because three of their
+      -- orders had been refunded. A refunded sale is still a sale that happened and still a customer
+      -- who walked in — the same definition revenue settled on in #282/#283. (T21 M12)
       WITH range_orders AS (
         SELECT contact_id
         FROM orders
         WHERE company_id = ${currentUser.companyId}
-          AND status = 'completed'
+          AND status IN ${settledSale}
           AND contact_id IS NOT NULL
           AND COALESCE(completed_at, created_at) >= ${start}
           AND COALESCE(completed_at, created_at) <= ${end}
@@ -263,7 +268,7 @@ app.get('/customers', async (c) => {
         SELECT contact_id, MIN(COALESCE(completed_at, created_at)) AS first_at
         FROM orders
         WHERE company_id = ${currentUser.companyId}
-          AND status = 'completed'
+          AND status IN ${settledSale}
           AND contact_id IS NOT NULL
         GROUP BY contact_id
       )
@@ -284,7 +289,7 @@ app.get('/customers', async (c) => {
         SELECT contact_id, MIN(COALESCE(completed_at, created_at)) AS first_at
         FROM orders
         WHERE company_id = ${currentUser.companyId}
-          AND status = 'completed'
+          AND status IN ${settledSale}
           AND contact_id IS NOT NULL
         GROUP BY contact_id
       )
@@ -294,11 +299,13 @@ app.get('/customers', async (c) => {
     `),
     // Customer Lifetime Value: all-time average completed spend per customer.
     db.execute(sql`
+      -- Lifetime value on the one revenue definition too: NET of refunds over every settled sale,
+      -- so a refunded order neither inflates a customer's value nor erases them from the average.
       WITH per_customer AS (
-        SELECT contact_id, SUM(total::numeric) AS spend
+        SELECT contact_id, SUM(${netExprBare}) AS spend
         FROM orders
         WHERE company_id = ${currentUser.companyId}
-          AND status = 'completed'
+          AND status IN ${settledSale}
           AND contact_id IS NOT NULL
         GROUP BY contact_id
       )
