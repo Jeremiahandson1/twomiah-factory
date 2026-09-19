@@ -469,6 +469,13 @@ const templates: Record<string, (data: any) => TemplateResult> = {
 // SEND FUNCTION
 // ============================================
 
+// Recording every send lives outside this file on purpose: this service stays provider-only and does no
+// database work. The tenant hands it a recorder at startup (see backend/src/index.ts); campaigns are not
+// recorded here, they go through sendRaw() and marketing.ts writes its own rows. (T14 M23)
+type EmailRecord = { to: string; subject: string; status: 'sent' | 'failed'; errorMessage?: string };
+let recordEmail: ((e: EmailRecord) => Promise<void>) | null = null;
+export function setEmailRecorder(fn: ((e: EmailRecord) => Promise<void>) | null) { recordEmail = fn; }
+
 async function send(
   to: string,
   templateName: string,
@@ -510,9 +517,11 @@ async function send(
     });
 
     logger.info('Email sent', { to, subject, template: templateName, provider: PROVIDER });
+    void recordEmail?.({ to, subject, status: 'sent' });
     return { success: true, messageId: result.messageId };
   } catch (error: unknown) {
     logger.error('Email failed', { to, template: templateName, error: (error as Error).message });
+    void recordEmail?.({ to, subject, status: 'failed', errorMessage: (error as Error).message });
     throw error;
   }
 }

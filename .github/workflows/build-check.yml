@@ -1132,3 +1132,14 @@ jobs:
           bun-version: latest
       - name: "Check profile editable"
         run: bun run scripts/check-profile-editable.ts
+
+  email-usage-log:
+    name: "Every send is recorded once"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check email usage log"
+        run: bun run scripts/check-email-usage-log.ts

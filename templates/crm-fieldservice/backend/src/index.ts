@@ -12,9 +12,10 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { eq } from 'drizzle-orm'
-import { company, user } from '../db/schema.ts'
-import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient, externalBookingsProxy } from './shared/index.ts'
+import { company, user, emailLog } from '../db/schema.ts'
+import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient, externalBookingsProxy, createEmailLogger } from './shared/index.ts'
 import logger from './services/logger.ts'
+import { setEmailRecorder } from './services/email.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
 import { requireEnabledFeature } from './middleware/enabledFeature.ts'
@@ -95,6 +96,12 @@ let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
 handleUncaughtExceptions()
+
+// Every email this tenant sends is recorded, so Settings > Integrations can count them. Only the marketing
+// campaign sender ever wrote to email_log before, so a tenant who had emailed invoices all month read 0.
+// Registered once here rather than at each send site, so a new kind of email cannot be added and forgotten.
+// (Contractor T14 M23)
+setEmailRecorder(createEmailLogger({ db, tables: { emailLog, company }, logger }))
 
 const app = new Hono()
 
