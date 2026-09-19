@@ -102,6 +102,22 @@ app.post('/repair-legacy', requirePermission('contacts:update'), async (c: any) 
       AND (i.appointment_id IS NULL OR NOT EXISTS (
         SELECT 1 FROM service_record sr2 WHERE sr2.appointment_id = i.appointment_id AND sr2.company_id = ${cid}
       ))
+      -- A visit logged before H3 has NO link to its sale at all — not by invoice id and not by
+      -- appointment — so "nothing points at this invoice" does not mean the visit is gone. It also
+      -- describes every sale raised by those older visits, which are still on the tenant and still
+      -- owed. The price is what connects them: a visit charging P raised an invoice whose SUBTOTAL is
+      -- P, before tax. If such a visit exists for this client and has no sale of its own, this invoice
+      -- is very likely the sale it raised, so it is left alone for a person to judge.
+      -- (Found live: two $50 visits matched two $54.25 invoices — $50 plus 8.5% tax — and the first
+      --  version of this voided both of them.)
+      AND NOT EXISTS (
+        SELECT 1 FROM service_record sr3
+        WHERE sr3.company_id = ${cid}
+          AND sr3.contact_id = i.contact_id
+          AND sr3.invoice_id IS NULL
+          AND sr3.price_charged IS NOT NULL
+          AND round(sr3.price_charged::numeric, 2) = round(i.subtotal::numeric, 2)
+      )
   `)
   const orphanRows = ((orphans as any).rows || orphans) as any[]
   for (const row of orphanRows) {
@@ -140,6 +156,38 @@ app.post('/repair-legacy', requirePermission('contacts:update'), async (c: any) 
     visitsRedated: futureRows.length,
     visits: futureRows.map((r) => ({ id: r.id, was: r.performed_at, now: r.created_at })),
   })
+})
+
+/**
+ * Put back an invoice this repair voided.
+ *
+ * A repair that writes to money has to be reversible, and this one cannot be undone by hand: voiding is
+ * deliberately terminal, so the invoice editor refuses a void invoice. The repair signs its work with an
+ * exact note, and this restores the invoices carrying that signature and strips the line.
+ *
+ * It restores to 'open', which is the status ensureInvoiceForVisit gives a sale raised from the book —
+ * right for every invoice this repair can have touched, since that is the only kind it voids.
+ *
+ * Written because the first version of the repair got it wrong on a live tenant: it voided two sales
+ * whose visits still existed, unlinked, from before H3 gave a visit a link to its sale.
+ */
+app.post('/repair-legacy/undo', requirePermission('contacts:update'), async (c: any) => {
+  const currentUser = c.get('user') as any
+  const cid = currentUser.companyId
+  const restored: any = await db.execute(sql`
+    UPDATE invoice
+    SET status = 'open',
+        notes = NULLIF(regexp_replace(notes, E'\nVoided: the visit this sale came from was deleted before the sale was linked to it\\.$', ''), ''),
+        updated_at = NOW()
+    WHERE company_id = ${cid}
+      AND status = 'void'
+      AND notes LIKE '%Voided: the visit this sale came from was deleted before the sale was linked to it.'
+    RETURNING id, number, total
+  `)
+  const rows = ((restored as any).rows || restored) as any[]
+  await audit.log({ action: 'update', entity: 'invoice', entityId: 'repair-legacy-undo', metadata: { restored: rows.length }, req: { user: currentUser } })
+  if (rows.length) emitToCompany(cid, EVENTS.REFRESH, { entity: 'service_record' })
+  return c.json({ restored: rows.length, invoices: rows.map((r) => ({ id: r.id, number: r.number, total: r.total })) })
 })
 
 app.get('/:id', requirePermission('contacts:read'), async (c) => {

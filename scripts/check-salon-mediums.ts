@@ -99,6 +99,16 @@ if (!/color: c\.link/.test(inbox)) fail('…and so must the lead-sources link, o
   if (!/COALESCE\(i\.amount_paid, '0'\)::numeric - COALESCE\(i\.amount_refunded, '0'\)::numeric <= 0\.005/.test(rec)) fail('…and never one still holding money — the same rule the delete enforces')
   if (!/NOT EXISTS \(SELECT 1 FROM service_record sr WHERE sr\.invoice_id = i\.id\)/.test(rec)) fail('…only where no visit still points at it')
   if (!/SET status = 'void'/.test(rec)) fail('…voided, not deleted, so the number and the audit trail survive')
+  // A visit logged before H3 has NO link to its sale — not by invoice id, not by appointment — so
+  // "nothing points at this invoice" also describes every sale those older visits raised, which are
+  // still owed. The price is what separates them, and without this the repair voided two real $54.25
+  // sales on the live tenant whose $50 visits were sitting right there.
+  if (!/AND sr3\.price_charged IS NOT NULL/.test(rec) || !/round\(sr3\.price_charged::numeric, 2\) = round\(i\.subtotal::numeric, 2\)/.test(rec)) fail('…and never a sale whose pre-fix visit is still there, matched on the price it charged')
+  if (!/AND sr3\.invoice_id IS NULL/.test(rec)) fail('…considering only visits that have no sale of their own')
+  // Writing to money has to be reversible, and voiding is deliberately terminal, so the editor cannot
+  // put it back by hand.
+  if (!/app\.post\('\/repair-legacy\/undo'/.test(rec)) fail('the repair must be reversible — it voids invoices, and a void cannot be undone through the invoice editor')
+  if (!/notes LIKE '%Voided: the visit this sale came from was deleted before the sale was linked to it\.'/.test(rec)) fail('…restoring only the invoices this repair itself voided, never one a person voided')
   if (!/WHERE company_id = \$\{cid\} AND performed_at > NOW\(\)/.test(rec)) fail('…and the future-dated visits are the ones dated to a day that has not happened')
   if (!/SET performed_at = created_at/.test(rec)) fail('…moved to the day the record was actually created, which is the one date we know is true about them')
 }
