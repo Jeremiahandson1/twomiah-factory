@@ -56,10 +56,14 @@ if (!/text-orange-500 dark:text-orange-200 hover:underline/.test(contactsPage)) 
 const leadTheme = read('packages/tenant-ui/src/leads/theme.ts')
 if (!/statNew: string/.test(leadTheme)) fail('the Lead Inbox stat colours belong in the palette — what they sit on changes with the theme')
 if (!/statNew: '#90caf9', statContacted: '#ffb74d', statConverted: '#81c784',/.test(leadTheme)) fail('…with dark values that clear AA on the dark card')
+// The field-service report lists six failures on this page; the three above are half of them.
+if (!/link: '#90caf9'/.test(leadTheme)) fail('the lead-sources link must be themed too — an inline #2563eb measured 2.83:1 on the dark card (FS T20 M4)')
+if (!/faint: '#8193a6'/.test(leadTheme)) fail('…and the faint tier must clear AA: #64748b was 3.07:1 under "No leads yet" (FS T20 M4)')
 if (!/statNew: '#1565c0', statContacted: '#e65100', statConverted: '#2e7d32',/.test(leadTheme)) fail('…and the original hexes kept for light mode')
 const inbox = read('packages/tenant-ui/src/leads/LeadInboxPage.tsx')
 if (/<span style=\{\{ color: '#1565c0' \}\}>\{stats/.test(inbox)) fail('the stat labels must not be inline hexes any more')
 if (!/color: c\.statNew/.test(inbox)) fail('…they must read the palette')
+if (!/color: c\.link/.test(inbox)) fail('…and so must the lead-sources link, or the palette entry is decoration (FS T20 M4)')
 
 if (failed) { console.error(`\nsalon mediums: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('salon mediums: the book is clients, a visit has happened, the heading never lies about the day, and the brand palette reads in dark mode')

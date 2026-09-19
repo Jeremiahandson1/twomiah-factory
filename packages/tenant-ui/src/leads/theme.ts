@@ -31,6 +31,7 @@ export interface LeadPalette {
   // the assumption noted above that a semantic colour "reads on both themes". It does not: #1565c0 on
   // the dark surface (#1e293b) measures 2.55:1, and its two neighbours are no better at ~3.1 and ~3.4.
   // They are structural after all, because what they sit on changes. (Salon T20 M6)
+  link: string          // (#2563eb in light) — "Set up your lead sources" was 2.83:1 on the dark card
   statNew: string       // (#1565c0 in light)
   statContacted: string // (#e65100 in light)
   statConverted: string // (#2e7d32 in light)
@@ -42,16 +43,20 @@ const LIGHT: LeadPalette = {
   inputBorder: '#ddd', activeBtn: '#f0f0f0', mutedBtnBg: '#f5f5f5', codeBg: '#f5f5f5',
   errBg: '#fdecea', errText: '#b71c1c',
   infoBg: '#f8f9ff', infoBorder: '#e8ecff', infoHead: '#333', infoBody: '#555',
+  link: '#2563eb',
   statNew: '#1565c0', statContacted: '#e65100', statConverted: '#2e7d32',
 }
 
 const DARK: LeadPalette = {
-  text: '#e2e8f0', muted: '#94a3b8', faint: '#64748b',
+  // faint was #64748b — 3.07:1 on the dark card, so "No leads yet" and its helper line were below AA.
+  // #8193a6 clears it at 4.64:1 and stays visibly dimmer than muted (5.71), keeping the tier. (FS T20 M4)
+  text: '#e2e8f0', muted: '#94a3b8', faint: '#8193a6',
   surface: '#1e293b', hover: '#0f172a', border: '#334155', divider: '#334155',
   inputBorder: '#475569', activeBtn: '#334155', mutedBtnBg: '#334155', codeBg: '#0f172a',
   errBg: '#3b1f1f', errText: '#fca5a5',
   infoBg: '#1e2a44', infoBorder: '#334155', infoHead: '#cbd5e1', infoBody: '#94a3b8',
   // lifted onto the dark card: ~9:1 each, against 2.55/3.1/3.4 for the light-mode hexes
+  link: '#90caf9',
   statNew: '#90caf9', statContacted: '#ffb74d', statConverted: '#81c784',
 }
 

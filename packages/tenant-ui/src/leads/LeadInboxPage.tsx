@@ -167,7 +167,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
             <div style={{ fontSize: 16, fontWeight: 600 }}>{error ? 'Leads could not be loaded' : (statusFilter || sourceFilter || search) ? 'No leads match these filters' : 'No leads yet'}</div>
             {!error && !(statusFilter || sourceFilter || search) && (
               <div style={{ fontSize: 13, marginTop: 4 }}>
-                <Link to="/crm/lead-sources" style={{ color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: 4 }}>Set up your lead sources <ExternalLink size={12} /></Link> to start receiving leads
+                <Link to="/crm/lead-sources" style={{ color: c.link, display: 'inline-flex', alignItems: 'center', gap: 4 }}>Set up your lead sources <ExternalLink size={12} /></Link> to start receiving leads
               </div>
             )}
           </div>
