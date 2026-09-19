@@ -42,8 +42,13 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     setSaving(true); setFormError('')
     try {
       const payload = { name: form.name.trim(), email: form.email.trim() || null, phone: form.phone.trim() || null, role: form.role.trim() || null, department: form.department.trim() || null, hourlyRate: form.hourlyRate === '' ? null : Number(form.hourlyRate) }
-      if (editing) { await api.put(`/api/team/${editing.id}`, payload); toast.success('Team member updated') }
-      else { await api.post('/api/team', payload); toast.success('Team member added') }
+      // A login account is shown here on loan from the user table, under ITS id — so PUT /api/team/:id has
+      // nothing to update and answered 404, which left the row menu doing nothing and six of seven people on
+      // this tenant with no way to hold a pay rate. Saving one creates their roster card instead: the roster
+      // is "the people you schedule and pay", the user row is the login, and the list matches the two by
+      // email so they stop appearing twice. (Contractor T29 M2)
+      if (editing && editing._source !== 'user') { await api.put(`/api/team/${editing.id}`, payload); toast.success('Team member updated') }
+      else { await api.post('/api/team', payload); toast.success(editing ? `${payload.name} added to the roster` : 'Team member added') }
       setModalOpen(false); load()
     } catch (e) { setFormError(errMsg(e, 'Failed to save team member')) }
     finally { setSaving(false) }
@@ -60,7 +65,9 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     catch (e) { toast.error(errMsg(e, 'Failed to remove team member')) }
   }
   const openCreate = () => { setEditing(null); setForm(EMPTY); setFormError(''); setModalOpen(true) }
-  const openEdit = (m: Member) => { setEditing(m); setForm({ name: m.name || '', email: m.email || '', phone: m.phone || '', role: m.role || '', department: m.department || '', hourlyRate: m.hourlyRate == null ? '' : String(m.hourlyRate) }); setFormError(''); setModalOpen(true) }
+  // A login row's `role` is their PERMISSION role (owner, field), not a trade — so it is not carried into the
+  // Job Title field, which would suggest "field" is what they do. Everything else comes across. (T29 M2)
+  const openEdit = (m: Member) => { setEditing(m); setForm({ name: m.name || '', email: m.email || '', phone: m.phone || '', role: m._source === 'user' ? '' : (m.role || ''), department: m.department || '', hourlyRate: m.hourlyRate == null ? '' : String(m.hourlyRate) }); setFormError(''); setModalOpen(true) }
 
   const columns = [
     { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{row._source === 'user' && <span className="ml-2 text-xs font-normal text-gray-400 dark:text-slate-500">login</span>}</span> },
@@ -88,12 +95,20 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
       )}
       <DataTable<Member> data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No team members yet."
         actions={[
-          { label: 'Edit', icon: Edit, onClick: openEdit, show: (r) => r._source !== 'user' },
+          // Everyone can be edited — for a login account that means giving them a roster card, which is the
+          // only place a pay rate, trade or department lives. Delete stays off those rows: removing a login
+          // is Settings › Users' job, not this page's. (T29 M2)
+          { label: 'Edit', icon: Edit, onClick: openEdit },
           { label: 'Delete', icon: Trash2, onClick: (r) => setToDelete(r), className: 'text-red-600', show: (r) => r._source !== 'user' },
         ]} />
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Member' : 'Add Member'} size="md">
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? (editing._source === 'user' ? 'Add to the roster' : 'Edit Member') : 'Add Member'} size="md">
         <div className="space-y-4">
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}
+          {editing?._source === 'user' && (
+            <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
+              This person can sign in but has no roster card, which is where a trade, department and pay rate live. Saving creates one. Their login is unchanged, under Settings › Users.
+            </p>
+          )}
           <Field label="Name *"><input value={form.name} onChange={set('name')} className={inputCls} /></Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label={roleLabel}><input placeholder={rolePlaceholder} value={form.role} onChange={set('role')} className={inputCls} /></Field>
