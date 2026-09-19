@@ -30,17 +30,39 @@ export const PAIRING_TTL_MS = 24 * 60 * 60 * 1000
 export type KioskEnforcement = 'warn' | 'enforce'
 
 /**
- * How strictly this company wants the kiosk credential applied. Settings → company.settings.kioskEnforcement.
- * Default 'warn' so switching this on never takes a live shop's kiosk down without someone choosing it.
+ * How strictly this company wants the kiosk credential applied.
+ *
+ * An explicit Settings → company.settings.kioskEnforcement always wins, in either direction. With
+ * nothing set, HAVING PAIRED A TABLET is the switch: a company with at least one active device is
+ * enforcing, and one with none is still warning.
+ *
+ * The first version of this defaulted to 'warn' full stop, so that turning the credential on could
+ * never black out a shop mid-trade — which was right about the risk and wrong about the outcome. It
+ * left the switch to be found, nobody found it, and the kiosk chain went on completing unauthenticated
+ * for four more test runs: an order created with no token at all. Pairing is the moment an operator
+ * says "these are my tablets", and it is the only moment at which enforcing can cost them nothing —
+ * the paired device works, and nothing else does. A shop that has not paired yet still warns, so the
+ * blackout this was protecting against still cannot happen. (Dispensary B1, four runs open)
  */
 export async function kioskEnforcement(companyId: string): Promise<KioskEnforcement> {
   try {
     const r = await db.execute(sql`SELECT settings FROM company WHERE id = ${companyId} LIMIT 1`)
     const s = rows(r)?.[0]?.settings
     const mode = (typeof s === 'string' ? JSON.parse(s) : s)?.kioskEnforcement
-    return mode === 'enforce' ? 'enforce' : 'warn'
+    if (mode === 'enforce' || mode === 'warn') return mode
+    return (await hasPairedDevice(companyId)) ? 'enforce' : 'warn'
   } catch {
     return 'warn'
+  }
+}
+
+/** Has this company ever paired a tablet that is still active? */
+export async function hasPairedDevice(companyId: string): Promise<boolean> {
+  try {
+    const r = await db.execute(sql`SELECT 1 FROM kiosk_devices WHERE company_id = ${companyId} AND status = 'active' LIMIT 1`)
+    return (rows(r)?.length || 0) > 0
+  } catch {
+    return false
   }
 }
 

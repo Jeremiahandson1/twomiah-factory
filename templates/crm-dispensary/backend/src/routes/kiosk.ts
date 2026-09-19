@@ -9,6 +9,7 @@ import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitO
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 import { deviceForToken, claimPairingCode, kioskEnforcement, newPairingCode, PAIRING_TTL_MS, type PairedDevice } from '../services/kioskDevice.ts'
+import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 
 // Typed context: the signed-in user on the manager routes, and the paired tablet on the customer ones.
 // Untyped, every c.get(...) in this file was a TS2769 — two of them before this change, six after it.
@@ -24,16 +25,25 @@ app.use('/session/:token/checkout', createRateLimiter(KIOSK_WINDOW_MS, KIOSK_MAX
 
 /**
  * Which paired tablet this is. The kiosk cannot authenticate a USER — a customer is standing at it — so the
- * credential belongs to the device: paired once from Settings, revocable on its own. Until an operator
- * switches enforcement on, an unpaired kiosk still works and is recorded instead, so turning this on cannot
- * black out a shop that has not paired its tablets yet. (Dispensary T21 B1)
+ * credential belongs to the device: paired once from Settings, revocable on its own. A shop that has paired
+ * a tablet is enforcing — see kioskEnforcement(); one that has not still works and is recorded instead, so
+ * this cannot black out a shop mid-onboarding. (Dispensary T21 B1, reopened four runs running as T23 B1)
  */
 const requireDevice = async (c: any, next: any) => {
   const token = c.req.header('x-kiosk-token') || c.req.header('X-Kiosk-Token')
   const device = await deviceForToken(token)
+  // A paired device names its own company; otherwise no company is known yet at /session/start, so
+  // read it from the company this request resolves to.
+  const companyId = device?.companyId || c.get('kioskCompanyId') || (await resolveCompanyId(null))
+  // A shop that does not have the kiosk switched on has no kiosk, and therefore no reason to accept a
+  // kiosk write from anyone — a paired tablet included, since switching the module off is exactly how
+  // an operator says they have stopped using it. These routes are public by design — a customer is at
+  // the tablet, there is no user to authenticate — so the feature switch is the only thing that can say
+  // the endpoint should not exist here at all. (Dispensary B1)
+  if (companyId && !(await isFeatureEnabled(companyId, 'kiosk'))) {
+    return c.json({ error: 'The kiosk is not enabled for this account.', code: 'FEATURE_NOT_ENABLED', feature: 'kiosk' }, 403)
+  }
   if (device) { c.set('kioskDevice', device); return next() }
-  // No company is known yet at /session/start, so read the mode from the company this request resolves to.
-  const companyId = c.get('kioskCompanyId') || (await resolveCompanyId(null))
   const mode = companyId ? await kioskEnforcement(companyId) : 'warn'
   if (mode === 'enforce') {
     return c.json({ error: 'This kiosk is not paired. Pair it from Settings → Kiosks.', code: 'kiosk_not_paired' }, 401)

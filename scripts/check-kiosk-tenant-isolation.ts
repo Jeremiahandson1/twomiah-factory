@@ -113,7 +113,16 @@ if (!devices) fail('services/kioskDevice.ts is missing — pairing must have one
 if (!/createHash\('sha256'\)\.update\(String\(token\)\)\.digest\('hex'\)/.test(devices)) fail('a device token must be stored as a HASH — a leaked row must not hand anyone a working kiosk')
 if (!/WHERE token_hash = \$\{hashToken\(token\)\} AND status = 'active'/.test(devices)) fail('…and looked up by that hash, active devices only')
 if (!/pairing_code = NULL, pairing_expires_at = NULL/.test(devices)) fail('a pairing code must be spent on use — one code, one tablet')
-if (!/return mode === 'enforce' \? 'enforce' : 'warn'/.test(devices)) fail("enforcement must default to WARN, so switching this on cannot black out a shop that has not paired its tablets")
+// Shipping that credential in WARN mode left the switch to be found, and nobody found it: the kiosk chain
+// went on completing unauthenticated for four more test runs, an order created with no token at all. PAIRING
+// is the switch now — the one moment an operator says "these are my tablets", and the only moment at which
+// enforcing costs them nothing. A shop that has not paired still warns, so the blackout the warn default was
+// protecting against still cannot happen. (Dispensary T23 B1, four runs open)
+if (/return mode === 'enforce' \? 'enforce' : 'warn'/.test(devices)) fail('enforcement must not fall back to a flat warn — that is the default that left the kiosk open for four runs')
+if (!/export async function hasPairedDevice\(/.test(devices)) fail('kioskDevice.ts must be able to answer whether a tablet has ever been paired')
+if (!/WHERE company_id = \$\{companyId\} AND status = 'active'/.test(devices)) fail('…counting only ACTIVE devices, so revoking the last tablet lets a shop back in rather than locking it out')
+if (!/if \(mode === 'enforce' \|\| mode === 'warn'\) return mode/.test(devices)) fail('an explicit company setting must still win, in BOTH directions')
+if (!/return \(await hasPairedDevice\(companyId\)\) \? 'enforce' : 'warn'/.test(devices)) fail('…and with nothing set, having paired a tablet must BE the switch')
 if (!/const requireDevice = async \(c: any, next: any\) =>/.test(src)) fail('the kiosk write endpoints must identify the device')
 for (const route of ["'/session/start'", "'/session/:token/add-item'", "'/session/:token/checkout'"]) {
   if (!new RegExp(`app\\.use\\(${route.replace(/[/:]/g, '\\$&')}, requireDevice\\)`).test(src)) fail(`${route} must go through the device check — it writes`)
@@ -129,6 +138,37 @@ if (kioskPage) {
   // that works until a manager revokes it and then never notices.
   if ((kioskPage.match(/'X-Kiosk-Token': kioskToken/g) || []).length < 2) fail('…and send it on every kiosk call, including the pairing check')
   if (!/setNeedsPairing\(!s\?\.paired && s\?\.enforcement === 'enforce'\)/.test(kioskPage)) fail("…showing the pairing screen only when the shop is enforcing, so warn mode keeps an unpaired kiosk working")
+}
+
+// The kiosk routes are PUBLIC by design, so no amount of authentication can say "this shop does not have a
+// kiosk". The enabled-feature switch is the only thing that can, and the dispensary was the one CRM never
+// wired to the shared gate at all — so its public routes were mounted for every dispensary whether the shop
+// runs a kiosk or not. (Dispensary T23 B1)
+const dispGate = readFile('templates/crm-dispensary/backend/src/middleware/enabledFeature.ts')
+if (!dispGate) fail('crm-dispensary has no enabled-feature gate — the one CRM that was never wired to the shared one')
+else {
+  if (!/createEnabledFeatureGate\(\{ db, tables: \{ company \} \}\)/.test(dispGate) || !/from '\.\.\/shared\/index\.ts'/.test(dispGate)) fail('crm-dispensary/middleware/enabledFeature.ts must be glue over the shared gate, not its own copy')
+  if (/db\.select\(/.test(dispGate)) fail('…and must not carry its own gate logic')
+}
+if (!/isFeatureEnabled \} from '\.\.\/middleware\/enabledFeature\.ts'/.test(src)) fail(`${file}: must import the enabled-feature gate`)
+if (!/!\(await isFeatureEnabled\(companyId, 'kiosk'\)\)/.test(src)) fail(`${file}: a shop with the kiosk switched off must be refused the endpoint outright`)
+if (!/code: 'FEATURE_NOT_ENABLED'/.test(src)) fail(`${file}: …under the fleet's own code, so the screen reads it the same way everywhere`)
+{
+  // Switching the module off is how an operator says they have stopped using the kiosk, so it has to hold
+  // against the tablet they paired as well — otherwise the one device that can still write is the one they
+  // forgot to unplug. That means the feature check sits ABOVE the paired-device short-circuit.
+  // Read only requireDevice's own body: two later handlers resolve a companyId the same way, and matching
+  // those made this pass with the middleware's own line deleted.
+  const mwAt = src.indexOf('const requireDevice = async (c: any, next: any) =>')
+  const mw = mwAt < 0 ? '' : src.slice(mwAt, src.indexOf('\napp.', mwAt))
+  if (!mw) fail(`${file}: requireDevice must be a single middleware this guard can read`)
+  else {
+    const featureAt = mw.indexOf("code: 'FEATURE_NOT_ENABLED'")
+    const deviceAt = mw.indexOf("if (device) { c.set('kioskDevice', device); return next() }")
+    if (deviceAt < 0) fail(`${file}: requireDevice must let a paired device through`)
+    else if (featureAt < 0 || featureAt > deviceAt) fail(`${file}: the feature check must sit ABOVE the paired-device short-circuit, or a paired tablet keeps writing after the module is switched off`)
+    if (!/const companyId = device\?\.companyId \|\|/.test(mw)) fail(`${file}: …resolving the company from the paired device first, so that check costs no extra query`)
+  }
 }
 
 if (failed) { console.error(`\nkiosk tenant isolation: ${failed} check(s) FAILED`); process.exit(1) }
