@@ -10,7 +10,10 @@ import type { PeopleApi, PeopleToast, ExpensesConfig } from './types'
 import { DEFAULT_EXPENSE_CATEGORIES, isManagerRole } from './types'
 
 interface Expense { id: string; date: string; category: string; vendor?: string | null; description: string; amount: string | number; billable: boolean; reimbursable?: boolean; reimbursed?: boolean; projectId?: string | null; jobId?: string | null; project?: { name: string } | null; job?: { title: string; number?: string } | null }
-const today = () => new Date().toISOString().split('T')[0]
+// The person's own day, not UTC's: toISOString() rolls over at UTC midnight, so west of Greenwich this
+// pre-filled TOMORROW all evening. It is also the ceiling the date box is given — an expense is money already
+// spent. (Contractor T30 L1, the same fix the timesheet got)
+const today = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0] }
 
 export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: ExpensesConfig }) {
   const auth = useAuth()
@@ -98,7 +101,7 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
         <div className="space-y-4">
           {formError && <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{formError}</div>}
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Date"><input type="date" value={form.date} onChange={set('date')} className={inputCls} /></Field>
+            <Field label="Date"><input type="date" max={today()} value={form.date} onChange={set('date')} className={inputCls} /></Field>
             <Field label="Category"><select value={form.category} onChange={set('category')} className={inputCls}>{categories.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></Field>
           </div>
           <Field label="Vendor"><input value={form.vendor} onChange={set('vendor')} className={inputCls} /></Field>

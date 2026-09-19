@@ -4,7 +4,8 @@
 //   bun scripts/check-audience-quotes-leads-time.ts
 import { readFileSync } from 'node:fs'
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
-const read = (p: string) => readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n')
+// a missing file must FAIL its own check, not crash the guard before the rest of them run
+const read = (p: string) => { try { return readFileSync(ROOT + p, 'utf8').replace(/\r\n/g, '\n') } catch { return '' } }
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
@@ -39,10 +40,29 @@ if (!/r\?\.discarded \? \(r\.message \|\| 'That clock-in was too short to record
 
 // T29 L1 — hours are worked before they are logged. A mistyped year was accepted and then fell outside every dated
 // window, so the hours did not read wrong in Reports, they disappeared: 22.5 worked, 18.5 reported.
-if (!/const DATE_SLACK_MS = 24 \* 60 \* 60 \* 1000/.test(time)) fail('the slack a date-only string needs (UTC midnight vs a caller already on tomorrow) must be stated, not buried in a literal')
-if (!/const notFuture = \(v: unknown\) =>/.test(time)) fail('a time entry date must be bounded — an unbounded one goes missing rather than reading wrong')
+// The rule now has ONE home — packages/tenant-backend/src/dateInput.ts — shared by the timesheet and the expense
+// sheet (both record something already done) and, as a plausible-year bound, by the dates that are MEANT to be in
+// the future: a job's schedule, a quote's expiry, an invoice's due date. (T29 L1 → T30 L1)
+const dates = read('packages/tenant-backend/src/dateInput.ts')
+if (!dates) fail('packages/tenant-backend/src/dateInput.ts is missing — the date rules must have one home')
+if (!/export const FUTURE_SLACK_MS = DAY_MS/.test(dates)) fail('the slack a date-only string needs (UTC midnight vs a caller already on tomorrow) must be stated, not buried in a literal')
+if (!/export function hasHappened\(v: unknown\): boolean/.test(dates)) fail('there must be one "this already happened" rule')
 // anchored on the end of the expression: a bound multiplied back out to a century reads the same up to here
-if (!/ms <= Date\.now\(\) \+ DATE_SLACK_MS \}/.test(time)) fail('…bounded at one day out, and no further')
+if (!/return isNaN\(t\) \|\| t <= Date\.now\(\) \+ FUTURE_SLACK_MS\n/.test(dates)) fail('…bounded at one day out, and no further')
+if (!/export function withinHorizon\(v: unknown, years = MAX_PLAN_YEARS\): boolean/.test(dates)) fail('there must be one "the year is plausible" rule for the dates that are meant to be in the future')
+// anchored on the line end: "= 10" is a prefix of "= 1000", so an unbounded horizon would read the same
+if (!/export const MAX_PLAN_YEARS = 10\n/.test(dates)) fail('…with the horizon stated as a number a person can read, and still a decade')
+if (!/const notFuture = hasHappened/.test(time)) fail('the timesheet must use the shared rule, not a second copy of it')
+const expenses = read('packages/tenant-backend/src/expenses/expenses.ts')
+if (!/\.refine\(hasHappened, \{ message: 'An expense can only be dated to a day that has happened' \}\)/.test(expenses)) fail('an expense records money already spent — a 2099 receipt must be refused (T30 L1)')
+const jobsSrc = read('packages/tenant-backend/src/jobs/jobs.ts')
+if (!/\.refine\(withinHorizon, \{ message: horizonMessage\('The scheduled date'\) \}\)/.test(jobsSrc)) fail("a job's schedule must be bounded by a plausible year")
+if (/scheduledDate[^\n]*hasHappened/.test(jobsSrc)) fail('…and NOT by the past-only rule — scheduling ahead is the whole point of a schedule')
+const moneySrc = read('packages/tenant-backend/src/invoicing/money.ts')
+if (!/if \(!withinHorizon\(d\)\) return \{ error: `That date is too far ahead/.test(moneySrc)) fail('one bound in normalizeDateInput must cover due date, issue date and quote expiry together')
+const expPage = read('packages/tenant-ui/src/people/ExpensesPage.tsx')
+if (!/d\.getTime\(\) - d\.getTimezoneOffset\(\) \* 60000/.test(expPage)) fail("the Expenses page must date an expense by the person's own day, not UTC's")
+if (!/<input type="date" max=\{today\(\)\}/.test(expPage)) fail("the expense date box must stop at today, as the timesheet's does")
 if (!/\.refine\(notFuture, \{ message: 'Time can only be logged for a date that has happened' \}\)/.test(time)) fail('…on the shared entry schema, so the bound covers the edit as well as the entry')
 if (!/d\.getTime\(\) - d\.getTimezoneOffset\(\) \* 60000/.test(timePage)) fail("the Time page must date an entry by the person's own day — toISOString() rolls over at UTC midnight and pre-filled tomorrow all evening")
 if (!/<input type="date" max=\{today\(\)\}/.test(timePage)) fail('the date box must stop at today, so the typo is caught at the picker and not only by the API')

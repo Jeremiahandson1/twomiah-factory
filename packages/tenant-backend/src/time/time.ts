@@ -11,6 +11,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, gte, lte, lt, count, desc, asc, sum, isNull, isNotNull, inArray } from 'drizzle-orm'
+import { hasHappened } from '../dateInput'
 
 export interface TimeTables { timeEntry: any; user: any; job?: any; project?: any }
 export interface TimeDeps {
@@ -28,10 +29,9 @@ const stripTags = (s: string) => s.replace(/<[^>]*>/g, '').trim()
 const validDate = (v: unknown) => !v || !isNaN(new Date(String(v)).getTime())
 /** A timesheet records work already done, so a date years out is a typo — and a SILENT one: the entry sits outside
  *  every dated window, so the hours don't show up wrong in Reports, they don't show up at all (contractor T29 L1 —
- *  a 2099 row made a 9.5-hour month read 7.5). A whole day of slack covers a caller whose local date is already
- *  ahead of UTC, since a date-only string is parsed at UTC midnight. */
-const DATE_SLACK_MS = 24 * 60 * 60 * 1000
-const notFuture = (v: unknown) => { if (!v) return true; const ms = new Date(String(v)).getTime(); return isNaN(ms) || ms <= Date.now() + DATE_SLACK_MS }
+ *  a 2099 row made a 9.5-hour month read 7.5). The rule and its one day of slack live in ../dateInput, shared with
+ *  the expense sheet, which records the same kind of thing. (T30 L1) */
+const notFuture = hasHappened
 const fk = z.string().optional().nullable().transform((v) => (v ? v : null))
 const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/
 const round2 = (n: number) => Math.round(n * 100) / 100

@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, gte, lte, count, desc, sql, inArray } from 'drizzle-orm'
 import { checkFilter } from '../listFilter'
+import { hasHappened } from '../dateInput'
 
 export interface ExpenseTables { expense: any; project?: any; job?: any }
 export interface ExpenseDeps {
@@ -25,7 +26,12 @@ export const DEFAULT_EXPENSE_CATEGORIES = ['materials', 'equipment', 'labor', 't
 const MANAGER_ROLES = new Set(['owner', 'admin', 'manager'])
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt }
 const stripTags = (s: string) => s.replace(/<[^>]*>/g, '').trim()
-const dateField = z.string().optional().nullable().refine((v) => !v || !isNaN(new Date(v).getTime()), { message: 'Enter a valid date' })
+// An expense records money already spent — a receipt is a past event — so a date in the future is a typo, the
+// same rule and the same one day of slack the timesheet uses. A 2099 expense is not merely odd: it sits outside
+// every dated window, so it vanishes from the period totals rather than reading wrong. (Contractor T30 L1)
+const dateField = z.string().optional().nullable()
+  .refine((v) => !v || !isNaN(new Date(v).getTime()), { message: 'Enter a valid date' })
+  .refine(hasHappened, { message: 'An expense can only be dated to a day that has happened' })
 /** '' from an unselected <select> → not set (an empty string is a FK violation → 409/500). */
 const fk = z.string().optional().nullable().transform((v) => (v ? v : null))
 

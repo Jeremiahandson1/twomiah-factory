@@ -1,5 +1,6 @@
 // Money rules shared by invoices and quotes in every CRM template. One implementation, vendored into
 // each tenant (see ../index.ts). Nothing here knows a vertical; callers inject their Drizzle tables.
+import { withinHorizon, MAX_PLAN_YEARS } from '../dateInput'
 // drizzle-orm is imported lazily inside nextNumber() only, so the pure money helpers (invoiceBalance,
 // recomputeStatus, calcTotals, …) can be imported and unit-tested without pulling drizzle-orm.
 
@@ -141,6 +142,11 @@ export function normalizeDateInput(v: unknown): { value?: Date | null; error?: s
   }
   const d = new Date(String(v))
   if (isNaN(d.getTime())) return { error: 'Enter a valid date.' }
+  // Every one of these is a PLAN — when payment is due, when an offer lapses — so the future is the point and
+  // only the year has to be plausible. A quote expiring in 2099 and an invoice due in 9999 both saved, and then
+  // sat outside every window that would have shown them. One bound here covers due date, issue date and quote
+  // expiry together. (Contractor T30 L1)
+  if (!withinHorizon(d)) return { error: `That date is too far ahead — pick one within ${MAX_PLAN_YEARS} years. Check the year.` }
   // Every caller is a calendar-day field (due date, issue date, quote expiry), so the day is what is kept:
   // a picker sends 2026-10-16 and a client that sends a full timestamp must not store a different value for
   // the same day. (Contractor T14 M17)

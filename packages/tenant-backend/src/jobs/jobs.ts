@@ -15,6 +15,7 @@ import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
 import { checkFilter } from '../listFilter'
+import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType, baseMime } from '../files/storage'
 
 export interface JobTables { job: any; contact: any; user: any; project?: any; timeEntry?: any; equipment?: any; jobPhoto?: any;
@@ -94,7 +95,10 @@ export function createJobRoutes(deps: JobDeps) {
     // Constrained to the known status union (see JOB_STATUSES) — the dispatch board only ever sets these,
     // and a free-form string let "banana" through to the dashboard and Reports.
     status: z.enum(JOB_STATUSES).optional(),
-    scheduledDate: z.string().optional().refine(validDate, { message: 'Invalid scheduled date' }),
+    // Scheduling ahead is the point, so this is not the timesheet's rule — only the year has to be plausible.
+    // A job booked for 9999 saved happily and then sat outside every calendar and report. (Contractor T30 L1)
+    scheduledDate: z.string().optional().refine(validDate, { message: 'Invalid scheduled date' })
+      .refine(withinHorizon, { message: horizonMessage('The scheduled date') }),
     // A scheduled time must be HH:MM (24-hour) — "25:99" was stored verbatim. Empty is allowed (unscheduled).
     scheduledTime: z.string().optional().refine((v: string | undefined) => !v || /^([01]\d|2[0-3]):[0-5]\d$/.test(v), { message: 'Time must be HH:MM (24-hour).' }),
     // The edit form posts the decimal string the API returned ("4.00"), or "" when blank.
