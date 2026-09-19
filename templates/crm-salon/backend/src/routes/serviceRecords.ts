@@ -1,13 +1,14 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { serviceRecord, serviceMenu, contact, user, appointment } from '../../db/schema.ts'
-import { eq, and, desc } from 'drizzle-orm'
+import { serviceRecord, serviceMenu, contact, user, appointment, teamMember } from '../../db/schema.ts'
+import { eq, and, desc, or } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
+import { resolveStylist, unknownStylist, stylistIdOf } from '../utils/stylist.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 
 /**
@@ -28,7 +29,8 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 
   const conditions = [eq(serviceRecord.companyId, currentUser.companyId)]
   if (contactId) conditions.push(eq(serviceRecord.contactId, contactId))
-  if (stylistId) conditions.push(eq(serviceRecord.stylistId, stylistId))
+  // filter on either column — the caller knows one stylist id, not which table it came from (T20 H1)
+  if (stylistId) conditions.push(or(eq(serviceRecord.stylistId, stylistId), eq(serviceRecord.stylistMemberId, stylistId))!)
 
   const data = await db.select({
     record: serviceRecord,
@@ -36,20 +38,29 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     serviceName: serviceMenu.name,
     stylistFirstName: user.firstName,
     stylistLastName: user.lastName,
+    stylistMemberName: teamMember.name,
   })
     .from(serviceRecord)
     .leftJoin(contact, eq(serviceRecord.contactId, contact.id))
     .leftJoin(serviceMenu, eq(serviceRecord.serviceId, serviceMenu.id))
     .leftJoin(user, eq(serviceRecord.stylistId, user.id))
+    // a roster stylist's name lives in team_member (T20 H1)
+    .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
     .where(and(...conditions))
     .orderBy(desc(serviceRecord.performedAt))
     .limit(200)
 
-  const rows = data.map((r: any) => ({
-    ...r.record,
-    clientName: r.clientName, serviceName: r.serviceName,
-    stylistFirstName: r.stylistFirstName, stylistLastName: r.stylistLastName,
-  }))
+  const rows = data.map((r: any) => {
+    // one stylistId back out, whichever column holds them (T20 H1)
+    const parts = String(r.stylistMemberName || '').trim().split(/\s+/)
+    return {
+      ...r.record,
+      stylistId: stylistIdOf(r.record),
+      clientName: r.clientName, serviceName: r.serviceName,
+      stylistFirstName: r.stylistFirstName ?? (parts[0] || null),
+      stylistLastName: r.stylistLastName ?? (parts.slice(1).join(' ') || null),
+    }
+  })
   return c.json({ data: rows })
 })
 
@@ -63,7 +74,7 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
     .limit(1)
   if (!row) return c.json({ error: 'Service record not found' }, 404)
 
-  return c.json(row)
+  return c.json({ ...row, stylistId: stylistIdOf(row) })
 })
 
 // POST /service-records — writing a record completes its appointment, so the
@@ -92,24 +103,32 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     return c.json({ error: 'Price charged cannot be negative.' }, 400)
   }
 
+  // The person who did the work may be a login user or a roster-only stylist; work out which before
+  // writing, and refuse an id that is neither with a message that names the field. (T20 H1)
+  const stylist = await resolveStylist(currentUser.companyId, body.stylistId)
+  if (!stylist) return unknownStylist(c, body.stylistId)
+
   // SALON-H4: reuse the record that Complete auto-created for this appointment rather than logging a second visit.
   if (body.appointmentId) {
     const [auto] = await db.select().from(serviceRecord).where(and(eq(serviceRecord.appointmentId, body.appointmentId), eq(serviceRecord.companyId, currentUser.companyId))).limit(1)
     if (auto) {
       const upd: any = { updatedAt: new Date() }
-      for (const k of ['stylistId', 'serviceId', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes']) if (k in body) upd[k] = body[k] === '' ? null : body[k]
+      for (const k of ['serviceId', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes']) if (k in body) upd[k] = body[k] === '' ? null : body[k]
+      // the resolved chair, into whichever column holds it (T20 H1)
+      if ('stylistId' in body) { upd.stylistId = stylist.stylistId; upd.stylistMemberId = stylist.stylistMemberId }
       if (Array.isArray(body.formula)) upd.formula = body.formula
       if (body.performedAt) upd.performedAt = /^\d{4}-\d{2}-\d{2}$/.test(String(body.performedAt)) ? new Date(`${body.performedAt}T12:00:00.000Z`) : new Date(body.performedAt)
       const [merged] = await db.update(serviceRecord).set(upd).where(eq(serviceRecord.id, auto.id)).returning()
       emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
-      return c.json({ ...merged, invoiceId: null, merged: true }, 200)
+      return c.json({ ...merged, stylistId: stylistIdOf(merged), invoiceId: null, merged: true }, 200)
     }
   }
   const [created] = await db.insert(serviceRecord).values({
     id: createId(),
     contactId: body.contactId,
     appointmentId: body.appointmentId || null,
-    stylistId: body.stylistId || null,
+    stylistId: stylist.stylistId,
+    stylistMemberId: stylist.stylistMemberId,
     serviceId: body.serviceId || null,
     // A date-only value ("2026-09-11") is a calendar date: store it at noon UTC so it renders as that
     // date in any US timezone instead of UTC midnight rolling back a day. (SALON-H9)
@@ -148,7 +167,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
   await audit.log({ action: 'create', entity: 'service_record', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
-  return c.json({ ...created, invoiceId }, 201)
+  // answer with the stylist id the caller gave us, whichever column it landed in (T20 H1)
+  return c.json({ ...created, stylistId: stylistIdOf(created), invoiceId }, 201)
 })
 
 // PUT /service-records/:id
@@ -166,12 +186,19 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const EDITABLE = ['appointmentId', 'stylistId', 'serviceId', 'performedAt', 'formula', 'developerVolume', 'processingMin', 'productsUsed', 'result', 'photoBefore', 'photoAfter', 'priceCharged', 'notes'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  // Reassigning the stylist has to land in the right column, and they have to exist. (T20 H1)
+  if ('stylistId' in updates) {
+    const resolved = await resolveStylist(currentUser.companyId, updates.stylistId)
+    if (!resolved) return unknownStylist(c, updates.stylistId)
+    updates.stylistId = resolved.stylistId
+    updates.stylistMemberId = resolved.stylistMemberId
+  }
   if (updates.performedAt) updates.performedAt = new Date(updates.performedAt)
 
   const [updated] = await db.update(serviceRecord).set(updates).where(eq(serviceRecord.id, id)).returning()
   await audit.log({ action: 'update', entity: 'service_record', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
-  return c.json(updated)
+  return c.json({ ...updated, stylistId: stylistIdOf(updated) })
 })
 
 // DELETE /service-records/:id

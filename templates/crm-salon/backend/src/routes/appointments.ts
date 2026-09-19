@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { appointment, serviceMenu, contact, user, serviceRecord } from '../../db/schema.ts'
-import { eq, and, gte, lte, ne, sql } from 'drizzle-orm'
+import { appointment, serviceMenu, contact, user, serviceRecord, teamMember } from '../../db/schema.ts'
+import { eq, and, gte, lte, ne, sql, or } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -9,6 +9,7 @@ import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
+import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from '../utils/stylist.ts'
 
 /**
  * The book. A salon books a CHAIR for a duration, so endTime is derived from
@@ -53,13 +54,18 @@ const apptLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_adviso
 
 // A stylist can only be in one chair at a time. Overlap is start < otherEnd &&
 // end > otherStart; cancelled/no-show rows free the slot back up.
-async function findConflict(companyId: string, stylistId: string, start: Date, end: Date, ignoreId?: string, exec: any = db) {
+async function findConflict(companyId: string, stylist: StylistRef, start: Date, end: Date, ignoreId?: string, exec: any = db) {
+  // Match on whichever column holds this stylist — a roster stylist can be double-booked exactly as
+  // easily as a login one, and the check has to follow them into their own column. (T20 H1)
+  const heldBy = stylist.stylistId
+    ? eq(appointment.stylistId, stylist.stylistId)
+    : eq(appointment.stylistMemberId, stylist.stylistMemberId!)
   // Bound the scan to the surrounding day — a candidate overlap must start
   // before our end, and no salon service runs longer than 24h.
   const rows = await exec.select().from(appointment)
     .where(and(
       eq(appointment.companyId, companyId),
-      eq(appointment.stylistId, stylistId),
+      heldBy,
       lte(appointment.startTime, end),
       gte(appointment.startTime, new Date(start.getTime() - 86400000)),
       ...(ignoreId ? [ne(appointment.id, ignoreId)] : []),
@@ -117,7 +123,10 @@ async function onVisitCompleted(row: typeof appointment.$inferSelect): Promise<s
     if (!rec) {
       const price = Number(row.quotedPrice)
       await db.insert(serviceRecord).values({
-        id: createId(), contactId: row.contactId, appointmentId: row.id, stylistId: row.stylistId || null, serviceId: row.serviceId || null,
+        // carry the chair through to the visit, whichever column holds the stylist (T20 H1)
+        id: createId(), contactId: row.contactId, appointmentId: row.id,
+        stylistId: row.stylistId || null, stylistMemberId: (row as any).stylistMemberId || null,
+        serviceId: row.serviceId || null,
         performedAt: new Date(row.startTime), formula: [], priceCharged: price > 0 ? String(price) : null,
         notes: 'Logged automatically when the appointment was completed.', companyId: row.companyId,
       } as any)
@@ -138,7 +147,8 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   const conditions = [eq(appointment.companyId, currentUser.companyId)]
   if (from) conditions.push(gte(appointment.startTime, new Date(from)))
   if (to) conditions.push(lte(appointment.startTime, new Date(to)))
-  if (stylistId) conditions.push(eq(appointment.stylistId, stylistId))
+  // filter on either column — the caller knows one stylist id, not which table it came from (T20 H1)
+  if (stylistId) conditions.push(or(eq(appointment.stylistId, stylistId), eq(appointment.stylistMemberId, stylistId))!)
   if (status) conditions.push(eq(appointment.status, status))
 
   const data = await db.select({
@@ -150,20 +160,31 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     serviceDurationMin: serviceMenu.durationMin,
     stylistFirstName: user.firstName,
     stylistLastName: user.lastName,
+    stylistMemberName: teamMember.name,
   })
     .from(appointment)
     .leftJoin(contact, eq(appointment.contactId, contact.id))
     .leftJoin(serviceMenu, eq(appointment.serviceId, serviceMenu.id))
     .leftJoin(user, eq(appointment.stylistId, user.id))
+    // a roster stylist's name lives in team_member (T20 H1)
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
     .where(and(...conditions))
     .orderBy(appointment.startTime)
 
-  const rows = data.map((r: any) => ({
-    ...r.appointment,
-    clientName: r.clientName, clientPhone: r.clientPhone, clientMobile: r.clientMobile,
-    serviceName: r.serviceName, serviceDurationMin: r.serviceDurationMin,
-    stylistFirstName: r.stylistFirstName, stylistLastName: r.stylistLastName,
-  }))
+  const rows = data.map((r: any) => {
+    // The book asked for a stylist and gets one back the same way, whichever column holds them —
+    // the caller never has to know there are two. (T20 H1)
+    const memberFirst = String(r.stylistMemberName || '').trim().split(/\s+/)[0] || null
+    const memberLast = String(r.stylistMemberName || '').trim().split(/\s+/).slice(1).join(' ') || null
+    return {
+      ...r.appointment,
+      stylistId: stylistIdOf(r.appointment),
+      clientName: r.clientName, clientPhone: r.clientPhone, clientMobile: r.clientMobile,
+      serviceName: r.serviceName, serviceDurationMin: r.serviceDurationMin,
+      stylistFirstName: r.stylistFirstName ?? memberFirst,
+      stylistLastName: r.stylistLastName ?? memberLast,
+    }
+  })
   return c.json({ data: rows })
 })
 
@@ -187,12 +208,17 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   if (endTime.getTime() <= startTime.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
   if (endTime.getTime() - startTime.getTime() > MAX_APPT_MS) return c.json({ error: 'An appointment cannot run longer than 12 hours.' }, 400)
 
+  // A stylist may be a login user or a roster member; work out which before writing. An id that is
+  // neither is a 400 naming the field, not a foreign-key 409 that names nothing. (T20 H1)
+  const stylist = await resolveStylist(currentUser.companyId, body.stylistId)
+  if (!stylist) return unknownStylist(c, body.stylistId)
+
   let created
   try {
     created = await db.transaction(async (tx: any) => {
       await apptLock(tx, currentUser.companyId)
-      if (body.stylistId) {
-        const clash = await findConflict(currentUser.companyId, body.stylistId, startTime, endTime, undefined, tx)
+      if (stylist.stylistId || stylist.stylistMemberId) {
+        const clash = await findConflict(currentUser.companyId, stylist, startTime, endTime, undefined, tx)
         if (clash) throw new ApptConflict({ error: 'That stylist is already booked at this time', conflictId: clash.id })
       }
       if (body.station) {
@@ -202,7 +228,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
       const [row] = await tx.insert(appointment).values({
         id: createId(),
         contactId: body.contactId || null,
-        stylistId: body.stylistId || null,
+        stylistId: stylist.stylistId,
+        stylistMemberId: stylist.stylistMemberId,
         serviceId,
         status: body.status || 'scheduled',
         station: body.station || null,
@@ -221,7 +248,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
   await audit.log({ action: 'create', entity: 'appointment', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
-  return c.json(created, 201)
+  // answer with the stylist id the caller gave us, whichever column it landed in (T20 H1)
+  return c.json({ ...created, stylistId: stylistIdOf(created) }, 201)
 })
 
 // PUT /appointments/:id
@@ -255,7 +283,15 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     updates.endTime = await resolveEnd(currentUser.companyId, nextStart, nextService, null)
   }
   const nextEnd: Date = updates.endTime ?? (existing.endTime ? new Date(existing.endTime) : new Date(nextStart.getTime() + 3600000))
-  const nextStylist = 'stylistId' in updates ? updates.stylistId : existing.stylistId
+  // Reassigning the chair has to land in the right column, and the stylist has to exist. (T20 H1)
+  let nextStylist: StylistRef = { stylistId: existing.stylistId, stylistMemberId: (existing as any).stylistMemberId ?? null }
+  if ('stylistId' in updates) {
+    const resolved = await resolveStylist(currentUser.companyId, updates.stylistId)
+    if (!resolved) return unknownStylist(c, updates.stylistId)
+    nextStylist = resolved
+    updates.stylistId = resolved.stylistId
+    updates.stylistMemberId = resolved.stylistMemberId
+  }
   const nextStatus = 'status' in updates ? updates.status : existing.status
   // Re-validate the effective pair — editing the end (or dragging the start) must not
   // produce an end at/before the start. (SCHED-01)
@@ -267,7 +303,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   try {
     updated = await db.transaction(async (tx: any) => {
       await apptLock(tx, currentUser.companyId)
-      if (nextStylist && !CANCELLED.includes(nextStatus)) {
+      if ((nextStylist.stylistId || nextStylist.stylistMemberId) && !CANCELLED.includes(nextStatus)) {
         const clash = await findConflict(currentUser.companyId, nextStylist, nextStart, nextEnd, id, tx)
         if (clash) throw new ApptConflict({ error: 'That stylist is already booked at this time', conflictId: clash.id })
       }
@@ -286,7 +322,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
   if (nextStatus !== existing.status) await syncOnlineBooking(id, nextStatus)
   const invoiceId = nextStatus === 'completed' && existing.status !== 'completed' ? await onVisitCompleted(updated) : null
-  return c.json({ ...updated, invoiceId })
+  return c.json({ ...updated, stylistId: stylistIdOf(updated), invoiceId })
 })
 
 // POST /appointments/:id/check-in
@@ -306,7 +342,7 @@ app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
 
   await audit.log({ action: 'update', entity: 'appointment', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'appointment' })
-  return c.json(updated)
+  return c.json({ ...updated, stylistId: stylistIdOf(updated) })
 })
 
 // DELETE /appointments/:id — cancel, keeping the row so no-show/cancel rates

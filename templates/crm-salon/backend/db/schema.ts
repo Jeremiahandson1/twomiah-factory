@@ -3772,6 +3772,11 @@ export const appointment = pgTable('appointment', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  // A stylist is not always a LOGIN. stylist_id points at `user`, so a chair-only stylist added on the
+  // Team page — who lives in team_member and has a different id — could never be booked: the write was
+  // refused by the foreign key while /api/team/assignable went on offering them. Second column so a
+  // roster stylist can hold the chair too; exactly one of the two is ever set. (Salon T20 H1)
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
   serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
   status: text('status').default('scheduled').notNull(), // scheduled/confirmed/checked_in/in_chair/completed/no_show/cancelled
   station: text('station'),                              // chair / room
@@ -3799,6 +3804,8 @@ export const serviceRecord = pgTable('service_record', {
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
   appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
   stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  // Same reason as on `appointment`: the person who did the work may be roster-only. (Salon T20 H1)
+  stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
   serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
   performedAt: timestamp('performed_at').defaultNow().notNull(),
   formula: json('formula').default([]).notNull(),        // [{product, shade, parts}] — repeatable next visit

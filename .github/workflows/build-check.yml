@@ -1286,3 +1286,14 @@ jobs:
           bun-version: latest
       - name: "One home per value, one order name, customer understood, stocked shelf"
         run: bun run scripts/check-dispensary-lows.ts
+
+  293:
+    name: "roster stylist bookable"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "A chair-only stylist can be booked, named and filtered"
+        run: bun run scripts/check-roster-stylist-bookable.ts
