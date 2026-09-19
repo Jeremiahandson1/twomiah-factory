@@ -27,6 +27,24 @@ export const SETTLED_SALE_STATUSES = ['completed', 'partially_refunded', 'refund
 /** For a raw-SQL `WHERE ... AND o.status IN ${settledSale}`. */
 export const settledSale = sql`('completed', 'partially_refunded', 'refunded')`
 
+// TAX is the one measure that does NOT share the settled row set, and it split six surfaces three ways:
+// the dashboard, the analytics summary and the tax FILING counted 'completed' only; the EOD report and the
+// compliance tax report counted completed + partially refunded; the analytics timeseries and the compliance
+// sales report counted all three settled statuses. Same day, same tenant, $488.75 against $710.75.
+// (Dispensary T23 H1)
+//
+// Unlike revenue, this is not a choice of measure — it is what actually happened. When a sale is handed back
+// IN FULL the tax goes back with it, so there is nothing collected to remit; counting it (the settled row
+// set) overstates what is owed. When a sale is refunded in PART the tax stays counted in full, because the
+// schema records refunded_amount as one figure with no tax split, so the exact share returned is not
+// recoverable — and dropping the whole sale (what the filing did) understates the liability far more than
+// keeping it overstates it. Pro-rating tax by refunded_amount/total would be closer still and is a decision
+// worth taking deliberately, not a thing to slip into a report people file from.
+export const TAX_COLLECTED_STATUSES = ['completed', 'partially_refunded'] as const
+
+/** The row set tax was actually collected on: a sale returned in full returned its tax too. */
+export const taxCollected = sql`('completed', 'partially_refunded')`
+
 /** Money returned, as a numeric expression over an `orders` row aliased `o`. */
 export const refundedExpr = sql`COALESCE(NULLIF(o.refunded_amount, '')::numeric, 0)`
 

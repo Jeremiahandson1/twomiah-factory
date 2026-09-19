@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { product, contact } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql } from 'drizzle-orm'
-import { settledSale, netExprBare, refundedExprBare } from '../utils/revenue.ts'
+import { settledSale, taxCollected, netExprBare, refundedExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -35,16 +35,19 @@ app.get('/stats', async (c) => {
     safe(() => db.execute(sql`
       SELECT
         COUNT(*)::int as total_orders,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END)::int as completed,
+        -- Counted over the SAME row set as the revenue below it, or the tile contradicts itself: 26 sales
+        -- sitting under a revenue figure that came from 33 of them, and an average order value that divides
+        -- one by the other. A refunded sale still happened. (T23 H1)
+        COUNT(CASE WHEN status IN ${settledSale} THEN 1 END)::int as completed,
         COUNT(CASE WHEN status = 'pending' OR status = 'processing' OR status = 'ready' THEN 1 END)::int as pending,
         -- Revenue is what the business KEPT, over every settled sale — not the gross of the ones that happen
         -- not to have been refunded. This tile, Analytics and the compliance report each used to answer this
         -- differently on the same day ($2,395 / $2,825 / $3,395). See utils/revenue.ts. (T21 H8)
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0) as revenue,
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${refundedExprBare} ELSE 0 END), 0) as refunded,
-        COALESCE(SUM(CASE WHEN status = 'completed' THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
+        COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
         COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0) as avg_order_value,
-        COUNT(CASE WHEN is_medical = true AND status = 'completed' THEN 1 END)::int as medical_orders
+        COUNT(CASE WHEN is_medical = true AND status IN ${settledSale} THEN 1 END)::int as medical_orders
       FROM orders
       WHERE company_id = ${companyId}
         AND created_at >= ${today}

@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { taxCollected } from '../utils/revenue.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -104,8 +105,13 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   }
   const state = data.state ? data.state.toUpperCase().slice(0, 2) : null
 
-  // Query completed orders in the period. orders.subtotal/excise_tax/sales_tax/total_tax are TEXT;
-  // NULLIF guards empty strings before the numeric cast.
+  // The sales tax was actually collected on, in the period. orders.subtotal/excise_tax/sales_tax/total_tax
+  // are TEXT; NULLIF guards empty strings before the numeric cast.
+  //
+  // This counted status = 'completed' alone, which dropped every partially-refunded sale — and with it the
+  // whole of that sale's tax, not just the refunded share. The figure a return is filed from was the one
+  // under-reporting the liability. It now uses the same row set as the EOD and compliance tax reports, so
+  // the number you file matches the number you reconcile against. (T23 H1)
   const ordersResult = await db.execute(sql`
     SELECT
       COUNT(*)::int as total_orders,
@@ -116,7 +122,7 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
       COALESCE(SUM(CAST(NULLIF(total, '') AS numeric)), 0) as total_revenue
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status = 'completed'
+      AND status IN ${taxCollected}
       AND completed_at >= ${periodStart}
       AND completed_at <= ${periodEnd}
   `)
@@ -347,7 +353,7 @@ app.get('/filings/summary', async (c) => {
       COALESCE(SUM(CAST(NULLIF(total_tax, '') AS numeric)), 0) as total_collected
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status = 'completed'
+      AND status IN ${taxCollected}
       AND completed_at >= ${yearStart}
   `)
   const collected = ((collectedResult as any).rows || collectedResult)?.[0] || {}
@@ -453,7 +459,7 @@ app.get('/summary', async (c) => {
       COALESCE(SUM(CAST(NULLIF(total_tax, '') AS numeric)), 0) as total_collected
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status = 'completed'
+      AND status IN ${taxCollected}
       AND completed_at >= ${yearStart}
   `)
   const collected = ((collectedResult as any).rows || collectedResult)?.[0] || {}
