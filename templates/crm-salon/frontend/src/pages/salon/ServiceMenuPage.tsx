@@ -90,9 +90,12 @@ export default function ServiceMenuPage() {
           {byCategory.map((group) => (
             <div key={group.cat}>
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2 dark:text-slate-400">{group.cat}</h2>
+              {/* The card stayed white in dark mode while its text switched to the dark-mode
+                  near-white: the service name and the price rendered at 1.10:1 and the whole
+                  catalogue was unusable. (T20 H2) */}
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {group.items.map((s) => (
-                  <div key={s.id} className={`bg-white rounded-xl border p-5 flex flex-col ${s.active ? '' : 'opacity-60'}`}>
+                  <div key={s.id} className={`bg-white rounded-xl border p-5 flex flex-col dark:bg-slate-900 dark:border-slate-700 ${s.active ? '' : 'opacity-60'}`}>
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-semibold text-gray-900 dark:text-slate-100">{s.name || 'Untitled'}</p>
                       {!s.active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Retired</span>}

@@ -1319,3 +1319,14 @@ jobs:
           bun-version: latest
       - name: "Deleting a visit voids its sale; payment blocks the delete"
         run: bun run scripts/check-visit-sale-not-orphaned.ts
+
+  296:
+    name: "salon dark surfaces"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Cards and alerts follow the theme their text follows"
+        run: bun run scripts/check-salon-dark-surfaces.ts

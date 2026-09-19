@@ -133,14 +133,19 @@ export default function DashboardPage() {
       {/* Headline rebooking card */}
       <Link
         to="/crm/reminders"
+        /* The alert kept its light-pink background in dark mode while the headline switched to the
+           dark-mode near-white, so "2 overdue" rendered at 1.00:1 and was simply missing — the banner
+           read "· 0 due soon" and nothing else. The surface has to follow the theme the text follows. (T20 H2) */
         className={`block rounded-xl border p-5 transition hover:shadow-md ${
-          reminderTotal > 0 ? 'bg-red-50 border-red-200' : 'bg-white'
+          reminderTotal > 0
+            ? 'bg-red-50 border-red-200 dark:bg-red-950/40 dark:border-red-900'
+            : 'bg-white dark:bg-slate-900 dark:border-slate-700'
         }`}
       >
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-lg ${reminderTotal > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
-              <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600' : 'text-gray-500'}`} />
+            <div className={`p-3 rounded-lg ${reminderTotal > 0 ? 'bg-red-100 dark:bg-red-900/40' : 'bg-gray-100 dark:bg-slate-800'}`}>
+              <BellRing className={`w-6 h-6 ${reminderTotal > 0 ? 'text-red-600 dark:text-red-300' : 'text-gray-500 dark:text-slate-400'}`} />
             </div>
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Due to Rebook</p>

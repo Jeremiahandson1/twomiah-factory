@@ -275,8 +275,11 @@ export default function RemindersPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
+              {/* Same shape as the dashboard banner: an overdue row painted light pink while its cells
+                  switch to the dark-mode near-white is unreadable in dark mode. Found by sweeping for
+                  the pattern rather than by the report, which stopped at three pages. (T20 H2) */}
               {tab === 'due' && dueRows.map((r) => (
-                <tr key={r.recordId} className={r.overdue ? 'bg-red-50' : ''}>
+                <tr key={r.recordId} className={r.overdue ? 'bg-red-50 dark:bg-red-950/40' : ''}>
                   <td className="px-4 py-3">
                     <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />
                   </td>
