@@ -97,7 +97,39 @@ structural.push(
   [/amountRefunded/.test(owingBody), 'salon dashboard outstanding must net refunds (reference amountRefunded), matching the shared balance model'],
 )
 
+// What is owed is a question for the BALANCE, never for the status string. Three surfaces each re-derived it
+// from `status === 'refunded'` and so disagreed with the record: the stats tile skipped those invoices, the
+// list printed the word "Refunded" over the amount, and the detail page reported $0.00 — and hid Record
+// Payment — on an invoice still owing $100. $206 across three invoices was owed and counted nowhere. (T29 M1)
+// Outstanding excludes 'refunded', and Reports does the same through `issued`. That is only safe while
+// 'refunded' really does mean the WHOLE sale came back — so the self-heal has to correct any row that carries
+// it after a merely partial refund, or the tile quietly writes off money still owed. Three such rows held
+// $206 between them. (T29 M1)
+const invoicesRoute = readFileSync(new URL('../packages/tenant-backend/src/invoicing/invoices.ts', import.meta.url), 'utf8')
+const reconcile = (invoicesRoute.match(/async function reconcileInvoiceStatuses[\s\S]*?\n\}/) || [''])[0]
+structural.push(
+  [/status = 'refunded'[\s\S]*?amount_refunded, 0\)::numeric >= total::numeric/.test(reconcile), "the self-heal must mark a wholly returned sale 'refunded'"],
+  [/WHERE status = 'refunded' AND total::numeric > 0 AND coalesce\(amount_refunded, 0\)::numeric < total::numeric/.test(reconcile), "…and must take 'refunded' OFF a row where only part of the money went back — that status is read as 'owes nothing'"],
+  [/WHEN amount_paid::numeric >= total::numeric THEN 'paid'/.test(reconcile), '…restoring it to paid when the invoice was settled in full'],
+  [/THEN 'partial'/.test(reconcile) && /ELSE 'sent'/.test(reconcile), '…to partial while money is still held, and open once the deposit has gone back'],
+)
+
+const listPage = readFileSync(new URL('../packages/tenant-ui/src/invoicing/InvoicesPage.tsx', import.meta.url), 'utf8')
+const balanceCell = (listPage.match(/key: 'amountPaid'[\s\S]*?\} \},/) || [''])[0]
+structural.push(
+  [balanceCell.indexOf('const bal = balanceOf(r)') < balanceCell.indexOf("r.status === 'refunded'"), 'the invoice list must work out the balance BEFORE it considers printing "Refunded" over it'],
+  [/if \(bal > 0\.005\)/.test(balanceCell), '…and print the amount whenever one is owed'],
+)
+
+const detailPage = readFileSync(new URL('../packages/tenant-ui/src/invoicing/InvoiceDetailPage.tsx', import.meta.url), 'utf8')
+structural.push(
+  [/const serverBalance = invoice\.balance/.test(detailPage), "the invoice page must use the server's balance rather than deriving its own"],
+  [/const closed = invoice\.status === 'void' \|\| fullyReturned/.test(detailPage), 'only void or a WHOLE sale returned closes an invoice — otherwise Record Payment is hidden on money still owed'],
+  [!/const closed = invoice\.status === 'void' \|\| invoice\.status === 'refunded'/.test(detailPage), "…the status string must not decide it"],
+)
+
 let sFail = 0
-for (const [ok, msg] of structural) { if (!ok) { sFail++; console.error(`FAIL (structural): ${msg}`) } }
+// prefix matches the behavioural half above, so the self-test harness counts these as failures too
+for (const [ok, msg] of structural) { if (!ok) { sFail++; console.error(`FAIL: (structural) ${msg}`) } }
 if (sFail) { console.error(`\nmoney model: ${sFail} structural check(s) FAILED`); process.exit(1) }
 console.log(`money model: outstanding summed over \`issued\` (dashboard == Reports == /stats); invoice list balance nets refunds`)

@@ -39,9 +39,17 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
   const total = Number(invoice.total) || 0
   const paidGross = Number(invoice.amountPaid || 0)
   const netPaid = paidGross - Number(invoice.amountRefunded || 0)
-  const closed = invoice.status === 'void' || invoice.status === 'refunded'
+  // One rule decides what is owed, and it lives on the server (invoiceBalance): void → 0, whole sale returned
+  // → 0, fully paid → 0, otherwise total − (paid − refunded). This page used to re-derive it from the STATUS
+  // string, so an invoice carrying status 'refunded' read Balance Due $0.00 while its own record said 100 —
+  // a PARTIAL refund puts the money back on the customer, which is the documented rule. (T29 M1)
+  const fullyReturned = total > 0 && Number(invoice.amountRefunded || 0) >= total - 0.005
   const fullyPaid = paidGross >= total - 0.005
-  const balance = closed || fullyPaid ? 0 : Math.max(0, total - netPaid)
+  const serverBalance = invoice.balance != null && String(invoice.balance) !== '' ? Math.max(0, Number(invoice.balance) || 0) : null
+  // Only void or a WHOLE sale returned closes an invoice — which is what the note above always said. Treating
+  // any status of 'refunded' as closed also hid Record Payment on an invoice still owing $100. (T29 M1)
+  const closed = invoice.status === 'void' || fullyReturned
+  const balance = serverBalance ?? (closed || fullyPaid ? 0 : Math.max(0, total - netPaid))
   const credit = closed ? 0 : Math.max(0, netPaid - total)
   const overdue = balance > 0 && !!invoice.dueDate && isPastDay(invoice.dueDate) && !['draft'].includes(invoice.status)
 

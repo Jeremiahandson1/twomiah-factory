@@ -367,6 +367,16 @@ async function reconcileInvoiceStatuses(db: any, invoice: any) {
     WHERE status NOT IN ('void', 'draft', 'refunded') AND total::numeric > 0 AND coalesce(amount_refunded, 0)::numeric >= total::numeric`)
   await db.execute(sql`UPDATE ${invoice} SET status = 'paid', updated_at = now()
     WHERE status NOT IN ('void', 'draft', 'paid', 'refunded') AND total::numeric > 0 AND amount_paid::numeric >= total::numeric AND coalesce(amount_refunded, 0)::numeric < total::numeric`)
+  // …and the direction that was missing: a row stuck at 'refunded' when only PART of the money went back.
+  // recomputeStatus never produces that — it says 'refunded' only once the whole sale is returned — so such
+  // rows are drift from an older rule. They matter because 'refunded' is taken to mean "owes nothing" by the
+  // stats tile and by Reports, so three of them hid $206 that was genuinely still owed. A deposit that was
+  // refunded is billed and owed again: paid in full → 'paid', money still held → 'partial', else open.
+  await db.execute(sql`UPDATE ${invoice} SET status = CASE
+      WHEN amount_paid::numeric >= total::numeric THEN 'paid'
+      WHEN (amount_paid::numeric - coalesce(amount_refunded, 0)::numeric) > 0.005 THEN 'partial'
+      ELSE 'sent' END, updated_at = now()
+    WHERE status = 'refunded' AND total::numeric > 0 AND coalesce(amount_refunded, 0)::numeric < total::numeric`)
   invoiceStatusReconciled = true
 }
 
@@ -457,7 +467,9 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   // One set of numbers for the dashboard, Reports and the invoice list:
   //   totalAmount    = gross billed: every invoice that is not draft / void, a refunded sale included (a refund
   //                    never takes a sale out of what was invoiced — Reports "invoiced" is the same; T14 H4)
-  //   outstanding    = sum of balances over issued (not draft / void / refunded), floored per invoice
+  //   outstanding    = sum of balances over issued (not draft / void / refunded), floored per invoice. That
+  //                    exclusion is safe ONLY because 'refunded' means the whole sale came back — a status a
+  //                    partial refund must never carry (see reconcileInvoiceStatuses)
   //   paidAmount     = money actually kept: amountPaid − amountRefunded on every non-void invoice
   //   refundedAmount = money returned: amountRefunded on every non-void invoice
   app.get('/stats', requirePermission('invoices:read'), async (c) => {

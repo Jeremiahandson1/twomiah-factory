@@ -133,9 +133,12 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
     { key: 'total', label: 'Total', className: 'text-right', render: (v: any) => money(v) },
     { key: 'amountPaid', label: 'Balance', className: 'text-right', render: (_v: any, r: Row) => {
       if (r.status === 'void') return <span className="text-gray-400">Void</span>
-      if (r.status === 'refunded') return <span className="text-amber-700 dark:text-amber-300">Refunded</span>
+      // The amount comes first: a PARTIAL refund leaves money owed, and this column used to print the word
+      // "Refunded" over the top of it, so $206 across three invoices read as nothing owed. "Refunded" is only
+      // the answer when there is genuinely nothing left to collect. (T29 M1)
       const bal = balanceOf(r)
       if (bal > 0.005) return <span className="text-orange-600 dark:text-orange-300 font-medium">{money(bal)}</span>
+      if (r.status === 'refunded') return <span className="text-amber-700 dark:text-amber-300">Refunded</span>
       return Number(r.amountPaid || 0) > 0 ? <span className="text-green-600 dark:text-green-300">Paid</span> : <span className="text-gray-400">-</span>
     } },
     { key: 'dueDate', label: 'Due', render: (v: any) => dateOnly(v) },
