@@ -3807,6 +3807,11 @@ export const serviceRecord = pgTable('service_record', {
   // Same reason as on `appointment`: the person who did the work may be roster-only. (Salon T20 H1)
   stylistMemberId: text('stylist_member_id').references(() => teamMember.id, { onDelete: 'set null' }),
   serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
+  // The sale this visit raised. Logging a service creates an invoice, and deleting the visit used to
+  // leave that invoice standing — Open, full balance, still counted in Outstanding, with nothing on it
+  // connecting it back to the record that had been deleted. A visit logged without an appointment had
+  // no link at all. (Salon T20 H3)
+  invoiceId: text('invoice_id'),
   performedAt: timestamp('performed_at').defaultNow().notNull(),
   formula: json('formula').default([]).notNull(),        // [{product, shade, parts}] — repeatable next visit
   developerVolume: text('developer_volume'),

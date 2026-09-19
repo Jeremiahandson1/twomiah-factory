@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { serviceRecord, serviceMenu, contact, user, appointment, teamMember } from '../../db/schema.ts'
+import { serviceRecord, serviceMenu, contact, user, appointment, teamMember, invoice } from '../../db/schema.ts'
 import { eq, and, desc, or } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -162,6 +162,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     }
     const inv = await ensureInvoiceForVisit({ companyId: currentUser.companyId, contactId: created.contactId, appointmentId: created.appointmentId, serviceName, price: Number(created.priceCharged) })
     invoiceId = inv?.id || null
+    // Remember which sale this visit raised, so deleting the visit can answer for it. A visit logged
+    // without an appointment had no link to its invoice at all. (T20 H3)
+    if (invoiceId) await db.update(serviceRecord).set({ invoiceId, updatedAt: new Date() } as any).where(eq(serviceRecord.id, created.id))
   } catch (e: any) { console.warn('[service-records] sale not created:', e?.message || e) }
   scheduleReviewRequestForVisit({ companyId: currentUser.companyId, contactId: created.contactId }).catch((e) => console.warn('[service-records] review schedule failed:', e?.message || e))
 
@@ -211,10 +214,51 @@ app.delete('/:id', requirePermission('contacts:update'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Service record not found' }, 404)
 
-  await db.delete(serviceRecord).where(eq(serviceRecord.id, id))
-  await audit.log({ action: 'delete', entity: 'service_record', entityId: id, metadata: existing, req: { user: currentUser } })
+  // Deleting a visit has to answer for the sale it raised. The invoice used to survive — Open, full
+  // balance, still counted in Outstanding everywhere — so a stylist who logged a service against the
+  // wrong client and deleted it had silently created a real debt against that client, with nothing on
+  // the invoice connecting it back to a record that no longer existed. (T20 H3)
+  //
+  // An issued invoice is never deleted: it is VOIDED, which keeps the number and the audit trail and
+  // takes it out of outstanding. Money that was collected and not refunded blocks a void — the same
+  // rule POST /invoices/:id/void enforces — and here it blocks the whole deletion, because removing
+  // the visit would strand a real payment with nothing to explain it.
+  const [linkedInvoice] = (existing as any).invoiceId
+    ? await db.select().from(invoice).where(and(eq(invoice.id, (existing as any).invoiceId), eq(invoice.companyId, currentUser.companyId))).limit(1)
+    // records written before the link existed: fall back to the appointment the sale was filed against
+    : existing.appointmentId
+      ? await db.select().from(invoice).where(and(eq(invoice.appointmentId, existing.appointmentId), eq(invoice.companyId, currentUser.companyId))).limit(1)
+      : []
+
+  if (linkedInvoice && linkedInvoice.status !== 'void') {
+    const paid = Math.round((Number(linkedInvoice.amountPaid || 0) - Number(linkedInvoice.amountRefunded || 0)) * 100) / 100
+    if (paid > 0.005) {
+      return c.json({
+        error: `This visit has been paid for — ${linkedInvoice.number} holds $${paid.toFixed(2)}. Refund the payment and void the invoice first, then delete the visit.`,
+        code: 'VISIT_HAS_PAYMENT',
+        invoiceId: linkedInvoice.id,
+        invoiceNumber: linkedInvoice.number,
+        amountPaid: paid,
+      }, 400)
+    }
+  }
+
+  let voidedInvoice: { id: string; number: string } | null = null
+  await db.transaction(async (tx: any) => {
+    if (linkedInvoice && linkedInvoice.status !== 'void' && linkedInvoice.status !== 'refunded') {
+      const note = `Voided: the visit it was raised from was deleted`
+      await tx.update(invoice)
+        .set({ status: 'void', notes: linkedInvoice.notes ? `${linkedInvoice.notes}\n${note}` : note, updatedAt: new Date() })
+        .where(eq(invoice.id, linkedInvoice.id))
+      voidedInvoice = { id: linkedInvoice.id, number: linkedInvoice.number }
+    }
+    await tx.delete(serviceRecord).where(eq(serviceRecord.id, id))
+  })
+
+  await audit.log({ action: 'delete', entity: 'service_record', entityId: id, metadata: { ...existing, voidedInvoice }, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'service_record' })
-  return c.json({ success: true })
+  if (voidedInvoice) emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'invoice' })
+  return c.json({ success: true, voidedInvoice })
 })
 
 export default app

@@ -1308,3 +1308,14 @@ jobs:
           bun-version: latest
       - name: "Enrolling bills and schedules; due periods caught up once each"
         run: bun run scripts/check-membership-billing.ts
+
+  295:
+    name: "visit sale not orphaned"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Deleting a visit voids its sale; payment blocks the delete"
+        run: bun run scripts/check-visit-sale-not-orphaned.ts
