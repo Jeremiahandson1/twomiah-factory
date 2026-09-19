@@ -32,3 +32,28 @@ export function isCannabisLine(p: { taxCategory?: string | null; category?: stri
   if (p.taxCategory === 'non_cannabis') return false
   return CANNABIS_CATEGORIES.has(String(p.category || p.productCategory || '').toLowerCase())
 }
+
+// ── Age ────────────────────────────────────────────────────────────────────────────────────────
+// 21 to buy cannabis; 18 on a medical sale with a card on file. The register has enforced this
+// server-side since QA F-02 ("client-side-only enforcement is not a compliance control"), and the
+// kiosk now runs the SAME rule from here rather than trusting a boolean the customer's own device
+// supplies — it asked "are you 21?", stored the answer as proof, and discarded the date of birth
+// it was given. A date of birth in 2012 walked straight through. (Dispensary T20 B2)
+export const ADULT_USE_MIN_AGE = 21
+export const MEDICAL_MIN_AGE = 18
+
+/** Whole years between a date of birth and today; null when there is no usable date. */
+export function ageFromDob(dob: string | Date | null | undefined): number | null {
+  if (!dob) return null
+  const birth = new Date(dob as any)
+  if (Number.isNaN(birth.getTime())) return null
+  const today = new Date()
+  let age = today.getFullYear() - birth.getFullYear()
+  const m = today.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
+  return age
+}
+
+/** The minimum age this sale requires: 18 only for a medical sale that actually carries a card. */
+export const minimumAgeFor = (o: { isMedical?: boolean | null; medicalCardNumber?: string | null }): number =>
+  o?.isMedical && o?.medicalCardNumber ? MEDICAL_MIN_AGE : ADULT_USE_MIN_AGE

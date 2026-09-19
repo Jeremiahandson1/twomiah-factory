@@ -8,7 +8,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -38,17 +38,8 @@ const SALES_TAX_RATE = 0.0875 // state + local sales tax (varies)
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
-// Age from an ISO/YYYY-MM-DD date string; null when unparseable.
-function ageFromDob(dob: unknown): number | null {
-  if (!dob) return null
-  const birth = new Date(String(dob))
-  if (Number.isNaN(birth.getTime())) return null
-  const today = new Date()
-  let age = today.getFullYear() - birth.getFullYear()
-  const m = today.getMonth() - birth.getMonth()
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--
-  return age
-}
+// Age and the minimum age now live in utils/cannabis.ts, so the kiosk runs the SAME rule instead of
+// trusting a boolean its own screen supplied. (Dispensary T20 B2)
 
 // Server-side age/ID gate (QA F-02). The POS disabled "Complete Sale" until the ID box was
 // ticked, but the API completed orders with idVerified=false — including one for a customer
@@ -66,7 +57,7 @@ async function checkAgeGate(ord: any, items: any[], idVerified: boolean): Promis
     dob = (ct?.dob as any) || null
   }
   const age = ageFromDob(dob)
-  const minAge = ord.isMedical && ord.medicalCardNumber ? 18 : 21
+  const minAge = minimumAgeFor(ord)
   if (age != null && age < minAge) {
     return { status: 403, body: { error: `Customer is ${age} — cannabis sales require ${minAge}+`, code: 'underage', age, minAge } }
   }

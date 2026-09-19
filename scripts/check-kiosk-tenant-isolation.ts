@@ -19,5 +19,22 @@ if (/FROM\s+company\s+LIMIT/i.test(src)) fail(`${file}: resolves the tenant comp
 // Resolution must be scoped to the account owner (deterministic, demo-company-proof).
 if (!/role\s+IN\s*\(\s*'owner'\s*,\s*'admin'\s*\)/i.test(src)) fail(`${file}: kiosk must resolve the tenant company via the owner/admin account, not an arbitrary row`)
 
+// The age gate is a compliance control, so the customer's own device does not get to certify it. `verified`
+// used to BE the gate — {verified:true} set age_verified, and the date of birth sent with it was stored and
+// never read, so a 2012 DOB reached a real order. The age is computed server-side from the date of birth, by
+// the one rule the register has used since QA F-02. (Dispensary T20 B2)
+const cannabis = (() => { try { return readFileSync(new URL('../templates/crm-dispensary/backend/src/utils/cannabis.ts', import.meta.url), 'utf8') } catch { return '' } })()
+if (!/export const ADULT_USE_MIN_AGE = 21/.test(cannabis)) fail('utils/cannabis.ts must state the adult-use minimum age')
+if (!/export function ageFromDob\(/.test(cannabis)) fail('…and own the one age calculation')
+if (!/export const minimumAgeFor = /.test(cannabis)) fail('…and the one minimum-age rule (18 only for a medical sale with a card)')
+if (!/const age = ageFromDob\(dob\)/.test(src)) fail(`${file}: the kiosk must COMPUTE the age from the date of birth`)
+if (!/if \(age < ADULT_USE_MIN_AGE\)/.test(src)) fail(`${file}: …and refuse anyone under it`)
+if (!/code: 'dob_required'/.test(src)) fail(`${file}: …and require a date of birth rather than accepting a bare "yes"`)
+if (/SET age_verified = true, id_verified = true/.test(src)) fail(`${file}: a kiosk cannot inspect a physical ID — it must not certify one`)
+if (/verified: z\.boolean\(\),/.test(src)) fail(`${file}: a REQUIRED \`verified\` boolean is the old gate — the date of birth is the gate now`)
+const ordersSrc = (() => { try { return readFileSync(new URL('../templates/crm-dispensary/backend/src/routes/orders.ts', import.meta.url), 'utf8') } catch { return '' } })()
+if (/^function ageFromDob\(/m.test(ordersSrc)) fail('orders.ts must not keep a second copy of the age calculation')
+if (!/const minAge = minimumAgeFor\(ord\)/.test(ordersSrc)) fail('the register must use the shared minimum-age rule, so the two paths cannot drift')
+
 if (failed) { console.error(`\nkiosk tenant isolation: ${failed} check(s) FAILED`); process.exit(1) }
-console.log('kiosk tenant isolation: company is resolved by the owner account, never an arbitrary row')
+console.log('kiosk tenant isolation: company is resolved by the owner account, never an arbitrary row; the age gate is computed from a date of birth, not asserted by the device')

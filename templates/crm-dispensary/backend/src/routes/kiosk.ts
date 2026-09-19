@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { ageFromDob, ADULT_USE_MIN_AGE } from '../utils/cannabis.ts'
 
 const app = new Hono()
 
@@ -109,25 +110,50 @@ app.post('/session/:token/verify-age', async (c) => {
   const session = await getSession(token)
   if (!session) return c.json({ error: 'Session not found or expired' }, 404)
 
+  // The customer's own device does not get to certify the customer's age. `verified` used to BE the
+  // gate: sending {verified:true} set age_verified, and the date of birth alongside it was written to
+  // the row and never looked at — a DOB in 2012 passed. The date of birth is now required and the age
+  // is computed here, by the same rule the register enforces. (Dispensary T20 B2)
   const ageSchema = z.object({
-    verified: z.boolean(),
+    verified: z.boolean().optional(),
     dobProvided: z.string().optional(), // YYYY-MM-DD
+    dateOfBirth: z.string().optional(), // accepted alias
   })
   const data = ageSchema.parse(await c.req.json().catch(() => ({})))
+  const dob = data.dobProvided || data.dateOfBirth || null
 
-  if (!data.verified) {
-    // Mark session as failed verification
+  const endSession = async () => {
     await db.execute(sql`
       UPDATE kiosk_sessions
       SET status = 'abandoned', age_verified = false, updated_at = NOW()
       WHERE session_token = ${token}
     `)
+  }
+
+  // Declining the prompt still ends the session, as before.
+  if (data.verified === false) {
+    await endSession()
     return c.json({ error: 'Age verification failed. Session ended.' }, 403)
   }
 
+  const age = ageFromDob(dob)
+  if (age == null) {
+    return c.json({ error: 'Enter your date of birth to continue.', code: 'dob_required' }, 400)
+  }
+  if (age < ADULT_USE_MIN_AGE) {
+    await endSession()
+    // A refused sale is the kind of thing a regulator asks about, so it is recorded. The actor is the
+    // kiosk itself — there is no signed-in user — so the company comes through the same `req.user` shape
+    // every other caller uses; passing a bare companyId is ignored and the row fails its NOT NULL.
+    audit.log({ action: 'kiosk_age_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: { age, minAge: ADULT_USE_MIN_AGE, dobProvided: dob }, req: { user: { companyId: session.company_id } } })
+    return c.json({ error: `Cannabis sales require ${ADULT_USE_MIN_AGE}+.`, code: 'underage', age, minAge: ADULT_USE_MIN_AGE }, 403)
+  }
+
+  // id_verified stays FALSE here: a kiosk cannot inspect a physical ID. The budtender ticks that at
+  // the register, where checkAgeGate already refuses to settle a cannabis sale without it.
   const result = await db.execute(sql`
     UPDATE kiosk_sessions
-    SET age_verified = true, id_verified = true, dob_provided = ${data.dobProvided || null}, status = 'browsing', updated_at = NOW()
+    SET age_verified = true, dob_provided = ${dob}, status = 'browsing', updated_at = NOW()
     WHERE session_token = ${token}
     RETURNING *
   `)
