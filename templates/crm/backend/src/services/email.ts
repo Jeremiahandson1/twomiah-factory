@@ -558,6 +558,7 @@ async function send(
     });
 
     logger.info('Email sent', { to, subject, template: templateName, provider: PROVIDER });
+    if (!recordEmail) console.error('[emailLog] diag: no recorder attached at send time');
     void recordEmail?.({ to, subject, status: 'sent' });
     return { success: true, messageId: result.messageId };
   } catch (error: unknown) {

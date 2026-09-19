@@ -116,6 +116,7 @@ handleUncaughtExceptions()
 // Registered once here rather than at each send site, so a new kind of email cannot be added and forgotten.
 // (Contractor T14 M23)
 setEmailRecorder(createEmailLogger({ db, tables: { emailLog, company }, logger }))
+console.error('[emailLog] diag: recorder registered at startup')
 
 const app = new Hono()
 

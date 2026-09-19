@@ -35,14 +35,18 @@ export type EmailRecorder = (entry: EmailLogEntry) => Promise<void>
 export function createEmailLogger({ db, tables: t, logger }: EmailLogDeps): EmailRecorder {
   // A tenant CRM holds exactly one company; resolve it once rather than on every send.
   let companyId: string | null = null
+  // TEMP DIAG (#260 records nothing live) — remove with the rest of the [emailLog] diag lines.
+  console.error('[emailLog] diag: logger created', { hasEmailLog: !!t?.emailLog, hasCompany: !!t?.company })
   return async function recordEmail(entry: EmailLogEntry): Promise<void> {
+    console.error('[emailLog] diag: called', { to: entry.to, status: entry.status })
     try {
+      if (!t?.emailLog) console.error('[emailLog] diag: no emailLog table')
       if (!t?.emailLog || !t?.company) return
       if (!companyId) {
         const [row] = await db.select({ id: t.company.id }).from(t.company).limit(1)
         companyId = row?.id || null
       }
-      if (!companyId) return
+      if (!companyId) { console.error('[emailLog] diag: no company row'); return }
       await db.insert(t.emailLog).values({
         companyId,
         to: String(entry.to || '').slice(0, 320),
@@ -51,7 +55,9 @@ export function createEmailLogger({ db, tables: t, logger }: EmailLogDeps): Emai
         errorMessage: entry.errorMessage ? String(entry.errorMessage).slice(0, 500) : null,
         sentAt: entry.status === 'sent' ? new Date() : null,
       })
+      console.error('[emailLog] diag: inserted', { companyId })
     } catch (err) {
+      console.error('[emailLog] diag: insert threw', (err as Error)?.message)
       // The mail already went out. Losing the record is a reporting problem; throwing here would turn it
       // into a failed send the customer never hears about.
       logger?.warn('[emailLog] could not record a send', { error: (err as Error)?.message })
