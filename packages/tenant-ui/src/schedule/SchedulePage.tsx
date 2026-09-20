@@ -44,7 +44,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     const from = localKey(start) + 'T00:00:00.000Z', to = end.toISOString()
     const [j, b, x, e] = await Promise.all([
       api.get('/api/jobs', { startDate: from, endDate: to, limit: 500 }).then((r: any) => r?.data || []).catch((err: unknown) => { toast.error(errMsg(err, 'Failed to load jobs')); return [] }),
-      api.get('/api/booking', { from, to, limit: 500 }).then((r: any) => (r?.data || []).map((row: any): ScheduleBooking => ({ id: row.id, startAt: row.scheduledDate, status: row.status, customerName: row.customerName, serviceName: row.serviceName, customerAddress: row.customerAddress ?? null, source: 'crm' }))).catch(() => []),
+      api.get('/api/booking', { from, to, limit: 500 }).then((r: any) => (r?.data || []).map((row: any): ScheduleBooking => ({ id: row.id, startAt: row.scheduledDate, status: row.status, customerName: row.customerName, serviceName: row.serviceName, customerAddress: row.customerAddress ?? null, calendarId: row.calendar?.id ?? null, source: 'crm' }))).catch(() => []),
       // Bookings taken on the connected premium website — empty when no site is connected.
       cfg.externalBookings ? api.get('/api/bookings/external', { from, to }).then((r: any) => (r?.bookings || []).map((row: any): ScheduleBooking => ({ ...row, source: 'website' }))).catch(() => []) : Promise.resolve([]),
       cfg.events ? api.get('/api/schedule-events', { from, to }).then((r: any) => r?.data || []).catch((err: unknown) => { toast.error(errMsg(err, 'Failed to load appointments')); return [] }) : Promise.resolve([]),
@@ -55,7 +55,16 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   useEffect(() => { load() }, [load])
 
   const jobsFor = (d: Date) => jobs.filter((j) => j.scheduledDate && String(j.scheduledDate).slice(0, 10) === localKey(d))
-  const bookingsFor = (d: Date) => bookings.filter((b) => b.startAt && localKey(new Date(b.startAt)) === localKey(d) && b.status !== 'cancelled')
+  // A booking that became a job is ALREADY on this day as that job, so drawing the booking too puts the
+  // same visit on the board twice. It always did; it only became obvious once both chips carried the same
+  // time (T22 H1), which is what made the duplication visible rather than looking like two bookings at
+  // different hours. A booking with no calendar entry of its own — a website booking, or one still held
+  // for a deposit — is still drawn. (Field service T23)
+  const bookingsFor = (d: Date) => {
+    const drawnAsJobs = new Set(jobsFor(d).map((j) => j.id))
+    return bookings.filter((b) => b.startAt && localKey(new Date(b.startAt)) === localKey(d) && b.status !== 'cancelled'
+      && !(b.calendarId && drawnAsJobs.has(b.calendarId)))
+  }
   // Cancelled appointments stay on the calendar (greyed), the way cancelled jobs do — hiding them made
   // a cancel look like the record had vanished.
   const eventsFor = (d: Date) => events.filter((e) => e.start && localKey(new Date(e.start)) === localKey(d))

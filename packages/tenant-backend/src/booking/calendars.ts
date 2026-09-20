@@ -1,7 +1,7 @@
 // The two calendars an online booking can land on. Each template picks one and passes its table.
 import { eq, and, gte, lte, ne, inArray, notInArray, isNull, isNotNull } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
-import { tzParts, minutesToHm } from './time'
+import { tzParts, minutesToHm, isHm, zonedWallTimeToUtc } from './time'
 import type { BookingCalendar, BookingStatus } from './types'
 
 const hoursToMs = (h: unknown) => (Number(h) || 1) * 3_600_000
@@ -45,11 +45,24 @@ export function jobCalendar(job: any, opts: { numbering?: { prefix: string; pad?
   return {
     kind: 'job',
     linkField: 'jobId',
-    async busy(exec, companyId, from, to) {
-      const rows = await exec.select({ start: job.scheduledDate, hours: job.estimatedHours })
+    // What the widget must not double-book. This read only scheduled_date, and a job made in the CRM keeps
+    // its clock time in scheduled_time with scheduled_date left at midnight — so a 13:00 service call
+    // blocked MIDNIGHT and 13:00 stayed on sale. The office booked the call, the customer booked the same
+    // slot online, and both were told yes. (Field service T23 H1, the read half)
+    //
+    // scheduled_time is the authoritative clock time when it is set — it is the column the board, the
+    // tech's list and the day's ordering all read. Combine it with the DATE the row carries, in the shop's
+    // zone. Doing it the other way round (reading scheduled_date in local time) would shift a midnight
+    // marker back a day for any zone behind UTC.
+    async busy(exec, companyId, from, to, tz) {
+      const rows = await exec.select({ start: job.scheduledDate, time: job.scheduledTime, hours: job.estimatedHours })
         .from(job)
         .where(and(eq(job.companyId, companyId), gte(job.scheduledDate, from), lte(job.scheduledDate, to), ne(job.status, 'cancelled')))
-      return rows.filter((r: any) => r.start).map((r: any) => ({ start: new Date(r.start), end: new Date(new Date(r.start).getTime() + hoursToMs(r.hours)) }))
+      return rows.filter((r: any) => r.start).map((r: any) => {
+        const stored = new Date(r.start)
+        const start = isHm(r.time) && tz ? zonedWallTimeToUtc(stored.toISOString().slice(0, 10), r.time, tz) : stored
+        return { start, end: new Date(start.getTime() + hoursToMs(r.hours)) }
+      })
     },
     async create(exec, i) {
       const number = await nextNumber(exec, job, job.number, job.companyId, i.companyId, numbering)

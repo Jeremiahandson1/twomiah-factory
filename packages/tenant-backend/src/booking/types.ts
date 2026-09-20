@@ -23,7 +23,12 @@ export interface BookingCalendar {
   /** online_booking column (camelCase, as the Drizzle table declares it) linking to the calendar row */
   linkField: 'jobId' | 'appointmentId'
   /** Active entries that START inside [from, to] (callers widen the window by a day each side). */
-  busy(exec: any, companyId: string, from: Date, to: Date): Promise<BusyWindow[]>
+  /**
+   * `tz` is the shop's zone. A trades job keeps its clock time in a column of its own, so the busy window
+   * cannot be read off the date alone — see jobCalendar.busy. An appointment book stores real start/end
+   * instants and ignores it.
+   */
+  busy(exec: any, companyId: string, from: Date, to: Date, tz?: string): Promise<BusyWindow[]>
   create(exec: any, input: {
     companyId: string
     contactId: string

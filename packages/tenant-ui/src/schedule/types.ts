@@ -40,5 +40,6 @@ export interface SchedulePageProps { api: ScheduleApi; toast: ScheduleToast; con
 
 export interface ScheduleJob { id: string; title: string; status: string; scheduledDate?: string | null; scheduledTime?: string | null; contact?: { name: string } | null }
 /** One shape for both booking sources: the CRM's own online bookings (scheduledDate) and the premium website's (startAt). */
-export interface ScheduleBooking { id: string; startAt: string; status: string; customerName: string; serviceName?: string | null; customerAddress?: string | null; source: 'crm' | 'website' }
+/** `calendarId` is the job (or appointment) this booking became, when it became one — see below. */
+export interface ScheduleBooking { id: string; startAt: string; status: string; customerName: string; serviceName?: string | null; customerAddress?: string | null; calendarId?: string | null; source: 'crm' | 'website' }
 export interface ScheduleEvent { id: string; title: string; type?: string | null; start: string; end?: string | null; allDay?: boolean; status?: string | null; notes?: string | null }

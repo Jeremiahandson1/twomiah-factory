@@ -241,7 +241,7 @@ export function createBookingService(deps: BookingDeps) {
 
     // Every active calendar entry that touches this business-local day.
     const dayStart = zonedWallTimeToUtc(date, '00:00', tz)
-    const busy = await calendar.busy(exec, companyId, new Date(dayStart.getTime() - DAY_MS), new Date(dayStart.getTime() + 2 * DAY_MS))
+    const busy = await calendar.busy(exec, companyId, new Date(dayStart.getTime() - DAY_MS), new Date(dayStart.getTime() + 2 * DAY_MS), tz)
     const windows: Array<{ s: number; e: number }> = []
     for (const b of busy) {
       const sp = tzParts(b.start, tz)
