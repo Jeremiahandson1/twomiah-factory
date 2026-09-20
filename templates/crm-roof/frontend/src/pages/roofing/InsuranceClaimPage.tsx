@@ -95,12 +95,34 @@ export default function InsuranceClaimPage() {
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<any>(null);
 
+  // Starting a claim. Everything behind this page works — the create endpoint, the status rail, the
+  // supplements — but there was no way in from the product, so an insurance job could never reach any
+  // of it. The empty state now carries the one control that was missing.
+  const [jobInfo, setJobInfo] = useState<any>(null);
+  const [startOpen, setStartOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newClaim, setNewClaim] = useState({
+    claimNumber: '', insuranceCompany: '', policyNumber: '',
+    dateOfLoss: '', causeOfLoss: '', deductible: '',
+  });
+
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     try {
       const claimRes = await fetch(`/api/insurance/claims/${jobId}`, { headers });
-      if (!claimRes.ok) { setClaim(null); setLoading(false); return; }
+      if (!claimRes.ok) {
+        // No claim yet. Read the job so the empty state can tell "not filed yet" apart from "this job
+        // is not an insurance job" — the create endpoint refuses the second with a 400, and offering
+        // a button that cannot succeed is worse than explaining why.
+        setClaim(null);
+        try {
+          const jobRes = await fetch(`/api/jobs/${jobId}`, { headers });
+          setJobInfo(jobRes.ok ? await jobRes.json() : null);
+        } catch { setJobInfo(null); }
+        setLoading(false);
+        return;
+      }
       const claimData = await claimRes.json();
       setClaim(claimData);
 
@@ -118,6 +140,47 @@ export default function InsuranceClaimPage() {
   }, [jobId, token]);
 
   useEffect(() => { load(); }, [load]);
+
+  const createClaim = async () => {
+    if (!newClaim.claimNumber.trim() || !newClaim.insuranceCompany.trim()) {
+      toast.error('Claim number and insurance company are required');
+      return;
+    }
+    setCreating(true);
+    try {
+      // Only the two required fields are always sent; the rest go only when filled, because the
+      // server treats '' as a value and would store an empty cause of loss as a real one.
+      const payload: Record<string, string> = {
+        jobId: String(jobId),
+        claimNumber: newClaim.claimNumber.trim(),
+        insuranceCompany: newClaim.insuranceCompany.trim(),
+      };
+      for (const k of ['policyNumber', 'dateOfLoss', 'causeOfLoss', 'deductible'] as const) {
+        const v = String(newClaim[k] || '').trim();
+        if (v) payload[k] = v;
+      }
+      const res = await fetch('/api/insurance/claims', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        // 409 means someone else filed it while this page was open — reload onto the real claim
+        // rather than reporting a failure the user cannot act on.
+        if (res.status === 409) { toast.error('A claim already exists for this job'); setStartOpen(false); await load(); return; }
+        throw new Error(err?.error || 'Could not start the claim');
+      }
+      toast.success('Insurance claim started');
+      setStartOpen(false);
+      setNewClaim({ claimNumber: '', insuranceCompany: '', policyNumber: '', dateOfLoss: '', causeOfLoss: '', deductible: '' });
+      await load();
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not start the claim');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const saveClaim = async (updates: any) => {
     if (!claim) return;
@@ -288,7 +351,91 @@ export default function InsuranceClaimPage() {
   }
 
   if (!claim) {
-    return <div className="p-6 text-center text-gray-500 dark:text-slate-400">No insurance claim found for this job.</div>;
+    const notInsurance = !!jobInfo && jobInfo.jobType !== 'insurance';
+    return (
+      <div className="p-6 max-w-lg mx-auto">
+        <button onClick={() => navigate(-1)} className="mb-4 inline-flex items-center gap-1 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl p-8 text-center">
+          <Shield className="w-10 h-10 mx-auto text-gray-400 mb-3" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100">No insurance claim yet</h2>
+
+          {notInsurance ? (
+            // The create endpoint refuses a non-insurance job with a 400, so say that instead of
+            // offering a button that cannot work.
+            <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+              This job is set to <span className="font-medium">{String(jobInfo.jobType || 'retail')}</span>. Change the job type to
+              Insurance on the job first, then start the claim here.
+            </p>
+          ) : !startOpen ? (
+            <>
+              <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">
+                Start one to track the adjuster, inspection, supplements and the Xactimate scope.
+              </p>
+              <button
+                onClick={() => setStartOpen(true)}
+                className="mt-5 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold">
+                <Plus className="w-4 h-4" /> Start insurance claim
+              </button>
+            </>
+          ) : (
+            <div className="mt-5 text-left space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Claim number <span className="text-red-600">*</span></label>
+                <input autoFocus value={newClaim.claimNumber} onChange={(e) => setNewClaim({ ...newClaim, claimNumber: e.target.value })}
+                  className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" placeholder="CLM-2026-0001" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Insurance company <span className="text-red-600">*</span></label>
+                <input value={newClaim.insuranceCompany} onChange={(e) => setNewClaim({ ...newClaim, insuranceCompany: e.target.value })}
+                  className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" placeholder="State Farm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Policy number</label>
+                  <input value={newClaim.policyNumber} onChange={(e) => setNewClaim({ ...newClaim, policyNumber: e.target.value })}
+                    className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Date of loss</label>
+                  <input type="date" value={newClaim.dateOfLoss} onChange={(e) => setNewClaim({ ...newClaim, dateOfLoss: e.target.value })}
+                    className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Cause of loss</label>
+                  <select value={newClaim.causeOfLoss} onChange={(e) => setNewClaim({ ...newClaim, causeOfLoss: e.target.value })}
+                    className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700">
+                    <option value="">—</option>
+                    <option value="hail">Hail</option>
+                    <option value="wind">Wind</option>
+                    <option value="fire">Fire</option>
+                    <option value="water">Water</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Deductible</label>
+                  <input type="number" min="0" step="0.01" inputMode="decimal" value={newClaim.deductible}
+                    onChange={(e) => setNewClaim({ ...newClaim, deductible: e.target.value })}
+                    className="w-full text-sm border rounded-lg px-3 py-2 dark:bg-slate-800 dark:border-slate-700" />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={createClaim} disabled={creating}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-semibold">
+                  {creating ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting…</> : 'Start claim'}
+                </button>
+                <button onClick={() => setStartOpen(false)} disabled={creating}
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const netToCont = Number(claim.finalApprovedAmount || claim.rcv || 0) - Number(claim.deductible || 0);

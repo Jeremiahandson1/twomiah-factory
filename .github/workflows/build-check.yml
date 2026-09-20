@@ -1385,3 +1385,14 @@ jobs:
           bun-version: latest
       - name: "muted labels are readable in both themes"
         run: bun run scripts/check-muted-label-contrast.ts
+
+  insurance-reachable:
+    name: "Insurance endpoints reachable"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "a feature the API supports must be reachable from the product"
+        run: bun run scripts/check-insurance-reachable.ts
