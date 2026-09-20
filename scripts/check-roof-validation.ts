@@ -196,9 +196,28 @@ if (statuses.length < 5) fail('could not read JOB_STATUSES — this guard is not
   const idx = read(B + 'index.ts')
   if (!/import \{ requireEnabledFeature \} from '\.\/middleware\/enabledFeature\.ts'/.test(idx))
     fail('switching a feature off hid the nav and left the API serving — roof was the only template that never wired in the shared gate (M7)')
-  const gated = [...idx.matchAll(/\['(\/api\/[a-z-]+)', '([a-z_]+)'\]/g)].map((m) => m[1])
-  if (gated.length < 12) fail(`only ${gated.length} optional modules are gated — the list has shrunk`)
+  const pairs = [...idx.matchAll(/\['(\/api\/[a-z-]+)', '([a-z_]+)'\]/g)].map((m) => [m[1], m[2]] as [string, string])
+  const gated = pairs.map(([p]) => p)
+  if (gated.length < 6) fail(`only ${gated.length} optional modules are gated — the list has shrunk`)
   if (!gated.includes('/api/leads')) fail('…lead_inbox is the one the tester proved; it must stay gated')
+
+  /**
+   * The gate must not be wider than the product's own idea of optional.
+   *
+   * A first attempt gated insurance, crews, materials, measurements, AI receptionist, SMS and
+   * QuickBooks, and switched off twelve modules on a tenant using them daily — because those nav
+   * items are shown unconditionally. A UI that offers a page the API refuses is worse than an API
+   * that serves a page the UI hides: it is a 403 in the user's face, on a link the product gave them.
+   *
+   * So every server-gated feature must also be gated in the nav.
+   */
+  const layout = read(F + 'components/layout/AppLayout.tsx')
+  const navFeatures = new Set([...layout.matchAll(/feature: '([a-z_]+)'/g)].map((m) => m[1]))
+  const uiWouldStillOffer = pairs.filter(([, feat]) => !navFeatures.has(feat))
+  if (uiWouldStillOffer.length)
+    fail(`${uiWouldStillOffer.length} module(s) are gated on the server but shown unconditionally in the nav — switching the feature off leaves a visible link that 403s: ${uiWouldStillOffer.map(([p, f]) => `${p} (${f})`).join(', ')}`)
+  if (!/const enabled = <T extends \{ feature\?: string \}>\(items: T\[\]\)/.test(layout))
+    fail('…and every nav group must be filtered, or a feature key added to one of them is silently ignored')
   // and the gate must never reach the product itself
   for (const core of ['/api/contacts', '/api/jobs', '/api/quotes', '/api/invoices', '/api/settings', '/api/users', '/api/company', '/api/auth']) {
     if (gated.includes(core)) fail(`${core} must NOT be feature-gated — a missing flag would lock a tenant out of their own CRM, which is worse than the bug being fixed`)

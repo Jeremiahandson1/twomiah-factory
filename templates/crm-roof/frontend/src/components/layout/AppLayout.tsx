@@ -43,7 +43,9 @@ const baseNavItems = [
   { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
   { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
-  { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads' },
+  // M7: lead_inbox is a real feature a tenant can switch off in Settings, and the API refuses it when
+  // it is off — so the nav must hide it too, or switching it off leaves a link that 403s.
+  { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads', feature: 'lead_inbox' },
   { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
   { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ]
@@ -74,12 +76,16 @@ export default function AppLayout() {
   const { setTheme, isDark } = useTheme()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const activeFieldItems = fieldNavItems.filter(item => !item.feature || hasFeature(item.feature))
+  // The same rule for every group: an item with no `feature` is always shown, one with a feature is
+  // shown only when the tenant has it. Only fieldNavItems was being filtered, so a feature key added
+  // to the other two lists would have been silently ignored — which is how a nav link that 403s gets
+  // shipped.
+  const enabled = <T extends { feature?: string }>(items: T[]) => items.filter(i => !i.feature || hasFeature(i.feature))
 
   const navItems = [
-    ...baseNavItems,
-    ...activeFieldItems,
-    ...bottomNavItems,
+    ...enabled(baseNavItems),
+    ...enabled(fieldNavItems),
+    ...enabled(bottomNavItems),
   ]
 
   function handleLogout() {

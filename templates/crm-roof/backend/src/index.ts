@@ -180,22 +180,28 @@ app.route('/api/jobs', jobsRoutes)
  *
  * Both the bare path and the wildcard are needed: '/api/leads' does not match '/api/leads/*'.
  */
+/**
+ * The list is exactly what the PRODUCT treats as optional — the nav items in AppLayout that carry a
+ * `feature:` key — plus lead_inbox, which is the one the tester proved and which is gated in the nav
+ * in the same commit as this.
+ *
+ * A wider list was tried first and was wrong: gating insurance, crews, materials, measurements,
+ * AI receptionist, SMS and QuickBooks switched off twelve modules on a tenant that had them in daily
+ * use, because those nav items are shown unconditionally. The UI offering a page the API refuses is a
+ * worse bug than the API serving a page the UI hides — it is a 403 in the user's face on a link the
+ * product gave them.
+ *
+ * So the rule is: a module is gated on the server only where it is also gated in the nav. If one of
+ * those is ever made optional, both sides change together.
+ */
 for (const [path, feature] of [
   ['/api/leads', 'lead_inbox'],
-  ['/api/insurance', 'insurance_workflow'],
-  ['/api/crews', 'crews'],
-  ['/api/materials', 'materials'],
   ['/api/canvassing', 'canvassing_tool'],
   ['/api/storms', 'storm_lead_gen'],
   ['/api/storm-radar', 'storm_radar_overlay'],
-  ['/api/measurements', 'measurement_reports'],
   ['/api/roof-reports', 'measurement_reports'],
   ['/api/financing', 'consumer_financing'],
   ['/api/reviews', 'google_reviews'],
-  ['/api/ai-receptionist', 'ai_receptionist'],
-  ['/api/calltracking', 'call_tracking'],
-  ['/api/quickbooks', 'quickbooks'],
-  ['/api/sms', 'two_way_texting'],
 ] as Array<[string, string]>) {
   app.use(path, authenticate, requireEnabledFeature(feature))
   app.use(`${path}/*`, authenticate, requireEnabledFeature(feature))
