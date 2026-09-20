@@ -20,7 +20,11 @@ export default function SettingsPage() {
   // Mirrors the server's requireAdmin (admin|owner) — this app has no
   // PermissionsContext, and the same expression is already used by
   // FeaturesSettingsPage. Without it a teammate is offered buttons that 403.
-  const canManageUsers = currentUser?.role === 'admin' || currentUser?.role === 'owner';
+  // Admin tier. It already gated user administration; the company record and branding now need it
+  // too, because the API refuses them to anyone else — leaving the Save buttons visible would hand a
+  // field tech a button that 403s. Reading these stays open to everyone. (T27)
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
+  const canManageUsers = isAdmin;
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', password: '', role: 'user' });
   const [inviting, setInviting] = useState(false);
@@ -303,10 +307,13 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-          <div className="flex justify-end mt-4">
-            <button onClick={saveCompany} disabled={savingCompany} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              <Save className="w-4 h-4" /> {savingCompany ? 'Saving...' : 'Save'}
-            </button>
+          <div className="flex items-center justify-end gap-3 mt-4">
+            {!isAdmin && <span className="text-xs text-gray-500 dark:text-slate-400">Only an administrator can change the company details.</span>}
+            {isAdmin && (
+              <button onClick={saveCompany} disabled={savingCompany} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <Save className="w-4 h-4" /> {savingCompany ? 'Saving...' : 'Save'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -333,9 +340,11 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="flex-1 flex items-end justify-end">
-              <button onClick={saveBrandingSettings} disabled={savingBranding} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                <Save className="w-4 h-4" /> {savingBranding ? 'Saving...' : 'Save'}
-              </button>
+              {isAdmin && (
+                <button onClick={saveBrandingSettings} disabled={savingBranding} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  <Save className="w-4 h-4" /> {savingBranding ? 'Saving...' : 'Save'}
+                </button>
+              )}
             </div>
           </div>
         </div>

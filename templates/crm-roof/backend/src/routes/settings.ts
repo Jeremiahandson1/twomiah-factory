@@ -3,10 +3,20 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// Reading the company record is open to anyone signed in — `company:read` is in the field role on
+// every template. WRITING it is admin/owner, which is what `company:update` is in the shared matrix
+// and what roof's own PUT /api/company/features already uses.
+//
+// This router had `authenticate` and nothing else, so any signed-in user — a field tech included —
+// could rewrite the company name, phone, email and address, and the branding. Proven live on
+// rooftest: role=user got `200 Saved`. Roof is the only template with a settings router; the other
+// eight put this behind PUT /api/company, which refuses staff with 403. (T27, found by the fleet
+// permission probe)
 
 // Get company settings
 app.get('/company', async (c) => {
@@ -17,7 +27,7 @@ app.get('/company', async (c) => {
 })
 
 // Update company info
-app.put('/company', async (c) => {
+app.put('/company', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({
     name: z.string().optional(),
@@ -45,7 +55,7 @@ app.put('/company', async (c) => {
 })
 
 // Update branding
-app.put('/branding', async (c) => {
+app.put('/branding', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({
     primaryColor: z.string().optional(),
@@ -57,7 +67,7 @@ app.put('/branding', async (c) => {
 })
 
 // Update estimator settings
-app.put('/estimator', async (c) => {
+app.put('/estimator', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({
     estimatorEnabled: z.boolean(),

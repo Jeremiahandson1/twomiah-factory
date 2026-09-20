@@ -5,9 +5,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function EstimatorSettingsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  // PUT /api/settings/estimator is admin/owner, like the rest of that router — so don't offer a Save
+  // button to anyone else. (T27)
+  const isAdmin = (user as any)?.role === 'admin' || (user as any)?.role === 'owner';
 
   const [settings, setSettings] = useState({
     estimatorEnabled: false,
@@ -189,10 +192,13 @@ export default function EstimatorSettingsPage() {
         )}
 
         {/* Save button */}
-        <div className="flex justify-end">
-          <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-5 py-2.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50">
-            <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Settings'}
-          </button>
+        <div className="flex items-center justify-end gap-3">
+          {!isAdmin && <span className="text-xs text-gray-500 dark:text-slate-400">Only an administrator can change the estimator settings.</span>}
+          {isAdmin && (
+            <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-5 py-2.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50">
+              <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Settings'}
+            </button>
+          )}
         </div>
       </div>
     </div>

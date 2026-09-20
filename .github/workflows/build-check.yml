@@ -1451,3 +1451,14 @@ jobs:
           bun-version: latest
       - name: "Check kiosk pairing reachable"
         run: bun run scripts/check-kiosk-pairing-reachable.ts
+
+  settings-writes-admin:
+    name: "Settings writes are admin-only"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check settings writes are admin"
+        run: bun run scripts/check-settings-writes-are-admin.ts
