@@ -66,7 +66,7 @@ export default function ClientsPage() {
         </div>
         <button
           onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+          className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800"
         >
           <Plus className="w-4 h-4" /> New Client
         </button>
@@ -112,7 +112,7 @@ export default function ClientsPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     <div>{c.mobile || c.phone || '—'}</div>
-                    {c.email && <div className="text-xs text-gray-400">{c.email}</div>}
+                    {c.email && <div className="text-xs text-gray-500">{c.email}</div>}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{c.hairType || '—'}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
@@ -243,7 +243,7 @@ function NewClientModal({ onSave, onClose }: { onSave: () => void; onClose: () =
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">
-                Allergies / sensitivities <span className="text-xs text-gray-400">(shown as a red banner on the chart)</span>
+                Allergies / sensitivities <span className="text-xs text-gray-500">(shown as a red banner on the chart)</span>
               </label>
               <input type="text" value={form.allergies} onChange={(e) => set('allergies', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="PPD sensitivity, latex, fragrance..." />
             </div>
@@ -258,7 +258,7 @@ function NewClientModal({ onSave, onClose }: { onSave: () => void; onClose: () =
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Create Client'}
               </button>
             </div>

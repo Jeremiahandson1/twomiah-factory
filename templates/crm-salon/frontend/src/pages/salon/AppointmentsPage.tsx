@@ -191,7 +191,7 @@ export default function AppointmentsPage() {
               rendering "Chairs on Invalid Date" over the previous day's rows. (T20 M5) */}
           <p className="text-gray-500 dark:text-slate-400">{dayHeading(day, todayStr()) ?? shownHeading}</p>
         </div>
-        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+        <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">
           <Plus className="w-4 h-4" /> New Appointment
         </button>
       </div>
@@ -220,7 +220,7 @@ export default function AppointmentsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-medium w-40 dark:text-slate-100">
                 <Clock className="w-4 h-4 text-gray-400" />
                 {fmtTime(a.startTime)}
-                {a.endTime && <span className="text-xs text-gray-400">– {fmtTime(a.endTime)}</span>}
+                {a.endTime && <span className="text-xs text-gray-500">– {fmtTime(a.endTime)}</span>}
               </div>
               <div className="flex-1 min-w-[180px]">
                 <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -238,14 +238,14 @@ export default function AppointmentsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                {a.station && <span className="text-xs text-gray-400 flex items-center gap-1"><Armchair className="w-3 h-3" /> {a.station}</span>}
-                {stylistName(a) && <span className="text-xs text-gray-400 flex items-center gap-1"><User className="w-3 h-3" /> {stylistName(a)}</span>}
+                {a.station && <span className="text-xs text-gray-500 flex items-center gap-1"><Armchair className="w-3 h-3" /> {a.station}</span>}
+                {stylistName(a) && <span className="text-xs text-gray-500 flex items-center gap-1"><User className="w-3 h-3" /> {stylistName(a)}</span>}
               </div>
               <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700'}`}>
                 {(a.status || 'scheduled').replace('_', ' ')}
               </span>
               {NOT_CHECKED_IN.has(a.status || 'scheduled') && (
-                <button onClick={() => checkIn(a)} className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+                <button onClick={() => checkIn(a)} className="flex items-center gap-1 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
                   <CheckCircle2 className="w-4 h-4" /> Check In
                 </button>
               )}
@@ -346,7 +346,7 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
             <p className="text-xs text-gray-500 dark:text-slate-400">Leave End blank to keep the service's normal duration. Stylist and chair conflicts are checked before the move is saved.</p>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">{saving ? 'Saving...' : 'Move appointment'}</button>
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">{saving ? 'Saving...' : 'Move appointment'}</button>
             </div>
           </form>
         </div>
@@ -493,7 +493,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Create'}
               </button>
             </div>

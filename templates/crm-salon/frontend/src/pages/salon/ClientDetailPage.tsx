@@ -194,19 +194,19 @@ export default function ClientDetailPage() {
         {/* Retention strip — the numbers the front desk needs at a glance. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-400 uppercase">Visits</p>
+            <p className="text-xs text-gray-500 uppercase">Visits</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{stats.visits ?? 0}</p>
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-400 uppercase">Lifetime Value</p>
+            <p className="text-xs text-gray-500 uppercase">Lifetime Value</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money(stats.lifetimeValue)}</p>
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-400 uppercase">Last Visit</p>
+            <p className="text-xs text-gray-500 uppercase">Last Visit</p>
             <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtDate(stats.lastVisit)}</p>
           </div>
           <div className={`border rounded-lg p-3 ${isPast(stats.dueBackAt) ? 'bg-red-50 border-red-200' : ''}`}>
-            <p className="text-xs text-gray-400 uppercase">Due Back</p>
+            <p className="text-xs text-gray-500 uppercase">Due Back</p>
             <p className={`text-sm font-medium mt-1 ${isPast(stats.dueBackAt) ? 'text-red-700' : 'text-gray-900'}`}>
               {fmtDate(stats.dueBackAt)}{isPast(stats.dueBackAt) ? ' (overdue)' : ''}
             </p>
@@ -218,7 +218,7 @@ export default function ClientDetailPage() {
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Contact</p>
             {(ct.mobile || ct.phone) && <p className="text-sm text-gray-600 flex items-center gap-2 dark:text-slate-400"><Phone className="w-3 h-3" /> {ct.mobile || ct.phone}</p>}
             {ct.email && <p className="text-sm text-gray-600 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {ct.email}</p>}
-            {!ct.mobile && !ct.phone && !ct.email && <p className="text-sm text-gray-400">No contact details</p>}
+            {!ct.mobile && !ct.phone && !ct.email && <p className="text-sm text-gray-500">No contact details</p>}
           </div>
           <div className="border rounded-lg p-3">
             <p className="text-xs font-medium text-gray-400 uppercase mb-2">Preferences</p>
@@ -256,7 +256,7 @@ export default function ClientDetailPage() {
       {tab === 'formula' && (
         <div className="space-y-3">
           <div className="flex justify-end">
-            <button onClick={() => { setEditRecord(null); setShowRecord(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm">
+            <button onClick={() => { setEditRecord(null); setShowRecord(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-teal-700 text-white rounded-lg hover:bg-teal-800 text-sm">
               <Plus className="w-4 h-4" /> New Service Record
             </button>
           </div>
@@ -271,7 +271,7 @@ export default function ClientDetailPage() {
                       <p className="font-medium text-gray-900 dark:text-slate-100">
                         {fmtDate(r.performedAt)}{r.serviceName ? ` — ${r.serviceName}` : ''}
                       </p>
-                      {stylistName(r) && <p className="text-xs text-gray-400">with {stylistName(r)}</p>}
+                      {stylistName(r) && <p className="text-xs text-gray-500">with {stylistName(r)}</p>}
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
@@ -290,14 +290,14 @@ export default function ClientDetailPage() {
                   )}
 
                   {(r.developerVolume || r.processingMin) && (
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
                       {r.developerVolume ? <span>Developer {r.developerVolume}</span> : null}
                       {r.processingMin ? <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {r.processingMin} min</span> : null}
                     </div>
                   )}
                   {r.productsUsed && <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">{r.productsUsed}</p>}
                   {r.result && <p className="mt-1 text-sm text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-500 dark:text-slate-400">Result:</span> {r.result}</p>}
-                  {r.notes && <p className="mt-1 text-xs text-gray-400">{r.notes}</p>}
+                  {r.notes && <p className="mt-1 text-xs text-gray-500">{r.notes}</p>}
                 </div>
               ))}
             </div>
@@ -357,7 +357,7 @@ export default function ClientDetailPage() {
                 <div key={m.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-3 flex-wrap dark:bg-slate-900">
                   <div>
                     <p className="font-medium text-gray-900 dark:text-slate-100">{m.planName || 'Membership'}</p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-gray-500">
                       Started {fmtDate(m.startDate)}{m.renewsAt ? ` · renews ${fmtDate(m.renewsAt)}` : ''}
                     </p>
                   </div>
@@ -520,7 +520,7 @@ function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contac
             </div>
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+              <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                 {saving ? 'Saving...' : 'Save Profile'}
               </button>
             </div>

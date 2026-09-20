@@ -168,7 +168,7 @@ export default function DashboardPage() {
             <Users className="w-5 h-5 text-teal-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{clients.total || 0}</p>
-          <p className="text-xs text-gray-400">In your book</p>
+          <p className="text-xs text-gray-500">In your book</p>
         </Link>
 
         <Link to="/crm/appointments" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
@@ -177,7 +177,7 @@ export default function DashboardPage() {
             <CalendarDays className="w-5 h-5 text-indigo-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{appts.today || 0}</p>
-          <p className="text-xs text-gray-400">{appts.upcoming7 || 0} in the next 7 days</p>
+          <p className="text-xs text-gray-500">{appts.upcoming7 || 0} in the next 7 days</p>
         </Link>
 
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
@@ -186,7 +186,7 @@ export default function DashboardPage() {
             <Scissors className="w-5 h-5 text-purple-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{services.thisMonth || 0}</p>
-          <p className="text-xs text-gray-400 flex items-center gap-1">
+          <p className="text-xs text-gray-500 flex items-center gap-1">
             <DollarSign className="w-3 h-3 text-green-600" />
             {money(services.revenueThisMonth)} in the chair
           </p>
@@ -198,7 +198,7 @@ export default function DashboardPage() {
             <CreditCard className="w-5 h-5 text-rose-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{memberships.activeEnrollments || 0}</p>
-          <p className="text-xs text-gray-400">Active memberships</p>
+          <p className="text-xs text-gray-500">Active memberships</p>
         </Link>
       </div>
 
@@ -207,7 +207,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <Armchair className="w-4 h-4 text-teal-500" /> Chair Productivity
-            <span className="text-xs text-gray-400 font-normal">this month</span>
+            <span className="text-xs text-gray-500 font-normal">this month</span>
           </h2>
           <ul className="space-y-3">
             {byStylist.map((s) => (
@@ -234,7 +234,7 @@ export default function DashboardPage() {
             <Users className="w-4 h-4 text-teal-500" /> Recent Clients
           </h2>
           {(activity.recentClients || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">No clients yet</p>
+            <p className="text-sm text-gray-500 py-6 text-center">No clients yet</p>
           ) : (
             <ul className="divide-y">
               {(activity.recentClients || []).map((c) => (
@@ -254,7 +254,7 @@ export default function DashboardPage() {
             <Scissors className="w-4 h-4 text-purple-500" /> Recent Services
           </h2>
           {(activity.recentServices || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nothing logged yet</p>
+            <p className="text-sm text-gray-500 py-6 text-center">Nothing logged yet</p>
           ) : (
             <ul className="divide-y">
               {(activity.recentServices || []).map((s) => (
@@ -277,7 +277,7 @@ export default function DashboardPage() {
             <CalendarDays className="w-4 h-4 text-indigo-500" /> Upcoming Appointments
           </h2>
           {(activity.upcomingAppointments || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nothing scheduled</p>
+            <p className="text-sm text-gray-500 py-6 text-center">Nothing scheduled</p>
           ) : (
             <ul className="divide-y">
               {(activity.upcomingAppointments || []).map((a) => (

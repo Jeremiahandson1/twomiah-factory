@@ -107,8 +107,13 @@ function ComposeMessage({ onBack, onSent }: { onBack: () => void; onSent: () => 
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         </div>
         <div className="p-6 bg-gray-50 border-t flex justify-end gap-3 dark:bg-slate-800/60 dark:border-slate-700">
+          {/* Send was disabled with an empty message, so clicking it did nothing and said nothing — the
+              handler's "Please enter a message." could never run, because the click never reached it.
+              Same dead control the register had, and the same answer: if the button will not act, say
+              why, where the person is looking. (Salon/field service T23) */}
+          {!body.trim() && !sending && <p role="note" className="text-sm text-gray-500 self-center mr-auto dark:text-slate-400">Type a message to send.</p>}
           <button onClick={onBack} className={btnSecondary}>Cancel</button>
-          <button onClick={send} disabled={sending || !body.trim()} className={btnPrimary}><Send className="w-4 h-4" /> {sending ? 'Sending...' : 'Send Message'}</button>
+          <button onClick={send} disabled={sending || !body.trim()} title={!body.trim() ? 'Type a message to send.' : undefined} className={btnPrimary}><Send className="w-4 h-4" /> {sending ? 'Sending...' : 'Send Message'}</button>
         </div>
       </div>
     </div>

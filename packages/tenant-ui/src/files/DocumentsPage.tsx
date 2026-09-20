@@ -3,7 +3,7 @@
 // token: an <img src> / <a href> cannot, which is why previews were blank and downloads 401'd before.
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Eye, File, FileText, FolderOpen, History, Image as ImageIcon, MapPin, PenLine, PenTool, RotateCcw, Square, Trash2, Upload, UploadCloud, X } from 'lucide-react'
-import { Button, ConfirmModal, DataTable, Field, Modal, PageHeader, dateOnly, errMsg, inputCls, controlCompactCls } from '../invoicing/ui'
+import { Button, ConfirmModal, DataTable, Field, Modal, PageHeader, instantDay, errMsg, inputCls, controlCompactCls } from '../invoicing/ui'
 import type { Pagination } from '../invoicing/ui'
 import type { DocumentRow, DocumentsPageProps, FilesApi, FilesToast } from './types'
 import { resolveDocumentsConfig } from './types'
@@ -152,7 +152,7 @@ export function DocumentsPage({ api, toast, config }: DocumentsPageProps) {
     { key: 'type', label: 'Type', render: (v: any) => label(String(v || 'general')) },
     ...(showProjects ? [{ key: 'project', label: 'Project', render: (v: any) => v?.name || '-' }] : []),
     { key: 'size', label: 'Size', render: (v: any) => formatSize(v) },
-    { key: 'createdAt', label: 'Uploaded', render: (v: any, r: DocumentRow) => <span>{dateOnly(v)}{r.uploadedBy?.firstName ? <span className="block text-xs text-gray-500 dark:text-slate-400">{[r.uploadedBy.firstName, r.uploadedBy.lastName].filter(Boolean).join(' ')}</span> : null}</span> },
+    { key: 'createdAt', label: 'Uploaded', render: (v: any, r: DocumentRow) => <span>{instantDay(v)}{r.uploadedBy?.firstName ? <span className="block text-xs text-gray-500 dark:text-slate-400">{[r.uploadedBy.firstName, r.uploadedBy.lastName].filter(Boolean).join(' ')}</span> : null}</span> },
   ]
   const previewable = (d: DocumentRow) => !!(d.mimeType?.startsWith('image/') || d.mimeType?.includes('pdf'))
 
@@ -328,7 +328,7 @@ function MarkupModal({ api, toast, doc, onClose }: { api: FilesApi; toast: Files
           <div className="font-semibold truncate">Markup — {doc.name}</div>
           <div className="flex items-center gap-2 flex-wrap">
             <select value={activeId || ''} onChange={e => { const m = layers.find(x => x.id === e.target.value); if (m) select(m); else newLayer() }} className={controlCompactCls}>
-              <option value="">New layer…</option>{layers.map(m => <option key={m.id} value={m.id}>{m.name} ({dateOnly(m.updatedAt)})</option>)}
+              <option value="">New layer…</option>{layers.map(m => <option key={m.id} value={m.id}>{m.name} ({instantDay(m.updatedAt)})</option>)}
             </select>
             {toolBtn('rect', Square, 'Rectangle')}{toolBtn('pen', PenLine, 'Freehand')}{toolBtn('pin', MapPin, 'Pin with note')}
             <Button variant="secondary" onClick={() => { setShapes(s => s.slice(0, -1)); setDirty(true) }} disabled={!shapes.length}>Undo</Button>

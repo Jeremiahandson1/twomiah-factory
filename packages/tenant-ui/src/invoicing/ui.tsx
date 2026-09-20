@@ -23,6 +23,16 @@ export const dateOnly = (v: unknown) => {
   return new Date(y, m - 1, d).toLocaleDateString()
 }
 export const dateTime = (v: unknown) => (v ? new Date(String(v)).toLocaleString() : '-')
+/**
+ * The calendar day an INSTANT falls on, read on the reader's own clock.
+ *
+ * dateOnly() above takes the first ten characters, which is right for a value that names a day —
+ * a due date, an issue date — and wrong for a timestamp, because those ten characters are the UTC day.
+ * A document uploaded at 20:18 on the 19th is stored 2026-09-20T01:18Z and was listed as 9/20/2026:
+ * the date shown was a day the salon had not reached yet. Anything with a time in it belongs here.
+ * (Salon T23)
+ */
+export const instantDay = (v: unknown) => (v ? new Date(String(v)).toLocaleDateString() : '-')
 /** Calendar-day comparison for "past due": the due day has to be over in the viewer's zone. */
 export const isPastDay = (v: unknown) => {
   if (!v) return false

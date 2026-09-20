@@ -8,7 +8,7 @@ import {
   Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight, MapPinned, ChevronRight, X,
   CalendarDays, PawPrint, Copy, Check,
 } from 'lucide-react'
-import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, dateTime, isPastDay, errMsg } from '../invoicing/ui'
+import { StatusBadge, Modal, ConfirmModal, Button, NavLink, Field, inputCls, dateOnly, instantDay, dateTime, isPastDay, errMsg } from '../invoicing/ui'
 import { resolveContactsConfig } from './types'
 import type { ContactsPageProps, ContactRow, QuickActionIcon } from './types'
 
@@ -501,8 +501,8 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           <div className={cardPad}>
             <h2 className={`${h2} mb-4`}>Activity</h2>
             <div className="space-y-4">
-              <div className="flex items-center gap-3 text-sm"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="text-gray-500 dark:text-slate-400">Created</span><span className="text-gray-900 dark:text-slate-100">{dateOnly(contact.createdAt)}</span></div>
-              <div className="flex items-center gap-3 text-sm"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-gray-500 dark:text-slate-400">Updated</span><span className="text-gray-900 dark:text-slate-100">{dateOnly(contact.updatedAt)}</span></div>
+              <div className="flex items-center gap-3 text-sm"><div className="w-2 h-2 rounded-full bg-green-500" /><span className="text-gray-500 dark:text-slate-400">Created</span><span className="text-gray-900 dark:text-slate-100">{instantDay(contact.createdAt)}</span></div>
+              <div className="flex items-center gap-3 text-sm"><div className="w-2 h-2 rounded-full bg-blue-500" /><span className="text-gray-500 dark:text-slate-400">Updated</span><span className="text-gray-900 dark:text-slate-100">{instantDay(contact.updatedAt)}</span></div>
             </div>
           </div>
 

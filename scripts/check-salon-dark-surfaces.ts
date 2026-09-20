@@ -86,5 +86,45 @@ if (offenders.length) fail(`a card or panel is painted light with no dark counte
   if (/dark:text-orange-400/.test(read(U + 'shell/SettingsPage.tsx'))) fail('the Settings nav is back on shade 400, which does not clear AA at every brand hue')
 }
 
+// LIGHT mode, measured for the first time in T23: every contrast audit in this series had been dark-mode
+// only, and gray-400 on white is 2.54:1 — the muted label tier failed in the theme most people use. Icons
+// are not held to a text ratio and keep it; anything with a text size beside it is text. One step darker
+// (gray-500, 4.83:1) clears it, which is what the tester predicted.
+{
+  const P = 'templates/crm-salon/frontend/src/pages/salon/'
+  for (const page of ['ServiceMenuPage.tsx', 'DashboardPage.tsx', 'ClientDetailPage.tsx', 'ClientsPage.tsx', 'MembershipsPage.tsx', 'RemindersPage.tsx', 'AppointmentsPage.tsx']) {
+    const src = read(P + page)
+    const stillFailing = (src.match(/text-(xs|sm|base|lg) text-gray-400/g) || []).length
+    if (stillFailing) fail(`${page}: ${stillFailing} muted TEXT label(s) still on gray-400 — 2.54:1 on white`)
+  }
+  // …and the primary button, which did not carry enough contrast for its own label
+  const dir = 'templates/crm-salon/frontend/src/'
+  for (const f of ['pages/salon/ServiceMenuPage.tsx', 'pages/salon/AppointmentsPage.tsx', 'pages/salon/MembershipsPage.tsx', 'components/salon/ServiceRecordEditorModal.tsx']) {
+    if (/bg-teal-600 text-white/.test(read(dir + f))) fail(`${f}: a primary button is still white on teal-600 (3.74:1)`)
+  }
+}
+
+// A timestamp is not a named day. dateOnly() takes the first ten characters, which is the UTC day — right
+// for a due date, wrong for an upload at 20:18 that then listed as tomorrow. (Salon T23)
+{
+  const ui = read('packages/tenant-ui/src/invoicing/ui.tsx')
+  if (!/export const instantDay = \(v: unknown\) => \(v \? new Date\(String\(v\)\)\.toLocaleDateString\(\) : '-'\)/.test(ui)) fail('there must be a formatter that reads an INSTANT on the reader\'s clock')
+  if (!/export const dateOnly = /.test(ui)) fail('…and dateOnly must stay for values that genuinely name a day')
+  const docs = read('packages/tenant-ui/src/files/DocumentsPage.tsx')
+  if (/dateOnly\(v\)/.test(docs) || /dateOnly\(m\.updatedAt\)/.test(docs)) fail('the Documents list must not slice the UTC date off a timestamp — that is how an upload showed tomorrow')
+  if (!/\{instantDay\(v\)\}/.test(docs)) fail('…the Uploaded column must use the instant formatter')
+}
+
+// A control that will not act has to say why — the register learned this in T21 M5, the portal's Send had
+// the same shape: disabled on an empty message, so the click never reached the handler that would have
+// explained. (Salon / field service T23)
+{
+  const msgs = read('packages/tenant-ui/src/portal/PortalMessages.tsx')
+  // Matched on the RENDERED hint, not just the words appearing somewhere — they are also in the title
+  // attribute below, which let a plant delete the visible line and still pass.
+  if (!/\{!body\.trim\(\) && !sending && <p role="note"[^>]*>Type a message to send\.<\/p>\}/.test(msgs)) fail('the portal Send must SHOW why it will not act on an empty message, not only in a tooltip')
+  if (!/title=\{!body\.trim\(\) \? 'Type a message to send\.' : undefined\}/.test(msgs)) fail('…and carry it on the button for anyone who hovers it')
+}
+
 if (failed) { console.error(`\nsalon dark surfaces: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('salon dark surfaces: cards, the rebook alert and the overdue row all follow the theme their text follows')

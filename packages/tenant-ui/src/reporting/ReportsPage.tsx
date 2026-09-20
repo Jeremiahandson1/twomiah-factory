@@ -2,7 +2,7 @@
 // balances (outstanding / overdue) are point-in-time and say so.
 import React, { useEffect, useState } from 'react'
 import { AlertCircle, Briefcase, Calendar, CheckCircle, DollarSign, FileText, Loader2, Users } from 'lucide-react'
-import { StatusBadge, dateOnly, inputCls, money, selectCls } from '../invoicing/ui'
+import { StatusBadge, instantDay, inputCls, money, selectCls } from '../invoicing/ui'
 import { useAuth } from '../auth/AuthContext'
 import type { ReportsPageProps } from './types'
 import { resolveReportingConfig } from './types'
@@ -183,7 +183,7 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-slate-100 truncate">{a.type === 'invoice' ? `Invoice ${a.number || ''}` : a.type === 'job' ? (a.title || a.number || cfg.jobsLabel.replace(/s$/, '')) : `Quote ${a.number || ''}`}</p>
-                        <p className={`text-xs ${muted}`}>{dateOnly(a.createdAt)}{a.total !== undefined && a.type !== 'job' ? ` · ${money(a.total)}` : ''}</p>
+                        <p className={`text-xs ${muted}`}>{instantDay(a.createdAt)}{a.total !== undefined && a.type !== 'job' ? ` · ${money(a.total)}` : ''}</p>
                       </div>
                       <StatusBadge status={a.status || 'draft'} />
                     </div>

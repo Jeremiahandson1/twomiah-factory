@@ -231,7 +231,7 @@ export default function RemindersPage() {
         <button
           onClick={() => setShowSend(true)}
           disabled={selected.size === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50"
         >
           <Send className="w-4 h-4" /> Send Text{selected.size > 0 ? ` (${selected.size})` : ''}
         </button>
@@ -290,7 +290,7 @@ export default function RemindersPage() {
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     {r.serviceName || '—'}
                     {[r.stylistFirstName, r.stylistLastName].filter(Boolean).length > 0 && (
-                      <span className="block text-xs text-gray-400">with {[r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ')}</span>
+                      <span className="block text-xs text-gray-500">with {[r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ')}</span>
                     )}
                   </td>
                   <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-600'}`}>
@@ -393,7 +393,7 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
                   <span>{result.failed} failed{result.reason ? ` — ${result.reason}` : (result.noPhone || 0) > 0 ? ' — no mobile number on file' : ''}</span>
                 </div>
               )}
-              <button onClick={onDone} className="w-full px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">Done</button>
+              <button onClick={onDone} className="w-full px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800">Done</button>
             </div>
           ) : (
             <div className="space-y-4">
@@ -410,7 +410,7 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={send} disabled={sending || contactIds.length === 0 || walletEmpty} className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50">
+                <button onClick={send} disabled={sending || contactIds.length === 0 || walletEmpty} className="flex-1 px-4 py-2 bg-teal-700 text-white rounded-lg hover:bg-teal-800 disabled:opacity-50">
                   {sending ? 'Sending...' : 'Send'}
                 </button>
               </div>
