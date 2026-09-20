@@ -1396,3 +1396,14 @@ jobs:
           bun-version: latest
       - name: "a feature the API supports must be reachable from the product"
         run: bun run scripts/check-insurance-reachable.ts
+
+  supplement-money:
+    name: "Supplement money and approval"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "supplement totals are the server's, and only a manager may approve"
+        run: bun run scripts/check-supplement-money.ts

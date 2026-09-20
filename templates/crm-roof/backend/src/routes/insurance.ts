@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { insuranceClaim, supplement, adjusterContact, claimActivity, job, measurementReport, company } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireManager } from '../middleware/auth.ts'
 import { generateXactimateScopeDocument } from '../services/xactimate.ts'
 import logger from '../services/logger.ts'
 
@@ -212,20 +212,28 @@ app.post('/claims/:claimId/supplements', async (c) => {
   const currentUser = c.get('user') as any
   const claimId = c.req.param('claimId')
 
+  // `total` and `totalAmount` are what the CLIENT thinks the arithmetic is. They are accepted so the
+  // existing callers keep working, and then ignored: the money is computed here from qty × unitPrice,
+  // the way quotes.ts already does it. Before this, SUP-001 stored a header total of $77,777.00 above
+  // a single $200.00 line item, and an approved supplement for -$600 was accepted. (roof T17 H2)
+  const money = z.number().finite().nonnegative()
   const schema = z.object({
     reason: z.string().min(1),
     lineItems: z.array(z.object({
       code: z.string().optional(),
       description: z.string(),
-      qty: z.number(),
+      qty: money,
       unit: z.string(),
-      unitPrice: z.number(),
-      total: z.number(),
-    })),
-    totalAmount: z.string(),
+      unitPrice: money,
+      total: z.number().optional(),
+    })).min(1),
+    totalAmount: z.string().optional(),
     notes: z.string().optional(),
   })
   const data = schema.parse(await c.req.json())
+
+  const lineItems = data.lineItems.map((li) => ({ ...li, total: Number((li.qty * li.unitPrice).toFixed(2)) }))
+  const totalAmount = lineItems.reduce((s, li) => s + li.total, 0).toFixed(2)
 
   const [claim] = await db.select().from(insuranceClaim)
     .where(and(eq(insuranceClaim.id, claimId), eq(insuranceClaim.companyId, currentUser.companyId)))
@@ -244,8 +252,8 @@ app.post('/claims/:claimId/supplements', async (c) => {
     claimId,
     supplementNumber,
     reason: data.reason,
-    lineItems: data.lineItems,
-    totalAmount: data.totalAmount,
+    lineItems,
+    totalAmount,
     notes: data.notes || null,
     status: 'draft',
   }).returning()
@@ -258,9 +266,19 @@ app.put('/supplements/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // Same rule as create: line items are the money, and `totalAmount` from the client is ignored.
+  // `z.any()` here also meant an edit could replace the line items with anything at all.
+  const editMoney = z.number().finite().nonnegative()
   const schema = z.object({
     reason: z.string().optional(),
-    lineItems: z.array(z.any()).optional(),
+    lineItems: z.array(z.object({
+      code: z.string().optional(),
+      description: z.string(),
+      qty: editMoney,
+      unit: z.string(),
+      unitPrice: editMoney,
+      total: z.number().optional(),
+    })).min(1).optional(),
     totalAmount: z.string().optional(),
     notes: z.string().optional(),
   })
@@ -272,7 +290,15 @@ app.put('/supplements/:id', async (c) => {
   if (!sup) return c.json({ error: 'Supplement not found' }, 404)
   if (sup.status !== 'draft') return c.json({ error: 'Can only edit draft supplements' }, 400)
 
-  await db.update(supplement).set({ ...data, updatedAt: new Date() }).where(eq(supplement.id, id))
+  const { totalAmount: _ignored, lineItems: incoming, ...rest } = data
+  const update: Record<string, unknown> = { ...rest, updatedAt: new Date() }
+  if (incoming) {
+    const lineItems = incoming.map((li) => ({ ...li, total: Number((li.qty * li.unitPrice).toFixed(2)) }))
+    update.lineItems = lineItems
+    update.totalAmount = lineItems.reduce((s, li) => s + li.total, 0).toFixed(2)
+  }
+
+  await db.update(supplement).set(update).where(eq(supplement.id, id))
 
   const [updated] = await db.select().from(supplement).where(eq(supplement.id, id)).limit(1)
   return c.json(updated)
@@ -309,12 +335,19 @@ app.post('/supplements/:id/submit', async (c) => {
 })
 
 // Approve supplement
-app.post('/supplements/:id/approve', async (c) => {
+// Recording the carrier's decision moves money on the claim, so it is not something every signed-in
+// user may do. requireManager is the same gate account.ts and billing.ts already use. (There was no
+// role check anywhere in this module: a staff login could approve supplements.)
+app.post('/supplements/:id/approve', requireManager, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
+  // An approved amount is money: finite, not negative, and not a string that silently becomes NaN.
+  // A supplement was accepted at -$600 before this.
   const schema = z.object({ approvedAmount: z.string() })
   const { approvedAmount } = schema.parse(await c.req.json())
+  const approved = Number(approvedAmount)
+  if (!Number.isFinite(approved) || approved < 0) return c.json({ error: 'approvedAmount must be a number of 0 or more' }, 400)
 
   const [sup] = await db.select().from(supplement)
     .where(and(eq(supplement.id, id), eq(supplement.companyId, currentUser.companyId)))
@@ -323,17 +356,21 @@ app.post('/supplements/:id/approve', async (c) => {
 
   await db.update(supplement).set({
     status: 'approved',
-    approvedAmount,
+    approvedAmount: approved.toFixed(2),
     respondedAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(supplement.id, id))
 
-  // Update claim supplement total
+  // The claim's supplement total is the sum of what is approved — nothing more.
+  //
+  // This read happens AFTER the update above, so the row just approved is already in it. The previous
+  // version added `approvedAmount` a second time on top ("include this one since we just updated it"),
+  // which double-counted whichever supplement was approved most recently: three approvals of 1,100 /
+  // 77,777 / -600 summing to 78,277 reported 77,677. The stale `sup.status` made the condition always
+  // true, so it was never a no-op. (roof T17 H1)
   const allSups = await db.select().from(supplement)
     .where(and(eq(supplement.claimId, sup.claimId), eq(supplement.status, 'approved')))
-  // Include this one since we just updated it
-  const supTotal = allSups.reduce((sum, s) => sum + Number(s.approvedAmount || 0), 0) +
-    (sup.status !== 'approved' ? Number(approvedAmount) : 0)
+  const supTotal = allSups.reduce((sum, s) => sum + Number(s.approvedAmount || 0), 0)
 
   await db.update(insuranceClaim).set({
     supplementAmount: String(supTotal),
@@ -354,7 +391,8 @@ app.post('/supplements/:id/approve', async (c) => {
 })
 
 // Deny supplement
-app.post('/supplements/:id/deny', async (c) => {
+// Same gate as approve — a denial moves money off the claim just as an approval moves it on.
+app.post('/supplements/:id/deny', requireManager, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -372,6 +410,17 @@ app.post('/supplements/:id/deny', async (c) => {
     respondedAt: new Date(),
     updatedAt: new Date(),
   }).where(eq(supplement.id, id))
+
+  // Denying one that had been approved has to take its money back off the claim. Without this the
+  // amount stayed in supplementAmount for ever, so a reversed decision left the claim overstated —
+  // the mirror of the double-count on approve, and the reason both paths now derive the total the
+  // same way rather than adjusting it.
+  const stillApproved = await db.select().from(supplement)
+    .where(and(eq(supplement.claimId, sup.claimId), eq(supplement.status, 'approved')))
+  await db.update(insuranceClaim).set({
+    supplementAmount: String(stillApproved.reduce((sum, s) => sum + Number(s.approvedAmount || 0), 0)),
+    updatedAt: new Date(),
+  }).where(eq(insuranceClaim.id, sup.claimId))
 
   await db.insert(claimActivity).values({
     companyId: currentUser.companyId,
