@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { MousePointer2, Plus, Trash2, Undo2, Redo2, Save, RotateCcw, Sparkles, Loader2 } from 'lucide-react'
 import maplibregl from 'maplibre-gl'
+import { getAccessToken } from '../../lib/authToken'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { buildMapStyle, buildImageStyle } from '../../components/common/MapProvider'
 
@@ -446,7 +447,7 @@ export default function MapEdgeEditor({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Authorization': `Bearer ${getAccessToken()}`,
         },
         body: JSON.stringify({
           imageBase64: base64,

@@ -1,3 +1,8 @@
+import {
+  getAccessToken, getRefreshToken,
+  setTokens as storeTokens, clearTokens as dropTokens,
+} from '../lib/authToken';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 // A hung backend used to leave requests pending forever ("Saving…" with no
@@ -26,22 +31,25 @@ async function fetchWithTimeout(url, init, timeoutMs = DEFAULT_TIMEOUT_MS) {
 class ApiClient {
   constructor() {
     this.baseUrl = API_URL;
-    this.accessToken = localStorage.getItem('accessToken');
-    this.refreshToken = localStorage.getItem('refreshToken');
   }
 
+  // Read through to storage on every use rather than caching a copy at construction.
+  //
+  // This client used to snapshot the token in its constructor, which runs once when the module is
+  // first imported. AuthContext refreshes the token every 12 minutes and on login — none of which this
+  // copy ever saw, so it held whatever had been left behind and went on presenting it. A tester found
+  // it 5.6 days old and 401ing. One source of truth, read at the moment of use.
+  get accessToken() { return getAccessToken() || null; }
+  get refreshToken() { return getRefreshToken() || null; }
+  set accessToken(v) { if (v) storeTokens(v); else dropTokens(); }
+  set refreshToken(v) { if (v) storeTokens('', v); }
+
   setTokens(accessToken, refreshToken) {
-    this.accessToken = accessToken;
-    this.refreshToken = refreshToken;
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
+    storeTokens(accessToken, refreshToken);
   }
 
   clearTokens() {
-    this.accessToken = null;
-    this.refreshToken = null;
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    dropTokens();
   }
 
   async request(endpoint, options = {}) {

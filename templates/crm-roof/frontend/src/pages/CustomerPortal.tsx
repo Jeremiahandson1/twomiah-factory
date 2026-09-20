@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getAccessToken } from '../lib/authToken';
 import {
   Briefcase, Globe, Palette, Settings,
   Clock, LogOut, ArrowRight, ExternalLink,
@@ -21,7 +22,7 @@ export default function CustomerPortal() {
 
   async function fetchStats() {
     try {
-      const token = localStorage.getItem('token');
+      const token = getAccessToken();
       const headers = { 'Authorization': `Bearer ${token}` };
       const res = await fetch(`${API_URL}/api/dashboard/stats`, { headers }).catch(() => null);
       if (res?.ok) setStats(await res.json());

@@ -1,9 +1,10 @@
 /**
  * Simple API client wrapper — provides authenticated fetch with JSON handling.
  */
+import { getAccessToken } from '../lib/authToken'
 
 function getToken(): string | null {
-  return localStorage.getItem('token')
+  return getAccessToken() || null
 }
 
 async function request(url: string, options: RequestInit = {}): Promise<any> {

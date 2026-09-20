@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../lib/authToken'
 
 type User = { userId: string; email: string; role: string; companyId: string }
 type Company = { id: string; name: string; enabledFeatures: string[]; settings: any }
@@ -8,7 +9,7 @@ const AuthContext = createContext<AuthState>(null as any)
 export const useAuth = () => useContext(AuthContext)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('token'))
+  const [token, setToken] = useState<string | null>(getAccessToken() || null)
   const [user, setUser] = useState<User | null>(null)
   const [company, setCompany] = useState<Company | null>(null)
 
@@ -29,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   async function refreshAccessToken(): Promise<boolean> {
-    const rt = localStorage.getItem('refreshToken')
+    const rt = getRefreshToken()
     if (!rt) return false
     try {
       const res = await fetch('/api/auth/refresh', {
@@ -39,8 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       if (!res.ok) return false
       const data = await res.json()
-      localStorage.setItem('token', data.accessToken)
-      if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken)
+      setTokens(data.accessToken, data.refreshToken)
       setToken(data.accessToken)
       return true
     } catch { return false }
@@ -76,14 +76,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     if (!res.ok) { const e = await res.json(); throw new Error(e.error || 'Login failed') }
     const data = await res.json()
-    localStorage.setItem('token', data.accessToken)
-    localStorage.setItem('refreshToken', data.refreshToken)
+    setTokens(data.accessToken, data.refreshToken)
     setToken(data.accessToken)
   }
 
   function logout() {
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
+    clearTokens()
     setToken(null)
     setUser(null)
     setCompany(null)
