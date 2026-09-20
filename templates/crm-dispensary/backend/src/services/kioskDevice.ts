@@ -30,19 +30,25 @@ export const PAIRING_TTL_MS = 24 * 60 * 60 * 1000
 export type KioskEnforcement = 'warn' | 'enforce'
 
 /**
- * How strictly this company wants the kiosk credential applied.
+ * How strictly this company wants the kiosk credential applied. An explicit
+ * Settings → company.settings.kioskEnforcement always wins, in either direction. Otherwise: ENFORCE.
  *
- * An explicit Settings → company.settings.kioskEnforcement always wins, in either direction. With
- * nothing set, HAVING PAIRED A TABLET is the switch: a company with at least one active device is
- * enforcing, and one with none is still warning.
+ * This default has now been wrong twice, in the same direction, and the reason is worth writing down.
  *
- * The first version of this defaulted to 'warn' full stop, so that turning the credential on could
- * never black out a shop mid-trade — which was right about the risk and wrong about the outcome. It
- * left the switch to be found, nobody found it, and the kiosk chain went on completing unauthenticated
- * for four more test runs: an order created with no token at all. Pairing is the moment an operator
- * says "these are my tablets", and it is the only moment at which enforcing can cost them nothing —
- * the paired device works, and nothing else does. A shop that has not paired yet still warns, so the
- * blackout this was protecting against still cannot happen. (Dispensary B1, four runs open)
+ * T21 shipped 'warn' so that turning the credential on could not black out a shop mid-trade. T23 made
+ * pairing the switch — enforce once a tablet is paired — on the reasoning that pairing is the moment an
+ * operator says "these are my tablets". Both left the same hole: a shop that has paired nothing accepts
+ * kiosk orders from anyone who knows the hostname, and that is every shop until somebody acts. The
+ * retest found the chain still completing with no token on the FIFTH run.
+ *
+ * The blackout I was protecting against does not exist. KioskOrderPage asks /pair/status on load and,
+ * when the shop is enforcing and this tablet is not paired, renders the pairing screen with a code box
+ * instead of the menu. An unpaired tablet is therefore told what to do, in the place where somebody is
+ * standing in front of it — it is not a dead screen. That screen shipped in the same change as the
+ * credential, so the risk had already been handled and I defaulted around it anyway.
+ *
+ * An operator who genuinely wants an open kiosk sets 'warn' deliberately, and that still works.
+ * (Dispensary B1 — T21, T23, and open for five runs)
  */
 export async function kioskEnforcement(companyId: string): Promise<KioskEnforcement> {
   try {
@@ -50,19 +56,10 @@ export async function kioskEnforcement(companyId: string): Promise<KioskEnforcem
     const s = rows(r)?.[0]?.settings
     const mode = (typeof s === 'string' ? JSON.parse(s) : s)?.kioskEnforcement
     if (mode === 'enforce' || mode === 'warn') return mode
-    return (await hasPairedDevice(companyId)) ? 'enforce' : 'warn'
+    return 'enforce'
   } catch {
-    return 'warn'
-  }
-}
-
-/** Has this company ever paired a tablet that is still active? */
-export async function hasPairedDevice(companyId: string): Promise<boolean> {
-  try {
-    const r = await db.execute(sql`SELECT 1 FROM kiosk_devices WHERE company_id = ${companyId} AND status = 'active' LIMIT 1`)
-    return (rows(r)?.length || 0) > 0
-  } catch {
-    return false
+    // The setting could not be read. A kiosk that cannot prove the shop wants it open stays closed.
+    return 'enforce'
   }
 }
 

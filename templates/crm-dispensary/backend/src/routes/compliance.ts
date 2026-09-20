@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { sql } from 'drizzle-orm'
+import { sql, eq } from 'drizzle-orm'
+import { company } from '../../db/schema.ts'
+import { storeTimeZone } from '../utils/isoTime.ts'
 import { settledSale, taxCollected } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -332,13 +334,22 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
   // caller who sends a full timestamp means that instant and is left alone. (Dispensary T20 B3)
   const startDate = new Date(data.startDate)
   const endDate = endOfDayIfDateOnly(data.endDate)
+
+  // Which DAY a sale falls on is the store's question, not the server's. completed_at is a naive UTC
+  // timestamp, so ::date cut the report at UTC midnight and filed the last hours of each evening's trade
+  // under the next day — on a state sales report, which is the one figure a regulator reads. Label it
+  // UTC, read it in the store's zone. (T24 N1)
+  const [coRow] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const tzDay = storeTimeZone(coRow)
+
   let reportData: any = null
 
   switch (data.reportType) {
     case 'daily_sales': {
       const result = await db.execute(sql`
         SELECT
-          o.completed_at::date as sale_date,
+          (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date as sale_date,
           COUNT(*)::int as total_orders,
           COALESCE(SUM(o.total::numeric), 0) as total_revenue,
           -- what was given back, reported rather than deducted by omission
@@ -456,7 +467,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
     case 'tax': {
       const result = await db.execute(sql`
         SELECT
-          o.completed_at::date as sale_date,
+          (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date as sale_date,
           COUNT(*)::int as order_count,
           COALESCE(SUM(o.subtotal::numeric), 0) as subtotal,
           COALESCE(SUM(o.total_tax::numeric), 0) as total_tax,
@@ -526,7 +537,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           AND o.completed_at <= ${endDate}
       `)
       const repeat = await db.execute(sql`
-        SELECT o.contact_id, c.name as customer_name, o.completed_at::date as sale_date, COUNT(*)::int as orders_that_day,
+        SELECT o.contact_id, c.name as customer_name, (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date as sale_date, COUNT(*)::int as orders_that_day,
                COALESCE(SUM(NULLIF(o.total_cannabis_weight_oz, '')::numeric), 0) as cannabis_oz_that_day
         FROM orders o LEFT JOIN contact c ON c.id = o.contact_id
         WHERE o.company_id = ${currentUser.companyId}
@@ -534,7 +545,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           AND o.contact_id IS NOT NULL
           AND o.completed_at >= ${startDate}
           AND o.completed_at <= ${endDate}
-        GROUP BY o.contact_id, c.name, o.completed_at::date
+        GROUP BY o.contact_id, c.name, (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date
         HAVING COUNT(*) > 1
         ORDER BY cannabis_oz_that_day DESC
         LIMIT 100

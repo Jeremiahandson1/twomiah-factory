@@ -1,19 +1,36 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { product, contact } from '../../db/schema.ts'
+import { product, contact, company } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql } from 'drizzle-orm'
 import { settledSale, taxCollected, netExprBare, refundedExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
+import { storeTimeZone, storeDayRange, storeDateString } from '../utils/isoTime.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
+// Same converter the other routes in this template carry (kiosk.ts, cash.ts, compliance.ts and a dozen
+// more each declare their own copy — worth pulling into utils/ as its own change, not inside a fix).
+const camel = (row: any): any => {
+  if (!row || typeof row !== 'object') return row
+  const out: any = {}
+  for (const k of Object.keys(row)) out[k.replace(/_([a-z])/g, (_m, ch) => ch.toUpperCase())] = row[k]
+  return out
+}
+const rowsOf = (result: any): any[] => ((result as any)?.rows || result || []) as any[]
+
 app.get('/stats', async (c) => {
   const user = c.get('user') as any
   const companyId = user.companyId
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const tomorrow = new Date(today.getTime() + 86400000)
-  const thirtyDaysAgo = new Date(today.getTime() - 30 * 86400000)
+  // "Today" is the STORE's day, not the server's. Render runs UTC, so setHours(0,0,0,0) put the tile's
+  // window on UTC midnight: an Ohio shop's Today tile reset at 8pm, mid-shift, and the last four hours
+  // of Saturday's trade showed up under Sunday. Every US zone loses the tail of the evening this way —
+  // two hours for Central, three for Mountain, four for Pacific. (T24 N1)
+  const [coRow] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, companyId)).limit(1)
+  const tz = storeTimeZone(coRow)
+  const { start: today, end: tomorrow } = storeDayRange(tz)
+  const thirtyDaysAgo = storeDayRange(tz, storeDateString(new Date(today.getTime() - 29 * 86400000), tz)).start
 
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
     try { return await fn() } catch { return fallback }
@@ -165,9 +182,14 @@ app.get('/recent-activity', async (c) => {
     `),
   ])
 
+  // Raw-SQL rows come back snake_case; every other route in this template converts before responding.
+  // This one did not, so the Recent Orders widget — which reads camelCase like the rest of the app —
+  // found no `orderNumber` and fell through to the row id, printing #lmb7ijjmytwf3b1y1fw58564 where the
+  // order number belongs. The same mismatch made every customer read "Walk-in", because customer_name
+  // was never customerName either. (Dispensary T24)
   return c.json({
-    recentOrders: (recentOrdersResult as any).rows || recentOrdersResult,
-    recentActivity: (recentAuditResult as any).rows || recentAuditResult,
+    recentOrders: rowsOf(recentOrdersResult).map(camel),
+    recentActivity: rowsOf(recentAuditResult).map(camel),
   })
 })
 

@@ -106,5 +106,52 @@ if ((eod.match(/FILTER \(WHERE status IN \$\{taxCollected\}\)/g) || []).length <
 if (/COUNT\(CASE WHEN status = 'completed' THEN 1 END\)::int as completed/.test(dash)) fail('the dashboard counts completed-only sales under a settled revenue figure — 26 sales beside money from 33 (T23 H1)')
 if (!/COUNT\(CASE WHEN status IN \$\{settledSale\} THEN 1 END\)::int as completed/.test(dash)) fail('…it must count the same row set its revenue comes from')
 
+// ── and ONE definition of the business DAY ────────────────────────────────────────────────────────
+// Which day a sale belongs to is the store's question. The timestamps are naive UTC, so ::date, DATE()
+// and date_trunc all cut the day at UTC midnight — 20:00 in Ohio, 19:00 Central, 17:00 Pacific. A shop
+// trading 09:00–21:00 therefore filed the last hours of EVERY shift under tomorrow, on the dashboard
+// tile, the daily sales series, the cash reconciliation and the state sales report. The order detail
+// page has shown local time since T22, so the app displayed one day and filed another. The conversion is
+// the one the peak-hours chart already uses (T21 M3): label it UTC, read it in the store's zone.
+// (Dispensary T24 N1)
+{
+  const iso = read(R + 'utils/isoTime.ts')
+  if (!/export function storeTimeZone\(/.test(iso)) fail('the store\'s zone must have one resolver')
+  if (!/export function storeDayRange\(/.test(iso)) fail('…and the store\'s DAY one definition, as a UTC range a query can use without wrapping the column')
+  if (!/export function storeDateString\(/.test(iso)) fail('…and one answer for which date an instant falls on in that zone')
+  // a day is not always 24 hours; the range has to be built from the zone, not by adding a constant
+  if (/start\.getTime\(\) \+ 86400000/.test(iso)) fail('a store day is not always 24 hours — the day the clocks change is 23 or 25, so the end must come from the zone')
+
+  const dash = read(R + 'routes/dashboard.ts')
+  if (/const today = new Date\(\); today\.setHours\(0, 0, 0, 0\)/.test(dash)) fail('the dashboard Today tile must not use the SERVER\'s midnight — on Render that is UTC, and the tile reset mid-shift')
+  if (!/storeDayRange\(tz\)/.test(dash)) fail('…it must use the store\'s day')
+
+  for (const [file, what] of [
+    ['routes/analytics.ts', 'the daily sales series'],
+    ['routes/compliance.ts', 'the state sales report'],
+    ['routes/eod.ts', 'the cash reconciliation'],
+  ] as Array<[string, string]>) {
+    const src = read(R + file)
+    if (!/AT TIME ZONE 'UTC' AT TIME ZONE \$\{(tzDay|dayTz|tz)\}/.test(src)) fail(`${what} (${file}) must bucket by the STORE's day, not UTC`)
+    if (!/storeTimeZone\(/.test(src)) fail(`…${file} must resolve that zone through the one resolver`)
+  }
+  // the specific shapes that cut a day at UTC midnight
+  if (/\bo\.completed_at::date\b/.test(read(R + 'routes/compliance.ts'))) fail('compliance still has a bare completed_at::date — that is a UTC day')
+  if (/DATE\(created_at\) = /.test(read(R + 'routes/eod.ts'))) fail('the EOD report still has a bare DATE(created_at) — that is a UTC day')
+  if (/date_trunc\(\$\{dateTrunc\}, COALESCE\(completed_at, created_at\)\)/.test(read(R + 'routes/analytics.ts'))) fail('the sales series still truncates a UTC timestamp — that is a UTC day')
+}
+
+// The dashboard's Recent Orders widget reads what the API returns. It returned raw snake_case rows while
+// the widget read camelCase, so `orderNumber` was never there and it printed the row id in its place —
+// #lmb7ijjmytwf3b1y1fw58564 where an order number belongs, and every customer as "Walk-in". (T24)
+{
+  const dash = read(R + 'routes/dashboard.ts')
+  if (!/recentOrders: rowsOf\(recentOrdersResult\)\.map\(camel\)/.test(dash)) fail('recent-activity must answer in camelCase like the rest of this API')
+  const page = read('templates/crm-dispensary/frontend/src/pages/DashboardPage.tsx')
+  if (/order\.orderNumber/.test(page)) fail('the Recent Orders widget reads orderNumber, which an order does not have')
+  if (/\|\| order\.id\}/.test(page)) fail('…and must not fall back to the row id: that looks like an order number and is not one')
+  if (!/order\.number \? `#\$\{order\.number\}` : '—'/.test(page)) fail('…it must print the order number, or nothing')
+}
+
 if (failed) { console.error(`\nrevenue one definition: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('revenue one definition: settled sales, gross / refunded / net stated once and shared by compliance, analytics and the dashboard; tax has its own stated row set (a sale returned in full returned its tax) shared by all five surfaces including the filing; Product Mix is one row per product')

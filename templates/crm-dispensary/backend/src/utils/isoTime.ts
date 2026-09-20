@@ -10,6 +10,8 @@
 //
 // The values are already UTC; only the marker is missing. Stamping the Z is not a conversion.
 
+import { sql } from 'drizzle-orm'
+
 // "2026-09-19 06:14:42.188302" or "2026-09-19T06:14:42" — no Z, no ±hh:mm offset.
 const NAIVE_TIMESTAMP = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(\.\d{1,6})?$/
 
@@ -77,4 +79,63 @@ export function storeTimeZone(co: any): string {
   const byState = STATE_TIME_ZONES[String(co?.state || '').trim().toUpperCase()]
   if (byState) return byState
   return DEFAULT_TIME_ZONE
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// WHICH DAY a sale belongs to.
+//
+// T21 M3 fixed the hour: the peak-hours chart read EXTRACT(HOUR FROM created_at), which is UTC, so a
+// 7pm Friday rush charted in the small hours of Saturday. The DAY was left on the same broken footing,
+// and it is worse, because it moves money between reporting periods rather than between bars on a
+// chart. A sale rung up at 20:06 on Saturday in Ohio is stored 2026-09-20T01:06Z and every daily
+// figure — the dashboard's Today tile, the analytics day series, cash reconciliation, the state sales
+// report — filed it under Sunday. That is the last two hours of trade every day for a Central store,
+// three for Mountain, four for Pacific. The order detail page has shown local time since T22, so the
+// app displayed one day and filed another. (Dispensary T24 N1)
+//
+// created_at is a naive UTC timestamp, so the conversion is the same two steps as the hour fix: label
+// it UTC, then read it in the store's zone.
+
+/** A naive-UTC timestamp expression as the STORE's wall clock. Pass a column as sql`created_at`. */
+export const inStoreZone = (col: any, tz: string) => sql`((${col}) AT TIME ZONE 'UTC' AT TIME ZONE ${tz})`
+
+/** …and as the store's calendar day, which is what a daily report groups by. */
+export const storeDay = (col: any, tz: string) => sql`(((${col}) AT TIME ZONE 'UTC' AT TIME ZONE ${tz})::date)`
+
+/** What the store's wall clock calls this instant's date, as YYYY-MM-DD. */
+export function storeDateString(at: Date, tz: string): string {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
+  return p // en-CA formats as YYYY-MM-DD
+}
+
+/** How far the store's clock is from UTC at this instant, in ms. */
+function zoneOffsetMs(at: Date, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(at)
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value || 0)
+  // the wall clock read as if it were UTC, minus the real instant
+  return Date.UTC(g('year'), g('month') - 1, g('day') % 32, g('hour') % 24, g('minute'), g('second')) - Math.floor(at.getTime() / 1000) * 1000
+}
+
+/** The UTC instant at which a given local date begins in this zone. */
+export function storeDayStart(dateStr: string, tz: string): Date {
+  const asUtcMidnight = new Date(`${dateStr}T00:00:00.000Z`).getTime()
+  // Subtracting the offset lands on the right instant; do it twice so a day that begins on a DST
+  // boundary settles on the offset that is actually in force at the start of it.
+  let start = new Date(asUtcMidnight - zoneOffsetMs(new Date(asUtcMidnight), tz))
+  start = new Date(asUtcMidnight - zoneOffsetMs(start, tz))
+  return start
+}
+
+/**
+ * The half-open UTC range [start, end) covering one of the STORE's days — the range a query should use
+ * for "today", so the timestamp column stays untouched and its index still applies.
+ */
+export function storeDayRange(tz: string, on?: Date | string): { start: Date; end: Date; date: string } {
+  const date = typeof on === 'string' ? on : storeDateString(on || new Date(), tz)
+  const start = storeDayStart(date, tz)
+  const next = new Date(`${date}T00:00:00.000Z`); next.setUTCDate(next.getUTCDate() + 1)
+  const end = storeDayStart(next.toISOString().slice(0, 10), tz)
+  return { start, end, date }
 }

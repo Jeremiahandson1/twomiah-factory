@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { sql } from 'drizzle-orm'
+import { sql, eq } from 'drizzle-orm'
+import { company } from '../../db/schema.ts'
+import { storeTimeZone } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -36,6 +38,14 @@ app.post('/generate', requireRole('manager'), async (c) => {
   const reportDate = data.date
   const locationId = data.locationId
 
+  // End of day means the end of the STORE's day. created_at is a naive UTC timestamp, so DATE(created_at)
+  // cut the report at UTC midnight: the last hours of the evening — four of them in Ohio — were counted
+  // on the next day's reconciliation, which is precisely the report a manager uses to square the drawer
+  // against the till. Label it UTC, read it in the store's zone. (T24 N1)
+  const [coRow] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const tzDay = storeTimeZone(coRow)
+
   // ── Orders summary ──
   // Revenue/tax/count are COMPLETED-only. Previously order_count and total_revenue had no
   // status filter, so refunded and voided orders inflated Total Revenue while the cash
@@ -57,7 +67,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COUNT(*) FILTER (WHERE status = 'cancelled')::int as void_count
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = ${reportDate}::date
+      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
   `)
   const orderStats = ((ordersResult as any).rows || ordersResult)?.[0] || {}
 
@@ -69,7 +79,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COALESCE(SUM(total::numeric), 0) as total
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = ${reportDate}::date
+      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
       AND status = 'completed'
     GROUP BY payment_method
     ORDER BY total DESC
@@ -122,7 +132,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COUNT(*) FILTER (WHERE quantity_change < 0)::int as shrinkage_count
     FROM inventory_adjustments
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = ${reportDate}::date
+      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
   `)
   const inventoryStats = ((inventoryResult as any).rows || inventoryResult)?.[0] || {}
 
@@ -174,7 +184,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     SELECT COALESCE(SUM(tip_amount::numeric), 0) as total_tips
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = ${reportDate}::date
+      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
       AND status = 'completed'
   `)
   const totalTips = Number(((tipsResult as any).rows || tipsResult)?.[0]?.total_tips || 0)
@@ -187,7 +197,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
       COUNT(DISTINCT member_id) FILTER (WHERE type = 'earn')::int as active_members
     FROM loyalty_transactions
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = ${reportDate}::date
+      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
   `)
   const loyaltyStats = ((loyaltyResult as any).rows || loyaltyResult)?.[0] || {}
 
@@ -195,7 +205,7 @@ app.post('/generate', requireRole('manager'), async (c) => {
     SELECT COUNT(*)::int as new_members
     FROM loyalty_members
     WHERE company_id = ${currentUser.companyId}
-      AND DATE(created_at) = ${reportDate}::date
+      AND DATE(created_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay}) = ${reportDate}::date
   `)
   const newMembers = Number(((newMembersResult as any).rows || newMembersResult)?.[0]?.new_members || 0)
 

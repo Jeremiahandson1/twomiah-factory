@@ -37,9 +37,17 @@ app.get('/sales', async (c) => {
   // completed_at (status-flow / seeded completions), so filtering on completed_at dropped a
   // whole day (e.g. 09-01) from the chart while /summary — which keys off created_at — still
   // counted it. The chart lost $182 the KPI showed. Fall back to created_at. (retest#10)
+  // Bucketed on the STORE's clock. date_trunc over a naive UTC timestamp cuts the series at UTC
+  // midnight, so an Ohio shop's evening trade after 8pm was charted on the following day — the same
+  // fault the peak-hours chart had (T21 M3), one unit larger and costlier, because this one moves money
+  // between days rather than between bars. Label it UTC, read it in the store's zone. (T24 N1)
+  const [coRowForDay] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const dayTz = storeTimeZone(coRowForDay)
+
   const result = await db.execute(sql`
     SELECT
-      date_trunc(${dateTrunc}, COALESCE(completed_at, created_at))::date as period,
+      date_trunc(${dateTrunc}, (COALESCE(completed_at, created_at) AT TIME ZONE 'UTC' AT TIME ZONE ${dayTz}))::date as period,
       COUNT(*)::int as order_count,
       -- Revenue and AOV share the same NET basis (total − refunded) so AOV × orders = revenue. (retest: AOV vs revenue)
       COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as revenue,

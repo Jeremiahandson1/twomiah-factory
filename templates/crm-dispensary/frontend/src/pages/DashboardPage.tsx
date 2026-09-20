@@ -150,7 +150,10 @@ export default function DashboardPage() {
             {recentOrders.length > 0 ? recentOrders.slice(0, 8).map((order: any) => (
               <div key={order.id} className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id}</p>
+                  {/* `number` is what the order carries — orderNumber was never a field on it, so this
+                      printed the row id. Falling back to the id is worse than saying nothing: it looks
+                      like an order number and is not one. (Dispensary T24) */}
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{order.number ? `#${order.number}` : '—'}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{order.customerName || 'Walk-in'}</p>
                 </div>
                 <div className="text-right">

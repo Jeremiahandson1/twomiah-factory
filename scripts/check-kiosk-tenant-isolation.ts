@@ -132,11 +132,22 @@ if (!/pairing_code = NULL, pairing_expires_at = NULL/.test(devices)) fail('a pai
 // is the switch now — the one moment an operator says "these are my tablets", and the only moment at which
 // enforcing costs them nothing. A shop that has not paired still warns, so the blackout the warn default was
 // protecting against still cannot happen. (Dispensary T23 B1, four runs open)
-if (/return mode === 'enforce' \? 'enforce' : 'warn'/.test(devices)) fail('enforcement must not fall back to a flat warn — that is the default that left the kiosk open for four runs')
-if (!/export async function hasPairedDevice\(/.test(devices)) fail('kioskDevice.ts must be able to answer whether a tablet has ever been paired')
-if (!/WHERE company_id = \$\{companyId\} AND status = 'active'/.test(devices)) fail('…counting only ACTIVE devices, so revoking the last tablet lets a shop back in rather than locking it out')
+// This default has been wrong twice, in the same direction. T21 shipped 'warn' so enabling the credential
+// could not black out a shop; T23 made pairing the switch. Both left a shop that has paired nothing
+// accepting kiosk orders from anyone with the hostname — which is every shop until somebody acts, and the
+// retest found the chain still completing with no token on the FIFTH run. The blackout being guarded
+// against does not exist: KioskOrderPage reads /pair/status and renders the pairing screen, with a code
+// box, whenever the shop enforces and this tablet is not paired. (Dispensary B1)
+if (/return mode === 'enforce' \? 'enforce' : 'warn'/.test(devices)) fail('enforcement must not fall back to a flat warn — that default left the kiosk open for four runs')
+if (/hasPairedDevice/.test(devices)) fail('…and pairing must not be the switch either — a shop that has paired nothing still took orders from anyone (five runs)')
 if (!/if \(mode === 'enforce' \|\| mode === 'warn'\) return mode/.test(devices)) fail('an explicit company setting must still win, in BOTH directions')
-if (!/return \(await hasPairedDevice\(companyId\)\) \? 'enforce' : 'warn'/.test(devices)) fail('…and with nothing set, having paired a tablet must BE the switch')
+// Anchored to the line that follows the explicit-setting check, not just "the word enforce appears
+// somewhere" — the catch below also returns 'enforce', and a plant that flipped the default to 'warn'
+// sailed past a looser version of this.
+if (!/if \(mode === 'enforce' \|\| mode === 'warn'\) return mode\s*\n\s*return 'enforce'/.test(devices.replace(/\r\n/g, '\n'))) fail('…and with nothing set the kiosk must ENFORCE, because an unpaired tablet is shown the pairing screen rather than a dead end')
+if (!/\} catch \{\n    \/\/[^\n]*\n    return 'enforce'\n  \}/.test(devices.replace(/\r\n/g, '\n'))) fail('…and a kiosk that cannot read the setting stays closed, rather than open')
+// the screen that makes enforcing safe has to keep existing
+if (kioskPage && !/setNeedsPairing\(!s\?\.paired && s\?\.enforcement === 'enforce'\)/.test(kioskPage)) fail('the pairing screen is what makes enforcing-by-default safe — without it, enforcing IS a blackout')
 if (!/const requireDevice = async \(c: any, next: any\) =>/.test(src)) fail('the kiosk write endpoints must identify the device')
 for (const route of ["'/session/start'", "'/session/:token/add-item'", "'/session/:token/checkout'"]) {
   if (!new RegExp(`app\\.use\\(${route.replace(/[/:]/g, '\\$&')}, requireDevice\\)`).test(src)) fail(`${route} must go through the device check — it writes`)
