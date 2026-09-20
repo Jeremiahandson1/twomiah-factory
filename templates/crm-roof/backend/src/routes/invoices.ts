@@ -31,6 +31,45 @@ const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: n
 }
 
 // List invoices
+/**
+ * H3: what the business actually billed, collected and is still owed.
+ *
+ * Reports showed a single "Revenue" tile computed from job.finalRevenue/estimatedRevenue/rcv — which
+ * is PIPELINE VALUE, what the work is thought to be worth, not money. On the test tenant it read
+ * $81,072 while $128,444.34 had been invoiced, $75,253.03 collected and $53,191.31 was outstanding.
+ * Three different true numbers, none of them the one on screen.
+ *
+ * The definitions are the fleet's, not new ones (see scripts/check-refund-revenue.ts):
+ *   billed      every invoice except draft and void — a refunded sale was still billed
+ *   issued      billed, minus refunded — a refunded invoice owes nothing, so it cannot be outstanding
+ *
+ * Declared before '/:id' so the path is not swallowed as an invoice id.
+ */
+app.get('/summary', async (c) => {
+  const currentUser = c.get('user') as any
+  const BILLED = ['void', 'draft']
+  const billed = sql`${invoice.status} NOT IN ('void', 'draft')`
+  const issued = sql`${invoice.status} NOT IN ('void', 'draft', 'refunded')`
+
+  const [billedRow] = await db
+    .select({ invoiced: sql<string>`COALESCE(SUM(${invoice.total}), 0)`, collected: sql<string>`COALESCE(SUM(${invoice.amountPaid}), 0)`, count: count() })
+    .from(invoice)
+    .where(and(eq(invoice.companyId, currentUser.companyId), billed))
+
+  const [issuedRow] = await db
+    .select({ outstanding: sql<string>`COALESCE(SUM(${invoice.balance}), 0)` })
+    .from(invoice)
+    .where(and(eq(invoice.companyId, currentUser.companyId), issued))
+
+  return c.json({
+    invoiced: Number(billedRow?.invoiced ?? 0),
+    collected: Number(billedRow?.collected ?? 0),
+    outstanding: Number(issuedRow?.outstanding ?? 0),
+    invoiceCount: Number(billedRow?.count ?? 0),
+    excludedStatuses: BILLED,
+  })
+})
+
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')

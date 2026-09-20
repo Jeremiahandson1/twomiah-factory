@@ -25,6 +25,26 @@ const TYPE_COLORS: Record<string, string> = {
   emergency: '#ef4444',
 };
 
+/**
+ * The label colour for a bar, chosen from the bar's own brightness.
+ *
+ * M5: these labels were always white, on whatever colour the stage happened to be. On the amber crew
+ * bars that measured 2.15:1 and on the blue stage bars 3.68:1 — both under AA, and unfixable by
+ * picking a different single colour, because the bars are not all one brightness. So it is computed:
+ * white on a dark bar, near-black on a light one. Same relative-luminance formula as WCAG.
+ */
+function labelOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '#ffffff';
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255);
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const L = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  const onWhite = 1.05 / (L + 0.05);
+  const onBlack = (L + 0.05) / 0.05;
+  // #0f172a is slate-900, the dark text this product already uses
+  return onBlack >= onWhite ? '#0f172a' : '#ffffff';
+}
+
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
@@ -32,7 +52,7 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
       <span className="w-36 text-gray-600 truncate text-right dark:text-slate-400">{label}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden dark:bg-slate-800">
         <div className="h-full rounded-full flex items-center px-2" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: color }}>
-          {pct > 15 && <span className="text-white text-xs font-medium">${value.toLocaleString()}</span>}
+          {pct > 15 && <span className="text-xs font-medium" style={{ color: labelOn(color) }}>${value.toLocaleString()}</span>}
         </div>
       </div>
       {pct <= 15 && <span className="text-xs text-gray-500 w-20 dark:text-slate-400">${value.toLocaleString()}</span>}
@@ -48,6 +68,8 @@ export default function ReportsPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [crews, setCrews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // invoiced / collected / outstanding, computed by the server from invoices (H3)
+  const [money, setMoney] = useState<{ invoiced: number; collected: number; outstanding: number } | null>(null);
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -71,11 +93,14 @@ export default function ReportsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [jobsAll, usersRes, crewsRes] = await Promise.all([
+      const [jobsAll, usersRes, crewsRes, moneyRes] = await Promise.all([
         fetchAllJobs(),
         fetch('/api/users', { headers }),
         fetch('/api/crews', { headers }),
+        // H3: the money, as opposed to what the pipeline is thought to be worth
+        fetch('/api/invoices/summary', { headers }),
       ]);
+      setMoney(moneyRes.ok ? await moneyRes.json() : null);
       const usersData = await usersRes.json();
       const crewsData = await crewsRes.json();
       setJobs(jobsAll);
@@ -199,13 +224,36 @@ export default function ReportsPage() {
               <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
                 <BarChart3 className="w-5 h-5 text-orange-600" />
               </div>
-              <span className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</span>
+              {/* H3: this tile was labelled "Total Revenue" but is summed from job estimates — it is
+                  what the pipeline is thought to be worth, not money that exists. Named for what it
+                  is; the money is in its own row below. */}
+              <span className="text-sm text-gray-500 dark:text-slate-400">Pipeline Value</span>
             </div>
             <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">
               ${jobs.reduce((s, j) => s + jobValue(j), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">estimated value of all jobs</p>
           </div>
         </div>
+
+        {/* The money, from invoices rather than estimates (H3) */}
+        {money && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {([
+              ['Invoiced', money.invoiced, 'billed to customers', 'text-gray-900 dark:text-slate-100'],
+              ['Collected', money.collected, 'payments received', 'text-green-700 dark:text-green-300'],
+              ['Outstanding', money.outstanding, 'still owed', 'text-amber-700 dark:text-amber-300'],
+            ] as Array<[string, number, string, string]>).map(([label, value, hint, tone]) => (
+              <div key={label} className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
+                <span className="text-sm text-gray-500 dark:text-slate-400">{label}</span>
+                <p className={`text-3xl font-bold mt-2 ${tone}`}>
+                  ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{hint}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Pipeline Value by Stage */}

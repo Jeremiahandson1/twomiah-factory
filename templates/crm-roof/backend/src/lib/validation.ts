@@ -27,6 +27,36 @@ export const CANVASSING_OUTCOMES = [
   'no_answer', 'not_interested', 'interested', 'appointment_set', 'already_has_contractor', 'vacant',
 ] as const
 
+/** the photo tabs the job detail page offers, plus the default */
+export const JOB_PHOTO_TYPES = ['general', 'before', 'during', 'after', 'damage'] as const
+
+/**
+ * What a file actually IS, read from its first bytes.
+ *
+ * `file.type` on an upload is a string the client chose. An HTML document announced as image/png was
+ * stored and served as an image; so was an SVG, which is an image format that can carry script — and
+ * serving one from the tenant's own origin is stored XSS. A .exe was refused only because it did not
+ * bother to lie about its type. Magic numbers do not lie.
+ *
+ * SVG is deliberately absent: it is a document, not a bitmap, and nothing in this product needs it.
+ */
+export function sniffImage(b: Uint8Array): { mime: string; ext: string } | null {
+  // (a Node Buffer IS a Uint8Array, so callers pass one directly and this file needs no node types)
+  if (b.length < 12) return null
+  const at = (i: number) => b[i]
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (at(0) === 0x89 && at(1) === 0x50 && at(2) === 0x4e && at(3) === 0x47 && at(4) === 0x0d && at(5) === 0x0a && at(6) === 0x1a && at(7) === 0x0a)
+    return { mime: 'image/png', ext: 'png' }
+  // JPEG: FF D8 FF
+  if (at(0) === 0xff && at(1) === 0xd8 && at(2) === 0xff) return { mime: 'image/jpeg', ext: 'jpg' }
+  // GIF: "GIF87a" / "GIF89a"
+  if (at(0) === 0x47 && at(1) === 0x49 && at(2) === 0x46 && at(3) === 0x38) return { mime: 'image/gif', ext: 'gif' }
+  // WebP: "RIFF" .... "WEBP"
+  if (at(0) === 0x52 && at(1) === 0x49 && at(2) === 0x46 && at(3) === 0x46 && at(8) === 0x57 && at(9) === 0x45 && at(10) === 0x42 && at(11) === 0x50)
+    return { mime: 'image/webp', ext: 'webp' }
+  return null
+}
+
 export const jobStatus = z.enum(JOB_STATUSES)
 export const materialOrderStatus = z.enum(MATERIAL_ORDER_STATUSES)
 export const canvassingOutcome = z.enum(CANVASSING_OUTCOMES)

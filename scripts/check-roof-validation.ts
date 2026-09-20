@@ -129,5 +129,67 @@ if (statuses.length < 5) fail('could not read JOB_STATUSES — this guard is not
     fail('…and must SAY so — it reported errors: 0 on a file with a bad address, which is worse than refusing it')
 }
 
+// ── H3: revenue is money, not what the pipeline is thought to be worth ────────────────────────────
+{
+  const inv = read(B + 'routes/invoices.ts')
+  if (!/app\.get\('\/summary'/.test(inv))
+    fail('Reports needs invoiced / collected / outstanding from invoices — it showed a single "Revenue" tile summed from job estimates (H3)')
+  if (inv.indexOf("app.get('/summary'") > inv.indexOf("app.get('/:id'") && inv.indexOf("app.get('/:id'") !== -1)
+    fail("…declared before '/:id', or the path is swallowed as an invoice id and answers 404")
+  // the fleet's definitions, not new ones
+  if (!/NOT IN \('void', 'draft'\)/.test(inv)) fail('invoiced must be every BILLED invoice — draft and void excluded, a refunded sale still counted')
+  if (!/NOT IN \('void', 'draft', 'refunded'\)/.test(inv)) fail('outstanding must be ISSUED only — a refunded invoice owes nothing')
+
+  const rp = read(F + 'pages/roofing/ReportsPage.tsx').replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+  if (/Total Revenue/.test(rp)) fail('the estimates tile must not be called "Total Revenue" — it is pipeline value (H3)')
+  if (!/Pipeline Value<\/span>/.test(rp)) fail('…it must say what it is')
+  if (!/\/api\/invoices\/summary/.test(rp)) fail('…and the real money must come from the server')
+}
+
+// ── M5: a bar label is readable on its own bar ────────────────────────────────────────────────────
+{
+  const rp = read(F + 'pages/roofing/ReportsPage.tsx')
+  if (/<span className="text-white text-xs font-medium">/.test(rp))
+    fail('chart bar labels are white on whatever colour the bar is — 2.15:1 on the amber crew bars (M5)')
+  if (!/function labelOn\(hex: string\)/.test(rp))
+    fail('…the label colour must be computed from the bar\'s own luminance')
+}
+
+// ── M9: an upload is what its bytes say it is ─────────────────────────────────────────────────────
+{
+  if (!/export function sniffImage\(/.test(lib))
+    fail('photo upload trusted the client\'s declared MIME type — HTML and SVG were stored and served as images (M9)')
+  if (/mime: 'image\/svg/.test(lib))
+    fail('…SVG must NOT be accepted: it is a document that can carry script, and serving one from the tenant origin is stored XSS')
+  const jobs = read(B + 'routes/jobs.ts')
+  if (/if \(!file\.type\.startsWith\('image\/'\)\)/.test(jobs))
+    fail('…the route must not decide from file.type, which is a string the uploader chose')
+  if (!/const sniffed = sniffImage\(buffer\)/.test(jobs)) fail('…it must read the bytes')
+  if (!/uploadFile\(key, buffer, sniffed\.mime\)/.test(jobs)) fail('…and store it under the type it actually is')
+  if (!/JOB_PHOTO_TYPES\.includes\(photoType as any\)/.test(jobs)) fail('…photoType accepted "banana" (M9)')
+}
+
+// ── M10: an error message is for the user, not a map of the server ────────────────────────────────
+{
+  for (const f of ['stormRadar.ts', 'financing.ts', 'reviews.ts']) {
+    const src = read(B + `routes/${f}`)
+    if (/message: e\.message/.test(src))
+      fail(`${f} hands the caller the exception text, which names the source file and the environment variables (M10)`)
+    if (!/logger\.error\(/.test(src)) fail(`…${f} must log the detail instead of discarding it`)
+  }
+}
+
+// ── M11: money that will not fit decimal(10,2) ────────────────────────────────────────────────────
+{
+  const q = read(B + 'routes/quotes.ts')
+  if (!/export const MONEY_CEILING = 99_999_999\.99/.test(q))
+    fail('a unit price of 100,000,000 came back as a 500 — the column ceiling must be a named limit (M11)')
+  if (!/if \(!Number\.isFinite\(line\) \|\| line > MONEY_CEILING\)/.test(q))
+    fail('…checked on the computed line total, because quantity × unitPrice overflows before either field does')
+  if (!/class QuoteTooLargeError/.test(q)) fail('…as an error the API layer can turn into a 400')
+  const idx = read(B + 'index.ts')
+  if (!/err\.name === 'QuoteTooLargeError'/.test(idx)) fail('…and index.ts must answer 400, not the driver\'s 500')
+}
+
 if (failed) { console.error(`\nroof validation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`roof validation: the pipeline (${statuses.length} statuses), contact details, door-knock outcomes and material money all mean what the product means`)

@@ -16,6 +16,7 @@ import { db } from '../../db/index.ts'
 import { reviewRequest, review } from '../../db/schema.ts'
 import { eq, and, desc, avg, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import logger from '../services/logger.ts'
 import gmb, { GmbNotConfiguredError } from '../services/gmb.ts'
 
 const app = new Hono()
@@ -149,10 +150,11 @@ app.post('/sync/gmb', async (c) => {
     const result = await gmb.syncReviews(currentUser.companyId)
     return c.json({ success: true, ...result })
   } catch (e: any) {
+    logger.error('Google Business Profile sync failed', { message: e?.message, stack: e?.stack })
     if (e instanceof GmbNotConfiguredError) {
-      return c.json({ error: 'not_configured', message: e.message }, 503)
+      return c.json({ error: 'not_configured', message: 'Google Business Profile is not connected yet. Connect it in Settings › Integrations.' }, 503)
     }
-    return c.json({ error: 'sync_failed', message: e.message }, 500)
+    return c.json({ error: 'sync_failed', message: 'Could not sync reviews. Please try again shortly.' }, 500)
   }
 })
 

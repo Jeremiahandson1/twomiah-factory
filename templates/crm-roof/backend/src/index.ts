@@ -361,6 +361,12 @@ app.get('/api/internal/roof-reports/:id/aerial', async (c) => {
 app.onError((err, c) => {
   logger.error('Unhandled error', { message: err.message, stack: err.stack, path: c.req.path, method: c.req.method })
 
+  // Money that will not fit decimal(10,2). It is the caller's input that is wrong, so it is a 400
+  // with the number named — not the 500 a numeric overflow produces on its way out of the driver.
+  if (err.name === 'QuoteTooLargeError') {
+    return c.json({ error: err.message }, 400)
+  }
+
   if (err.name === 'ZodError') {
     // Name the offending field in the message so the UI can show something
     // useful instead of a bare "Validation error".

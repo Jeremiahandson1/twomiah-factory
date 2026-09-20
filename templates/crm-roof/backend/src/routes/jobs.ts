@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { cleanText } from '../utils/sanitize.ts'
-import { JOB_STATUSES, jobStatus, phone, email, optional } from '../lib/validation.ts'
+import { JOB_STATUSES, JOB_PHOTO_TYPES, jobStatus, phone, email, optional, sniffImage } from '../lib/validation.ts'
 import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzle-orm'
@@ -330,14 +330,25 @@ app.post('/:id/photos', async (c) => {
   const file = formData.get('photo') as File
   if (!file) return c.json({ error: 'No photo provided' }, 400)
   if (file.size > 10 * 1024 * 1024) return c.json({ error: 'Photo exceeds 10MB limit' }, 400)
-  if (!file.type.startsWith('image/')) return c.json({ error: 'File must be an image' }, 400)
 
-  const ext = file.type === 'image/png' ? 'png' : 'jpg'
-  const key = `photos/${currentUser.companyId}/${id}/${createId()}.${ext}`
+  // M9: `file.type` is whatever the uploader typed in the request. An HTML document announced as
+  // image/png was stored and served as an image, and so was an SVG — which is an image format that
+  // can carry script, so serving one from the tenant's own origin is stored XSS. The file is
+  // identified by its CONTENT instead: the first bytes of a real PNG/JPEG/GIF/WebP.
   const buffer = Buffer.from(await file.arrayBuffer())
-  const url = await uploadFile(key, buffer, file.type)
+  const sniffed = sniffImage(buffer)
+  if (!sniffed) {
+    return c.json({ error: 'That file is not an image. JPEG, PNG, GIF and WebP are supported.' }, 400)
+  }
+
+  const key = `photos/${currentUser.companyId}/${id}/${createId()}.${sniffed.ext}`
+  // and it is stored under the type it actually is, not the one it claimed
+  const url = await uploadFile(key, buffer, sniffed.mime)
 
   const photoType = (formData.get('photoType') as string) || 'general'
+  if (!JOB_PHOTO_TYPES.includes(photoType as any)) {
+    return c.json({ error: `photoType must be one of: ${JOB_PHOTO_TYPES.join(', ')}` }, 400)
+  }
   const caption = (formData.get('caption') as string) || null
 
   const [photo] = await db.insert(jobPhoto).values({

@@ -11,6 +11,7 @@ import { stormRadarEvent, stormRadarEventMatch, contact } from '../../db/schema.
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import stormRadar, { StormRadarNotConfiguredError } from '../services/stormRadar.ts'
+import logger from '../services/logger.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -49,10 +50,14 @@ app.post('/sync', async (c) => {
     const result = await stormRadar.syncStormEvents(currentUser.companyId, body)
     return c.json({ success: true, ...result })
   } catch (e: any) {
+    // M10: `e.message` named the source file and both environment variables, which a tenant should
+    // never be shown — it is a map of the server for anyone who pokes the endpoint. The detail goes
+    // to the log; the caller gets something true and actionable instead.
+    logger.error('Storm Radar sync failed', { message: e?.message, stack: e?.stack, companyId: currentUser.companyId })
     if (e instanceof StormRadarNotConfiguredError) {
-      return c.json({ error: 'not_configured', message: e.message }, 503)
+      return c.json({ error: 'not_configured', message: 'Storm Radar is not connected yet. Add it in Settings › Integrations.' }, 503)
     }
-    return c.json({ error: 'sync_failed', message: e.message }, 500)
+    return c.json({ error: 'sync_failed', message: 'Could not sync storm events. Please try again shortly.' }, 500)
   }
 })
 

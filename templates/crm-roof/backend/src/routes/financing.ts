@@ -15,6 +15,7 @@ import { db } from '../../db/index.ts'
 import { financingApplication } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import logger from '../services/logger.ts'
 import lenders, { LenderNotConfiguredError } from '../services/lenders.ts'
 
 const app = new Hono()
@@ -106,10 +107,12 @@ app.post('/:id/mark-sent', async (c) => {
       lenderReference = result.lenderReference
       expiresAt = result.expiresAt
     } catch (e: any) {
+      // the exception text names internal files and environment variables — log it, do not serve it
+      logger.error('Financing submit failed', { message: e?.message, stack: e?.stack })
       if (e instanceof LenderNotConfiguredError) {
-        return c.json({ error: 'not_configured', message: e.message }, 503)
+        return c.json({ error: 'not_configured', message: 'This lender is not connected yet. Add it in Settings › Integrations.' }, 503)
       }
-      return c.json({ error: 'submit_failed', message: e.message }, 500)
+      return c.json({ error: 'submit_failed', message: 'Could not submit the application. Please try again shortly.' }, 500)
     }
   }
 
@@ -176,7 +179,8 @@ webhookApp.post('/webhooks/wisetack', async (c) => {
     if (e instanceof LenderNotConfiguredError) {
       return c.json({ error: 'not_configured' }, 503)
     }
-    return c.json({ error: 'webhook_failed', message: e.message }, 500)
+    logger.error('Financing webhook failed', { message: e?.message, stack: e?.stack })
+    return c.json({ error: 'webhook_failed' }, 500)
   }
 })
 app.route('/', webhookApp)

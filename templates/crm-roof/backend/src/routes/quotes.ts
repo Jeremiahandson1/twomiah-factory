@@ -29,12 +29,38 @@ const quoteSchema = z.object({
 // Round to whole cents (avoids $330.949-style totals) and tax the post-discount
 // amount (US convention for an order-level discount), matching the base CRM.
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
+
+/**
+ * M11: every money column here is decimal(10,2), so the largest value that fits is 99,999,999.99.
+ * A unit price of 99,999,999 saved; 100,000,000 came back as a 500 — a numeric overflow from the
+ * driver, surfacing as "Internal server error" with nothing to tell the user what to change.
+ *
+ * The ceiling has to be checked on the COMPUTED total rather than the input, because quantity ×
+ * unitPrice overflows long before either field does on its own: 100 × 1,000,000 is inside any
+ * per-field limit and outside the column.
+ */
+export const MONEY_CEILING = 99_999_999.99
+
+export class QuoteTooLargeError extends Error {
+  constructor(public readonly field: string, public readonly value: number) {
+    super(`${field} is ${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}, which is more than this system can store (maximum ${MONEY_CEILING.toLocaleString()})`)
+    this.name = 'QuoteTooLargeError'
+  }
+}
+
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number = 0) => {
+  for (const i of items) {
+    const line = i.quantity * i.unitPrice
+    if (!Number.isFinite(line) || line > MONEY_CEILING) throw new QuoteTooLargeError('a line total', line)
+  }
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+  if (!Number.isFinite(subtotal) || subtotal > MONEY_CEILING) throw new QuoteTooLargeError('the subtotal', subtotal)
   const effectiveDiscount = Math.min(Math.max(0, discount), subtotal)
   const taxable = Math.max(0, subtotal - effectiveDiscount)
   const taxAmount = round2(taxable * (Math.max(0, taxRate) / 100))
-  return { subtotal, taxAmount, total: round2(subtotal - effectiveDiscount + taxAmount) }
+  const total = round2(subtotal - effectiveDiscount + taxAmount)
+  if (!Number.isFinite(total) || total > MONEY_CEILING) throw new QuoteTooLargeError('the total', total)
+  return { subtotal, taxAmount, total }
 }
 
 // List quotes
