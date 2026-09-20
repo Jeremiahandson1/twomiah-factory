@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { insuranceClaim, supplement, adjusterContact, claimActivity, job, measurementReport, company } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate, requireManager } from '../middleware/auth.ts'
+import { phone as phoneField, email as emailField, optional } from '../lib/validation.ts'
 import { generateXactimateScopeDocument } from '../services/xactimate.ts'
 import logger from '../services/logger.ts'
 
@@ -449,10 +450,12 @@ app.get('/adjusters', async (c) => {
 
 app.post('/adjusters', async (c) => {
   const currentUser = c.get('user') as any
+  // M2: this accepted phone "abcdefghij" and any string as an email, with a 201. An adjuster's
+  // contact details are the whole point of the record — a claim is worked by calling them.
   const schema = z.object({
     name: z.string().min(1),
-    phone: z.string().optional(),
-    email: z.string().optional(),
+    phone: optional(phoneField),
+    email: optional(emailField),
     adjusterCompany: z.string().optional(),
     insuranceCarrier: z.string().min(1),
     territory: z.string().optional(),

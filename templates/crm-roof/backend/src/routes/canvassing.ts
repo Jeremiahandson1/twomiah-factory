@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
+import { canvassingOutcome, phone as phoneField, email as emailField, optional } from '../lib/validation.ts'
 import { db } from '../../db/index.ts'
 import { canvassingSession, canvassingStop, canvassingScript, contact, job } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
@@ -99,10 +101,24 @@ app.post('/sessions/:id/end', async (c) => {
 // ==================== STOPS ====================
 
 // POST /sessions/:sessionId/stops — log a door knock
+// N3: this read the body raw, so `outcome: "banana"` stored with a 201. The outcome drives the pin
+// colour on the map and the leaderboard's lead count, so an unrecognised one is a stop that silently
+// stops counting — and it is the one field a rep touches on every door.
+const stopSchema = z.object({
+  outcome: canvassingOutcome,
+  homeownerName: z.string().optional(),
+  phone: optional(phoneField),
+  email: optional(emailField),
+  address: z.string().optional(),
+  notes: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+}).passthrough()
+
 app.post('/sessions/:sessionId/stops', async (c) => {
   const { companyId, userId } = c.get('user')
   const sessionId = c.req.param('sessionId')
-  const body = await c.req.json()
+  const body = stopSchema.parse(await c.req.json())
 
   // Verify session exists
   const [session] = await db.select().from(canvassingSession)

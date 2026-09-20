@@ -4,22 +4,29 @@ import { db } from '../../db/index.ts'
 import { material, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { lineItemInput, normaliseLineItems, materialOrderStatus, optional } from '../lib/validation.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 
+// N1: the write schema and the read shape disagreed, silently.
+//
+// It demanded `quantity` and `unitCost`; the seed, the list page and every other module use `qty`,
+// `unit`, `unitPrice`, `total`. Posting the documented shape returned 201 with the line item reduced
+// to {description, quantity} — the prices simply stripped — and `totalCost` was only stored if the
+// client sent it separately, never computed, so a $2,880 order listed with a blank Total Cost.
+// Sending `qty` instead was refused outright, so no single payload satisfied both ends.
+//
+// Both spellings are accepted now and normalised to the canonical shape; the money is computed here.
 const materialSchema = z.object({
   jobId: z.string().min(1),
   supplier: z.string().min(1),
-  orderStatus: z.string().optional(),
+  // was a free string, so `status: 'banana'` stored as not_ordered with a 201 — and the caller was
+  // never told they had named the wrong field
+  orderStatus: optional(materialOrderStatus),
   orderDate: z.string().optional(),
   deliveryDate: z.string().optional(),
-  lineItems: z.array(z.object({
-    description: z.string().min(1),
-    quantity: z.number(),
-    unit: z.string().optional(),
-    unitCost: z.number().optional(),
-  })),
+  lineItems: z.array(lineItemInput).min(1),
   totalCost: z.number().optional(),
   supplierOrderNumber: z.string().optional(),
   deliveryAddress: z.string().optional(),
@@ -60,6 +67,9 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
   const data = materialSchema.parse(await c.req.json())
+  // the client's `totalCost` is accepted for compatibility and then ignored — the order is worth what
+  // its line items are worth
+  const { lineItems, total } = normaliseLineItems(data.lineItems)
 
   const [newMaterial] = await db.insert(material).values({
     companyId: currentUser.companyId,
@@ -68,8 +78,8 @@ app.post('/', async (c) => {
     orderStatus: data.orderStatus || 'not_ordered',
     orderDate: data.orderDate ? new Date(data.orderDate) : null,
     deliveryDate: data.deliveryDate ? new Date(data.deliveryDate) : null,
-    lineItems: data.lineItems,
-    totalCost: data.totalCost?.toString(),
+    lineItems,
+    totalCost: total.toFixed(2),
     supplierOrderNumber: data.supplierOrderNumber,
     deliveryAddress: data.deliveryAddress,
     notes: data.notes,
@@ -105,7 +115,14 @@ app.put('/:id', async (c) => {
   const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
   if (data.orderDate) updateData.orderDate = new Date(data.orderDate)
   if (data.deliveryDate) updateData.deliveryDate = new Date(data.deliveryDate)
-  if (data.totalCost !== undefined) updateData.totalCost = data.totalCost.toString()
+  // Same rule as create: the line items are the money. An edit that changes them recomputes the
+  // total, and the client's `totalCost` is never what gets stored.
+  delete updateData.totalCost
+  if (data.lineItems) {
+    const { lineItems, total } = normaliseLineItems(data.lineItems)
+    updateData.lineItems = lineItems
+    updateData.totalCost = total.toFixed(2)
+  }
 
   const [updated] = await db.update(material).set(updateData).where(eq(material.id, id)).returning()
   return c.json(updated)

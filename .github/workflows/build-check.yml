@@ -1418,3 +1418,14 @@ jobs:
           bun-version: latest
       - name: "roof has one token key, one owner, and no cached copy"
         run: bun run scripts/check-one-token-key.ts
+
+  roof-validation:
+    name: "Roof write validation"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "a write schema means what the product means"
+        run: bun run scripts/check-roof-validation.ts

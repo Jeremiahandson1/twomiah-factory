@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { cleanText } from '../utils/sanitize.ts'
+import { JOB_STATUSES, jobStatus, phone, email, optional } from '../lib/validation.ts'
 import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzle-orm'
@@ -29,19 +30,11 @@ const ownContact = async (companyId: string, contactId: string) => {
   return !!row
 }
 
-const PIPELINE_ORDER = [
-  'lead',
-  'inspection_scheduled',
-  'inspected',
-  'measurement_ordered',
-  'proposal_sent',
-  'signed',
-  'material_ordered',
-  'in_production',
-  'final_inspection',
-  'invoiced',
-  'collected',
-]
+// The pipeline is declared once, in lib/validation.ts, and both used as the order here and enforced as
+// the schema below. It used to be a local copy while `status` was a free string, so "Advance" walked a
+// list the writer never had to respect: five junk statuses were accepted, and the jobs they belonged
+// to dropped out of the report breakdown (50 jobs, 44 counted).
+const PIPELINE_ORDER: readonly string[] = JOB_STATUSES
 
 const AUTO_SMS_TEMPLATES: Record<string, string> = {
   inspection_scheduled: 'Hi [FirstName], your roof inspection is scheduled for [date]. – [CompanyName]',
@@ -69,14 +62,14 @@ const jobSchema = z.object({
   zip: z.string().min(1),
   assignedSalesRepId: z.string().optional().transform(v => v === '' ? undefined : v),
   assignedCrewId: z.string().optional().transform(v => v === '' ? undefined : v),
-  status: z.string().optional(),
+  status: optional(jobStatus),
   roofAge: z.coerce.number().optional(),
   roofType: z.string().optional(),
   stories: z.coerce.number().optional(),
   claimNumber: z.string().optional(),
   insuranceCompany: z.string().optional(),
   adjusterName: z.string().optional(),
-  adjusterPhone: z.string().optional(),
+  adjusterPhone: optional(phone),
   dateOfLoss: z.string().optional(),
   deductible: z.coerce.number().optional(),
   rcv: z.coerce.number().optional(),

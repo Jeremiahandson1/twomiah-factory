@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { z } from 'zod'
 import { authenticate } from '../middleware/auth.ts'
 import aiReceptionist from '../services/aiReceptionist.ts'
 
@@ -65,9 +66,37 @@ app.get('/rules', async (c) => {
   return c.json({ data: rules })
 })
 
+/**
+ * M1: these routes read the body raw and handed it straight to the database. Four junk payloads
+ * stored with a 201, and two more came back as 500s — which were not crashes in any interesting
+ * sense, just NOT NULL violations on name / trigger / channel / message_template surfacing as
+ * "Internal server error" instead of "you left the message template out".
+ *
+ * The trigger and channel lists are the ones the column comments in schema.ts already document; a
+ * rule with a trigger outside them simply never fires, which is the worst kind of silence for a
+ * feature whose whole job is to answer when nobody else can.
+ */
+// The object and the cross-field rule are kept apart on purpose: superRefine returns a ZodEffects,
+// which has no `.partial()`, so folding them together would make the PUT below throw at runtime.
+const ruleFields = z.object({
+  name: z.string().trim().min(1),
+  trigger: z.enum(['after_hours', 'missed_call', 'voicemail', 'new_lead', 'booking_request', 'keyword']),
+  channel: z.enum(['sms', 'email', 'both']),
+  messageTemplate: z.string().trim().min(1),
+  delayMinutes: z.number().int().min(0).max(10080).optional(),
+  isActive: z.boolean().optional(),
+  keywordMatch: z.string().optional(),
+})
+
+const ruleSchema = ruleFields.superRefine((r, ctx) => {
+  // a keyword rule with no keyword matches nothing at all
+  if (r.trigger === 'keyword' && !r.keywordMatch?.trim())
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['keywordMatch'], message: 'a keyword trigger needs a keyword to match' })
+})
+
 app.post('/rules', async (c) => {
   const user = c.get('user') as any
-  const body = await c.req.json()
+  const body = ruleSchema.parse(await c.req.json())
   const rule = await aiReceptionist.createRule(user.companyId, body)
   return c.json(rule, 201)
 })
@@ -75,7 +104,8 @@ app.post('/rules', async (c) => {
 app.put('/rules/:id', async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
-  const body = await c.req.json()
+  // an edit may send one field; the keyword cross-check only applies to a whole rule
+  const body = ruleFields.partial().parse(await c.req.json())
   const rule = await aiReceptionist.updateRule(id, user.companyId, body)
   if (!rule) return c.json({ error: 'Rule not found' }, 404)
   return c.json(rule)

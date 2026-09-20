@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { crew, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { phone } from '../lib/validation.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -11,7 +12,9 @@ app.use('*', authenticate)
 const crewSchema = z.object({
   name: z.string().min(1),
   foremanName: z.string().min(1),
-  foremanPhone: z.string().min(1),
+  // N3: this refused an empty name and a negative crew size, so the schema was clearly meant to
+  // validate — the foreman's phone was simply never checked, exactly as on the adjuster record.
+  foremanPhone: phone,
   size: z.number().int().min(1),
   isSubcontractor: z.boolean().default(false),
   subcontractorCompanyName: z.string().optional(),

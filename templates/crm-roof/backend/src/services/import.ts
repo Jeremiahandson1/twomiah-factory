@@ -62,11 +62,30 @@ function normalizePhone(phone: string | null): string | null {
   return phone.replace(/[^0-9+]/g, '')
 }
 
+/**
+ * Something that is actually an address. Deliberately loose — an importer is not the place to argue
+ * with a real customer list — but "not-an-email" is not a typo, it is not an address at all.
+ */
+const LOOKS_LIKE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
 function normalizeEmail(email: string | null): string | null {
   if (!email) return null
   // Jobber exports can have multiple emails comma-separated — take the first
   const first = email.split(',')[0].trim().toLowerCase()
-  return first || null
+  if (!first) return null
+  return LOOKS_LIKE_EMAIL.test(first) ? first : null
+}
+
+/**
+ * M3: the importer accepted anything in the email column and reported `errors: 0`, so a list came in
+ * looking clean and the address silently did not work. The contact is still imported — losing a real
+ * customer over a bad email would be worse — but the row is NAMED in the results, because an import
+ * that says it found nothing wrong has to be telling the truth.
+ */
+function emailWasRejected(raw: string | null): boolean {
+  if (!raw) return false
+  const first = raw.split(',')[0].trim()
+  return first.length > 0 && !LOOKS_LIKE_EMAIL.test(first.toLowerCase())
 }
 
 function parseDecimal(value: string | null): number | null {
@@ -270,7 +289,13 @@ export async function importContacts(
       }
 
       const fullName = normalizeName(`${firstName} ${lastName}`)
-      const email = normalizeEmail(getValue(row, ...CLIENT_COLUMNS.email))
+      const rawEmail = getValue(row, ...CLIENT_COLUMNS.email)
+      const email = normalizeEmail(rawEmail)
+      // the contact still imports; the address does not, and the file says so rather than reporting
+      // a clean run (M3)
+      if (emailWasRejected(rawEmail)) {
+        results.errors.push({ line: lineNum, error: `"${String(rawEmail).slice(0, 60)}" is not an email address — the contact was imported without one` })
+      }
       const phone = normalizePhone(getValue(row, ...CLIENT_COLUMNS.mainPhone))
       const mobilePhone = normalizePhone(getValue(row, ...CLIENT_COLUMNS.mobilePhone)) ||
                           normalizePhone(getValue(row, ...CLIENT_COLUMNS.homePhone)) ||
