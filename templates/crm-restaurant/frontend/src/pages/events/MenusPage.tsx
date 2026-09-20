@@ -110,7 +110,7 @@ export default function MenusPage() {
                         <button
                           onClick={() => toggle(p.id)}
                           disabled={courses.length === 0}
-                          className="text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                          className="text-gray-500 dark:text-slate-400 hover:text-gray-600 disabled:opacity-30"
                           aria-label={open ? 'Collapse' : 'Expand'}
                         >
                           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -124,7 +124,7 @@ export default function MenusPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money(p.pricePerPerson)}</p>
-                          <p className="text-xs text-gray-400">per person</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">per person</p>
                         </div>
                         {p.minGuests ? (
                           <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">
@@ -148,7 +148,7 @@ export default function MenusPage() {
                               </ul>
                             </div>
                           ))}
-                          {p.dietaryNotes && <p className="text-xs text-gray-400 pt-1 border-t">{p.dietaryNotes}</p>}
+                          {p.dietaryNotes && <p className="text-xs text-gray-500 dark:text-slate-400 pt-1 border-t">{p.dietaryNotes}</p>}
                         </div>
                       )}
                     </div>
@@ -287,7 +287,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
                       <button
                         type="button"
                         onClick={() => setCourses((rows) => (rows.length === 1 ? [{ course: '', options: '' }] : rows.filter((_, idx) => idx !== i)))}
-                        className="text-gray-400 hover:text-red-600"
+                        className="text-gray-500 dark:text-slate-400 hover:text-red-600"
                         title="Remove course"
                       >
                         <Trash2 className="w-4 h-4" />

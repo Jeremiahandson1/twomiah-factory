@@ -34,7 +34,7 @@ export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onN
   return (
     <div>
       <h2 className="text-xl font-semibold mb-2">Import your contacts</h2>
-      <p className="text-sm text-gray-500 mb-6">Got a CSV of contacts from another system? Drop it here and we'll get everyone imported. Otherwise skip and add them as you go.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Got a CSV of contacts from another system? Drop it here and we'll get everyone imported. Otherwise skip and add them as you go.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
       {result && <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4 text-sm text-green-700">{result}</div>}

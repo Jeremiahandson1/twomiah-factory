@@ -352,7 +352,7 @@ export default function PayByBankPage() {
                 <div className="text-center py-12 bg-white rounded-lg shadow-sm text-gray-500 dark:bg-slate-900 dark:text-slate-400">
                   <Landmark className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No linked bank accounts</p>
-                  <p className="text-sm text-gray-400 mt-1">Use "Link New Account" to connect via Plaid</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Use "Link New Account" to connect via Plaid</p>
                 </div>
               ) : (
                 <div className="grid md:grid-cols-2 gap-4">

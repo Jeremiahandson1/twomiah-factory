@@ -157,7 +157,7 @@ export default function DashboardPage() {
             <PawPrint className="w-5 h-5 text-teal-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{patients.active || 0}</p>
-          <p className="text-xs text-gray-400">{patients.total || 0} total in records</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{patients.total || 0} total in records</p>
           {speciesEntries.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-3">
               {speciesEntries.map(([sp, n]) => (
@@ -176,7 +176,7 @@ export default function DashboardPage() {
             <CalendarDays className="w-5 h-5 text-indigo-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{appts.today || 0}</p>
-          <p className="text-xs text-gray-400">{appts.upcoming7 || 0} in the next 7 days</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{appts.upcoming7 || 0} in the next 7 days</p>
         </Link>
 
         {/* Visits + revenue */}
@@ -186,7 +186,7 @@ export default function DashboardPage() {
             <Stethoscope className="w-5 h-5 text-purple-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{visits.thisMonth || 0}</p>
-          <p className="text-xs text-gray-400 flex items-center gap-1">
+          <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
             <DollarSign className="w-3 h-3 text-green-600" />
             {money(visits.revenueThisMonth)} revenue
           </p>
@@ -199,7 +199,7 @@ export default function DashboardPage() {
             <HeartPulse className="w-5 h-5 text-rose-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{wellness.activeEnrollments || 0}</p>
-          <p className="text-xs text-gray-400">Active plan members</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Active plan members</p>
         </div>
       </div>
 
@@ -211,7 +211,7 @@ export default function DashboardPage() {
             <PawPrint className="w-4 h-4 text-teal-500" /> Recent Patients
           </h2>
           {(activity.recentPatients || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">No patients yet</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No patients yet</p>
           ) : (
             <ul className="divide-y">
               {(activity.recentPatients || []).map((p) => (
@@ -235,7 +235,7 @@ export default function DashboardPage() {
             <Stethoscope className="w-4 h-4 text-purple-500" /> Recent Visits
           </h2>
           {(activity.recentVisits || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">No visits yet</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No visits yet</p>
           ) : (
             <ul className="divide-y">
               {(activity.recentVisits || []).map((v) => (
@@ -264,7 +264,7 @@ export default function DashboardPage() {
             <CalendarDays className="w-4 h-4 text-indigo-500" /> Upcoming Appointments
           </h2>
           {(activity.upcomingAppointments || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nothing scheduled</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing scheduled</p>
           ) : (
             <ul className="divide-y">
               {(activity.upcomingAppointments || []).map((a) => (
@@ -288,7 +288,7 @@ export default function DashboardPage() {
       </div>
 
       {reminderTotal > 0 && (
-        <div className="flex items-center gap-2 text-xs text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
           <AlertTriangle className="w-3 h-3" />
           Tip: the Reminders page lets you batch-text owners of patients due for vaccines.
         </div>

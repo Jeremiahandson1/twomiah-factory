@@ -139,7 +139,7 @@ export default function EstimatorSettingsPage() {
               />
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
             Example: A 25-square roof at ${settings.pricePerSquareLow}–${settings.pricePerSquareHigh}/sq = ${(25 * Number(settings.pricePerSquareLow)).toLocaleString()}–${(25 * Number(settings.pricePerSquareHigh)).toLocaleString()}
           </p>
         </div>

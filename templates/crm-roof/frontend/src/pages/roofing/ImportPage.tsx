@@ -192,9 +192,9 @@ export default function ImportPage() {
             input.click()
           }}
         >
-          <Upload className="mx-auto text-gray-400 mb-3" size={40} />
+          <Upload className="mx-auto text-gray-500 dark:text-slate-400 mb-3" size={40} />
           <p className="text-gray-600 font-medium dark:text-slate-400">Drop CSV files here or click to browse</p>
-          <p className="text-gray-400 text-sm mt-1">Upload clients and jobs CSVs — we'll detect the type automatically</p>
+          <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">Upload clients and jobs CSVs — we'll detect the type automatically</p>
         </div>
       )}
 
@@ -213,7 +213,7 @@ export default function ImportPage() {
             >
               <div className="flex items-center gap-3">
                 {entry.loading ? (
-                  <Loader2 size={18} className="text-gray-400 animate-spin" />
+                  <Loader2 size={18} className="text-gray-500 dark:text-slate-400 animate-spin" />
                 ) : entry.detectedType === 'clients' ? (
                   <Users size={18} className="text-green-600" />
                 ) : entry.detectedType === 'jobs' ? (
@@ -376,9 +376,9 @@ export default function ImportPage() {
                     {record.type}
                   </span>
                   <span className="text-gray-900 font-medium truncate dark:text-slate-100">{record.name}</span>
-                  <span className="text-gray-400 text-xs">{record.action}</span>
+                  <span className="text-gray-500 dark:text-slate-400 text-xs">{record.action}</span>
                   {record.linkedTo && (
-                    <span className="text-gray-400 text-xs flex items-center gap-1 ml-auto flex-shrink-0">
+                    <span className="text-gray-500 dark:text-slate-400 text-xs flex items-center gap-1 ml-auto flex-shrink-0">
                       <Link2 size={10} /> {record.linkedTo}
                     </span>
                   )}

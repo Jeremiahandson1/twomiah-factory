@@ -118,13 +118,13 @@ export default function DeskingPage() {
           {inputs.map(([label, key]) => (
             <div key={key}>
               <label className="flex items-center justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">{label}</span>
-                <span className="flex items-center"><span className="text-gray-400 mr-1">$</span><input type="number" min="0" inputMode="decimal" value={raw[key]} onChange={(e) => setField(key, e.target.value)} className={`w-28 p-1.5 border rounded text-right text-sm ${errors[key] ? 'border-red-500' : ''}`} /></span></label>
+                <span className="flex items-center"><span className="text-gray-500 dark:text-slate-400 mr-1">$</span><input type="number" min="0" inputMode="decimal" value={raw[key]} onChange={(e) => setField(key, e.target.value)} className={`w-28 p-1.5 border rounded text-right text-sm ${errors[key] ? 'border-red-500' : ''}`} /></span></label>
               {errors[key] && <p className="text-xs text-red-600 text-right mt-0.5">{errors[key]}</p>}
             </div>
           ))}
           <div>
             <label className="flex items-center justify-between text-sm"><span className="text-gray-600 dark:text-slate-400">Tax rate</span>
-              <span className="flex items-center"><input type="number" min="0" max="25" step="0.1" inputMode="decimal" value={raw.taxRate} onChange={(e) => setField('taxRate', e.target.value)} className={`w-20 p-1.5 border rounded text-right text-sm ${errors.taxRate ? 'border-red-500' : ''}`} /><span className="text-gray-400 ml-1">%</span></span></label>
+              <span className="flex items-center"><input type="number" min="0" max="25" step="0.1" inputMode="decimal" value={raw.taxRate} onChange={(e) => setField('taxRate', e.target.value)} className={`w-20 p-1.5 border rounded text-right text-sm ${errors.taxRate ? 'border-red-500' : ''}`} /><span className="text-gray-500 dark:text-slate-400 ml-1">%</span></span></label>
             {errors.taxRate && <p className="text-xs text-red-600 text-right mt-0.5">{errors.taxRate}</p>}
           </div>
         </div>

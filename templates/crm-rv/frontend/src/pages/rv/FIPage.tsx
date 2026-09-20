@@ -98,7 +98,7 @@ export default function FIPage() {
         <div className="grid md:grid-cols-2 gap-4 mt-4">
           <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3 dark:bg-slate-900">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-gray-700 dark:text-slate-200">Deal structure <span className="font-normal text-gray-400">(from Desking)</span></div>
+              <div className="text-sm font-semibold text-gray-700 dark:text-slate-200">Deal structure <span className="font-normal text-gray-500 dark:text-slate-400">(from Desking)</span></div>
               <Link to={`/crm/desking?lead=${leadId}`} className="text-xs text-blue-700 hover:underline dark:text-blue-300">Edit in Desking</Link>
             </div>
             <div className="text-sm divide-y">
@@ -120,7 +120,7 @@ export default function FIPage() {
               {products.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-gray-50 cursor-pointer">
                   <input type="checkbox" checked={!!sel[p.id]} onChange={(e) => setSel((s) => ({ ...s, [p.id]: e.target.checked }))} />
-                  <span className="flex-1">{p.name}<span className="block text-[11px] text-gray-400">{p.desc}</span></span>
+                  <span className="flex-1">{p.name}<span className="block text-[11px] text-gray-500 dark:text-slate-400">{p.desc}</span></span>
                   <span className="font-medium">{money(p.price)}</span>
                 </label>
               ))}
@@ -132,7 +132,7 @@ export default function FIPage() {
           <div className="text-sm">
             <div className="text-gray-500 dark:text-slate-400">Amount financed</div>
             <div className="text-2xl font-bold">{money(amountFinanced)}</div>
-            <div className="text-xs text-gray-400">+ {money(productTotal)} F&I products · est. {money(estPay)}/mo @ {apr}% / {months}mo</div>
+            <div className="text-xs text-gray-500 dark:text-slate-400">+ {money(productTotal)} F&I products · est. {money(estPay)}/mo @ {apr}% / {months}mo</div>
           </div>
           <button onClick={submit} disabled={submitting} className="px-5 py-2.5 rounded-lg bg-violet-700 text-white font-medium hover:bg-violet-800 disabled:opacity-50 inline-flex items-center gap-2">
             {submitting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}{submitting ? 'Submitting…' : 'Submit credit app'}</button>
@@ -148,9 +148,9 @@ export default function FIPage() {
               {!live && <span className="sm:ml-auto text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">demo decision — live via RouteOne / DealerTrack on integration</span>}
             </div>
             {decision.result?.decision !== 'declined' ? <div className="text-sm text-gray-700 grid grid-cols-3 gap-3 mt-2 dark:text-slate-200">
-              <div><div className="text-gray-400 text-xs">APR</div>{decision.result?.apr}%</div>
-              <div><div className="text-gray-400 text-xs">Term</div>{decision.result?.termMonths} mo</div>
-              <div><div className="text-gray-400 text-xs">Approved</div>{money(decision.result?.approvedAmount)}</div>
+              <div><div className="text-gray-500 dark:text-slate-400 text-xs">APR</div>{decision.result?.apr}%</div>
+              <div><div className="text-gray-500 dark:text-slate-400 text-xs">Term</div>{decision.result?.termMonths} mo</div>
+              <div><div className="text-gray-500 dark:text-slate-400 text-xs">Approved</div>{money(decision.result?.approvedAmount)}</div>
             </div> : <div className="text-sm text-gray-600 dark:text-slate-400">{decision.result?.reason}</div>}
             {decision.result?.stipulations?.length > 0 && <div className="mt-3 text-xs text-gray-500 dark:text-slate-400"><span className="font-semibold">Stipulations:</span> {decision.result.stipulations.join(', ')}</div>}
           </div>)}

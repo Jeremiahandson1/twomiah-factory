@@ -67,13 +67,13 @@ export default function PortalLogin() {
             <Home className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white">Customer Portal</h1>
-          <p className="text-gray-400 text-sm mt-1">Track your roofing project</p>
+          <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">Track your roofing project</p>
         </div>
 
         <div className="bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-700">
           {step === 'email' ? (
             <form onSubmit={handleSubmitEmail}>
-              <label className="text-xs text-gray-400 block mb-1.5">Email Address</label>
+              <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1.5">Email Address</label>
               <input
                 type="email"
                 value={email}
@@ -94,10 +94,10 @@ export default function PortalLogin() {
             </form>
           ) : (
             <form onSubmit={handleSubmitPin}>
-              <p className="text-gray-400 text-sm mb-4">
+              <p className="text-gray-500 dark:text-slate-400 text-sm mb-4">
                 If <span className="text-white font-medium">{email}</span> has portal access, a 6-digit sign-in code is on its way. It expires in 10 minutes.
               </p>
-              <label className="text-xs text-gray-400 block mb-1.5">Enter code</label>
+              <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1.5">Enter code</label>
               <input
                 type="text"
                 value={pin}

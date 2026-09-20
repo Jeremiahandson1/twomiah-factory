@@ -162,14 +162,14 @@ export default function MembershipsPage() {
                   {p.description && <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">{p.description}</p>}
                   <div className="flex items-baseline gap-1 mt-3">
                     <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{money(p.price)}</span>
-                    <span className="text-sm text-gray-500">{cycleLabel(p.billingCycle)}</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">{cycleLabel(p.billingCycle)}</span>
                   </div>
                   <p className="text-sm text-gray-500 mt-2 flex items-center gap-2 dark:text-slate-400">
                     <Check className="w-4 h-4 text-teal-500 flex-shrink-0" />
                     {p.creditsTotal ? `${p.creditsTotal} visit${p.creditsTotal === 1 ? '' : 's'} included` : 'Unlimited / recurring'}
                   </p>
                   <div className="mt-auto pt-3 flex items-center justify-between border-t mt-4">
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
                       {enrollments.filter((e) => e.planId === p.id && e.status === 'active').length} member(s)
                     </span>
                     <div className="flex items-center gap-2">
@@ -191,7 +191,7 @@ export default function MembershipsPage() {
               <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
             </h2>
             {enrollments.length === 0 ? (
-              <p className="text-sm text-gray-500 py-6 text-center">Nobody enrolled yet</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nobody enrolled yet</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -345,7 +345,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
                 <input type="number" value={form.creditsTotal} onChange={(e) => set('creditsTotal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="∞" />
               </div>
             </div>
-            <p className="text-xs text-gray-500 -mt-2">Leave credits blank for an unlimited or open-ended membership.</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">Leave credits blank for an unlimited or open-ended membership.</p>
 
             {services.length > 0 && (
               <div>

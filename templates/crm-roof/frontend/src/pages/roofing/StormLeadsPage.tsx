@@ -215,7 +215,7 @@ export default function StormLeadsPage() {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {events.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No storm events yet</p>}
+          {events.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-8">No storm events yet</p>}
           {events.map(event => (
             <button key={event.id} onClick={() => selectEvent(event)}
               className={`w-full text-left p-4 border-b hover:bg-gray-50 ${selectedEvent?.id === event.id ? 'bg-blue-50 border-l-2 border-l-blue-600' : ''}`}>
@@ -236,7 +236,7 @@ export default function StormLeadsPage() {
                 {event.windSpeedMph && <span>{event.windSpeedMph} mph</span>}
                 <span>{event.leadCount || 0} leads</span>
               </div>
-              {event.description && <p className="text-xs text-gray-400 mt-0.5 truncate">{event.description}</p>}
+              {event.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 truncate">{event.description}</p>}
             </button>
           ))}
         </div>
@@ -245,7 +245,7 @@ export default function StormLeadsPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {!selectedEvent ? (
-          <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-slate-400 text-sm">
             Select a storm event or create a new one
           </div>
         ) : (
@@ -361,7 +361,7 @@ export default function StormLeadsPage() {
                       </tr>
                     ))}
                     {leads.length === 0 && (
-                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No leads for this event</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No leads for this event</td></tr>
                     )}
                   </tbody>
                 </table>

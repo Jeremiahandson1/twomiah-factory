@@ -259,7 +259,7 @@ export default function TechView() {
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
           </div>
         ) : filteredJobs.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
+          <div className="text-center py-20 text-gray-500 dark:text-slate-400">
             <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p className="text-lg font-medium">
               {listTab === 'today' ? 'No jobs scheduled today' : listTab === 'upcoming' ? 'No upcoming jobs' : 'No completed jobs'}
@@ -321,7 +321,7 @@ function JobCard({ job, onTap, onNavigate }: { job: Job; onTap: () => void; onNa
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs font-mono text-gray-400">{job.number}</span>
+            <span className="text-xs font-mono text-gray-500 dark:text-slate-400">{job.number}</span>
             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${PRIORITY_COLORS[job.priority] || PRIORITY_COLORS.normal}`}>
               {job.priority}
             </span>
@@ -458,7 +458,7 @@ function JobDetailScreen({
           <ChevronLeft className="w-6 h-6 text-gray-600 dark:text-slate-400" />
         </button>
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-gray-400 font-mono">{job.number}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 font-mono">{job.number}</p>
           <h2 className="text-lg font-bold text-gray-900 truncate dark:text-slate-100">{job.title}</h2>
         </div>
         <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${STATUS_COLORS[job.status] || ''}`}>
@@ -471,7 +471,7 @@ function JobDetailScreen({
         {/* Customer Card */}
         {job.contact && (
           <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Customer</h3>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Customer</h3>
             <p className="font-semibold text-gray-900 text-lg dark:text-slate-100">{job.contact.name}</p>
             {job.contact.phone && (
               <a href={`tel:${job.contact.phone}`} className="flex items-center gap-2 mt-2 py-2.5 px-4 bg-green-50 text-green-700 rounded-lg font-medium text-sm active:bg-green-100">
@@ -485,7 +485,7 @@ function JobDetailScreen({
         {/* Address + Navigate */}
         {addr && (
           <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Location</h3>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Location</h3>
             <p className="text-gray-700 dark:text-slate-200">{addr}</p>
             <button
               onClick={onNavigate}
@@ -499,7 +499,7 @@ function JobDetailScreen({
 
         {/* Job Details */}
         <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Job Details</h3>
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Job Details</h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-500 dark:text-slate-400">Type</span>
@@ -532,7 +532,7 @@ function JobDetailScreen({
         {/* Equipment */}
         {job.equipment && (
           <div className="bg-white rounded-xl p-4 shadow-sm border-l-4 border-l-orange-400 dark:bg-slate-900">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Equipment</h3>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Equipment</h3>
             <p className="font-semibold text-gray-900 dark:text-slate-100">{job.equipment.name}</p>
             {(job.equipment.manufacturer || job.equipment.model) && (
               <p className="text-sm text-gray-600 mt-0.5 dark:text-slate-400">
@@ -540,7 +540,7 @@ function JobDetailScreen({
               </p>
             )}
             {job.equipment.serialNumber && (
-              <p className="text-xs text-gray-400 font-mono mt-1">S/N: {job.equipment.serialNumber}</p>
+              <p className="text-xs text-gray-500 dark:text-slate-400 font-mono mt-1">S/N: {job.equipment.serialNumber}</p>
             )}
             {job.equipment.location && (
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1 dark:text-slate-400">
@@ -568,7 +568,7 @@ function JobDetailScreen({
         {/* Notes */}
         {job.internalNotes && (
           <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Notes</h3>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Notes</h3>
             <pre className="text-sm text-gray-600 whitespace-pre-wrap font-sans dark:text-slate-400">{job.internalNotes}</pre>
           </div>
         )}
@@ -576,8 +576,8 @@ function JobDetailScreen({
         {/* Photos */}
         <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Photos</h3>
-            <span className="text-xs text-gray-400">{photos.length}</span>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Photos</h3>
+            <span className="text-xs text-gray-500 dark:text-slate-400">{photos.length}</span>
           </div>
 
           {/* Thumbnail Grid */}
@@ -841,7 +841,7 @@ function ChecklistScreen({ job, onBack, onComplete }: { job: Job; onBack: () => 
 
         {/* Overall Notes */}
         <div className="bg-white rounded-xl p-4 shadow-sm dark:bg-slate-900">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Overall Notes</h3>
+          <h3 className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">Overall Notes</h3>
           <textarea
             value={overallNotes}
             onChange={(e) => setOverallNotes(e.target.value)}

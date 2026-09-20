@@ -96,7 +96,7 @@ export default function FeaturesSettingsPage() {
             <div key={cat.name} className="bg-white rounded-xl border border-gray-200 overflow-hidden dark:bg-slate-900 dark:border-slate-700">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-4">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">{cat.name}</h2>
-                <span className="text-xs font-semibold text-gray-400 whitespace-nowrap">{onCount}/{cat.features.length} on</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-slate-400 whitespace-nowrap">{onCount}/{cat.features.length} on</span>
               </div>
               <div className="divide-y divide-gray-50">
                 {cat.features.map((f) => {

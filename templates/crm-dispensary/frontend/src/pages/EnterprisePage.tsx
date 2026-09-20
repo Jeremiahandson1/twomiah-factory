@@ -158,7 +158,7 @@ function StoreGroupsTab() {
                 <div>
                   <h3 className="font-semibold text-gray-900 dark:text-slate-100">{group.name}</h3>
                   {group.description && <p className="text-sm text-gray-500 dark:text-slate-400">{group.description}</p>}
-                  <div className="flex items-center gap-1 mt-1 text-sm text-gray-400">
+                  <div className="flex items-center gap-1 mt-1 text-sm text-gray-500 dark:text-slate-400">
                     <MapPin className="w-3 h-3" />
                     {group.locationCount || 0} locations
                   </div>
@@ -493,8 +493,8 @@ function ACHTab() {
     { key: 'type', label: 'Type', render: (val: string) => <span className="capitalize text-gray-700 dark:text-slate-200">{val}</span> },
     { key: 'amount', label: 'Amount', render: (val: number) => <span className="font-medium text-gray-900 dark:text-slate-100">${Number(val || 0).toFixed(2)}</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={txStatusColors} /> },
-    { key: 'customerName', label: 'Customer', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'description', label: 'Description', render: (val: string) => val || <span className="text-gray-400">--</span> },
+    { key: 'customerName', label: 'Customer', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'description', label: 'Description', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'createdAt', label: 'Date', render: (val: string) => val ? formatDate(val) : '--' },
   ];
 
@@ -650,7 +650,7 @@ function APIDocsTab() {
                           {ep.parameters.map((param: any, i: number) => (
                             <div key={i} className="flex items-center gap-2 text-sm">
                               <span className="font-mono text-gray-900 dark:text-slate-100">{param.name}</span>
-                              <span className="text-xs text-gray-400">({param.in})</span>
+                              <span className="text-xs text-gray-500 dark:text-slate-400">({param.in})</span>
                               {param.required && <span className="text-xs text-red-500">required</span>}
                               {param.description && <span className="text-gray-500 dark:text-slate-400">- {param.description}</span>}
                             </div>

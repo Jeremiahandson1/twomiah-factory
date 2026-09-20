@@ -45,7 +45,7 @@ export default function PortalServiceRequest() {
             <CheckCircle className="w-8 h-8 text-green-400" />
           </div>
           <h2 className="text-xl font-bold text-white mb-2">Request Submitted</h2>
-          <p className="text-gray-400 text-sm mb-6">
+          <p className="text-gray-500 dark:text-slate-400 text-sm mb-6">
             We've received your service request and will get back to you shortly.
           </p>
           <button
@@ -65,12 +65,12 @@ export default function PortalServiceRequest() {
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <PenTool className="w-6 h-6 text-blue-400" /> Service Request
         </h1>
-        <p className="text-gray-400 text-sm mt-0.5">Tell us what you need and we'll get back to you</p>
+        <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">Tell us what you need and we'll get back to you</p>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-gray-800 rounded-xl p-6 border border-gray-700 space-y-4">
         <div>
-          <label className="text-xs text-gray-400 block mb-1.5">What do you need? *</label>
+          <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1.5">What do you need? *</label>
           <textarea
             value={form.description}
             onChange={(e) => { setForm({ ...form, description: e.target.value }); setError(''); }}
@@ -81,7 +81,7 @@ export default function PortalServiceRequest() {
         </div>
 
         <div>
-          <label className="text-xs text-gray-400 block mb-1.5">Preferred Date</label>
+          <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1.5">Preferred Date</label>
           <input
             type="date"
             value={form.preferredDate}
@@ -91,7 +91,7 @@ export default function PortalServiceRequest() {
         </div>
 
         <div>
-          <label className="text-xs text-gray-400 block mb-1.5">Phone Number</label>
+          <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1.5">Phone Number</label>
           <input
             type="tel"
             value={form.phone}

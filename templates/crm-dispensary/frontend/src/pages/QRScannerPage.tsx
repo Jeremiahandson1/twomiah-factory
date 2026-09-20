@@ -119,7 +119,7 @@ function ScannerTab() {
         <div className="bg-gray-900 aspect-video max-h-80 flex flex-col items-center justify-center relative">
           <div className="absolute inset-8 border-2 border-dashed border-gray-600 rounded-xl" />
           <Camera className="w-16 h-16 text-gray-600 mb-4 dark:text-slate-400" />
-          <p className="text-gray-400 text-lg font-medium">Camera Preview</p>
+          <p className="text-gray-500 dark:text-slate-400 text-lg font-medium">Camera Preview</p>
           <p className="text-gray-500 text-sm mt-1 dark:text-slate-400">
             Point camera at QR code or barcode to scan
           </p>
@@ -286,7 +286,7 @@ function ProductResultCard({ result, context, toast }: { result: any; context: s
           )}
         </div>
         {product.batchNumber && (
-          <p className="text-xs text-gray-400 mt-1">Batch: {product.batchNumber}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Batch: {product.batchNumber}</p>
         )}
         {lab && (
           <div className="flex items-center gap-2 mt-2">
@@ -539,7 +539,7 @@ function GeneratorTab() {
               {/* QR Code Placeholder */}
               <div className="w-48 h-48 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center flex-shrink-0 dark:bg-slate-900 dark:border-slate-700">
                 <QrCode className="w-16 h-16 text-gray-400 mb-2" />
-                <p className="text-xs text-gray-400 text-center px-4">
+                <p className="text-xs text-gray-500 dark:text-slate-400 text-center px-4">
                   QR Code Image<br />
                   <span className="text-[10px]">(requires qrcode library)</span>
                 </p>
@@ -612,22 +612,22 @@ function AnalyticsTab() {
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">Today</p>
           <p className="text-2xl font-bold text-orange-600">{stats?.today || 0}</p>
-          <p className="text-xs text-gray-400">scans</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">This Week</p>
           <p className="text-2xl font-bold text-blue-600">{stats?.thisWeek || 0}</p>
-          <p className="text-xs text-gray-400">scans</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">This Month</p>
           <p className="text-2xl font-bold text-green-600">{stats?.thisMonth || 0}</p>
-          <p className="text-xs text-gray-400">scans</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
         <div className="bg-white rounded-lg shadow-sm p-4 dark:bg-slate-900">
           <p className="text-sm text-gray-500 dark:text-slate-400">All Time</p>
           <p className="text-2xl font-bold text-purple-600">{stats?.allTime || 0}</p>
-          <p className="text-xs text-gray-400">scans</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">scans</p>
         </div>
       </div>
 
@@ -664,7 +664,7 @@ function AnalyticsTab() {
               );
             })}
           </div>
-          <p className="text-xs text-gray-400 mt-3 text-center italic">Pie chart placeholder — integrate with Recharts or Chart.js</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 text-center italic">Pie chart placeholder — integrate with Recharts or Chart.js</p>
         </div>
 
         {/* Scans by Context */}
@@ -700,7 +700,7 @@ function AnalyticsTab() {
               );
             })}
           </div>
-          <p className="text-xs text-gray-400 mt-3 text-center italic">Bar chart placeholder — integrate with Recharts or Chart.js</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 text-center italic">Bar chart placeholder — integrate with Recharts or Chart.js</p>
         </div>
       </div>
 
@@ -725,7 +725,7 @@ function AnalyticsTab() {
               <tbody className="divide-y divide-gray-100">
                 {topProducts.slice(0, 10).map((item: any, i: number) => (
                   <tr key={item.id || i} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-400">{i + 1}</td>
+                    <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{i + 1}</td>
                     <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-slate-100">{item.name}</td>
                     <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-slate-200">{item.scanCount}</td>
                   </tr>
@@ -754,7 +754,7 @@ function AnalyticsTab() {
               <tbody className="divide-y divide-gray-100">
                 {topInputs.slice(0, 10).map((item: any, i: number) => (
                   <tr key={item.id || i} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-400">{i + 1}</td>
+                    <td className="px-4 py-2 text-sm text-gray-500 dark:text-slate-400">{i + 1}</td>
                     <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-slate-100">{item.name}</td>
                     <td className="px-4 py-2 text-sm text-right text-gray-700 dark:text-slate-200">{item.scanCount}</td>
                   </tr>
@@ -770,7 +770,7 @@ function AnalyticsTab() {
         <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Scan Timeline</h3>
         <div className="h-48 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex flex-col items-center justify-center dark:bg-slate-900 dark:border-slate-700">
           <BarChart3 className="w-12 h-12 text-gray-300 mb-2" />
-          <p className="text-sm text-gray-400">Scans per hour — line/bar chart</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Scans per hour — line/bar chart</p>
           <p className="text-xs text-gray-300 mt-1">Integrate with Recharts or Chart.js for visualization</p>
         </div>
       </div>

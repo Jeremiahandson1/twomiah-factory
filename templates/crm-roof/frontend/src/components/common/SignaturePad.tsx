@@ -187,7 +187,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-gray-800 border border-gray-700 rounded-xl shadow-xl max-w-lg w-full p-6">
           <h2 className="text-xl font-bold text-white mb-1">{title}</h2>
-          {documentLabel && <p className="text-sm text-gray-400 mb-4">{documentLabel}</p>}
+          {documentLabel && <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">{documentLabel}</p>}
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -209,7 +209,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConsent(e.target.checked)}
               className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-600 focus:ring-blue-500"
             />
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-500 dark:text-slate-400">
               {CONSENT_TEXT} <span className="text-red-400">*</span>
             </span>
           </label>
@@ -238,7 +238,7 @@ export function SignatureDisplay({ signature, signedBy, signedAt, className = ''
         <img src={signature} alt="Your signature" className="max-h-20 bg-white rounded dark:bg-slate-900" />
         <div className="mt-2 text-sm">
           <p className="font-medium text-gray-200">{signedBy || '-'}</p>
-          <p className="text-xs text-gray-400">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>
         </div>
       </div>
     </div>

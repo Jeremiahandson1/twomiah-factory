@@ -73,7 +73,7 @@ export default function AiaFormsPage() {
         <table className="w-full">
           <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">App #</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Project</th><th className="px-4 py-3">Period To</th><th className="px-4 py-3">Payment Due</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr></thead>
           <tbody>
-            {forms.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No pay applications yet.</td></tr> :
+            {forms.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No pay applications yet.</td></tr> :
               forms.map((f) => (
                 <tr key={f.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3 font-mono text-sm">#{f.applicationNumber}</td>

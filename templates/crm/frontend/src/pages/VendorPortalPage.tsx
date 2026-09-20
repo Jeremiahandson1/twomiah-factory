@@ -80,7 +80,7 @@ export default function VendorPortalPage() {
   };
 
   if (error && !data) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-red-600 dark:bg-slate-900">{error}</div>;
-  if (!data) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-400 dark:bg-slate-900">Loading…</div>;
+  if (!data) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-500 dark:text-slate-400 dark:bg-slate-900">Loading…</div>;
 
   const accent = data.company?.primaryColor || '#2563eb';
 
@@ -100,7 +100,7 @@ export default function VendorPortalPage() {
       <main className="max-w-4xl mx-auto p-6 space-y-8">
         <section>
           <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Purchase orders</h2>
-          {(data.purchaseOrders || []).length === 0 && <p className="text-sm text-gray-400">Nothing yet — POs sent to you show up here.</p>}
+          {(data.purchaseOrders || []).length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">Nothing yet — POs sent to you show up here.</p>}
           <div className="space-y-2">
             {(data.purchaseOrders || []).map((po: Record<string, any>) => (
               <button key={po.id} onClick={() => viewPo(po.id)} className="w-full bg-white border rounded-lg px-4 py-3 flex items-center justify-between hover:border-gray-400 text-left dark:bg-slate-900">
@@ -137,12 +137,12 @@ export default function VendorPortalPage() {
 
         <section>
           <h2 className="font-semibold text-gray-900 mb-3 dark:text-slate-100">Your invoices</h2>
-          {(data.bills || []).length === 0 && <p className="text-sm text-gray-400">No invoices on file.</p>}
+          {(data.bills || []).length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No invoices on file.</p>}
           <div className="space-y-2">
             {(data.bills || []).map((b: Record<string, any>) => (
               <div key={b.id} className="bg-white border rounded-lg px-4 py-3 flex items-center justify-between dark:bg-slate-900">
                 <div><span className="font-medium text-gray-900 mr-3 dark:text-slate-100">{b.number || '(no number)'}</span>{statusChip(b.status)}</div>
-                <div className="text-sm text-gray-600 dark:text-slate-400">{money(b.amount)} <span className="text-gray-400">/ paid {money(b.amountPaid)}</span></div>
+                <div className="text-sm text-gray-600 dark:text-slate-400">{money(b.amount)} <span className="text-gray-500 dark:text-slate-400">/ paid {money(b.amountPaid)}</span></div>
               </div>
             ))}
           </div>

@@ -120,7 +120,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
                 {(invoice.lineItems || []).map((li: any, i: number) => (
                   <tr key={i}><td className="px-4 py-3">{li.description}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>
                 ))}
-                {(invoice.lineItems || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No line items</td></tr>}
+                {(invoice.lineItems || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-slate-400">No line items</td></tr>}
               </tbody>
               <tfoot className="bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100">
                 <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">{money(invoice.subtotal)}</td></tr>

@@ -143,8 +143,8 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
             <Field label="Expiry Date"><input type="date" value={form.expiryDate} onChange={e => setForm({ ...form, expiryDate: e.target.value })} className={inputCls} /></Field>
           </div>
           <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
-          {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm({ ...form, customerMessage: e.target.value })} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}
-          <Field label={<>Notes <span className="text-gray-400 font-normal">(internal)</span></>}><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
+          {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-500 dark:text-slate-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm({ ...form, customerMessage: e.target.value })} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}
+          <Field label={<>Notes <span className="text-gray-500 dark:text-slate-400 font-normal">(internal)</span></>}><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} className={inputCls} /></Field>
           <Field label="Terms"><textarea value={form.terms} onChange={e => setForm({ ...form, terms: e.target.value })} rows={2} className={inputCls} /></Field>
         </div>
         <div className="flex justify-end gap-3 mt-6">

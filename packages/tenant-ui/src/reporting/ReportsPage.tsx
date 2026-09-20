@@ -225,14 +225,14 @@ function Metric({ title, value, subtitle, icon: Icon, color, trend, trendLabel, 
         <p className={`text-sm font-medium ${muted}`}>{title}</p>
         <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{value}</p>
         <p className={`text-sm ${muted}`}>{subtitle}</p>
-        {trendLabel && <p className="text-xs text-gray-400 mt-1">{trendLabel}</p>}
+        {trendLabel && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{trendLabel}</p>}
       </div>
     </div>
   )
 }
 
 function RevenueChart({ data }: { data: MonthRow[] }) {
-  if (!data.length) return <div className="h-48 flex items-center justify-center text-gray-400">No data</div>
+  if (!data.length) return <div className="h-48 flex items-center justify-center text-gray-500 dark:text-slate-400">No data</div>
   const max = Math.max(1, ...data.map(d => Math.max(d.invoiced, d.collected)))
   return (
     <div className="h-48">

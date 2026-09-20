@@ -158,17 +158,17 @@ export default function SalesPipelinePage() {
                       <p className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 inline-block dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800">Unit sold</p>
                     )}
                     {row.contactPhone && (
-                      <p className="text-xs text-gray-400 flex items-center gap-1"><Phone className="w-3 h-3" /> {row.contactPhone}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Phone className="w-3 h-3" /> {row.contactPhone}</p>
                     )}
                     {row.contactEmail && (
-                      <p className="text-xs text-gray-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {row.contactEmail}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" /> {row.contactEmail}</p>
                     )}
                     {row.lead.tradeInInfo && (
                       <p className="text-xs text-amber-600">Trade-in: {row.lead.tradeInInfo}</p>
                     )}
                     <div className="flex items-center justify-between pt-1 border-t">
-                      <span className="text-xs text-gray-400">{salespersonName(row)}</span>
-                      {row.lead.source && <span className="text-xs text-gray-400">{row.lead.source}</span>}
+                      <span className="text-xs text-gray-500 dark:text-slate-400">{salespersonName(row)}</span>
+                      {row.lead.source && <span className="text-xs text-gray-500 dark:text-slate-400">{row.lead.source}</span>}
                     </div>
                     {canDealDesk && (
                       <button
@@ -190,7 +190,7 @@ export default function SalesPipelinePage() {
                   </div>
                 ))}
                 {grouped[stage.value].length === 0 && (
-                  <p className="text-center text-xs text-gray-400 py-4">No leads</p>
+                  <p className="text-center text-xs text-gray-500 dark:text-slate-400 py-4">No leads</p>
                 )}
               </div>
             </div>

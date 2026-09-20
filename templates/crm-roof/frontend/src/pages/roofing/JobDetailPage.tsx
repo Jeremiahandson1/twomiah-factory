@@ -270,7 +270,7 @@ export default function JobDetailPage() {
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${typeColor}`}>
               {(job.jobType || 'retail').replace('_', ' ')}
             </span>
-            <span className="text-xs text-gray-400 flex items-center gap-1">
+            <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" /> {daysOpen} days open
             </span>
           </div>
@@ -467,7 +467,7 @@ export default function JobDetailPage() {
                         <span className="font-semibold">{job.totalSquares}</span> total squares
                       </span>
                     )}
-                    {!job.totalSquares && <p className="text-sm text-gray-400">No measurement report</p>}
+                    {!job.totalSquares && <p className="text-sm text-gray-500 dark:text-slate-400">No measurement report</p>}
                   </div>
                   <button
                     onClick={orderMeasurement}
@@ -573,7 +573,7 @@ export default function JobDetailPage() {
                   </div>
                 ))}
                 {filteredPhotos.length === 0 && (
-                  <p className="text-sm text-gray-400 col-span-full">No {photoTab} photos yet</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 col-span-full">No {photoTab} photos yet</p>
                 )}
               </div>
               <input
@@ -600,11 +600,11 @@ export default function JobDetailPage() {
                 <MessageSquare className="w-4 h-4 text-gray-400" /> Notes
               </h2>
               <div className="space-y-3 mb-4">
-                {notes.length === 0 && <p className="text-sm text-gray-400">No notes yet</p>}
+                {notes.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No notes yet</p>}
                 {notes.map((note, i) => (
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3 dark:bg-slate-900">
                     <p className="text-sm text-gray-900 dark:text-slate-100">{note.body || note.text || note.content}</p>
-                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500 dark:text-slate-400">
                       {note.authorName && <span>{note.authorName}</span>}
                       {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
                     </div>
@@ -636,7 +636,7 @@ export default function JobDetailPage() {
                 <Activity className="w-4 h-4 text-gray-400" /> Timeline
               </h2>
               {timeline.length === 0 ? (
-                <p className="text-sm text-gray-400">No activity yet</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No activity yet</p>
               ) : (
                 <div className="space-y-3">
                   {timeline.map((event, i) => (
@@ -644,7 +644,7 @@ export default function JobDetailPage() {
                       <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
                       <div>
                         <p className="text-sm text-gray-900 dark:text-slate-100">{event.body || event.description || event.message}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                           {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
                           {event.userName && ` — ${event.userName}`}
                         </p>
@@ -724,7 +724,7 @@ export default function JobDetailPage() {
                 <FileText className="w-4 h-4 text-gray-400" /> Quotes
               </h2>
               {quotes.length === 0 ? (
-                <p className="text-sm text-gray-400">No quotes</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No quotes</p>
               ) : (
                 <div className="space-y-2">
                   {quotes.map((q) => (
@@ -759,7 +759,7 @@ export default function JobDetailPage() {
                 <Receipt className="w-4 h-4 text-gray-400" /> Invoice
               </h2>
               {invoices.length === 0 ? (
-                <p className="text-sm text-gray-400">No invoices</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No invoices</p>
               ) : (
                 <div className="space-y-2">
                   {invoices.map((inv) => (

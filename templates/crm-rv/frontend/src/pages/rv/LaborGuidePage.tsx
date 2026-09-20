@@ -62,15 +62,15 @@ export default function LaborGuidePage() {
               <th className="px-4 py-2 text-left font-semibold">Warranty</th>
             </tr></thead>
             <tbody>
-              {ops.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{loading ? 'Searching…' : 'No operations found.'}</td></tr>}
+              {ops.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">{loading ? 'Searching…' : 'No operations found.'}</td></tr>}
               {ops.map((o, i) => (
                 <tr key={i} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-2 font-mono text-xs text-gray-500 align-top dark:text-slate-400">{o.code}</td>
-                  <td className="px-4 py-2 align-top">{o.name}<span className="block text-[11px] text-gray-400">{o.category}</span></td>
+                  <td className="px-4 py-2 align-top">{o.name}<span className="block text-[11px] text-gray-500 dark:text-slate-400">{o.category}</span></td>
                   <td className="px-4 py-2 text-gray-500 text-xs align-top dark:text-slate-400">{o.applies}</td>
                   <td className="px-4 py-2 text-right align-top">{Number(o.hours).toFixed(1)}</td>
                   <td className="px-4 py-2 text-right font-semibold align-top">${o.price}</td>
-                  <td className="px-4 py-2 align-top">{o.warranty ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700"><ShieldCheck size={12} />Eligible</span> : <span className="text-xs text-gray-400">—</span>}</td>
+                  <td className="px-4 py-2 align-top">{o.warranty ? <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700"><ShieldCheck size={12} />Eligible</span> : <span className="text-xs text-gray-500 dark:text-slate-400">—</span>}</td>
                 </tr>
               ))}
             </tbody>

@@ -50,7 +50,7 @@ export default function FinancingPage() {
         <table className="w-full">
           <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Lender</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Approved</th><th className="px-4 py-3">Monthly</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
           <tbody>
-            {apps.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No financing applications yet.</td></tr> :
+            {apps.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No financing applications yet.</td></tr> :
               apps.map((a) => (
                 <tr key={a.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3 font-mono text-xs">{a.contactId.substring(0, 8)}…</td>

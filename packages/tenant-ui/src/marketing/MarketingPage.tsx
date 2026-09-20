@@ -105,8 +105,8 @@ function CampaignsTab({ api, toast, contactTypes, onChanged }: { api: MarketingA
                   <td className="px-4 py-3"><p className="font-medium">{c.name}</p><p className="text-gray-500 dark:text-slate-400">{c.subject}</p></td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 text-xs rounded-full ${statusCls[c.status] || statusCls.draft}`}>{c.status}</span>
-                    {c.status === 'scheduled' && c.scheduledDate && <p className="text-xs text-gray-500 mt-1">{fmtWhen(c.scheduledDate)}</p>}
-                    {c.status === 'sent' && c.sentAt && <p className="text-xs text-gray-500 mt-1">{fmtWhen(c.sentAt)}</p>}
+                    {c.status === 'scheduled' && c.scheduledDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{fmtWhen(c.scheduledDate)}</p>}
+                    {c.status === 'sent' && c.sentAt && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{fmtWhen(c.sentAt)}</p>}
                     {c.status === 'failed' && !!c.lastError && <p className="text-xs text-red-600 mt-1 max-w-xs">{c.lastError}</p>}
                   </td>
                   <td className="px-4 py-3 text-right">{c.recipientCount ?? 0}</td>
@@ -208,7 +208,7 @@ function TemplatesTab({ api, toast }: { api: MarketingApi; toast: MarketingToast
           {rows.map((t) => (
             <div key={t.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900 dark:border-slate-800">
               <div className="flex items-start justify-between">
-                <div><p className="font-medium text-gray-900 dark:text-slate-100">{t.name}{t.active === false && <span className="ml-2 text-xs text-gray-400">inactive</span>}</p><p className="text-sm text-gray-500 dark:text-slate-400 capitalize">{t.category || t.type}</p></div>
+                <div><p className="font-medium text-gray-900 dark:text-slate-100">{t.name}{t.active === false && <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">inactive</span>}</p><p className="text-sm text-gray-500 dark:text-slate-400 capitalize">{t.category || t.type}</p></div>
                 <div className="flex gap-1">
                   <button onClick={() => setForm({ open: true, template: t })} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Edit"><Edit2 className="w-4 h-4" /></button>
                   <button onClick={() => duplicate(t)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg" title="Duplicate"><Copy className="w-4 h-4" /></button>
@@ -270,7 +270,7 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
     <div className="space-y-4">
       <div className="flex justify-end"><Button onClick={() => setForm({ open: true, sequence: null })}><Plus className="w-4 h-4 mr-2 inline" />New Sequence</Button></div>
       {rows.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Zap className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-500 dark:text-slate-400">No {label.toLowerCase()} yet</p><p className="text-sm text-gray-400 mt-1">A series of emails sent automatically, spaced out over days, to the contacts you enroll.</p></div>
+        <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900"><Zap className="w-12 h-12 mx-auto text-gray-400 mb-3" /><p className="text-gray-500 dark:text-slate-400">No {label.toLowerCase()} yet</p><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">A series of emails sent automatically, spaced out over days, to the contacts you enroll.</p></div>
       ) : rows.map((s) => (
         <div key={s.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900 dark:border-slate-800">
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -284,8 +284,8 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
             <div className="flex items-center gap-2">
               <span className={`px-2 py-1 text-xs rounded-full ${s.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{s.active ? 'Active' : 'Paused'}</span>
               <button onClick={() => setEnroll(s)} disabled={!s.active} className="flex items-center gap-1 px-2.5 py-1.5 text-sm border rounded-lg hover:bg-gray-50 disabled:opacity-40 dark:border-slate-700 dark:hover:bg-slate-800" title={s.active ? 'Enroll a contact' : 'Resume the sequence to enroll'}><UserPlus className="w-4 h-4" /> Enroll</button>
-              <button onClick={() => toggle(s)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title={s.active ? 'Pause' : 'Resume'}>{s.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
-              <button onClick={() => setForm({ open: true, sequence: s })} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>
+              <button onClick={() => toggle(s)} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title={s.active ? 'Pause' : 'Resume'}>{s.active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}</button>
+              <button onClick={() => setForm({ open: true, sequence: s })} className="p-1.5 text-gray-500 dark:text-slate-400 hover:bg-gray-100 rounded-lg dark:hover:bg-slate-800" title="Edit"><Edit2 className="w-4 h-4" /></button>
               <button onClick={() => setToDelete(s)} className="p-1.5 text-gray-400 hover:text-red-600 rounded-lg hover:bg-red-50" title="Delete"><Trash2 className="w-4 h-4" /></button>
             </div>
           </div>

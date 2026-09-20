@@ -93,7 +93,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
         <div>
           <div className="flex items-center gap-2"><h3 className="font-medium text-gray-900 dark:text-slate-100">{selection.name}</h3><span className={pill(STATUS_STYLES[selection.status] || 'bg-gray-100 text-gray-700')}>{selection.status}</span></div>
           {selection.description && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{selection.description}</p>}
-          {selection.location && <p className="text-xs text-gray-400 mt-1">Location: {selection.location}</p>}
+          {selection.location && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Location: {selection.location}</p>}
           {selection.due_date && <p className={`text-xs mt-1 ${new Date(selection.due_date) < new Date() && selection.status === 'pending' ? 'text-red-500 font-medium' : 'text-gray-400'}`}>Due: {formatDate(selection.due_date)}</p>}
         </div>
         <div className="text-right text-sm">
@@ -125,9 +125,9 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
                       {option.image_url ? <img src={option.image_url} alt={option.name} className="w-full h-32 object-cover rounded mb-2" /> : <div className="w-full h-32 bg-gray-100 rounded mb-2 flex items-center justify-center dark:bg-slate-800"><ImageIcon className="w-8 h-8 text-gray-300" /></div>}
                       <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{option.name}</p>
                       {option.manufacturer && <p className="text-xs text-gray-500 dark:text-slate-400">{option.manufacturer}{option.model ? ` - ${option.model}` : ''}</p>}
-                      {option.description && <p className="text-xs text-gray-400 mt-1 line-clamp-2">{option.description}</p>}
+                      {option.description && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{option.description}</p>}
                       <div className="mt-2 flex items-center justify-between"><p className="text-sm font-bold text-gray-900 dark:text-slate-100">{moneyShort(totalPrice)}</p>{allowance > 0 && <span className={`text-xs font-medium ${priceDiff > 0 ? 'text-red-600' : priceDiff < 0 ? 'text-green-600' : 'text-gray-500'}`}>{priceDiff !== 0 ? `${priceDiff > 0 ? '+' : ''}${moneyShort(priceDiff)}` : 'Within allowance'}</span>}</div>
-                      {option.lead_time_days > 0 && <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{option.lead_time_days} day lead time</p>}
+                      {option.lead_time_days > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><Clock className="w-3 h-3" />{option.lead_time_days} day lead time</p>}
                       {isSelected && <div className="mt-2 flex items-center gap-1 text-blue-600 text-xs font-medium"><Check className="w-3 h-3" /> Currently selected</div>}
                     </button>
                   )

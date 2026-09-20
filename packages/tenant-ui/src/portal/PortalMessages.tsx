@@ -41,7 +41,7 @@ export function PortalMessages() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className={`text-sm truncate ${isUnread ? 'font-bold text-gray-900 dark:text-slate-100' : 'font-medium text-gray-700 dark:text-slate-200'}`}>{m.subject || '(No subject)'}</p>
-                      <span className="text-xs text-gray-400 shrink-0">{formatDate(m.createdAt || m.sentAt)}</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400 shrink-0">{formatDate(m.createdAt || m.sentAt)}</span>
                     </div>
                     <p className="text-sm text-gray-500 truncate mt-0.5 dark:text-slate-400">{m.body}</p>
                     <span className={`text-xs ${fromCompany(m) ? 'text-blue-600' : 'text-gray-400'}`}>{fromCompany(m) ? `From your ${config.providerNoun}` : 'Sent by you'}</span>

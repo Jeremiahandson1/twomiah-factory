@@ -199,7 +199,7 @@ export default function RoofReportsPage() {
       <div className="flex flex-col items-center justify-center h-96 gap-4">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
         <p className="text-gray-600 font-medium dark:text-slate-400">Generating your roof report...</p>
-        <p className="text-sm text-gray-400">Analyzing satellite imagery and computing measurements</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400">Analyzing satellite imagery and computing measurements</p>
       </div>
     )
   }
@@ -405,7 +405,7 @@ export default function RoofReportsPage() {
                 </div>
               )}
               <div className="flex items-center justify-between">
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-gray-500 dark:text-slate-400">
                   Satellite imagery, pitch detection, ridge/valley/hip/eave measurements, waste factor, and PDF export.
                 </p>
                 <button
@@ -431,7 +431,7 @@ export default function RoofReportsPage() {
           <FileBarChart className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <h3 className="text-lg font-medium text-gray-900 mb-1 dark:text-slate-100">No roof reports yet</h3>
           <p className="text-sm text-gray-500 mb-1 dark:text-slate-400">Professional satellite-based roof measurements for $9.99/report.</p>
-          <p className="text-xs text-gray-400 mb-4">Ridges, valleys, hips, rakes, eaves, waste factor, ice & water shield — all computed from satellite data.</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mb-4">Ridges, valleys, hips, rakes, eaves, waste factor, ice & water shield — all computed from satellite data.</p>
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
@@ -488,7 +488,7 @@ export default function RoofReportsPage() {
                         {formatDate(report.createdAt)}
                       </div>
                       {report.imageryDate && (
-                        <span className="text-[11px] text-gray-400">Imagery: {report.imageryDate}</span>
+                        <span className="text-[11px] text-gray-500 dark:text-slate-400">Imagery: {report.imageryDate}</span>
                       )}
                     </div>
                   </td>

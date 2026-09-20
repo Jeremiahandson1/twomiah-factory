@@ -246,7 +246,7 @@ export default function TrainingPage() {
                   </div>
                   <h3 className="font-semibold text-lg mb-1">{course.title}</h3>
                   <p className="text-sm text-gray-500 mb-4 line-clamp-2 dark:text-slate-400">{course.description}</p>
-                  <div className="flex items-center justify-between text-sm text-gray-400">
+                  <div className="flex items-center justify-between text-sm text-gray-500 dark:text-slate-400">
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{course.estimatedMinutes || 30} min</span>
                     <span className="flex items-center gap-1"><Users className="w-3 h-3" />{course.enrolledCount || 0} enrolled</span>
                   </div>
@@ -312,7 +312,7 @@ export default function TrainingPage() {
                       <div className="w-64 bg-gray-200 rounded-full h-2">
                         <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">{enrollment.completedSteps || 0} / {enrollment.totalSteps || 0} steps ({progress}%)</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">{enrollment.completedSteps || 0} / {enrollment.totalSteps || 0} steps ({progress}%)</div>
                     </div>
                     {!enrollment.completed && (
                       <Button onClick={() => continueCourse(enrollment)}>
@@ -431,7 +431,7 @@ export default function TrainingPage() {
                     <input type="checkbox" checked={selectedEmployees.includes(emp.id)}
                       onChange={() => toggleEmployee(emp.id)} className="rounded text-green-600" />
                     <span className="text-sm">{emp.name}</span>
-                    <span className="text-xs text-gray-400">{emp.role}</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{emp.role}</span>
                   </label>
                 ))}
                 {employees.length === 0 && <div className="px-3 py-4 text-sm text-gray-500 text-center dark:text-slate-400">No employees found</div>}
@@ -493,7 +493,7 @@ export default function TrainingPage() {
                       {step.type === 'text' && <><FileText className="w-3 h-3" />Text Block</>}
                       {step.type === 'video' && <><Video className="w-3 h-3" />Video</>}
                       {step.type === 'quiz' && <><HelpCircle className="w-3 h-3" />Quiz Question</>}
-                      <span className="text-gray-400">#{i + 1}</span>
+                      <span className="text-gray-500 dark:text-slate-400">#{i + 1}</span>
                     </span>
                     <button onClick={() => removeStep(i)} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>
                   </div>
@@ -527,7 +527,7 @@ export default function TrainingPage() {
                           }} className="flex-1 px-2 py-1 border rounded text-sm" placeholder={`Option ${oi + 1}`} />
                         </div>
                       ))}
-                      <div className="text-xs text-gray-400">Select the radio button next to the correct answer</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">Select the radio button next to the correct answer</div>
                     </div>
                   )}
                 </div>

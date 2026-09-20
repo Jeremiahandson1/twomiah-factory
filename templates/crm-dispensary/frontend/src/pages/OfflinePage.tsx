@@ -211,7 +211,7 @@ export default function OfflinePage() {
               <AlertTriangle className="w-5 h-5 text-yellow-500" />
             </div>
             <div className="text-2xl font-bold">{status.pendingCount}</div>
-            <div className="text-sm text-gray-400">transactions waiting</div>
+            <div className="text-sm text-gray-500 dark:text-slate-400">transactions waiting</div>
           </div>
 
           <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
@@ -220,7 +220,7 @@ export default function OfflinePage() {
               <XCircle className="w-5 h-5 text-red-500" />
             </div>
             <div className="text-2xl font-bold text-red-600">{status.failedCount}</div>
-            <div className="text-sm text-gray-400">need attention</div>
+            <div className="text-sm text-gray-500 dark:text-slate-400">need attention</div>
           </div>
         </div>
       )}

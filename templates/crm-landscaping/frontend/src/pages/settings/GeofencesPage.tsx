@@ -119,7 +119,7 @@ export default function GeofencesPage() {
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <Target className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <p className="text-gray-500 dark:text-slate-400">No geofences found</p>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
             Add geofences to enable auto clock-in at job sites
           </p>
         </div>

@@ -70,7 +70,11 @@ if (offenders.length) fail(`a card or panel is painted light with no dark counte
     [U + 'marketing/MarketingPage.tsx', 'text-orange-600 dark:text-orange-200', 'the Marketing active tab was the worst of them at 2.34:1 — harder to read than the inactive tabs beside it'],
     [U + 'shell/SettingsPage.tsx', 'dark:text-orange-200', 'the Settings active section must use shade 200 — shade 400 is the brand hue at 55% lightness and measured 3.72:1'],
     [U + 'schedule/SchedulePage.tsx', 'dark:text-slate-400 text-center', 'the Schedule drop hint measured 2.36:1'],
-    [U + 'people/TeamPage.tsx', 'text-gray-400 dark:text-slate-400', 'the Team login badge measured 3.75:1'],
+    // The needle is anchored on font-normal rather than on the light shade: what this line records is
+    // the DARK half, and the light half is now governed by check-muted-label-contrast.ts, which moved
+    // the whole fleet off gray-400 (2.54:1 on white). Pinning both halves here made one badge answer to
+    // two guards with different rules, and the light-mode sweep tripped it.
+    [U + 'people/TeamPage.tsx', 'font-normal text-gray-500 dark:text-slate-400', 'the Team login badge measured 3.75:1 and must keep a dark variant'],
     [U + 'booking/BookingsPage.tsx', "refunded: 'text-gray-500 dark:text-slate-400'", 'a refunded deposit badge kept its light-mode gray'],
     [U + 'booking/BookingsPage.tsx', "expired: 'text-gray-500 dark:text-slate-400'", 'an expired deposit badge measured 3.69:1'],
     [S + 'RemindersPage.tsx', 'text-red-700 dark:text-red-400 font-medium', 'the Rebooking overdue date measured 2.75:1'],

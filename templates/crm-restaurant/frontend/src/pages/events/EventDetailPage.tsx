@@ -256,24 +256,24 @@ export default function EventDetailPage() {
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-400 uppercase">Date</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Date</p>
             <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtEventDate(ev.eventDate)}</p>
-            {ev.startTime && <p className="text-xs text-gray-400">{ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}</p>}
+            {ev.startTime && <p className="text-xs text-gray-500 dark:text-slate-400">{ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}</p>}
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-400 uppercase">Guests</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Guests</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{heads || '—'}</p>
-            <p className="text-xs text-gray-400">{ev.guestCountFinal ? 'guaranteed' : 'estimated'}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400">{ev.guestCountFinal ? 'guaranteed' : 'estimated'}</p>
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-400 uppercase">F&amp;B Total</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">F&amp;B Total</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(fbTotal)}</p>
-            {heads > 0 && <p className="text-xs text-gray-400">{money2(fbTotal / heads)} / head</p>}
+            {heads > 0 && <p className="text-xs text-gray-500 dark:text-slate-400">{money2(fbTotal / heads)} / head</p>}
           </div>
           <div className={`border rounded-lg p-3 ${Number(totals.outstanding || 0) > 0 ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-700' : ''}`}>
-            <p className="text-xs text-gray-400 uppercase">Outstanding</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Outstanding</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money2(totals.outstanding)}</p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-slate-400">
               {totals.invoiced ? `${money2(totals.paid)} paid of ${money2(totals.total)}` : 'estimate — not invoiced yet'}
             </p>
           </div>
@@ -281,7 +281,7 @@ export default function EventDetailPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="border rounded-lg p-3">
-            <p className="text-xs font-medium text-gray-400 uppercase mb-2">Client</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Client</p>
             {client ? (
               <>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -290,10 +290,10 @@ export default function EventDetailPage() {
                 {(client.mobile || client.phone) && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Phone className="w-3 h-3" /> {client.mobile || client.phone}</p>}
                 {client.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {client.email}</p>}
               </>
-            ) : <p className="text-sm text-gray-400">No client attached</p>}
+            ) : <p className="text-sm text-gray-500 dark:text-slate-400">No client attached</p>}
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs font-medium text-gray-400 uppercase mb-2">Space</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Space</p>
             {space ? (
               <>
                 <p className="font-medium text-gray-900 flex items-center gap-2 dark:text-slate-100"><DoorOpen className="w-4 h-4 text-gray-400" /> {space.name}</p>
@@ -302,15 +302,15 @@ export default function EventDetailPage() {
                   {space.seatedCapacity ? `${space.seatedCapacity} seated` : ''}
                   {space.standingCapacity ? ` · ${space.standingCapacity} standing` : ''}
                 </p>
-                {minSpend > 0 && <p className="text-xs text-gray-400 mt-1">Minimum spend {money2(minSpend)}</p>}
+                {minSpend > 0 && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Minimum spend {money2(minSpend)}</p>}
               </>
-            ) : <p className="text-sm text-gray-400">No space assigned</p>}
+            ) : <p className="text-sm text-gray-500 dark:text-slate-400">No space assigned</p>}
           </div>
         </div>
 
         {ev.setupNotes && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-gray-400 uppercase mb-1">Setup</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-1">Setup</p>
             <p className="text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{ev.setupNotes}</p>
           </div>
         )}
@@ -345,7 +345,7 @@ export default function EventDetailPage() {
             </button>
           </div>
           {menu.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">Nothing on the menu yet</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">Nothing on the menu yet</div>
           ) : (
             <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full text-sm">
@@ -364,14 +364,14 @@ export default function EventDetailPage() {
                     <tr key={l.id}>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                         {l.name}
-                        {l.notes && <span className="block text-xs text-gray-400 font-normal">{l.notes}</span>}
+                        {l.notes && <span className="block text-xs text-gray-500 dark:text-slate-400 font-normal">{l.notes}</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-500 dark:text-slate-400">{l.perPerson ? 'per person' : 'flat'}</td>
                       <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{l.quantity}</td>
                       <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{money2(l.unitPrice)}</td>
                       <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(lineTotal(l))}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => removeLine('menu', l.id)} className="text-gray-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => removeLine('menu', l.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}
@@ -396,7 +396,7 @@ export default function EventDetailPage() {
             </button>
           </div>
           {timeline.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No run of show yet</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No run of show yet</div>
           ) : (
             <div className="space-y-2">
               {timeline.map((t) => (
@@ -407,7 +407,7 @@ export default function EventDetailPage() {
                     {t.details && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{t.details}</p>}
                   </div>
                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{t.department}</span>
-                  <button onClick={() => removeLine('timeline', t.id)} className="text-gray-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeLine('timeline', t.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
@@ -426,7 +426,7 @@ export default function EventDetailPage() {
           {detail.invoice && (
             <div className="bg-white rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 dark:bg-slate-900">
               <div>
-                <p className="text-xs text-gray-400 uppercase">Invoice</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Invoice</p>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
                   {detail.invoice.number}
                   <span className="ml-2 text-xs capitalize bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{detail.invoice.status}</span>
@@ -442,7 +442,7 @@ export default function EventDetailPage() {
             </div>
           )}
           {payments.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
               No payment schedule yet{!client ? ' — add a client first; the invoice is raised to them' : ''}
             </div>
           ) : (
@@ -482,7 +482,7 @@ export default function EventDetailPage() {
                             <Check className="w-3 h-3" /> Record payment
                           </button>
                         )}
-                        <button onClick={() => removeLine('payments', p.id)} className="text-gray-400 hover:text-red-600" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => removeLine('payments', p.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}
@@ -687,7 +687,7 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Dietary requirements <span className="text-xs text-gray-400">(shown as a red banner)</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Dietary requirements <span className="text-xs text-gray-500 dark:text-slate-400">(shown as a red banner)</span></label>
           <input type="text" value={form.dietaryRequirements} onChange={(e) => set('dietaryRequirements', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="2 x vegan, 1 x severe nut allergy" />
         </div>
         <div>
@@ -695,7 +695,7 @@ function EditEventModal({ event: ev, onSave, onClose }: { event: EventFull; onSa
           <textarea value={form.setupNotes} onChange={(e) => set('setupNotes', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Lost reason <span className="text-xs text-gray-400">(only used when status is Lost)</span></label>
+          <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Lost reason <span className="text-xs text-gray-500 dark:text-slate-400">(only used when status is Lost)</span></label>
           <input type="text" value={form.lostReason} onChange={(e) => set('lostReason', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Price, date unavailable, went elsewhere..." />
         </div>
         <div>
@@ -793,7 +793,7 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Quantity</label>
             <input type="number" value={form.quantity} onChange={(e) => set('quantity', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
-            <p className="text-xs text-gray-400 mt-1">{form.perPerson ? 'Number of guests' : 'Number of units'}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{form.perPerson ? 'Number of guests' : 'Number of units'}</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Unit price ($)</label>
@@ -961,7 +961,7 @@ function RecordPaymentModal({ invoiceId, installment, balance, onSave, onClose }
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Amount received ($) <span className="text-red-500">*</span></label>
             <input type="number" step="any" min="0" value={form.amount} onChange={(e) => set('amount', e.target.value)} className="w-full px-3 py-2 border rounded-lg" required />
-            <p className="text-xs text-gray-400 mt-1">{money2(balance)} outstanding on the invoice</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{money2(balance)} outstanding on the invoice</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Method</label>

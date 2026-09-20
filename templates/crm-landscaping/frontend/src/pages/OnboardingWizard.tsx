@@ -553,7 +553,7 @@ function StepIntegrations({
                       </div>
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-gray-900 dark:text-white">{integration.label}</span>
-                        {isSkipped && <span className="ml-2 text-xs text-gray-400">(skipped)</span>}
+                        {isSkipped && <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">(skipped)</span>}
                         {isDone && <span className="ml-2 text-xs text-green-600 dark:text-green-400">(marked done)</span>}
                         <p className="text-sm text-gray-500 dark:text-slate-400">{integration.description}</p>
                       </div>

@@ -76,12 +76,12 @@ export function AccountOffboardPage(): React.ReactElement {
   return (
     <div className="max-w-3xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Leave Twomiah</h1>
-      <p className="text-sm text-gray-500 mb-6">If Twomiah isn't working for your business, we'll offboard you cleanly. You keep your data, you keep your domain, and the door stays open if you ever want to come back.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">If Twomiah isn't working for your business, we'll offboard you cleanly. You keep your data, you keep your domain, and the door stays open if you ever want to come back.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
       {successMsg && <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4 text-sm text-green-700">{successMsg}</div>}
 
-      {loading && <div className="text-sm text-gray-500">Loading…</div>}
+      {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && isOffboarding && graceEnd && (
         <div className="border border-yellow-300 rounded-md p-5 bg-yellow-50 mb-6">

@@ -81,23 +81,23 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
 
   const calendarCell = (row: BookingRow) => {
     const cal = row.calendar
-    if (!cal?.id) return <span className="text-gray-400">-</span>
+    if (!cal?.id) return <span className="text-gray-500 dark:text-slate-400">-</span>
     const label = cal.label || cfg.calendarLabel
     const path = cfg.calendarPath(cal.id)
     return (
       <span className="inline-flex items-center gap-2">
         {path ? <NavLink to={path} className="text-orange-600 hover:underline dark:text-orange-300">{label}</NavLink> : <span>{label}</span>}
-        {cal.status && cal.status !== row.status && <span className="text-xs text-gray-400">({cal.status.replace(/_/g, ' ')})</span>}
+        {cal.status && cal.status !== row.status && <span className="text-xs text-gray-500 dark:text-slate-400">({cal.status.replace(/_/g, ' ')})</span>}
       </span>
     )
   }
 
   const columns = [
     { key: 'customerName', label: 'Customer', render: (_: any, r: BookingRow) => <div><div className="font-medium">{r.customerName || '-'}</div><div className="text-xs text-gray-500 dark:text-slate-400">{r.customerEmail}{r.customerPhone ? ` · ${r.customerPhone}` : ''}</div></div> },
-    { key: 'serviceName', label: 'Service', render: (v: any) => v || <span className="text-gray-400">No service</span> },
+    { key: 'serviceName', label: 'Service', render: (v: any) => v || <span className="text-gray-500 dark:text-slate-400">No service</span> },
     { key: 'scheduledDate', label: 'When', render: (v: any) => whenIn(v, tz) },
     { key: 'status', label: 'Status', render: (v: any) => <StatusBadge status={v || 'pending'} /> },
-    { key: 'depositStatus', label: 'Deposit', render: (v: any, r: BookingRow) => (v && v !== 'none' ? <span className={`text-xs ${DEPOSIT_CLS[v] || ''}`}>{money(r.depositAmount)} {v}</span> : <span className="text-gray-400">-</span>) },
+    { key: 'depositStatus', label: 'Deposit', render: (v: any, r: BookingRow) => (v && v !== 'none' ? <span className={`text-xs ${DEPOSIT_CLS[v] || ''}`}>{money(r.depositAmount)} {v}</span> : <span className="text-gray-500 dark:text-slate-400">-</span>) },
     { key: 'calendar', label: cfg.calendarLabel, render: (_: any, r: BookingRow) => calendarCell(r) },
     { key: 'confirmationCode', label: 'Code', className: 'font-mono text-xs', render: (v: any) => v || '-' },
   ]
@@ -125,7 +125,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center">
               <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 dark:text-slate-400">No online bookings yet.</p>
-              <p className="text-sm text-gray-400 mt-1">Add a bookable service, then put the embed code on your website.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Add a bookable service, then put the embed code on your website.</p>
             </div>
           ) : (
             <DataTable<BookingRow> data={rows} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} emptyMessage="No bookings match this filter." actions={[

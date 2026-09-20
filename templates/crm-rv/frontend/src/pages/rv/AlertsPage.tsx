@@ -99,7 +99,7 @@ export default function AlertsPage() {
                   <p className="text-sm text-gray-600 dark:text-slate-400">
                     {row.alert.alertMessage || `Last interested in ${unitDesc(row)}.`}
                   </p>
-                  <div className="flex items-center gap-4 text-xs text-gray-400 flex-wrap pt-1">
+                  <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-slate-400 flex-wrap pt-1">
                     {row.roNumber && <span>RO {row.roNumber}{row.roStatus ? ` · ${row.roStatus.replace('_', ' ')}` : ''}</span>}
                     {row.customerPhone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {row.customerPhone}</span>}
                     {row.customerEmail && <span className="flex items-center gap-1"><Mail className="w-3 h-3" /> {row.customerEmail}</span>}

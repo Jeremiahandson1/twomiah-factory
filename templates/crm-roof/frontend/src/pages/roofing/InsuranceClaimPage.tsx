@@ -328,7 +328,7 @@ export default function InsuranceClaimPage() {
 
             <div className="bg-white rounded-xl shadow-sm border p-4 max-h-[600px] overflow-y-auto dark:bg-slate-900">
               {activities.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No activity yet</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-8">No activity yet</p>
               ) : (
                 <div className="space-y-3">
                   {activities.map((a, i) => {
@@ -347,7 +347,7 @@ export default function InsuranceClaimPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-gray-900 dark:text-slate-100">{a.body}</p>
-                          <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 dark:text-slate-400">
                             <span>{a.createdAt ? new Date(a.createdAt).toLocaleString() : ''}</span>
                             {a.metadata?.callDuration && <span>({a.metadata.callDuration} min)</span>}
                             {a.metadata?.subject && <span>Subject: {a.metadata.subject}</span>}
@@ -571,7 +571,7 @@ export default function InsuranceClaimPage() {
                 </button>
               </div>
               {supplements.length === 0 ? (
-                <p className="text-sm text-gray-400">No supplements yet</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No supplements yet</p>
               ) : (
                 <div className="space-y-3">
                   {supplements.map((sup) => (
@@ -625,7 +625,7 @@ export default function InsuranceClaimPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Log Activity</h2>
-              <button onClick={() => setActivityOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setActivityOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -671,7 +671,7 @@ export default function InsuranceClaimPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[85vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add Supplement</h2>
-              <button onClick={() => setSupOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setSupOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div>

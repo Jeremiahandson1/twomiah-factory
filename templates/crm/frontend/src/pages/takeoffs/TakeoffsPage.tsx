@@ -149,7 +149,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
               {projects.map((p: ProjectItem) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           ) : (
-            <p className="text-sm text-gray-400">No projects found. Create a project first.</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">No projects found. Create a project first.</p>
           )}
         </div>
       </div>

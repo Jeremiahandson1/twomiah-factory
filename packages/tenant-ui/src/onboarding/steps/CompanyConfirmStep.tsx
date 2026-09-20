@@ -45,12 +45,12 @@ export function CompanyConfirmStep({ onNext }: { onNext: () => void }): React.Re
     setSaving(false)
   }
 
-  if (!company) return <div className="text-sm text-gray-500">Loading company info…</div>
+  if (!company) return <div className="text-sm text-gray-500 dark:text-slate-400">Loading company info…</div>
 
   return (
     <div>
       <h2 className="text-xl font-semibold mb-2">Confirm your business details</h2>
-      <p className="text-sm text-gray-500 mb-6">These show up on invoices, quotes, and your public site. Edit anything that isn't right.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">These show up on invoices, quotes, and your public site. Edit anything that isn't right.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
 
@@ -78,7 +78,7 @@ export function CompanyConfirmStep({ onNext }: { onNext: () => void }): React.Re
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">{label}</label>
+      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">{label}</label>
       <input type="text" value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
     </div>
   )

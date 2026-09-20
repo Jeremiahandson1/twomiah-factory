@@ -206,9 +206,9 @@ export default function InvoicesPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : invoices.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">No invoices found</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">No invoices found</td></tr>
                 ) : (
                   invoices.map((inv) => {
                     const balance = Number(inv.total || 0) - Number(inv.amountPaid || 0);
@@ -298,7 +298,7 @@ export default function InvoicesPage() {
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <Receipt className="w-5 h-5 text-blue-600" /> New Invoice
               </h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">

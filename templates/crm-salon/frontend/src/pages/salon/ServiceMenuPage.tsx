@@ -127,7 +127,7 @@ export default function ServiceMenuPage() {
                     {s.description && <p className="text-sm text-gray-500 mt-1 dark:text-slate-400">{s.description}</p>}
 
                     <div className="flex items-baseline gap-2 mt-3">
-                      {s.priceIsFrom && <span className="text-sm text-gray-500">from</span>}
+                      {s.priceIsFrom && <span className="text-sm text-gray-500 dark:text-slate-400">from</span>}
                       <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{money(s.price)}</span>
                     </div>
 
@@ -140,7 +140,7 @@ export default function ServiceMenuPage() {
                           <RotateCcw className="w-3 h-3" /> rebook {s.rebookIntervalDays}d
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-500 px-2 py-0.5 rounded-full dark:bg-slate-900">
+                        <span className="inline-flex items-center gap-1 bg-gray-50 text-gray-500 dark:text-slate-400 px-2 py-0.5 rounded-full dark:bg-slate-900">
                           no rebook reminder
                         </span>
                       )}
@@ -266,7 +266,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
                 <input type="number" value={form.rebookIntervalDays} onChange={(e) => set('rebookIntervalDays', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="42" />
               </div>
             </div>
-            <p className="text-xs text-gray-500 -mt-2">
+            <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">
               Leave rebook blank for on-demand services — those never appear on the Rebooking report.
             </p>
 

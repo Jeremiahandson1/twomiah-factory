@@ -398,7 +398,7 @@ export default function IDScannerPage() {
               <div className="text-center py-12 text-gray-500 dark:text-slate-400">
                 <ScanLine className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p>No scan result yet</p>
-                <p className="text-sm text-gray-400 mt-1">Scan an ID to see verification results</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Scan an ID to see verification results</p>
               </div>
             )}
           </div>
@@ -495,7 +495,7 @@ export default function IDScannerPage() {
             <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Shield className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No flagged scans</p>
-              <p className="text-sm text-gray-400 mt-1">Suspicious or failed scans will appear here</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Suspicious or failed scans will appear here</p>
             </div>
           ) : (
             <div className="space-y-3">

@@ -271,7 +271,7 @@ export default function GamifiedLoyaltyPage() {
             <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No challenges yet</p>
-              <p className="text-sm text-gray-400 mt-1">Create your first loyalty challenge</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Create your first loyalty challenge</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -329,7 +329,7 @@ export default function GamifiedLoyaltyPage() {
                     </div>
 
                     {(challenge.startDate || challenge.endDate) && (
-                      <div className="mt-2 text-xs text-gray-400 flex items-center gap-1">
+                      <div className="mt-2 text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {challenge.startDate ? formatDate(challenge.startDate) : '—'}
                         {' — '}
@@ -573,7 +573,7 @@ export default function GamifiedLoyaltyPage() {
             <div className="text-center py-12 text-gray-500 dark:text-slate-400">
               <Zap className="w-12 h-12 mx-auto mb-3 text-gray-300" />
               <p>No multiplier events</p>
-              <p className="text-sm text-gray-400 mt-1">Create bonus point events to boost engagement</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Create bonus point events to boost engagement</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -789,7 +789,7 @@ export default function GamifiedLoyaltyPage() {
                             />
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
                           <Gift className="w-3 h-3" />
                           Reward: {cp.rewardType?.replace(/_/g, ' ')} - {cp.rewardValue}
                         </div>

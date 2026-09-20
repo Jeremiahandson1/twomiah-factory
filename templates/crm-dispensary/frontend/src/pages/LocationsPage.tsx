@@ -351,7 +351,7 @@ export default function LocationsPage() {
             <div className="bg-white rounded-lg shadow-sm p-12 text-center dark:bg-slate-900">
               <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 mb-2 dark:text-slate-400">No locations added yet</p>
-              <p className="text-sm text-gray-400">Add your first location to manage inventory across sites</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Add your first location to manage inventory across sites</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -375,7 +375,7 @@ export default function LocationsPage() {
                     </p>
                   )}
                   {loc.licenseNumber && (
-                    <p className="text-xs text-gray-400 mb-2">License: {loc.licenseNumber}</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">License: {loc.licenseNumber}</p>
                   )}
                   <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t">
                     <div className="text-center">

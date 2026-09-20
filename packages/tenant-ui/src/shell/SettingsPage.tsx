@@ -271,9 +271,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         <td className="px-4 py-3">{u.firstName} {u.lastName}</td>
                         <td className="px-4 py-3">{u.email}</td>
                         <td className="px-4 py-3">{ROLE_LABELS[u.role] || u.role}</td>
-                        <td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td>
+                        <td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>}</td>
                         <td className="px-4 py-3 text-right">
-                          {u.id === myId ? <span className="text-xs text-gray-400">You</span> : canManageUsers ? (
+                          {u.id === myId ? <span className="text-xs text-gray-500 dark:text-slate-400">You</span> : canManageUsers ? (
                             <>
                               {isOwner && u.role !== 'owner' && (
                                 <label className="inline-flex items-center gap-1 text-xs text-gray-500 mr-3 dark:text-slate-400" title="Lets this person see the list of logins under Settings › Users">
@@ -286,7 +286,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                         </td>
                       </tr>
                     ))}
-                    {users.length === 0 && <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-400">No users to show</td></tr>}
+                    {users.length === 0 && <tr><td colSpan={5} className="px-4 py-6 text-center text-gray-500 dark:text-slate-400">No users to show</td></tr>}
                   </tbody>
                 </table>
               </div>

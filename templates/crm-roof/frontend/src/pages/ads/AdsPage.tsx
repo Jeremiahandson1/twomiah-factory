@@ -426,7 +426,7 @@ function CampaignsTab() {
             {f}
           </button>
         ))}
-        <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto">{allAds.length} ads</span>
+        <span className="text-xs text-gray-500 dark:text-slate-500 ml-auto">{allAds.length} ads</span>
       </div>
 
       {/* Ad cards grid */}
@@ -445,7 +445,7 @@ function CampaignsTab() {
               {/* Ad preview */}
               <div className="bg-gray-50 dark:bg-slate-800 p-4 border-b border-gray-100 dark:border-slate-700">
                 <div className="bg-gray-200 dark:bg-slate-700 rounded-lg h-24 flex items-center justify-center mb-3">
-                  <span className="text-xs text-gray-400 dark:text-slate-500">Ad Creative Preview</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-500">Ad Creative Preview</span>
                 </div>
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">{ad.headline}</p>
                 <p className="text-gray-500 dark:text-slate-400 text-xs mt-1 line-clamp-2">{ad.body}</p>
@@ -471,12 +471,12 @@ function CampaignsTab() {
                     View Details <ExternalLink className="w-3 h-3" />
                   </button>
                   {ad.status === 'active' && (
-                    <button className="text-xs text-gray-400 hover:text-yellow-500 flex items-center gap-1">
+                    <button className="text-xs text-gray-500 dark:text-slate-400 hover:text-yellow-500 flex items-center gap-1">
                       <Pause className="w-3 h-3" /> Pause
                     </button>
                   )}
                   {ad.status === 'paused' && (
-                    <button className="text-xs text-gray-400 hover:text-green-500 flex items-center gap-1">
+                    <button className="text-xs text-gray-500 dark:text-slate-400 hover:text-green-500 flex items-center gap-1">
                       <Play className="w-3 h-3" /> Resume
                     </button>
                   )}
@@ -572,14 +572,14 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-3">
                     <PlatformBadge platform={item.platform} />
-                    <span className="text-xs text-gray-400 dark:text-slate-500">•</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-500">•</span>
                     <span className="text-xs text-gray-500 dark:text-slate-400">{item.campaignName}</span>
                   </div>
 
                   {/* Ad creative card */}
                   <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 border border-gray-100 dark:border-slate-700">
                     <div className="bg-gray-200 dark:bg-slate-700 rounded-lg h-32 flex items-center justify-center mb-3">
-                      <span className="text-xs text-gray-400 dark:text-slate-500">Ad Image Preview</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-500">Ad Image Preview</span>
                     </div>
                     <h4 className="font-semibold text-gray-900 dark:text-white">{item.headline}</h4>
                     <p className="text-gray-600 dark:text-slate-300 text-sm mt-1">{item.body}</p>
@@ -596,7 +596,7 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
                       <Clock className="w-3 h-3" />
                       Requested by Twomiah
                     </span>
-                    <span className="text-xs text-gray-400 dark:text-slate-500">
+                    <span className="text-xs text-gray-500 dark:text-slate-500">
                       {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </div>
@@ -710,7 +710,7 @@ function AdDetailSlideOver({ ad, onClose }: { ad: any; onClose: () => void }) {
           {/* Preview */}
           <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4">
             <div className="bg-gray-200 dark:bg-slate-700 rounded-lg h-40 flex items-center justify-center mb-3">
-              <span className="text-xs text-gray-400 dark:text-slate-500">Ad Creative</span>
+              <span className="text-xs text-gray-500 dark:text-slate-500">Ad Creative</span>
             </div>
             <h4 className="font-semibold text-gray-900 dark:text-white text-lg">{ad.headline}</h4>
             <p className="text-gray-600 dark:text-slate-300 text-sm mt-2">{ad.body}</p>
@@ -778,7 +778,7 @@ function MiniChart({ data }: { data: { date: string; impressions: number; clicks
         return (
           <g key={pct}>
             <line x1={pad.left} y1={y} x2={W - pad.right} y2={y} stroke="currentColor" className="text-gray-100 dark:text-slate-800" strokeWidth={1} />
-            <text x={pad.left - 5} y={y + 3} textAnchor="end" className="text-gray-400 dark:text-slate-500 fill-current" fontSize={9}>
+            <text x={pad.left - 5} y={y + 3} textAnchor="end" className="text-gray-500 dark:text-slate-500 fill-current" fontSize={9}>
               {Math.round(maxImp * pct).toLocaleString()}
             </text>
           </g>
@@ -798,7 +798,7 @@ function MiniChart({ data }: { data: { date: string; impressions: number; clicks
         const date = new Date(d.date + 'T00:00:00');
         const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         return (
-          <text key={i} x={xScale(i)} y={H - 5} textAnchor="middle" className="text-gray-400 dark:text-slate-500 fill-current" fontSize={9}>
+          <text key={i} x={xScale(i)} y={H - 5} textAnchor="middle" className="text-gray-500 dark:text-slate-500 fill-current" fontSize={9}>
             {label}
           </text>
         );

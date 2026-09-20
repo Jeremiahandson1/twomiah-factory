@@ -336,7 +336,7 @@ export default function AIBudtenderPage() {
                         {session.convertedToOrder ? (
                           <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">Yes</span>
                         ) : (
-                          <span className="text-gray-400">No</span>
+                          <span className="text-gray-500 dark:text-slate-400">No</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm">
@@ -346,7 +346,7 @@ export default function AIBudtenderPage() {
                             <span className="text-gray-900 dark:text-slate-100">{session.satisfaction}/5</span>
                           </div>
                         ) : (
-                          <span className="text-gray-400">—</span>
+                          <span className="text-gray-500 dark:text-slate-400">—</span>
                         )}
                       </td>
                     </tr>
@@ -574,7 +574,7 @@ export default function AIBudtenderPage() {
                         </tr>
                       ) : analytics.topProducts.map((product: any, index: number) => (
                         <tr key={product.id || index} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-bold text-gray-400">#{index + 1}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-gray-500 dark:text-slate-400">#{index + 1}</td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-slate-100">{product.name}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">{product.category || '—'}</td>
                           <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-slate-100">{product.recommendCount || 0}</td>

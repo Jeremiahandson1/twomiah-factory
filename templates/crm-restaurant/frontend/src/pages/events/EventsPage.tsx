@@ -185,18 +185,18 @@ function PipelineView({ events }: { events: EventRow[] }) {
             </div>
             <div className="space-y-2">
               {rows.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-6">Nothing here</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 text-center py-6">Nothing here</p>
               ) : rows.map((e) => (
                 <Link key={e.id} to={`/crm/events/${e.id}`} className="block bg-white rounded-lg border p-3 hover:shadow-md transition dark:bg-slate-900">
                   <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{e.name || 'Untitled'}</p>
                   <p className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{e.clientName || 'No client attached'}</p>
-                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-400 flex-wrap">
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-slate-400 flex-wrap">
                     <span className="flex items-center gap-1"><CalendarDays className="w-3 h-3" /> {fmtEventDate(e.eventDate)}</span>
                     {(e.guestCountFinal || e.guestCount) && (
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {e.guestCountFinal ?? e.guestCount}</span>
                     )}
                   </div>
-                  {e.spaceName && <p className="text-xs text-gray-400 mt-1 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {e.spaceName}</p>}
+                  {e.spaceName && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {e.spaceName}</p>}
                   {e.quotedTotal ? <p className="text-sm font-semibold text-gray-700 mt-2 dark:text-slate-200">{money(e.quotedTotal)}</p> : null}
                 </Link>
               ))}
@@ -230,11 +230,11 @@ function ListView({ events }: { events: EventRow[] }) {
             <tr key={e.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
               <td className="px-4 py-3 text-gray-600 whitespace-nowrap dark:text-slate-400">
                 {fmtEventDate(e.eventDate)}
-                {e.startTime && <span className="block text-xs text-gray-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}
+                {e.startTime && <span className="block text-xs text-gray-500 dark:text-slate-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}
               </td>
               <td className="px-4 py-3">
                 <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:text-slate-100">{e.name || 'Untitled'}</Link>
-                <span className="block text-xs text-gray-400 capitalize">{prettyType(e.eventType)}</span>
+                <span className="block text-xs text-gray-500 dark:text-slate-400 capitalize">{prettyType(e.eventType)}</span>
               </td>
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.clientName || '—'}</td>
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.spaceName || '—'}</td>
@@ -377,7 +377,7 @@ function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => vo
                 </select>
               </div>
             </div>
-            <p className="text-xs text-gray-400 -mt-2">
+            <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">
               An enquiry doesn't hold the room — the space is only blocked once you move it to Tentative.
             </p>
             <div>

@@ -71,7 +71,7 @@ export function PortalPets() {
                     <Calendar className="w-4 h-4 shrink-0" />
                     {formatDate(p.nextAppointment.startTime)}{p.nextAppointment.reason ? ` — ${p.nextAppointment.reason}` : ''}
                   </p>
-                ) : <p className="text-gray-400 dark:text-slate-500">Nothing booked</p>}
+                ) : <p className="text-gray-500 dark:text-slate-500">Nothing booked</p>}
               </div>
               <p className="mt-4 text-sm text-teal-700 dark:text-teal-400 inline-flex items-center gap-1">View record <ArrowRight className="w-4 h-4" /></p>
             </PLink>

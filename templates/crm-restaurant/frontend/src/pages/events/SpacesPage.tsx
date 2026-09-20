@@ -105,9 +105,9 @@ export default function SpacesPage() {
                 <p className="flex items-center gap-2 text-gray-700 dark:text-slate-200">
                   <Wallet className="w-4 h-4 text-orange-500" />
                   <span className="font-semibold">{money(s.minimumSpend)}</span>
-                  <span className="text-gray-400">minimum spend</span>
+                  <span className="text-gray-500 dark:text-slate-400">minimum spend</span>
                 </p>
-                {s.hireFee ? <p className="text-xs text-gray-400 pl-6">plus {money(s.hireFee)} hire fee</p> : null}
+                {s.hireFee ? <p className="text-xs text-gray-500 dark:text-slate-400 pl-6">plus {money(s.hireFee)} hire fee</p> : null}
               </div>
 
               {(s.amenities || []).length > 0 && (

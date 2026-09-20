@@ -120,7 +120,7 @@ export default function AppLayout() {
             <p className="text-sm font-medium text-white truncate">
               {user?.email || 'User'}
             </p>
-            <p className="text-xs text-gray-400 capitalize">{user?.role || 'admin'}</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">{user?.role || 'admin'}</p>
           </div>
           <button
             onClick={handleLogout}
@@ -157,7 +157,7 @@ export default function AppLayout() {
       >
         <button
           onClick={() => setSidebarOpen(false)}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white"
+          className="absolute top-4 right-4 text-gray-500 dark:text-slate-400 hover:text-white"
         >
           <X size={20} />
         </button>

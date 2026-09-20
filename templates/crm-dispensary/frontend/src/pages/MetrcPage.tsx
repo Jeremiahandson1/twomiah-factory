@@ -696,7 +696,7 @@ export default function MetrcPage() {
         onClose={() => { setLinkModal(false); setLinkingPackage(null); }}
         title="Link Package to Product"
       >
-        <p className="text-sm text-gray-400 mb-4">
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
           Linking tag: <span className="font-mono text-gray-300">{linkingPackage?.tag || linkingPackage?.metrcTag}</span>
         </p>
         {loadingProducts ? (
@@ -704,7 +704,7 @@ export default function MetrcPage() {
             <div className="w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : products.length === 0 ? (
-          <p className="text-gray-400 text-center py-8">No products found</p>
+          <p className="text-gray-500 dark:text-slate-400 text-center py-8">No products found</p>
         ) : (
           <div className="space-y-2 max-h-80 overflow-y-auto">
             {products.map(product => (
@@ -715,7 +715,7 @@ export default function MetrcPage() {
               >
                 <div>
                   <p className="font-medium text-white">{product.name}</p>
-                  <p className="text-sm text-gray-400">{product.sku || product.category || ''}</p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{product.sku || product.category || ''}</p>
                 </div>
                 <Link className="w-4 h-4 text-gray-500 dark:text-slate-400" />
               </button>

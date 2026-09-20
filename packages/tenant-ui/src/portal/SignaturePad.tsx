@@ -46,8 +46,8 @@ export function SignaturePad({ onSave, onCancel, width = 500, height = 200, penC
         <canvas ref={canvasRef} width={width} height={height} className="touch-none cursor-crosshair block" style={{ width: '100%', maxWidth: width, height: 'auto', aspectRatio: `${width}/${height}` }}
           onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing} />
         <div className="border-t border-gray-300 px-4 py-2 bg-gray-50 flex items-center justify-between text-gray-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">
-          <span className="text-xs text-gray-400">✕ Sign above this line</span>
-          <span className="text-xs text-gray-400">{new Date().toLocaleDateString()}</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400">✕ Sign above this line</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400">{new Date().toLocaleDateString()}</span>
         </div>
       </div>
       {warning && <p className="mt-2 text-sm text-red-600">{warning}</p>}

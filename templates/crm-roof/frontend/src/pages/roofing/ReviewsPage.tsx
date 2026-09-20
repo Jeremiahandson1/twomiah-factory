@@ -58,7 +58,7 @@ export default function ReviewsPage() {
 
       {tab === 'received' ? (
         <div className="space-y-3">
-          {reviews.length === 0 ? <div className="bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">No reviews yet. Send review requests to start collecting.</div> :
+          {reviews.length === 0 ? <div className="bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">No reviews yet. Send review requests to start collecting.</div> :
             reviews.map((r) => (
               <div key={r.id} className="bg-white rounded-lg border p-4 dark:bg-slate-900">
                 <div className="flex items-start justify-between">
@@ -77,7 +77,7 @@ export default function ReviewsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Channel</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Sent</th><th className="px-4 py-3"></th></tr></thead>
             <tbody>
-              {requests.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No review requests yet.</td></tr> :
+              {requests.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No review requests yet.</td></tr> :
                 requests.map((r) => (
                   <tr key={r.id} className="border-b">
                     <td className="px-4 py-3 font-mono text-xs">{r.contactId.substring(0, 8)}…</td>

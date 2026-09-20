@@ -126,10 +126,10 @@ export function JobDetailPage({ api, toast, config }: JobsPageProps) {
                   <p className="text-sm text-gray-500 flex items-center gap-1 dark:text-slate-400"><Wrench className="w-3.5 h-3.5" /> Equipment</p>
                   <p className="font-medium text-gray-900 dark:text-slate-100">{job.equipment.name}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{[job.equipment.manufacturer, job.equipment.model].filter(Boolean).join(' ')}{job.equipment.serialNumber && <span className="ml-1 font-mono text-xs">S/N: {job.equipment.serialNumber}</span>}</p>
-                  {job.equipment.location && <p className="text-xs text-gray-400 mt-1">{job.equipment.location}</p>}
+                  {job.equipment.location && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{job.equipment.location}</p>}
                 </NavLink>
               )}
-              {!job.project && !job.contact && !(cfg.equipment && job.equipment) && <p className="text-sm text-gray-400">Nothing linked yet.</p>}
+              {!job.project && !job.contact && !(cfg.equipment && job.equipment) && <p className="text-sm text-gray-500 dark:text-slate-400">Nothing linked yet.</p>}
             </div>
           </div>
         </div>

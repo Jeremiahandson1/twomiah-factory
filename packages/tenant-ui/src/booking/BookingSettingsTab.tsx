@@ -70,7 +70,7 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
     } catch (e) { toast.error(errMsg(e, 'Could not save settings.')) } finally { setSaving(false) }
   }
 
-  if (loading) return <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-400">Loading settings…</div>
+  if (loading) return <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-500 dark:text-slate-400">Loading settings…</div>
   if (!settings) return <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-red-500">{loadError || 'Could not load booking settings.'}</div>
 
   const tzOptions = TIMEZONES.some(z => z.value === settings.timezone) ? TIMEZONES : [{ value: settings.timezone, label: settings.timezone }, ...TIMEZONES]
@@ -105,10 +105,10 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
                 {h.enabled ? (
                   <div className="flex items-center gap-2">
                     <input type="time" value={h.start} onChange={e => setDay(d, { start: e.target.value })} className={controlCompactCls} />
-                    <span className="text-gray-400 text-sm">to</span>
+                    <span className="text-gray-500 dark:text-slate-400 text-sm">to</span>
                     <input type="time" value={h.end} onChange={e => setDay(d, { end: e.target.value })} className={controlCompactCls} />
                   </div>
-                ) : <span className="text-sm text-gray-400">Closed</span>}
+                ) : <span className="text-sm text-gray-500 dark:text-slate-400">Closed</span>}
               </div>
             )
           })}
@@ -157,7 +157,7 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
 
       <div className="flex items-center gap-3">
         <Button onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save settings'}</Button>
-        {dirty && <span className="text-sm text-gray-400">Unsaved changes</span>}
+        {dirty && <span className="text-sm text-gray-500 dark:text-slate-400">Unsaved changes</span>}
       </div>
     </div>
   )

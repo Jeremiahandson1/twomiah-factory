@@ -162,7 +162,7 @@ export default function SnowBillingPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-sm font-semibold text-green-700">${Number(sm.unbilledTotal || 0).toFixed(2)}</div>
-                    <div className="text-xs text-gray-400">unbilled • {sm.events || 0} events</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">unbilled • {sm.events || 0} events</div>
                     {Number(sm.unbilledTotal || 0) > 0 && (
                       <button onClick={(e) => { e.stopPropagation(); billContract(ct, Number(sm.unbilledTotal)); }} disabled={billing === ct.id}
                         className="mt-1 mr-2 text-xs bg-green-600 text-white rounded px-2 py-1 disabled:opacity-50">
@@ -175,7 +175,7 @@ export default function SnowBillingPage() {
               </div>
             );
           })}
-          {contracts.length === 0 && <p className="text-gray-400 text-sm">No snow contracts yet.</p>}
+          {contracts.length === 0 && <p className="text-gray-500 dark:text-slate-400 text-sm">No snow contracts yet.</p>}
         </div>
 
         <div>
@@ -206,11 +206,11 @@ export default function SnowBillingPage() {
                     <span className="font-semibold">${Number(ev.billableAmount).toFixed(2)}</span>
                   </div>
                 ))}
-                {events.length === 0 && <p className="text-gray-400 text-sm">No events logged.</p>}
+                {events.length === 0 && <p className="text-gray-500 dark:text-slate-400 text-sm">No events logged.</p>}
               </div>
             </div>
           ) : (
-            <div className="border border-dashed rounded-lg p-8 text-center text-gray-400">Select a contract to log storm visits.</div>
+            <div className="border border-dashed rounded-lg p-8 text-center text-gray-500 dark:text-slate-400">Select a contract to log storm visits.</div>
           )}
         </div>
       </div>

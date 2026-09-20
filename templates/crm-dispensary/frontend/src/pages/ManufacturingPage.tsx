@@ -202,17 +202,17 @@ export default function ManufacturingPage() {
         return `${id}${qty}`.trim();
       };
       const parts = batches.map(label).filter(Boolean);
-      return parts.length > 0 ? <span className="text-sm text-gray-700 dark:text-slate-200">{parts.join(', ')}</span> : <span className="text-gray-400">--</span>;
+      return parts.length > 0 ? <span className="text-sm text-gray-700 dark:text-slate-200">{parts.join(', ')}</span> : <span className="text-gray-500 dark:text-slate-400">--</span>;
     }},
-    { key: 'method', label: 'Method', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'operator', label: 'Operator', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'startedAt', label: 'Started', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
+    { key: 'method', label: 'Method', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'operator', label: 'Operator', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'startedAt', label: 'Started', render: (val: string) => val ? formatDate(val) : <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'yield', label: 'Yield', render: (val: number, row: any) => {
       if (row.outputWeight && row.inputWeight) {
         const yieldPct = Number((row.outputWeight / row.inputWeight) * 100).toFixed(1);
         return <span className="font-medium text-gray-900 dark:text-slate-100">{yieldPct}%</span>;
       }
-      return <span className="text-gray-400">--</span>;
+      return <span className="text-gray-500 dark:text-slate-400">--</span>;
     }},
   ];
 

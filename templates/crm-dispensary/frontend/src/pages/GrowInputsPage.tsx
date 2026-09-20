@@ -405,7 +405,7 @@ function InventoryTab() {
               <Leaf className="w-3 h-3" /> Organic
             </span>
           ) : (
-            <span className="text-gray-400 text-xs">--</span>
+            <span className="text-gray-500 dark:text-slate-400 text-xs">--</span>
           )}
           {row.isOMRIListed && (
             <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-600 text-white ml-1">OMRI</span>
@@ -437,7 +437,7 @@ function InventoryTab() {
       key: 'expirationDate',
       label: 'Expiration',
       render: (val: string) => {
-        if (!val) return <span className="text-gray-400">--</span>;
+        if (!val) return <span className="text-gray-500 dark:text-slate-400">--</span>;
         const d = new Date(val);
         const daysLeft = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
         return (
@@ -859,7 +859,7 @@ function ApplicationsTab() {
       render: (val: string, row: any) => (
         <span className="text-gray-700 dark:text-slate-200">
           {val || row.targetId}
-          <span className="text-xs text-gray-400 ml-1">({row.targetType})</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400 ml-1">({row.targetType})</span>
         </span>
       ),
     },
@@ -917,7 +917,7 @@ function ApplicationsTab() {
                       onClick={() => selectInput(opt)}
                       className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm text-gray-900 flex items-center justify-between dark:text-slate-100"
                     >
-                      <span>{opt.name} <span className="text-gray-400">({opt.brand})</span></span>
+                      <span>{opt.name} <span className="text-gray-500 dark:text-slate-400">({opt.brand})</span></span>
                       <span className={`px-1.5 py-0.5 text-[10px] rounded-full ${typeColors[opt.type] || 'bg-gray-100 text-gray-700'}`}>{opt.type}</span>
                     </button>
                   ))}
@@ -1661,7 +1661,7 @@ function TraceabilityTab() {
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100">{traceData.product?.name || 'Product'}</h3>
                   {traceData.product?.strain && <p className="text-gray-500 dark:text-slate-400">{traceData.product.strain}</p>}
-                  {traceData.product?.category && <p className="text-sm text-gray-400">{traceData.product.category}</p>}
+                  {traceData.product?.category && <p className="text-sm text-gray-500 dark:text-slate-400">{traceData.product.category}</p>}
                 </div>
               </div>
 
@@ -1724,7 +1724,7 @@ function TraceabilityTab() {
                           <div key={i} className="flex items-center justify-between text-sm bg-white rounded-lg p-2 dark:bg-slate-900">
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-gray-900 dark:text-slate-100">{inp.name}</span>
-                              {inp.brand && <span className="text-gray-400">({inp.brand})</span>}
+                              {inp.brand && <span className="text-gray-500 dark:text-slate-400">({inp.brand})</span>}
                               {inp.isOrganic && (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">
                                   <Leaf className="w-2.5 h-2.5" /> Organic

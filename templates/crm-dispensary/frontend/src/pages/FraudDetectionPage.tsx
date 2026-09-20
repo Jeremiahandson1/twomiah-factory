@@ -375,7 +375,7 @@ export default function FraudDetectionPage() {
                     {(dashboardData?.alertsByWeek || Array.from({ length: 8 }, () => Math.floor(Math.random() * 20))).map((v: number, i: number) => (
                       <div key={i} className="flex flex-col items-center flex-1">
                         <div className="bg-red-400 rounded-t w-full" style={{ height: `${Math.max((v / 20) * 100, 5)}%` }} />
-                        <div className="text-xs text-gray-400 mt-1">W{i + 1}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">W{i + 1}</div>
                       </div>
                     ))}
                   </div>
@@ -386,7 +386,7 @@ export default function FraudDetectionPage() {
                     {(dashboardData?.shrinkageByMonth || Array.from({ length: 6 }, () => Math.floor(Math.random() * 5000))).map((v: number, i: number) => (
                       <div key={i} className="flex flex-col items-center flex-1">
                         <div className="bg-orange-400 rounded-t w-full" style={{ height: `${Math.max((v / 5000) * 100, 5)}%` }} />
-                        <div className="text-xs text-gray-400 mt-1">M{i + 1}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">M{i + 1}</div>
                       </div>
                     ))}
                   </div>

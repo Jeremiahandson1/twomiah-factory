@@ -282,7 +282,7 @@ export default function SEOPagesPage() {
               placeholder="Product Name | Your Dispensary"
               maxLength={60}
             />
-            <p className="text-xs text-gray-400 mt-1">{editForm.metaTitle.length}/60 characters</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{editForm.metaTitle.length}/60 characters</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Meta Description</label>
@@ -294,7 +294,7 @@ export default function SEOPagesPage() {
               placeholder="A compelling description for search results..."
               maxLength={160}
             />
-            <p className="text-xs text-gray-400 mt-1">{editForm.metaDescription.length}/160 characters</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{editForm.metaDescription.length}/160 characters</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Custom Content</label>

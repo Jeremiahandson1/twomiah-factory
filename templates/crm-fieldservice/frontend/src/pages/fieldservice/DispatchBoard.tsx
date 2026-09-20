@@ -174,7 +174,7 @@ export default function DispatchBoard() {
                 />
               ))}
               {unassigned.length === 0 && (
-                <div className="text-center py-8 text-gray-400 text-sm">
+                <div className="text-center py-8 text-gray-500 dark:text-slate-400 text-sm">
                   No unassigned jobs
                 </div>
               )}
@@ -201,7 +201,7 @@ export default function DispatchBoard() {
                 />
               ))}
               {inProgress.length === 0 && (
-                <div className="text-center py-8 text-gray-400 text-sm">
+                <div className="text-center py-8 text-gray-500 dark:text-slate-400 text-sm">
                   No jobs in progress
                 </div>
               )}
@@ -228,7 +228,7 @@ export default function DispatchBoard() {
                 />
               ))}
               {completed.length === 0 && (
-                <div className="text-center py-8 text-gray-400 text-sm">
+                <div className="text-center py-8 text-gray-500 dark:text-slate-400 text-sm">
                   No completed jobs
                 </div>
               )}

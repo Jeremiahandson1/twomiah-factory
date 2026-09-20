@@ -228,7 +228,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
                     <button
                       type="button"
                       onClick={() => setFormula((rows) => (rows.length === 1 ? [{ product: '', shade: '', parts: '' }] : rows.filter((_, idx) => idx !== i)))}
-                      className="col-span-1 flex items-center justify-center text-gray-400 hover:text-red-600"
+                      className="col-span-1 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:text-red-600"
                       title="Remove line"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -258,7 +258,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
               <input type="text" value={form.productsUsed} onChange={(e) => set('productsUsed', e.target.value)} placeholder="Toner, bond builder, treatment..." className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Result <span className="text-xs text-gray-400">(what to repeat or change next time)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Result <span className="text-xs text-gray-500 dark:text-slate-400">(what to repeat or change next time)</span></label>
               <textarea value={form.result} onChange={(e) => set('result', e.target.value)} rows={2} className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div>

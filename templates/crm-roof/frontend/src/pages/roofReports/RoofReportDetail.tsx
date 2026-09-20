@@ -267,7 +267,7 @@ export default function RoofReportDetail() {
             )}
           </div>
           {report.imagerySource && (
-            <p className="text-xs text-gray-400 mt-3">
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">
               Imagery: {report.imagerySource === 'nearmap' ? 'Nearmap 5-7cm' : 'Google Solar'}
               {report.elevationSource && report.elevationSource !== 'google_dsm' && ` | Elevation: ${report.elevationSource}`}
             </p>

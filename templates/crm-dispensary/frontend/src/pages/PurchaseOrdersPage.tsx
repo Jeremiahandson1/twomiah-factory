@@ -457,7 +457,7 @@ export default function PurchaseOrdersPage() {
                     <div key={p.id} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm flex justify-between"
                       onClick={() => addLineItem(p)}>
                       <span>{p.name}</span>
-                      <span className="text-gray-400">{p.sku}</span>
+                      <span className="text-gray-500 dark:text-slate-400">{p.sku}</span>
                     </div>
                   ))}
                 </div>

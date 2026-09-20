@@ -199,7 +199,7 @@ export default function FlatRatePricebook() {
                             </span>
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">-</span>
+                          <span className="text-sm text-gray-500 dark:text-slate-400">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -210,7 +210,7 @@ export default function FlatRatePricebook() {
                               : item.partsIncluded}
                           </p>
                         ) : (
-                          <span className="text-sm text-gray-400">-</span>
+                          <span className="text-sm text-gray-500 dark:text-slate-400">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3">

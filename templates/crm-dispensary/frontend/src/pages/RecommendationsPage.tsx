@@ -465,13 +465,13 @@ export default function RecommendationsPage() {
                 <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 dark:bg-slate-900">
                   <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Click Rate Over Time</h3>
                   <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 h-48 flex items-center justify-center dark:bg-slate-900 dark:border-slate-700">
-                    <p className="text-sm text-gray-400">Chart placeholder</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Chart placeholder</p>
                   </div>
                 </div>
                 <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 dark:bg-slate-900">
                   <h3 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Revenue from Recommendations</h3>
                   <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 h-48 flex items-center justify-center dark:bg-slate-900 dark:border-slate-700">
-                    <p className="text-sm text-gray-400">Chart placeholder</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400">Chart placeholder</p>
                   </div>
                 </div>
               </div>

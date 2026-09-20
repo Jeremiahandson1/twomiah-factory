@@ -114,9 +114,9 @@ export default function MaterialsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={6} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : orders.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-12 text-gray-400">No material orders found</td></tr>
+                  <tr><td colSpan={6} className="text-center py-12 text-gray-500 dark:text-slate-400">No material orders found</td></tr>
                 ) : (
                   orders.map((order) => (
                     <tr

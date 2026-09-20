@@ -263,7 +263,7 @@ export default function Roof3DViewer({ segments, edges, centerLat, centerLng, re
         >
           <RotateCcw className="w-3.5 h-3.5" /> Reset View
         </button>
-        <div className="ml-auto text-xs text-gray-400">
+        <div className="ml-auto text-xs text-gray-500 dark:text-slate-400">
           Drag to rotate, scroll to zoom, right-click to pan
         </div>
       </div>

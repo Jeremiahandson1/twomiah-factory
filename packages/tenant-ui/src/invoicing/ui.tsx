@@ -299,7 +299,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-            {loading && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-400">Loading…</td></tr>}
+            {loading && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">Loading…</td></tr>}
             {!loading && data.length === 0 && <tr><td colSpan={columns.length + 1} className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyMessage}</td></tr>}
             {!loading && data.map(row => (
               <tr key={row.id} onClick={onRowClick ? () => onRowClick(row) : undefined} className={`text-gray-900 dark:text-slate-100 ${onRowClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800' : ''}`}>

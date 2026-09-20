@@ -203,12 +203,12 @@ export default function ProductsPage() {
     {
       key: 'strainType',
       label: 'Strain',
-      render: (val: string) => getStrainBadge(val) || <span className="text-gray-400">—</span>,
+      render: (val: string) => getStrainBadge(val) || <span className="text-gray-500 dark:text-slate-400">—</span>,
     },
     {
       key: 'thcPercent',
       label: 'THC%',
-      render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-400">—</span>,
+      render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-500 dark:text-slate-400">—</span>,
     },
     {
       key: 'price',
@@ -466,7 +466,7 @@ export default function ProductsPage() {
                 <button type="button" onClick={() => setFormData({ ...formData, imageUrl: '' })} className="text-sm text-red-600 hover:underline">Remove</button>
               )}
             </div>
-            <p className="mt-1 text-xs text-gray-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</p>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

@@ -118,7 +118,7 @@ export default function SubmittalsPage() {
           </thead>
           <tbody>
             {submittals.length === 0 ? (
-              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">No submittals yet. Click "New Submittal" to create one.</td></tr>
+              <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No submittals yet. Click "New Submittal" to create one.</td></tr>
             ) : submittals.map((s) => (
               <tr key={s.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                 <td className="px-4 py-3 font-mono text-sm">{s.number}</td>

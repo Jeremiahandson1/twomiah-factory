@@ -71,7 +71,7 @@ export default function DrawSchedulesPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-2">
-          {schedules.length === 0 && <div className="bg-white rounded-lg border p-6 text-center text-gray-400 text-sm dark:bg-slate-900">No draw schedules yet.</div>}
+          {schedules.length === 0 && <div className="bg-white rounded-lg border p-6 text-center text-gray-500 dark:text-slate-400 text-sm dark:bg-slate-900">No draw schedules yet.</div>}
           {schedules.map((s) => (
             <button key={s.id} onClick={() => loadDetail(s.id)} className={`w-full text-left bg-white rounded-lg border p-4 hover:shadow ${selected?.id === s.id ? 'border-orange-500 shadow' : ''}`}>
               <div className="flex items-start justify-between">
@@ -98,7 +98,7 @@ export default function DrawSchedulesPage() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">#</th><th className="px-4 py-3">Requested</th><th className="px-4 py-3">Approved</th><th className="px-4 py-3">% Complete</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Actions</th></tr></thead>
                 <tbody>
-                  {(selected.requests || []).length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No draws yet.</td></tr> :
+                  {(selected.requests || []).length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No draws yet.</td></tr> :
                     selected.requests.map((r: any) => (
                       <tr key={r.id} className="border-b">
                         <td className="px-4 py-3 font-mono text-sm">#{r.drawNumber}</td>
@@ -118,7 +118,7 @@ export default function DrawSchedulesPage() {
                 </tbody>
               </table>
             </div>
-          ) : <div className="bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">Select a draw schedule to view its draws</div>}
+          ) : <div className="bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">Select a draw schedule to view its draws</div>}
         </div>
       </div>
 

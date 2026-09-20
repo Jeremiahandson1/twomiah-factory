@@ -347,7 +347,7 @@ export default function SettingsPage() {
                       type="number"
                       placeholder="0.00"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">%</span>
                   </div>
                 </div>
 
@@ -360,7 +360,7 @@ export default function SettingsPage() {
                       type="number"
                       placeholder="0.00"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">%</span>
                   </div>
                 </div>
 
@@ -373,7 +373,7 @@ export default function SettingsPage() {
                       type="number"
                       placeholder="15.00"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">%</span>
                   </div>
                 </div>
 
@@ -386,9 +386,9 @@ export default function SettingsPage() {
                       type="number"
                       placeholder="1"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">oz</span>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">oz</span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Enforced at the register and online menu. This is the retail SALE limit per transaction (not the personal possession limit) — 1 oz of flower in most adult-use states, including Colorado. Raise it only where your state's retail rules allow.</p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Enforced at the register and online menu. This is the retail SALE limit per transaction (not the personal possession limit) — 1 oz of flower in most adult-use states, including Colorado. Raise it only where your state's retail rules allow.</p>
                 </div>
               </div>
 
@@ -418,7 +418,7 @@ export default function SettingsPage() {
                             onChange={e => updateHours(day, 'open', e.target.value)}
                             className="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700"
                           />
-                          <span className="text-gray-400 text-sm">to</span>
+                          <span className="text-gray-500 dark:text-slate-400 text-sm">to</span>
                           <input
                             type="time"
                             value={storeHours[day]?.close || '21:00'}
@@ -539,7 +539,7 @@ export default function SettingsPage() {
                   <div className="w-56">
                     <FieldLabel>Default Delivery Fee ($)</FieldLabel>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400">$</span>
                       <input
                         type="number"
                         step="0.01"
@@ -553,7 +553,7 @@ export default function SettingsPage() {
                   <div className="w-56">
                     <FieldLabel>Minimum Order Amount ($)</FieldLabel>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400">$</span>
                       <input
                         type="number"
                         step="0.01"
@@ -604,7 +604,7 @@ export default function SettingsPage() {
                       type="password"
                       placeholder="sk_live_..."
                     />
-                    <p className="text-xs text-gray-400 mt-1">This key is stored securely and never exposed to the frontend.</p>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">This key is stored securely and never exposed to the frontend.</p>
                   </div>
                 </div>
               )}
@@ -695,7 +695,7 @@ export default function SettingsPage() {
                       <div>
                         <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Temporary password *</label>
                         <input type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className="w-full text-sm border rounded-lg px-3 py-2" />
-                        <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Share this with them — they can change it after signing in.</p>
                       </div>
                       <div>
                         <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>
@@ -727,7 +727,7 @@ export default function SettingsPage() {
                   <tbody className="divide-y">
                     {users.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400 text-sm">No team members found</td>
+                        <td colSpan={4} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400 text-sm">No team members found</td>
                       </tr>
                     )}
                     {users.map((u: any) => (
@@ -742,7 +742,7 @@ export default function SettingsPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
                           {u.id === (user as any)?.id
-                            ? <span className="text-xs text-gray-400">You</span>
+                            ? <span className="text-xs text-gray-500 dark:text-slate-400">You</span>
                             : canManageUsers ? (
                               <>{isOwner && u.role !== 'owner' && (
                         <label className="inline-flex items-center gap-1 text-xs text-gray-500 mr-3 dark:text-slate-400" title="Lets this person see the list of logins under Settings › Users">

@@ -66,7 +66,7 @@ export default function PortalJobDetail() {
   }
 
   if (!job) {
-    return <div className="text-center py-20 text-gray-400">Job not found</div>;
+    return <div className="text-center py-20 text-gray-500 dark:text-slate-400">Job not found</div>;
   }
 
   const currentStageIdx = STAGE_ORDER.indexOf(job.status);
@@ -75,7 +75,7 @@ export default function PortalJobDetail() {
 
   return (
     <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
-      <Link to="/portal/jobs" className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-300">
+      <Link to="/portal/jobs" className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-300">
         <ArrowLeft className="w-4 h-4" /> Back to Jobs
       </Link>
 

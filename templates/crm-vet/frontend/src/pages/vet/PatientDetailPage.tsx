@@ -317,7 +317,7 @@ export default function PatientDetailPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 {p.name || 'Unnamed'}
-                {p.deceased && <span className="text-sm font-normal text-gray-400">(deceased)</span>}
+                {p.deceased && <span className="text-sm font-normal text-gray-500 dark:text-slate-400">(deceased)</span>}
               </h1>
               <p className="text-gray-500 capitalize dark:text-slate-400">{signalment || '—'}</p>
             </div>
@@ -357,7 +357,7 @@ export default function PatientDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           {/* Owner card */}
           <div className="border rounded-lg p-3">
-            <p className="text-xs font-medium text-gray-400 uppercase mb-2">Owner</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Owner</p>
             <p className="font-medium text-gray-900 flex items-center gap-2 dark:text-slate-100">
               <User className="w-4 h-4 text-gray-400" /> {ownerName(owner)}
             </p>
@@ -367,14 +367,14 @@ export default function PatientDetailPage() {
           </div>
           {/* Details card */}
           <div className="border rounded-lg p-3">
-            <p className="text-xs font-medium text-gray-400 uppercase mb-2">Details</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Details</p>
             <dl className="text-sm text-gray-600 space-y-1 dark:text-slate-400">
-              {p.microchip && <div className="flex justify-between"><dt className="text-gray-400">Microchip</dt><dd>{p.microchip}</dd></div>}
-              {p.rabiesTag && <div className="flex justify-between"><dt className="text-gray-400">Rabies Tag</dt><dd>{p.rabiesTag}</dd></div>}
-              {p.color && <div className="flex justify-between"><dt className="text-gray-400">Color</dt><dd>{p.color}</dd></div>}
-              {p.bloodType && <div className="flex justify-between"><dt className="text-gray-400">Blood Type</dt><dd>{p.bloodType}</dd></div>}
-              {p.insuranceProvider && <div className="flex justify-between gap-4"><dt className="text-gray-400">Insurance</dt><dd className="text-right">{p.insuranceProvider}{p.insurancePolicy ? ` · ${p.insurancePolicy}` : ''}</dd></div>}
-              <div className="flex justify-between"><dt className="text-gray-400">Spayed/Neutered</dt><dd>{p.spayedNeutered ? 'Yes' : 'No'}</dd></div>
+              {p.microchip && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Microchip</dt><dd>{p.microchip}</dd></div>}
+              {p.rabiesTag && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Rabies Tag</dt><dd>{p.rabiesTag}</dd></div>}
+              {p.color && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Color</dt><dd>{p.color}</dd></div>}
+              {p.bloodType && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Blood Type</dt><dd>{p.bloodType}</dd></div>}
+              {p.insuranceProvider && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Insurance</dt><dd className="text-right">{p.insuranceProvider}{p.insurancePolicy ? ` · ${p.insurancePolicy}` : ''}</dd></div>}
+              <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Spayed/Neutered</dt><dd>{p.spayedNeutered ? 'Yes' : 'No'}</dd></div>
               {/* Allergies moved up into their own alert — see above. Repeating them here would say they
                   are ordinary detail, which is the impression that needed fixing. (Vet T12 L8) */}
             </dl>
@@ -408,7 +408,7 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {visits.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No visits recorded</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No visits recorded</div>
           ) : (
             <div className="space-y-3">
               {visits.map((v) => (
@@ -441,7 +441,7 @@ export default function PatientDetailPage() {
                     </div>
                   )}
                   {(v.weightLb || v.temperatureF || v.heartRate || v.respRate) && (
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-slate-400">
                       {v.weightLb ? <span>Wt {fmtWeight(v.weightLb)} lb</span> : null}
                       {v.temperatureF ? <span>Temp {v.temperatureF}°F</span> : null}
                       {v.heartRate ? <span>HR {v.heartRate}</span> : null}
@@ -464,7 +464,7 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {vaccinations.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No vaccinations recorded</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No vaccinations recorded</div>
           ) : (
             <div className="bg-white rounded-xl border overflow-hidden dark:bg-slate-900">
               <table className="w-full text-sm">
@@ -517,7 +517,7 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {prescriptions.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No prescriptions recorded</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No prescriptions recorded</div>
           ) : (
             <div className="space-y-2">
               {prescriptions.map((rx) => (
@@ -527,13 +527,13 @@ export default function PatientDetailPage() {
                       {[rx.drug, rx.strength, rx.form].filter(Boolean).join(' ') || 'Medication'}
                       {rx.isControlled && <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full">Controlled</span>}
                     </p>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
                       Qty {rx.quantity ?? '—'} · {rx.refills ?? 0} refills
                     </span>
                   </div>
                   {rx.sig && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{rx.sig}</p>}
                   {rx.prescriber?.name && <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">Prescribed by {rx.prescriber.name}</p>}
-                  {rx.notes && <p className="text-xs text-gray-400 mt-1">{rx.notes}</p>}
+                  {rx.notes && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{rx.notes}</p>}
                 </div>
               ))}
             </div>
@@ -550,7 +550,7 @@ export default function PatientDetailPage() {
             </button>
           </div>
           {labResults.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No lab results recorded</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No lab results recorded</div>
           ) : (
             <div className="space-y-2">
               {labResults.map((l) => (
@@ -562,7 +562,7 @@ export default function PatientDetailPage() {
                     </p>
                     <div className="flex items-center gap-3">
                       {l.status && <span className="text-xs text-gray-500 capitalize dark:text-slate-400">{l.status}</span>}
-                      <span className="text-xs text-gray-400">{fmtDate(l.resultDate)}</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">{fmtDate(l.resultDate)}</span>
                     </div>
                   </div>
                   {l.summary && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{l.summary}</p>}
@@ -593,7 +593,7 @@ export default function PatientDetailPage() {
             </label>
           </div>
           {documents.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
               No documents for {p.name || 'this patient'} yet — x-rays, referral letters and certificates filed here stay with the animal.
             </div>
           ) : (
@@ -602,7 +602,7 @@ export default function PatientDetailPage() {
                 <div key={d.id} className="bg-white rounded-xl border p-4 dark:bg-slate-900">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium text-gray-900 truncate dark:text-slate-100" title={d.name}>{d.name || 'Document'}</p>
-                    <span className="text-xs text-gray-400 shrink-0">{[fileSize(d.size), fmtDate(d.createdAt)].filter(Boolean).join(' · ')}</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400 shrink-0">{[fileSize(d.size), fmtDate(d.createdAt)].filter(Boolean).join(' · ')}</span>
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     {safeUrl(d.url) && (
@@ -610,7 +610,7 @@ export default function PatientDetailPage() {
                         <FileText className="w-3 h-3" /> Open
                       </a>
                     )}
-                    {d.uploadedBy?.firstName && <span className="text-xs text-gray-400">Uploaded by {[d.uploadedBy.firstName, d.uploadedBy.lastName].filter(Boolean).join(' ')}</span>}
+                    {d.uploadedBy?.firstName && <span className="text-xs text-gray-500 dark:text-slate-400">Uploaded by {[d.uploadedBy.firstName, d.uploadedBy.lastName].filter(Boolean).join(' ')}</span>}
                   </div>
                 </div>
               ))}
@@ -623,7 +623,7 @@ export default function PatientDetailPage() {
       {tab === 'invoices' && (
         <div className="space-y-3">
           {invoices.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
               Nothing billed for {p.name || 'this patient'} yet — billing a visit raises an invoice against the animal.
             </div>
           ) : (
@@ -638,7 +638,7 @@ export default function PatientDetailPage() {
                     <span className="text-sm text-gray-700 dark:text-slate-200">${Number(inv.total || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 mt-1">
-                    <span className="text-xs text-gray-400">{fmtDate(inv.issueDate)}</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{fmtDate(inv.issueDate)}</span>
                     {Number(inv.balance || 0) > 0 && <span className="text-xs text-amber-600">${Number(inv.balance).toFixed(2)} outstanding</span>}
                   </div>
                 </Link>

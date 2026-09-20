@@ -279,7 +279,7 @@ export default function TrackingPage() {
 
           {/* Map placeholder */}
           <div className="bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 h-64 flex items-center justify-center mb-4 dark:bg-slate-800 dark:border-slate-700">
-            <div className="text-center text-gray-400">
+            <div className="text-center text-gray-500 dark:text-slate-400">
               <MapPin className="w-8 h-8 mx-auto mb-2" />
               <p className="text-sm">Map view with stop locations</p>
             </div>
@@ -393,9 +393,9 @@ export default function TrackingPage() {
                     />
                     <div className="flex-1 text-sm">
                       <span className="font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id?.slice(0, 8)}</span>
-                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="mx-2 text-gray-500 dark:text-slate-400">|</span>
                       <span className="text-gray-600 dark:text-slate-400">{order.customerName || 'Unknown'}</span>
-                      <span className="mx-2 text-gray-400">|</span>
+                      <span className="mx-2 text-gray-500 dark:text-slate-400">|</span>
                       <span className="text-gray-500 dark:text-slate-400">{order.address || 'No address'}</span>
                     </div>
                   </label>

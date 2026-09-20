@@ -81,9 +81,9 @@ export default function AdjusterDirectoryPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={7} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : adjusters.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-gray-400">No adjusters in directory yet. They'll be added as you log insurance claims.</td></tr>
+                  <tr><td colSpan={7} className="text-center py-12 text-gray-500 dark:text-slate-400">No adjusters in directory yet. They'll be added as you log insurance claims.</td></tr>
                 ) : (
                   adjusters.map((adj) => (
                     <tr key={adj.id} className="border-b last:border-0 hover:bg-gray-50">
@@ -125,7 +125,7 @@ export default function AdjusterDirectoryPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add Adjuster</h2>
-              <button onClick={() => setAddOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setAddOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div>

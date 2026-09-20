@@ -54,14 +54,14 @@ export function InboundMessagesPage(): React.ReactElement {
           which with the SMS page next door made three names for two things. The subtitle below carries the
           detail the old heading was trying to. (Contractor T14 L2) */}
       <h1 className="text-2xl font-bold mb-2">Email</h1>
-      <p className="text-sm text-gray-500 mb-6">Emails received on your "route into CRM" aliases. Newest first.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Emails received on your "route into CRM" aliases. Newest first.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
 
-      {loading && <div className="text-sm text-gray-500">Loading…</div>}
+      {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && messages.length === 0 && !error && (
-        <div className="text-sm text-gray-500 italic py-12 text-center border border-dashed border-gray-300 rounded-md">
+        <div className="text-sm text-gray-500 dark:text-slate-400 italic py-12 text-center border border-dashed border-gray-300 rounded-md">
           No inbound messages yet. Once an alias is set to "Route into CRM" and receives an email, it'll appear here.
         </div>
       )}
@@ -75,7 +75,7 @@ export function InboundMessagesPage(): React.ReactElement {
                 onClick={() => setSelected(m)}
                 className={'w-full text-left px-3 py-2 border-b border-gray-100 hover:bg-gray-50 ' + (selected?.id === m.id ? 'bg-orange-50' : '')}
               >
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-0.5">
+                <div className="flex items-center justify-between text-xs text-gray-500 dark:text-slate-400 mb-0.5">
                   <span className="font-mono truncate">{m.toLocalPart}@</span>
                   <span>{new Date(m.receivedAt).toLocaleDateString()}</span>
                 </div>
@@ -85,17 +85,17 @@ export function InboundMessagesPage(): React.ReactElement {
             ))}
           </div>
           <div className="border border-gray-200 rounded-md p-4 max-h-[70vh] overflow-y-auto">
-            {!selected && <div className="text-sm text-gray-500 italic">Select a message to view.</div>}
+            {!selected && <div className="text-sm text-gray-500 dark:text-slate-400 italic">Select a message to view.</div>}
             {selected && (
               <div>
                 <div className="border-b border-gray-100 pb-3 mb-3">
-                  <div className="text-xs text-gray-500 mb-1">Received {new Date(selected.receivedAt).toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mb-1">Received {new Date(selected.receivedAt).toLocaleString()}</div>
                   <div className="font-semibold mb-1">{selected.subject || '(no subject)'}</div>
                   <div className="text-xs text-gray-600">
                     From: <span className="font-mono">{selected.fromName ? selected.fromName + ' <' + selected.fromEmail + '>' : selected.fromEmail}</span>
                   </div>
                   <div className="text-xs text-gray-600">To: <span className="font-mono">{selected.toLocalPart}@</span></div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                     SPF: <span className={selected.spfVerdict?.toLowerCase().includes('pass') ? 'text-green-600' : 'text-gray-500'}>{selected.spfVerdict || 'unknown'}</span>
                     {' · '}
                     DKIM: <span className={selected.dkimVerdict?.toLowerCase().includes('pass') ? 'text-green-600' : 'text-gray-500'}>{selected.dkimVerdict || 'unknown'}</span>
@@ -113,7 +113,7 @@ export function InboundMessagesPage(): React.ReactElement {
                 )}
                 {/* Reply — sends AS the alias the customer wrote to */}
                 <div className="border-t border-gray-100 mt-4 pt-3">
-                  <div className="text-xs text-gray-500 mb-2">Reply as <span className="font-mono">{selected.toLocalPart}@</span> to <span className="font-mono">{selected.fromEmail}</span></div>
+                  <div className="text-xs text-gray-500 dark:text-slate-400 mb-2">Reply as <span className="font-mono">{selected.toLocalPart}@</span> to <span className="font-mono">{selected.fromEmail}</span></div>
                   <textarea
                     className="w-full border border-gray-300 rounded-md p-2 text-sm min-h-[100px]"
                     placeholder="Write your reply..."

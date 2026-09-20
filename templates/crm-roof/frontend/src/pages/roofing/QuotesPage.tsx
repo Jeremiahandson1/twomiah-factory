@@ -164,9 +164,9 @@ export default function QuotesPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : quotes.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">No quotes found</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">No quotes found</td></tr>
                 ) : (
                   quotes.map((q) => (
                     <tr key={q.id} className="border-b last:border-0 hover:bg-gray-50">
@@ -200,7 +200,7 @@ export default function QuotesPage() {
                             </span>
                           </button>
                         ) : (
-                          <span className="text-gray-400">&mdash;</span>
+                          <span className="text-gray-500 dark:text-slate-400">&mdash;</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">
@@ -268,7 +268,7 @@ export default function QuotesPage() {
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Signed Acceptance</h3>
                 <p className="text-sm text-gray-500 dark:text-slate-400">{certQuote.quoteNumber || 'Proposal'}</p>
               </div>
-              <button onClick={() => setCertQuote(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setCertQuote(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -285,12 +285,12 @@ export default function QuotesPage() {
               </div>
               {certQuote.signatureHash && (
                 <p className="mt-3 text-xs text-gray-500 break-all dark:text-slate-400">
-                  <span className="text-gray-400">Document fingerprint (SHA-256): </span>
+                  <span className="text-gray-500 dark:text-slate-400">Document fingerprint (SHA-256): </span>
                   <span className="font-mono">{certQuote.signatureHash}</span>
                 </p>
               )}
               {certQuote.signedUserAgent && (
-                <p className="mt-1 text-xs text-gray-400 break-all">{certQuote.signedUserAgent}</p>
+                <p className="mt-1 text-xs text-gray-500 dark:text-slate-400 break-all">{certQuote.signedUserAgent}</p>
               )}
             </div>
           </div>
@@ -305,7 +305,7 @@ export default function QuotesPage() {
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <FileText className="w-5 h-5 text-blue-600" /> New Quote
               </h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600">
                 <X className="w-5 h-5" />
               </button>
             </div>

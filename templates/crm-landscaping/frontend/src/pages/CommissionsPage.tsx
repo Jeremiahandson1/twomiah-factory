@@ -60,7 +60,7 @@ export default function CommissionsPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">User</th><th className="px-4 py-3">Base</th><th className="px-4 py-3">Rate</th><th className="px-4 py-3">Commission</th><th className="px-4 py-3">Earned</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"></th></tr></thead>
             <tbody>
-              {commissions.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No commission records yet.</td></tr> :
+              {commissions.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No commission records yet.</td></tr> :
                 commissions.map((c) => (
                   <tr key={c.id} className="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-3 font-mono text-xs">{c.userId.substring(0, 8)}…</td>
@@ -82,7 +82,7 @@ export default function CommissionsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {plans.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">No commission plans yet. Create one to start tracking commissions.</div> :
+          {plans.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">No commission plans yet. Create one to start tracking commissions.</div> :
             plans.map((p) => (
               <div key={p.id} className="bg-white rounded-lg border p-5 dark:bg-slate-900">
                 <h3 className="font-bold text-lg">{p.name}</h3>

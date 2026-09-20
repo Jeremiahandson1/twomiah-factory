@@ -139,14 +139,14 @@ export default function PortalQuotes() {
 
     return (
       <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
-        <button onClick={() => { setOpenQuote(null); setError(null); }} className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-200">
+        <button onClick={() => { setOpenQuote(null); setError(null); }} className="flex items-center gap-1 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-200">
           <ChevronLeft className="w-4 h-4" /> Back to proposals
         </button>
 
         <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
           <div className="p-4 border-b border-gray-700 flex items-start justify-between">
             <div>
-              <p className="text-sm font-mono text-gray-400">{openQuote.quoteNumber || 'Proposal'}</p>
+              <p className="text-sm font-mono text-gray-500 dark:text-slate-400">{openQuote.quoteNumber || 'Proposal'}</p>
               <p className="text-2xl font-bold text-white mt-0.5">{money(openQuote.total)}</p>
             </div>
             <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${STATUS_COLORS[openQuote.status] || 'bg-gray-700 text-gray-400'}`}>
@@ -171,9 +171,9 @@ export default function PortalQuotes() {
               </div>
             ))}
             <div className="pt-3 mt-2 border-t border-gray-700 space-y-1 text-sm">
-              <div className="flex justify-between text-gray-400"><span>Subtotal</span><span>{money(openQuote.subtotal)}</span></div>
+              <div className="flex justify-between text-gray-500 dark:text-slate-400"><span>Subtotal</span><span>{money(openQuote.subtotal)}</span></div>
               {Number(openQuote.taxAmount || 0) > 0 && (
-                <div className="flex justify-between text-gray-400"><span>Tax</span><span>{money(openQuote.taxAmount)}</span></div>
+                <div className="flex justify-between text-gray-500 dark:text-slate-400"><span>Tax</span><span>{money(openQuote.taxAmount)}</span></div>
               )}
               <div className="flex justify-between text-white font-bold text-base pt-1"><span>Total</span><span>{money(openQuote.total)}</span></div>
             </div>
@@ -190,7 +190,7 @@ export default function PortalQuotes() {
 
           {canSign && (
             <div className="p-4 border-t border-gray-700 bg-gray-800/60">
-              <p className="text-sm text-gray-400 mb-3">Review the proposal, then sign to approve it.</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">Review the proposal, then sign to approve it.</p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowSignature(true)}
@@ -267,7 +267,7 @@ export default function PortalQuotes() {
     >
       <div className="flex items-start justify-between mb-2">
         <div>
-          <p className="text-sm font-mono text-gray-400">{q.quoteNumber || 'Proposal'}</p>
+          <p className="text-sm font-mono text-gray-500 dark:text-slate-400">{q.quoteNumber || 'Proposal'}</p>
           <p className="text-lg font-bold text-white mt-0.5">{money(q.total)}</p>
         </div>
         {(() => {
@@ -290,7 +290,7 @@ export default function PortalQuotes() {
     <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-white">Proposals</h1>
-        <p className="text-gray-400 text-sm mt-0.5">Review and sign your roofing proposals</p>
+        <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">Review and sign your roofing proposals</p>
       </div>
 
       {error && <div className="text-sm text-red-400">{error}</div>}
@@ -298,7 +298,7 @@ export default function PortalQuotes() {
       {quotes.length === 0 ? (
         <div className="bg-gray-800 rounded-xl p-8 border border-gray-700 text-center">
           <FileText className="w-10 h-10 text-gray-600 mx-auto mb-3 dark:text-slate-400" />
-          <p className="text-gray-400">No proposals yet</p>
+          <p className="text-gray-500 dark:text-slate-400">No proposals yet</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -310,7 +310,7 @@ export default function PortalQuotes() {
           )}
           {rest.length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-gray-400">All proposals</h2>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-slate-400">All proposals</h2>
               {rest.map((q) => <Card key={q.id} q={q} />)}
             </div>
           )}

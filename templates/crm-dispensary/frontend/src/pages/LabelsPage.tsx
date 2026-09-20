@@ -307,7 +307,7 @@ export default function LabelsPage() {
             <div className="bg-white rounded-lg shadow-sm p-12 text-center dark:bg-slate-900">
               <Tag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 mb-2 dark:text-slate-400">No label templates yet</p>
-              <p className="text-sm text-gray-400">Create your first template to start printing labels</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Create your first template to start printing labels</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -318,7 +318,7 @@ export default function LabelsPage() {
                       <h3 className="font-semibold text-gray-900 dark:text-slate-100">{tpl.name}</h3>
                       <p className="text-xs text-gray-500 capitalize dark:text-slate-400">{tpl.type} label</p>
                     </div>
-                    <span className="text-xs text-gray-400">{tpl.width}" x {tpl.height}"</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{tpl.width}" x {tpl.height}"</span>
                   </div>
                   <div className="flex flex-wrap gap-1 mb-3">
                     {(tpl.fields || []).slice(0, 5).map((f: any) => {
@@ -329,7 +329,7 @@ export default function LabelsPage() {
                       <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded dark:bg-slate-800 dark:text-slate-400">+{tpl.fields.length - 5}</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-400 mb-3">
+                  <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400 mb-3">
                     {tpl.showQrCode && <span className="flex items-center gap-1"><QrCode className="w-3 h-3" /> QR</span>}
                     {tpl.showBarcode && <span className="flex items-center gap-1"><Barcode className="w-3 h-3" /> Barcode</span>}
                     {tpl.showLogo && <span className="flex items-center gap-1"><Image className="w-3 h-3" /> Logo</span>}
@@ -435,7 +435,7 @@ export default function LabelsPage() {
                 <div dangerouslySetInnerHTML={{ __html: generatedPreview }} />
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+              <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-slate-400">
                 <QrCode className="w-12 h-12 mb-3" />
                 <p className="text-sm">Generate labels to see preview</p>
               </div>

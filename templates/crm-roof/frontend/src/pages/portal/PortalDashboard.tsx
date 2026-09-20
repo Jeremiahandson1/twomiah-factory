@@ -88,7 +88,7 @@ export default function PortalDashboard() {
       {/* Welcome */}
       <div>
         <h1 className="text-2xl font-bold text-white">Welcome back, {firstName}</h1>
-        <p className="text-gray-400 text-sm mt-0.5">Here's an overview of your roofing project</p>
+        <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">Here's an overview of your roofing project</p>
       </div>
 
       {/* Summary Cards */}
@@ -96,13 +96,13 @@ export default function PortalDashboard() {
         <Link to="/portal/jobs" className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors">
           <Briefcase className="w-6 h-6 text-blue-400 mb-2" />
           <p className="text-2xl font-bold text-white">{data.activeJobs.length}</p>
-          <p className="text-sm text-gray-400">Active Jobs</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Active Jobs</p>
         </Link>
 
         <Link to="/portal/invoices" className="bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors">
           <Receipt className="w-6 h-6 text-green-400 mb-2" />
           <p className="text-2xl font-bold text-white">{data.unpaidCount}</p>
-          <p className="text-sm text-gray-400">Unpaid Invoices</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Unpaid Invoices</p>
         </Link>
       </div>
 
@@ -135,7 +135,7 @@ export default function PortalDashboard() {
               className="block bg-gray-800 rounded-xl p-4 border border-gray-700 hover:border-gray-600 transition-colors"
             >
               <div className="flex items-start justify-between mb-2">
-                <p className="text-sm font-mono text-gray-400">
+                <p className="text-sm font-mono text-gray-500 dark:text-slate-400">
                   {job.jobNumber || `ROOF-${String(job.id).padStart(4, '0')}`}
                 </p>
                 <span className={`text-[10px] font-medium px-2 py-0.5 rounded text-white ${STATUS_COLORS[job.status] || 'bg-gray-700'}`}>

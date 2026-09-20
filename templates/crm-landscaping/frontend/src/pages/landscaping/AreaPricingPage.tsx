@@ -96,7 +96,7 @@ export default function AreaPricingPage() {
                   <td><button onClick={() => removeRate(r.id)} className="text-red-600 p-1 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button></td>
                 </tr>
               ))}
-              {rates.length === 0 && <tr><td colSpan={6} className="py-4 text-gray-400">No rates yet — add one below.</td></tr>}
+              {rates.length === 0 && <tr><td colSpan={6} className="py-4 text-gray-500 dark:text-slate-400">No rates yet — add one below.</td></tr>}
             </tbody>
           </table>
         </div>

@@ -341,7 +341,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
             )}
           </div>
         ) : (
-          <span className="text-gray-400">-</span>
+          <span className="text-gray-500 dark:text-slate-400">-</span>
         )}
       </td>
       <td className="px-4 py-3">
@@ -743,7 +743,7 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs text-gray-400">{j.number}</span>
+                <span className="font-mono text-xs text-gray-500 dark:text-slate-400">{j.number}</span>
                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[j.status || ''] || 'bg-gray-100 text-gray-600'}`}>
                   {j.status?.replace('_', ' ')}
                 </span>

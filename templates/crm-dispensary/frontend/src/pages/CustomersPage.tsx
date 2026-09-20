@@ -190,12 +190,12 @@ export default function CustomersPage() {
     {
       key: 'loyaltyTier',
       label: 'Tier',
-      render: (val: string) => getTierBadge(val) || <span className="text-gray-400">—</span>,
+      render: (val: string) => getTierBadge(val) || <span className="text-gray-500 dark:text-slate-400">—</span>,
     },
     {
       key: 'email',
       label: 'Email',
-      render: (val: string) => val ? <a href={`mailto:${val}`} className="text-green-600 hover:underline">{val}</a> : <span className="text-gray-400">—</span>,
+      render: (val: string) => val ? <a href={`mailto:${val}`} className="text-green-600 hover:underline">{val}</a> : <span className="text-gray-500 dark:text-slate-400">—</span>,
     },
     {
       key: 'totalSpent',

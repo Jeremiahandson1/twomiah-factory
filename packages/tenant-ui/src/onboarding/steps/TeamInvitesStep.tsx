@@ -40,7 +40,7 @@ export function TeamInvitesStep({ onBack, onNext }: { onBack: () => void; onNext
   return (
     <div>
       <h2 className="text-xl font-semibold mb-2">Invite your team</h2>
-      <p className="text-sm text-gray-500 mb-6">Skip if it's just you for now — you can invite people from Settings anytime.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Skip if it's just you for now — you can invite people from Settings anytime.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
 

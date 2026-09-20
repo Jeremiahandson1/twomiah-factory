@@ -55,7 +55,7 @@ export default function WebsiteAnalyticsPage() {
           onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
           className="px-3 py-2 border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-orange-500 text-sm dark:border-slate-700 dark:text-slate-200"
         />
-        <span className="text-gray-400">to</span>
+        <span className="text-gray-500 dark:text-slate-400">to</span>
         <input
           type="date"
           value={dateRange.end}
@@ -359,7 +359,7 @@ function RealtimeTab() {
         <p className="text-gray-500 mt-1 dark:text-slate-400">Active visitors right now</p>
         <div className="flex items-center justify-center gap-2 mt-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-sm text-gray-400">Live</span>
+          <span className="text-sm text-gray-500 dark:text-slate-400">Live</span>
         </div>
       </div>
 

@@ -97,17 +97,17 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
   return (
     <div>
       <h2 className="text-xl font-semibold mb-2">Email addresses</h2>
-      <p className="text-sm text-gray-500 mb-6">We've pre-checked the most common ones for your business type. All forward to your email below by default — you can split them out per-alias later in Settings.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">We've pre-checked the most common ones for your business type. All forward to your email below by default — you can split them out per-alias later in Settings.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
 
       <div className="mb-4">
-        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Forward all messages to</label>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Forward all messages to</label>
         <input type="email" value={forwardTo} onChange={e => setForwardTo(e.target.value.trim())} placeholder="you@yourbusiness.com" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
       </div>
 
       <div className="mb-4">
-        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Pre-checked addresses</div>
+        <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-2">Pre-checked addresses</div>
         <div className="grid grid-cols-2 gap-2">
           {defaults.map(local => (
             <label key={local} className="flex items-center gap-2 text-sm p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
@@ -120,12 +120,12 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
 
       {extraAliases.length > 0 && (
         <div className="mb-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Additional</div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-2">Additional</div>
           <div className="grid grid-cols-2 gap-2">
             {extraAliases.map(local => (
               <div key={local} className="flex items-center gap-2 text-sm p-2 border border-gray-200 rounded bg-gray-50">
                 <span>✓</span><span className="font-mono">{local}@</span>
-                <button onClick={() => setExtraAliases(a => a.filter(x => x !== local))} className="ml-auto text-xs text-gray-400 hover:text-red-600">remove</button>
+                <button onClick={() => setExtraAliases(a => a.filter(x => x !== local))} className="ml-auto text-xs text-gray-500 dark:text-slate-400 hover:text-red-600">remove</button>
               </div>
             ))}
           </div>
@@ -134,7 +134,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
 
       <div className="mb-6 flex items-end gap-2">
         <div className="flex-1">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Add another</label>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400 mb-1">Add another</label>
           <input type="text" value={newAlias} onChange={e => { setNewAlias(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '')); setError(''); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra(); } }} placeholder="billing" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
         </div>
         <button onClick={addExtra} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md text-sm">Add</button>

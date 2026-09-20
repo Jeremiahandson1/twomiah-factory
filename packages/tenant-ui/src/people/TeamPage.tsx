@@ -72,7 +72,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const columns = [
     // The badge says "this person can sign in", so it follows the login — not which table the row came from.
     // Giving someone a roster card used to take their badge away while their login carried on working. (T30 N3)
-    { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{(row.hasLogin || row._source === 'user') && <span className="ml-2 text-xs font-normal text-gray-400 dark:text-slate-400">login</span>}</span> },
+    { key: 'name', label: 'Name', render: (v: any, row: Member) => <span className="font-medium">{v}{(row.hasLogin || row._source === 'user') && <span className="ml-2 text-xs font-normal text-gray-500 dark:text-slate-400">login</span>}</span> },
     // Two different things share this column: a roster member's job title is free text they typed, but a login
     // account's is a permission role, and that was printing the stored slug — "field" and "user" on a page whose
     // own Settings › Users calls them Staff. ROLE_LABELS is the one vocabulary for that. (Contractor T14 M10)
@@ -82,7 +82,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
     { key: 'phone', label: 'Phone', render: (v: any) => v || '-' },
     // a rate is money: 28.5 is $28.50 an hour (T14 L2)
     { key: 'hourlyRate', label: 'Rate', render: (v: any) => (v != null && v !== '' && Number.isFinite(Number(v)) ? `$${Number(v).toFixed(2)}/hr` : '-') },
-    { key: 'active', label: 'Status', render: (v: any) => (v ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>) },
+    { key: 'active', label: 'Status', render: (v: any) => (v ? <span className="text-green-600">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>) },
   ]
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
 

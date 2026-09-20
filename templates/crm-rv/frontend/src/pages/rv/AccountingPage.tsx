@@ -52,7 +52,7 @@ export default function AccountingPage() {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 dark:bg-slate-900 dark:text-slate-400"><tr><th className="px-4 py-2 text-left font-semibold">Type</th><th className="px-4 py-2 text-left font-semibold">Ref</th><th className="px-4 py-2 text-left font-semibold">Customer</th><th className="px-4 py-2 text-left font-semibold">Date</th><th className="px-4 py-2 text-right font-semibold">Amount</th></tr></thead>
           <tbody>
-            {pending.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">{done ? 'All entries posted ✓' : 'Nothing pending.'}</td></tr>}
+            {pending.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">{done ? 'All entries posted ✓' : 'Nothing pending.'}</td></tr>}
             {pending.map((e: any, i: number) => (<tr key={i} className="border-t"><td className="px-4 py-2">{e.type}</td><td className="px-4 py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{e.ref}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{e.customer}</td><td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{e.date}</td><td className="px-4 py-2 text-right font-medium">{money(e.amount)}</td></tr>))}
           </tbody>
         </table>

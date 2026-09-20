@@ -160,7 +160,7 @@ function CustomersTab() {
 
   const columns = [
     { key: 'name', label: 'Name', render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span> },
-    { key: 'licenseNumber', label: 'License #', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{val}</span> : <span className="text-gray-400">--</span> },
+    { key: 'licenseNumber', label: 'License #', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{val}</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'contactName', label: 'Contact', render: (val: string, row: any) => (
       <div>
         <p className="text-gray-700 dark:text-slate-200">{val || '--'}</p>
@@ -168,7 +168,7 @@ function CustomersTab() {
       </div>
     )},
     { key: 'paymentTerms', label: 'Payment Terms', render: (val: string) => <span className="text-gray-700 dark:text-slate-200">{({ cod: 'COD', net15: 'Net 15', net30: 'Net 30', net60: 'Net 60', prepaid: 'Prepaid' } as Record<string, string>)[String(val || '').toLowerCase().replace(/[^a-z0-9]/g, '')] || val || '--'}</span> },
-    { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600' : 'text-green-600'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-400">$0.00</span> },
+    { key: 'balance', label: 'Balance', render: (val: number) => val ? <span className={`font-medium ${val > 0 ? 'text-red-600' : 'text-green-600'}`}>${Number(val).toFixed(2)}</span> : <span className="text-gray-500 dark:text-slate-400">$0.00</span> },
   ];
 
   return (
@@ -378,7 +378,7 @@ function OrdersTab() {
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={orderStatusColors} /> },
     { key: 'total', label: 'Total', render: (val: number) => <span className="font-medium text-gray-900 dark:text-slate-100">${Number(val || 0).toFixed(2)}</span> },
     { key: 'paymentStatus', label: 'Payment', render: (val: string) => <StatusBadge status={val} statusColors={paymentStatusColors} /> },
-    { key: 'dueDate', label: 'Due Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
+    { key: 'dueDate', label: 'Due Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-500 dark:text-slate-400">--</span> },
   ];
 
   const actions = [
@@ -608,12 +608,12 @@ function LabTestsTab() {
 
   const columns = [
     { key: 'sampleId', label: 'Sample ID', render: (val: string) => <span className="font-mono font-medium text-gray-900 dark:text-slate-100">{val}</span> },
-    { key: 'batchId', label: 'Batch', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{val}</span> : <span className="text-gray-400">--</span> },
-    { key: 'labName', label: 'Lab', render: (val: string) => val || <span className="text-gray-400">--</span> },
+    { key: 'batchId', label: 'Batch', render: (val: string) => val ? <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{val}</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'labName', label: 'Lab', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={labStatusColors} /> },
-    { key: 'thc', label: 'THC%', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-400">--</span> },
-    { key: 'cbd', label: 'CBD%', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-400">--</span> },
-    { key: 'overallResult', label: 'Result', render: (val: string) => val ? <StatusBadge status={val} statusColors={resultColors} /> : <span className="text-gray-400">--</span> },
+    { key: 'thc', label: 'THC%', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'cbd', label: 'CBD%', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}%</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'overallResult', label: 'Result', render: (val: string) => val ? <StatusBadge status={val} statusColors={resultColors} /> : <span className="text-gray-500 dark:text-slate-400">--</span> },
   ];
 
   const tableActions = [

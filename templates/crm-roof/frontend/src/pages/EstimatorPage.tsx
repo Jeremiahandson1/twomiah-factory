@@ -54,7 +54,7 @@ export default function EstimatorPage() {
       <div className="max-w-2xl mx-auto py-12 text-center">
         <h2 className="text-xl font-semibold text-gray-900 mb-2 dark:text-slate-100">Instant Estimator</h2>
         <p className="text-gray-500 mb-4 dark:text-slate-400">The Instant Estimator uses Google satellite data to measure roofs and provide homeowners with an instant price range.</p>
-        <p className="text-gray-400 text-sm">This feature is not enabled on your plan. Contact support to add it.</p>
+        <p className="text-gray-500 dark:text-slate-400 text-sm">This feature is not enabled on your plan. Contact support to add it.</p>
       </div>
     );
   }
@@ -111,7 +111,7 @@ export default function EstimatorPage() {
             <input type="number" step="0.01" value={settings.pricePerSquareHigh} onChange={(e) => setSettings({ ...settings, pricePerSquareHigh: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
           </div>
         </div>
-        <p className="text-xs text-gray-400 mt-2">
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
           Example: A 25-square roof at ${settings.pricePerSquareLow}–${settings.pricePerSquareHigh}/sq = ${(25 * Number(settings.pricePerSquareLow)).toLocaleString()}–${(25 * Number(settings.pricePerSquareHigh)).toLocaleString()}
         </p>
       </div>

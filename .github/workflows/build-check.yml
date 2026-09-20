@@ -1374,3 +1374,14 @@ jobs:
           bun-version: latest
       - name: "today belongs to the business: instants convert, calendar markers do not"
         run: bun run scripts/check-business-day.ts
+
+  muted-label-contrast:
+    name: "Muted label contrast"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "muted labels are readable in both themes"
+        run: bun run scripts/check-muted-label-contrast.ts

@@ -101,7 +101,7 @@ export function GlobalSearch({ api, placeholder = DEFAULT_SEARCH_PLACEHOLDER }: 
                         <div className="font-medium text-gray-900 truncate dark:text-slate-100">{item.name}</div>
                         {item.description && <div className="text-sm text-gray-500 truncate dark:text-slate-400">{item.description}</div>}
                       </div>
-                      <div className="text-xs text-gray-400 capitalize">{item.type}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400 capitalize">{item.type}</div>
                     </button>
                   )
                 })}

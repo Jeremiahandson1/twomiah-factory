@@ -124,13 +124,13 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Billing</h1>
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
         Your plan is billed by Twomiah. Change plan, update your card or download invoices in the billing portal — this page just shows where things stand.
       </p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
       {notice && <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4 text-sm text-yellow-800">{notice}</div>}
-      {loading && <div className="text-sm text-gray-500">Loading…</div>}
+      {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && !sub && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 dark:bg-slate-900 dark:border-slate-700">
@@ -147,10 +147,10 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
           <div className="bg-white rounded-xl border border-gray-200 p-6 dark:bg-slate-900 dark:border-slate-700">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <div className="text-xs uppercase tracking-wide text-gray-400">Current plan</div>
+                <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Current plan</div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-slate-100">{sub.planName || 'Twomiah CRM'}</div>
                 <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                  {price ? <>{price} <span className="text-gray-400">/ {sub.billingCycle === 'annual' || sub.billingCycle === 'yearly' ? 'year' : 'month'}</span></> : sub.billingType === 'one_time' ? 'Lifetime license' : 'Included'}
+                  {price ? <>{price} <span className="text-gray-500 dark:text-slate-400">/ {sub.billingCycle === 'annual' || sub.billingCycle === 'yearly' ? 'year' : 'month'}</span></> : sub.billingType === 'one_time' ? 'Lifetime license' : 'Included'}
                   {sub.seats ? <> · up to {sub.seats} users</> : null}
                 </div>
               </div>
@@ -159,15 +159,15 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
 
             <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 text-sm">
               <div>
-                <dt className="text-gray-400">{sub.status === 'trialing' ? 'Trial ends' : 'Next billing date'}</dt>
+                <dt className="text-gray-500 dark:text-slate-400">{sub.status === 'trialing' ? 'Trial ends' : 'Next billing date'}</dt>
                 <dd className="font-medium text-gray-900 dark:text-slate-100">{date(sub.status === 'trialing' ? sub.trialEndsAt : sub.nextBillingDate) || '—'}</dd>
               </div>
               <div>
-                <dt className="text-gray-400">Billing</dt>
+                <dt className="text-gray-500 dark:text-slate-400">Billing</dt>
                 <dd className="font-medium text-gray-900 dark:text-slate-100">{sub.billingType === 'one_time' ? 'One-time' : sub.billingCycle === 'annual' || sub.billingCycle === 'yearly' ? 'Annual' : 'Monthly'}</dd>
               </div>
               <div>
-                <dt className="text-gray-400">Last updated</dt>
+                <dt className="text-gray-500 dark:text-slate-400">Last updated</dt>
                 <dd className="font-medium text-gray-900 dark:text-slate-100">{date(sub.syncedAt) || '—'}{data?.source === 'cache' ? ' (cached)' : ''}</dd>
               </div>
             </dl>
@@ -199,7 +199,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
             ) : (
               <p className="text-sm text-gray-500 dark:text-slate-400">No seat limit on this plan.</p>
             )}
-            <p className="text-xs text-gray-400 mt-3">Deactivating a user in Settings › Users frees a seat. Need more seats? Move up a plan in the billing portal.</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">Deactivating a user in Settings › Users frees a seat. Need more seats? Move up a plan in the billing portal.</p>
           </div>
 
           {(msg || smsBilling) && (
@@ -211,7 +211,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
                 </div>
                 {msg && (
                   <div className="text-right">
-                    <div className="text-xs uppercase tracking-wide text-gray-400">Wallet balance</div>
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-slate-400">Wallet balance</div>
                     <div className={'text-2xl font-bold ' + (msg.enabled && msg.walletCents <= 0 ? 'text-red-600' : 'text-gray-900 dark:text-slate-100')}>${(msg.walletCents / 100).toFixed(2)}</div>
                   </div>
                 )}

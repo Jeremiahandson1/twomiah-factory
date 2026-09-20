@@ -377,7 +377,7 @@ export default function MarketplacePage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   placeholder={field.placeholder || ''}
                 />
-                {field.help && <p className="text-xs text-gray-400 mt-1">{field.help}</p>}
+                {field.help && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{field.help}</p>}
               </div>
             ))
           ) : (

@@ -313,7 +313,7 @@ function RecommendationsTab({ api, toast, can }: { api: AdsApi; toast: AdsToast;
                     <p className="font-medium text-gray-900 dark:text-slate-100">{human(r.action_type)} {urgency && <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${urgency === 'high' ? 'bg-red-100 text-red-700' : urgency === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}>{urgency}</span>}</p>
                     <p className="text-xs text-gray-500 dark:text-slate-400">{r.campaign_name || 'Account-wide'}{r.platform ? ` · ${PLATFORM_LABEL[r.platform] || r.platform}` : ''} · {when(r.created_at)}</p>
                     <p className="text-sm mt-2 text-gray-700 dark:text-slate-300">{r.reasoning}</p>
-                    {r.executed && <p className="text-xs text-gray-500 mt-1"><Check className="w-3 h-3 inline" /> {String(r.reasoning || '').includes('[DISMISSED]') ? 'Dismissed' : 'Applied'} {when(r.executed_at)}</p>}
+                    {r.executed && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1"><Check className="w-3 h-3 inline" /> {String(r.reasoning || '').includes('[DISMISSED]') ? 'Dismissed' : 'Applied'} {when(r.executed_at)}</p>}
                   </div>
                   {!r.executed && (
                     <div className="flex gap-2 shrink-0">
@@ -436,7 +436,7 @@ function FinishExperimentModal({ experiment, onClose, onFinish }: { experiment: 
     <Modal isOpen onClose={onClose} title={`Finish "${experiment.name}"`} size="sm">
       <div className="space-y-3">
         <p className="text-sm text-gray-600 dark:text-slate-300">Visitors stop being split once the test is finished. Pick the version to keep, or none.</p>
-        {experiment.variants.map((v) => <label key={v.key} className="flex items-center gap-2 text-sm"><input type="radio" name="winner" checked={winner === v.key} onChange={() => setWinner(v.key)} />{v.label} <span className="text-gray-500">({v.conversions}/{v.assignments})</span></label>)}
+        {experiment.variants.map((v) => <label key={v.key} className="flex items-center gap-2 text-sm"><input type="radio" name="winner" checked={winner === v.key} onChange={() => setWinner(v.key)} />{v.label} <span className="text-gray-500 dark:text-slate-400">({v.conversions}/{v.assignments})</span></label>)}
         <label className="flex items-center gap-2 text-sm"><input type="radio" name="winner" checked={winner === ''} onChange={() => setWinner('')} />No winner</label>
         <div className="flex justify-end gap-3 pt-2"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={busy} onClick={async () => { setBusy(true); try { await onFinish(winner || null) } finally { setBusy(false) } }}>Finish test</Button></div>
       </div>

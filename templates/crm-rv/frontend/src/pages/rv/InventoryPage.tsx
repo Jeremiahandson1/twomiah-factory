@@ -950,7 +950,7 @@ function RecallModal({ unit, onClose }: RecallModalProps) {
               {recalls.map((r, i) => (
                 <div key={r.campaignNumber || i} className="border rounded-lg p-3 space-y-1">
                   {r.component && <p className="font-medium text-gray-900 dark:text-slate-100">{r.component}</p>}
-                  {r.campaignNumber && <p className="text-xs text-gray-400">{r.campaignNumber}</p>}
+                  {r.campaignNumber && <p className="text-xs text-gray-500 dark:text-slate-400">{r.campaignNumber}</p>}
                   {r.summary && <p className="text-sm text-gray-600 dark:text-slate-400"><span className="font-medium">Summary:</span> {r.summary}</p>}
                   {r.remedy && <p className="text-sm text-gray-600 dark:text-slate-400"><span className="font-medium">Remedy:</span> {r.remedy}</p>}
                 </div>

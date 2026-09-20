@@ -112,7 +112,7 @@ export default function StormRadarPage() {
         <table className="w-full">
           <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Type</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Location</th><th className="px-4 py-3">Hail</th><th className="px-4 py-3">Wind</th><th className="px-4 py-3">Started</th><th className="px-4 py-3"></th></tr></thead>
           <tbody>
-            {events.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">No storm events yet. {status?.configured ? 'Click "Sync Now" to pull events.' : 'Configure a weather provider to start pulling events.'}</td></tr> :
+            {events.length === 0 ? <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No storm events yet. {status?.configured ? 'Click "Sync Now" to pull events.' : 'Configure a weather provider to start pulling events.'}</td></tr> :
               events.map((e) => (
                 <tr key={e.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-semibold">{(e.eventType || '').replace(/_/g, ' ')}</td>
@@ -134,7 +134,7 @@ export default function StormRadarPage() {
         <table className="w-full">
           <thead className="bg-gray-50 border-b dark:bg-slate-900"><tr className="text-left text-xs font-semibold text-gray-500 uppercase dark:text-slate-400"><th className="px-4 py-3">Contact</th><th className="px-4 py-3">Distance</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Matched</th><th className="px-4 py-3">Actions</th></tr></thead>
           <tbody>
-            {matches.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">No storm leads yet. Match a storm event to contacts to generate leads.</td></tr> :
+            {matches.length === 0 ? <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-500 dark:text-slate-400">No storm leads yet. Match a storm event to contacts to generate leads.</td></tr> :
               matches.map((m) => (
                 <tr key={m.id} className="border-b">
                   <td className="px-4 py-3 font-mono text-xs">{(m.contactId || '').substring(0, 8)}…</td>

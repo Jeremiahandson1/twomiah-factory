@@ -227,7 +227,7 @@ export default function CheckinPage() {
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" /> {formatWaitTime(entry.waitMinutes || 0)} wait
                             </span>
-                            {entry.notes && <span className="text-gray-400 italic">"{entry.notes}"</span>}
+                            {entry.notes && <span className="text-gray-500 dark:text-slate-400 italic">"{entry.notes}"</span>}
                           </div>
                         </div>
                       </div>
@@ -394,7 +394,7 @@ export default function CheckinPage() {
             <div className="w-48 h-48 bg-white rounded-lg mx-auto flex items-center justify-center border border-gray-200 dark:bg-slate-900 dark:border-slate-700">
               <div className="text-center">
                 <QrCode className="w-24 h-24 text-gray-800 mx-auto dark:text-slate-200" />
-                <p className="text-xs text-gray-400 mt-2">QR Code Preview</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">QR Code Preview</p>
               </div>
             </div>
           </div>

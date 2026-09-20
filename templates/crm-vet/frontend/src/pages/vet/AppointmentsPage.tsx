@@ -150,12 +150,12 @@ export default function AppointmentsPage() {
                   {a.ownerName && <span className="flex items-center gap-1"><User className="w-3 h-3" /> {a.ownerName}</span>}
                   {a.ownerPhone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {a.ownerPhone}</span>}
                 </p>
-                {a.reason && <p className="text-xs text-gray-400 mt-0.5">{a.reason}</p>}
+                {a.reason && <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{a.reason}</p>}
               </div>
               <div className="flex items-center gap-2 text-sm">
                 {a.type && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{appointmentTypeLabel(a.type)}</span>}
-                {a.room && <span className="text-xs text-gray-400 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {a.room}</span>}
-                {providerName(a) && <span className="text-xs text-gray-400">Dr. {providerName(a)}</span>}
+                {a.room && <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><DoorOpen className="w-3 h-3" /> {a.room}</span>}
+                {providerName(a) && <span className="text-xs text-gray-500 dark:text-slate-400">Dr. {providerName(a)}</span>}
               </div>
               <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700'}`}>
                 {(a.status || 'scheduled').replace('_', ' ')}

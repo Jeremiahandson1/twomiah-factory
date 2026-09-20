@@ -122,7 +122,7 @@ export default function DashboardPage() {
             <Inbox className="w-5 h-5 text-amber-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.enquiry || 0}</p>
-          <p className="text-xs text-gray-400">Waiting on you</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Waiting on you</p>
         </Link>
 
         <Link to="/crm/events" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
@@ -131,7 +131,7 @@ export default function DashboardPage() {
             <CalendarDays className="w-5 h-5 text-indigo-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{events.upcoming30 || 0}</p>
-          <p className="text-xs text-gray-400">{events.thisMonth || 0} this month</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{events.thisMonth || 0} this month</p>
         </Link>
 
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
@@ -140,7 +140,7 @@ export default function DashboardPage() {
             <TrendingUp className="w-5 h-5 text-green-600" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{money(events.bookedValue)}</p>
-          <p className="text-xs text-gray-400">Food &amp; beverage on held events</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">Food &amp; beverage on held events</p>
         </div>
 
         <Link to="/crm/spaces" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
@@ -149,7 +149,7 @@ export default function DashboardPage() {
             <DoorOpen className="w-5 h-5 text-orange-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{pipeline.confirmed || 0}</p>
-          <p className="text-xs text-gray-400">{pipeline.tentative || 0} tentative</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{pipeline.tentative || 0} tentative</p>
         </Link>
       </div>
 
@@ -165,7 +165,7 @@ export default function DashboardPage() {
           ))}
         </div>
         {((pipeline.lost || 0) > 0 || (pipeline.cancelled || 0) > 0) && (
-          <p className="text-xs text-gray-400 mt-3">
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">
             {pipeline.lost || 0} lost · {pipeline.cancelled || 0} cancelled
           </p>
         )}
@@ -176,7 +176,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
           <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
             <DoorOpen className="w-4 h-4 text-orange-500" /> Space Utilisation
-            <span className="text-xs text-gray-400 font-normal">upcoming held events</span>
+            <span className="text-xs text-gray-500 dark:text-slate-400 font-normal">upcoming held events</span>
           </h2>
           <ul className="space-y-3">
             {bySpace.map((s) => (
@@ -201,7 +201,7 @@ export default function DashboardPage() {
             <Inbox className="w-4 h-4 text-amber-500" /> New Enquiries
           </h2>
           {(activity.newEnquiries || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nothing waiting</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing waiting</p>
           ) : (
             <ul className="divide-y">
               {(activity.newEnquiries || []).map((e) => (
@@ -211,7 +211,7 @@ export default function DashboardPage() {
                     <p className="text-xs text-gray-500 capitalize dark:text-slate-400">
                       {fmtEventDate(e.eventDate)}{e.guestCount ? ` · ${e.guestCount} guests` : ''}{e.eventType ? ` · ${prettyType(e.eventType)}` : ''}
                     </p>
-                    {e.clientName && <p className="text-xs text-gray-400">{e.clientName}</p>}
+                    {e.clientName && <p className="text-xs text-gray-500 dark:text-slate-400">{e.clientName}</p>}
                   </Link>
                 </li>
               ))}
@@ -224,7 +224,7 @@ export default function DashboardPage() {
             <CalendarDays className="w-4 h-4 text-indigo-500" /> Coming Up
           </h2>
           {(activity.upcomingEvents || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nothing booked</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing booked</p>
           ) : (
             <ul className="divide-y">
               {(activity.upcomingEvents || []).map((e) => (
@@ -253,7 +253,7 @@ export default function DashboardPage() {
             <Wallet className="w-4 h-4 text-green-600" /> Payments Due
           </h2>
           {(activity.duePayments || []).length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nothing outstanding</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nothing outstanding</p>
           ) : (
             <ul className="divide-y">
               {(activity.duePayments || []).map((p) => (

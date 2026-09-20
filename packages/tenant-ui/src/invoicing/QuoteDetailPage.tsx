@@ -75,7 +75,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
               </tr></thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800 text-gray-900 dark:text-slate-100">
                 {(quote.lineItems || []).map((li: any, i: number) => <tr key={i}><td className="px-4 py-3">{li.description}</td><td className="px-4 py-3 text-right">{Number(li.quantity)}</td><td className="px-4 py-3 text-right">{money(li.unitPrice)}</td><td className="px-4 py-3 text-right font-medium">{money(li.total)}</td></tr>)}
-                {(quote.lineItems || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No line items</td></tr>}
+                {(quote.lineItems || []).length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-500 dark:text-slate-400">No line items</td></tr>}
               </tbody>
               <tfoot className="bg-gray-50 dark:bg-slate-800/60 text-gray-900 dark:text-slate-100">
                 <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">{money(quote.subtotal)}</td></tr>
@@ -100,8 +100,8 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
                   <div><span className="text-gray-500 dark:text-slate-400">IP address</span><p className="font-mono text-xs">{quote.signedIp || '-'}</p></div>
                   <div><span className="text-gray-500 dark:text-slate-400">Consent</span><p className="font-medium">{quote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
                 </div>
-                {quote.signatureHash && <p className="mt-3 text-xs text-gray-500 dark:text-slate-400 break-all"><span className="text-gray-400">Document fingerprint (SHA-256): </span><span className="font-mono">{quote.signatureHash}</span></p>}
-                {quote.signedUserAgent && <p className="mt-1 text-xs text-gray-400 break-all">{quote.signedUserAgent}</p>}
+                {quote.signatureHash && <p className="mt-3 text-xs text-gray-500 dark:text-slate-400 break-all"><span className="text-gray-500 dark:text-slate-400">Document fingerprint (SHA-256): </span><span className="font-mono">{quote.signatureHash}</span></p>}
+                {quote.signedUserAgent && <p className="mt-1 text-xs text-gray-500 dark:text-slate-400 break-all">{quote.signedUserAgent}</p>}
               </div>
             </div>
           )}

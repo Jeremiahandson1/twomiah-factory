@@ -220,7 +220,7 @@ export default function AppointmentsPage() {
               <div className="flex items-center gap-2 text-gray-900 font-medium w-40 dark:text-slate-100">
                 <Clock className="w-4 h-4 text-gray-400" />
                 {fmtTime(a.startTime)}
-                {a.endTime && <span className="text-xs text-gray-500">– {fmtTime(a.endTime)}</span>}
+                {a.endTime && <span className="text-xs text-gray-500 dark:text-slate-400">– {fmtTime(a.endTime)}</span>}
               </div>
               <div className="flex-1 min-w-[180px]">
                 <p className="font-medium text-gray-900 dark:text-slate-100">
@@ -238,8 +238,8 @@ export default function AppointmentsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2 text-sm">
-                {a.station && <span className="text-xs text-gray-500 flex items-center gap-1"><Armchair className="w-3 h-3" /> {a.station}</span>}
-                {stylistName(a) && <span className="text-xs text-gray-500 flex items-center gap-1"><User className="w-3 h-3" /> {stylistName(a)}</span>}
+                {a.station && <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Armchair className="w-3 h-3" /> {a.station}</span>}
+                {stylistName(a) && <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><User className="w-3 h-3" /> {stylistName(a)}</span>}
               </div>
               <span className={`text-xs px-2 py-1 rounded-full capitalize ${STATUS_COLORS[a.status || ''] || 'bg-gray-100 text-gray-700'}`}>
                 {(a.status || 'scheduled').replace('_', ' ')}

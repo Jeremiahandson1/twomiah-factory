@@ -36,7 +36,7 @@ export default function LocationsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-400 dark:bg-slate-900">No locations yet. Add your first branch to enable multi-location dispatch.</div> :
+        {locations.length === 0 ? <div className="col-span-full bg-white rounded-lg border p-12 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900">No locations yet. Add your first branch to enable multi-location dispatch.</div> :
           locations.map((l) => (
             <div key={l.id} className={`bg-white rounded-lg border p-5 ${!l.isActive ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between mb-3">
@@ -44,7 +44,7 @@ export default function LocationsPage() {
                   <div className="text-xs font-mono text-sky-600 mb-1">{l.code}</div>
                   <h3 className="font-bold text-lg">{l.name}</h3>
                 </div>
-                {!l.isActive && <span className="text-xs text-gray-400">Inactive</span>}
+                {!l.isActive && <span className="text-xs text-gray-500 dark:text-slate-400">Inactive</span>}
               </div>
               <div className="text-sm text-gray-600 space-y-1 dark:text-slate-400">
                 {l.address && <div>{l.address}</div>}

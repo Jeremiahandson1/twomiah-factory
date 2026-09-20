@@ -89,7 +89,7 @@ export default function RentalsPage() {
             <th className="px-4 py-2 text-left font-semibold">Unit</th><th className="px-4 py-2 text-left font-semibold">Customer</th><th className="px-4 py-2 text-left font-semibold">Dates</th><th className="px-4 py-2 text-right font-semibold">Rate</th><th className="px-4 py-2 text-right font-semibold">Total</th><th className="px-4 py-2 text-left font-semibold">Status</th><th className="px-4 py-2" />
           </tr></thead>
           <tbody>
-            {rentals.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No reservations.</td></tr>}
+            {rentals.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No reservations.</td></tr>}
             {rentals.map((r) => (<tr key={r.id} className="border-t hover:bg-gray-50 dark:hover:bg-slate-800">
               <td className="px-4 py-2">{r.unit}</td><td className="px-4 py-2 text-gray-600 dark:text-slate-400">{r.customer}</td>
               <td className="px-4 py-2 text-gray-500 text-xs dark:text-slate-400">{r.start} → {r.end} ({r.days}d)</td>

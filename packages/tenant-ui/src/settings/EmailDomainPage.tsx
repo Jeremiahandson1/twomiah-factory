@@ -69,11 +69,11 @@ export function EmailDomainPage(): React.ReactElement {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Email Domain</h1>
-      <p className="text-sm text-gray-500 mb-6">Authenticate your domain with SendGrid so outbound email from your CRM sends as <code className="bg-gray-100 px-1 rounded">support@{status.domain || 'yourdomain.com'}</code> with proper SPF/DKIM.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Authenticate your domain with SendGrid so outbound email from your CRM sends as <code className="bg-gray-100 px-1 rounded">support@{status.domain || 'yourdomain.com'}</code> with proper SPF/DKIM.</p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
 
-      {loading && <div className="text-sm text-gray-500">Loading…</div>}
+      {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && status.status === 'unconfigured' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
@@ -106,7 +106,7 @@ export function EmailDomainPage(): React.ReactElement {
           {status.records && status.records.length > 0 && (
             <div className="border border-gray-200 rounded-md overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                <thead className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500 dark:text-slate-400">
                   <tr>
                     <th className="px-3 py-2 text-left">Type</th>
                     <th className="px-3 py-2 text-left">Host</th>
@@ -133,7 +133,7 @@ export function EmailDomainPage(): React.ReactElement {
                       <td className="px-3 py-2">
                         {r.valid === true ? <span className="text-green-600 font-semibold">✓</span>
                           : r.valid === false ? <span className="text-red-600 font-semibold">✗</span>
-                          : <span className="text-gray-400">—</span>}
+                          : <span className="text-gray-500 dark:text-slate-400">—</span>}
                       </td>
                     </tr>
                   ))}
@@ -142,7 +142,7 @@ export function EmailDomainPage(): React.ReactElement {
             </div>
           )}
 
-          <p className="text-xs text-gray-500 mt-4">Click any host or value to copy it. After DNS records propagate, click Verify Now to re-check.</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-4">Click any host or value to copy it. After DNS records propagate, click Verify Now to re-check.</p>
         </>
       )}
     </div>

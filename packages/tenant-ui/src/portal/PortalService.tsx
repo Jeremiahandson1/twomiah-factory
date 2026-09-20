@@ -20,7 +20,7 @@ export function PortalEquipment() {
     <div>
       <PageTitle title={config.labels.equipment} subtitle="The systems we look after for you, with their service history." />
       {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
-      {units.length === 0 ? <Empty icon={Wrench} text="No equipment registered yet."><p className="text-sm text-gray-400 mt-1">Contact us to add your systems.</p></Empty> : (
+      {units.length === 0 ? <Empty icon={Wrench} text="No equipment registered yet."><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Contact us to add your systems.</p></Empty> : (
         <div className="space-y-3">
           {units.map((u) => {
             const w = warranty(u.warrantyExpiry)
@@ -33,9 +33,9 @@ export function PortalEquipment() {
                     <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{[u.manufacturer, u.model].filter(Boolean).join(' ') || 'No model info'}</p>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
                       <span className={`inline-flex items-center gap-1 ${pill(w === null ? 'bg-gray-100 text-gray-500' : w ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}`}><Shield className="w-3 h-3" />{w === null ? 'Warranty unknown' : w ? 'Warranty active' : 'Warranty expired'}</span>
-                      {u.purchaseDate && <span className="text-xs text-gray-400">Installed {formatDate(u.purchaseDate)}</span>}
+                      {u.purchaseDate && <span className="text-xs text-gray-500 dark:text-slate-400">Installed {formatDate(u.purchaseDate)}</span>}
                     </div>
-                    {u.lastServiceDate && <p className="text-xs text-gray-400 mt-1">Last serviced {formatDate(u.lastServiceDate)}</p>}
+                    {u.lastServiceDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Last serviced {formatDate(u.lastServiceDate)}</p>}
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-300 shrink-0 mt-1" />
                 </div>
@@ -66,10 +66,10 @@ export function PortalEquipmentDetail() {
       <div className={`${card} p-5`}>
         <h1 className="text-xl font-bold text-gray-900 mb-4 dark:text-slate-100">{eq.name}</h1>
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {(eq.manufacturer || eq.model) && <div><dt className="text-xs text-gray-400 uppercase tracking-wider">Model</dt><dd className="font-medium text-gray-900 dark:text-slate-100">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</dd></div>}
-          {eq.serialNumber && <div><dt className="text-xs text-gray-400 uppercase tracking-wider">Serial Number</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{eq.serialNumber}</dd></div>}
-          {eq.purchaseDate && <div><dt className="text-xs text-gray-400 uppercase tracking-wider">Install Date</dt><dd className="text-gray-900 dark:text-slate-100">{formatDate(eq.purchaseDate)}</dd></div>}
-          {eq.location && <div><dt className="text-xs text-gray-400 uppercase tracking-wider">Location</dt><dd className="text-gray-900 dark:text-slate-100">{eq.location}</dd></div>}
+          {(eq.manufacturer || eq.model) && <div><dt className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Model</dt><dd className="font-medium text-gray-900 dark:text-slate-100">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</dd></div>}
+          {eq.serialNumber && <div><dt className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Serial Number</dt><dd className="font-mono text-gray-900 dark:text-slate-100">{eq.serialNumber}</dd></div>}
+          {eq.purchaseDate && <div><dt className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Install Date</dt><dd className="text-gray-900 dark:text-slate-100">{formatDate(eq.purchaseDate)}</dd></div>}
+          {eq.location && <div><dt className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Location</dt><dd className="text-gray-900 dark:text-slate-100">{eq.location}</dd></div>}
         </dl>
         {w !== null && <div className={`mt-4 flex items-center gap-2 px-3 py-2 rounded-lg ${w ? 'bg-green-50 dark:bg-green-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}><Shield className={`w-4 h-4 ${w ? 'text-green-600' : 'text-red-600'}`} /><span className={`text-sm font-medium ${w ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>Warranty {w ? 'active' : 'expired'}{eq.warrantyExpiry && ` — ${w ? 'expires' : 'ended'} ${formatDate(eq.warrantyExpiry)}`}</span></div>}
       </div>
@@ -110,7 +110,7 @@ function VisitCard({ visit }: { visit: any }) {
               {items.map((item, i) => (
                 <div key={item.id || i} className="flex items-start gap-2 text-sm">
                   {item.status === 'pass' && <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />}{item.status === 'fail' && <X className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />}{item.status === 'attention' && <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />}
-                  <div><span className="text-gray-700 dark:text-slate-200">{item.label}</span>{item.notes && <p className="text-xs text-gray-400 mt-0.5">{item.notes}</p>}</div>
+                  <div><span className="text-gray-700 dark:text-slate-200">{item.label}</span>{item.notes && <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{item.notes}</p>}</div>
                 </div>
               ))}
               {checklist.overallNotes && <p className="text-xs text-gray-500 mt-2 pt-2 border-t dark:text-slate-400 dark:border-slate-700">{checklist.overallNotes}</p>}
@@ -140,7 +140,7 @@ export function PortalAgreements() {
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {rows.length === 0 ? (
         <Empty icon={CalendarCheck} text={`No ${config.labels.agreements.toLowerCase()} yet.`}>
-          <p className="text-sm text-gray-400 mt-1 mb-6">Regular maintenance keeps your systems running efficiently.</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 mb-6">Regular maintenance keeps your systems running efficiently.</p>
           {sections.serviceRequest && <PLink to={`/portal/${token}/service-request`} className={btnPrimary}>Ask about a plan <ArrowRight className="w-4 h-4" /></PLink>}
         </Empty>
       ) : (
@@ -157,12 +157,12 @@ export function PortalAgreements() {
                 {a.endDate && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Renewal Date</dt><dd className="text-gray-900 dark:text-slate-100">{formatDate(a.endDate)}</dd></div>}
                 {a.renewalType && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Renewal</dt><dd className="text-gray-900 capitalize dark:text-slate-100">{a.renewalType}</dd></div>}
               </dl>
-              {a.terms && <div className="mt-4 pt-4 border-t dark:border-slate-700"><p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Included Services</p><p className="text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{a.terms}</p></div>}
+              {a.terms && <div className="mt-4 pt-4 border-t dark:border-slate-700"><p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">Included Services</p><p className="text-sm text-gray-600 whitespace-pre-wrap dark:text-slate-400">{a.terms}</p></div>}
             </div>
           ))}
           {inactive.length > 0 && (
             <div>
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Past Plans</h2>
+              <h2 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Past Plans</h2>
               <div className="space-y-2">{inactive.map((a) => <div key={a.id} className={`${card} p-4 opacity-60`}><div className="flex items-center justify-between"><h3 className="font-medium text-gray-700 dark:text-slate-200">{a.name}</h3><span className={pill('bg-gray-100 text-gray-500 capitalize dark:bg-slate-800 dark:text-slate-400')}>{a.status}</span></div></div>)}</div>
             </div>
           )}
@@ -202,7 +202,7 @@ export function PortalServiceRequest() {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-green-600" /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Request Received</h1>
         <p className="text-gray-600 mb-1 dark:text-slate-400">We'll be in touch within <strong>{done.responseHours} hours</strong>.</p>
-        <p className="text-sm text-gray-400 mb-8">Reference: {done.jobNumber}</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-8">Reference: {done.jobNumber}</p>
         <PLink to={`/portal/${token}`} className={btnPrimary}>Back to Dashboard</PLink>
       </div>
     )

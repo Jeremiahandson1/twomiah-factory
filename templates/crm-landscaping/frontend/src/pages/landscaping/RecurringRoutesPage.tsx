@@ -109,7 +109,7 @@ export default function RecurringRoutesPage() {
         <div className="bg-white border rounded-lg p-5 dark:bg-slate-900">
           <div className="flex justify-between items-start mb-3">
             <div>
-              <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-400">· {detail.dayName}</span></h2>
+              <h2 className="font-semibold">{detail.name} <span className="text-sm text-gray-500 dark:text-slate-400">· {detail.dayName}</span></h2>
               <p className="text-xs text-gray-500 dark:text-slate-400">{detail.stops?.length || 0} stops</p>
             </div>
             <button onClick={() => deleteRoute(detail.id)} className="text-red-600 flex items-center gap-1 text-sm"><Trash2 className="w-4 h-4" /> Delete route</button>
@@ -118,14 +118,14 @@ export default function RecurringRoutesPage() {
           <div className="space-y-1 mb-4">
             {(detail.stops || []).map((s: any, i: number) => (
               <div key={s.id} className="flex justify-between items-center text-sm border-b py-2">
-                <span><span className="text-gray-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-400">· {s.serviceType} · {s.estimatedMinutes}min</span></span>
+                <span><span className="text-gray-500 dark:text-slate-400 mr-2">{i + 1}.</span>{s.siteName || s.siteId} <span className="text-gray-500 dark:text-slate-400">· {s.serviceType} · {s.estimatedMinutes}min</span></span>
                 <span className="flex items-center gap-3">
                   <span className="font-medium">${Number(s.pricePerVisit).toFixed(2)}</span>
                   <button onClick={() => removeStop(s.id)} className="text-red-500"><Trash2 className="w-4 h-4" /></button>
                 </span>
               </div>
             ))}
-            {(detail.stops || []).length === 0 && <p className="text-gray-400 text-sm">No stops yet.</p>}
+            {(detail.stops || []).length === 0 && <p className="text-gray-500 dark:text-slate-400 text-sm">No stops yet.</p>}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2 items-end border-t pt-3">

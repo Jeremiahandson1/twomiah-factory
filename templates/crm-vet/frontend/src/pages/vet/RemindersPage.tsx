@@ -252,7 +252,7 @@ export default function RemindersPage() {
                         <input type="checkbox" checked={selected.has(r.vaccinationId)} onChange={() => toggle(r.vaccinationId)} disabled={!r.ownerId} className="w-4 h-4" />
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
-                        {r.patientName || '—'} <span className="text-xs text-gray-400 capitalize">{r.species}</span>
+                        {r.patientName || '—'} <span className="text-xs text-gray-500 dark:text-slate-400 capitalize">{r.species}</span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.ownerName || '—'}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
@@ -268,7 +268,7 @@ export default function RemindersPage() {
                             {ago(r.lastRemindedAt)}{(r.reminderCount || 0) > 1 ? ` · ${r.reminderCount}×` : ''}
                           </span>
                         ) : (
-                          <span className="text-gray-400">Not yet</span>
+                          <span className="text-gray-500 dark:text-slate-400">Not yet</span>
                         )}
                       </td>
                     </tr>
@@ -279,7 +279,7 @@ export default function RemindersPage() {
                         <input type="checkbox" checked={!!r.ownerId && selected.has(r.ownerId)} onChange={() => toggle(r.ownerId)} disabled={!r.ownerId} className="w-4 h-4" />
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
-                        {r.patientName || '—'} <span className="text-xs text-gray-400 capitalize">{r.species}</span>
+                        {r.patientName || '—'} <span className="text-xs text-gray-500 dark:text-slate-400 capitalize">{r.species}</span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.ownerName || '—'}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">
@@ -287,7 +287,7 @@ export default function RemindersPage() {
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.lastVisit)}</td>
                       <td className="px-4 py-3 text-xs">
-                        {r.lastRemindedAt ? <span className="text-gray-500 dark:text-slate-400">{ago(r.lastRemindedAt)}</span> : <span className="text-gray-400">Not yet</span>}
+                        {r.lastRemindedAt ? <span className="text-gray-500 dark:text-slate-400">{ago(r.lastRemindedAt)}</span> : <span className="text-gray-500 dark:text-slate-400">Not yet</span>}
                       </td>
                     </tr>
                   ))}

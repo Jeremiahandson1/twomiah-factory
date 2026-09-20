@@ -276,7 +276,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 </div>
               )}
               {!contact.email && !contact.phone && !contact.mobile && !contact.address && !contact.city && (
-                <p className="text-sm text-gray-400 md:col-span-2">No contact details on file.</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 md:col-span-2">No contact details on file.</p>
               )}
             </div>
           </div>
@@ -320,12 +320,12 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                           <p className="text-sm text-gray-500 dark:text-slate-400 capitalize">{[p.species, p.breed].filter(Boolean).join(' · ') || 'No species on file'}</p>
                         </div>
                       </div>
-                      {p.deceased ? <span className="text-xs text-gray-400">Deceased</span> : <ChevronRight className="w-5 h-5 text-gray-300" />}
+                      {p.deceased ? <span className="text-xs text-gray-500 dark:text-slate-400">Deceased</span> : <ChevronRight className="w-5 h-5 text-gray-300" />}
                     </NavLink>
                   ))}
                 </div>
               ) : (
-                <div className="p-6 text-center text-gray-400"><PawPrint className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No patients on file for this owner</p></div>
+                <div className="p-6 text-center text-gray-500 dark:text-slate-400"><PawPrint className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No patients on file for this owner</p></div>
               )}
             </div>
           )}
@@ -410,15 +410,15 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                               <span className={active ? 'text-green-600' : 'text-gray-400'}>Warranty {active ? 'active' : 'expired'}</span>
                             </div>
                           )}
-                          {eq.purchaseDate && <p className="text-gray-400">Installed {dateOnly(eq.purchaseDate)}</p>}
-                          {eq.location && <p className="text-gray-400">{eq.location}</p>}
+                          {eq.purchaseDate && <p className="text-gray-500 dark:text-slate-400">Installed {dateOnly(eq.purchaseDate)}</p>}
+                          {eq.location && <p className="text-gray-500 dark:text-slate-400">{eq.location}</p>}
                         </div>
                       </NavLink>
                     )
                   })}
                 </div>
               ) : (
-                <div className="p-6 text-center text-gray-400"><Wrench className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No equipment on file</p></div>
+                <div className="p-6 text-center text-gray-500 dark:text-slate-400"><Wrench className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No equipment on file</p></div>
               )}
             </div>
           )}
@@ -448,7 +448,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   ))}
                 </div>
               ) : (
-                <div className="p-6 text-center text-gray-400"><MapPinned className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No locations added — useful for commercial accounts with multiple sites</p></div>
+                <div className="p-6 text-center text-gray-500 dark:text-slate-400"><MapPinned className="w-8 h-8 mx-auto mb-2 opacity-50" /><p className="text-sm">No locations added — useful for commercial accounts with multiple sites</p></div>
               )}
             </div>
           )}
@@ -462,7 +462,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                 </button>
               </div>
               <div className="max-h-80 overflow-y-auto p-4 space-y-2">
-                {smsMessages.length === 0 && !smsLoading && <p className="text-center text-sm text-gray-400 py-6">No messages yet</p>}
+                {smsMessages.length === 0 && !smsLoading && <p className="text-center text-sm text-gray-500 dark:text-slate-400 py-6">No messages yet</p>}
                 {smsMessages.map((m: any) => (
                   <div key={m.message.id} className={`flex ${m.message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.message.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'}`}>
@@ -600,7 +600,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                     </div>
                   ))}
                 </div>
-              ) : <p className="text-sm text-gray-400">No equipment at this location</p>}
+              ) : <p className="text-sm text-gray-500 dark:text-slate-400">No equipment at this location</p>}
               <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>
             </div>
             <div>
@@ -614,7 +614,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                     </NavLink>
                   ))}
                 </div>
-              ) : <p className="text-sm text-gray-400">No jobs at this location</p>}
+              ) : <p className="text-sm text-gray-500 dark:text-slate-400">No jobs at this location</p>}
             </div>
           </div>
           <div className="flex justify-end mt-4"><Button variant="secondary" onClick={() => setSiteDetail(null)}><X className="w-4 h-4 inline mr-1" />Close</Button></div>

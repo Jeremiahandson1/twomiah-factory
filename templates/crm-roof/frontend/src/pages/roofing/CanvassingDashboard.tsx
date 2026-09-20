@@ -322,7 +322,7 @@ export default function CanvassingDashboard() {
           placeholder="Filter by weather event..." className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
         <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)}
           className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
-        <span className="text-sm text-gray-400">to</span>
+        <span className="text-sm text-gray-500 dark:text-slate-400">to</span>
         <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)}
           className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900" />
       </div>
@@ -365,11 +365,11 @@ export default function CanvassingDashboard() {
                         'bg-gray-100 text-gray-600'
                       }`}>{s.status}</span>
                     </td>
-                    <td className="px-4 py-3"><ChevronRight size={16} className="text-gray-400" /></td>
+                    <td className="px-4 py-3"><ChevronRight size={16} className="text-gray-500 dark:text-slate-400" /></td>
                   </tr>
                 ))}
                 {filteredSessions.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No sessions found</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-slate-400">No sessions found</td></tr>
                 )}
               </tbody>
             </table>
@@ -399,13 +399,13 @@ export default function CanvassingDashboard() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-green-600">{rep.leads} leads</p>
-                      <p className="text-[10px] text-gray-400">{rep.doors} doors</p>
+                      <p className="text-[10px] text-gray-500 dark:text-slate-400">{rep.doors} doors</p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No activity this month</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">No activity this month</p>
             )}
           </div>
 
@@ -421,7 +421,7 @@ export default function CanvassingDashboard() {
                   <div key={script.id} className="flex items-center justify-between py-1.5">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{script.name}</p>
-                      <p className="text-[10px] text-gray-400">
+                      <p className="text-[10px] text-gray-500 dark:text-slate-400">
                         {Array.isArray(script.steps) ? script.steps.length : 0} steps
                         {script.isDefault && <span className="ml-1 text-blue-600 font-medium">(default)</span>}
                       </p>
@@ -440,7 +440,7 @@ export default function CanvassingDashboard() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No scripts yet</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">No scripts yet</p>
             )}
           </div>
         </div>

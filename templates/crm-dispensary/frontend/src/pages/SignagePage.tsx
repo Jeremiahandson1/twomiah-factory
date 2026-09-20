@@ -203,7 +203,7 @@ export default function SignagePage() {
                       <p className="text-gray-600 dark:text-slate-400">Location: {screen.location}</p>
                     )}
                     {screen.lastHeartbeat && (
-                      <p className="text-gray-400 text-xs flex items-center gap-1">
+                      <p className="text-gray-500 dark:text-slate-400 text-xs flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         Last heartbeat: {new Date(screen.lastHeartbeat).toLocaleString()}
                       </p>
@@ -391,7 +391,7 @@ export default function SignagePage() {
                   <>
                     <Monitor className="w-16 h-16 text-gray-600 mb-4 dark:text-slate-400" />
                     <h3 className="text-xl font-bold mb-2">{previewScreen.name}</h3>
-                    <p className="text-sm text-gray-400 mb-4">{screenTypeLabels[previewScreen.type] || previewScreen.type}</p>
+                    <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">{screenTypeLabels[previewScreen.type] || previewScreen.type}</p>
                     {previewData?.html ? (
                       <div className="w-full text-left" dangerouslySetInnerHTML={{ __html: previewData.html }} />
                     ) : previewData?.items ? (

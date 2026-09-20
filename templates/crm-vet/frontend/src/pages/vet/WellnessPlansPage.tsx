@@ -134,8 +134,8 @@ export default function WellnessPlansPage() {
                   {p.description && <p className="text-sm text-gray-500 mt-2 dark:text-slate-400">{p.description}</p>}
                   <div className="flex items-baseline gap-3 mt-3">
                     <span className="text-2xl font-bold text-gray-900 dark:text-slate-100">{money(p.monthlyPrice)}</span>
-                    <span className="text-sm text-gray-400">/mo</span>
-                    {p.annualPrice ? <span className="text-sm text-gray-400">· {money(p.annualPrice)}/yr</span> : null}
+                    <span className="text-sm text-gray-500 dark:text-slate-400">/mo</span>
+                    {p.annualPrice ? <span className="text-sm text-gray-500 dark:text-slate-400">· {money(p.annualPrice)}/yr</span> : null}
                   </div>
                   {(p.benefits || []).length > 0 && (
                     <ul className="mt-3 space-y-1">
@@ -167,7 +167,7 @@ export default function WellnessPlansPage() {
               </button>
             </div>
             {enrollments.length === 0 ? (
-              <p className="text-sm text-gray-400 py-6 text-center">No active enrollments</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No active enrollments</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -374,7 +374,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: WellnessPlan | null; onSav
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Benefits <span className="text-xs text-gray-400">(one per line)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Benefits <span className="text-xs text-gray-500 dark:text-slate-400">(one per line)</span></label>
               <textarea value={form.benefits} onChange={(e) => set('benefits', e.target.value)} rows={4} className="w-full px-3 py-2 border rounded-lg" placeholder={'2 wellness exams\nCore vaccines\n10% off services'} />
             </div>
             <div className="flex items-center gap-2">

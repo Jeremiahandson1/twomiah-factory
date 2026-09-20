@@ -187,7 +187,7 @@ function CategoriesModal({ api, toast, categories, onClose, onChanged }: { api: 
   return (
     <Modal isOpen onClose={onClose} title="Categories">
       <div className="space-y-2 mb-4 max-h-72 overflow-y-auto">
-        {categories.length === 0 && <p className="text-sm text-gray-500">No categories yet.</p>}
+        {categories.length === 0 && <p className="text-sm text-gray-500 dark:text-slate-400">No categories yet.</p>}
         {categories.map((c) => (
           <div key={c.id} className="flex items-center justify-between gap-2 p-3 bg-gray-50 rounded-lg dark:bg-slate-800">
             <span className="truncate">{c.name}</span>

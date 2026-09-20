@@ -290,7 +290,7 @@ export default function RemindersPage() {
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     {r.serviceName || '—'}
                     {[r.stylistFirstName, r.stylistLastName].filter(Boolean).length > 0 && (
-                      <span className="block text-xs text-gray-500">with {[r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ')}</span>
+                      <span className="block text-xs text-gray-500 dark:text-slate-400">with {[r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ')}</span>
                     )}
                   </td>
                   <td className={`px-4 py-3 ${r.overdue ? 'text-red-700 dark:text-red-400 font-medium' : 'text-gray-600'}`}>

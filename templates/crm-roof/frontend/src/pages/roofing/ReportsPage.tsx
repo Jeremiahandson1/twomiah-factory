@@ -179,7 +179,7 @@ export default function ReportsPage() {
               <span className="text-sm text-gray-500 dark:text-slate-400">Close Rate</span>
             </div>
             <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{closeRate}%</p>
-            <p className="text-xs text-gray-400 mt-1">{signed} signed / {proposalsSent} proposed</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{signed} signed / {proposalsSent} proposed</p>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border p-5 dark:bg-slate-900">
@@ -243,7 +243,7 @@ export default function ReportsPage() {
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: color }} />
                       <span className="text-sm text-gray-700 capitalize flex-1 dark:text-slate-200">{type.replace('_', ' ')}</span>
                       <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{count}</span>
-                      <span className="text-xs text-gray-400 w-12 text-right">{pct}%</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400 w-12 text-right">{pct}%</span>
                       <div className="w-24 bg-gray-100 rounded-full h-2 overflow-hidden dark:bg-slate-800">
                         <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
                       </div>
@@ -251,7 +251,7 @@ export default function ReportsPage() {
                   );
                 })}
               {Object.keys(jobsByType).length === 0 && (
-                <p className="text-sm text-gray-400">No data</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No data</p>
               )}
             </div>
           </div>
@@ -268,7 +268,7 @@ export default function ReportsPage() {
                   <Bar key={name} label={name} value={value} max={maxRepRev} color="#8b5cf6" />
                 ))}
               {Object.keys(revByRep).length === 0 && (
-                <p className="text-sm text-gray-400">No data — assign sales reps to jobs</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No data — assign sales reps to jobs</p>
               )}
             </div>
           </div>
@@ -285,7 +285,7 @@ export default function ReportsPage() {
                   <Bar key={name} label={name} value={value} max={maxCrewRev} color="#f59e0b" />
                 ))}
               {Object.keys(revByCrew).length === 0 && (
-                <p className="text-sm text-gray-400">No data — assign crews to jobs</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No data — assign crews to jobs</p>
               )}
             </div>
           </div>

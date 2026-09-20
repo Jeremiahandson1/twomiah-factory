@@ -125,7 +125,7 @@ export default function AIReportsPage() {
 
       {report && (
         <div className="mt-5 bg-white rounded-xl border shadow-sm p-6 dark:bg-slate-900">
-          <div className="text-xs text-gray-400 mb-3 flex flex-wrap gap-x-4 gap-y-1">
+          <div className="text-xs text-gray-500 dark:text-slate-400 mb-3 flex flex-wrap gap-x-4 gap-y-1">
             <span>Analyzed: {report.rowsAnalyzed?.units} units · {report.rowsAnalyzed?.leads} leads · {report.rowsAnalyzed?.service} service ROs · {report.rowsAnalyzed?.invoices} invoices</span>
             <span>{report.generatedAt ? new Date(report.generatedAt).toLocaleString() : ''}</span>
           </div>

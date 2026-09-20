@@ -70,13 +70,13 @@ export default function PortalInvoices() {
     <div className="px-4 py-6 max-w-lg mx-auto space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-white">Invoices</h1>
-        <p className="text-gray-400 text-sm mt-0.5">View and pay your invoices</p>
+        <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">View and pay your invoices</p>
       </div>
 
       {invoices.length === 0 ? (
         <div className="bg-gray-800 rounded-xl p-8 border border-gray-700 text-center">
           <Receipt className="w-10 h-10 text-gray-600 mx-auto mb-3 dark:text-slate-400" />
-          <p className="text-gray-400">No invoices yet</p>
+          <p className="text-gray-500 dark:text-slate-400">No invoices yet</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -87,7 +87,7 @@ export default function PortalInvoices() {
               <div key={inv.id} className="bg-gray-800 rounded-xl p-4 border border-gray-700">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <p className="text-sm font-mono text-gray-400">
+                    <p className="text-sm font-mono text-gray-500 dark:text-slate-400">
                       {inv.invoiceNumber || `INV-${String(inv.id).padStart(4, '0')}`}
                     </p>
                     <p className="text-lg font-bold text-white mt-0.5">
@@ -109,7 +109,7 @@ export default function PortalInvoices() {
                 {isUnpaid && (
                   <div className="flex items-center justify-between bg-gray-700/50 rounded-lg p-3">
                     <div>
-                      <p className="text-xs text-gray-400">Balance Due</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">Balance Due</p>
                       <p className="text-lg font-bold text-white">
                         ${balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>

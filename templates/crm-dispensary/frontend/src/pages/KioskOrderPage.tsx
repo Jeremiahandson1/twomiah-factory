@@ -274,7 +274,7 @@ export default function KioskOrderPage() {
           >
             {loading ? 'Pairing...' : 'Pair kiosk'}
           </button>
-          <p className="text-gray-500 text-sm mt-6">This is done once per device. Staff only.</p>
+          <p className="text-gray-500 dark:text-slate-400 text-sm mt-6">This is done once per device. Staff only.</p>
         </div>
       </div>
     );

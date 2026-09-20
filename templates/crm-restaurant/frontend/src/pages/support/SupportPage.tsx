@@ -171,7 +171,7 @@ export default function SupportPage() {
   if (view === 'ai-chat') {
     return (
       <div className="p-6 max-w-2xl mx-auto">
-        <button onClick={() => setView('list')} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm mb-4">
+        <button onClick={() => setView('list')} className="flex items-center gap-1 text-gray-500 dark:text-slate-400 hover:text-white text-sm mb-4">
           <ArrowLeft size={16} /> Back
         </button>
         <div className="flex items-center gap-2 mb-6">
@@ -193,7 +193,7 @@ export default function SupportPage() {
             ))}
             {chatLoading && (
               <div className="flex justify-start">
-                <div className="bg-gray-800 rounded-xl px-4 py-2 text-sm text-gray-400">Thinking...</div>
+                <div className="bg-gray-800 rounded-xl px-4 py-2 text-sm text-gray-500 dark:text-slate-400">Thinking...</div>
               </div>
             )}
           </div>
@@ -220,7 +220,7 @@ export default function SupportPage() {
   if (view === 'detail' && selected) {
     return (
       <div className="p-6">
-        <button onClick={() => { setView('list'); setSelected(null); }} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm mb-4">
+        <button onClick={() => { setView('list'); setSelected(null); }} className="flex items-center gap-1 text-gray-500 dark:text-slate-400 hover:text-white text-sm mb-4">
           <ArrowLeft size={16} /> Back
         </button>
 
@@ -284,7 +284,7 @@ export default function SupportPage() {
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 mb-4 flex items-center gap-2">
             <Star size={16} className="text-yellow-400 fill-yellow-400" />
             <span className="text-yellow-400 text-sm font-medium">{selected.rating}/5</span>
-            {selected.ratingComment && <span className="text-gray-400 text-sm">{selected.ratingComment}</span>}
+            {selected.ratingComment && <span className="text-gray-500 dark:text-slate-400 text-sm">{selected.ratingComment}</span>}
           </div>
         )}
 
@@ -294,7 +294,7 @@ export default function SupportPage() {
             <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="Type a reply..."
               className="w-full bg-transparent text-white text-sm resize-none outline-none min-h-[60px] placeholder-gray-600" />
             <div className="flex items-center justify-between mt-2">
-              <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 cursor-pointer">
                 <input type="checkbox" checked={isInternal} onChange={e => setIsInternal(e.target.checked)} />
                 Internal note
               </label>
@@ -356,11 +356,11 @@ export default function SupportPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-400 text-sm">Loading...</p>
+        <p className="text-gray-500 dark:text-slate-400 text-sm">Loading...</p>
       ) : tickets.length === 0 ? (
         <div className="border border-dashed border-gray-700 rounded-xl p-12 text-center">
           <LifeBuoy size={32} className="text-gray-600 mx-auto mb-3 dark:text-slate-400" />
-          <p className="text-gray-400 text-sm">No tickets yet</p>
+          <p className="text-gray-500 dark:text-slate-400 text-sm">No tickets yet</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -407,7 +407,7 @@ export default function SupportPage() {
               </select>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-gray-400 text-sm">Cancel</button>
+              <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-gray-500 dark:text-slate-400 text-sm">Cancel</button>
               <button onClick={createTicket} disabled={!newTicket.subject}
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm">Create</button>
             </div>

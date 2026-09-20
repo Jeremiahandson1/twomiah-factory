@@ -74,7 +74,7 @@ export default function PortalLayout() {
           </nav>
 
           {/* Mobile Menu Toggle */}
-          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-gray-400 hover:text-white">
+          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden text-gray-500 dark:text-slate-400 hover:text-white">
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>

@@ -118,7 +118,7 @@ export default function PatientsPage() {
                     <Link to={`/crm/patients/${p.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">
                       <PawPrint className="w-4 h-4 text-teal-500" />
                       {p.name || 'Unnamed'}
-                      {p.deceased && <span className="text-xs text-gray-400">(deceased)</span>}
+                      {p.deceased && <span className="text-xs text-gray-500 dark:text-slate-400">(deceased)</span>}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-gray-600 capitalize dark:text-slate-400">
@@ -126,7 +126,7 @@ export default function PatientsPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     <div>{p.ownerName || '—'}</div>
-                    {p.ownerPhone && <div className="text-xs text-gray-400">{p.ownerPhone}</div>}
+                    {p.ownerPhone && <div className="text-xs text-gray-500 dark:text-slate-400">{p.ownerPhone}</div>}
                   </td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{ageFromDob(p.dob) || '—'}</td>
                   <td className="px-4 py-3">
@@ -313,7 +313,7 @@ export function NewPatientModal({ onSave, onClose, patient }: NewPatientModalPro
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Medical Alerts <span className="text-xs text-gray-400">(shown as a red banner)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Medical Alerts <span className="text-xs text-gray-500 dark:text-slate-400">(shown as a red banner)</span></label>
               <input type="text" value={form.alerts} onChange={(e) => set('alerts', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Aggressive, drug reactions, etc." />
             </div>
             <div>

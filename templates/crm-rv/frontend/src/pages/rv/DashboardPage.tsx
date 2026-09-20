@@ -198,15 +198,15 @@ export default function DashboardPage() {
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
             <div>
               <div className="font-semibold text-gray-900 dark:text-slate-100">{num(sales.leadsThisMonth)}</div>
-              <div className="text-gray-400">new (mo)</div>
+              <div className="text-gray-500 dark:text-slate-400">new (mo)</div>
             </div>
             <div>
               <div className="font-semibold text-gray-900 dark:text-slate-100">{num(sales.closedWonThisMonth)}</div>
-              <div className="text-gray-400">won (mo)</div>
+              <div className="text-gray-500 dark:text-slate-400">won (mo)</div>
             </div>
             <div title={`This month: ${num(sales.closedWonThisMonth)} won, ${num(sales.closedLostThisMonth)} lost`}>
               <div className="font-semibold text-gray-900 dark:text-slate-100">{decidedThisMonth > 0 ? pct(sales.closeRate) : '—'}</div>
-              <div className="text-gray-400">close (mo) · {num(sales.closedLostThisMonth)} lost</div>
+              <div className="text-gray-500 dark:text-slate-400">close (mo) · {num(sales.closedLostThisMonth)} lost</div>
             </div>
           </div>
         </Link>
@@ -228,11 +228,11 @@ export default function DashboardPage() {
           <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
             <div>
               <div className="font-semibold text-gray-900 dark:text-slate-100">{num(service.repairOrdersThisMonth)}</div>
-              <div className="text-gray-400">ROs (mo)</div>
+              <div className="text-gray-500 dark:text-slate-400">ROs (mo)</div>
             </div>
             <div>
               <div className="font-semibold text-gray-900 dark:text-slate-100">{money(service.revenueThisMonth)}</div>
-              <div className="text-gray-400">rev (mo)</div>
+              <div className="text-gray-500 dark:text-slate-400">rev (mo)</div>
             </div>
           </div>
         </Link>
@@ -263,7 +263,7 @@ export default function DashboardPage() {
             <Link to="/crm/units" className="text-xs text-orange-600 hover:underline">View all</Link>
           </div>
           {categoryRows.length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">No units in stock yet</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">No units in stock yet</p>
           ) : (
             <div className="space-y-2">
               {categoryRows.map((row) => (
@@ -282,15 +282,15 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Recent units */}
             <div>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-2">Units</h3>
+              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Units</h3>
               {recentUnits.length === 0 ? (
-                <p className="text-sm text-gray-400">No recent units</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No recent units</p>
               ) : (
                 <ul className="space-y-2">
                   {recentUnits.map((u) => (
                     <li key={u.id} className="text-sm">
                       <div className="font-medium text-gray-800 truncate dark:text-slate-200">{unitLabel(u)}</div>
-                      <div className="text-xs text-gray-400">{prettyStatus(u.status)}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{prettyStatus(u.status)}</div>
                     </li>
                   ))}
                 </ul>
@@ -299,15 +299,15 @@ export default function DashboardPage() {
 
             {/* Recent leads */}
             <div>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-2">Leads</h3>
+              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Leads</h3>
               {recentLeads.length === 0 ? (
-                <p className="text-sm text-gray-400">No recent leads</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No recent leads</p>
               ) : (
                 <ul className="space-y-2">
                   {recentLeads.map((l) => (
                     <li key={l.id} className="text-sm">
                       <div className="font-medium text-gray-800 dark:text-slate-200">{prettyStatus(l.stage)}</div>
-                      <div className="text-xs text-gray-400">{l.source ? prettyStatus(l.source) : '—'}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{l.source ? prettyStatus(l.source) : '—'}</div>
                     </li>
                   ))}
                 </ul>
@@ -316,15 +316,15 @@ export default function DashboardPage() {
 
             {/* Recent repair orders */}
             <div>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-400 mb-2">Repair Orders</h3>
+              <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-slate-400 mb-2">Repair Orders</h3>
               {recentRepairOrders.length === 0 ? (
-                <p className="text-sm text-gray-400">No recent ROs</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">No recent ROs</p>
               ) : (
                 <ul className="space-y-2">
                   {recentRepairOrders.map((r) => (
                     <li key={r.id} className="text-sm">
                       <div className="font-medium text-gray-800 dark:text-slate-200">{r.roNumber || `RO ${r.id.slice(0, 6)}`}</div>
-                      <div className="text-xs text-gray-400">{prettyStatus(r.status)}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400">{prettyStatus(r.status)}</div>
                     </li>
                   ))}
                 </ul>

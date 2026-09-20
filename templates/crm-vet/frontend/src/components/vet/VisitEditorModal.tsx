@@ -174,7 +174,7 @@ export default function VisitEditorModal({ patientId, visit, onSave, onClose }: 
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Diagnoses <span className="text-xs text-gray-400">(comma-separated)</span></label>
+              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Diagnoses <span className="text-xs text-gray-500 dark:text-slate-400">(comma-separated)</span></label>
               <input type="text" value={form.diagnoses} onChange={(e) => set('diagnoses', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="Otitis externa, Dental disease" />
             </div>
             <div>

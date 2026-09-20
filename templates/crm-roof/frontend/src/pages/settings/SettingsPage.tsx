@@ -465,7 +465,7 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
                   <span className="text-sm text-gray-700 font-medium dark:text-slate-200">Connected</span>
-                  {qbStatus.realmId && <span className="text-xs text-gray-400">Realm: {qbStatus.realmId}</span>}
+                  {qbStatus.realmId && <span className="text-xs text-gray-500 dark:text-slate-400">Realm: {qbStatus.realmId}</span>}
                 </div>
                 {qbStatus.lastSyncedAt && (
                   <p className="text-xs text-gray-500 dark:text-slate-400">Last synced: {new Date(qbStatus.lastSyncedAt).toLocaleString()}</p>
@@ -518,10 +518,10 @@ export default function SettingsPage() {
                   {stormSettings.zipCodes.map((zip) => (
                     <span key={zip} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full dark:bg-slate-800 dark:text-slate-200">
                       {zip}
-                      <button onClick={() => removeZip(zip)} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                      <button onClick={() => removeZip(zip)} className="text-gray-500 dark:text-slate-400 hover:text-red-500"><X className="w-3 h-3" /></button>
                     </span>
                   ))}
-                  {stormSettings.zipCodes.length === 0 && <span className="text-xs text-gray-400">No zip codes configured</span>}
+                  {stormSettings.zipCodes.length === 0 && <span className="text-xs text-gray-500 dark:text-slate-400">No zip codes configured</span>}
                 </div>
               </div>
 
@@ -590,7 +590,7 @@ export default function SettingsPage() {
             Your texting number is set up and managed for you during onboarding — contact support to
             turn on SMS or change your number.
           </p>
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
             SMS triggers: inspection scheduled, inspected, measurement ordered, proposal sent, signed, material ordered, in production, final inspection, invoiced, collected, insurance claim filed, insurance approved, supplement submitted
           </p>
         </div>
@@ -623,7 +623,7 @@ export default function SettingsPage() {
                     {u.role || 'user'}
                   </span>
                   {u.id === currentUser?.userId
-                    ? <span className="text-xs text-gray-400">You</span>
+                    ? <span className="text-xs text-gray-500 dark:text-slate-400">You</span>
                     : canManageUsers ? (
                       <button
                         onClick={() => toggleUserAccess(u.id, u.isActive !== false)}
@@ -636,7 +636,7 @@ export default function SettingsPage() {
               </div>
             ))}
             {users.length === 0 && (
-              <p className="py-4 text-sm text-gray-400 text-center">No users</p>
+              <p className="py-4 text-sm text-gray-500 dark:text-slate-400 text-center">No users</p>
             )}
           </div>
         </div>
@@ -648,7 +648,7 @@ export default function SettingsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add User</h2>
-              <button onClick={() => setInviteOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setInviteOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
@@ -668,7 +668,7 @@ export default function SettingsPage() {
               <div>
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Temporary password *</label>
                 <input type="text" value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="At least 8 characters" />
-                <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Share this with them — they can change it after signing in.</p>
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Role</label>

@@ -265,7 +265,7 @@ function HistoryModal({ api, toast, doc, onClose, onChanged }: { api: FilesApi; 
             <Button onClick={() => fileRef.current?.click()} disabled={busy}><UploadCloud className="w-4 h-4" />{busy ? 'Uploading…' : 'Upload new version'}</Button>
           </div>
         </div>
-        {loading ? <p className="text-center text-gray-400 py-6">Loading…</p> : (
+        {loading ? <p className="text-center text-gray-500 dark:text-slate-400 py-6">Loading…</p> : (
           <div className="space-y-2">
             {/* The live file is the first entry (T21 M3: the list stopped at the file that had just been replaced).
                 It has no version row, so it downloads from the document and there is nothing to restore it to. */}
@@ -334,11 +334,11 @@ function MarkupModal({ api, toast, doc, onClose }: { api: FilesApi; toast: Files
             <Button variant="secondary" onClick={() => { setShapes(s => s.slice(0, -1)); setDirty(true) }} disabled={!shapes.length}>Undo</Button>
             <Button onClick={save} disabled={saving || !dirty}>{saving ? 'Saving…' : 'Save'}</Button>
             {activeId && <Button variant="danger" onClick={deleteLayer} title="Delete layer"><Trash2 className="w-4 h-4" /></Button>}
-            <button onClick={onClose} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-800" aria-label="Close"><X className="w-4 h-4" /></button>
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800" aria-label="Close"><X className="w-4 h-4" /></button>
           </div>
         </div>
         <div className="flex-1 overflow-auto p-4 bg-gray-100 dark:bg-slate-800">
-          {!imgUrl ? <div className="text-center text-gray-500 py-16">Loading image…</div> : (
+          {!imgUrl ? <div className="text-center text-gray-500 dark:text-slate-400 py-16">Loading image…</div> : (
             <div ref={box} className="relative inline-block select-none touch-none" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}>
               <img src={imgUrl} alt={doc.name} className="max-w-full block rounded-lg" draggable={false} />
               <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${R} ${R}`} preserveAspectRatio="none">

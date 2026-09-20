@@ -154,12 +154,12 @@ function TagsTab() {
 
   const columns = [
     { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
-    { key: 'tid', label: 'TID', render: (val: string) => val ? <span className="font-mono text-xs text-gray-500 dark:text-slate-400">{val}</span> : <span className="text-gray-400">--</span> },
-    { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-400">Unassigned</span> },
-    { key: 'batchId', label: 'Batch', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'location', label: 'Location', render: (val: string) => val ? <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" />{val}</span> : <span className="text-gray-400">--</span> },
+    { key: 'tid', label: 'TID', render: (val: string) => val ? <span className="font-mono text-xs text-gray-500 dark:text-slate-400">{val}</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">Unassigned</span> },
+    { key: 'batchId', label: 'Batch', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'location', label: 'Location', render: (val: string) => val ? <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" />{val}</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={statusColors} /> },
-    { key: 'lastScannedAt', label: 'Last Scanned', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">Never</span> },
+    { key: 'lastScannedAt', label: 'Last Scanned', render: (val: string) => val ? formatDate(val) : <span className="text-gray-500 dark:text-slate-400">Never</span> },
   ];
 
   return (
@@ -412,7 +412,7 @@ function InventoryCountTab() {
               {scannedEpcs.map((epc, i) => (
                 <div key={epc} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
                   <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{epc}</span>
-                  <button onClick={() => removeEpc(epc)} className="text-gray-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
+                  <button onClick={() => removeEpc(epc)} className="text-gray-500 dark:text-slate-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
@@ -504,9 +504,9 @@ function ScanHistoryTab() {
   const columns = [
     { key: 'epc', label: 'EPC', render: (val: string) => <span className="font-mono text-sm text-gray-900 dark:text-slate-100">{val}</span> },
     { key: 'scanType', label: 'Type', render: (val: string) => <StatusBadge status={val} statusColors={{ inventory_count: 'bg-blue-100 text-blue-700', receiving: 'bg-green-100 text-green-700', transfer: 'bg-purple-100 text-purple-700', sale: 'bg-orange-100 text-orange-700', audit: 'bg-gray-100 text-gray-700' }} /> },
-    { key: 'location', label: 'Location', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'scannedBy', label: 'Scanned By', render: (val: string) => val || <span className="text-gray-400">--</span> },
+    { key: 'location', label: 'Location', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'productName', label: 'Product', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'scannedBy', label: 'Scanned By', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'createdAt', label: 'Timestamp', render: (val: string) => val ? new Date(val).toLocaleString() : '--' },
   ];
 

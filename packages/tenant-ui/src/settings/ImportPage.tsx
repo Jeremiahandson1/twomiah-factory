@@ -90,7 +90,7 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
           <label className="block border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors">
             <Upload className="w-12 h-12 mx-auto text-gray-400 mb-3" />
             <p className="text-gray-600 mb-1 dark:text-slate-400">Drop your CSV file here or click to browse</p>
-            <p className="text-sm text-gray-400">Maximum file size: 10MB</p>
+            <p className="text-sm text-gray-500 dark:text-slate-400">Maximum file size: 10MB</p>
             <input type="file" accept=".csv,text/csv" onChange={handleFileChange} className="hidden" data-testid="import-file-input" />
           </label>
         ) : (

@@ -194,19 +194,19 @@ export default function ClientDetailPage() {
         {/* Retention strip — the numbers the front desk needs at a glance. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-500 uppercase">Visits</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Visits</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{stats.visits ?? 0}</p>
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-500 uppercase">Lifetime Value</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Lifetime Value</p>
             <p className="text-xl font-bold text-gray-900 dark:text-slate-100">{money(stats.lifetimeValue)}</p>
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs text-gray-500 uppercase">Last Visit</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Last Visit</p>
             <p className="text-sm font-medium text-gray-900 mt-1 dark:text-slate-100">{fmtDate(stats.lastVisit)}</p>
           </div>
           <div className={`border rounded-lg p-3 ${isPast(stats.dueBackAt) ? 'bg-red-50 border-red-200' : ''}`}>
-            <p className="text-xs text-gray-500 uppercase">Due Back</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase">Due Back</p>
             <p className={`text-sm font-medium mt-1 ${isPast(stats.dueBackAt) ? 'text-red-700' : 'text-gray-900'}`}>
               {fmtDate(stats.dueBackAt)}{isPast(stats.dueBackAt) ? ' (overdue)' : ''}
             </p>
@@ -215,20 +215,20 @@ export default function ClientDetailPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div className="border rounded-lg p-3">
-            <p className="text-xs font-medium text-gray-400 uppercase mb-2">Contact</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Contact</p>
             {(ct.mobile || ct.phone) && <p className="text-sm text-gray-600 flex items-center gap-2 dark:text-slate-400"><Phone className="w-3 h-3" /> {ct.mobile || ct.phone}</p>}
             {ct.email && <p className="text-sm text-gray-600 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {ct.email}</p>}
-            {!ct.mobile && !ct.phone && !ct.email && <p className="text-sm text-gray-500">No contact details</p>}
+            {!ct.mobile && !ct.phone && !ct.email && <p className="text-sm text-gray-500 dark:text-slate-400">No contact details</p>}
           </div>
           <div className="border rounded-lg p-3">
-            <p className="text-xs font-medium text-gray-400 uppercase mb-2">Preferences</p>
+            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 uppercase mb-2">Preferences</p>
             <dl className="text-sm text-gray-600 space-y-1 dark:text-slate-400">
-              {profile.hairType && <div className="flex justify-between"><dt className="text-gray-400">Hair</dt><dd>{profile.hairType}</dd></div>}
-              {profile.scalpNotes && <div className="flex justify-between gap-4"><dt className="text-gray-400">Scalp</dt><dd className="text-right">{profile.scalpNotes}</dd></div>}
-              {profile.birthday && <div className="flex justify-between"><dt className="text-gray-400">Birthday</dt><dd>{fmtDate(profile.birthday)}</dd></div>}
-              {profile.preferences && <div className="flex justify-between gap-4"><dt className="text-gray-400">Notes</dt><dd className="text-right">{profile.preferences}</dd></div>}
+              {profile.hairType && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Hair</dt><dd>{profile.hairType}</dd></div>}
+              {profile.scalpNotes && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Scalp</dt><dd className="text-right">{profile.scalpNotes}</dd></div>}
+              {profile.birthday && <div className="flex justify-between"><dt className="text-gray-500 dark:text-slate-400">Birthday</dt><dd>{fmtDate(profile.birthday)}</dd></div>}
+              {profile.preferences && <div className="flex justify-between gap-4"><dt className="text-gray-500 dark:text-slate-400">Notes</dt><dd className="text-right">{profile.preferences}</dd></div>}
               {!profile.hairType && !profile.scalpNotes && !profile.birthday && !profile.preferences && (
-                <p className="text-gray-400">Nothing recorded yet</p>
+                <p className="text-gray-500 dark:text-slate-400">Nothing recorded yet</p>
               )}
             </dl>
           </div>
@@ -261,7 +261,7 @@ export default function ClientDetailPage() {
             </button>
           </div>
           {records.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No services recorded yet</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No services recorded yet</div>
           ) : (
             <div className="space-y-3">
               {records.map((r) => (
@@ -271,7 +271,7 @@ export default function ClientDetailPage() {
                       <p className="font-medium text-gray-900 dark:text-slate-100">
                         {fmtDate(r.performedAt)}{r.serviceName ? ` — ${r.serviceName}` : ''}
                       </p>
-                      {stylistName(r) && <p className="text-xs text-gray-500">with {stylistName(r)}</p>}
+                      {stylistName(r) && <p className="text-xs text-gray-500 dark:text-slate-400">with {stylistName(r)}</p>}
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
@@ -290,14 +290,14 @@ export default function ClientDetailPage() {
                   )}
 
                   {(r.developerVolume || r.processingMin) && (
-                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-slate-400">
                       {r.developerVolume ? <span>Developer {r.developerVolume}</span> : null}
                       {r.processingMin ? <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {r.processingMin} min</span> : null}
                     </div>
                   )}
                   {r.productsUsed && <p className="mt-2 text-sm text-gray-600 dark:text-slate-400">{r.productsUsed}</p>}
                   {r.result && <p className="mt-1 text-sm text-gray-600 dark:text-slate-400"><span className="font-medium text-gray-500 dark:text-slate-400">Result:</span> {r.result}</p>}
-                  {r.notes && <p className="mt-1 text-xs text-gray-500">{r.notes}</p>}
+                  {r.notes && <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">{r.notes}</p>}
                 </div>
               ))}
             </div>
@@ -309,7 +309,7 @@ export default function ClientDetailPage() {
       {tab === 'appointments' && (
         <div>
           {appointments.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">No appointments yet</div>
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">No appointments yet</div>
           ) : (
             <div className="bg-white rounded-xl border overflow-x-auto dark:bg-slate-900">
               <table className="w-full text-sm">
@@ -347,7 +347,7 @@ export default function ClientDetailPage() {
       {tab === 'memberships' && (
         <div>
           {memberships.length === 0 ? (
-            <div className="text-center py-10 text-gray-400 bg-white rounded-xl border dark:bg-slate-900">
+            <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
               Not enrolled in a membership.{' '}
               <Link to="/crm/memberships" className="text-teal-600">Browse plans</Link>
             </div>
@@ -357,7 +357,7 @@ export default function ClientDetailPage() {
                 <div key={m.id} className="bg-white rounded-xl border p-4 flex items-center justify-between gap-3 flex-wrap dark:bg-slate-900">
                   <div>
                     <p className="font-medium text-gray-900 dark:text-slate-100">{m.planName || 'Membership'}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       Started {fmtDate(m.startDate)}{m.renewsAt ? ` · renews ${fmtDate(m.renewsAt)}` : ''}
                     </p>
                   </div>

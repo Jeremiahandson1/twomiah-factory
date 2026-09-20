@@ -320,7 +320,7 @@ export default function SchedulingPage() {
                     {weekDates.map((d, i) => (
                       <th key={i} className="px-2 py-3 text-center text-sm font-medium text-gray-600 dark:text-slate-400">
                         <div>{DAYS[i]}</div>
-                        <div className="text-xs text-gray-400">{d.getMonth() + 1}/{d.getDate()}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400">{d.getMonth() + 1}/{d.getDate()}</div>
                       </th>
                     ))}
                   </tr>
@@ -371,7 +371,7 @@ export default function SchedulingPage() {
               {swapRequests.map(req => (
                 <div key={req.id} className="border rounded-lg p-4 flex items-center justify-between bg-white dark:bg-slate-900">
                   <div>
-                    <div className="font-medium">{req.requesterName} <span className="text-gray-400 mx-2">&harr;</span> {req.targetName}</div>
+                    <div className="font-medium">{req.requesterName} <span className="text-gray-500 dark:text-slate-400 mx-2">&harr;</span> {req.targetName}</div>
                     <div className="text-sm text-gray-500 dark:text-slate-400">
                       {req.shiftDate} &middot; {formatTime(req.startTime)}-{formatTime(req.endTime)}
                     </div>
@@ -526,7 +526,7 @@ export default function SchedulingPage() {
                 );
               })}
             </div>
-            <div className="text-center text-sm text-gray-400 mt-4">
+            <div className="text-center text-sm text-gray-500 dark:text-slate-400 mt-4">
               Based on historical sales data and foot traffic patterns. Connect POS data for accurate forecasting.
             </div>
           </div>

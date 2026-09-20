@@ -218,12 +218,12 @@ export default function EODReportPage() {
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Actual Count</div>
-                      <div className="text-xl font-bold">{drawerOpen ? <span className="text-gray-400">—</span> : `$${Number(report.cashActual || 0).toFixed(2)}`}</div>
+                      <div className="text-xl font-bold">{drawerOpen ? <span className="text-gray-500 dark:text-slate-400">—</span> : `$${Number(report.cashActual || 0).toFixed(2)}`}</div>
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 dark:text-slate-400">Variance</div>
                       {drawerOpen ? (
-                        <div className="text-xl font-bold text-gray-400">Pending count</div>
+                        <div className="text-xl font-bold text-gray-500 dark:text-slate-400">Pending count</div>
                       ) : (
                         <div className={`text-xl font-bold ${Math.abs(cashVariance) > 5 ? 'text-red-600' : 'text-green-600'}`}>
                           {cashVariance >= 0 ? '+' : ''}${Number(cashVariance).toFixed(2)}

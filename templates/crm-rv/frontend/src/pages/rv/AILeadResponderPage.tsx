@@ -71,13 +71,13 @@ export default function AILeadResponderPage() {
         <div className="bg-white rounded-xl border shadow-sm overflow-hidden dark:bg-slate-900">
           <div className="px-4 py-3 border-b text-sm font-semibold text-gray-600 flex items-center gap-2 dark:text-slate-400"><MessageSquare size={15} /> Leads ({leads.length})</div>
           <div className="max-h-[70vh] overflow-y-auto divide-y">
-            {leads.length === 0 && <div className="p-4 text-sm text-gray-400">No leads yet.</div>}
+            {leads.length === 0 && <div className="p-4 text-sm text-gray-500 dark:text-slate-400">No leads yet.</div>}
             {leads.map((l) => (
               <button key={l.id} onClick={() => draftFor(l)}
                 className={`w-full text-left px-4 py-3 hover:bg-indigo-50 transition ${selected?.id === l.id ? 'bg-indigo-50 border-l-2 border-indigo-600' : ''}`}>
                 <div className="font-medium text-sm">{l.customerName || 'Unknown lead'}</div>
                 <div className="text-xs text-gray-500 mt-0.5 dark:text-slate-400">{interestLabel(l)} {!unavailableLabel(l) && l.unitPrice ? `· ${money(l.unitPrice)}` : ''}{unavailableLabel(l) && <span className="ml-1 text-amber-700 font-medium dark:text-amber-300">· {unavailableLabel(l)}</span>}</div>
-                <div className="text-[11px] text-gray-400 mt-0.5 capitalize">{(l.source || '').replace(/_/g, ' ')} · {l.stage?.replace(/_/g, ' ')}</div>
+                <div className="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5 capitalize">{(l.source || '').replace(/_/g, ' ')} · {l.stage?.replace(/_/g, ' ')}</div>
               </button>
             ))}
           </div>
@@ -85,7 +85,7 @@ export default function AILeadResponderPage() {
 
         {/* Draft */}
         <div>
-          {!selected && <div className="bg-white rounded-xl border p-10 text-center text-gray-400 dark:bg-slate-900"><Sparkles className="mx-auto mb-2" /> Pick a lead to draft an instant response.</div>}
+          {!selected && <div className="bg-white rounded-xl border p-10 text-center text-gray-500 dark:text-slate-400 dark:bg-slate-900"><Sparkles className="mx-auto mb-2" /> Pick a lead to draft an instant response.</div>}
 
           {selected && (
             <div className="space-y-4">
@@ -115,7 +115,7 @@ export default function AILeadResponderPage() {
                         <button onClick={() => copy('email', `Subject: ${emailSubject}\n\n${emailBody}`)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5">{copied === 'email' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
                         {selected.email
                           ? <a href={mailto(selected.email)} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 inline-flex items-center gap-1.5"><Mail size={13} /> Open in email app</a>
-                          : <span className="text-xs text-gray-400 self-center">No email address on file</span>}
+                          : <span className="text-xs text-gray-500 dark:text-slate-400 self-center">No email address on file</span>}
                       </div>
                     </div>
                   </div>
@@ -128,7 +128,7 @@ export default function AILeadResponderPage() {
                       <div className="flex items-center gap-2">
                         <button onClick={() => copy('sms', sms)} className="text-xs px-3 py-1.5 rounded-lg border hover:bg-gray-50 inline-flex items-center gap-1.5">{copied === 'sms' ? <Check size={13} /> : <Copy size={13} />} Copy</button>
                         <button onClick={sendSms} disabled={smsSending || smsSent || !sms.trim() || !selected.contactId} className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 inline-flex items-center gap-1.5">{smsSending ? <Loader2 className="animate-spin" size={13} /> : <Send size={13} />} {smsSent ? 'Sent ✓' : smsSending ? 'Sending…' : 'Send text'}</button>
-                        <span className="text-[11px] text-gray-400 ml-auto">{sms.length} chars</span>
+                        <span className="text-[11px] text-gray-500 dark:text-slate-400 ml-auto">{sms.length} chars</span>
                       </div>
                       {smsError && <p className="text-xs text-red-600">{smsError}</p>}
                     </div>

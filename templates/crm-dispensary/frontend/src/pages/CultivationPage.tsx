@@ -214,8 +214,8 @@ function PlantsTab() {
         </select>
       ),
     },
-    { key: 'room', label: 'Room', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'plantDate', label: 'Plant Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-400">--</span> },
+    { key: 'room', label: 'Room', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'plantDate', label: 'Plant Date', render: (val: string) => val ? formatDate(val) : <span className="text-gray-500 dark:text-slate-400">--</span> },
     {
       key: 'daysInPhase', label: 'Days in Phase', render: (val: number) => (
         <span className="text-gray-700 dark:text-slate-200">{val != null ? `${val}d` : '--'}</span>
@@ -530,10 +530,10 @@ function HarvestsTab() {
 
   const columns = [
     { key: 'name', label: 'Name', render: (val: string) => <span className="font-medium text-gray-900 dark:text-slate-100">{val}</span> },
-    { key: 'strainName', label: 'Strain', render: (val: string) => val || <span className="text-gray-400">--</span> },
-    { key: 'plantCount', label: 'Plant Count', render: (val: number) => val != null ? val : <span className="text-gray-400">--</span> },
-    { key: 'wetWeight', label: 'Wet Weight', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}g</span> : <span className="text-gray-400">--</span> },
-    { key: 'dryWeight', label: 'Dry Weight', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}g</span> : <span className="text-gray-400">--</span> },
+    { key: 'strainName', label: 'Strain', render: (val: string) => val || <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'plantCount', label: 'Plant Count', render: (val: number) => val != null ? val : <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'wetWeight', label: 'Wet Weight', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}g</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
+    { key: 'dryWeight', label: 'Dry Weight', render: (val: number) => val != null ? <span className="text-gray-700 dark:text-slate-200">{val}g</span> : <span className="text-gray-500 dark:text-slate-400">--</span> },
     { key: 'status', label: 'Status', render: (val: string) => <StatusBadge status={val} statusColors={harvestStatuses} /> },
     { key: 'createdAt', label: 'Date', render: (val: string) => val ? formatDate(val) : '--' },
   ];

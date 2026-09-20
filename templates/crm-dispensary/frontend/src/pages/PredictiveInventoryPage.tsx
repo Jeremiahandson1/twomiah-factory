@@ -252,7 +252,7 @@ export default function PredictiveInventoryPage() {
                             <CheckCircle className="w-3 h-3" /> Approved
                           </span>
                         ) : s.dismissed ? (
-                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <span className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
                             <XCircle className="w-3 h-3" /> Dismissed
                           </span>
                         ) : (
@@ -313,7 +313,7 @@ export default function PredictiveInventoryPage() {
                   {trends.filter(t => t.trend === 'up' || t.velocity === 'high').slice(0, 10).map((t, i) => (
                     <div key={t.id || i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-400 w-6">#{i + 1}</span>
+                        <span className="text-sm font-medium text-gray-500 dark:text-slate-400 w-6">#{i + 1}</span>
                         <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{t.productName || t.product}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -340,7 +340,7 @@ export default function PredictiveInventoryPage() {
                   {trends.filter(t => t.trend === 'down' || t.velocity === 'low').slice(0, 10).map((t, i) => (
                     <div key={t.id || i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-400 w-6">#{i + 1}</span>
+                        <span className="text-sm font-medium text-gray-500 dark:text-slate-400 w-6">#{i + 1}</span>
                         <span className="text-sm font-medium text-gray-900 dark:text-slate-100">{t.productName || t.product}</span>
                       </div>
                       <div className="flex items-center gap-2">

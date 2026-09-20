@@ -250,7 +250,7 @@ export default function AnalyticsPage() {
                   style={{ height: `${(hour.orders / maxPeak) * 100}%`, minHeight: hour.orders > 0 ? '4px' : '0' }}
                   title={`${hour.orders} orders`}
                 />
-                <span className="text-xs text-gray-400">{hour.hour || idx}</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">{hour.hour || idx}</span>
               </div>
             )) : (
               <p className="text-gray-500 text-sm text-center w-full py-8 dark:text-slate-400">No peak hour data</p>

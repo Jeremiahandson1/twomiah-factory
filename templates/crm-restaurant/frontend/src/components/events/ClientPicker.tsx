@@ -94,7 +94,7 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
                   <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
                 </div>
               ) : results.length === 0 ? (
-                <p className="text-sm text-gray-400 py-4 text-center">No clients found</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400 py-4 text-center">No clients found</p>
               ) : (
                 results.map((c) => (
                   <button

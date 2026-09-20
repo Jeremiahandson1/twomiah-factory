@@ -215,9 +215,9 @@ export default function MeasurementsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : measurements.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">No measurement reports found</td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-500 dark:text-slate-400">No measurement reports found</td></tr>
                 ) : (
                   measurements.map((m) => (
                     <tr
@@ -291,7 +291,7 @@ export default function MeasurementsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Order Measurement Report</h2>
-              <button onClick={() => setOrderOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setOrderOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             {credits !== null && credits <= 0 && (
               <div className="flex items-start gap-2 p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
@@ -323,7 +323,7 @@ export default function MeasurementsPage() {
                 <input value={orderForm.jobId} onChange={(e) => setOrderForm({ ...orderForm, jobId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Job ID" />
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-3">Uses 1 credit (${pricePerReport}/report). Powered by Google Solar API.</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-3">Uses 1 credit (${pricePerReport}/report). Powered by Google Solar API.</p>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setOrderOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={orderReport} disabled={ordering || (credits !== null && credits <= 0)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
@@ -340,7 +340,7 @@ export default function MeasurementsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[80vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Measurement Report</h2>
-              <button onClick={() => setSelectedReport(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setSelectedReport(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-4">
@@ -470,7 +470,7 @@ export default function MeasurementsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Purchase Credits</h2>
-              <button onClick={() => setBuyOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setBuyOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Each credit = 1 measurement report. ${pricePerReport} per report.</p>
             <div>

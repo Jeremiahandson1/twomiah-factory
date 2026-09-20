@@ -207,9 +207,9 @@ export default function JobsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : jobs.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">No jobs found</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-500 dark:text-slate-400">No jobs found</td></tr>
                 ) : jobs.map((job) => (
                   <tr
                     key={job.id}
