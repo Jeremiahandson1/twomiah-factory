@@ -749,7 +749,7 @@ export default function SettingsPage() {
                           <input type="checkbox" checked={(u.extraPermissions || []).includes('users:read')} onChange={() => handleToggleUserListGrant(u)} /> can view user list
                         </label>
                       )}
-                      <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>
+                      <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300'}`}>
                                 {u.isActive ? 'Revoke access' : 'Restore access'}
                               </button></>
                             ) : null}

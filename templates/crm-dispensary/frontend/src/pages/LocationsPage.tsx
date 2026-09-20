@@ -325,7 +325,7 @@ export default function LocationsPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -390,10 +390,10 @@ export default function LocationsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2 mt-3 pt-3 border-t">
-                    <button onClick={() => openEditLocation(loc)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
+                    <button onClick={() => openEditLocation(loc)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                       <Edit className="w-3 h-3" /> Edit
                     </button>
-                    <button onClick={() => { setLocationToDelete(loc); setDeleteLocationOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
+                    <button onClick={() => { setLocationToDelete(loc); setDeleteLocationOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
                       <Trash2 className="w-3 h-3" /> Delete
                     </button>
                   </div>
@@ -545,7 +545,7 @@ export default function LocationsPage() {
                         {transfer.status === 'in_transit' && (
                           <button
                             onClick={() => openReceiveTransfer(transfer)}
-                            className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1"
+                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1"
                           >
                             <Check className="w-3 h-3" /> Receive
                           </button>
@@ -624,7 +624,7 @@ export default function LocationsPage() {
                         <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-slate-100">{item.sku}</td>
                         <td className="px-4 py-2 text-sm text-right text-gray-900 dark:text-slate-100">{item.counted}</td>
                         <td className="px-4 py-2 text-center">
-                          <button onClick={() => removeCountItem(idx)} className="text-red-500 hover:text-red-700">
+                          <button onClick={() => removeCountItem(idx)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300">
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </td>

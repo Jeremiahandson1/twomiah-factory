@@ -181,7 +181,7 @@ function AliasRow({ alias, domain, onUpdate, onDelete }: { alias: Alias; domain:
                     <button onClick={() => { onUpdate({ forwardTo: forwardDraft }); setEditingForward(false) }} className="text-xs text-orange-600">Save</button>
                     <button onClick={() => { setForwardDraft(alias.forwardTo || ''); setEditingForward(false) }} className="text-xs text-gray-500 dark:text-slate-400">Cancel</button>
                   </span>
-                : <>Forwards to <strong>{alias.forwardTo || '—'}</strong>{' '}<button onClick={() => setEditingForward(true)} className="underline text-gray-500 dark:text-slate-400 hover:text-gray-700">change</button></>)
+                : <>Forwards to <strong>{alias.forwardTo || '—'}</strong>{' '}<button onClick={() => setEditingForward(true)} className="underline text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">change</button></>)
             : <>Routes into CRM conversations</>}
         </div>
       </div>
@@ -193,7 +193,7 @@ function AliasRow({ alias, domain, onUpdate, onDelete }: { alias: Alias; domain:
         <input type="checkbox" checked={alias.enabled} onChange={e => onUpdate({ enabled: e.target.checked })} />
         Enabled
       </label>
-      <button onClick={onDelete} className="text-xs text-red-600 hover:text-red-800">Delete</button>
+      <button onClick={onDelete} className="text-xs text-red-600 hover:text-red-800 dark:hover:text-red-300">Delete</button>
     </div>
   )
 }

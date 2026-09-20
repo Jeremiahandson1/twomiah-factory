@@ -19,7 +19,7 @@ export function ReviewsPage({ api, toast, config }: { api: SettingsApi; toast?: 
       <div><h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reviews</h1><p className="text-gray-500 dark:text-slate-400">{copy.subtitle}</p></div>
       <div className="border-b dark:border-slate-700">
         <nav className="flex gap-6">{([{ id: 'dashboard' as Tab, label: 'Dashboard', icon: BarChart3 }, { id: 'settings' as Tab, label: 'Settings', icon: Settings }]).map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>
+          <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>
         ))}</nav>
       </div>
       {tab === 'dashboard' ? <DashboardTab api={api} toast={toast} copy={copy} /> : <SettingsTab api={api} toast={toast} copy={copy} />}
@@ -69,7 +69,7 @@ function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: Settings
                   <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-xs">{(r.channel === 'sms' || r.channel === 'both') && <Phone className="w-3 h-3" />}{(r.channel === 'email' || r.channel === 'both') && <Mail className="w-3 h-3" />}<span className="capitalize">{r.channel}</span></span></td>
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{fmt(r.sentAt || r.createdAt)}</td>
-                  <td className="px-4 py-3">{r.status === 'sent' && !r.followUpSentAt && <button onClick={() => followUp(r.id)} disabled={busy === r.id} className="text-xs text-orange-600 hover:text-orange-700 font-medium disabled:opacity-50">{busy === r.id ? 'Sending…' : 'Follow Up'}</button>}</td>
+                  <td className="px-4 py-3">{r.status === 'sent' && !r.followUpSentAt && <button onClick={() => followUp(r.id)} disabled={busy === r.id} className="text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium disabled:opacity-50">{busy === r.id ? 'Sending…' : 'Follow Up'}</button>}</td>
                 </tr>
               ))}</tbody>
             </table>

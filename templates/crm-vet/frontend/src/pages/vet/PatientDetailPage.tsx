@@ -303,7 +303,7 @@ export default function PatientDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/crm/patients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400">
+      <Link to="/crm/patients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400">
         <ArrowLeft className="w-4 h-4" /> Patients
       </Link>
 
@@ -390,7 +390,7 @@ export default function PatientDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -427,11 +427,11 @@ export default function PatientDetailPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(v.total)}</span>
                       {(v as Record<string, unknown>).invoiceId ? (
-                        <Link to={`/crm/invoices/${(v as Record<string, unknown>).invoiceId as string}`} className="text-sm text-green-600 hover:text-green-700">Billed →</Link>
+                        <Link to={`/crm/invoices/${(v as Record<string, unknown>).invoiceId as string}`} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300">Billed →</Link>
                       ) : Number(v.total) > 0 ? (
-                        <button onClick={() => billVisit(v.id)} className="text-sm text-teal-600 hover:text-teal-700">Bill this visit</button>
+                        <button onClick={() => billVisit(v.id)} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Bill this visit</button>
                       ) : null}
-                      <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-600 hover:text-teal-700">Edit</button>
+                      <button onClick={() => { setEditVisit(v); setShowVisit(true); }} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Edit</button>
                     </div>
                   </div>
                   {(v.assessment || v.plan) && (
@@ -493,7 +493,7 @@ export default function PatientDetailPage() {
                         {v.isRabies && (
                           <button
                             onClick={() => openPrintable(`/api/reminders/rabies/${v.id}`)}
-                            className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700"
+                            className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
                           >
                             <ExternalLink className="w-3 h-3" /> Rabies Certificate
                           </button>
@@ -567,7 +567,7 @@ export default function PatientDetailPage() {
                   </div>
                   {l.summary && <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">{l.summary}</p>}
                   {safeUrl(l.fileUrl) && (
-                    <a href={safeUrl(l.fileUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 mt-1">
+                    <a href={safeUrl(l.fileUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300 mt-1">
                       <FileText className="w-3 h-3" /> View file
                     </a>
                   )}
@@ -606,7 +606,7 @@ export default function PatientDetailPage() {
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     {safeUrl(d.url) && (
-                      <a href={safeUrl(d.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700">
+                      <a href={safeUrl(d.url)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">
                         <FileText className="w-3 h-3" /> Open
                       </a>
                     )}

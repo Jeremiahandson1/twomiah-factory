@@ -55,7 +55,7 @@ export function MarketingPage({ api, toast, config, showCampaigns = true }: { ap
       )}
       {tabs.length > 1 && (
         <div className="flex gap-2 border-b dark:border-slate-800">
-          {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>)}
+          {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>)}
         </div>
       )}
       {tab === 'campaigns' && showCampaigns && <CampaignsTab api={api} toast={toast} contactTypes={contactTypes} onChanged={loadStats} />}
@@ -334,7 +334,7 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
         </div>
         <p className="text-xs text-gray-500 dark:text-slate-400">Contacts are enrolled by hand from the sequence card. Step 1 goes out within 15 minutes of enrolling; each later step waits its delay after the previous one.</p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm({ ...form, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] })} className="text-sm text-orange-600 hover:text-orange-700">+ Add step</button></div>
+          <div className="flex items-center justify-between"><h3 className="font-medium text-gray-900 dark:text-slate-100">Steps</h3><button type="button" onClick={() => setForm({ ...form, steps: [...form.steps, { delayDays: 1, delayHours: 0, subject: '', body: '' }] })} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">+ Add step</button></div>
           {form.steps.map((s, i) => (
             <div key={i} className="p-4 border rounded-lg space-y-3 dark:border-slate-700">
               <div className="flex items-center justify-between flex-wrap gap-2">

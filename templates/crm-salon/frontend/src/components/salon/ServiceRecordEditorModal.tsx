@@ -205,7 +205,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
                 <button
                   type="button"
                   onClick={() => setFormula((rows) => [...rows, { product: '', shade: '', parts: '' }])}
-                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700"
+                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
                 >
                   <Plus className="w-3 h-3" /> Add line
                 </button>
@@ -228,7 +228,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
                     <button
                       type="button"
                       onClick={() => setFormula((rows) => (rows.length === 1 ? [{ product: '', shade: '', parts: '' }] : rows.filter((_, idx) => idx !== i)))}
-                      className="col-span-1 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:text-red-600"
+                      className="col-span-1 flex items-center justify-center text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                       title="Remove line"
                     >
                       <Trash2 className="w-4 h-4" />

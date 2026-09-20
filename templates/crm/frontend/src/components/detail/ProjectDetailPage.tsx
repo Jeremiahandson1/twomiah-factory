@@ -139,7 +139,7 @@ export default function ProjectDetailPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">{project.name}</h1>
             {project.contact && (
-              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500 dark:text-slate-400">
+              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500 dark:hover:text-orange-200 dark:text-slate-400">
                 {project.contact.name}
               </Link>
             )}
@@ -250,7 +250,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Jobs</h2>
-                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>
@@ -280,7 +280,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">RFIs</h2>
-                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>
@@ -306,7 +306,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900 dark:text-slate-100">Change Orders</h2>
-                <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200">
                   View All
                 </Link>
               </div>

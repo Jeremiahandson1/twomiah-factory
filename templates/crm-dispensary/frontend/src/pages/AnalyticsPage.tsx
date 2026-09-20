@@ -113,7 +113,7 @@ export default function AnalyticsPage() {
               key={p.value}
               onClick={() => setPeriod(p.value)}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                period === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                period === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900 dark:hover:text-slate-200'
               }`}
             >
               {p.label}

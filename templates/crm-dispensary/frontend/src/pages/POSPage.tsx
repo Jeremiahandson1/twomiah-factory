@@ -511,7 +511,7 @@ export default function POSPage() {
                   )}
                 </div>
               </div>
-              <button onClick={() => { setCustomer(null); setLoyaltyApplied(false); setLoyaltyDiscount(0); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600">
+              <button onClick={() => { setCustomer(null); setLoyaltyApplied(false); setLoyaltyDiscount(0); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -519,7 +519,7 @@ export default function POSPage() {
             <div className="relative">
               <button
                 onClick={() => setShowCustomerSearch(!showCustomerSearch)}
-                className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-green-400 hover:text-green-600 flex items-center gap-2 dark:border-slate-700 dark:text-slate-400"
+                className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:border-green-400 hover:text-green-600 dark:hover:text-green-300 flex items-center gap-2 dark:border-slate-700 dark:text-slate-400"
               >
                 <User className="w-4 h-4" /> Add Customer (optional)
               </button>
@@ -607,7 +607,7 @@ export default function POSPage() {
                 <span className="font-medium text-gray-900 text-sm w-16 text-right dark:text-slate-100">
                   ${Number(item.price * item.quantity).toFixed(2)}
                 </span>
-                <button onClick={() => removeItem(item.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-500">
+                <button onClick={() => removeItem(item.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300">
                   <Trash2 className="w-4 h-4" />
                 </button>
                 {overStock && (
@@ -632,7 +632,7 @@ export default function POSPage() {
               <div className="flex justify-between text-green-600">
                 <span>
                   {selectedReward ? `${selectedReward.name} (${Number(selectedReward.pointsCost || selectedReward.pointsRequired || 0)} pts)` : 'Loyalty Discount'}
-                  <button onClick={clearLoyalty} className="ml-2 text-xs text-gray-500 dark:text-slate-400 hover:text-red-500" title="Remove reward">✕</button>
+                  <button onClick={clearLoyalty} className="ml-2 text-xs text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300" title="Remove reward">✕</button>
                 </span>
                 <span>-${Number(discountAmount).toFixed(2)}</span>
               </div>
@@ -666,7 +666,7 @@ export default function POSPage() {
             <div className="border border-amber-200 rounded-lg bg-amber-50 p-2 space-y-1 dark:bg-slate-800 dark:border-slate-700">
               <div className="flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 px-1">
                 <span>Rewards · {memberPoints ?? 0} pts available</span>
-                <button onClick={() => setRewardPickerOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-800">Cancel</button>
+                <button onClick={() => setRewardPickerOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200">Cancel</button>
               </div>
               {rewards.map(r => {
                 const cost = Number(r.pointsCost || r.pointsRequired || 0);

@@ -280,7 +280,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                                   <input type="checkbox" checked={((u.extraPermissions as string[]) || []).includes('users:read')} onChange={() => toggleUserListGrant(u)} /> can view user list
                                 </label>
                               )}
-                              <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
+                              <button type="button" onClick={() => toggleAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700 dark:hover:text-red-300' : 'text-green-600 hover:text-green-700 dark:hover:text-green-300'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
                             </>
                           ) : null}
                         </td>

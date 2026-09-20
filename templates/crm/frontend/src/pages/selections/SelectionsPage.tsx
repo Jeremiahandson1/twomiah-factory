@@ -411,7 +411,7 @@ function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
           ) : (
             <button
               onClick={onSelect}
-              className="mt-2 text-sm text-orange-600 hover:text-orange-700"
+              className="mt-2 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
             >
               + Select an option
             </button>

@@ -293,7 +293,7 @@ export default function ContactsPage() {
                     <div className="flex items-center gap-1">
                       <button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>
                       <button onClick={() => deleteContact(selected)} className="px-2.5 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Delete</button>
-                      <button onClick={() => setSelected(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 ml-1">
+                      <button onClick={() => setSelected(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 ml-1">
                         <X className="w-4 h-4" />
                       </button>
                     </div>
@@ -307,7 +307,7 @@ export default function ContactsPage() {
                       key={tab}
                       onClick={() => setDetailTab(tab)}
                       className={`flex-1 py-2.5 text-xs font-medium uppercase tracking-wider ${
-                        detailTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                        detailTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
                       }`}
                     >
                       {tab}
@@ -443,7 +443,7 @@ export default function ContactsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{editingId ? 'Edit Contact' : 'New Contact'}</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowCreate(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="px-6 py-5 grid grid-cols-2 gap-4">
               {([
@@ -464,7 +464,7 @@ export default function ContactsPage() {
               ))}
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
-              <button onClick={() => setShowCreate(false)} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-slate-400">Cancel</button>
+              <button onClick={() => setShowCreate(false)} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Cancel</button>
               <button onClick={saveContact} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
                 {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Contact'}
               </button>

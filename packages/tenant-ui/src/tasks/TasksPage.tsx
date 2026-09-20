@@ -518,7 +518,7 @@ function TaskFormModal({ task, onSave, onClose, api }: TaskFormModalProps) {
                     <button
                       type="button"
                       onClick={() => removeChecklistItem(item.id)}
-                      className="text-gray-500 dark:text-slate-400 hover:text-red-500"
+                      className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

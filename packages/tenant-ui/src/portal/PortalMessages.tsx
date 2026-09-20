@@ -29,7 +29,7 @@ export function PortalMessages() {
       <PageTitle title="Messages" subtitle={<>Communicate with your {config.providerNoun}.{unread > 0 && <span className="ml-2 text-orange-600 font-medium">{unread} unread</span>}</>} action={<button onClick={() => setComposing(true)} className={btnPrimary}><Plus className="w-4 h-4" /> New Message</button>} />
       {error && <p role="alert" className="mb-4 text-sm text-red-600">{error}</p>}
       {messages.length === 0 ? (
-        <Empty icon={MessageSquare} text="No messages yet."><button onClick={() => setComposing(true)} className="mt-4 text-orange-600 hover:text-orange-700 text-sm font-medium">Send your first message</button></Empty>
+        <Empty icon={MessageSquare} text="No messages yet."><button onClick={() => setComposing(true)} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 text-sm font-medium">Send your first message</button></Empty>
       ) : (
         <div className={`${card} overflow-hidden divide-y dark:divide-slate-800`}>
           {messages.map((m) => {

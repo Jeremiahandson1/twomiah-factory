@@ -105,7 +105,7 @@ export default function ClientsPage() {
               {clients.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
-                    <Link to={`/crm/clients/${c.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">
+                    <Link to={`/crm/clients/${c.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:hover:text-teal-300 dark:text-slate-100">
                       <User className="w-4 h-4 text-teal-500" />
                       {c.name || 'Unnamed'}
                     </Link>

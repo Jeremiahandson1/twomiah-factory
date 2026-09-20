@@ -601,7 +601,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   ))}
                 </div>
               ) : <p className="text-sm text-gray-500 dark:text-slate-400">No equipment at this location</p>}
-              <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>
+              <NavLink to={`/crm/equipment?contactId=${id}&siteId=${siteDetail.id}`} className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"><Plus className="w-3 h-3" /> Add Equipment to This Location</NavLink>
             </div>
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-2 dark:text-slate-100">Service History ({siteDetail.jobs?.length || 0})</h3>

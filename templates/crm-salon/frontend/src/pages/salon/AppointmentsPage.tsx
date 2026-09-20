@@ -225,7 +225,7 @@ export default function AppointmentsPage() {
               <div className="flex-1 min-w-[180px]">
                 <p className="font-medium text-gray-900 dark:text-slate-100">
                   {a.contactId ? (
-                    <Link to={`/crm/clients/${a.contactId}`} className="hover:text-teal-600">{a.clientName || 'Client'}</Link>
+                    <Link to={`/crm/clients/${a.contactId}`} className="hover:text-teal-600 dark:hover:text-teal-300">{a.clientName || 'Client'}</Link>
                   ) : (
                     a.clientName || 'Walk-in'
                   )}

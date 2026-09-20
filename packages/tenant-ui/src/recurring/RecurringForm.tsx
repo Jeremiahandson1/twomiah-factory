@@ -413,7 +413,7 @@ export default function RecurringForm({ api }: RecurringPageProps) {
           <button
             type="button"
             onClick={addLineItem}
-            className="mt-3 flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700"
+            className="mt-3 flex items-center gap-2 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
           >
             <Plus className="w-4 h-4" />
             Add Line Item

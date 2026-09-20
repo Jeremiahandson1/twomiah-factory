@@ -428,7 +428,7 @@ export default function CanvassingDashboard() {
                     </div>
                     <div className="flex items-center gap-1">
                       <button onClick={(e) => { e.stopPropagation(); openScriptEditor(script) }}
-                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600 px-2 py-1">Edit</button>
+                        className="text-xs text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 px-2 py-1">Edit</button>
                       {!script.isDefault && (
                         <button onClick={(e) => { e.stopPropagation(); deleteScript(script) }}
                           className="text-gray-400 hover:text-red-600 px-1 py-1">
@@ -489,7 +489,7 @@ export default function CanvassingDashboard() {
                     </div>
                   ))}
                   <button onClick={() => setScriptSteps(prev => [...prev, { title: '', body: '', tips: '' }])}
-                    className="w-full py-2 border-2 border-dashed rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:text-blue-600 hover:border-blue-300">
+                    className="w-full py-2 border-2 border-dashed rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-300 hover:border-blue-300">
                     + Add Step
                   </button>
                 </div>

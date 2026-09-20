@@ -122,13 +122,13 @@ export function EmailDomainPage(): React.ReactElement {
                     <tr key={i} className="border-t border-gray-100">
                       <td className="px-3 py-2 uppercase font-mono text-xs">{r.type}</td>
                       <td className="px-3 py-2 font-mono text-xs break-all">
-                        <button onClick={() => copy('host-' + i, r.host)} className="text-left hover:text-orange-600" title="Copy">
+                        <button onClick={() => copy('host-' + i, r.host)} className="text-left hover:text-orange-600 dark:hover:text-orange-200" title="Copy">
                           {r.host}
                           {copiedKey === 'host-' + i && <span className="text-green-600 ml-1">✓</span>}
                         </button>
                       </td>
                       <td className="px-3 py-2 font-mono text-xs break-all">
-                        <button onClick={() => copy('data-' + i, r.data)} className="text-left hover:text-orange-600" title="Copy">
+                        <button onClick={() => copy('data-' + i, r.data)} className="text-left hover:text-orange-600 dark:hover:text-orange-200" title="Copy">
                           {r.data}
                           {copiedKey === 'data-' + i && <span className="text-green-600 ml-1">✓</span>}
                         </button>

@@ -193,7 +193,7 @@ export default function WellnessPlansPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           {(e.status || 'active') === 'active' && (
-                            <button onClick={() => unenroll(e)} className="text-xs text-red-600 hover:text-red-700">Cancel</button>
+                            <button onClick={() => unenroll(e)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300">Cancel</button>
                           )}
                         </td>
                       </tr>

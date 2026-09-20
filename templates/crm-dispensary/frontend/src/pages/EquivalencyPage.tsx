@@ -203,7 +203,7 @@ export default function EquivalencyPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -256,10 +256,10 @@ export default function EquivalencyPage() {
                       <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{rule.description || '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-2 justify-end">
-                          <button onClick={() => openEditRule(rule)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
+                          <button onClick={() => openEditRule(rule)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                             <Edit className="w-3 h-3" /> Edit
                           </button>
-                          <button onClick={() => { setRuleToDelete(rule); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
+                          <button onClick={() => { setRuleToDelete(rule); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
                             <Trash2 className="w-3 h-3" /> Delete
                           </button>
                         </div>
@@ -362,7 +362,7 @@ export default function EquivalencyPage() {
                     <td className="px-4 py-3 text-right text-gray-700 dark:text-slate-200">{item.ruleEquivalency}g</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{Number(item.equivalentGrams).toFixed(1)}g</td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700">
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>

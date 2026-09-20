@@ -155,7 +155,7 @@ export default function ClientDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/crm/clients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400">
+      <Link to="/crm/clients" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400">
         <ArrowLeft className="w-4 h-4" /> Clients
       </Link>
 
@@ -243,7 +243,7 @@ export default function ClientDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -275,7 +275,7 @@ export default function ClientDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
-                      <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-600 hover:text-teal-700">Edit</button>
+                      <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Edit</button>
                     </div>
                   </div>
 

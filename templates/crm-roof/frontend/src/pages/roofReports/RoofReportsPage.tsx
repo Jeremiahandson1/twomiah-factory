@@ -232,7 +232,7 @@ export default function RoofReportsPage() {
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         <button
           onClick={() => setPreview(null)}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400"
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>

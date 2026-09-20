@@ -79,7 +79,7 @@ export function PricebookPage({ api, toast, config }: { api: PricebookApi; toast
         <div className="text-center py-12 bg-gray-50 rounded-xl dark:bg-slate-900">
           <BookOpen className="w-12 h-12 mx-auto text-gray-400 mb-3" />
           <p className="text-gray-500 dark:text-slate-400">No {itemWord.toLowerCase()}s found</p>
-          <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700">Add your first {itemWord.toLowerCase()}</button>
+          <button onClick={() => setEditing({ open: true, item: null })} className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">Add your first {itemWord.toLowerCase()}</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

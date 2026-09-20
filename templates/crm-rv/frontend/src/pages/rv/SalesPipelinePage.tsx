@@ -174,7 +174,7 @@ export default function SalesPipelinePage() {
                       <button
                         type="button"
                         onClick={() => navigate(`/crm/desking?lead=${row.lead.id}`)}
-                        className="w-full flex items-center justify-center gap-1 text-xs text-orange-600 hover:text-orange-700 border border-orange-200 rounded px-2 py-1"
+                        className="w-full flex items-center justify-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 border border-orange-200 rounded px-2 py-1"
                       >
                         <Calculator className="w-3 h-3" /> Deal Desk
                       </button>

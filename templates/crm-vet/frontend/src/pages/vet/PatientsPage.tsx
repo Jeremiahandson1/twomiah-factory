@@ -115,7 +115,7 @@ export default function PatientsPage() {
               {patients.map((p) => (
                 <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-slate-800">
                   <td className="px-4 py-3">
-                    <Link to={`/crm/patients/${p.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:text-slate-100">
+                    <Link to={`/crm/patients/${p.id}`} className="flex items-center gap-2 font-medium text-gray-900 hover:text-teal-600 dark:hover:text-teal-300 dark:text-slate-100">
                       <PawPrint className="w-4 h-4 text-teal-500" />
                       {p.name || 'Unnamed'}
                       {p.deceased && <span className="text-xs text-gray-500 dark:text-slate-400">(deceased)</span>}

@@ -170,7 +170,7 @@ export default function AppLayout() {
         <header className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 dark:bg-slate-900 dark:border-slate-700">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-600 hover:text-gray-900 dark:text-slate-400"
+            className="text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400"
           >
             <Menu size={22} />
           </button>

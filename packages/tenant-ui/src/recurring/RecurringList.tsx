@@ -221,7 +221,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
                     <RefreshCw className={`w-5 h-5 ${item.status === 'active' ? 'text-green-600' : 'text-gray-400'}`} />
                   </div>
                   <div>
-                    <Link to={`/recurring/${item.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:text-slate-100">
+                    <Link to={`/recurring/${item.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">
                       {(item.contact as Record<string, unknown>)?.name as string || 'Unknown Contact'}
                     </Link>
                     <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-slate-400">

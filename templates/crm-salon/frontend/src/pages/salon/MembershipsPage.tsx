@@ -210,7 +210,7 @@ export default function MembershipsPage() {
                       <tr key={e.id}>
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                           {e.contactId ? (
-                            <Link to={`/crm/clients/${e.contactId}`} className="hover:text-teal-600">{e.clientName || '—'}</Link>
+                            <Link to={`/crm/clients/${e.contactId}`} className="hover:text-teal-600 dark:hover:text-teal-300">{e.clientName || '—'}</Link>
                           ) : (e.clientName || '—')}
                         </td>
                         <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.planName || '—'}</td>
@@ -223,10 +223,10 @@ export default function MembershipsPage() {
                         </td>
                         <td className="px-4 py-3 text-right">
                           {e.status === 'active' && e.creditsRemaining !== null && e.creditsRemaining !== undefined && e.creditsRemaining > 0 && (
-                            <button onClick={() => redeem(e)} className="text-xs text-teal-600 hover:text-teal-700">Use a credit</button>
+                            <button onClick={() => redeem(e)} className="text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Use a credit</button>
                           )}
                           {e.status === 'active' && (
-                            <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700 dark:text-red-400">Cancel</button>
+                            <button onClick={() => cancelEnrollment(e)} className="ml-3 text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 dark:text-red-400">Cancel</button>
                           )}
                         </td>
                       </tr>

@@ -147,7 +147,7 @@ export default function SignagePage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -210,18 +210,18 @@ export default function SignagePage() {
                     )}
                   </div>
                   <div className="flex gap-2 mt-4 pt-3 border-t">
-                    <button onClick={() => openEditScreen(screen)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
+                    <button onClick={() => openEditScreen(screen)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                       <Edit className="w-3 h-3" /> Edit
                     </button>
                     <button
                       onClick={() => { setSelectedScreen(screen); loadContent(screen.id); setTab('content'); }}
-                      className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1"
+                      className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1"
                     >
                       <List className="w-3 h-3" /> Content
                     </button>
                     <button
                       onClick={() => { setPreviewScreen(screen); loadPreview(screen.id); setTab('preview'); }}
-                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                      className="text-sm text-blue-600 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
                     >
                       <Eye className="w-3 h-3" /> Preview
                     </button>

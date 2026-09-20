@@ -135,7 +135,7 @@ export default function FlatRatePricebook() {
           <p className="text-gray-500 dark:text-slate-400">No rates found</p>
           <button
             onClick={() => setShowForm(true)}
-            className="mt-4 text-orange-600 hover:text-orange-700"
+            className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
           >
             Add your first service rate
           </button>

@@ -79,7 +79,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center text-sm">
-            <Link to="/forgot-password" className="text-gray-500 hover:text-gray-700 font-medium dark:text-slate-400">
+            <Link to="/forgot-password" className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 font-medium dark:text-slate-400">
               Forgot password?
             </Link>
           </div>

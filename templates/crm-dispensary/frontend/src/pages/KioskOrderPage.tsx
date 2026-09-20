@@ -453,7 +453,7 @@ export default function KioskOrderPage() {
         <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between sticky top-0 z-10 dark:bg-slate-900">
           <button
             onClick={() => setStep('browse')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 text-lg touch-manipulation dark:text-slate-400"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 text-lg touch-manipulation dark:text-slate-400"
           >
             <ChevronLeft className="w-6 h-6" />
             Continue Shopping
@@ -545,7 +545,7 @@ export default function KioskOrderPage() {
         <div className="bg-white shadow-sm px-6 py-4 flex items-center justify-between sticky top-0 z-10 dark:bg-slate-900">
           <button
             onClick={() => setStep('cart')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 text-lg touch-manipulation dark:text-slate-400"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 text-lg touch-manipulation dark:text-slate-400"
           >
             <ChevronLeft className="w-6 h-6" />
             Back to Cart

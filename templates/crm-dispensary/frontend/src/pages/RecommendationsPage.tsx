@@ -165,7 +165,7 @@ export default function RecommendationsPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -280,7 +280,7 @@ export default function RecommendationsPage() {
                 </div>
                 <button
                   onClick={() => { setSelectedCustomer(null); setCustomerRecs([]); }}
-                  className="text-green-600 hover:text-green-800"
+                  className="text-green-600 hover:text-green-800 dark:hover:text-green-300"
                 >
                   Clear
                 </button>
@@ -378,7 +378,7 @@ export default function RecommendationsPage() {
                 </div>
                 <button
                   onClick={() => { setSelectedProduct(null); setSimilarProducts([]); }}
-                  className="text-green-600 hover:text-green-800"
+                  className="text-green-600 hover:text-green-800 dark:hover:text-green-300"
                 >
                   Clear
                 </button>

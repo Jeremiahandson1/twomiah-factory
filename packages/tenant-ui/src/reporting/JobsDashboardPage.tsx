@@ -111,7 +111,7 @@ function RecentList({ title, link, empty, rows }: { title: string; link: string;
     <div className={panel}>
       <div className="p-4 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between">
         <h2 className="font-semibold text-gray-900 dark:text-slate-100">{title}</h2>
-        <NavLink to={link} className="text-sm text-orange-500 hover:text-orange-600 dark:text-orange-300">View all</NavLink>
+        <NavLink to={link} className="text-sm text-orange-500 hover:text-orange-600 dark:hover:text-orange-200 dark:text-orange-300">View all</NavLink>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-slate-800">
         {rows.length === 0 && <p className={`p-4 text-sm ${muted}`}>{empty}</p>}

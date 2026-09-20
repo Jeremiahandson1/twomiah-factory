@@ -183,7 +183,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
               <button onClick={openPortal} disabled={opening} className="px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900">
                 {opening ? 'Opening…' : 'Manage billing'}
               </button>
-              <a href="mailto:support@twomiah.com" className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-slate-300">Contact support</a>
+              <a href="mailto:support@twomiah.com" className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-300">Contact support</a>
             </div>
           </div>
 

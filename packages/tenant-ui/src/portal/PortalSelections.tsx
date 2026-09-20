@@ -112,7 +112,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
       {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
       {canSelect && options.length > 0 && (
         <div className="mt-3">
-          <button onClick={() => setShowOptions(!showOptions)} className="text-sm text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1">{showOptions ? 'Hide options' : `View ${options.length} option${options.length !== 1 ? 's' : ''}`}{showOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
+          <button onClick={() => setShowOptions(!showOptions)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium flex items-center gap-1">{showOptions ? 'Hide options' : `View ${options.length} option${options.length !== 1 ? 's' : ''}`}{showOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}</button>
           {showOptions && (
             <div className="mt-3 space-y-3">
               <div><label className="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1 dark:text-slate-400"><StickyNote className="w-3 h-3" /> Add a note (optional)</label><input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g., Prefer matte finish..." className={inputCls} /></div>

@@ -260,7 +260,7 @@ export default function ReportsPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -408,7 +408,7 @@ export default function ReportsPage() {
             <div className="bg-white rounded-lg shadow-sm border border-gray-100 mb-6 overflow-hidden dark:bg-slate-900">
               <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between dark:bg-slate-900">
                 <h3 className="font-semibold text-gray-900 dark:text-slate-100">{viewingReport.name} - Results</h3>
-                <button onClick={() => { setViewingReport(null); setReportResults(null); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600">
+                <button onClick={() => { setViewingReport(null); setReportResults(null); }} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
                   <X className="w-5 h-5" />
                 </button>
               </div>

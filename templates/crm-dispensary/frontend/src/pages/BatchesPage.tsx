@@ -254,7 +254,7 @@ export default function BatchesPage() {
       <div>
         <button
           onClick={() => { setViewingBatch(null); setBatchDetail(null); }}
-          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-4 dark:text-slate-400"
+          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 mb-4 dark:text-slate-400"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Batches
         </button>
@@ -564,16 +564,16 @@ export default function BatchesPage() {
                     <div className="flex gap-2">
                       {batch.status === 'active' && (
                         <>
-                          <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-600 hover:text-yellow-700">Quarantine</button>
-                          <button onClick={() => confirmAction(batch.id, 'deplete', 'Deplete')} className="text-xs text-gray-600 hover:text-gray-900 dark:text-slate-400">Deplete</button>
-                          <button onClick={() => confirmAction(batch.id, 'recall', 'Recall')} className="text-xs text-red-600 hover:text-red-700">Recall</button>
+                          <button onClick={() => confirmAction(batch.id, 'quarantine', 'Quarantine')} className="text-xs text-yellow-600 hover:text-yellow-700 dark:hover:text-yellow-300">Quarantine</button>
+                          <button onClick={() => confirmAction(batch.id, 'deplete', 'Deplete')} className="text-xs text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Deplete</button>
+                          <button onClick={() => confirmAction(batch.id, 'recall', 'Recall')} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300">Recall</button>
                         </>
                       )}
                       {batch.status === 'quarantine' && (
-                        <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-600 hover:text-green-700">Release</button>
+                        <button onClick={() => confirmAction(batch.id, 'activate', 'Activate')} className="text-xs text-green-600 hover:text-green-700 dark:hover:text-green-300">Release</button>
                       )}
                       {isManager && (
-                        <button onClick={() => handleDeleteBatch(batch.id)} className="text-xs text-red-600 hover:text-red-700 inline-flex items-center gap-1" title="Delete batch">
+                        <button onClick={() => handleDeleteBatch(batch.id)} className="text-xs text-red-600 hover:text-red-700 dark:hover:text-red-300 inline-flex items-center gap-1" title="Delete batch">
                           <Trash2 className="w-3.5 h-3.5" /> Delete
                         </button>
                       )}

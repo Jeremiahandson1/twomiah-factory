@@ -78,7 +78,10 @@ if (offenders.length) fail(`a card or panel is painted light with no dark counte
     [U + 'booking/BookingsPage.tsx', "refunded: 'text-gray-500 dark:text-slate-400'", 'a refunded deposit badge kept its light-mode gray'],
     [U + 'booking/BookingsPage.tsx', "expired: 'text-gray-500 dark:text-slate-400'", 'an expired deposit badge measured 3.69:1'],
     [S + 'RemindersPage.tsx', 'text-red-700 dark:text-red-400 font-medium', 'the Rebooking overdue date measured 2.75:1'],
-    [S + 'MembershipsPage.tsx', 'text-red-600 hover:text-red-700 dark:text-red-400', 'the Memberships Cancel link measured 3.70:1'],
+    // anchored on the DARK values, which is what this line records. The light half and the hover half
+    // sit between them in the class list, so pinning the whole string broke the moment the hover tier
+    // gained its own dark counterpart — the same over-pinning as the Team login badge above.
+    [S + 'MembershipsPage.tsx', 'dark:hover:text-red-300 dark:text-red-400', 'the Memberships Cancel link measured 3.70:1 and must keep a dark variant, on hover too'],
     [S + 'ServiceMenuPage.tsx', 'bg-teal-700 text-white', 'white on teal-600 measured 3.74:1 — the button did not carry enough contrast for its own label'],
   ]
   for (const [file, needle, why] of needs) {

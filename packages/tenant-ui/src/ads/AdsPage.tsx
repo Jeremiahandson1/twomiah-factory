@@ -79,7 +79,7 @@ export function AdsPage({ api, toast, config }: { api: AdsApi; toast: AdsToast; 
           )}
           <div className="flex gap-1 border-b border-gray-200 dark:border-slate-800 overflow-x-auto">
             {tabs.map((t) => (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400'}`}>
+              <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}>
                 <t.icon className="w-4 h-4" />{t.label}
               </button>
             ))}

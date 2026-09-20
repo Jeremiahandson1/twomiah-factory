@@ -57,6 +57,19 @@ const DISABLED = /\b(?:pointer-events-none|cursor-not-allowed)\b/
  * without `(?<!:)` it reads as one — which flagged fifteen correctly-paired labels.
  */
 const FIXED_LIGHT_BG = /(?<!:)\bbg-(?:white|gray-(?:50|100|200|300))\b/
+/**
+ * The hover tier. A hover colour is the same text in another state, so AA applies to it too — and the
+ * fleet pattern `text-gray-500 dark:text-slate-400 hover:text-gray-700` inverts in dark mode: gray-700
+ * on slate-900 is 1.73:1, so a readable label goes nearly invisible the moment you point at it.
+ *
+ * Shade 500 and darker fails on a dark card for every hue here; 400 and lighter clears it. So a hover
+ * colour at 500+ needs a `dark:hover:` counterpart — unless the HOVER SURFACE is itself pinned light
+ * (`hover:bg-red-50` with no `dark:hover:bg-`), in which case the hover text must stay dark and a dark
+ * partner would paint light-on-light.
+ */
+const HOVER_TEXT = /(?<!:)\bhover:text-[a-z]+-(\d{2,3})\b/
+const DARK_HOVER = /\bdark:hover:text-/
+const PINNED_HOVER_BG = /(?<!:)\bhover:bg-(?:white|[a-z]+-(?:50|100|200))\b/
 
 // crm-automotive is parked and crm-homecare is being handled separately; neither is swept here.
 const ROOTS = [
@@ -90,6 +103,7 @@ const unpaired: string[] = []
 const failingDark: string[] = []
 const darkOnLight: string[] = []
 const tooLightOnChip: string[] = []
+const hoverUnpaired: string[] = []
 let icons = 0, paired = 0
 
 /**
@@ -146,6 +160,14 @@ for (const f of files) {
     if (pinnedLight && /\bdark:text-(?:slate|gray)-(?:300|400|500)\b/.test(seg))
       darkOnLight.push(`${rel}: ${seg.trim().slice(0, 70)}`)
 
+    // the hover tier, held to the same ratio as the resting one
+    {
+      const h = seg.match(HOVER_TEXT)
+      if (h && Number(h[1]) >= 500 && !isIcon && !DISABLED.test(seg) && !DARK_HOVER.test(seg)
+          && !(PINNED_HOVER_BG.test(seg) && !/\bdark:hover:bg-/.test(seg)))
+        hoverUnpaired.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+    }
+
     if (BARE_500.test(seg)) {
       if (isIcon || DISABLED.test(seg)) continue
       if (pinnedLight) {
@@ -171,6 +193,8 @@ if (failingDark.length)
   fail(`${failingDark.length} dark value(s) set to gray-500/slate-500 — 3.69:1 and 3.75:1 on slate-900; the dark half must be slate-400:${show(failingDark)}`)
 if (darkOnLight.length)
   fail(`${darkOnLight.length} element(s) give a DARK text colour to a surface that pins a light background and never flips it — slate-400 on gray-50 is 2.45:1:${show(darkOnLight)}`)
+if (hoverUnpaired.length)
+  fail(`${hoverUnpaired.length} hover colour(s) at shade 500+ have no dark:hover: counterpart — gray-700 on slate-900 is 1.73:1, so the label goes invisible the moment you point at it:${show(hoverUnpaired)}`)
 if (tooLightOnChip.length)
   fail(`${tooLightOnChip.length} label(s) use gray-500 on a fixed gray-100/200/300 chip — 4.39:1 and 3.90:1, under AA; use gray-600:${show(tooLightOnChip)}`)
 // (The volume of the sweep is asserted by the test, which always runs against the whole worktree; this

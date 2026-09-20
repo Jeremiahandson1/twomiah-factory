@@ -99,7 +99,7 @@ export default function OEMPartsPage() {
         <div className="mt-3 bg-white rounded-xl border shadow-sm p-4 dark:bg-slate-900">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-semibold text-sm">Import a parts file</h2>
-            <button onClick={() => setShowImport(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X size={16} /></button>
+            <button onClick={() => setShowImport(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X size={16} /></button>
           </div>
           <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">
             Upload a CSV — an OEM price file you downloaded from your dealer portal, or a parts export from your old DMS.

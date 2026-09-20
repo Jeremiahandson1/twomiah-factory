@@ -518,7 +518,7 @@ export default function SettingsPage() {
                   {stormSettings.zipCodes.map((zip) => (
                     <span key={zip} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded-full dark:bg-slate-800 dark:text-slate-200">
                       {zip}
-                      <button onClick={() => removeZip(zip)} className="text-gray-500 dark:text-slate-400 hover:text-red-500"><X className="w-3 h-3" /></button>
+                      <button onClick={() => removeZip(zip)} className="text-gray-500 dark:text-slate-400 hover:text-red-500 dark:hover:text-red-300"><X className="w-3 h-3" /></button>
                     </span>
                   ))}
                   {stormSettings.zipCodes.length === 0 && <span className="text-xs text-gray-500 dark:text-slate-400">No zip codes configured</span>}
@@ -627,7 +627,7 @@ export default function SettingsPage() {
                     : canManageUsers ? (
                       <button
                         onClick={() => toggleUserAccess(u.id, u.isActive !== false)}
-                        className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}`}
+                        className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700 dark:hover:text-green-300' : 'text-red-600 hover:text-red-700 dark:hover:text-red-300'}`}
                       >
                         {u.isActive === false ? 'Restore access' : 'Revoke access'}
                       </button>
@@ -648,7 +648,7 @@ export default function SettingsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add User</h2>
-              <button onClick={() => setInviteOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setInviteOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">

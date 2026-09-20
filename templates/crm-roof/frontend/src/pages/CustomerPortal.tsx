@@ -68,7 +68,7 @@ export default function CustomerPortal() {
               <span className="text-sm text-slate-500">{user?.email}</span>
               <button
                 onClick={handleLogout}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                 title="Sign out"
               >
                 <LogOut className="w-4 h-4" />

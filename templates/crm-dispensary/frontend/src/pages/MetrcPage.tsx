@@ -284,7 +284,7 @@ export default function MetrcPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -443,7 +443,7 @@ export default function MetrcPage() {
                       <td className="px-4 py-3">
                         <button
                           onClick={() => openLinkModal(pkg)}
-                          className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1"
+                          className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1"
                         >
                           <Link className="w-3 h-3" /> Link Product
                         </button>

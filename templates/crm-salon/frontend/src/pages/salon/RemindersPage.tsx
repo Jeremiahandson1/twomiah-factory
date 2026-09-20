@@ -180,7 +180,7 @@ export default function RemindersPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -284,7 +284,7 @@ export default function RemindersPage() {
                     <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
-                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-600">{r.clientName || '—'}</Link> : (r.clientName || '—')}
+                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-600 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{contactLine(r)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
@@ -305,7 +305,7 @@ export default function RemindersPage() {
                     <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
-                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-600">{r.clientName || '—'}</Link> : (r.clientName || '—')}
+                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-600 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{contactLine(r)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.lastVisit)}</td>
@@ -320,7 +320,7 @@ export default function RemindersPage() {
                     <input type="checkbox" checked={!!r.contactId && selected.has(r.contactId)} onChange={() => toggle(r.contactId)} disabled={!r.contactId} className="w-4 h-4" />
                   </td>
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
-                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-600">{r.clientName || '—'}</Link> : (r.clientName || '—')}
+                    {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-600 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{contactLine(r)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.nextBirthday)}</td>

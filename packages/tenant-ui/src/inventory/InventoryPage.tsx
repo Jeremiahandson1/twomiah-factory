@@ -199,7 +199,7 @@ export default function InventoryPage({ api }: InventoryPageProps) {
             className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${
               tab === t.id
                 ? 'border-orange-500 text-orange-600'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -418,7 +418,7 @@ function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps
           <h3 className="font-medium text-gray-900 dark:text-slate-100">Locations</h3>
           <button
             onClick={onAddLocation}
-            className="text-sm text-orange-600 hover:text-orange-700"
+            className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
           >
             + Add
           </button>
@@ -524,7 +524,7 @@ function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
     <div className="bg-white rounded-xl border dark:bg-slate-900">
       <div className="p-4 border-b flex items-center justify-between">
         <h3 className="font-medium text-gray-900 dark:text-slate-100">Purchase Orders</h3>
-        <button className="text-sm text-orange-600 hover:text-orange-700">
+        <button className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">
           + New Order
         </button>
       </div>

@@ -251,7 +251,7 @@ export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageP
                   <p className="text-gray-500 dark:text-slate-400">No measurements yet</p>
                   <button
                     onClick={() => setShowAddItem(true)}
-                    className="mt-4 text-orange-600 hover:text-orange-700"
+                    className="mt-4 text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
                   >
                     Add your first measurement
                   </button>

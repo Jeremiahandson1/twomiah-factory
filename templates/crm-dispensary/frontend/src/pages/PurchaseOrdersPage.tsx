@@ -229,7 +229,7 @@ export default function PurchaseOrdersPage() {
       <div className="flex gap-1 mb-6 overflow-x-auto border-b">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'}`}>
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'}`}>
             <t.icon className="w-4 h-4" />{t.label}
           </button>
         ))}
@@ -276,11 +276,11 @@ export default function PurchaseOrdersPage() {
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-3">
                           {po.status === 'draft' && (
-                            <button onClick={() => handleSubmitPO(po.id)} className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700" title="Submit this PO so it can be received">
+                            <button onClick={() => handleSubmitPO(po.id)} className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300" title="Submit this PO so it can be received">
                               <Send className="w-4 h-4" /> Submit
                             </button>
                           )}
-                          <button onClick={() => handleDeletePO(po.id)} className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700" title="Delete or void this PO">
+                          <button onClick={() => handleDeletePO(po.id)} className="inline-flex items-center gap-1 text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300" title="Delete or void this PO">
                             <Trash2 className="w-4 h-4" /> Delete / Void
                           </button>
                         </div>
@@ -326,7 +326,7 @@ export default function PurchaseOrdersPage() {
                 <h3 className="text-lg font-semibold">
                   Receiving: {selectedPO.poNumber || selectedPO.id?.slice(0, 8)} &mdash; {selectedPO.supplierName}
                 </h3>
-                <button onClick={() => setSelectedPO(null)} className="text-gray-500 hover:text-gray-700 dark:text-slate-400"><X className="w-5 h-5" /></button>
+                <button onClick={() => setSelectedPO(null)} className="text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400"><X className="w-5 h-5" /></button>
               </div>
               <div className="overflow-x-auto border rounded-lg mb-4">
                 <table className="w-full">
@@ -490,7 +490,7 @@ export default function PurchaseOrdersPage() {
                         </td>
                         <td className="px-3 py-2 font-medium">${((parseFloat(li.quantity) || 0) * (parseFloat(li.unitCost) || 0)).toFixed(2)}</td>
                         <td className="px-3 py-2">
-                          <button onClick={() => removeLineItem(i)} className="text-red-500 hover:text-red-700"><X className="w-4 h-4" /></button>
+                          <button onClick={() => removeLineItem(i)} className="text-red-500 hover:text-red-700 dark:hover:text-red-300"><X className="w-4 h-4" /></button>
                         </td>
                       </tr>
                     ))}

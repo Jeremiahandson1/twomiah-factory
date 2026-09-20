@@ -411,7 +411,7 @@ export default function CompliancePage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -471,10 +471,10 @@ export default function CompliancePage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button onClick={() => openEditLicense(license)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
+                        <button onClick={() => openEditLicense(license)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                           <Edit className="w-3 h-3" /> Edit
                         </button>
-                        <button onClick={() => { setLicenseToDelete(license); setDeleteLicenseOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
+                        <button onClick={() => { setLicenseToDelete(license); setDeleteLicenseOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
                           <Trash2 className="w-3 h-3" /> Delete
                         </button>
                       </div>
@@ -573,11 +573,11 @@ export default function CompliancePage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-2">
-                        <button onClick={() => setViewingReport(report)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
+                        <button onClick={() => setViewingReport(report)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                           <FileText className="w-3 h-3" /> View
                         </button>
                         {report.status !== 'submitted' && (
-                          <button onClick={() => submitReport(report.id)} className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1">
+                          <button onClick={() => submitReport(report.id)} className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1">
                             <Send className="w-3 h-3" /> Submit
                           </button>
                         )}
@@ -654,7 +654,7 @@ export default function CompliancePage() {
                           <button
                             onClick={() => reportWasteToMetrc(entry.id)}
                             disabled={reportingToMetrc === entry.id}
-                            className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1 disabled:opacity-50"
+                            className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1 disabled:opacity-50"
                           >
                             <Send className="w-3 h-3" />
                             {reportingToMetrc === entry.id ? 'Reporting...' : 'Report to Metrc'}

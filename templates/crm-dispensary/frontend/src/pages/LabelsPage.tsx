@@ -281,7 +281,7 @@ export default function LabelsPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -335,13 +335,13 @@ export default function LabelsPage() {
                     {tpl.showLogo && <span className="flex items-center gap-1"><Image className="w-3 h-3" /> Logo</span>}
                   </div>
                   <div className="flex gap-2 pt-3 border-t">
-                    <button onClick={() => previewTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
+                    <button onClick={() => previewTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                       <Eye className="w-3 h-3" /> Preview
                     </button>
-                    <button onClick={() => openEditTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 flex items-center gap-1 dark:text-slate-400">
+                    <button onClick={() => openEditTemplate(tpl)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                       <Edit className="w-3 h-3" /> Edit
                     </button>
-                    <button onClick={() => { setTemplateToDelete(tpl); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1">
+                    <button onClick={() => { setTemplateToDelete(tpl); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
                       <Trash2 className="w-3 h-3" /> Delete
                     </button>
                   </div>

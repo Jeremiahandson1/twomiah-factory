@@ -406,13 +406,13 @@ function InventoryCountTab() {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-gray-700 dark:text-slate-200">Scanned Tags ({scannedEpcs.length})</span>
-              <button onClick={() => setScannedEpcs([])} className="text-xs text-red-600 hover:text-red-800">Clear All</button>
+              <button onClick={() => setScannedEpcs([])} className="text-xs text-red-600 hover:text-red-800 dark:hover:text-red-300">Clear All</button>
             </div>
             <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y dark:border-slate-700">
               {scannedEpcs.map((epc, i) => (
                 <div key={epc} className="flex items-center justify-between px-3 py-2 hover:bg-gray-50">
                   <span className="font-mono text-sm text-gray-700 dark:text-slate-200">{epc}</span>
-                  <button onClick={() => removeEpc(epc)} className="text-gray-500 dark:text-slate-400 hover:text-red-600"><XCircle className="w-4 h-4" /></button>
+                  <button onClick={() => removeEpc(epc)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"><XCircle className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>

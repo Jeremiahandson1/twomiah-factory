@@ -303,7 +303,7 @@ export default function InventoryPage() {
                   {canRecall && (
                     <button
                       onClick={() => setRecallUnit(u)}
-                      className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800"
+                      className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 dark:hover:text-amber-300"
                     >
                       <ShieldAlert className="w-4 h-4" /> Check Recalls
                     </button>

@@ -298,7 +298,7 @@ export default function InsuranceClaimPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
       <div className="bg-white border-b px-6 py-4 dark:bg-slate-900">
-        <button onClick={() => navigate(`/crm/jobs/${jobId}`)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3 dark:text-slate-400">
+        <button onClick={() => navigate(`/crm/jobs/${jobId}`)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 mb-3 dark:text-slate-400">
           <ArrowLeft className="w-4 h-4" /> Back to Job
         </button>
         <div className="flex items-center gap-3">
@@ -464,7 +464,7 @@ export default function InsuranceClaimPage() {
                   <input defaultValue={claim.adjusterCompany || ''} onBlur={(e) => saveClaim({ adjusterCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
-              <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-blue-600 hover:text-blue-800 font-medium">
+              <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                 Save to Adjuster Directory
               </button>
             </div>
@@ -606,7 +606,7 @@ export default function InsuranceClaimPage() {
                         <p className="text-xs text-red-700">Denied: {sup.denialReason}</p>
                       )}
                       {sup.status === 'draft' && (
-                        <button onClick={() => submitSupplement(sup.id)} className="mt-2 flex items-center gap-1 text-xs text-blue-600 font-medium hover:text-blue-800">
+                        <button onClick={() => submitSupplement(sup.id)} className="mt-2 flex items-center gap-1 text-xs text-blue-600 font-medium hover:text-blue-800 dark:hover:text-blue-300">
                           <Send className="w-3 h-3" /> Submit to Carrier
                         </button>
                       )}
@@ -625,7 +625,7 @@ export default function InsuranceClaimPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Log Activity</h2>
-              <button onClick={() => setActivityOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setActivityOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
               <div>
@@ -671,7 +671,7 @@ export default function InsuranceClaimPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 p-6 max-h-[85vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add Supplement</h2>
-              <button onClick={() => setSupOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setSupOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-4">
               <div>
@@ -720,14 +720,14 @@ export default function InsuranceClaimPage() {
                         <td className="py-1 pr-1 text-right text-xs font-medium">{fmt$(li.total)}</td>
                         <td className="py-1">
                           {supLineItems.length > 1 && (
-                            <button onClick={() => setSupLineItems(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setSupLineItems(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-600 dark:hover:text-red-300"><X className="w-3.5 h-3.5" /></button>
                           )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                <button onClick={() => setSupLineItems(prev => [...prev, { code: '', description: '', qty: 1, unit: 'SQ', unitPrice: 0, total: 0 }])} className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                <button onClick={() => setSupLineItems(prev => [...prev, { code: '', description: '', qty: 1, unit: 'SQ', unitPrice: 0, total: 0 }])} className="mt-2 text-xs text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                   + Add Line Item
                 </button>
                 <div className="flex justify-end mt-2">

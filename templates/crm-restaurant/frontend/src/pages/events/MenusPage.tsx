@@ -110,7 +110,7 @@ export default function MenusPage() {
                         <button
                           onClick={() => toggle(p.id)}
                           disabled={courses.length === 0}
-                          className="text-gray-500 dark:text-slate-400 hover:text-gray-600 disabled:opacity-30"
+                          className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200 disabled:opacity-30"
                           aria-label={open ? 'Collapse' : 'Expand'}
                         >
                           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -271,7 +271,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
                 <button
                   type="button"
                   onClick={() => setCourses((rows) => [...rows, { course: '', options: '' }])}
-                  className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700"
+                  className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200"
                 >
                   <Plus className="w-3 h-3" /> Add course
                 </button>
@@ -287,7 +287,7 @@ function PackageModal({ pkg, onSave, onClose }: { pkg: Package | null; onSave: (
                       <button
                         type="button"
                         onClick={() => setCourses((rows) => (rows.length === 1 ? [{ course: '', options: '' }] : rows.filter((_, idx) => idx !== i)))}
-                        className="text-gray-500 dark:text-slate-400 hover:text-red-600"
+                        className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         title="Remove course"
                       >
                         <Trash2 className="w-4 h-4" />

@@ -210,7 +210,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
           <div className="md:col-span-2">
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">Address</label>
-              {useAddressOnFile && <button type="button" onClick={() => setUseAddressOnFile(false)} className="text-xs text-orange-500 hover:text-orange-600">Using address on file — Use different address?</button>}
+              {useAddressOnFile && <button type="button" onClick={() => setUseAddressOnFile(false)} className="text-xs text-orange-500 hover:text-orange-600 dark:hover:text-orange-200">Using address on file — Use different address?</button>}
             </div>
             <input value={form.address} onChange={(e) => { setUseAddressOnFile(false); setForm({ ...form, address: e.target.value }) }} className={inputCls} placeholder={useAddressOnFile ? 'From contact on file' : 'Street address'} />
           </div>

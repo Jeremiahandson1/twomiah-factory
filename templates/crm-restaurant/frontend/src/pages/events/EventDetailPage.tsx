@@ -187,7 +187,7 @@ export default function EventDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/crm/events" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400">
+      <Link to="/crm/events" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400">
         <ArrowLeft className="w-4 h-4" /> Events
       </Link>
 
@@ -285,7 +285,7 @@ export default function EventDetailPage() {
             {client ? (
               <>
                 <p className="font-medium text-gray-900 dark:text-slate-100">
-                  {ev.contactId ? <Link to={`/crm/contacts`} className="hover:text-orange-600">{client.name}</Link> : client.name}
+                  {ev.contactId ? <Link to={`/crm/contacts`} className="hover:text-orange-600 dark:hover:text-orange-200">{client.name}</Link> : client.name}
                 </p>
                 {(client.mobile || client.phone) && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Phone className="w-3 h-3" /> {client.mobile || client.phone}</p>}
                 {client.email && <p className="text-sm text-gray-500 flex items-center gap-2 mt-1 dark:text-slate-400"><Mail className="w-3 h-3" /> {client.email}</p>}
@@ -327,7 +327,7 @@ export default function EventDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-orange-600 text-orange-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
+              tab === t.id ? 'border-orange-600 text-orange-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -371,7 +371,7 @@ export default function EventDetailPage() {
                       <td className="px-4 py-3 text-gray-600 text-right dark:text-slate-400">{money2(l.unitPrice)}</td>
                       <td className="px-4 py-3 text-gray-900 font-medium text-right dark:text-slate-100">{money2(lineTotal(l))}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => removeLine('menu', l.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => removeLine('menu', l.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}
@@ -407,7 +407,7 @@ export default function EventDetailPage() {
                     {t.details && <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{t.details}</p>}
                   </div>
                   <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{t.department}</span>
-                  <button onClick={() => removeLine('timeline', t.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                  <button onClick={() => removeLine('timeline', t.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove"><Trash2 className="w-4 h-4" /></button>
                 </div>
               ))}
             </div>
@@ -436,7 +436,7 @@ export default function EventDetailPage() {
                   {Number(totals.refunded || 0) > 0 ? ` · ${money2(totals.refunded)} refunded` : ''} · {money2(totals.outstanding)} outstanding
                 </p>
               </div>
-              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700">
+              <Link to={`/crm/invoices/${detail.invoice.id}`} className="inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">
                 Send, refund or view invoice <ExternalLink className="w-4 h-4" />
               </Link>
             </div>
@@ -478,11 +478,11 @@ export default function EventDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
                         {detail.invoice && (p.state === 'unpaid' || p.state === 'part_paid') && (
-                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 mr-3">
+                          <button onClick={() => setRecordFor(p)} className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 mr-3">
                             <Check className="w-3 h-3" /> Record payment
                           </button>
                         )}
-                        <button onClick={() => removeLine('payments', p.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>
+                        <button onClick={() => removeLine('payments', p.id)} className="text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300" title="Remove from schedule"><Trash2 className="w-4 h-4" /></button>
                       </td>
                     </tr>
                   ))}

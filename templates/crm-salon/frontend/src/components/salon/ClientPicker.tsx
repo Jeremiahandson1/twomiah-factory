@@ -69,7 +69,7 @@ export default function ClientPicker({ value, onChange, initialLabel }: ClientPi
           <button
             type="button"
             onClick={() => { setOpen(true); }}
-            className="text-xs text-teal-600 hover:text-teal-700"
+            className="text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
           >
             Change
           </button>

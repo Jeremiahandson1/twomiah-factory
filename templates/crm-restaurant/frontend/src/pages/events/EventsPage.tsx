@@ -233,7 +233,7 @@ function ListView({ events }: { events: EventRow[] }) {
                 {e.startTime && <span className="block text-xs text-gray-500 dark:text-slate-400">{e.startTime}{e.endTime ? `–${e.endTime}` : ''}</span>}
               </td>
               <td className="px-4 py-3">
-                <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:text-slate-100">{e.name || 'Untitled'}</Link>
+                <Link to={`/crm/events/${e.id}`} className="font-medium text-gray-900 hover:text-orange-600 dark:hover:text-orange-200 dark:text-slate-100">{e.name || 'Untitled'}</Link>
                 <span className="block text-xs text-gray-500 dark:text-slate-400 capitalize">{prettyType(e.eventType)}</span>
               </td>
               <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{e.clientName || '—'}</td>

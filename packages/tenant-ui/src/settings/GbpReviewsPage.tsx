@@ -151,7 +151,7 @@ export function GbpReviewsPage(): React.ReactElement {
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => { setReplyFor(r.name); setReplyText('') }} className="mt-2 text-xs font-semibold text-orange-600 hover:text-orange-700">Reply</button>
+                  <button onClick={() => { setReplyFor(r.name); setReplyText('') }} className="mt-2 text-xs font-semibold text-orange-600 hover:text-orange-700 dark:hover:text-orange-200">Reply</button>
                 )}
               </div>
             ))}

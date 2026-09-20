@@ -78,7 +78,7 @@ export default function FeaturesSettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-6 pb-28">
-      <button onClick={() => navigate('/crm/settings')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 mb-4 dark:text-slate-400">
+      <button onClick={() => navigate('/crm/settings')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-slate-200 mb-4 dark:text-slate-400">
         <ArrowLeft className="w-4 h-4" /> Back to Settings
       </button>
       <h1 className="text-2xl font-bold mb-1">Features</h1>
@@ -135,7 +135,7 @@ export default function FeaturesSettingsPage() {
           <div className="max-w-4xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
             <span className="text-sm text-gray-600 dark:text-slate-400">{changedCount} unsaved {changedCount === 1 ? 'change' : 'changes'}</span>
             <div className="flex gap-3">
-              <button onClick={() => setSelected(new Set(initial))} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-slate-400">Discard</button>
+              <button onClick={() => setSelected(new Set(initial))} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 dark:text-slate-400">Discard</button>
               <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
                 {saving ? 'Saving…' : 'Save changes'}
               </button>

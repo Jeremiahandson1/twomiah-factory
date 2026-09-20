@@ -255,7 +255,7 @@ export default function MeasurementsPage() {
                         {m.status === 'failed' && (
                           <button
                             onClick={(e) => { e.stopPropagation(); regenerateReport(m.id); }}
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-blue-600 hover:text-blue-800 dark:hover:text-blue-300"
                             title="Retry"
                           >
                             <RefreshCw className="w-4 h-4" />
@@ -291,7 +291,7 @@ export default function MeasurementsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Order Measurement Report</h2>
-              <button onClick={() => setOrderOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setOrderOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             {credits !== null && credits <= 0 && (
               <div className="flex items-start gap-2 p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
@@ -340,7 +340,7 @@ export default function MeasurementsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 max-h-[80vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Measurement Report</h2>
-              <button onClick={() => setSelectedReport(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setSelectedReport(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
 
             <div className="space-y-4">
@@ -470,7 +470,7 @@ export default function MeasurementsPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Purchase Credits</h2>
-              <button onClick={() => setBuyOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+              <button onClick={() => setBuyOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Each credit = 1 measurement report. ${pricePerReport} per report.</p>
             <div>

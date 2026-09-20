@@ -1328,7 +1328,7 @@ function PoliciesTab() {
                 </span>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 font-medium">Edit</button>
+                <button onClick={() => openEdit(policy)} className="text-sm text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium">Edit</button>
               </div>
             </div>
           ))}

@@ -125,7 +125,7 @@ export function EmailAliasesStep({ productId, onBack, onNext, defaultForwardTo }
             {extraAliases.map(local => (
               <div key={local} className="flex items-center gap-2 text-sm p-2 border border-gray-200 rounded bg-gray-50">
                 <span>✓</span><span className="font-mono">{local}@</span>
-                <button onClick={() => setExtraAliases(a => a.filter(x => x !== local))} className="ml-auto text-xs text-gray-500 dark:text-slate-400 hover:text-red-600">remove</button>
+                <button onClick={() => setExtraAliases(a => a.filter(x => x !== local))} className="ml-auto text-xs text-gray-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-300">remove</button>
               </div>
             ))}
           </div>

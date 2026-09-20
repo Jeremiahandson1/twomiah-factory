@@ -86,8 +86,8 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Integrations</h1>
       <p className="text-gray-500 dark:text-slate-400 mb-6">{copy.intro}</p>
 
-      {error && <div role="alert" className="mb-6 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg flex items-center gap-2"><AlertCircle className="w-5 h-5 flex-shrink-0" />{error}<button onClick={() => setError('')} className="ml-auto text-red-500 hover:text-red-700">&times;</button></div>}
-      {success && <div role="status" className="mb-6 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2"><Check className="w-5 h-5 flex-shrink-0" />{success}<button onClick={() => setSuccess('')} className="ml-auto text-green-500 hover:text-green-700">&times;</button></div>}
+      {error && <div role="alert" className="mb-6 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg flex items-center gap-2"><AlertCircle className="w-5 h-5 flex-shrink-0" />{error}<button onClick={() => setError('')} className="ml-auto text-red-500 hover:text-red-700 dark:hover:text-red-300">&times;</button></div>}
+      {success && <div role="status" className="mb-6 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 px-4 py-3 rounded-lg flex items-center gap-2"><Check className="w-5 h-5 flex-shrink-0" />{success}<button onClick={() => setSuccess('')} className="ml-auto text-green-500 hover:text-green-700 dark:hover:text-green-300">&times;</button></div>}
 
       <div className="space-y-4">
         <SectionLabel label="Domain" />
