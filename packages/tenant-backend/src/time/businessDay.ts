@@ -65,6 +65,15 @@ export async function companyTimeZone(db: any, companyId: string): Promise<strin
   }
 }
 
+/**
+ * The value a CALENDAR-DAY column should hold for a given local date: midnight UTC, standing in for
+ * that day rather than naming an instant in it.
+ *
+ * A timesheet day is a calendar day — "the hours I worked on Friday" — not a moment. Storing `new Date()`
+ * in such a column is what made a 20:00 Friday clock-in land on Saturday's sheet. Write the day.
+ */
+export const dayMarker = (dateStr: string) => new Date(`${String(dateStr).slice(0, 10)}T00:00:00.000Z`)
+
 /** What the store's wall clock calls this instant's date, as YYYY-MM-DD. */
 export function storeDateString(at: Date, tz: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)

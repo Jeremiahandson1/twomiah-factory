@@ -58,6 +58,25 @@ for (const [file, what] of [
   if (!/storeDayRange\(tz\)/.test(dash)) fail('…and that range must come from the shared definition')
 }
 
+// ── timesheets: the day worked is a calendar day, so the column holds a DAY ───────────────────────
+// time_entry.date was written three ways — an instant on clock-in, an instant on a manual entry with no
+// date, and a correct marker when a date was picked. The weekly sheet buckets that column by day, so a
+// tech clocking in at 20:00 Central on Friday landed on Saturday, and in the NEXT pay week when that
+// Friday ended one. Hours in the wrong pay period is the worst version of this bug. (T24 N1)
+{
+  const time = read(B + 'time/time.ts')
+  if (!time) fail('the time module is missing')
+  if (/clockIn: now, date: now,/.test(time)) fail("a clock-in must record the DAY worked, not the instant — date: now put an evening shift on tomorrow's sheet")
+  if (!/date: dayMarker\(storeDateString\(now, tz\)\)/.test(time)) fail('…it must be the crew\'s calendar day')
+  if (/const entryDate = data\.date \? new Date\(data\.date\) : new Date\(\)/.test(time)) fail('a manual entry with no date must not fall back to the instant')
+  if (!/dayMarker\(storeDateString\(new Date\(\), tz\)\)/.test(time)) fail('…it must fall back to the crew\'s day')
+  if (/getWeekStart\(new Date\(\)\)/.test(time)) fail('"this week" must be the crew\'s week — after 7pm on a Sunday the server is already into Monday')
+  // and the rows written before that, moved onto the day they were actually worked
+  if (!/app\.post\('\/repair-day-markers'/.test(time)) fail('the entries written before the column meant a day must be repairable')
+  if (!/date_trunc\('day', \(date AT TIME ZONE 'UTC' AT TIME ZONE \$\{tz\}\)\)/.test(time)) fail('…converted in SQL: the driver returns a naive timestamp, and new Date() on that reads it as local and moves the row the wrong way')
+  if (!/AND date <> date_trunc\('day', date\)/.test(time)) fail('…touching only rows that carry a time of day, so a correct marker is left exactly as it is')
+}
+
 // ── things that are deliberately NOT business days ────────────────────────────────────────────────
 // A plan's monthly quota and a trial expiry are billing windows. Moving them would change when a
 // tenant's allowance resets, which is not what any of this is about.

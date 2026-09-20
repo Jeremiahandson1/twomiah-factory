@@ -10,7 +10,8 @@
 //   POST /:id/approve, POST /approve {entryIds}   managers only, company-scoped   DELETE /:id   own entry, or any for managers
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq, and, gte, lte, lt, count, desc, asc, sum, isNull, isNotNull, inArray } from 'drizzle-orm'
+import { eq, and, gte, lte, lt, count, desc, asc, sum, isNull, isNotNull, inArray, sql } from 'drizzle-orm'
+import { companyTimeZone, storeDateString, dayMarker } from './businessDay'
 import { hasHappened } from '../dateInput'
 
 export interface TimeTables { timeEntry: any; user: any; job?: any; project?: any }
@@ -179,7 +180,10 @@ export function createTimeRoutes(deps: TimeDeps) {
     const currentUser = (c as any).get('user')
     const q = c.req.query()
     const userId = scopeUser(currentUser, q.userId) || currentUser.userId
-    const weekStart = q.weekStart && validDate(q.weekStart) ? q.weekStart : getWeekStart(new Date())
+    // Which week "this week" is, on the crew's calendar. From 7pm on a Sunday the server is already
+    // into Monday, so the sheet jumped a week ahead while the crew was still working the old one.
+    const weekTz = await companyTimeZone(db, currentUser.companyId)
+    const weekStart = q.weekStart && validDate(q.weekStart) ? q.weekStart : getWeekStart(dayMarker(storeDateString(new Date(), weekTz)))
     const start = new Date(weekStart); start.setHours(0, 0, 0, 0)
     const end = new Date(start); end.setDate(end.getDate() + 7)
     const rows = await db.select().from(t.timeEntry)
@@ -200,6 +204,35 @@ export function createTimeRoutes(deps: TimeDeps) {
       .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, companyId), isNotNull(t.timeEntry.clockIn), isNull(t.timeEntry.clockOut))).limit(1)
     return row || null
   }
+  /**
+   * Put the entries written before the column meant a DAY onto the day they were actually worked.
+   *
+   * `date` was storing an instant for a clock-in and for a manual entry with no date supplied, so any
+   * hours logged after 7pm Central — the end of a shift, which is exactly when people log them — sit on
+   * the next day's sheet, and on the next WEEK's when that day ended a pay week. Only rows that carry a
+   * time of day are touched: a row already at midnight is a day marker and is right as it stands.
+   *
+   * An endpoint, not a boot job, because this rewrites what a timesheet says and somebody should
+   * trigger it and see what moved. It reports every row it changed. (T24 N1, timesheets)
+   */
+  app.post('/repair-day-markers', requirePermission('time:update'), async (c: any) => {
+    const currentUser = (c as any).get('user')
+    const tz = await companyTimeZone(db, currentUser.companyId)
+    // Converted in SQL, not JS. The driver hands a timestamp back as "2026-09-19 01:00:00" with no zone
+    // marker, and new Date() on that reads it as LOCAL — which on a machine behind UTC moves the row a
+    // day the wrong way and quietly undoes the repair. Postgres knows the column is UTC: label it, read
+    // it in the crew's zone, and truncate to the day.
+    const moved: any[] = ((await db.execute(sql`
+      UPDATE time_entry
+      SET date = date_trunc('day', (date AT TIME ZONE 'UTC' AT TIME ZONE ${tz}))
+      WHERE company_id = ${currentUser.companyId}
+        AND date <> date_trunc('day', date)
+      RETURNING id, date
+    `) as any).rows || []) as any[]
+    audit?.log({ action: 'update', entity: 'time_entry', entityId: 'repair-day-markers', metadata: { moved: moved.length }, req: { user: currentUser } })
+    return c.json({ repaired: moved.length, entries: moved.slice(0, 50) })
+  })
+
   app.get('/active', requirePermission('time:read'), async (c) => {
     const currentUser = (c as any).get('user')
     const row = await activeEntry(currentUser.userId, currentUser.companyId)
@@ -216,9 +249,14 @@ export function createTimeRoutes(deps: TimeDeps) {
     const open = await activeEntry(currentUser.userId, currentUser.companyId)
     if (open) return c.json({ error: 'Already clocked in — clock out first', entry: open }, 409)
     const now = new Date()
+    // `date` is the DAY worked, not the moment. Storing the instant put a 20:00 Friday clock-in on
+    // Saturday's sheet for anyone behind UTC, because the weekly view buckets this column by day — and
+    // if that Friday ended a pay week, the hours moved into the next one. clockIn keeps the instant;
+    // date gets the crew's calendar day. (T24 N1, timesheets)
+    const tz = await companyTimeZone(db, currentUser.companyId)
     const [row] = await db.insert(t.timeEntry).values({
       userId: currentUser.userId, companyId: currentUser.companyId, jobId: data.jobId, projectId: data.projectId,
-      clockIn: now, date: now, hours: '0', isAutoClocked: true, description: data.description || data.notes || null,
+      clockIn: now, date: dayMarker(storeDateString(now, tz)), hours: '0', isAutoClocked: true, description: data.description || data.notes || null,
     }).returning()
     return c.json(row, 201)
   })
@@ -254,7 +292,10 @@ export function createTimeRoutes(deps: TimeDeps) {
     const targetUserId = isManager(currentUser) && data.userId ? data.userId : currentUser.userId
     const refErr = await checkRefs(currentUser.companyId, { ...data, userId: targetUserId === currentUser.userId ? null : targetUserId })
     if (refErr) return c.json({ error: refErr }, 400)
-    const entryDate = data.date ? new Date(data.date) : new Date()
+    // A supplied date already names a day. An omitted one used to mean "now", which after 7pm is
+    // tomorrow in UTC — so logging time at the end of a shift filed it on the next day. (T24 N1)
+    const tz = await companyTimeZone(db, currentUser.companyId)
+    const entryDate = data.date ? dayMarker(String(data.date)) : dayMarker(storeDateString(new Date(), tz))
     const derived = deriveHours(data, entryDate)
     if ('error' in derived) return c.json({ error: derived.error }, 400)
     const [row] = await db.insert(t.timeEntry).values({
