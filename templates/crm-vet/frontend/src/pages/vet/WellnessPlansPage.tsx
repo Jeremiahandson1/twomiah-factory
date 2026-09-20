@@ -125,7 +125,7 @@ export default function WellnessPlansPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-semibold text-gray-900 dark:text-slate-100">{p.name || 'Untitled Plan'}</p>
-                      {p.species && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{p.species}</span>}
+                      {p.species && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize dark:bg-slate-800 dark:text-slate-400">{p.species}</span>}
                     </div>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                       {p.active ? 'Active' : 'Inactive'}
@@ -160,7 +160,7 @@ export default function WellnessPlansPage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2 dark:text-slate-100">
                 <Users className="w-4 h-4 text-teal-500" /> Enrollments
-                <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
+                <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
               </h2>
               <button onClick={() => setShowEnroll(true)} disabled={plans.length === 0} className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm disabled:opacity-50" title={plans.length === 0 ? 'Create a plan first' : ''}>
                 <Plus className="w-4 h-4" /> Enroll Patient

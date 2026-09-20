@@ -118,7 +118,7 @@ export default function MenusPage() {
                         <div className="flex-1 min-w-[200px]">
                           <p className="font-semibold text-gray-900 dark:text-slate-100">
                             {p.name || 'Untitled'}
-                            {!p.active && <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Retired</span>}
+                            {!p.active && <span className="ml-2 text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400">Retired</span>}
                           </p>
                           {p.description && <p className="text-sm text-gray-500 dark:text-slate-400">{p.description}</p>}
                         </div>

@@ -67,7 +67,7 @@ export function GlobalSearch({ api, placeholder = DEFAULT_SEARCH_PLACEHOLDER }: 
 
   if (!isOpen) {
     return (
-      <button type="button" onClick={() => setIsOpen(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors dark:text-slate-400 dark:bg-slate-800" aria-label="Search (Ctrl+K)">
+      <button type="button" onClick={() => setIsOpen(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors dark:text-slate-400 dark:bg-slate-800" aria-label="Search (Ctrl+K)">
         <Search className="w-4 h-4" />
         <span className="hidden sm:inline">Search...</span>
         <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-xs bg-white rounded border border-gray-300 dark:bg-slate-900 dark:border-slate-700"><span className="text-xs">⌘</span>K</kbd>

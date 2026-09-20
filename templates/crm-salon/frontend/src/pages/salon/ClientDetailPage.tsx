@@ -247,7 +247,7 @@ export default function ClientDetailPage() {
             }`}
           >
             {t.icon} {t.label}
-            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{t.count}</span>
+            <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{t.count}</span>
           </button>
         ))}
       </div>

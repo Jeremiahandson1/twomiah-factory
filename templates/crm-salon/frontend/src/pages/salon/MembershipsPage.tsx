@@ -188,7 +188,7 @@ export default function MembershipsPage() {
           <div className="bg-white rounded-xl border p-5 dark:bg-slate-900">
             <h2 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 dark:text-slate-100">
               <Users className="w-4 h-4 text-teal-500" /> Members
-              <span className="text-xs bg-gray-100 text-gray-500 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
+              <span className="text-xs bg-gray-100 text-gray-600 px-1.5 rounded-full dark:bg-slate-800 dark:text-slate-400">{enrollments.length}</span>
             </h2>
             {enrollments.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-slate-400 py-6 text-center">Nobody enrolled yet</p>

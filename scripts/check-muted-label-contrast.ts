@@ -146,6 +146,11 @@ for (const f of files) {
   const rel = f.slice(ROOT.length).replace(/\\/g, '/')
   for (const { seg, selfClosing, iconOnly } of classLists(src)) {
     if (DARK_FAILING.test(seg)) failingDark.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+    // A chip paints its own dark surface too, and slate-700 is a LIGHTER dark than the slate-800/900
+    // the rest of the fleet sits on — so the usual slate-400 does not reach it: 4.04:1. slate-300 is
+    // 6.97:1. The tester could not see this one; it only shows in dark mode, on a badge.
+    if (/\bdark:bg-slate-700\b/.test(seg) && /\bdark:text-slate-400\b/.test(seg))
+      tooLightOnChip.push(`${rel} (dark half): ${seg.trim().slice(0, 62)}`)
     // a glyph, or a control that only holds one — unless it sizes text, in which case it has text
     const isIcon = selfClosing || iconOnly ||
       (!TEXT_SIZE.test(seg) && (ICON.test(seg) || (ICON_BUTTON.test(seg) && HOVER.test(seg))))
@@ -170,13 +175,12 @@ for (const f of files) {
 
     if (BARE_500.test(seg)) {
       if (isIcon || DISABLED.test(seg)) continue
-      if (pinnedLight) {
-        // the surface never flips, so the light ratio is the whole story — and gray-500 does not
-        // clear AA on the darker chips (4.39 on gray-100, 3.90 on gray-200)
-        if (/(?<!:)\bbg-gray-(?:100|200|300)\b/.test(seg)) tooLightOnChip.push(`${rel}: ${seg.trim().slice(0, 70)}`)
-        else paired++ // white 4.83 / gray-50 4.63 — fine, and correctly has no dark half
-        continue
-      }
+      // The LIGHT half is judged against the LIGHT chip, whether or not that chip flips in dark mode.
+      // gray-500 is 4.39:1 on gray-100 and 3.90:1 on gray-200 — under AA either way, and a dark
+      // partner cannot rescue the light theme. Salon's "Retired" badge shipped at 4.39:1 through the
+      // first version of this rule, which only looked at chips that were PINNED light.
+      if (/(?<!:)\bbg-gray-(?:100|200|300)\b/.test(seg)) { tooLightOnChip.push(`${rel}: ${seg.trim().slice(0, 70)}`); continue }
+      if (pinnedLight) { paired++; continue } // white 4.83 / gray-50 4.63 — fine, and correctly has no dark half
       if (/dark:text-/.test(seg)) paired++
       else unpaired.push(`${rel}: ${seg.trim().slice(0, 70)}`)
     }

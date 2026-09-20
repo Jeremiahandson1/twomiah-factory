@@ -287,7 +287,7 @@ export default function OnboardingWizard() {
                   w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors
                   ${idx < currentStep ? 'bg-orange-500 text-white'
                     : idx === currentStep ? 'bg-orange-500 text-white ring-4 ring-orange-200 dark:ring-orange-500/30'
-                    : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'}
+                    : 'bg-gray-200 dark:bg-slate-700 text-gray-600 dark:text-slate-300'}
                 `}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
                 </div>
@@ -534,7 +534,7 @@ function StepIntegrations({
                       className="w-full flex items-center gap-3 p-4 text-left"
                     >
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                        isDone ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                        isDone ? 'bg-green-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
                       }`}>
                         {isDone ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
                       </div>
@@ -616,7 +616,7 @@ function StepSetupHelp({ choice, onChoose }: { choice: string | null; onChoose: 
               }`}
             >
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                selected ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                selected ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
               }`}>
                 <Icon className="w-6 h-6" />
               </div>
@@ -629,7 +629,7 @@ function StepSetupHelp({ choice, onChoose }: { choice: string | null; onChoose: 
                     <span className={`text-sm font-medium px-2.5 py-0.5 rounded-full ${
                       option.price === 'Free'
                         ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400'
-                        : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400'
+                        : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300'
                     }`}>
                       {option.price}
                     </span>

@@ -204,7 +204,7 @@ export default function EODReportPage() {
                     <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-300">Drawer closed — final at close</span>
                   )}
                   {report.cashDrawerStatus == null && (
-                    <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400">No drawer opened</span>
+                    <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400">No drawer opened</span>
                   )}
                   {drawerOpen && (
                     <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Drawer open — not yet counted</span>

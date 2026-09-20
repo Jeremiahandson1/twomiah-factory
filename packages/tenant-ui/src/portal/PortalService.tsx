@@ -163,7 +163,7 @@ export function PortalAgreements() {
           {inactive.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Past Plans</h2>
-              <div className="space-y-2">{inactive.map((a) => <div key={a.id} className={`${card} p-4 opacity-60`}><div className="flex items-center justify-between"><h3 className="font-medium text-gray-700 dark:text-slate-200">{a.name}</h3><span className={pill('bg-gray-100 text-gray-500 capitalize dark:bg-slate-800 dark:text-slate-400')}>{a.status}</span></div></div>)}</div>
+              <div className="space-y-2">{inactive.map((a) => <div key={a.id} className={`${card} p-4 opacity-60`}><div className="flex items-center justify-between"><h3 className="font-medium text-gray-700 dark:text-slate-200">{a.name}</h3><span className={pill('bg-gray-100 text-gray-600 capitalize dark:bg-slate-800 dark:text-slate-400')}>{a.status}</span></div></div>)}</div>
             </div>
           )}
         </>

@@ -326,7 +326,7 @@ export default function LabelsPage() {
                       return <span key={fieldKey} className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded dark:bg-slate-800 dark:text-slate-400">{fieldKey}</span>;
                     })}
                     {(tpl.fields || []).length > 5 && (
-                      <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-500 rounded dark:bg-slate-800 dark:text-slate-400">+{tpl.fields.length - 5}</span>
+                      <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded dark:bg-slate-800 dark:text-slate-400">+{tpl.fields.length - 5}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-slate-400 mb-3">
