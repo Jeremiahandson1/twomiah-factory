@@ -6,6 +6,7 @@ import {
   Trophy, Plus, X, Trash2, Save,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { displayName } from '../../utils/user'
 import { useToast } from '../../contexts/ToastContext'
 
 const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
@@ -144,7 +145,7 @@ export default function CanvassingDashboard() {
   const repLeads: Record<string, { name: string; leads: number; doors: number }> = {}
   monthSessions.forEach((s: Session) => {
     const u = users.find((u: any) => u.id === s.userId)
-    const name = u ? (u.name || u.firstName + ' ' + u.lastName || u.email) : 'Unknown'
+    const name = displayName(u)
     if (!repLeads[s.userId]) repLeads[s.userId] = { name, leads: 0, doors: 0 }
     repLeads[s.userId].leads += s.leadsCreated || 0
     repLeads[s.userId].doors += s.totalDoors || 0
@@ -152,7 +153,7 @@ export default function CanvassingDashboard() {
   const leaderboard = Object.values(repLeads).sort((a, b) => b.leads - a.leads)
 
   const userMap: Record<string, string> = {}
-  users.forEach((u: any) => { userMap[u.id] = u.name || u.firstName + ' ' + u.lastName || u.email })
+  users.forEach((u: any) => { userMap[u.id] = displayName(u) })
 
   // Script editor handlers
   const openScriptEditor = (script?: Script) => {
@@ -315,7 +316,7 @@ export default function CanvassingDashboard() {
           className="text-sm border rounded-lg px-3 py-1.5 bg-white dark:bg-slate-900">
           <option value="">All Reps</option>
           {users.map((u: any) => (
-            <option key={u.id} value={u.id}>{u.name || u.firstName + ' ' + u.lastName || u.email}</option>
+            <option key={u.id} value={u.id}>{displayName(u)}</option>
           ))}
         </select>
         <input type="text" value={filterWeather} onChange={(e) => setFilterWeather(e.target.value)}

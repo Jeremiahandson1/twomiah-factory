@@ -23,7 +23,12 @@ const quoteSchema = z.object({
   discount: z.number().min(0, 'Discount cannot be negative').default(0),
   notes: z.string().optional(),
   customerMessage: z.string().optional(),
-  expiresAt: z.string().optional(),
+  // L3: 2020-01-01 was accepted, so the quote arrived already expired and the customer could not
+  // accept it. A date is only a valid expiry if it is still ahead.
+  expiresAt: z.string().optional().refine(
+    (v) => !v || new Date(v).getTime() > Date.now() - 24 * 60 * 60 * 1000,
+    { message: 'must be a future date — this quote would already have expired' },
+  ),
 })
 
 // Round to whole cents (avoids $330.949-style totals) and tax the post-discount
@@ -48,6 +53,14 @@ export class QuoteTooLargeError extends Error {
   }
 }
 
+/** L2: a discount bigger than the quote is a typo, not a free roof */
+export class DiscountTooLargeError extends Error {
+  constructor(discount: number, subtotal: number) {
+    super(`The discount ($${discount.toFixed(2)}) is more than the quote subtotal ($${subtotal.toFixed(2)})`)
+    this.name = 'DiscountTooLargeError'
+  }
+}
+
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number = 0) => {
   for (const i of items) {
     const line = i.quantity * i.unitPrice
@@ -55,6 +68,9 @@ const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: n
   }
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
   if (!Number.isFinite(subtotal) || subtotal > MONEY_CEILING) throw new QuoteTooLargeError('the subtotal', subtotal)
+  // A $99,999 discount on a $100 quote used to clamp silently and save at $0.00 — the number the
+  // customer sees is right, and nobody is told the figure they typed was not the one applied.
+  if (discount > subtotal) throw new DiscountTooLargeError(discount, subtotal)
   const effectiveDiscount = Math.min(Math.max(0, discount), subtotal)
   const taxable = Math.max(0, subtotal - effectiveDiscount)
   const taxAmount = round2(taxable * (Math.max(0, taxRate) / 100))

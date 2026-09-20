@@ -7,6 +7,7 @@ import {
   Receipt, Shield, Calendar, Home, AlertTriangle, CheckCircle,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -698,7 +699,7 @@ export default function JobDetailPage() {
                   >
                     <option value="">Unassigned</option>
                     {users.map((u) => (
-                      <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                      <option key={u.id} value={u.id}>{displayName(u)}</option>
                     ))}
                   </select>
                 </div>

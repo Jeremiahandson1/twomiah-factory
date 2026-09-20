@@ -399,7 +399,7 @@ app.onError((err, c) => {
 
   // Money that will not fit decimal(10,2). It is the caller's input that is wrong, so it is a 400
   // with the number named — not the 500 a numeric overflow produces on its way out of the driver.
-  if (err.name === 'QuoteTooLargeError') {
+  if (err.name === 'QuoteTooLargeError' || err.name === 'DiscountTooLargeError') {
     return c.json({ error: err.message }, 400)
   }
 

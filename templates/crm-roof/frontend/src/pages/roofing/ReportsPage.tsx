@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { BarChart3, TrendingUp, DollarSign, Users, Briefcase } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
 const STAGE_LABELS: Record<string, string> = {
@@ -157,7 +158,7 @@ export default function ReportsPage() {
 
   // Revenue by sales rep
   const repMap: Record<string, string> = {};
-  users.forEach((u: any) => (repMap[u.id] = u.name || u.email));
+  users.forEach((u: any) => (repMap[u.id] = displayName(u)));
   const revByRep: Record<string, number> = {};
   jobs.forEach((j) => {
     if (j.assignedSalesRepId) {

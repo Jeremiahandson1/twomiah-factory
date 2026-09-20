@@ -3,6 +3,7 @@ import { formatDate } from '../../utils/date';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
 const JOB_TYPES = ['insurance', 'retail', 'commercial', 'new_construction', 'emergency'];
@@ -184,7 +185,7 @@ export default function JobsPage() {
           </select>
           <select value={repFilter} onChange={(e) => setRepFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Sales Reps</option>
-            {users.map((u: any) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+            {users.map((u: any) => <option key={u.id} value={u.id}>{displayName(u)}</option>)}
           </select>
         </div>
 

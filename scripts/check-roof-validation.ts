@@ -253,5 +253,35 @@ if (statuses.length < 5) fail('could not read JOB_STATUSES — this guard is not
     fail('…with no job yet, so it is already there to attach when the lead becomes one')
 }
 
+// ── the lows that are silent rather than loud ─────────────────────────────────────────────────────
+{
+  const q = read(B + 'routes/quotes.ts')
+  if (!/class DiscountTooLargeError/.test(q))
+    fail('a $99,999 discount on a $100 quote clamped silently and saved at $0.00 — the number typed was not the number applied, and nobody was told (L2)')
+  if (!/if \(discount > subtotal\) throw new DiscountTooLargeError/.test(q))
+    fail('…it must be refused rather than clamped')
+  if (!/expiresAt: z\.string\(\)\.optional\(\)\.refine\(/.test(q))
+    fail('an expiry of 2020-01-01 was accepted, so the quote arrived already expired (L3)')
+  if (!/new Date\(v\)\.getTime\(\) > Date\.now\(\) - 24 \* 60 \* 60 \* 1000/.test(q))
+    fail('…checked against now, with a day of slack for time zones')
+
+  // L5: the user table has no `name` column, so `u.name || u.email` is not a fallback — it is the
+  // only branch, and Reports listed reps by email.
+  const helper = read(F + 'utils/user.ts')
+  if (!/export function displayName\(/.test(helper))
+    fail('sales reps were listed by raw email because `u.name` does not exist on the user table (L5)')
+  // the implementation matters as much as its existence: `firstName + ' ' + lastName` is always
+  // truthy, so a user with no surname renders as "Dana undefined" and the email is unreachable
+  if (!/\[u\.firstName, u\.lastName\]\.filter\(Boolean\)\.join\(' '\)/.test(helper))
+    fail('…built by filtering the parts, not concatenating them')
+  const offenders: string[] = []
+  for (const page of ['ReportsPage', 'PipelineBoard', 'JobsPage', 'JobDetailPage', 'CanvassingDashboard']) {
+    const src = read(F + `pages/roofing/${page}.tsx`)
+    if (/u\.name \|\| u\.email|u\.name \|\| u\.firstName/.test(src)) offenders.push(page)
+    if (/displayName\(/.test(src) && !/utils\/user/.test(src)) offenders.push(`${page} (uses it without importing)`)
+  }
+  if (offenders.length) fail(`${offenders.length} page(s) still name a person by hand instead of using displayName(): ${offenders.join(', ')}`)
+}
+
 if (failed) { console.error(`\nroof validation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`roof validation: the pipeline (${statuses.length} statuses), contact details, door-knock outcomes and material money all mean what the product means`)

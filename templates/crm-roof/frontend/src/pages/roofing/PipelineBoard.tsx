@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTriangle, MapPin, Zap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
 const STAGES = [
@@ -178,7 +179,7 @@ export default function PipelineBoard() {
   }
 
   const repMap: Record<string, string> = {};
-  users.forEach((u: any) => (repMap[u.id] = u.name || u.email));
+  users.forEach((u: any) => (repMap[u.id] = displayName(u)));
   const crewMap: Record<string, string> = {};
   crews.forEach((c: any) => (crewMap[c.id] = c.name));
 
@@ -194,7 +195,7 @@ export default function PipelineBoard() {
         >
           <option value="">All Sales Reps</option>
           {users.map((u: any) => (
-            <option key={u.id} value={u.id}>{u.name || u.email}</option>
+            <option key={u.id} value={u.id}>{displayName(u)}</option>
           ))}
         </select>
         <select
