@@ -312,7 +312,10 @@ app.post('/:id/convert', async (c) => {
   }).returning()
 
   // Link quote back to job
-  await db.update(quote).set({ convertedToJobId: newJob.id, updatedAt: new Date() }).where(eq(quote.id, id))
+  // L6: `convertedToJobId` records that the conversion happened; `jobId` is what the quote list reads
+  // for its Job column, and it was left null — so a converted quote showed a blank job for ever. Both
+  // are set, because they answer different questions and the list asks the second one.
+  await db.update(quote).set({ convertedToJobId: newJob.id, jobId: newJob.id, updatedAt: new Date() }).where(eq(quote.id, id))
 
   return c.json(newJob, 201)
 })

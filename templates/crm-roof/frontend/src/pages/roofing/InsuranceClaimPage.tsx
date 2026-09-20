@@ -862,7 +862,15 @@ export default function InsuranceClaimPage() {
                           <input value={li.unit} onChange={(e) => updateSupLineItem(i, 'unit', e.target.value)} className="w-full text-xs border rounded px-1 py-1 text-center" />
                         </td>
                         <td className="py-1 pr-1">
-                          <input type="number" step="0.01" value={li.unitPrice} onChange={(e) => updateSupLineItem(i, 'unitPrice', Number(e.target.value))} className="w-full text-xs border rounded px-1 py-1 text-right" />
+                          {/* L7: `value={li.unitPrice}` with Number() on every keystroke meant typing
+                              "-1500" produced 0 from the lone minus, rendered it as "0", and the next
+                              digits appended to it — "01500", a $1,500.00 line the typist did not ask
+                              for. An empty field now stays empty while it is being filled in, and a
+                              supplement price cannot be negative in the first place. */}
+                          <input type="number" min="0" step="0.01" inputMode="decimal"
+                            value={li.unitPrice === 0 || li.unitPrice === undefined ? '' : li.unitPrice}
+                            onChange={(e) => updateSupLineItem(i, 'unitPrice', e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
+                            className="w-full text-xs border rounded px-1 py-1 text-right" />
                         </td>
                         <td className="py-1 pr-1 text-right text-xs font-medium">{fmt$(li.total)}</td>
                         <td className="py-1">

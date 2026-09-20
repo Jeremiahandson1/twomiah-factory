@@ -283,5 +283,24 @@ if (statuses.length < 5) fail('could not read JOB_STATUSES — this guard is not
   if (offenders.length) fail(`${offenders.length} page(s) still name a person by hand instead of using displayName(): ${offenders.join(', ')}`)
 }
 
+// ── L1 / L6 / L7 ──────────────────────────────────────────────────────────────────────────────────
+{
+  const settings = read(B + 'routes/settings.ts')
+  if (!/'enabledFeatures' in body/.test(settings))
+    fail('settings PUT accepted enabledFeatures, dropped it, and answered 200 — a caller who thinks they saved their feature list is worse off than one who got an error (L1)')
+  if (!/company\/features/.test(settings))
+    fail('…and it must say where features are actually changed')
+
+  const q = read(B + 'routes/quotes.ts')
+  if (!/convertedToJobId: newJob\.id, jobId: newJob\.id/.test(q))
+    fail('a converted quote left its own jobId null, so the Job column stayed blank for ever (L6)')
+
+  const claim = read(F + 'pages/roofing/InsuranceClaimPage.tsx')
+  if (/value=\{li\.unitPrice\} onChange=\{\(e\) => updateSupLineItem\(i, 'unitPrice', Number\(e\.target\.value\)\)\}/.test(claim))
+    fail('typing -1500 into a supplement price produced 01500 — Number() on every keystroke turns a lone minus into 0 and the digits append to it (L7)')
+  if (!/value=\{li\.unitPrice === 0 \|\| li\.unitPrice === undefined \? '' : li\.unitPrice\}/.test(claim))
+    fail('…an empty field must stay empty while it is being filled in')
+}
+
 if (failed) { console.error(`\nroof validation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`roof validation: the pipeline (${statuses.length} statuses), contact details, door-knock outcomes and material money all mean what the product means`)

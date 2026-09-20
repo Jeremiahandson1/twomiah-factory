@@ -28,7 +28,17 @@ app.put('/company', async (c) => {
     state: z.string().optional(),
     zip: z.string().optional(),
   })
-  const data = schema.parse(await c.req.json())
+  const body = await c.req.json()
+
+  // L1: zod strips unknown keys, so sending enabledFeatures here returned 200 having changed nothing.
+  // A caller who believes they just saved their feature list is worse off than one who got an error,
+  // so say where that actually lives. Features are admin-only (company.ts PUT /features) — quietly
+  // accepting them on a non-admin route would also have been a privilege hole.
+  if (body && typeof body === 'object' && 'enabledFeatures' in body) {
+    return c.json({ error: 'Features are not changed here. Use PUT /api/company/features (admins only).' }, 400)
+  }
+
+  const data = schema.parse(body)
   await db.update(company).set({ ...data, updatedAt: new Date() })
     .where(eq(company.id, currentUser.companyId))
   return c.json({ message: 'Saved' })
