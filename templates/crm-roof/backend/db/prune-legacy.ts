@@ -41,6 +41,19 @@ const ENSURE = [
   // that fell through sat on the board for ever and kept counting in every pipeline report.
   `ALTER TABLE job ADD COLUMN IF NOT EXISTS lost_reason text`,
   `ALTER TABLE job ADD COLUMN IF NOT EXISTS closed_at timestamp`,
+  // Documents: schema-managed, pre-created so drizzle-kit push sees no NEW table and never renders
+  // the interactive "created or renamed?" prompt that hangs boot on Render.
+  `CREATE TABLE IF NOT EXISTS document (
+     id text PRIMARY KEY, name text NOT NULL, type text NOT NULL DEFAULT 'general',
+     filename text NOT NULL, original_name text NOT NULL, mime_type text, size integer,
+     path text NOT NULL, url text NOT NULL, thumbnail_url text, description text,
+     created_at timestamp NOT NULL DEFAULT now(), updated_at timestamp NOT NULL DEFAULT now(),
+     company_id text NOT NULL, contact_id text, job_id text, invoice_id text, uploaded_by_id text)`,
+  `CREATE TABLE IF NOT EXISTS document_version (
+     id text PRIMARY KEY, version_number integer NOT NULL, filename text NOT NULL,
+     original_name text NOT NULL, mime_type text, size integer, path text NOT NULL, url text NOT NULL,
+     note text, created_at timestamp NOT NULL DEFAULT now(),
+     document_id text NOT NULL, company_id text NOT NULL, uploaded_by_id text)`,
   // takeoff_item column drift: fieldservice-lineage migrations created this table
   // with the old cost columns; schema.ts uses assembly_id + measurement columns.
   // Pre-add them so drizzle-kit push sees no NEW column to rename-prompt on.

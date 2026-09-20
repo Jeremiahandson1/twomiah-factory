@@ -10,7 +10,8 @@ import { INLINE_IMAGE_TYPES } from './storage'
 
 export interface DocumentTables {
   document: any
-  project: any
+  /** the contractor lineage only — a roofing or salon CRM hangs a document off a JOB. Optional. */
+  project?: any
   contact: any
   user: any
   /** version history — added to every template */
@@ -71,18 +72,42 @@ export function createDocumentRoutes(deps: DocumentDeps) {
   app.use('*', authenticate)
   const actor = (c: any) => { const u = c.get('user') as any; return { userId: u.userId, companyId: u.companyId } }
 
-  const withRelations = (where: any) => db.select({
-    document: t.document,
-    project: { id: t.project.id, name: t.project.name },
-    contact: { id: t.contact.id, name: t.contact.name },
-    uploadedBy: { id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName },
-  }).from(t.document)
-    .leftJoin(t.project, eq(t.document.projectId, t.project.id))
-    .leftJoin(t.contact, eq(t.document.contactId, t.contact.id))
-    .leftJoin(t.user, eq(t.document.uploadedById, t.user.id))
-    .where(where)
+  // Not every CRM has projects. The contractor lineage does; a roofing or salon CRM hangs a document
+  // off a JOB instead, and passing `project: undefined` used to crash the first list request with
+  // "undefined is not an object (evaluating 't.project.id')". The join is therefore conditional —
+  // templates that pass a project table are unaffected, and `flat()` below already copes with the
+  // relation being absent.
+  const hasProjects = !!t.project
+  /**
+   * A contact is named differently across the fleet: most templates carry a single `name`, roof
+   * carries `firstName` / `lastName`. Selecting `t.contact.name` where it does not exist hands
+   * drizzle an undefined column and the first list request dies on "Object.entries requires that
+   * input parameter not be null or undefined". Select whichever the template has; `flat()` composes
+   * one `{ id, name }` shape either way, so every caller sees the same thing.
+   */
+  const splitName = !t.contact.name
+  const contactSel = splitName
+    ? { id: t.contact.id, firstName: t.contact.firstName, lastName: t.contact.lastName }
+    : { id: t.contact.id, name: t.contact.name }
+
+  const withRelations = (where: any) => {
+    let q = db.select({
+      document: t.document,
+      ...(hasProjects ? { project: { id: t.project.id, name: t.project.name } } : {}),
+      contact: contactSel,
+      uploadedBy: { id: t.user.id, firstName: t.user.firstName, lastName: t.user.lastName },
+    }).from(t.document) as any
+    if (hasProjects) q = q.leftJoin(t.project, eq(t.document.projectId, t.project.id))
+    return q
+      .leftJoin(t.contact, eq(t.document.contactId, t.contact.id))
+      .leftJoin(t.user, eq(t.document.uploadedById, t.user.id))
+      .where(where)
+  }
+  /** one `{ id, name }` contact regardless of how the template stores it */
+  const namedContact = (ct: any) =>
+    ct?.id ? { id: ct.id, name: ct.name ?? [ct.firstName, ct.lastName].filter(Boolean).join(' ') } : null
   // One flat shape everywhere: the document's own columns at the top level, relations nested.
-  const flat = (r: any) => ({ ...r.document, project: r.project?.id ? r.project : null, contact: r.contact?.id ? r.contact : null, uploadedBy: r.uploadedBy?.id ? r.uploadedBy : null })
+  const flat = (r: any) => ({ ...r.document, project: r.project?.id ? r.project : null, contact: namedContact(r.contact), uploadedBy: r.uploadedBy?.id ? r.uploadedBy : null })
 
   const owned = async (c: any) => {
     const { companyId } = actor(c)
@@ -125,7 +150,8 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     const page = Math.max(1, parseInt(q.page || '1') || 1)
     const limit = Math.min(maxLimit, Math.max(1, parseInt(q.limit || '25') || 25))
     const conditions: any[] = [eq(t.document.companyId, companyId)]
-    if (q.projectId) conditions.push(eq(t.document.projectId, q.projectId))
+    // `projectId` only exists where the template has projects — see hasProjects above.
+    if (hasProjects && q.projectId) conditions.push(eq(t.document.projectId, q.projectId))
     if (q.contactId) conditions.push(eq(t.document.contactId, q.contactId))
     if (q.jobId) conditions.push(eq(t.document.jobId, q.jobId))
     for (const col of linkCols) if (q[col]) conditions.push(eq(t.document[col], q[col]))
@@ -189,7 +215,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
       description: str(body['description'], 2000) || null,
       type: str(body['type'], 50) || 'general',
       ...stored,
-      projectId: idOrNull(body['projectId']),
+      ...(hasProjects ? { projectId: idOrNull(body["projectId"]) } : {}),
       contactId: idOrNull(body['contactId']),
       jobId: idOrNull(body['jobId']),
       invoiceId: idOrNull(body['invoiceId']),
@@ -208,7 +234,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     const files: File[] = Array.isArray(raw) ? raw.filter((f: any) => f instanceof File) : raw instanceof File ? [raw] : []
     if (!files.length) return c.json({ error: 'No files uploaded' }, 400)
     const type = str(body['type'], 50) || 'general'
-    const projectId = idOrNull(body['projectId']), contactId = idOrNull(body['contactId']), jobId = idOrNull(body['jobId'])
+    const projectId = hasProjects ? idOrNull(body["projectId"]) : undefined, contactId = idOrNull(body['contactId']), jobId = idOrNull(body['jobId'])
     const extra = await linkValues(companyId, body)
     if ('error' in extra) return c.json({ error: extra.error }, 404)
     const documents: any[] = []
@@ -216,7 +242,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     for (const file of files) {
       try {
         const stored = await storeUpload(file, companyId)
-        const [doc] = await db.insert(t.document).values({ companyId, name: stored.originalName, type, ...stored, projectId, contactId, jobId, ...extra.values, uploadedById: userId }).returning()
+        const [doc] = await db.insert(t.document).values({ companyId, name: stored.originalName, type, ...stored, ...(hasProjects ? { projectId } : {}), contactId, jobId, ...extra.values, uploadedById: userId }).returning()
         documents.push(doc)
       } catch (err: any) { failed.push({ file: file.name, error: err.message }) }
     }
@@ -236,7 +262,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     if (body.name !== undefined) { const n = str(body.name, 200); if (!n) return c.json({ error: 'Name cannot be empty' }, 400); u.name = n }
     if (body.description !== undefined) u.description = str(body.description, 2000) || null
     if (body.type !== undefined) u.type = str(body.type, 50) || 'general'
-    if (body.projectId !== undefined) u.projectId = idOrNull(body.projectId)
+    if (hasProjects && body.projectId !== undefined) u.projectId = idOrNull(body.projectId)
     if (body.contactId !== undefined) u.contactId = idOrNull(body.contactId)
     if (body.jobId !== undefined) u.jobId = idOrNull(body.jobId)
     const extra = await linkValues(companyId, body)

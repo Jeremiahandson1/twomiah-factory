@@ -40,6 +40,7 @@ import canvassingRoutes from './routes/canvassing.ts'
 import stormRoutes from './routes/storms.ts'
 import quickbooksRoutes from './routes/quickbooks.ts'
 import leadsRoutes from './routes/leads.ts'
+import documentsRoutes from './routes/documents.ts'
 import calltrackingRoutes from './routes/calltracking.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import adsRoutes from './routes/ads.ts'
@@ -233,6 +234,8 @@ for (const [path, feature] of [
   // call-tracking screen of its own — so the two are one surface here and share one switch.
   ['/api/ai-receptionist', 'ai_receptionist'],
   ['/api/calltracking', 'ai_receptionist'],
+  // Roofing runs on paperwork; the module is shared and five other templates already mount it.
+  ['/api/documents', 'documents'],
 ] as Array<[string, string]>) {
   app.use(path, skipPublic(authenticate), skipPublic(requireEnabledFeature(feature)))
   app.use(`${path}/*`, skipPublic(authenticate), skipPublic(requireEnabledFeature(feature)))
@@ -251,6 +254,7 @@ app.route('/api/canvassing', canvassingRoutes)
 app.route('/api/storms', stormRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/leads', leadsRoutes)
+app.route('/api/documents', documentsRoutes)
 app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 app.route('/api/ads', adsRoutes)

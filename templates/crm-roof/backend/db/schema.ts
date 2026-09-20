@@ -353,6 +353,57 @@ export const jobPhoto = pgTable('job_photo', {
   index('job_photo_company_id_idx').on(t.companyId),
 ])
 
+// ==================== DOCUMENTS ====================
+// Roofing runs on paperwork — permits, signed contracts, warranty registrations, carrier
+// correspondence, scope sheets. The module is the shared one five other templates already use
+// (packages/tenant-backend/src/files/documents.ts); roof offered it in Settings and sold it in the
+// STARTER plan while mounting nothing. These are the same two tables, with roof's own links: a
+// document hangs off a JOB rather than a project.
+
+export const document = pgTable('document', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  type: text('type').default('general').notNull(),
+  filename: text('filename').notNull(),
+  originalName: text('original_name').notNull(),
+  mimeType: text('mime_type'),
+  size: integer('size'),
+  path: text('path').notNull(),
+  url: text('url').notNull(),
+  thumbnailUrl: text('thumbnail_url'),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('document_company_id_idx').on(t.companyId),
+  index('document_job_id_idx').on(t.jobId),
+])
+
+export const documentVersion = pgTable('document_version', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  versionNumber: integer('version_number').notNull(),
+  filename: text('filename').notNull(),
+  originalName: text('original_name').notNull(),
+  mimeType: text('mime_type'),
+  size: integer('size'),
+  path: text('path').notNull(),
+  url: text('url').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('document_version_document_id_idx').on(t.documentId),
+])
+
 // ==================== JOB NOTES ====================
 
 export const jobNote = pgTable('job_note', {

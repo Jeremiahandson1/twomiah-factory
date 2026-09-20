@@ -156,7 +156,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Advanced
   { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
-  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] /* not crm-roof: roof mounts no documents route and routes no documents page — the switch offered something that does not exist */ },
+  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
   { id: 'reports', name: 'Reports', description: 'Drill-down reporting — visits, revenue, reminders due, reactivation', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: ['crm'] },
   { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
@@ -301,8 +301,36 @@ export function getFeaturesForTemplate(template: string): FeatureDef[] {
  * turn extras on anytime from Settings → Features. This keeps the initial sidebar clean
  * instead of dumping all ~40 modules on a brand-new tenant.
  */
+/**
+ * Templates whose lean start is too lean — the core set alone does not give a working product.
+ *
+ * `core` is a GLOBAL flag on a feature, so it cannot say "essential for roofers, optional for
+ * everyone else". For crm-roof that gap is structural: the core set is contacts, jobs, quotes,
+ * invoices, scheduling, dashboard, google_business and branded_email — which leaves out
+ * `pipeline_board`, and the pipeline board is roof's INDEX ROUTE, the first screen after login. It
+ * also leaves out crews, materials and the insurance workflow, which is most of what makes this a
+ * roofing CRM rather than a generic one.
+ *
+ * That did not show while nothing was gated — every module answered regardless of the flag. Now that
+ * the switches actually work, a brand-new roofer would sign up to a stripped product.
+ *
+ * The starter tier already curates exactly this: what someone on the entry plan is sold. So roof's
+ * defaults are core ∪ starter. Other templates keep the deliberate core-only lean start; add one here
+ * only when its core set genuinely cannot stand alone.
+ */
+/** Which templates take their starter tier as the default. Read LAZILY — see below. */
+const DEFAULTS_FROM_STARTER = new Set(['crm-roof'])
+
 export function getDefaultFeaturesForTemplate(template: string): string[] {
-  return FEATURE_REGISTRY.filter(f => f.core && f.templates.includes(template)).map(f => f.id)
+  const core = FEATURE_REGISTRY.filter(f => f.core && f.templates.includes(template)).map(f => f.id)
+  // PLAN_TIERS is declared further down this file. `const` is not hoisted, so reading it at module
+  // scope here would throw at import time and take the whole tenant down at boot; it is read inside
+  // the function, where evaluation order is no longer a question.
+  const extraIds = DEFAULTS_FROM_STARTER.has(template) ? (PLAN_TIERS[template]?.starter ?? []) : []
+  // and an id is only added if the template is actually OFFERED it — a tier listing something the
+  // template does not have would otherwise switch on a flag with nothing behind it
+  const offered = new Set(FEATURE_REGISTRY.filter(f => f.templates.includes(template)).map(f => f.id))
+  return [...new Set([...core, ...extraIds.filter(id => offered.has(id))])]
 }
 
 /**
@@ -395,12 +423,9 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
   'crm-roof': {
     starter: [
       'contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard',
-      // 'documents' was promised here and roof has no documents module at all — no route, no page,
-      // no import of the shared one. Selling it was a false promise, so the catalog stops making it.
-      // Roofing IS paperwork-heavy (permits, contracts, warranties, carrier correspondence), so this
-      // is arguably a gap worth filling rather than a mis-listing — but building it is a feature
-      // decision, not a correction.
-      'client_portal', 'lead_inbox', 'crews',
+      // 'documents' was promised here while roof mounted no route and rendered no page. It is wired
+      // up now — the same shared module five other templates use — so the plan keeps its promise.
+      'documents', 'client_portal', 'lead_inbox', 'crews',
     ],
     pro: [
       'pricebook', 'measurement_reports', 'google_reviews',

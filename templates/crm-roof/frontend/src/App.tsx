@@ -33,6 +33,7 @@ import StormRadarPage from './pages/roofing/StormRadarPage'
 import LeadInboxPage from './pages/leads/LeadInboxPage'
 import LeadSourcesPage from './pages/leads/LeadSourcesPage'
 import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
+import DocumentsPage from './pages/DocumentsPage'
 import ImportPage from './pages/roofing/ImportPage'
 import AdsPage from './pages/ads/AdsPage'
 import RoofReportsPage from './pages/roofReports/RoofReportsPage'
@@ -143,6 +144,7 @@ export default function App() {
                 <Route path="estimator" element={<EstimatorPage />} />
                 <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                 <Route path="ads" element={<AdsPage />} />
+                <Route path="documents" element={<DocumentsPage />} />
                 <Route path="import" element={<ImportPage />} />
                 <Route path="roof-reports" element={<RoofReportsPage />} />
                 <Route path="roof-reports/:id" element={<RoofReportDetail />} />
