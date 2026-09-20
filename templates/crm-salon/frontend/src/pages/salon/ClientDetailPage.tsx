@@ -136,7 +136,7 @@ export default function ClientDetailPage() {
   if (!ct) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-slate-400">
-        Client not found. <Link to="/crm/clients" className="text-teal-600">Back to clients</Link>
+        Client not found. <Link to="/crm/clients" className="text-teal-700 dark:text-teal-300">Back to clients</Link>
       </div>
     );
   }
@@ -275,7 +275,7 @@ export default function ClientDetailPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(r.priceCharged)}</span>
-                      <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-600 hover:text-teal-700 dark:hover:text-teal-300">Edit</button>
+                      <button onClick={() => { setEditRecord(r); setShowRecord(true); }} className="text-sm text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200">Edit</button>
                     </div>
                   </div>
 
@@ -349,7 +349,7 @@ export default function ClientDetailPage() {
           {memberships.length === 0 ? (
             <div className="text-center py-10 text-gray-500 dark:text-slate-400 bg-white rounded-xl border dark:bg-slate-900">
               Not enrolled in a membership.{' '}
-              <Link to="/crm/memberships" className="text-teal-600">Browse plans</Link>
+              <Link to="/crm/memberships" className="text-teal-700 dark:text-teal-300">Browse plans</Link>
             </div>
           ) : (
             <div className="space-y-2">

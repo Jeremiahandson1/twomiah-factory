@@ -172,7 +172,11 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           </div>
           <div className={`rounded-xl p-6 text-center ${bigTone}`}>
             <p className="text-3xl font-bold">{money(bigAmount)}</p>
-            <p className="text-sm opacity-80">{bigLabel}</p>
+            {/* No opacity here. `opacity-80` blended this label toward its own tinted panel and took
+                "Paid in Full" from 4.79:1 to 3.37:1 — the salon tester's reading was 3.30. Orange fell
+                to 3.57 the same way. The size and weight difference against the figure above is what
+                de-emphasises it; the colour is already the semantic one. */}
+            <p className="text-sm">{bigLabel}</p>
           </div>
         </div>
       </div>

@@ -205,7 +205,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
                 <button
                   type="button"
                   onClick={() => setFormula((rows) => [...rows, { product: '', shade: '', parts: '' }])}
-                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 dark:hover:text-teal-300"
+                  className="inline-flex items-center gap-1 text-xs text-teal-700 hover:text-teal-800 dark:text-teal-300 dark:hover:text-teal-200"
                 >
                   <Plus className="w-3 h-3" /> Add line
                 </button>

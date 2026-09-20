@@ -40,6 +40,9 @@ const HOVER = /hover:text-/
 // `text-sm …>+ Add Step</button>` both slipped through until the deployed bundle was checked. A
 // text-size class beside the colour is the tell — a glyph does not need one.
 const TEXT_SIZE = /\btext-(xs|sm|base|lg|xl|2xl|3xl)\b/
+// A BARE opacity utility on sized text. `hover:`/`group-hover:`-prefixed ones are deliberately not
+// matched — dimming an image thumbnail on hover is a different thing from dimming a label.
+const DIMMED = /(?<!:)\bopacity-(?:50|60|70|75|80|90)\b/
 // The one place the tell lies: the roof customer portal is a permanently dark UI (bg-gray-900 shell,
 // bg-gray-800 panels — no theme toggle), where gray-400 measures 5.78:1 and 6.99:1. It is correct
 // there, and "fixing" it to gray-500 would drop it to 3.04:1. That is a regression, not a fix.
@@ -101,6 +104,45 @@ for (const r of ROOTS) {
 const onFailingLight: string[] = []
 const unpaired: string[] = []
 const failingDark: string[] = []
+/**
+ * Dimmed-label BASELINE — the stat-card pattern, recorded rather than swept.
+ *
+ * These carry `text-sm opacity-75` on a tinted `bg-<hue>-50 text-<hue>-600` card, which is the same
+ * fault as the invoice panel and lands in the same 2.4–3.6:1 band. They are recorded, not fixed,
+ * because the salon report covered the invoice label and the teal links only — sweeping twenty-four
+ * files across four other verticals is a separate, deliberate change.
+ *
+ * A file listed here may keep what it has; a dimmed label in ANY OTHER file fails the guard. Remove
+ * a path from this list once its labels are fixed, so the baseline only ever shrinks.
+ */
+const KNOWN_DIMMED = new Set([
+  'packages/tenant-ui/src/agreements/AgreementsPage.tsx',
+  'packages/tenant-ui/src/equipment/EquipmentPage.tsx',
+  'packages/tenant-ui/src/fleet/FleetPage.tsx',
+  'packages/tenant-ui/src/inventory/InventoryPage.tsx',
+  'packages/tenant-ui/src/marketing/MarketingPage.tsx',
+  'packages/tenant-ui/src/portal/PortalService.tsx',
+  'packages/tenant-ui/src/pricebook/PricebookPage.tsx',
+  'packages/tenant-ui/src/reviews/ReviewsPage.tsx',
+  'packages/tenant-ui/src/shell/TrialBanner.tsx',
+  'packages/tenant-ui/src/tasks/TasksPage.tsx',
+  'packages/tenant-ui/src/warranties/WarrantiesPage.tsx',
+  'templates/crm-fieldservice/frontend/src/pages/calltracking/CallTrackingPage.tsx',
+  'templates/crm-fieldservice/frontend/src/pages/fieldservice/DispatchBoard.tsx',
+  'templates/crm-fieldservice/frontend/src/pages/fieldservice/FlatRatePricebook.tsx',
+  'templates/crm-fieldservice/frontend/src/pages/fieldservice/MaintenanceContracts.tsx',
+  'templates/crm-fieldservice/frontend/src/pages/fieldservice/PartsInventory.tsx',
+  'templates/crm-landscaping/frontend/src/pages/calltracking/CallTrackingPage.tsx',
+  'templates/crm-landscaping/frontend/src/pages/fieldservice/DispatchBoard.tsx',
+  'templates/crm-landscaping/frontend/src/pages/fieldservice/FlatRatePricebook.tsx',
+  'templates/crm-landscaping/frontend/src/pages/fieldservice/MaintenanceContracts.tsx',
+  'templates/crm-landscaping/frontend/src/pages/fieldservice/PartsInventory.tsx',
+  'templates/crm-roof/frontend/src/components/trial/TrialBanner.tsx',
+  'templates/crm/frontend/src/pages/calltracking/CallTrackingPage.tsx',
+  'templates/crm/frontend/src/pages/selections/SelectionsPage.tsx',
+])
+const dimmedText: string[] = []
+let dimmedKnown = 0
 const darkOnLight: string[] = []
 const tooLightOnChip: string[] = []
 const hoverUnpaired: string[] = []
@@ -145,6 +187,15 @@ for (const f of files) {
   const src = readFileSync(f, 'utf8')
   const rel = f.slice(ROOT.length).replace(/\\/g, '/')
   for (const { seg, selfClosing, iconOnly } of classLists(src)) {
+    // Opacity is invisible to a class-string sweep, and it moves the ratio as surely as changing the
+    // shade does. `text-sm opacity-80` on the invoice panel blended green-700 into its own green-50
+    // tint and took "Paid in Full" from 4.79:1 to 3.37:1 — the salon tester read 3.30 and it looked
+    // like a palette problem. Orange fell to 3.57 the same way. Only a BARE opacity counts: a
+    // `hover:opacity-80` on an image thumbnail is a different thing and is left alone.
+    if (TEXT_SIZE.test(seg) && DIMMED.test(seg)) {
+      if (KNOWN_DIMMED.has(rel)) dimmedKnown++
+      else dimmedText.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+    }
     if (DARK_FAILING.test(seg)) failingDark.push(`${rel}: ${seg.trim().slice(0, 70)}`)
     // A chip paints its own dark surface too, and slate-700 is a LIGHTER dark than the slate-800/900
     // the rest of the fleet sits on — so the usual slate-400 does not reach it: 4.04:1. slate-300 is
@@ -187,7 +238,9 @@ for (const f of files) {
   }
 }
 
-const show = (xs: string[]) => xs.slice(0, 6).map((x) => `\n    ${x}`).join('') + (xs.length > 6 ? `\n    …and ${xs.length - 6} more` : '')
+// Six is enough to act on; `FULL=1` prints every one, which is how a baseline gets compiled.
+const LIMIT = process.env.FULL ? Number.MAX_SAFE_INTEGER : 6
+const show = (xs: string[]) => xs.slice(0, LIMIT).map((x) => `\n    ${x}`).join('') + (xs.length > LIMIT ? `\n    …and ${xs.length - LIMIT} more` : '')
 
 if (onFailingLight.length)
   fail(`${onFailingLight.length} muted TEXT label(s) still on text-gray-400 — 2.54:1 on white, which is the finding:${show(onFailingLight)}`)
@@ -199,10 +252,12 @@ if (darkOnLight.length)
   fail(`${darkOnLight.length} element(s) give a DARK text colour to a surface that pins a light background and never flips it — slate-400 on gray-50 is 2.45:1:${show(darkOnLight)}`)
 if (hoverUnpaired.length)
   fail(`${hoverUnpaired.length} hover colour(s) at shade 500+ have no dark:hover: counterpart — gray-700 on slate-900 is 1.73:1, so the label goes invisible the moment you point at it:${show(hoverUnpaired)}`)
+if (dimmedText.length)
+  fail(`${dimmedText.length} text label(s) carry a bare opacity utility — opacity blends the text into its own surface, so the rendered ratio is lower than the colour classes say. "Paid in Full" read 3.37:1 instead of 4.79:1 this way, and no class-string sweep could see it:${show(dimmedText)}`)
 if (tooLightOnChip.length)
   fail(`${tooLightOnChip.length} label(s) use gray-500 on a fixed gray-100/200/300 chip — 4.39:1 and 3.90:1, under AA; use gray-600:${show(tooLightOnChip)}`)
 // (The volume of the sweep is asserted by the test, which always runs against the whole worktree; this
 // guard has to stay runnable over a subset so its own plants can be self-tested.)
 
 if (failed) { console.error(`\nmuted label contrast: ${failed} check(s) FAILED`); process.exit(1) }
-console.log(`muted label contrast: ${paired} muted labels carry both halves of the pair, ${icons} icons correctly left alone — readable on white AND on a dark card`)
+console.log(`muted label contrast: ${paired} muted labels carry both halves of the pair, ${icons} icons correctly left alone, ${dimmedKnown} dimmed stat-card labels recorded in the baseline — readable on white AND on a dark card`)

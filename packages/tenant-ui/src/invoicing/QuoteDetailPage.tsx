@@ -127,7 +127,7 @@ export function QuoteDetailPage({ api, toast, config }: InvoicingPageProps) {
               <div><p className="text-gray-500 dark:text-slate-400">Created</p><p>{dateTime(quote.createdAt)}</p></div>
             </div>
           </div>
-          <div className="bg-orange-50 dark:bg-orange-900/30 rounded-xl p-6 text-center text-orange-700 dark:text-orange-200"><p className="text-3xl font-bold">{money(quote.total)}</p><p className="text-sm opacity-80">Quote Total</p></div>
+          <div className="bg-orange-50 dark:bg-orange-900/30 rounded-xl p-6 text-center text-orange-700 dark:text-orange-200"><p className="text-3xl font-bold">{money(quote.total)}</p><p className="text-sm">Quote Total</p></div>
         </div>
       </div>
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete quote" message={`Delete ${quote.number}? This cannot be undone.`} confirmText="Delete" />
