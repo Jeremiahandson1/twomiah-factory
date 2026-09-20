@@ -255,8 +255,42 @@ for (const t of terminal) {
   for (const core of ['/api/contacts', '/api/jobs', '/api/quotes', '/api/invoices', '/api/settings', '/api/users', '/api/company', '/api/auth']) {
     if (gated.includes(core)) fail(`${core} must NOT be feature-gated — a missing flag would lock a tenant out of their own CRM, which is worse than the bug being fixed`)
   }
-  if (!/app\.use\(`\$\{path\}\/\*`, authenticate, requireEnabledFeature\(feature\)\)/.test(idx))
-    fail("…both the bare path and the wildcard must be registered: '/api/leads' does not match '/api/leads/*'")
+  /**
+   * Both registrations, and what each must carry.
+   *
+   * The previous version of this check matched one literal expression —
+   * `app.use(\`${path}/*\`, authenticate, requireEnabledFeature(feature))` — which had two problems.
+   * It only ever inspected the WILDCARD line, despite an error message claiming to check both; and
+   * pinning the exact middleware text meant any legitimate change to how they are composed tripped
+   * it, inviting exactly the "widen the regex" reflex that turns a guard into decoration.
+   *
+   * What actually matters is structural: BOTH `app.use(path, …)` and `app.use(\`${path}/*\`, …)` are
+   * registered (Hono does not match '/api/leads/*' for '/api/leads'), and each carries the auth check
+   * and the feature check — however they are wrapped. They are wrapped now: `skipPublic` exempts the
+   * webhook paths that authenticate themselves with a secret, which the first gate broke.
+   */
+  for (const [decl, what] of [
+    [/app\.use\(path,([^\n]*)\)/, 'the bare path'],
+    [/app\.use\(`\$\{path\}\/\*`,([^\n]*)\)/, 'the wildcard'],
+  ] as Array<[RegExp, string]>) {
+    const m = idx.match(decl)
+    if (!m) { fail(`${what} is not registered — '/api/leads' does not match '/api/leads/*', so both are needed`); continue }
+    if (!/\bauthenticate\b/.test(m[1])) fail(`${what} does not apply authenticate`)
+    if (!/\brequireEnabledFeature\(feature\)/.test(m[1])) fail(`${what} does not apply the feature check`)
+  }
+  /**
+   * …and the gate must not answer the door to the outside world.
+   *
+   * A REGRESSION THAT SHIPPED (c0821bf7, 08:27). Putting `authenticate` in front of everything under
+   * a gated prefix also covered paths that are public by design — a lead source POSTing with a
+   * webhook secret, a signed Wisetack callback, Twilio and CallRail posting recordings. All of them
+   * answered 401 in production: inbound lead capture was simply dead.
+   */
+  if (!/const PUBLIC_WITHIN_GATED = \[/.test(idx))
+    fail('the gate must record the paths that are public by design, or it 401s the webhooks that feed the CRM')
+  for (const pub of ['\\/api\\/leads\\/inbound\\/', '\\/api\\/financing\\/webhooks\\/']) {
+    if (!idx.includes(pub)) fail(`${pub.replace(/\\\//g, '/')} must stay reachable without a bearer token — it authenticates itself`)
+  }
 }
 
 // ── N2: an event on a timeline says what happened ─────────────────────────────────────────────────

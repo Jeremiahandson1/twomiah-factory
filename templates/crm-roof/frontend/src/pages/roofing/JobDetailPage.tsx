@@ -52,7 +52,10 @@ function daysSince(date: string): number {
 
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, hasFeature } = useAuth();
+  // The claims module is optional — a retail-only roofer never touches a carrier. With the API gated,
+  // an ungated link here would be a button that 403s, which is worse than no button.
+  const hasInsurance = hasFeature('insurance_workflow');
   const toast = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -440,7 +443,7 @@ export default function JobDetailPage() {
             </div>
 
             {/* Insurance Claim Link - ONLY for insurance jobs */}
-            {job.jobType === 'insurance' && (
+            {job.jobType === 'insurance' && hasInsurance && (
               <Link
                 to={`/crm/jobs/${id}/insurance`}
                 className="block bg-orange-50 rounded-xl shadow-sm border border-orange-200 p-4 hover:border-orange-400 transition-colors"
@@ -461,7 +464,7 @@ export default function JobDetailPage() {
             )}
 
             {/* Insurance Details - ONLY for insurance jobs */}
-            {job.jobType === 'insurance' && (
+            {job.jobType === 'insurance' && hasInsurance && (
               <div className="bg-white rounded-xl shadow-sm border border-yellow-300 p-6 dark:bg-slate-900">
                 <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                   <Shield className="w-4 h-4 text-yellow-500" /> Insurance

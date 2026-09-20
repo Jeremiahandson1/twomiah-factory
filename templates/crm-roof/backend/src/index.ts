@@ -194,6 +194,30 @@ app.route('/api/jobs', jobsRoutes)
  * So the rule is: a module is gated on the server only where it is also gated in the nav. If one of
  * those is ever made optional, both sides change together.
  */
+/**
+ * Paths inside a gated module that are PUBLIC BY DESIGN, and must not meet `authenticate`.
+ *
+ * These are called by machines, not people: a lead source POSTs with a webhook secret, Wisetack signs
+ * its callbacks, Twilio and CallRail post recordings and statuses. None of them carries a bearer
+ * token, and each authenticates itself in its own handler.
+ *
+ * The first version of the M7 gate put `authenticate` in front of everything under a gated prefix and
+ * broke exactly this: inbound lead capture and the Wisetack callback both answered 401 in production
+ * until it was caught. The gate protects the CRM's own endpoints — it must not answer the door to the
+ * outside world.
+ */
+const PUBLIC_WITHIN_GATED = [
+  /^\/api\/leads\/inbound\//,               // lead-source webhook + inbound email
+  /^\/api\/financing\/webhooks\//,          // Wisetack application status
+  /^\/api\/calltracking\/webhook\//,        // CallRail / Twilio
+  /^\/api\/ai-receptionist\/webhook\//,     // recording + call status
+]
+const skipPublic = (mw: any) => async (c: any, next: any) => {
+  let pathname = ''
+  try { pathname = new URL(c.req.url).pathname } catch { pathname = c.req.path || '' }
+  return PUBLIC_WITHIN_GATED.some((re) => re.test(pathname)) ? next() : mw(c, next)
+}
+
 for (const [path, feature] of [
   ['/api/leads', 'lead_inbox'],
   ['/api/canvassing', 'canvassing_tool'],
@@ -202,9 +226,16 @@ for (const [path, feature] of [
   ['/api/roof-reports', 'measurement_reports'],
   ['/api/financing', 'consumer_financing'],
   ['/api/reviews', 'google_reviews'],
+  // A roofer who only does retail never touches a carrier, so the claims module is genuinely
+  // optional — and it is the switch with real commercial meaning on this template.
+  ['/api/insurance', 'insurance_workflow'],
+  // The AI receptionist page is the only consumer of /api/calltracking on roof — there is no
+  // call-tracking screen of its own — so the two are one surface here and share one switch.
+  ['/api/ai-receptionist', 'ai_receptionist'],
+  ['/api/calltracking', 'ai_receptionist'],
 ] as Array<[string, string]>) {
-  app.use(path, authenticate, requireEnabledFeature(feature))
-  app.use(`${path}/*`, authenticate, requireEnabledFeature(feature))
+  app.use(path, skipPublic(authenticate), skipPublic(requireEnabledFeature(feature)))
+  app.use(`${path}/*`, skipPublic(authenticate), skipPublic(requireEnabledFeature(feature)))
 }
 
 app.route('/api/crews', crewsRoutes)

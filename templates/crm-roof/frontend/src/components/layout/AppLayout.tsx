@@ -42,11 +42,11 @@ const baseNavItems = [
   { label: 'Materials', icon: Package, to: '/crm/materials' },
   { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
   { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
-  { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
+  { label: 'Adjusters', icon: Shield, to: '/crm/adjusters', feature: 'insurance_workflow' },
   // M7: lead_inbox is a real feature a tenant can switch off in Settings, and the API refuses it when
   // it is off — so the nav must hide it too, or switching it off leaves a link that 403s.
   { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads', feature: 'lead_inbox' },
-  { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
+  { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist', feature: 'ai_receptionist' },
   { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ]
 

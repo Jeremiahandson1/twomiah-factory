@@ -5,6 +5,7 @@ import { db } from '../../db/index.ts'
 import { portalSession, contact, company, job, jobPhoto, invoice, quote } from '../../db/schema.ts'
 import { eq, and, desc, gt, sql, count, inArray, notInArray } from 'drizzle-orm'
 import { PORTAL_INVOICE_HIDDEN } from '../shared/index.ts'
+import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 
 const app = new Hono()
 
@@ -27,6 +28,15 @@ const portalAuth = async (c: any, next: any) => {
   // Fetch contact
   const [sessionContact] = await db.select().from(contact).where(eq(contact.id, session.contactId)).limit(1)
   if (!sessionContact) return c.json({ error: 'Contact not found' }, 401)
+
+  // The client portal is an optional module, and this is where its switch has to be enforced: the
+  // portal runs on its own token, not a CRM login, so the `authenticate + requireEnabledFeature`
+  // chain the other gated modules use in index.ts cannot reach it. The company comes from the
+  // session, so the check happens here instead — after the session resolves, before anything is
+  // served. A contractor who switches the portal off should find it closed, not merely unlinked.
+  if (!(await isFeatureEnabled(session.companyId, 'client_portal'))) {
+    return c.json({ error: 'The customer portal is not enabled for this company.', code: 'FEATURE_NOT_ENABLED', feature: 'client_portal' }, 403)
+  }
 
   c.set('portalContact', sessionContact)
   c.set('portalCompanyId', session.companyId)
@@ -74,7 +84,15 @@ app.post('/login', async (c) => {
   const companySlug = typeof body?.companySlug === 'string' && body.companySlug.trim() ? body.companySlug.trim() : undefined
   const generic = { message: 'If that email has portal access, a 6-digit sign-in code is on its way.' }
 
-  const rows = (await findPortalContacts(email, companySlug)).filter((r: any) => r.portalEnabled)
+  // …and the company must actually have the portal switched on. Without this a homeowner could
+  // request a code, sign in, and then meet a 403 on every page — worse than being told nothing.
+  // Filtering here rather than returning a different message keeps the no-enumeration property: the
+  // response is the same generic line either way.
+  const matched = (await findPortalContacts(email, companySlug)).filter((r: any) => r.portalEnabled)
+  const rows: any[] = []
+  for (const row of matched) {
+    if (await isFeatureEnabled(row.companyId, 'client_portal')) rows.push(row)
+  }
   if (!rows.length) return c.json(generic)
 
   const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0')

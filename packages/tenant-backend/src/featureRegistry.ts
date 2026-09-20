@@ -138,7 +138,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Communication
   { id: 'two_way_texting', name: 'Two-Way Texting', description: 'Unified SMS inbox — every customer conversation logged', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
-  { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive'] /* not crm-roof: no call-tracking screen there — the API is consumed by the AI receptionist page, so it rides that switch */ },
   { id: 'google_business', name: 'Google Reviews', description: 'Connect your Google Business Profile — see your rating and reply to reviews from the CRM', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare', 'crm-store'] },
   { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox', category: 'Communication', core: true, templates: ['crm', 'crm-roof', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-fieldservice', 'crm-dispensary', 'crm-landscaping', 'crm-rv', 'crm-homecare'] },
   { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof'] },
@@ -156,7 +156,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Advanced
   { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
-  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
+  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] /* not crm-roof: roof mounts no documents route and routes no documents page — the switch offered something that does not exist */ },
   { id: 'reports', name: 'Reports', description: 'Drill-down reporting — visits, revenue, reminders due, reactivation', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: ['crm'] },
   { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
@@ -395,14 +395,22 @@ export const PLAN_TIERS: Record<string, Record<string, string[]>> = {
   'crm-roof': {
     starter: [
       'contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard',
-      'documents', 'client_portal', 'lead_inbox', 'crews',
+      // 'documents' was promised here and roof has no documents module at all — no route, no page,
+      // no import of the shared one. Selling it was a false promise, so the catalog stops making it.
+      // Roofing IS paperwork-heavy (permits, contracts, warranties, carrier correspondence), so this
+      // is arguably a gap worth filling rather than a mis-listing — but building it is a feature
+      // decision, not a correction.
+      'client_portal', 'lead_inbox', 'crews',
     ],
     pro: [
       'pricebook', 'measurement_reports', 'google_reviews',
       'two_way_texting', 'quickbooks',
     ],
     business: [
-      'insurance_workflow', 'materials', 'call_tracking', 'reports',
+      // 'call_tracking' dropped: roof has the API but no call-tracking screen — the AI receptionist
+      // page is its only consumer, so the sellable surface is `ai_receptionist` (storm tier), and
+      // listing both sold the same thing twice under a name with nothing behind it.
+      'insurance_workflow', 'materials', 'reports',
       'photo_capture', 'consumer_financing',
     ],
     storm: [
