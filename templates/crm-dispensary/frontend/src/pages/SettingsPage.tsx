@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox, CreditCard, Plug } from 'lucide-react';
+import { Building2, Users, Gift, Truck, ShoppingBag, Receipt, Clock, ToggleLeft, ToggleRight, AtSign, Globe, Inbox, CreditCard, Plug, Monitor } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -36,9 +36,20 @@ function Input({ value, onChange, type = 'text', placeholder = '', className = '
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { user, company, updateCompany } = useAuth();
+  const { user, company, updateCompany, hasFeature } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('general');
+
+  // Kiosks. The pairing flow was built end to end — POST /devices mints a code, the tablet spends it
+  // at /pair — and the kiosk screen tells the customer "Add this device under Settings → Kiosks", but
+  // that screen did not exist, so there was no way to mint a code and no kiosk could ever be paired.
+  // (T27 H1)
+  const [kiosks, setKiosks] = useState<any[]>([]);
+  const [kiosksLoaded, setKiosksLoaded] = useState(false);
+  const [newKioskName, setNewKioskName] = useState('');
+  const [addingKiosk, setAddingKiosk] = useState(false);
+  // Shown once, right after it is minted — the server does not hand it back again.
+  const [freshPairing, setFreshPairing] = useState<{ id: string; name: string; code: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   // Mirrors the server's requireAdmin (admin|owner). Without this a non-admin
@@ -254,12 +265,69 @@ export default function SettingsPage() {
     setStoreHours(prev => ({ ...prev, [day]: { ...prev[day], [field]: value } }));
   };
 
+  // ── Kiosks ──────────────────────────────────────────────────────────────────────────────────────
+  const loadKiosks = async () => {
+    try {
+      const res: any = await api.get('/api/kiosk/devices');
+      setKiosks(res?.data || []);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load kiosks');
+    } finally {
+      setKiosksLoaded(true);
+    }
+  };
+
+  useEffect(() => { if (tab === 'kiosks' && !kiosksLoaded) loadKiosks(); }, [tab, kiosksLoaded]);
+
+  const handleAddKiosk = async () => {
+    const name = newKioskName.trim();
+    if (!name) { toast.error('Give the kiosk a name, so you can tell it from the others.'); return; }
+    setAddingKiosk(true);
+    try {
+      const made: any = await api.post('/api/kiosk/devices', { name });
+      // The code is only in this response. Hold it on screen until the manager dismisses it.
+      setFreshPairing({ id: made.id, name, code: made.pairingCode });
+      setNewKioskName('');
+      await loadKiosks();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add kiosk');
+    } finally {
+      setAddingKiosk(false);
+    }
+  };
+
+  const handleRevokeKiosk = async (k: any) => {
+    if (!confirm(`Revoke "${k.name}"? The tablet stops working straight away and has to be paired again.`)) return;
+    try {
+      await api.post(`/api/kiosk/devices/${k.id}/revoke`, {});
+      toast.success(`${k.name} revoked`);
+      await loadKiosks();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to revoke kiosk');
+    }
+  };
+
+  const handleDeleteKiosk = async (k: any) => {
+    if (!confirm(`Delete "${k.name}"? This only works for a kiosk that has never taken a sale.`)) return;
+    try {
+      await api.delete(`/api/kiosk/devices/${k.id}`);
+      toast.success(`${k.name} deleted`);
+      if (freshPairing?.id === k.id) setFreshPairing(null);
+      await loadKiosks();
+    } catch (err: any) {
+      // The server refuses with a 409 and an explanation when the kiosk is part of the sales record.
+      toast.error(err.message || 'Failed to delete kiosk');
+    }
+  };
+
   const tabs = [
     { id: 'general', label: 'General', icon: Building2 },
     { id: 'loyalty', label: 'Loyalty', icon: Gift },
     { id: 'delivery', label: 'Delivery', icon: Truck },
     { id: 'merch', label: 'Merch', icon: ShoppingBag },
     { id: 'receipts', label: 'Receipts', icon: Receipt },
+    // Only where the tenant actually has kiosks — matching the Kiosk nav item, which is gated the same way.
+    ...(hasFeature('kiosk') ? [{ id: 'kiosks', label: 'Kiosks', icon: Monitor }] : []),
     { id: 'team', label: 'Team', icon: Users },
   ];
 
@@ -657,6 +725,96 @@ export default function SettingsPage() {
           )}
 
           {/* TEAM */}
+          {tab === 'kiosks' && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Kiosks</h2>
+                <p className="text-sm text-gray-600 mt-1 dark:text-slate-400">
+                  Add a tablet here, then enter its pairing code on the kiosk screen. The code is shown once and expires on its own.
+                </p>
+              </div>
+
+              <div className="flex items-end gap-2">
+                <div className="flex-1 max-w-xs">
+                  <FieldLabel>Kiosk name</FieldLabel>
+                  <Input value={newKioskName} onChange={setNewKioskName} placeholder="Front counter tablet" />
+                </div>
+                <Button onClick={handleAddKiosk} disabled={addingKiosk}>
+                  {addingKiosk ? 'Adding…' : 'Add Kiosk'}
+                </Button>
+              </div>
+
+              {freshPairing && (
+                <div className="rounded-lg border border-green-300 bg-green-50 p-4 dark:bg-slate-800 dark:border-green-700">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-green-900 dark:text-green-200">
+                        Pairing code for “{freshPairing.name}”
+                      </p>
+                      <p className="mt-2 font-mono text-2xl tracking-widest text-green-900 dark:text-green-100">{freshPairing.code}</p>
+                      <p className="mt-2 text-xs text-green-800 dark:text-green-300">
+                        Enter this on the kiosk. It is not shown again — if it expires, add the kiosk again for a new code.
+                      </p>
+                    </div>
+                    <button onClick={() => setFreshPairing(null)} className="text-sm font-medium text-green-800 hover:text-green-900 dark:text-green-300 dark:hover:text-green-200">
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-x-auto border rounded-lg dark:border-slate-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                  <thead className="bg-gray-50 dark:bg-slate-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase dark:text-slate-300">Kiosk</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase dark:text-slate-300">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase dark:text-slate-300">Last seen</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-600 uppercase dark:text-slate-300">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-slate-700">
+                    {kiosks.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-sm text-center text-gray-500 dark:text-slate-400">
+                          {kiosksLoaded ? 'No kiosks yet. Add one above to get a pairing code.' : 'Loading…'}
+                        </td>
+                      </tr>
+                    )}
+                    {kiosks.map(k => (
+                      <tr key={k.id}>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="font-medium">{k.name}</div>
+                          {k.tokenLast4 && <div className="text-xs text-gray-500 dark:text-slate-400">ends {k.tokenLast4}</div>}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {k.status === 'active'
+                            ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Paired</span>
+                            : k.status === 'revoked'
+                              ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Revoked</span>
+                              : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Awaiting pairing</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
+                          {k.lastSeenAt ? new Date(k.lastSeenAt).toLocaleString() : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right space-x-3">
+                          {k.status !== 'revoked' && (
+                            <button onClick={() => handleRevokeKiosk(k)} className="text-xs font-medium text-red-600 hover:text-red-700 dark:hover:text-red-300">
+                              Revoke
+                            </button>
+                          )}
+                          <button onClick={() => handleDeleteKiosk(k)} className="text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200" title="Only a kiosk that has never taken a sale can be deleted">
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {tab === 'team' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">

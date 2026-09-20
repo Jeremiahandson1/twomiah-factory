@@ -1440,3 +1440,14 @@ jobs:
           bun-version: latest
       - name: "Check store-day ranges"
         run: bun run scripts/check-store-day-ranges.ts
+
+  kiosk-pairing-reachable:
+    name: "The kiosk pairing screen exists and a traded kiosk keeps its history"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check kiosk pairing reachable"
+        run: bun run scripts/check-kiosk-pairing-reachable.ts

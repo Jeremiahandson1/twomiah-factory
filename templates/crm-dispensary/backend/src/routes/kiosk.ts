@@ -172,6 +172,42 @@ app.post('/devices/:id/revoke', authenticate, requireRole('manager'), async (c) 
   return c.json({ success: true, device: camel(row) })
 })
 
+/**
+ * Remove a kiosk that never traded.
+ *
+ * Revoking is the right answer for a tablet that has been in service: kiosk_sessions.kiosk_device_id
+ * is how a sale is traced back to the terminal that took it, and dropping the row would orphan that —
+ * the same seed-to-sale traceability that makes a sale voidable rather than deletable.
+ *
+ * But a device added by mistake — a typo'd name, one added twice, one never paired — has no sessions
+ * behind it and nothing to orphan, and leaving a manager no way to clear it means the list fills with
+ * rubbish they can only "revoke". So: delete when there is no history, refuse with an explanation when
+ * there is. (T27 H1)
+ */
+app.delete('/devices/:id', authenticate, requireRole('manager'), async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const [device] = rows(await db.execute(sql`
+    SELECT id, name FROM kiosk_devices WHERE id = ${id} AND company_id = ${user.companyId}
+  `))
+  if (!device) return c.json({ error: 'Kiosk not found' }, 404)
+
+  const [{ count } = { count: 0 }] = rows(await db.execute(sql`
+    SELECT COUNT(*)::int as count FROM kiosk_sessions
+    WHERE kiosk_device_id = ${id} AND company_id = ${user.companyId}
+  `))
+  if (Number(count) > 0) {
+    return c.json({
+      error: `"${device.name}" has taken ${count} kiosk session${Number(count) === 1 ? '' : 's'}, so it is part of the sales record and cannot be deleted. Revoke it instead — that ends its access and keeps the history.`,
+      sessions: Number(count),
+    }, 409)
+  }
+
+  await db.execute(sql`DELETE FROM kiosk_devices WHERE id = ${id} AND company_id = ${user.companyId}`)
+  audit.log({ action: 'delete', entity: 'kiosk_device', entityId: id, entityName: device.name, metadata: { hardDelete: true, sessions: 0 }, req: c })
+  return c.json({ success: true })
+})
+
 // ===== SESSION MANAGEMENT (no user auth — a customer is standing at the device) =====
 
 // POST /session/start — Start a kiosk session.
