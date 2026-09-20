@@ -707,7 +707,7 @@ export default function CanvassingView() {
           <button key={item.key}
             onClick={item.action || (() => setTab(item.key))}
             className={`flex-1 py-2.5 flex flex-col items-center gap-0.5 text-[10px] font-medium ${
-              tab === item.key ? 'text-blue-600' : 'text-gray-400'
+              tab === item.key ? 'text-blue-600' : 'text-gray-500 dark:text-slate-400'
             }`}>
             <item.icon size={20} />
             {item.label}

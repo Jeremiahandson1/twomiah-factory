@@ -393,7 +393,7 @@ export default function CanvassingDashboard() {
                         i === 0 ? 'bg-yellow-100 text-yellow-700' :
                         i === 1 ? 'bg-gray-100 text-gray-600' :
                         i === 2 ? 'bg-orange-100 text-orange-700' :
-                        'bg-gray-50 text-gray-500'
+                        'bg-gray-50 text-gray-600'
                       }`}>{i + 1}</span>
                       <span className="text-sm font-medium truncate">{rep.name}</span>
                     </div>

@@ -1323,7 +1323,7 @@ function PoliciesTab() {
                 <span className="flex items-center gap-1">
                   <Shield className="w-4 h-4" /> {policy.rules?.length || 0} rules
                 </span>
-                <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${policy.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${policy.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                   {policy.active ? 'Active' : 'Inactive'}
                 </span>
               </div>

@@ -147,7 +147,7 @@ export default function SignagePage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -304,7 +304,7 @@ export default function SignagePage() {
                                 <p className="text-xs text-gray-500 dark:text-slate-400">{item.description || '—'}</p>
                               </div>
                             </div>
-                            <span className={`px-2 py-0.5 text-xs rounded-full ${item.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            <span className={`px-2 py-0.5 text-xs rounded-full ${item.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                               {item.active ? 'Active' : 'Inactive'}
                             </span>
                           </div>

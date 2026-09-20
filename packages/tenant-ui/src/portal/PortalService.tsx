@@ -32,7 +32,7 @@ export function PortalEquipment() {
                     <h3 className="font-semibold text-gray-900 dark:text-slate-100">{u.name}</h3>
                     <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{[u.manufacturer, u.model].filter(Boolean).join(' ') || 'No model info'}</p>
                     <div className="flex items-center gap-3 mt-2 flex-wrap">
-                      <span className={`inline-flex items-center gap-1 ${pill(w === null ? 'bg-gray-100 text-gray-500' : w ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}`}><Shield className="w-3 h-3" />{w === null ? 'Warranty unknown' : w ? 'Warranty active' : 'Warranty expired'}</span>
+                      <span className={`inline-flex items-center gap-1 ${pill(w === null ? 'bg-gray-100 text-gray-600' : w ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}`}><Shield className="w-3 h-3" />{w === null ? 'Warranty unknown' : w ? 'Warranty active' : 'Warranty expired'}</span>
                       {u.purchaseDate && <span className="text-xs text-gray-500 dark:text-slate-400">Installed {formatDate(u.purchaseDate)}</span>}
                     </div>
                     {u.lastServiceDate && <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Last serviced {formatDate(u.lastServiceDate)}</p>}

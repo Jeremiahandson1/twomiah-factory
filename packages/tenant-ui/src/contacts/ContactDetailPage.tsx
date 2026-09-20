@@ -407,7 +407,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                           {eq.warrantyExpiry && (
                             <div className="flex items-center gap-1 justify-end">
                               <Shield className={`w-3.5 h-3.5 ${active ? 'text-green-500' : 'text-gray-400'}`} />
-                              <span className={active ? 'text-green-600' : 'text-gray-400'}>Warranty {active ? 'active' : 'expired'}</span>
+                              <span className={active ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}>Warranty {active ? 'active' : 'expired'}</span>
                             </div>
                           )}
                           {eq.purchaseDate && <p className="text-gray-500 dark:text-slate-400">Installed {dateOnly(eq.purchaseDate)}</p>}
@@ -467,7 +467,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                   <div key={m.message.id} className={`flex ${m.message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.message.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-900 dark:bg-slate-800 dark:text-slate-100'}`}>
                       <p>{m.message.body}</p>
-                      <p className={`text-[10px] mt-1 ${m.message.direction === 'outbound' ? 'text-blue-200' : 'text-gray-400'}`}>{dateTime(m.message.createdAt)}</p>
+                      <p className={`text-[10px] mt-1 ${m.message.direction === 'outbound' ? 'text-blue-200' : 'text-gray-600 dark:text-slate-400'}`}>{dateTime(m.message.createdAt)}</p>
                     </div>
                   </div>
                 ))}
@@ -530,7 +530,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
                     <span className="text-sm text-gray-500 dark:text-slate-400">Status</span>
                     <button type="button" onClick={togglePortal} disabled={portalLoading} className="flex items-center gap-1.5" aria-label={portalStatus?.enabled ? 'Disable portal access' : 'Enable portal access'}>
                       {portalStatus?.enabled ? <ToggleRight className="w-6 h-6 text-green-500" /> : <ToggleLeft className="w-6 h-6 text-gray-400" />}
-                      <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600' : 'text-gray-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
+                      <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>{portalStatus?.enabled ? 'Enabled' : 'Disabled'}</span>
                     </button>
                   </div>
                   <div className="flex items-center justify-between text-sm gap-3"><span className="text-gray-500 dark:text-slate-400">Email</span><span className="text-gray-900 dark:text-slate-100 break-all text-right">{contact.email}</span></div>

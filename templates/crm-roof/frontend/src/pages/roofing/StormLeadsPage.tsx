@@ -227,7 +227,7 @@ export default function StormLeadsPage() {
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                   event.status === 'detected' ? 'bg-yellow-100 text-yellow-700' :
                   event.status === 'leads_generated' ? 'bg-green-100 text-green-700' :
-                  'bg-gray-100 text-gray-500'
+                  'bg-gray-100 text-gray-600'
                 }`}>{event.status.replace('_', ' ')}</span>
               </div>
               <p className="text-xs text-gray-500 mt-1 dark:text-slate-400">{formatDate(event.eventDate)}</p>

@@ -252,7 +252,7 @@ export default function OnboardingWizard() {
                 `}>
                   {idx < currentStep ? <Check className="w-4 h-4" /> : idx + 1}
                 </div>
-                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-400 dark:text-slate-500'}`}>
+                <span className={`text-xs hidden sm:block ${idx <= currentStep ? 'text-gray-900 dark:text-white font-medium' : 'text-gray-500 dark:text-slate-400'}`}>
                   {label}
                 </span>
               </div>

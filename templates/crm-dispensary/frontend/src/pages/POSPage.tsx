@@ -482,7 +482,7 @@ export default function POSPage() {
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="font-semibold text-green-700">${Number(product.price).toFixed(2)}</span>
-                    <span className={`text-xs ${product.stockQuantity <= 5 ? 'text-amber-600' : 'text-gray-400'}`}>
+                    <span className={`text-xs ${product.stockQuantity <= 5 ? 'text-amber-600' : 'text-gray-500 dark:text-slate-400'}`}>
                       {product.stockQuantity} left
                     </span>
                   </div>

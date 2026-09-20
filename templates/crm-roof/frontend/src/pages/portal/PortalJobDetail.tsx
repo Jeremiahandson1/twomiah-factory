@@ -100,12 +100,12 @@ export default function PortalJobDetail() {
               <div key={stage} className="flex items-center flex-shrink-0">
                 <div className={`flex flex-col items-center ${isCurrent ? 'scale-110' : ''}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[8px] font-bold ${
-                    isComplete ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-500'
+                    isComplete ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300'
                   }`}>
                     {isComplete ? <CheckCircle className="w-3.5 h-3.5" /> : idx + 1}
                   </div>
                   <span className={`text-[8px] mt-1 w-12 text-center leading-tight ${
-                    isCurrent ? 'text-blue-400 font-semibold' : isComplete ? 'text-gray-400' : 'text-gray-600'
+                    isCurrent ? 'text-blue-400 font-semibold' : isComplete ? 'text-gray-400' : 'text-gray-400'
                   }`}>
                     {STAGE_SHORT[stage]}
                   </span>

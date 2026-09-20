@@ -276,7 +276,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItem
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <p className={`font-medium ${task.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+            <p className={`font-medium ${task.status === 'completed' ? 'line-through text-gray-500 dark:text-slate-400' : 'text-gray-900'}`}>
               {task.title}
             </p>
             <Flag className={`w-4 h-4 ${priorityColors[task.priority]}`} />

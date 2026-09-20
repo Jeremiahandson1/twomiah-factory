@@ -52,7 +52,7 @@ export default function EstimatorTrialPage() {
         <p className="text-gray-600 dark:text-slate-400 text-lg mb-2">
           Our team will activate your 30-day free trial within 24 hours.
         </p>
-        <p className="text-gray-500 dark:text-slate-500 text-sm">
+        <p className="text-gray-500 dark:text-slate-400 text-sm">
           You'll receive an email at <strong>{company?.email}</strong> when it's ready.
         </p>
       </div>

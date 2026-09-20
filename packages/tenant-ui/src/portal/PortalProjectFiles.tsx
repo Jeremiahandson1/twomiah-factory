@@ -51,7 +51,7 @@ export function PortalProjectFiles() {
           <p className="font-medium text-gray-900 dark:text-slate-100">Upload a file</p>
           <select aria-label="File category" value={uploadType} onChange={(e) => setUploadType(e.target.value)} className={selectCls}>{categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}</select>
           <input ref={fileInput} type="file" onChange={handleUpload} disabled={uploading} className="hidden" id="portal-file-upload" data-testid="portal-file-input" />
-          <label htmlFor="portal-file-upload" className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${uploading ? 'bg-gray-300 text-gray-500' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>{uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{uploading ? 'Uploading…' : 'Choose File'}</label>
+          <label htmlFor="portal-file-upload" className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg cursor-pointer ${uploading ? 'bg-gray-300 text-gray-600' : 'bg-orange-500 text-white hover:bg-orange-600'}`}>{uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}{uploading ? 'Uploading…' : 'Choose File'}</label>
         </div>
       </div>
       {files.length === 0 ? <Empty icon={FolderOpen} text="No files in this project yet." /> : (

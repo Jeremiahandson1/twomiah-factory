@@ -789,13 +789,13 @@ function ServiceHistoryModal({ equipment, api, config, onClose, onRefresh }: Ser
             <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 dark:bg-slate-800">
               <button
                 onClick={() => setTab('jobs')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'jobs' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'jobs' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'}`}
               >
                 Service Calls ({linkedJobs.length})
               </button>
               <button
                 onClick={() => setTab('maintenance')}
-                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'maintenance' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'maintenance' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'}`}
               >
                 Maintenance Records ({history.length})
               </button>

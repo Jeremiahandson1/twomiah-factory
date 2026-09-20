@@ -96,9 +96,9 @@ export function InboundMessagesPage(): React.ReactElement {
                   </div>
                   <div className="text-xs text-gray-600">To: <span className="font-mono">{selected.toLocalPart}@</span></div>
                   <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                    SPF: <span className={selected.spfVerdict?.toLowerCase().includes('pass') ? 'text-green-600' : 'text-gray-500'}>{selected.spfVerdict || 'unknown'}</span>
+                    SPF: <span className={selected.spfVerdict?.toLowerCase().includes('pass') ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}>{selected.spfVerdict || 'unknown'}</span>
                     {' · '}
-                    DKIM: <span className={selected.dkimVerdict?.toLowerCase().includes('pass') ? 'text-green-600' : 'text-gray-500'}>{selected.dkimVerdict || 'unknown'}</span>
+                    DKIM: <span className={selected.dkimVerdict?.toLowerCase().includes('pass') ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}>{selected.dkimVerdict || 'unknown'}</span>
                   </div>
                 </div>
                 {selected.htmlBody ? (

@@ -370,8 +370,8 @@ function MultiStoreReportsTab() {
                   <td className="px-4 py-3 text-gray-900 font-medium dark:text-slate-100">{loc.name}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{loc.totalSkus || 0}</td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">{(loc.totalUnits || 0).toLocaleString()}</td>
-                  <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{loc.lowStock || 0}</span></td>
-                  <td className="px-4 py-3"><span className={`font-medium ${(loc.outOfStock || 0) > 0 ? 'text-red-600' : 'text-gray-400'}`}>{loc.outOfStock || 0}</span></td>
+                  <td className="px-4 py-3"><span className={`font-medium ${(loc.lowStock || 0) > 0 ? 'text-amber-600' : 'text-gray-500 dark:text-slate-400'}`}>{loc.lowStock || 0}</span></td>
+                  <td className="px-4 py-3"><span className={`font-medium ${(loc.outOfStock || 0) > 0 ? 'text-red-600' : 'text-gray-500 dark:text-slate-400'}`}>{loc.outOfStock || 0}</span></td>
                   <td className="px-4 py-3 text-gray-700 dark:text-slate-200">${Number(loc.value || 0).toLocaleString()}</td>
                 </tr>
               ))}

@@ -128,7 +128,7 @@ function ExperimentsTab() {
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-8 text-center">
           <Beaker className="w-10 h-10 text-gray-300 dark:text-slate-700 mx-auto mb-3" />
           <p className="text-gray-600 dark:text-slate-400 text-sm">No experiments yet.</p>
-          <p className="text-gray-500 dark:text-slate-500 text-xs mt-2 max-w-md mx-auto">Pick a landing page, define two or more variants (different hero copy, CTA, form length), split traffic. We'll measure conversion and call the winner.</p>
+          <p className="text-gray-500 dark:text-slate-400 text-xs mt-2 max-w-md mx-auto">Pick a landing page, define two or more variants (different hero copy, CTA, form length), split traffic. We'll measure conversion and call the winner.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -159,7 +159,7 @@ function ExperimentsTab() {
                           {isWinner && <Trophy className="w-3.5 h-3.5 text-orange-500" />}
                         </div>
                         <div className="text-xl font-bold text-gray-900 dark:text-white">{c.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-500 dark:text-slate-500">{v.conversions}/{v.assignments}</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400">{v.conversions}/{v.assignments}</div>
                         {i > 0 && (
                           <div className={`text-xs font-medium mt-1 ${l >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {l >= 0 ? '+' : ''}{l.toFixed(1)}% vs control
@@ -426,7 +426,7 @@ function CampaignsTab() {
             {f}
           </button>
         ))}
-        <span className="text-xs text-gray-500 dark:text-slate-500 ml-auto">{allAds.length} ads</span>
+        <span className="text-xs text-gray-500 dark:text-slate-400 ml-auto">{allAds.length} ads</span>
       </div>
 
       {/* Ad cards grid */}
@@ -445,7 +445,7 @@ function CampaignsTab() {
               {/* Ad preview */}
               <div className="bg-gray-50 dark:bg-slate-800 p-4 border-b border-gray-100 dark:border-slate-700">
                 <div className="bg-gray-200 dark:bg-slate-700 rounded-lg h-24 flex items-center justify-center mb-3">
-                  <span className="text-xs text-gray-500 dark:text-slate-500">Ad Creative Preview</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400">Ad Creative Preview</span>
                 </div>
                 <p className="font-semibold text-gray-900 dark:text-white text-sm">{ad.headline}</p>
                 <p className="text-gray-500 dark:text-slate-400 text-xs mt-1 line-clamp-2">{ad.body}</p>
@@ -572,14 +572,14 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-3">
                     <PlatformBadge platform={item.platform} />
-                    <span className="text-xs text-gray-500 dark:text-slate-500">•</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">•</span>
                     <span className="text-xs text-gray-500 dark:text-slate-400">{item.campaignName}</span>
                   </div>
 
                   {/* Ad creative card */}
                   <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4 border border-gray-100 dark:border-slate-700">
                     <div className="bg-gray-200 dark:bg-slate-700 rounded-lg h-32 flex items-center justify-center mb-3">
-                      <span className="text-xs text-gray-500 dark:text-slate-500">Ad Image Preview</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">Ad Image Preview</span>
                     </div>
                     <h4 className="font-semibold text-gray-900 dark:text-white">{item.headline}</h4>
                     <p className="text-gray-600 dark:text-slate-300 text-sm mt-1">{item.body}</p>
@@ -596,7 +596,7 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
                       <Clock className="w-3 h-3" />
                       Requested by Twomiah
                     </span>
-                    <span className="text-xs text-gray-500 dark:text-slate-500">
+                    <span className="text-xs text-gray-500 dark:text-slate-400">
                       {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                   </div>
@@ -710,7 +710,7 @@ function AdDetailSlideOver({ ad, onClose }: { ad: any; onClose: () => void }) {
           {/* Preview */}
           <div className="bg-gray-50 dark:bg-slate-800 rounded-lg p-4">
             <div className="bg-gray-200 dark:bg-slate-700 rounded-lg h-40 flex items-center justify-center mb-3">
-              <span className="text-xs text-gray-500 dark:text-slate-500">Ad Creative</span>
+              <span className="text-xs text-gray-500 dark:text-slate-400">Ad Creative</span>
             </div>
             <h4 className="font-semibold text-gray-900 dark:text-white text-lg">{ad.headline}</h4>
             <p className="text-gray-600 dark:text-slate-300 text-sm mt-2">{ad.body}</p>
@@ -778,7 +778,7 @@ function MiniChart({ data }: { data: { date: string; impressions: number; clicks
         return (
           <g key={pct}>
             <line x1={pad.left} y1={y} x2={W - pad.right} y2={y} stroke="currentColor" className="text-gray-100 dark:text-slate-800" strokeWidth={1} />
-            <text x={pad.left - 5} y={y + 3} textAnchor="end" className="text-gray-500 dark:text-slate-500 fill-current" fontSize={9}>
+            <text x={pad.left - 5} y={y + 3} textAnchor="end" className="text-gray-500 dark:text-slate-400 fill-current" fontSize={9}>
               {Math.round(maxImp * pct).toLocaleString()}
             </text>
           </g>
@@ -798,7 +798,7 @@ function MiniChart({ data }: { data: { date: string; impressions: number; clicks
         const date = new Date(d.date + 'T00:00:00');
         const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         return (
-          <text key={i} x={xScale(i)} y={H - 5} textAnchor="middle" className="text-gray-500 dark:text-slate-500 fill-current" fontSize={9}>
+          <text key={i} x={xScale(i)} y={H - 5} textAnchor="middle" className="text-gray-500 dark:text-slate-400 fill-current" fontSize={9}>
             {label}
           </text>
         );

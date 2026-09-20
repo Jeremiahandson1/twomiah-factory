@@ -307,7 +307,7 @@ export default function ContactsPage() {
                       key={tab}
                       onClick={() => setDetailTab(tab)}
                       className={`flex-1 py-2.5 text-xs font-medium uppercase tracking-wider ${
-                        detailTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                        detailTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
                       }`}
                     >
                       {tab}
@@ -406,7 +406,7 @@ export default function ContactsPage() {
                             }`}
                           >
                             <p>{msg.body || msg.message}</p>
-                            <p className={`text-[10px] mt-1 ${msg.direction === 'inbound' ? 'text-gray-400' : 'text-blue-200'}`}>
+                            <p className={`text-[10px] mt-1 ${msg.direction === 'inbound' ? 'text-gray-600' : 'text-blue-200'}`}>
                               {msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ''}
                             </p>
                           </div>

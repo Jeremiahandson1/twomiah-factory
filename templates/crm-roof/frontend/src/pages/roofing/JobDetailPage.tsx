@@ -555,7 +555,7 @@ export default function JobDetailPage() {
                     className={`px-3 py-2 text-sm font-medium border-b-2 capitalize ${
                       photoTab === tab
                         ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700'
+                        : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
                     }`}
                   >
                     {tab}

@@ -39,7 +39,7 @@ export function OnboardingWizard({ productId, onComplete }: OnboardingWizardProp
         <div className="flex items-center justify-center gap-2 mb-8">
           {STEPS.map((s, i) => (
             <div key={s.key} className="flex items-center">
-              <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ' + (i < stepIdx ? 'bg-green-500 text-white' : i === stepIdx ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-500')}>
+              <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ' + (i < stepIdx ? 'bg-green-500 text-white' : i === stepIdx ? 'bg-orange-500 text-white' : 'bg-gray-200 text-gray-600')}>
                 {i < stepIdx ? '✓' : i + 1}
               </div>
               {i < STEPS.length - 1 && <div className={'w-8 h-0.5 ' + (i < stepIdx ? 'bg-green-500' : 'bg-gray-200')} />}

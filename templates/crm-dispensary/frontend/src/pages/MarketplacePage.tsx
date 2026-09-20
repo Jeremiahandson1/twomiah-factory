@@ -162,7 +162,7 @@ export default function MarketplacePage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -268,7 +268,7 @@ export default function MarketplacePage() {
                     disabled={installing === integration.id || integration.installed}
                     className={`w-full px-4 py-2 text-sm font-medium rounded-lg ${
                       integration.installed
-                        ? 'bg-gray-100 text-gray-500 cursor-default'
+                        ? 'bg-gray-100 text-gray-600 cursor-default'
                         : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
                     }`}
                   >
@@ -310,7 +310,7 @@ export default function MarketplacePage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-gray-900 dark:text-slate-100">{integration.name}</h3>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[integration.status] || 'bg-gray-100 text-gray-500'}`}>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[integration.status] || 'bg-gray-100 text-gray-600'}`}>
                           {integration.status || 'active'}
                         </span>
                       </div>

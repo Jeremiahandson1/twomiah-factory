@@ -119,7 +119,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
               return (
                 <li key={`${item.to}-${item.label}`}>
                   {showSection && (
-                    <div className="pt-4 pb-1 px-3"><p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-500">{item.section}</p></div>
+                    <div className="pt-4 pb-1 px-3"><p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">{item.section}</p></div>
                   )}
                   {item.external ? (
                     <a href={externalHref(item)} target="_blank" rel="noopener noreferrer" className={linkCls(false)}>

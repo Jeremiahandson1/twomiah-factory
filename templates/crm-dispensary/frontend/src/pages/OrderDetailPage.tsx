@@ -172,7 +172,7 @@ export default function OrderDetailPage() {
             const Icon = statusIcons[step] || Clock;
             return (
               <div key={step} className="flex items-center gap-2 flex-1">
-                <div className={`flex items-center gap-2 ${isActive ? 'text-green-600' : 'text-gray-400'}`}>
+                <div className={`flex items-center gap-2 ${isActive ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                     isCurrent ? 'bg-green-600 text-white' : isActive ? 'bg-green-100' : 'bg-gray-100'
                   }`}>

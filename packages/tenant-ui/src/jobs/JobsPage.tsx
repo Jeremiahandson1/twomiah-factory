@@ -144,7 +144,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
   const columns = [
     { key: 'number', label: 'Number', render: (v: unknown) => <span className="font-mono text-sm">{String(v || '')}</span> },
     // a row with no customer said nothing at all — say so, so it can be found and fixed (T21 L2)
-    { key: 'title', label: 'Title', render: (v: unknown, r: JobRow) => <div><p className="font-medium">{String(v || '')}</p><p className={`text-sm ${r.contact ? 'text-gray-500 dark:text-slate-400' : 'text-gray-400 italic dark:text-slate-500'}`}>{r.contact ? r.contact.name : 'No customer'}</p></div> },
+    { key: 'title', label: 'Title', render: (v: unknown, r: JobRow) => <div><p className="font-medium">{String(v || '')}</p><p className={`text-sm ${r.contact ? 'text-gray-500 dark:text-slate-400' : 'text-gray-500 italic dark:text-slate-400'}`}>{r.contact ? r.contact.name : 'No customer'}</p></div> },
     { key: 'status', label: 'Status', render: (v: unknown, r: JobRow) => <span className="inline-flex items-center gap-1"><StatusBadge status={String(v || '')} />{r.isOverdue ? <StatusBadge status="overdue" /> : null}</span> },
     { key: 'priority', label: 'Priority', render: (v: unknown) => <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${PRIORITY_COLORS[String(v)] || ''}`}>{String(v || '')}</span> },
     { key: 'scheduledDate', label: 'Scheduled', render: (v: unknown) => v ? dateOnly(v) : '-' },

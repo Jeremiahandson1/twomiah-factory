@@ -44,8 +44,19 @@ const TEXT_SIZE = /\btext-(xs|sm|base|lg|xl|2xl|3xl)\b/
 // bg-gray-800 panels — no theme toggle), where gray-400 measures 5.78:1 and 6.99:1. It is correct
 // there, and "fixing" it to gray-500 would drop it to 3.04:1. That is a regression, not a fix.
 const PERMANENTLY_DARK = /^templates\/crm-roof\/frontend\/src\/pages\/portal\//
-/** 3.69:1 on a dark card — never the dark half of a pair */
-const DARK_FAILING = /\bdark:text-gray-500\b/
+/** 3.69:1 and 3.75:1 on a dark card — never the dark half of a pair */
+const DARK_FAILING = /\bdark:text-(?:gray-500|slate-500)\b/
+/** WCAG 1.4.3 exempts an inactive component; a disabled button's label is not held to the ratio */
+const DISABLED = /\b(?:pointer-events-none|cursor-not-allowed)\b/
+/**
+ * A background baked into the SAME class list does not follow the theme unless it says `dark:bg-`.
+ * `bg-gray-200 text-gray-500` keeps its light chip in dark mode, so the answer there is a darker light
+ * token (gray-600, 6.10:1), never a dark partner — slate-400 on that chip would be 2.07:1.
+ *
+ * The lookbehind matters here too: `hover:bg-gray-100` is a hover state, not the resting surface, and
+ * without `(?<!:)` it reads as one — which flagged fifteen correctly-paired labels.
+ */
+const FIXED_LIGHT_BG = /(?<!:)\bbg-(?:white|gray-(?:50|100|200|300))\b/
 
 // crm-automotive is parked and crm-homecare is being handled separately; neither is swept here.
 const ROOTS = [
@@ -77,26 +88,75 @@ for (const r of ROOTS) {
 const onFailingLight: string[] = []
 const unpaired: string[] = []
 const failingDark: string[] = []
+const darkOnLight: string[] = []
+const tooLightOnChip: string[] = []
 let icons = 0, paired = 0
+
+/**
+ * Every class list an element can carry, INCLUDING the ones inside an interpolation.
+ *
+ * The first version of this guard read `className="…"` and the static halves of a template literal,
+ * and split on `${…}` — throwing the interpolation away. That is where a conditional class lives:
+ *
+ *     className={`text-xs ${enabled ? 'text-green-600' : 'text-gray-400'}`}
+ *
+ * …so 29 muted labels and 90 unpaired ones sat in that gap, invisible to the guard and to the sweep,
+ * until the deployed bundle was read back. Those strings are class lists like any other.
+ */
+function* classLists(src: string): Generator<{ seg: string; selfClosing: boolean; iconOnly: boolean }> {
+  for (const m of src.matchAll(/className=(?:"([^"]*)"|\{)/g)) {
+    if (m[1] !== undefined) { yield { seg: m[1], selfClosing: false, iconOnly: false }; continue }
+    // brace-balanced expression body
+    const open = m.index! + m[0].length - 1
+    let depth = 0, end = open
+    for (let i = open; i < src.length && i < open + 3000; i++) {
+      if (src[i] === '{') depth++
+      else if (src[i] === '}') { depth--; if (depth === 0) { end = i; break } }
+    }
+    const expr = src.slice(open, end + 1)
+    // does this element hold text at all? a self-closing tag has no text node, and a control whose
+    // only child is a component is holding a glyph
+    const after = src.slice(end + 1, end + 600)
+    const gt = after.indexOf('>')
+    const selfClosing = gt > 0 && after.slice(0, gt).trimEnd().endsWith('/')
+    const closeAt = after.indexOf('</')
+    const kids = gt > 0 && closeAt > gt ? after.slice(gt + 1, closeAt).trim() : ''
+    const iconOnly = !!kids && /^\{?\s*[\w.]*\s*\?\s*<[A-Z]|^<[A-Z]/.test(kids)
+    // the static halves of a template literal, plus each quoted string inside the expression
+    for (const seg of expr.split(/\$\{|\}|'|"|`/)) if (/-/.test(seg)) yield { seg, selfClosing, iconOnly }
+  }
+}
 
 for (const f of files) {
   const src = readFileSync(f, 'utf8')
   const rel = f.slice(ROOT.length).replace(/\\/g, '/')
-  for (const m of src.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)) {
-    // a template literal is split on its interpolations, because the halves are separate class lists
-    for (const seg of (m[1] ?? m[2] ?? '').split(/\$\{[^}]*\}|'|`/)) {
-      if (DARK_FAILING.test(seg)) failingDark.push(`${rel}: ${seg.trim().slice(0, 70)}`)
-      // a glyph, or a control that only holds one — unless it sizes text, in which case it has text
-      const isIcon = !TEXT_SIZE.test(seg) && (ICON.test(seg) || (ICON_BUTTON.test(seg) && HOVER.test(seg)))
-      if (BARE_400.test(seg)) {
-        if (isIcon || PERMANENTLY_DARK.test(rel)) { icons++; continue }
-        onFailingLight.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+  for (const { seg, selfClosing, iconOnly } of classLists(src)) {
+    if (DARK_FAILING.test(seg)) failingDark.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+    // a glyph, or a control that only holds one — unless it sizes text, in which case it has text
+    const isIcon = selfClosing || iconOnly ||
+      (!TEXT_SIZE.test(seg) && (ICON.test(seg) || (ICON_BUTTON.test(seg) && HOVER.test(seg))))
+    if (BARE_400.test(seg)) {
+      if (isIcon || DISABLED.test(seg) || PERMANENTLY_DARK.test(rel)) { icons++; continue }
+      onFailingLight.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+    }
+    // A surface that pins its own light background and never says dark:bg- stays light in dark mode.
+    // Handing it a dark text colour is the same mistake as the original finding, pointing the other
+    // way: slate-400 on gray-50 is 2.45:1. My own pair-dark pass did this to one table header.
+    const pinnedLight = FIXED_LIGHT_BG.test(seg) && !/\bdark:bg-/.test(seg)
+    if (pinnedLight && /\bdark:text-(?:slate|gray)-(?:300|400|500)\b/.test(seg))
+      darkOnLight.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+
+    if (BARE_500.test(seg)) {
+      if (isIcon || DISABLED.test(seg)) continue
+      if (pinnedLight) {
+        // the surface never flips, so the light ratio is the whole story — and gray-500 does not
+        // clear AA on the darker chips (4.39 on gray-100, 3.90 on gray-200)
+        if (/(?<!:)\bbg-gray-(?:100|200|300)\b/.test(seg)) tooLightOnChip.push(`${rel}: ${seg.trim().slice(0, 70)}`)
+        else paired++ // white 4.83 / gray-50 4.63 — fine, and correctly has no dark half
+        continue
       }
-      if (BARE_500.test(seg)) {
-        if (isIcon) continue
-        if (/dark:text-/.test(seg)) paired++
-        else unpaired.push(`${rel}: ${seg.trim().slice(0, 70)}`)
-      }
+      if (/dark:text-/.test(seg)) paired++
+      else unpaired.push(`${rel}: ${seg.trim().slice(0, 70)}`)
     }
   }
 }
@@ -108,7 +168,11 @@ if (onFailingLight.length)
 if (unpaired.length)
   fail(`${unpaired.length} muted label(s) on text-gray-500 with no dark partner — that reads 3.69:1 on a dark card, so the failure was moved, not fixed:${show(unpaired)}`)
 if (failingDark.length)
-  fail(`${failingDark.length} dark value(s) set to gray-500 — 3.69:1 on slate-900; the dark half must be slate-400:${show(failingDark)}`)
+  fail(`${failingDark.length} dark value(s) set to gray-500/slate-500 — 3.69:1 and 3.75:1 on slate-900; the dark half must be slate-400:${show(failingDark)}`)
+if (darkOnLight.length)
+  fail(`${darkOnLight.length} element(s) give a DARK text colour to a surface that pins a light background and never flips it — slate-400 on gray-50 is 2.45:1:${show(darkOnLight)}`)
+if (tooLightOnChip.length)
+  fail(`${tooLightOnChip.length} label(s) use gray-500 on a fixed gray-100/200/300 chip — 4.39:1 and 3.90:1, under AA; use gray-600:${show(tooLightOnChip)}`)
 // (The volume of the sweep is asserted by the test, which always runs against the whole worktree; this
 // guard has to stay runnable over a subset so its own plants can be self-tested.)
 

@@ -175,7 +175,7 @@ export default function PlatformPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -305,7 +305,7 @@ export default function PlatformPage() {
                           {step.completed && <CheckSquare className="w-4 h-4" />}
                         </button>
                         <div>
-                          <p className={`text-sm font-medium ${step.completed ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                          <p className={`text-sm font-medium ${step.completed ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900'}`}>
                             {step.title || step.name || `Step ${i + 1}`}
                           </p>
                           {step.description && (

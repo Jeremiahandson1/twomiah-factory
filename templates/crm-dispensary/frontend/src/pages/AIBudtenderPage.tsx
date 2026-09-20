@@ -179,7 +179,7 @@ export default function AIBudtenderPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -200,7 +200,7 @@ export default function AIBudtenderPage() {
                 onChange={(e) => setConfig({ ...config, enabled: e.target.checked })}
                 className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
               />
-              <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500'}`}>
+              <span className={`text-sm font-medium ${config.enabled ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
                 {config.enabled ? 'Enabled' : 'Disabled'}
               </span>
             </label>

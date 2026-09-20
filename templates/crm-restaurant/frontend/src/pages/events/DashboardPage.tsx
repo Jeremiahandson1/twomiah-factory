@@ -263,7 +263,7 @@ export default function DashboardPage() {
                       <p className="font-medium text-gray-900 dark:text-slate-100">{p.eventName || 'Event'}</p>
                       <span className="text-sm font-semibold text-gray-700 dark:text-slate-200">{money(p.amount)}</span>
                     </div>
-                    <p className={`text-xs flex items-center gap-1 ${isOverdue(p.dueDate) ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
+                    <p className={`text-xs flex items-center gap-1 ${isOverdue(p.dueDate) ? 'text-red-700 font-medium' : 'text-gray-500 dark:text-slate-400'}`}>
                       {isOverdue(p.dueDate) && <AlertTriangle className="w-3 h-3" />}
                       {p.label}{p.dueDate ? ` · due ${p.dueDate}` : ' · no due date'}
                       {p.state === 'part_paid' ? ` · ${money(p.paidAmount)} paid` : ''}

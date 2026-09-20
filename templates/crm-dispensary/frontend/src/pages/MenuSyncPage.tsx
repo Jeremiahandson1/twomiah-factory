@@ -164,7 +164,7 @@ export default function MenuSyncPage() {
       <div className="flex gap-1 mb-6 overflow-x-auto border-b">
         {tabs.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap ${tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'}`}>
             <t.icon className="w-4 h-4" />{t.label}
           </button>
         ))}
@@ -194,7 +194,7 @@ export default function MenuSyncPage() {
                           <p className="text-sm text-gray-500 dark:text-slate-400">{platform.description}</p>
                         </div>
                       </div>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${isConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1 ${isConnected ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                         {isConnected ? <><Link className="w-3 h-3" />Connected</> : <><Unlink className="w-3 h-3" />Disconnected</>}
                       </span>
                     </div>

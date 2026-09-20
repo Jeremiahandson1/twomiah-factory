@@ -243,7 +243,7 @@ export default function ClientDetailPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}
           >
             {t.icon} {t.label}
@@ -365,7 +365,7 @@ export default function ClientDetailPage() {
                     {m.creditsRemaining !== null && m.creditsRemaining !== undefined && (
                       <span className="text-sm text-gray-600 dark:text-slate-400">{m.creditsRemaining} credit{m.creditsRemaining === 1 ? '' : 's'} left</span>
                     )}
-                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${m.status === 'active' && m.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700' : m.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`text-xs px-2 py-0.5 rounded-full capitalize ${m.status === 'active' && m.creditsRemaining === 0 ? 'bg-amber-100 text-amber-700' : m.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                       {m.status === 'active' && m.creditsRemaining === 0 ? 'used up' : (m.status || 'active')}
                     </span>
                   </div>

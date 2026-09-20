@@ -138,7 +138,7 @@ export default function TaxFilingPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -247,7 +247,7 @@ export default function TaxFilingPage() {
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-gray-900 dark:text-slate-100">{dueDate.toLocaleDateString()}</p>
-                      <p className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : isUrgent ? 'text-orange-600' : 'text-gray-500'}`}>
+                      <p className={`text-sm ${isOverdue ? 'text-red-600 font-medium' : isUrgent ? 'text-orange-600' : 'text-gray-500 dark:text-slate-400'}`}>
                         {isOverdue ? `${Math.abs(daysUntil)} days overdue` : daysUntil === 0 ? 'Due today' : `${daysUntil} days left`}
                       </p>
                     </div>

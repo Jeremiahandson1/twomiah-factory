@@ -51,8 +51,8 @@ export default function CommissionsPage() {
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
-        <button onClick={() => setTab('records')} className={`px-4 py-2 border-b-2 ${tab === 'records' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500'}`}>Earnings</button>
-        <button onClick={() => setTab('plans')} className={`px-4 py-2 border-b-2 ${tab === 'plans' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500'}`}>Plans</button>
+        <button onClick={() => setTab('records')} className={`px-4 py-2 border-b-2 ${tab === 'records' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Earnings</button>
+        <button onClick={() => setTab('plans')} className={`px-4 py-2 border-b-2 ${tab === 'plans' ? 'border-sky-500 text-sky-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Plans</button>
       </div>
 
       {tab === 'records' ? (

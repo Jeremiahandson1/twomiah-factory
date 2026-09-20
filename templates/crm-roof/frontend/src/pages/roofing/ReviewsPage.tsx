@@ -52,8 +52,8 @@ export default function ReviewsPage() {
       </div>
 
       <div className="flex gap-2 mb-4 border-b">
-        <button onClick={() => setTab('received')} className={`px-4 py-2 border-b-2 ${tab === 'received' ? 'border-orange-500 text-orange-600 font-semibold' : 'border-transparent text-gray-500'}`}>Received ({reviews.length})</button>
-        <button onClick={() => setTab('requests')} className={`px-4 py-2 border-b-2 ${tab === 'requests' ? 'border-orange-500 text-orange-600 font-semibold' : 'border-transparent text-gray-500'}`}>Requests ({requests.length})</button>
+        <button onClick={() => setTab('received')} className={`px-4 py-2 border-b-2 ${tab === 'received' ? 'border-orange-500 text-orange-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Received ({reviews.length})</button>
+        <button onClick={() => setTab('requests')} className={`px-4 py-2 border-b-2 ${tab === 'requests' ? 'border-orange-500 text-orange-600 font-semibold' : 'border-transparent text-gray-500 dark:text-slate-400'}`}>Requests ({requests.length})</button>
       </div>
 
       {tab === 'received' ? (
