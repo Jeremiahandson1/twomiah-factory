@@ -326,7 +326,7 @@ export default function PatientDetailPage() {
             <button onClick={() => setShowEdit(true)} className="flex items-center gap-1 px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-slate-800">
               <Edit className="w-4 h-4" /> Edit
             </button>
-            <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-600 rounded-lg text-sm hover:bg-red-50">
+            <button onClick={() => setDeleteOpen(true)} className="flex items-center gap-1 px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-500/10">
               <Trash2 className="w-4 h-4" /> Delete
             </button>
           </div>

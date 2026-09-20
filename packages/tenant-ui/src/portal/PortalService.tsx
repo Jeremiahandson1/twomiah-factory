@@ -71,7 +71,7 @@ export function PortalEquipmentDetail() {
           {eq.purchaseDate && <div><dt className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Install Date</dt><dd className="text-gray-900 dark:text-slate-100">{formatDate(eq.purchaseDate)}</dd></div>}
           {eq.location && <div><dt className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-wider">Location</dt><dd className="text-gray-900 dark:text-slate-100">{eq.location}</dd></div>}
         </dl>
-        {w !== null && <div className={`mt-4 flex items-center gap-2 px-3 py-2 rounded-lg ${w ? 'bg-green-50 dark:bg-green-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}><Shield className={`w-4 h-4 ${w ? 'text-green-600' : 'text-red-600'}`} /><span className={`text-sm font-medium ${w ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>Warranty {w ? 'active' : 'expired'}{eq.warrantyExpiry && ` — ${w ? 'expires' : 'ended'} ${formatDate(eq.warrantyExpiry)}`}</span></div>}
+        {w !== null && <div className={`mt-4 flex items-center gap-2 px-3 py-2 rounded-lg ${w ? 'bg-green-50 dark:bg-green-950/30' : 'bg-red-50 dark:bg-red-950/30'}`}><Shield className={`w-4 h-4 ${w ? 'text-green-700' : 'text-red-700'}`} /><span className={`text-sm font-medium ${w ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>Warranty {w ? 'active' : 'expired'}{eq.warrantyExpiry && ` — ${w ? 'expires' : 'ended'} ${formatDate(eq.warrantyExpiry)}`}</span></div>}
       </div>
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-3 dark:text-slate-100">Service History</h2>

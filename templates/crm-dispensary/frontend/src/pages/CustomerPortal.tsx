@@ -102,10 +102,10 @@ export default function CustomerPortal() {
   ];
 
   const colorMap: Record<string, { bg: string; text: string; border: string; bar: string }> = {
-    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-300', bar: 'bg-emerald-500' },
+    emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300', bar: 'bg-emerald-500' },
     violet: { bg: 'bg-violet-50', text: 'text-violet-600', border: 'border-violet-200', bar: 'bg-violet-500' },
     blue: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200', bar: 'bg-blue-500' },
-    amber: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200', bar: 'bg-amber-500' },
+    amber: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', bar: 'bg-amber-500' },
     sky: { bg: 'bg-sky-50', text: 'text-sky-600', border: 'border-sky-200', bar: 'bg-sky-500' },
     slate: { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', bar: 'bg-slate-400' },
   };

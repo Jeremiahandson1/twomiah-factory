@@ -70,7 +70,7 @@ export function ForgotPasswordPage({ api }: { api: Pick<AuthApi, 'forgotPassword
           <p className="text-gray-600 mb-6 dark:text-slate-400">No worries, we'll send you reset instructions.</p>
 
           {error && (
-            <div role="alert" className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm dark:bg-red-950/40 dark:text-red-300">{error}</div>
+            <div role="alert" className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm dark:bg-red-950/40 dark:text-red-300">{error}</div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">

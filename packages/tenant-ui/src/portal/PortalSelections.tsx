@@ -108,7 +108,7 @@ function SelectionItem({ selection, projectId, onUpdate }: { selection: any; pro
           {selection.selected_option.image_url && <img src={selection.selected_option.image_url} alt="" className="w-12 h-12 rounded object-cover" />}
         </div>
       )}
-      {confirmed && <div className="mt-2 p-3 bg-green-50 rounded-lg flex items-center gap-2 dark:bg-green-950/30"><Check className="w-5 h-5 text-green-600" /><p className="text-sm font-medium text-green-800 dark:text-green-300">Selection saved successfully!</p></div>}
+      {confirmed && <div className="mt-2 p-3 bg-green-50 rounded-lg flex items-center gap-2 dark:bg-green-950/30"><Check className="w-5 h-5 text-green-700" /><p className="text-sm font-medium text-green-800 dark:text-green-300">Selection saved successfully!</p></div>}
       {error && <p role="alert" className="mt-2 text-sm text-red-600">{error}</p>}
       {canSelect && options.length > 0 && (
         <div className="mt-3">

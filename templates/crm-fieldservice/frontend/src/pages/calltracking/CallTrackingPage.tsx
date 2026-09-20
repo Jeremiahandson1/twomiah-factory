@@ -211,9 +211,9 @@ function CallRow({ call }) {
                      call.status === 'missed' ? PhoneMissed : Phone;
   
   const statusColors = {
-    completed: 'text-green-600 bg-green-50',
-    missed: 'text-red-600 bg-red-50',
-    voicemail: 'text-yellow-600 bg-yellow-50',
+    completed: 'text-green-700 bg-green-50',
+    missed: 'text-red-700 bg-red-50',
+    voicemail: 'text-yellow-700 bg-yellow-50',
   };
 
   return (

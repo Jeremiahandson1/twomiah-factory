@@ -225,7 +225,7 @@ export default function MenuSyncPage() {
                             <Settings className="w-4 h-4" />
                           </button>
                           <button onClick={() => disconnectPlatform(platform.id)}
-                            className="px-3 py-2 text-red-600 border border-red-200 rounded-lg text-sm hover:bg-red-50">
+                            className="px-3 py-2 text-red-700 dark:text-red-400 border border-red-200 rounded-lg text-sm hover:bg-red-50 dark:hover:bg-red-500/10">
                             Disconnect
                           </button>
                         </>

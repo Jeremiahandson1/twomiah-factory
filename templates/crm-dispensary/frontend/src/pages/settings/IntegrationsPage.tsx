@@ -203,7 +203,7 @@ export default function IntegrationsPage() {
                   <button
                     onClick={handleQuickBooksDisconnect}
                     disabled={saving === 'quickbooks'}
-                    className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+                    className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
                   >
                     Disconnect
                   </button>
@@ -249,7 +249,7 @@ export default function IntegrationsPage() {
                 <button
                   onClick={handleStripeDisconnect}
                   disabled={saving === 'stripe'}
-                  className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+                  className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
                 >
                   Disconnect
                 </button>

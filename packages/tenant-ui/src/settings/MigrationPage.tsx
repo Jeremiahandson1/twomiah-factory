@@ -150,11 +150,11 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
                 <div className="flex items-center gap-3">{['fetching', 'importing', 'connecting'].includes(progress.status) && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}<span className="text-gray-700 dark:text-gray-300">{progress.phase}</span></div>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg"><p className="text-2xl font-bold text-gray-900 dark:text-white">{progress.total}</p><p className="text-xs text-gray-500 dark:text-gray-400">Total Records</p></div>
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-2xl font-bold text-green-600">{progress.imported}</p><p className="text-xs text-gray-500 dark:text-gray-400">Imported</p></div>
-                  <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"><p className="text-2xl font-bold text-yellow-600">{progress.skipped}</p><p className="text-xs text-gray-500 dark:text-gray-400">Skipped</p></div>
+                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-2xl font-bold text-green-700 dark:text-green-400">{progress.imported}</p><p className="text-xs text-gray-500 dark:text-gray-400">Imported</p></div>
+                  <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"><p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{progress.skipped}</p><p className="text-xs text-gray-500 dark:text-gray-400">Skipped</p></div>
                 </div>
                 {progress.errors?.length > 0 && (<div><p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Errors ({progress.errors.length})</p>
-                  <div className="max-h-32 overflow-y-auto space-y-1">{progress.errors.slice(0, 20).map((err: any, i: number) => <div key={i} className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded">{err.entity}: {err.name} — {err.error}</div>)}</div></div>)}
+                  <div className="max-h-32 overflow-y-auto space-y-1">{progress.errors.slice(0, 20).map((err: any, i: number) => <div key={i} className="text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded">{err.entity}: {err.name} — {err.error}</div>)}</div></div>)}
                 {progress.status === 'complete' && <button onClick={resetAll} className="w-full py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-900 dark:text-white font-medium">Done — Return to Provider List</button>}
               </>)}
             </div>
@@ -201,8 +201,8 @@ export function MigrationPage({ api, config }: { api: SettingsApi; config?: Migr
                 {csvResults && (
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg"><p className="text-2xl font-bold text-gray-900 dark:text-white">{csvResults.total || (csvResults.imported + csvResults.skipped)}</p><p className="text-xs text-gray-500 dark:text-slate-400">Total</p></div>
-                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-2xl font-bold text-green-600">{csvResults.imported}</p><p className="text-xs text-gray-500 dark:text-slate-400">Imported</p></div>
-                    <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"><p className="text-2xl font-bold text-yellow-600">{csvResults.skipped}</p><p className="text-xs text-gray-500 dark:text-slate-400">Skipped</p></div>
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-2xl font-bold text-green-700 dark:text-green-400">{csvResults.imported}</p><p className="text-xs text-gray-500 dark:text-slate-400">Imported</p></div>
+                    <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"><p className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{csvResults.skipped}</p><p className="text-xs text-gray-500 dark:text-slate-400">Skipped</p></div>
                   </div>
                 )}
               </div>

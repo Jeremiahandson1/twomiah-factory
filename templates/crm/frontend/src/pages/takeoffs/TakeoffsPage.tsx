@@ -421,7 +421,7 @@ function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
           <div className="p-4 border-t flex justify-end">
             <button
               onClick={handleDelete}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
             >
               <Trash2 className="w-4 h-4" />
               Delete

@@ -108,7 +108,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
           )}
           actions={status.quickbooks.connected ? (<>
             <button onClick={qbSync} disabled={saving === 'sync'} className="px-3 py-2 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1">{saving === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}Sync Now</button>
-            <button onClick={qbDisconnect} disabled={saving === 'quickbooks'} className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
+            <button onClick={qbDisconnect} disabled={saving === 'quickbooks'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
           </>) : (
             <button onClick={qbConnect} disabled={saving === 'qb-connect'} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 flex items-center gap-2">Connect QuickBooks<ExternalLink className="w-4 h-4" /></button>
           )} />
@@ -122,7 +122,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             </div>
           )}
           actions={status.stripe.connected
-            ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
+            ? <button onClick={stripeDisconnect} disabled={saving === 'stripe'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
             : <button onClick={stripeConnect} disabled={saving === 'stripe-connect'} className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 flex items-center gap-2">Connect Stripe<ExternalLink className="w-4 h-4" /></button>} />
 
         <SectionLabel label="Communication" />
@@ -132,7 +132,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <div><h3 className="font-semibold text-gray-900 dark:text-white">Twilio (Two-Way Texting)</h3><p className="text-sm text-gray-500 dark:text-slate-400 mt-1">Send and receive SMS with customers directly from your CRM.</p></div>
-                {status.twilio.configured && <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-full whitespace-nowrap">{status.twilio.ownAccount ? 'Your account' : 'Platform number'}</span>}
+                {status.twilio.configured && <span className="text-xs font-medium text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-full whitespace-nowrap">{status.twilio.ownAccount ? 'Your account' : 'Platform number'}</span>}
               </div>
               {status.twilio.ownAccount ? (
                 <div className="mt-3 space-y-3">
@@ -141,7 +141,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
                     <input type="tel" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} placeholder="+15551234567" aria-label="Test text recipient" className="px-3 py-2 text-sm border dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white w-44" />
                     <button onClick={testSms} disabled={saving === 'testsms'} className="px-3 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">{saving === 'testsms' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Send test text</button>
                     <button onClick={copyWebhookUrl} className="px-3 py-2 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1"><Copy className="w-4 h-4" />Copy webhook URL</button>
-                    <button onClick={twilioDisconnect} disabled={saving === 'twilio-off'} className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Remove</button>
+                    <button onClick={twilioDisconnect} disabled={saving === 'twilio-off'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Remove</button>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-slate-400 break-all">Set this as the number's messaging webhook in Twilio: {typeof window !== 'undefined' ? `${window.location.origin}/api/sms/webhook/incoming` : '/api/sms/webhook/incoming'}</p>
                 </div>

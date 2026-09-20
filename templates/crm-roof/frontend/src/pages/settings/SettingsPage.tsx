@@ -17,12 +17,10 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingCompany, setSavingCompany] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
-  // Mirrors the server's requireAdmin (admin|owner) — this app has no
-  // PermissionsContext, and the same expression is already used by
-  // FeaturesSettingsPage. Without it a teammate is offered buttons that 403.
-  // Admin tier. It already gated user administration; the company record and branding now need it
-  // too, because the API refuses them to anyone else — leaving the Save buttons visible would hand a
-  // field tech a button that 403s. Reading these stays open to everyone. (T27)
+  // Mirrors the server's requireAdmin (admin|owner) — this app has no PermissionsContext, and the
+  // same expression is already used by FeaturesSettingsPage. It gated user administration; since T27
+  // the company record and branding need it too, because the API refuses those to anyone else and a
+  // visible Save button that 403s is worse than no button. Reading stays open to everyone.
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'owner';
   const canManageUsers = isAdmin;
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -486,7 +484,7 @@ export default function SettingsPage() {
                   <button onClick={syncQB} disabled={syncing} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50">
                     <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} /> {syncing ? 'Syncing...' : 'Full Sync'}
                   </button>
-                  <button onClick={disconnectQB} disabled={qbLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded-lg hover:bg-red-100 disabled:opacity-50">
+                  <button onClick={disconnectQB} disabled={qbLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 text-xs rounded-lg hover:bg-red-100 disabled:opacity-50">
                     <Unlink className="w-3.5 h-3.5" /> Disconnect
                   </button>
                 </div>

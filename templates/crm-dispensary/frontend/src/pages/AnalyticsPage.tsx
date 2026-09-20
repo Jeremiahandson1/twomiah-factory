@@ -126,7 +126,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-green-50 text-green-700 flex items-center justify-center">
               <DollarSign className="w-5 h-5" />
             </div>
             <span className="text-sm text-gray-500 dark:text-slate-400">Total Revenue</span>
@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
 
         <div className="bg-white rounded-lg shadow-sm p-5 dark:bg-slate-900">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
               <Users className="w-5 h-5" />
             </div>
             <span className="text-sm text-gray-500 dark:text-slate-400">Unique Customers</span>

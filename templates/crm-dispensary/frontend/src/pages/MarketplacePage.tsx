@@ -340,7 +340,7 @@ export default function MarketplacePage() {
                     </button>
                     <button
                       onClick={() => handleDisable(integration.id)}
-                      className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
+                      className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 rounded-lg hover:bg-red-100"
                     >
                       Disable
                     </button>

@@ -208,7 +208,7 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
         </button>
         <button
           onClick={onDelete}
-          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+          className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
         >
           <Trash2 className="w-4 h-4" />
           Delete

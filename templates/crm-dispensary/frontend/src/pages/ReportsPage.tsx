@@ -484,7 +484,7 @@ export default function ReportsPage() {
                     </button>
                     <button
                       onClick={() => deleteReport(report.id)}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-200"
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg border border-red-200"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

@@ -72,7 +72,7 @@ export default function CommissionsPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         {c.status === 'pending' && <button onClick={() => act(c.id, 'approve')} className="text-blue-600 hover:bg-blue-50 p-1 rounded" title="Approve"><Check className="w-4 h-4" /></button>}
-                        {c.status === 'approved' && <button onClick={() => act(c.id, 'mark-paid')} className="text-green-600 hover:bg-green-50 p-1 rounded text-xs">Mark Paid</button>}
+                        {c.status === 'approved' && <button onClick={() => act(c.id, 'mark-paid')} className="text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 p-1 rounded text-xs">Mark Paid</button>}
                       </div>
                     </td>
                   </tr>

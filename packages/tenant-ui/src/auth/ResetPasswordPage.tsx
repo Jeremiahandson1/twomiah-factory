@@ -76,7 +76,7 @@ export function ResetPasswordPage({ api }: { api: Pick<AuthApi, 'resetPassword'>
           <p className="text-gray-600 mb-6 dark:text-slate-400">Your new password must be {PASSWORD_RULE_TEXT}.</p>
 
           {error && (
-            <div role="alert" className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm dark:bg-red-950/40 dark:text-red-300">{error}</div>
+            <div role="alert" className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm dark:bg-red-950/40 dark:text-red-300">{error}</div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">

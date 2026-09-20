@@ -95,7 +95,7 @@ export function GbpReviewsPage(): React.ReactElement {
     <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-bold mb-1">Google Reviews</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Your Google Business Profile — where local customers find and judge you. Reply to every review; it matters more than any ad.</p>
-      {error && <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md p-3">{error}</div>}
+      {error && <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{error}</div>}
 
       {!status?.connected && (
         <div className="bg-white border rounded-lg p-6">

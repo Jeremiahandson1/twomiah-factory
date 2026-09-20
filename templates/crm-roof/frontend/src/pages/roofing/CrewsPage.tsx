@@ -117,7 +117,7 @@ export default function CrewsPage() {
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:text-slate-200">Edit</button>
-                  <button onClick={() => deleteCrew(crew)} className="px-2 py-0.5 text-xs font-medium border border-red-200 text-red-600 rounded hover:bg-red-50">Delete</button>
+                  <button onClick={() => deleteCrew(crew)} className="px-2 py-0.5 text-xs font-medium border border-red-200 text-red-700 dark:text-red-400 rounded hover:bg-red-50 dark:hover:bg-red-500/10">Delete</button>
                 </div>
               </div>
 

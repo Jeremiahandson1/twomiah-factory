@@ -282,10 +282,10 @@ function PerformanceTab() {
   const colorClasses: Record<string, string> = {
     blue: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400',
     purple: 'bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-400',
-    green: 'bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400',
-    orange: 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400',
-    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400',
-    red: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400',
+    green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
+    orange: 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
+    emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400',
+    red: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400',
   };
 
   return (
@@ -689,7 +689,7 @@ function StatusBadge({ status }: { status: string }) {
     active: { label: 'Active', className: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400' },
     paused: { label: 'Paused', className: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400' },
     draft: { label: 'Draft', className: 'bg-gray-100 text-gray-600 dark:bg-slate-800 dark:text-slate-400' },
-    ended: { label: 'Ended', className: 'bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400' },
+    ended: { label: 'Ended', className: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400' },
   };
   const c = config[status] || { label: status, className: 'bg-gray-100 text-gray-600' };
   return <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${c.className}`}>{c.label}</span>;

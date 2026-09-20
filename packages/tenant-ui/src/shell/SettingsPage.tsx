@@ -156,7 +156,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
       <div className="flex flex-col md:flex-row gap-6">
         <div className="w-full md:w-48 space-y-1">
           {tabs.map((t) => (
-            <button type="button" key={t.id} onClick={() => setTab(t.id)} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left ${tab === t.id ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-200' : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
+            <button type="button" key={t.id} onClick={() => setTab(t.id)} className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left ${tab === t.id ? 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-200' : 'text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800'}`}>
               <t.icon className="w-5 h-5" />{t.label}
             </button>
           ))}

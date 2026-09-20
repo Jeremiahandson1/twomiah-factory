@@ -91,10 +91,10 @@ export default function DashboardPage() {
   ];
 
   const colorClasses: Record<string, string> = {
-    green: 'bg-green-50 text-green-600',
+    green: 'bg-green-50 text-green-700',
     blue: 'bg-blue-50 text-blue-600',
     purple: 'bg-purple-50 text-purple-600',
-    amber: 'bg-amber-50 text-amber-600',
+    amber: 'bg-amber-50 text-amber-700',
   };
 
   return (

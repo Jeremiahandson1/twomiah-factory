@@ -170,7 +170,7 @@ export default function VendorPortalPage() {
             {openPo.status === 'sent' && !declining && (
               <div className="flex gap-3">
                 <button onClick={() => act(`/pos/${openPo.id}/acknowledge`)} disabled={busy} style={{ backgroundColor: accent }} className="flex-1 px-4 py-2 text-white rounded-lg text-sm font-semibold disabled:opacity-50">Acknowledge</button>
-                <button onClick={() => setDeclining(true)} disabled={busy} className="flex-1 px-4 py-2 border rounded-lg text-sm text-red-600 hover:bg-red-50">Decline…</button>
+                <button onClick={() => setDeclining(true)} disabled={busy} className="flex-1 px-4 py-2 border rounded-lg text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">Decline…</button>
               </div>
             )}
             {declining && (

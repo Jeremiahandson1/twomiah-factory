@@ -268,7 +268,7 @@ export default function AppointmentsPage() {
                 <>
                   <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 text-sm">Complete</button>
                   <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">No-Show</button>
-                  <button onClick={() => setStatus(a, 'cancelled')} className="px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-sm">Cancel</button>
+                  <button onClick={() => setStatus(a, 'cancelled')} className="px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-sm">Cancel</button>
                 </>
               )}
             </div>

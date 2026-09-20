@@ -279,7 +279,7 @@ export default function InventoryPage() {
               )}
               <div className="p-4 flex-1 flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">
                     <Tag className="w-3 h-3" /> {categoryLabel(u.category)}
                   </span>
                   {u.status && (

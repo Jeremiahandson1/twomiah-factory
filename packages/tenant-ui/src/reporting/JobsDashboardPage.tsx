@@ -22,11 +22,11 @@ interface Activity {
 
 const COLORS: Record<string, string> = {
   blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300',
-  green: 'bg-green-50 text-green-600 dark:bg-green-900/40 dark:text-green-300',
+  green: 'bg-green-50 text-green-700 dark:bg-green-900/40 dark:text-green-300',
   purple: 'bg-purple-50 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300',
-  orange: 'bg-orange-50 text-orange-600 dark:bg-orange-900/40 dark:text-orange-300',
-  red: 'bg-red-50 text-red-600 dark:bg-red-900/40 dark:text-red-300',
-  emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300',
+  orange: 'bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
+  red: 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
 }
 const panel = 'bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800'
 const muted = 'text-gray-500 dark:text-slate-400'
@@ -87,7 +87,7 @@ export function JobsDashboardPage({ api, user, company, config }: JobsDashboardP
         <div className={`${panel} p-6`}>
           <h2 className="font-semibold text-gray-900 dark:text-slate-100 mb-4">Today's board</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {([['Scheduled', stats?.jobs?.today || 0, 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300'], ['Dispatched', stats?.jobs?.dispatchedToday || 0, 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-300'], ['In progress', stats?.jobs?.inProgressToday || 0, 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300'], ['Completed today', stats?.jobs?.completedToday || 0, 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-300']] as Array<[string, number, string]>).map(([label, value, cls]) => (
+            {([['Scheduled', stats?.jobs?.today || 0, 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300'], ['Dispatched', stats?.jobs?.dispatchedToday || 0, 'bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'], ['In progress', stats?.jobs?.inProgressToday || 0, 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300'], ['Completed today', stats?.jobs?.completedToday || 0, 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300']] as Array<[string, number, string]>).map(([label, value, cls]) => (
               <div key={label} className={`text-center p-3 rounded-lg ${cls}`}>
                 <p className="text-2xl font-bold">{value}</p>
                 <p className="text-sm text-gray-600 dark:text-slate-300">{label}</p>

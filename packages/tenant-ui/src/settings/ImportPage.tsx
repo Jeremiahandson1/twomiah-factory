@@ -137,12 +137,12 @@ export function ImportPage({ api, config }: { api: SettingsApi; config?: ImportC
           <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Import Results</h2>
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="text-center p-4 bg-gray-50 rounded-lg dark:bg-slate-800"><p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{results.total}</p><p className="text-sm text-gray-500 dark:text-slate-400">Total Rows</p></div>
-            <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-3xl font-bold text-green-600">{results.imported}</p><p className="text-sm text-gray-500 dark:text-slate-400">Imported</p></div>
-            <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"><p className="text-3xl font-bold text-yellow-600">{results.skipped}</p><p className="text-sm text-gray-500 dark:text-slate-400">Skipped</p></div>
+            <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg"><p className="text-3xl font-bold text-green-700 dark:text-green-400">{results.imported}</p><p className="text-sm text-gray-500 dark:text-slate-400">Imported</p></div>
+            <div className="text-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"><p className="text-3xl font-bold text-yellow-700 dark:text-yellow-400">{results.skipped}</p><p className="text-sm text-gray-500 dark:text-slate-400">Skipped</p></div>
           </div>
           {results.errors && results.errors.length > 0 && (
             <div><h3 className="font-medium text-gray-900 mb-2 dark:text-slate-100">Errors ({results.errors.length})</h3>
-              <div className="max-h-40 overflow-y-auto space-y-1">{results.errors.map((err, i) => <div key={i} className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded">Row {err.row}: {err.error}</div>)}</div></div>
+              <div className="max-h-40 overflow-y-auto space-y-1">{results.errors.map((err, i) => <div key={i} className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded">Row {err.row}: {err.error}</div>)}</div></div>
           )}
           <div className="mt-6 flex gap-3">
             <button onClick={reset} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900 dark:border-slate-700 dark:text-slate-100 dark:hover:bg-slate-800">Import More</button>

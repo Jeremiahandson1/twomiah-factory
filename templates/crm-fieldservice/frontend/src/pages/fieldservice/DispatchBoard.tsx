@@ -131,7 +131,7 @@ export default function DispatchBoard() {
           {!isToday && (
             <button
               onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-              className="px-3 py-2 text-sm text-orange-600 hover:bg-orange-50 rounded-lg"
+              className="px-3 py-2 text-sm text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg"
             >
               Today
             </button>

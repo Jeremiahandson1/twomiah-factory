@@ -11,10 +11,10 @@ import { useToast } from '../../contexts/ToastContext'
 
 const OUTCOME_CONFIG: Record<string, { label: string; emoji: string; color: string; bgColor: string }> = {
   no_answer: { label: 'No Answer', emoji: '🚪', color: 'text-gray-600', bgColor: 'bg-gray-100 border-gray-300' },
-  not_interested: { label: 'Not Interested', emoji: '👋', color: 'text-red-600', bgColor: 'bg-red-50 border-red-300' },
-  interested: { label: 'Interested', emoji: '⭐', color: 'text-yellow-600', bgColor: 'bg-yellow-50 border-yellow-300' },
-  appointment_set: { label: 'Appointment Set', emoji: '📅', color: 'text-green-600', bgColor: 'bg-green-50 border-green-300' },
-  already_has_contractor: { label: 'Has Contractor', emoji: '🔨', color: 'text-orange-600', bgColor: 'bg-orange-50 border-orange-300' },
+  not_interested: { label: 'Not Interested', emoji: '👋', color: 'text-red-700', bgColor: 'bg-red-50 border-red-300' },
+  interested: { label: 'Interested', emoji: '⭐', color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-300' },
+  appointment_set: { label: 'Appointment Set', emoji: '📅', color: 'text-green-700', bgColor: 'bg-green-50 border-green-300' },
+  already_has_contractor: { label: 'Has Contractor', emoji: '🔨', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-300' },
   vacant: { label: 'Vacant', emoji: '🏚️', color: 'text-gray-500', bgColor: 'bg-gray-50 border-gray-300' },
 }
 
@@ -583,7 +583,7 @@ export default function CanvassingView() {
           )}
         </div>
         <button onClick={() => setShowEndConfirm(true)}
-          className="text-xs font-semibold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg active:bg-red-100">
+          className="text-xs font-semibold text-red-700 bg-red-50 px-3 py-1.5 rounded-lg active:bg-red-100">
           End Session
         </button>
       </div>

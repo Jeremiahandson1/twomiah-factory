@@ -449,7 +449,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
                             </button>
                             <button
                               onClick={() => handleDeny(claim.id)}
-                              className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded-lg"
+                              className="px-3 py-1 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg"
                             >
                               Deny
                             </button>
