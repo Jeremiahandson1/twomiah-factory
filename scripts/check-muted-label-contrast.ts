@@ -35,6 +35,15 @@ const ICON = /\bw-\d+(\.\d+)?\s+h-\d+(\.\d+)?\b/
 /** an icon button: padding plus a hover colour, and no text of its own */
 const ICON_BUTTON = /(^|\s)p[xy]?-[\d.]+(\s|$)/
 const HOVER = /hover:text-/
+// …but that escape is too generous on its own, and it hid seven labels from the first sweep: a button
+// with padding and a hover colour is still TEXT if it sizes text. `text-xs …>Edit</button>` and
+// `text-sm …>+ Add Step</button>` both slipped through until the deployed bundle was checked. A
+// text-size class beside the colour is the tell — a glyph does not need one.
+const TEXT_SIZE = /\btext-(xs|sm|base|lg|xl|2xl|3xl)\b/
+// The one place the tell lies: the roof customer portal is a permanently dark UI (bg-gray-900 shell,
+// bg-gray-800 panels — no theme toggle), where gray-400 measures 5.78:1 and 6.99:1. It is correct
+// there, and "fixing" it to gray-500 would drop it to 3.04:1. That is a regression, not a fix.
+const PERMANENTLY_DARK = /^templates\/crm-roof\/frontend\/src\/pages\/portal\//
 /** 3.69:1 on a dark card — never the dark half of a pair */
 const DARK_FAILING = /\bdark:text-gray-500\b/
 
@@ -77,9 +86,10 @@ for (const f of files) {
     // a template literal is split on its interpolations, because the halves are separate class lists
     for (const seg of (m[1] ?? m[2] ?? '').split(/\$\{[^}]*\}|'|`/)) {
       if (DARK_FAILING.test(seg)) failingDark.push(`${rel}: ${seg.trim().slice(0, 70)}`)
-      const isIcon = ICON.test(seg) || (ICON_BUTTON.test(seg) && HOVER.test(seg))
+      // a glyph, or a control that only holds one — unless it sizes text, in which case it has text
+      const isIcon = !TEXT_SIZE.test(seg) && (ICON.test(seg) || (ICON_BUTTON.test(seg) && HOVER.test(seg)))
       if (BARE_400.test(seg)) {
-        if (isIcon) { icons++; continue }
+        if (isIcon || PERMANENTLY_DARK.test(rel)) { icons++; continue }
         onFailingLight.push(`${rel}: ${seg.trim().slice(0, 70)}`)
       }
       if (BARE_500.test(seg)) {

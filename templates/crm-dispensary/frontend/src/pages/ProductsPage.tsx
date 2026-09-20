@@ -453,7 +453,7 @@ export default function ProductsPage() {
               {formData.imageUrl ? (
                 <img src={formData.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-700" />
               ) : (
-                <div className="w-16 h-16 rounded-lg border border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs dark:border-slate-700">No image</div>
+                <div className="w-16 h-16 rounded-lg border border-dashed border-gray-300 flex items-center justify-center text-gray-500 dark:text-slate-400 text-xs dark:border-slate-700">No image</div>
               )}
               <label className={`px-3 py-2 rounded-lg font-medium cursor-pointer text-sm ${uploadingImage ? 'bg-gray-100 text-gray-400 pointer-events-none' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
                 {uploadingImage ? 'Uploading…' : (formData.imageUrl ? 'Replace' : 'Upload image')}

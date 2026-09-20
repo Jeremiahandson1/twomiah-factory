@@ -153,7 +153,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     </div>
                   ))}
                   {cfg.events ? (
-                    <button type="button" onClick={() => setNewFor(day)} className="w-full text-xs text-gray-400 hover:text-orange-500 py-1">+ Add</button>
+                    <button type="button" onClick={() => setNewFor(day)} className="w-full text-xs text-gray-500 dark:text-slate-400 hover:text-orange-500 py-1">+ Add</button>
                   ) : (
                     cfg.dragDrop && jobsFor(day).length === 0 && bookingsFor(day).length === 0 && <p className="text-[11px] text-gray-300 dark:text-slate-400 text-center pt-4 select-none">Drop a {cfg.jobLabel.toLowerCase()} here</p>
                   )}
