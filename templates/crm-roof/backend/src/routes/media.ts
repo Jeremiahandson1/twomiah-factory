@@ -16,6 +16,19 @@ const SAFE_INLINE_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
 ])
 
+/**
+ * Documents this server generated itself, from the tenant's own records — the Xactimate scope and its
+ * CSV. They were being relabelled application/octet-stream like everything else, so the scope PDF
+ * downloaded instead of previewing and the CSV arrived with no type at all.
+ *
+ * The relabelling is not paranoia to be removed: serving an arbitrary UPLOADED pdf inline from the
+ * tenant's own origin is a real vector, because a crafted PDF can script in that origin. So the
+ * distinction drawn here is provenance, not file type — these keys are written by
+ * services/xactimate.ts and can hold nothing a user supplied.
+ */
+const GENERATED_DOCUMENT = /^insurance\/[^/]+\/[^/]+\/xactimate-(scope\.pdf|export\.csv)$/
+const GENERATED_TYPES = new Set(['application/pdf', 'text/csv'])
+
 const media = new Hono()
 
 media.get('/*', async (c) => {
@@ -26,10 +39,14 @@ media.get('/*', async (c) => {
   const obj = await getObject(key)
   if (!obj) return c.json({ error: 'Not found' }, 404)
 
-  const safe = SAFE_INLINE_TYPES.has(obj.contentType)
+  const isImage = SAFE_INLINE_TYPES.has(obj.contentType)
+  const isGenerated = GENERATED_DOCUMENT.test(key) && GENERATED_TYPES.has(obj.contentType)
+  const safe = isImage || isGenerated
   c.header('Content-Type', safe ? obj.contentType : 'application/octet-stream')
   c.header('X-Content-Type-Options', 'nosniff')
-  if (!safe) c.header('Content-Disposition', 'attachment')
+  // a CSV is still handed over as a file — nothing previews one, and inline text/csv is where
+  // spreadsheet-formula injection gets interesting
+  if (!safe || obj.contentType === 'text/csv') c.header('Content-Disposition', 'attachment')
   c.header('Cache-Control', 'public, max-age=31536000, immutable')
   return c.body(obj.body)
 })

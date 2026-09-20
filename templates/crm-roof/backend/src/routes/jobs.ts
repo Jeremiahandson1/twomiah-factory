@@ -454,6 +454,10 @@ app.get('/:id/timeline', async (c) => {
       url: p.url,
       caption: p.caption,
       photoType: p.photoType,
+      // N2: note and status_change each carry a `body` that the timeline renders; photo events
+      // carried none, so on a job with fifteen entries thirteen of them were a date and nothing
+      // else. An event on a timeline has to say what happened.
+      body: `Photo added${p.photoType && p.photoType !== 'general' ? ` — ${p.photoType}` : ''}${p.caption ? `: ${p.caption}` : ''}`,
       createdAt: p.createdAt,
     })
   }

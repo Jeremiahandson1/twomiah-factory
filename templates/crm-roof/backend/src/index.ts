@@ -14,6 +14,7 @@ import { company, roofReport, user } from '../db/schema.ts'
 import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient } from './shared/index.ts'
 import logger from './services/logger.ts'
 import { authenticate } from './middleware/auth.ts'
+import { requireEnabledFeature } from './middleware/enabledFeature.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -165,6 +166,41 @@ app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/company', companyRoutes)
 app.route('/api/contacts', contactsRoutes)
 app.route('/api/jobs', jobsRoutes)
+/**
+ * M7: a feature switch that only hides the nav is not a switch.
+ *
+ * Switching lead_inbox off in Settings hid the menu and left /api/leads answering exactly as before,
+ * so the data was still served to a tenant who is not paying for it and an unsubscribed module stayed
+ * fully usable to anyone who kept a URL. `requireEnabledFeature` is the same gate the other eight
+ * templates use; roof was the one that never wired it in.
+ *
+ * Only OPTIONAL modules are gated. contacts, jobs, quotes, invoices, dashboard, reports, settings,
+ * users, company, auth, media, import and onboarding are the product itself — gating those would lock
+ * a tenant out of their own CRM the moment a flag went missing.
+ *
+ * Both the bare path and the wildcard are needed: '/api/leads' does not match '/api/leads/*'.
+ */
+for (const [path, feature] of [
+  ['/api/leads', 'lead_inbox'],
+  ['/api/insurance', 'insurance_workflow'],
+  ['/api/crews', 'crews'],
+  ['/api/materials', 'materials'],
+  ['/api/canvassing', 'canvassing_tool'],
+  ['/api/storms', 'storm_lead_gen'],
+  ['/api/storm-radar', 'storm_radar_overlay'],
+  ['/api/measurements', 'measurement_reports'],
+  ['/api/roof-reports', 'measurement_reports'],
+  ['/api/financing', 'consumer_financing'],
+  ['/api/reviews', 'google_reviews'],
+  ['/api/ai-receptionist', 'ai_receptionist'],
+  ['/api/calltracking', 'call_tracking'],
+  ['/api/quickbooks', 'quickbooks'],
+  ['/api/sms', 'two_way_texting'],
+] as Array<[string, string]>) {
+  app.use(path, authenticate, requireEnabledFeature(feature))
+  app.use(`${path}/*`, authenticate, requireEnabledFeature(feature))
+}
+
 app.route('/api/crews', crewsRoutes)
 app.route('/api/measurements', measurementsRoutes)
 app.route('/api/materials', materialsRoutes)

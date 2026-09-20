@@ -191,5 +191,38 @@ if (statuses.length < 5) fail('could not read JOB_STATUSES — this guard is not
   if (!/err\.name === 'QuoteTooLargeError'/.test(idx)) fail('…and index.ts must answer 400, not the driver\'s 500')
 }
 
+// ── M7: a feature switch has to switch the API off too ────────────────────────────────────────────
+{
+  const idx = read(B + 'index.ts')
+  if (!/import \{ requireEnabledFeature \} from '\.\/middleware\/enabledFeature\.ts'/.test(idx))
+    fail('switching a feature off hid the nav and left the API serving — roof was the only template that never wired in the shared gate (M7)')
+  const gated = [...idx.matchAll(/\['(\/api\/[a-z-]+)', '([a-z_]+)'\]/g)].map((m) => m[1])
+  if (gated.length < 12) fail(`only ${gated.length} optional modules are gated — the list has shrunk`)
+  if (!gated.includes('/api/leads')) fail('…lead_inbox is the one the tester proved; it must stay gated')
+  // and the gate must never reach the product itself
+  for (const core of ['/api/contacts', '/api/jobs', '/api/quotes', '/api/invoices', '/api/settings', '/api/users', '/api/company', '/api/auth']) {
+    if (gated.includes(core)) fail(`${core} must NOT be feature-gated — a missing flag would lock a tenant out of their own CRM, which is worse than the bug being fixed`)
+  }
+  if (!/app\.use\(`\$\{path\}\/\*`, authenticate, requireEnabledFeature\(feature\)\)/.test(idx))
+    fail("…both the bare path and the wildcard must be registered: '/api/leads' does not match '/api/leads/*'")
+}
+
+// ── N2: an event on a timeline says what happened ─────────────────────────────────────────────────
+{
+  const jobs = read(B + 'routes/jobs.ts')
+  if (!/body: `Photo added\$\{/.test(jobs))
+    fail('photo events carried no text, so a job timeline rendered thirteen bare dates out of fifteen (N2)')
+}
+
+// ── the generated scope keeps its own content type ────────────────────────────────────────────────
+{
+  const media = read(B + 'routes/media.ts')
+  if (!/const GENERATED_DOCUMENT = /.test(media))
+    fail('the Xactimate scope and CSV were relabelled application/octet-stream, so the PDF downloaded instead of previewing')
+  if (!/GENERATED_DOCUMENT\.test\(key\) && GENERATED_TYPES\.has\(obj\.contentType\)/.test(media))
+    fail('…and the exemption must be by PROVENANCE — a key this server wrote — not by file type, because an uploaded PDF served inline from the tenant origin is a real vector')
+  if (!/SAFE_INLINE_TYPES/.test(media)) fail('…the image allow-list must stay')
+}
+
 if (failed) { console.error(`\nroof validation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`roof validation: the pipeline (${statuses.length} statuses), contact details, door-knock outcomes and material money all mean what the product means`)
