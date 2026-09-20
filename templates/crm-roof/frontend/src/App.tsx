@@ -1,3 +1,4 @@
+import NotFoundPage from './pages/NotFoundPage'
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
@@ -154,7 +155,9 @@ export default function App() {
                 <Route path="paywall" element={<PaywallPage />} />
               </Route>
             </Route>
-            <Route path="*" element={<Navigate to="/" />} />
+            {/* L4: this used to Navigate to "/", which for a signed-out visitor lands on the login
+                screen — a typo or stale bookmark read as an unexpected sign-out. */}
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </ToastProvider>
       </AuthProvider>

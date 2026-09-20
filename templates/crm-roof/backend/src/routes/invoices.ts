@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { invoice, contact, job } from '../../db/schema.ts'
+import { invoice, contact, job, company } from '../../db/schema.ts'
 import { eq, and, ne, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -289,6 +289,143 @@ app.post('/:id/payment', async (c) => {
   })
 
   return c.json(outcome.body, outcome.status as any)
+})
+
+/**
+ * Invoice PDF.
+ *
+ * The frontend API client has always exposed `invoices.downloadPdf()` pointing at this path, and
+ * quotes have had a PDF since the module was built — this was the half that was never written, so the
+ * link 404'd. (roof T17 L11)
+ *
+ * Built on the same pdfkit layout as the quote PDF so the two documents look like they come from the
+ * same company. The one difference is what an invoice is FOR: it carries what has been paid and what
+ * is still owed, which a quote has no concept of.
+ */
+app.get('/:id/pdf', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [foundInvoice] = await db.select().from(invoice)
+    .where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!foundInvoice) return c.json({ error: 'Invoice not found' }, 404)
+
+  const [[invoiceContact], [foundCompany]] = await Promise.all([
+    foundInvoice.contactId ? db.select().from(contact).where(eq(contact.id, foundInvoice.contactId)).limit(1) : Promise.resolve([null]),
+    db.select().from(company).where(eq(company.id, currentUser.companyId)),
+  ])
+
+  const PDFDocument = (await import('pdfkit')).default
+  const doc = new PDFDocument({ margin: 50 })
+  const chunks: Buffer[] = []
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk))
+  const pdfReady = new Promise<Buffer>((resolve) => { doc.on('end', () => resolve(Buffer.concat(chunks))) })
+
+  const money = (n: unknown) => `$${Number(n || 0).toFixed(2)}`
+
+  // Header
+  doc.fontSize(20).text(foundCompany?.name || 'Company', { align: 'center' })
+  doc.moveDown(0.5)
+  doc.fontSize(14).text(`Invoice ${foundInvoice.invoiceNumber}`, { align: 'center' })
+  doc.moveDown()
+
+  if (foundCompany) {
+    doc.fontSize(10)
+    if (foundCompany.address) doc.text(foundCompany.address)
+    const cityLine = [foundCompany.city, foundCompany.state, foundCompany.zip].filter(Boolean).join(', ')
+    if (cityLine) doc.text(cityLine)
+    if (foundCompany.phone) doc.text(`Phone: ${foundCompany.phone}`)
+    if (foundCompany.email) doc.text(`Email: ${foundCompany.email}`)
+  }
+  doc.moveDown()
+
+  if (invoiceContact) {
+    doc.fontSize(12).text('Bill To:', { underline: true })
+    doc.fontSize(10)
+    doc.text(`${invoiceContact.firstName} ${invoiceContact.lastName}`)
+    if (invoiceContact.email) doc.text(invoiceContact.email)
+    if (invoiceContact.phone) doc.text(invoiceContact.phone)
+    if (invoiceContact.address) doc.text(invoiceContact.address)
+    const custCity = [invoiceContact.city, invoiceContact.state, invoiceContact.zip].filter(Boolean).join(', ')
+    if (custCity) doc.text(custCity)
+  }
+  doc.moveDown(0.5)
+  if (foundInvoice.dueDate) {
+    doc.fontSize(10).text(`Due: ${new Date(foundInvoice.dueDate as any).toLocaleDateString()}`)
+  }
+  doc.moveDown()
+
+  // Line items
+  const lineItems = Array.isArray(foundInvoice.lineItems) ? (foundInvoice.lineItems as any[]) : []
+  doc.fontSize(12).text('Line Items:', { underline: true })
+  doc.moveDown(0.5)
+
+  const tableTop = doc.y
+  doc.fontSize(9).font('Helvetica-Bold')
+  doc.text('Description', 50, tableTop, { width: 250 })
+  doc.text('Qty', 310, tableTop, { width: 50, align: 'right' })
+  doc.text('Unit Price', 370, tableTop, { width: 80, align: 'right' })
+  doc.text('Total', 460, tableTop, { width: 80, align: 'right' })
+  doc.moveTo(50, tableTop + 15).lineTo(540, tableTop + 15).stroke()
+  doc.font('Helvetica')
+
+  let y = tableTop + 20
+  for (const item of lineItems) {
+    const qty = Number(item.quantity ?? item.qty ?? 0)
+    const unitPrice = Number(item.unitPrice ?? item.unitCost ?? 0)
+    doc.fontSize(9)
+    doc.text(String(item.description ?? ''), 50, y, { width: 250 })
+    doc.text(String(qty), 310, y, { width: 50, align: 'right' })
+    doc.text(money(unitPrice), 370, y, { width: 80, align: 'right' })
+    doc.text(money(item.total ?? qty * unitPrice), 460, y, { width: 80, align: 'right' })
+    y += 18
+  }
+
+  doc.moveTo(350, y + 5).lineTo(540, y + 5).stroke()
+  y += 12
+
+  doc.fontSize(10)
+  doc.text('Subtotal:', 370, y, { width: 80, align: 'right' })
+  doc.text(money(foundInvoice.subtotal), 460, y, { width: 80, align: 'right' })
+  y += 18
+  doc.text('Tax:', 370, y, { width: 80, align: 'right' })
+  doc.text(money(foundInvoice.taxAmount), 460, y, { width: 80, align: 'right' })
+  y += 18
+
+  doc.font('Helvetica-Bold')
+  doc.text('Total:', 370, y, { width: 80, align: 'right' })
+  doc.text(money(foundInvoice.total), 460, y, { width: 80, align: 'right' })
+  y += 18
+
+  // What an invoice has and a quote does not: what has been paid, and what is left.
+  const paid = Number(foundInvoice.amountPaid || 0)
+  // `balance` is a stored column that the payment and mark-paid routes maintain, so it is the figure
+  // the rest of the product reports. Fall back to total − paid only if it was never set.
+  const balance = foundInvoice.balance != null
+    ? Math.max(0, Number(foundInvoice.balance))
+    : Math.max(0, Number(foundInvoice.total || 0) - paid)
+  doc.font('Helvetica')
+  doc.text('Paid:', 370, y, { width: 80, align: 'right' })
+  doc.text(`-${money(paid)}`, 460, y, { width: 80, align: 'right' })
+  y += 18
+  doc.font('Helvetica-Bold')
+  doc.text(balance > 0 ? 'Balance Due:' : 'Paid in Full', 370, y, { width: 80, align: 'right' })
+  doc.text(money(balance), 460, y, { width: 80, align: 'right' })
+
+  // No Notes section: the invoice table has no `notes` column. POST / accepts `notes` in its schema
+  // and writes it anyway, so it is silently discarded — a separate, pre-existing defect that needs a
+  // migration to fix properly, and not something to paper over by printing a field that is never there.
+
+  doc.end()
+  const pdfBuffer = await pdfReady
+
+  return new Response(pdfBuffer, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="invoice-${foundInvoice.invoiceNumber}.pdf"`,
+    },
+  })
 })
 
 export default app

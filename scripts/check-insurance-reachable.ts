@@ -27,16 +27,17 @@ const FE = 'templates/crm-roof/frontend/src'
  *
  * Two of these were found by this guard rather than by a tester, which is the point of writing it.
  */
-const NO_UI_YET: Record<string, string> = {
-  'post /supplements/:id/approve':
-    'DECISION PENDING (roof T17 H1): approving double-counts the most recent approval, and the API is the only way to reach that code. The tester asked whether the endpoint should exist at all — the user\'s call, so it is not wired up on a guess.',
-  'post /supplements/:id/deny':
-    'DECISION PENDING: the other half of the approve pair; same question.',
-  'put /supplements/:id':
-    'FOUND BY THIS GUARD, not yet decided: a supplement can be created and submitted but never edited before submission. No tester has reported it.',
-  'put /adjusters/:id':
-    'FOUND BY THIS GUARD, not yet decided: the adjuster directory can create but not edit; the page has no Edit control at all.',
-}
+/**
+ * Endpoints deliberately left without a caller — deliberately EMPTY.
+ *
+ * It held four: approve and deny (the tester asked whether they should exist at all), and the two
+ * edit routes this guard itself found. All four are now wired into the product — approve/deny behind
+ * a manager check on the claim page, edit on a draft supplement, and an Edit control in the adjuster
+ * directory — so every insurance endpoint must have a caller and this list stays empty.
+ *
+ * Adding something back means writing down why, and it should be temporary.
+ */
+const NO_UI_YET: Record<string, string> = {}
 
 const routes = readFileSync(ROOT + ROUTES, 'utf8')
 if (!routes) fail(`${ROUTES} is missing`)

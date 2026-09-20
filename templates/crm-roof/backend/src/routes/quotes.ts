@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { quote, contact, job, company } from '../../db/schema.ts'
+import { quote, contact, job, company, financingApplication } from '../../db/schema.ts'
 import { eq, and, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -177,6 +177,43 @@ app.get('/:id', requirePermission('quotes:read'), async (c) => {
     : [null]
 
   return c.json({ ...foundQuote, contact: quoteContact || null })
+})
+
+/**
+ * Delete a quote that never left the building.
+ *
+ * A quote that has been SENT is a record of what the customer was told, and an approved or declined
+ * one is their answer — the same reason `PUT` above refuses to edit those. So delete is for a draft
+ * raised by mistake, and anything else is refused with a pointer to decline, which is the operation
+ * that actually exists for a quote that is no longer wanted.
+ *
+ * A financing application can reference a quote; a draft cannot have one (financing is offered after
+ * a quote goes out), but it is checked rather than assumed. (roof T17 L10)
+ */
+app.delete('/:id', requirePermission('quotes:delete'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [existing] = await db.select().from(quote)
+    .where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!existing) return c.json({ error: 'Quote not found' }, 404)
+
+  if (existing.status !== 'draft') {
+    return c.json({
+      error: `This quote is ${existing.status}, so it is part of the record and cannot be deleted. Mark it declined instead — that closes it and keeps the history.`,
+      status: existing.status,
+    }, 409)
+  }
+
+  const [{ n } = { n: 0 }] = await db.select({ n: count() }).from(financingApplication)
+    .where(and(eq(financingApplication.quoteId, id), eq(financingApplication.companyId, currentUser.companyId)))
+  if (Number(n) > 0) {
+    return c.json({ error: `A financing application references this quote, so it cannot be deleted.`, financingApplications: Number(n) }, 409)
+  }
+
+  await db.delete(quote).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId)))
+  return c.body(null, 204)
 })
 
 // Update quote

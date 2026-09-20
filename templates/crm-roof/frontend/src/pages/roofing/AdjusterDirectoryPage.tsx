@@ -10,8 +10,12 @@ export default function AdjusterDirectoryPage() {
   const [adjusters, setAdjusters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', phone: '', email: '', adjusterCompany: '', insuranceCarrier: '', territory: '', notes: '' });
+  const EMPTY = { name: '', phone: '', email: '', adjusterCompany: '', insuranceCarrier: '', territory: '', notes: '' };
+  const [form, setForm] = useState(EMPTY);
   const [submitting, setSubmitting] = useState(false);
+  // PUT /api/insurance/adjusters/:id has always existed; the page had no Edit control, so a mistyped
+  // carrier or a moved phone number could only be fixed by adding a second row. (roof T17)
+  const [editId, setEditId] = useState<string | null>(null);
 
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
@@ -28,25 +32,40 @@ export default function AdjusterDirectoryPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const addAdjuster = async () => {
+  const openAdd = () => { setEditId(null); setForm(EMPTY); setAddOpen(true); };
+  const openEdit = (adj: any) => {
+    setEditId(adj.id);
+    setForm({
+      name: adj.name || '', phone: adj.phone || '', email: adj.email || '',
+      adjusterCompany: adj.adjusterCompany || adj.company_name || '',
+      insuranceCarrier: adj.insuranceCarrier || '', territory: adj.territory || '', notes: adj.notes || '',
+    });
+    setAddOpen(true);
+  };
+
+  const saveAdjuster = async () => {
     if (!form.name.trim() || !form.insuranceCarrier.trim()) {
       toast.error('Name and carrier required');
       return;
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/insurance/adjusters', {
-        method: 'POST',
+      const res = await fetch(editId ? `/api/insurance/adjusters/${editId}` : '/api/insurance/adjusters', {
+        method: editId ? 'PUT' : 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const detail = await res.json().catch(() => null);
+        throw new Error(detail?.error || '');
+      }
       setAddOpen(false);
-      setForm({ name: '', phone: '', email: '', adjusterCompany: '', insuranceCarrier: '', territory: '', notes: '' });
+      setEditId(null);
+      setForm(EMPTY);
       load();
-      toast.success('Adjuster added');
-    } catch {
-      toast.error('Failed to add adjuster');
+      toast.success(editId ? 'Adjuster updated' : 'Adjuster added');
+    } catch (e: any) {
+      toast.error(e?.message || (editId ? 'Failed to update adjuster' : 'Failed to add adjuster'));
     } finally {
       setSubmitting(false);
     }
@@ -60,7 +79,7 @@ export default function AdjusterDirectoryPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Adjuster Directory</h1>
             <p className="text-sm text-gray-500 mt-0.5 dark:text-slate-400">{adjusters.length} adjusters</p>
           </div>
-          <button onClick={() => setAddOpen(true)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+          <button onClick={openAdd} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
             <Plus className="w-4 h-4" /> Add Adjuster
           </button>
         </div>
@@ -77,13 +96,14 @@ export default function AdjusterDirectoryPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Phone</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Email</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400">Jobs Together</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 dark:text-slate-400"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-500 dark:text-slate-400">Loading...</td></tr>
                 ) : adjusters.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-12 text-gray-500 dark:text-slate-400">No adjusters in directory yet. They'll be added as you log insurance claims.</td></tr>
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-500 dark:text-slate-400">No adjusters in directory yet. They'll be added as you log insurance claims.</td></tr>
                 ) : (
                   adjusters.map((adj) => (
                     <tr key={adj.id} className="border-b last:border-0 hover:bg-gray-50">
@@ -110,6 +130,9 @@ export default function AdjusterDirectoryPage() {
                           {adj.jobsWorkedTogether || 0}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => openEdit(adj)} className="text-xs font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">Edit</button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -124,7 +147,7 @@ export default function AdjusterDirectoryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddOpen(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Add Adjuster</h2>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{editId ? 'Edit Adjuster' : 'Add Adjuster'}</h2>
               <button onClick={() => setAddOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
@@ -159,8 +182,8 @@ export default function AdjusterDirectoryPage() {
             </div>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setAddOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
-              <button onClick={addAdjuster} disabled={submitting} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                {submitting ? 'Adding...' : 'Add Adjuster'}
+              <button onClick={saveAdjuster} disabled={submitting} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {submitting ? 'Saving...' : editId ? 'Save Changes' : 'Add Adjuster'}
               </button>
             </div>
           </div>

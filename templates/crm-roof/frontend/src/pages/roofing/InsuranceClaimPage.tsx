@@ -67,9 +67,12 @@ const XACT_CODES = [
 
 export default function InsuranceClaimPage() {
   const { id: jobId } = useParams<{ id: string }>();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  // approve/deny are requireManager on the server. Offering the buttons to a field tech would hand
+  // them a 403 on a decision they cannot make. (roof T17)
+  const canDecide = ['manager', 'admin', 'owner'].includes(String((user as any)?.role || ''));
 
   const [claim, setClaim] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
@@ -284,6 +287,98 @@ export default function InsuranceClaimPage() {
       toast.success('Supplement submitted');
     } catch {
       toast.error('Failed to submit');
+    }
+  };
+
+  // ── editing a draft, and answering a submitted one ───────────────────────────────────────────────
+  // PUT /supplements/:id, POST .../approve and POST .../deny have all existed since the module was
+  // built. None of them had a control anywhere in the product, so a typo in a draft could not be
+  // corrected and a carrier's answer could not be recorded at all. (roof T17)
+  const [editSup, setEditSup] = useState<any>(null);
+  const [editReason, setEditReason] = useState('');
+  const [editItems, setEditItems] = useState<any[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [decideSup, setDecideSup] = useState<any>(null);
+  const [decideMode, setDecideMode] = useState<'approve' | 'deny'>('approve');
+  const [approvedAmount, setApprovedAmount] = useState('');
+  const [denialReason, setDenialReason] = useState('');
+  const [deciding, setDeciding] = useState(false);
+
+  const openEditSupplement = (sup: any) => {
+    setEditSup(sup);
+    setEditReason(sup.reason || '');
+    setEditItems((Array.isArray(sup.lineItems) ? sup.lineItems : []).map((li: any) => ({
+      code: li.code || '', description: li.description || '', unit: li.unit || 'EA',
+      qty: String(li.qty ?? li.quantity ?? 0), unitPrice: String(li.unitPrice ?? li.unitCost ?? 0),
+    })));
+  };
+
+  const saveSupplementEdit = async () => {
+    if (!editSup) return;
+    const lineItems = editItems
+      .filter((li) => li.description.trim())
+      .map((li) => ({ code: li.code || undefined, description: li.description, unit: li.unit || 'EA', qty: Number(li.qty), unitPrice: Number(li.unitPrice) }));
+    if (!lineItems.length) { toast.error('A supplement needs at least one line item'); return; }
+    if (lineItems.some((li) => !Number.isFinite(li.qty) || li.qty < 0 || !Number.isFinite(li.unitPrice) || li.unitPrice < 0)) {
+      toast.error('Quantity and price must be zero or more');
+      return;
+    }
+    setSavingEdit(true);
+    try {
+      // totalAmount is deliberately not sent — the server computes it from the line items.
+      const res = await fetch(`/api/insurance/supplements/${editSup.id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: editReason, lineItems }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
+      setEditSup(null);
+      load();
+      toast.success('Supplement updated');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to update supplement');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const openDecide = (sup: any, mode: 'approve' | 'deny') => {
+    setDecideSup(sup);
+    setDecideMode(mode);
+    setApprovedAmount(mode === 'approve' ? String(sup.totalAmount ?? '') : '');
+    setDenialReason('');
+  };
+
+  const decide = async () => {
+    if (!decideSup) return;
+    if (decideMode === 'approve') {
+      const n = Number(approvedAmount);
+      if (!Number.isFinite(n) || n < 0) { toast.error('Approved amount must be a number of 0 or more'); return; }
+    } else if (!denialReason.trim()) {
+      toast.error('A denial needs a reason — it is what the claim record shows later');
+      return;
+    }
+    setDeciding(true);
+    try {
+      // Spelled out per branch rather than interpolating the mode: check-insurance-reachable matches
+      // literal path segments, so `/${decideMode}` would read as nothing calling either endpoint.
+      const url = decideMode === 'approve'
+        ? `/api/insurance/supplements/${decideSup.id}/approve`
+        : `/api/insurance/supplements/${decideSup.id}/deny`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(decideMode === 'approve' ? { approvedAmount: String(Number(approvedAmount).toFixed(2)) } : { denialReason: denialReason.trim() }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
+      setDecideSup(null);
+      load();
+      toast.success(decideMode === 'approve' ? 'Supplement approved' : 'Supplement denied');
+    } catch (e: any) {
+      toast.error(e?.message || `Failed to ${decideMode} the supplement`);
+    } finally {
+      setDeciding(false);
     }
   };
 
@@ -753,9 +848,28 @@ export default function InsuranceClaimPage() {
                         <p className="text-xs text-red-700">Denied: {sup.denialReason}</p>
                       )}
                       {sup.status === 'draft' && (
-                        <button onClick={() => submitSupplement(sup.id)} className="mt-2 flex items-center gap-1 text-xs text-blue-600 font-medium hover:text-blue-800 dark:hover:text-blue-300">
-                          <Send className="w-3 h-3" /> Submit to Carrier
-                        </button>
+                        <div className="mt-2 flex items-center gap-4">
+                          <button onClick={() => submitSupplement(sup.id)} className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:text-blue-800 dark:hover:text-blue-300">
+                            <Send className="w-3 h-3" /> Submit to Carrier
+                          </button>
+                          <button onClick={() => openEditSupplement(sup)} className="flex items-center gap-1 text-xs text-gray-600 font-medium hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200">
+                            <Save className="w-3 h-3" /> Edit
+                          </button>
+                        </div>
+                      )}
+                      {sup.status === 'submitted' && (
+                        canDecide ? (
+                          <div className="mt-2 flex items-center gap-4">
+                            <button onClick={() => openDecide(sup, 'approve')} className="flex items-center gap-1 text-xs text-green-700 dark:text-green-400 font-medium hover:text-green-800 dark:hover:text-green-300">
+                              <CheckCircle className="w-3 h-3" /> Record Approval
+                            </button>
+                            <button onClick={() => openDecide(sup, 'deny')} className="flex items-center gap-1 text-xs text-red-700 dark:text-red-400 font-medium hover:text-red-800 dark:hover:text-red-300">
+                              <XCircle className="w-3 h-3" /> Record Denial
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Awaiting the carrier. A manager records their answer.</p>
+                        )
                       )}
                     </div>
                   ))}
@@ -899,6 +1013,92 @@ export default function InsuranceClaimPage() {
               <button onClick={() => setSupOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
               <button onClick={createSupplement} disabled={submittingSup} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submittingSup ? 'Creating...' : 'Save as Draft'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit a DRAFT supplement. The server refuses anything else, and recomputes the total from the
+          line items — this form never sends one. */}
+      {editSup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditSup(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">Edit {editSup.supplementNumber}</h2>
+              <button onClick={() => setEditSup(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+            </div>
+            <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Reason</label>
+            <textarea value={editReason} onChange={(e) => setEditReason(e.target.value)} rows={2} className="w-full text-sm border rounded-lg px-3 py-2 mb-4" placeholder="Why is this supplement needed?" />
+
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs text-gray-500 dark:text-slate-400">Line items</label>
+              <button onClick={() => setEditItems([...editItems, { code: '', description: '', unit: 'EA', qty: '1', unitPrice: '0' }])} className="text-xs font-medium text-blue-700 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">+ Add line</button>
+            </div>
+            <div className="space-y-2">
+              {editItems.map((li, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                  <input value={li.code} onChange={(e) => setEditItems(editItems.map((x, j) => j === i ? { ...x, code: e.target.value } : x))} placeholder="Code" className="col-span-2 text-sm border rounded-lg px-2 py-1.5 font-mono" />
+                  <input value={li.description} onChange={(e) => setEditItems(editItems.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} placeholder="Description" className="col-span-4 text-sm border rounded-lg px-2 py-1.5" />
+                  <input value={li.unit} onChange={(e) => setEditItems(editItems.map((x, j) => j === i ? { ...x, unit: e.target.value } : x))} placeholder="Unit" className="col-span-1 text-sm border rounded-lg px-2 py-1.5" />
+                  <input type="number" min="0" step="0.01" value={li.qty} onChange={(e) => setEditItems(editItems.map((x, j) => j === i ? { ...x, qty: e.target.value } : x))} placeholder="Qty" className="col-span-2 text-sm border rounded-lg px-2 py-1.5" />
+                  <input type="number" min="0" step="0.01" value={li.unitPrice} onChange={(e) => setEditItems(editItems.map((x, j) => j === i ? { ...x, unitPrice: e.target.value } : x))} placeholder="Unit price" className="col-span-2 text-sm border rounded-lg px-2 py-1.5" />
+                  <button onClick={() => setEditItems(editItems.filter((_, j) => j !== i))} aria-label="Remove line" className="col-span-1 text-gray-500 hover:text-red-700 dark:text-slate-400 dark:hover:text-red-400"><X className="w-4 h-4" /></button>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-sm text-gray-600 dark:text-slate-400">
+              Total <span className="font-bold text-gray-900 dark:text-slate-100">{fmt$(editItems.reduce((s, li) => s + (Number(li.qty) || 0) * (Number(li.unitPrice) || 0), 0).toFixed(2))}</span>
+              <span className="text-xs"> — calculated from the lines above; the server recomputes it on save.</span>
+            </p>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setEditSup(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button onClick={saveSupplementEdit} disabled={savingEdit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                {savingEdit ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record the carrier's answer on a SUBMITTED supplement. Manager and above — the server says so
+          too, so this is not the only thing standing between a field tech and the decision. */}
+      {decideSup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setDecideSup(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">
+                {decideMode === 'approve' ? 'Record approval' : 'Record denial'} — {decideSup.supplementNumber}
+              </h2>
+              <button onClick={() => setDecideSup(null)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-gray-600 mb-4 dark:text-slate-400">Requested {fmt$(decideSup.totalAmount)}</p>
+
+            {decideMode === 'approve' ? (
+              <div>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Amount the carrier approved *</label>
+                <input type="number" min="0" step="0.01" value={approvedAmount} onChange={(e) => setApprovedAmount(e.target.value)} className="w-full text-sm border rounded-lg px-3 py-2" />
+                <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                  A carrier often approves less than was asked. The claim&rsquo;s supplement total is the sum of what is approved, so this figure is the one that moves the money.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Reason given *</label>
+                <textarea value={denialReason} onChange={(e) => setDenialReason(e.target.value)} rows={3} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="What the carrier said" />
+                <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">Denying one that had been approved takes its amount back off the claim.</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setDecideSup(null)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg dark:text-slate-400">Cancel</button>
+              <button
+                onClick={decide}
+                disabled={deciding}
+                className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 ${decideMode === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}
+              >
+                {deciding ? 'Saving...' : decideMode === 'approve' ? 'Record Approval' : 'Record Denial'}
               </button>
             </div>
           </div>
