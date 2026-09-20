@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { company, contact } from '../../db/schema.ts'
+import { company, contact, measurementReport } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { geocodeAddress, getBuildingInsights, processRoofData } from '../services/googleSolar.ts'
 import logger from '../services/logger.ts'
@@ -61,12 +61,13 @@ app.post('/estimate/:slug', async (c) => {
     const priceHigh = roofData.totalSquares * Number(comp.pricePerSquareHigh)
 
     // Capture lead if contact info provided
+    let leadContactId: string | null = null
     if (data.name || data.email || data.phone) {
       const nameParts = (data.name || '').split(' ')
       const firstName = nameParts[0] || 'Website'
       const lastName = nameParts.slice(1).join(' ') || 'Lead'
       try {
-        await db.insert(contact).values({
+        const [created] = await db.insert(contact).values({
           companyId: comp.id,
           firstName,
           lastName,
@@ -78,10 +79,53 @@ app.post('/estimate/:slug', async (c) => {
           zip: data.zip,
           leadSource: 'instant_estimator',
           propertyType: 'residential',
-        })
+        }).returning()
+        leadContactId = created?.id ?? null
       } catch {
         // Duplicate or other insert error — not critical
       }
+    }
+
+    /**
+     * M8: the estimate was computed, returned to the visitor, and then thrown away.
+     *
+     * A lead arrived saying only "Website Lead, instant_estimator" — no squares, no price range, no
+     * measurement — so the rep who called them back had less information than the homeowner did. The
+     * roof was measured; the measurement is worth keeping.
+     *
+     * It is stored with jobId null, which the column allows, so it is already there to attach when the
+     * lead becomes a job. cost is 0.00 because the public estimator burns no measurement credit —
+     * that is verified separately and must stay true.
+     */
+    try {
+      await db.insert(measurementReport).values({
+        companyId: comp.id,
+        jobId: null,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zip: data.zip,
+        provider: 'google_solar',
+        status: 'complete',
+        totalSquares: String(roofData.totalSquares),
+        totalArea: String(roofData.totalAreaSqft),
+        segments: roofData.segments,
+        imageryQuality: roofData.imageryQuality,
+        center: geo.lat && geo.lng ? { lat: geo.lat, lng: geo.lng } : null,
+        cost: '0.00',
+        rawData: {
+          source: 'instant_estimator',
+          estimateLow: Math.round(priceLow),
+          estimateHigh: Math.round(priceHigh),
+          pricePerSquareLow: Number(comp.pricePerSquareLow),
+          pricePerSquareHigh: Number(comp.pricePerSquareHigh),
+          contactId: leadContactId,
+          servedAt: new Date().toISOString(),
+        },
+      } as any)
+    } catch (e: any) {
+      // the visitor still gets their estimate if this fails; it is a record, not the answer
+      logger.error('Could not record the instant estimate', { slug, message: e?.message })
     }
 
     logger.info('Instant estimate served', { slug, squares: roofData.totalSquares })

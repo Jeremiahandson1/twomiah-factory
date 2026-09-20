@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTheme } from '../../shared'
 import { TrialBanner } from '../trial/TrialBanner'
 import {
   LayoutDashboard,
@@ -14,6 +15,8 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Sun,
+  Moon,
   Menu,
   X,
   Shield,
@@ -68,6 +71,7 @@ const bottomNavItems = [
 
 export default function AppLayout() {
   const { user, company, logout, hasFeature } = useAuth()
+  const { setTheme, isDark } = useTheme()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const activeFieldItems = fieldNavItems.filter(item => !item.feature || hasFeature(item.feature))
@@ -122,6 +126,16 @@ export default function AppLayout() {
             </p>
             <p className="text-xs text-gray-500 dark:text-slate-400 capitalize">{user?.role || 'admin'}</p>
           </div>
+          {/* M4: dark mode shipped as 173 unreachable CSS rules because nothing offered the choice
+              and nothing set the class. The hook is the fleet's shared one. */}
+          <button
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition"
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           <button
             onClick={handleLogout}
             className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition"

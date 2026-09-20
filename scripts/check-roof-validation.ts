@@ -224,5 +224,34 @@ if (statuses.length < 5) fail('could not read JOB_STATUSES — this guard is not
   if (!/SAFE_INLINE_TYPES/.test(media)) fail('…the image allow-list must stay')
 }
 
+// ── M4: dark mode has to be reachable, or its CSS is decoration ───────────────────────────────────
+{
+  // comments stripped first: `// applyStoredTheme()` satisfies a naive match while doing nothing,
+  // which is exactly the state this check exists to detect
+  const main = read(F + 'main.tsx').replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
+  if (!/applyStoredTheme\(\)/.test(main))
+    fail('roof shipped 173 dark: rules and nothing ever put the `dark` class on <html> — every one of them was dead CSS (M4)')
+  if (!/import \{ applyStoredTheme \} from '\.\/shared'/.test(main))
+    fail('…using the fleet\'s shared hook rather than a private copy')
+  const layout = read(F + 'components/layout/AppLayout.tsx')
+  if (!/const \{ setTheme, isDark \} = useTheme\(\)/.test(layout))
+    fail('…and a person must be able to choose it')
+  if (!/aria-label=\{isDark \? 'Switch to light mode' : 'Switch to dark mode'\}/.test(layout))
+    fail('…from a control that says what it does')
+}
+
+// ── M8: a measurement that was taken is a measurement worth keeping ───────────────────────────────
+{
+  const est = read(B + 'routes/estimator.ts')
+  if (!/await db\.insert\(measurementReport\)\.values\(\{/.test(est))
+    fail('the instant estimator computed squares and a price range, returned them, and stored nothing — the lead arrived with less information than the homeowner had (M8)')
+  if (!/source: 'instant_estimator',\n\s*estimateLow:/.test(est))
+    fail('…the price range must be recorded with it')
+  if (!/cost: '0\.00'/.test(est))
+    fail('…at no measurement cost: the public estimator burns no credit, and that is verified separately')
+  if (!/jobId: null,/.test(est))
+    fail('…with no job yet, so it is already there to attach when the lead becomes one')
+}
+
 if (failed) { console.error(`\nroof validation: ${failed} check(s) FAILED`); process.exit(1) }
 console.log(`roof validation: the pipeline (${statuses.length} statuses), contact details, door-knock outcomes and material money all mean what the product means`)
