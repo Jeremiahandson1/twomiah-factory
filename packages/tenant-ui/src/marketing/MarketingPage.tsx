@@ -66,8 +66,8 @@ export function MarketingPage({ api, toast, config, showCampaigns = true }: { ap
 }
 
 function Stat({ icon: Icon, label, value, tone = 'gray' }: { icon: any; label: string; value: string | number; tone?: 'gray' | 'purple' | 'green' | 'blue' }) {
-  const cls: Record<string, string> = { gray: 'bg-gray-50 text-gray-600 dark:bg-slate-800 dark:text-slate-300', purple: 'bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-300', green: 'bg-green-50 text-green-600 dark:bg-green-950/40 dark:text-green-300', blue: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300' }
-  return <div className={`p-4 rounded-xl ${cls[tone]}`}><Icon className="w-5 h-5 mb-2" /><p className="text-2xl font-bold">{value}</p><p className="text-sm opacity-75">{label}</p></div>
+  const cls: Record<string, string> = { gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300', purple: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300', green: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300', blue: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' }
+  return <div className={`p-4 rounded-xl ${cls[tone]}`}><Icon className="w-5 h-5 mb-2" /><p className="text-2xl font-bold">{value}</p><p className="text-sm">{label}</p></div>
 }
 const ErrorBox = ({ msg }: { msg: string }) => (msg ? <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">{msg}</div> : null)
 const Spinner = () => <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>

@@ -73,7 +73,7 @@ export function TrialBanner() {
           <Icon className="w-5 h-5 flex-shrink-0" />
           <div>
             <p className="font-semibold">{copy}</p>
-            <p className="text-xs opacity-75">
+            <p className="text-xs">
               Upgrade now to keep uninterrupted access. Your data stays safe either way.
             </p>
           </div>

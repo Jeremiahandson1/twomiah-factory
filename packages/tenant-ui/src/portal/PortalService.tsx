@@ -219,8 +219,8 @@ export function PortalServiceRequest() {
         <div>
           <p className={labelCls}>How urgent is this?</p>
           <div className="grid grid-cols-2 gap-3">
-            <button type="button" onClick={() => setForm((f) => ({ ...f, urgency: 'routine' }))} className={choice(form.urgency === 'routine', 'blue')}><Wrench className="w-5 h-5 mx-auto mb-1" /><p className="font-semibold text-sm">Routine</p><p className="text-xs mt-0.5 opacity-70">Within a few days</p></button>
-            <button type="button" onClick={() => setForm((f) => ({ ...f, urgency: 'urgent' }))} className={choice(form.urgency === 'urgent', 'orange')}><AlertTriangle className="w-5 h-5 mx-auto mb-1" /><p className="font-semibold text-sm">Urgent</p><p className="text-xs mt-0.5 opacity-70">Need help today</p></button>
+            <button type="button" onClick={() => setForm((f) => ({ ...f, urgency: 'routine' }))} className={choice(form.urgency === 'routine', 'blue')}><Wrench className="w-5 h-5 mx-auto mb-1" /><p className="font-semibold text-sm">Routine</p><p className="text-xs mt-0.5">Within a few days</p></button>
+            <button type="button" onClick={() => setForm((f) => ({ ...f, urgency: 'urgent' }))} className={choice(form.urgency === 'urgent', 'orange')}><AlertTriangle className="w-5 h-5 mx-auto mb-1" /><p className="font-semibold text-sm">Urgent</p><p className="text-xs mt-0.5">Need help today</p></button>
           </div>
         </div>
         <div>

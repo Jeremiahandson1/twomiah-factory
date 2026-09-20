@@ -132,8 +132,8 @@ function SettingsTab({ api, toast, copy }: { api: SettingsApi; toast?: SettingsT
 }
 
 function StatCard({ label, value, icon: Icon, color = 'gray' }: { label: string; value: any; icon: any; color?: string }) {
-  const colors: Record<string, string> = { gray: 'bg-gray-50 text-gray-600 dark:bg-slate-800 dark:text-slate-300', blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400', yellow: 'bg-yellow-50 text-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-400', green: 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400' }
-  return <div className={`p-4 rounded-xl ${colors[color]}`}><Icon className="w-5 h-5 mb-2 opacity-75" /><p className="text-2xl font-bold">{value}</p><p className="text-sm opacity-75">{label}</p></div>
+  const colors: Record<string, string> = { gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300', blue: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400', yellow: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400', green: 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' }
+  return <div className={`p-4 rounded-xl ${colors[color]}`}><Icon className="w-5 h-5 mb-2 opacity-75" /><p className="text-2xl font-bold">{value}</p><p className="text-sm">{label}</p></div>
 }
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = { pending: 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300', sent: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', clicked: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }

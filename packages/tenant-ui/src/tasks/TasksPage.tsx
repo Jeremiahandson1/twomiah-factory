@@ -236,15 +236,15 @@ interface StatCardProps {
 function StatCard({ label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
     gray: 'bg-gray-50',
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    red: 'bg-red-50 text-red-600',
+    blue: 'bg-blue-50 text-blue-700',
+    green: 'bg-green-50 text-green-700',
+    red: 'bg-red-50 text-red-700',
   };
 
   return (
     <div className={`p-4 rounded-xl ${colors[color]}`}>
       <p className="text-2xl font-bold">{value}</p>
-      <p className="text-sm opacity-75">{label}</p>
+      <p className="text-sm">{label}</p>
     </div>
   );
 }

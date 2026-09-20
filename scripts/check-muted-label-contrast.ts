@@ -105,41 +105,16 @@ const onFailingLight: string[] = []
 const unpaired: string[] = []
 const failingDark: string[] = []
 /**
- * Dimmed-label BASELINE — the stat-card pattern, recorded rather than swept.
+ * Dimmed-label escape hatch — deliberately empty.
  *
- * These carry `text-sm opacity-75` on a tinted `bg-<hue>-50 text-<hue>-600` card, which is the same
- * fault as the invoice panel and lands in the same 2.4–3.6:1 band. They are recorded, not fixed,
- * because the salon report covered the invoice label and the teal links only — sweeping twenty-four
- * files across four other verticals is a separate, deliberate change.
- *
- * A file listed here may keep what it has; a dimmed label in ANY OTHER file fails the guard. Remove
- * a path from this list once its labels are fixed, so the baseline only ever shrinks.
+ * It briefly held the twenty-four stat-card labels this rule first surfaced. They are now fixed, so
+ * a dimmed label anywhere fails the guard outright. A path may be added back only as a temporary,
+ * explained exception; the list is meant to shrink, never grow.
  */
-const KNOWN_DIMMED = new Set([
-  'packages/tenant-ui/src/agreements/AgreementsPage.tsx',
-  'packages/tenant-ui/src/equipment/EquipmentPage.tsx',
-  'packages/tenant-ui/src/fleet/FleetPage.tsx',
-  'packages/tenant-ui/src/inventory/InventoryPage.tsx',
-  'packages/tenant-ui/src/marketing/MarketingPage.tsx',
-  'packages/tenant-ui/src/portal/PortalService.tsx',
-  'packages/tenant-ui/src/pricebook/PricebookPage.tsx',
-  'packages/tenant-ui/src/reviews/ReviewsPage.tsx',
-  'packages/tenant-ui/src/shell/TrialBanner.tsx',
-  'packages/tenant-ui/src/tasks/TasksPage.tsx',
-  'packages/tenant-ui/src/warranties/WarrantiesPage.tsx',
-  'templates/crm-fieldservice/frontend/src/pages/calltracking/CallTrackingPage.tsx',
-  'templates/crm-fieldservice/frontend/src/pages/fieldservice/DispatchBoard.tsx',
-  'templates/crm-fieldservice/frontend/src/pages/fieldservice/FlatRatePricebook.tsx',
-  'templates/crm-fieldservice/frontend/src/pages/fieldservice/MaintenanceContracts.tsx',
-  'templates/crm-fieldservice/frontend/src/pages/fieldservice/PartsInventory.tsx',
-  'templates/crm-landscaping/frontend/src/pages/calltracking/CallTrackingPage.tsx',
-  'templates/crm-landscaping/frontend/src/pages/fieldservice/DispatchBoard.tsx',
-  'templates/crm-landscaping/frontend/src/pages/fieldservice/FlatRatePricebook.tsx',
-  'templates/crm-landscaping/frontend/src/pages/fieldservice/MaintenanceContracts.tsx',
-  'templates/crm-landscaping/frontend/src/pages/fieldservice/PartsInventory.tsx',
-  'templates/crm-roof/frontend/src/components/trial/TrialBanner.tsx',
-  'templates/crm/frontend/src/pages/calltracking/CallTrackingPage.tsx',
-  'templates/crm/frontend/src/pages/selections/SelectionsPage.tsx',
+const KNOWN_DIMMED = new Set<string>([
+  // Empty, and it should stay that way. The twenty-four stat-card labels that were recorded here have
+  // been fixed: the tile text moved 600 → 700 (shade 600 failed on its own shade-50 tint even at full
+  // opacity, for red, cyan, green, orange and yellow) and the opacity utility was removed.
 ])
 const dimmedText: string[] = []
 let dimmedKnown = 0

@@ -120,18 +120,18 @@ export default function CallTrackingPage() {
 
 function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   const colors = {
-    gray: 'bg-gray-50 text-gray-600',
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    orange: 'bg-orange-50 text-orange-600',
-    purple: 'bg-purple-50 text-purple-600',
+    gray: 'bg-gray-50 text-gray-700',
+    blue: 'bg-blue-50 text-blue-700',
+    green: 'bg-green-50 text-green-700',
+    orange: 'bg-orange-50 text-orange-700',
+    purple: 'bg-purple-50 text-purple-700',
   };
 
   return (
     <div className={`p-4 rounded-xl ${colors[color]}`}>
       <Icon className="w-5 h-5 mb-2" />
       <p className="text-2xl font-bold">{value}</p>
-      <p className="text-sm opacity-75">{label}</p>
+      <p className="text-sm">{label}</p>
     </div>
   );
 }

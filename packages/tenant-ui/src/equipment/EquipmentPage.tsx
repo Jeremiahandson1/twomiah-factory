@@ -292,17 +292,17 @@ export default function EquipmentPage({ api, config }: EquipmentPageProps) {
 
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   const colors: Record<string, string> = {
-    gray: 'bg-gray-50 text-gray-600',
-    orange: 'bg-orange-50 text-orange-600',
-    yellow: 'bg-yellow-50 text-yellow-600',
-    red: 'bg-red-50 text-red-600',
+    gray: 'bg-gray-50 text-gray-700',
+    orange: 'bg-orange-50 text-orange-700',
+    yellow: 'bg-yellow-50 text-yellow-700',
+    red: 'bg-red-50 text-red-700',
   };
 
   return (
     <div className={`p-4 rounded-xl ${colors[color]}`}>
       <Icon className="w-5 h-5 mb-2" />
       <p className="text-2xl font-bold">{value}</p>
-      <p className="text-sm opacity-75">{label}</p>
+      <p className="text-sm">{label}</p>
     </div>
   );
 }

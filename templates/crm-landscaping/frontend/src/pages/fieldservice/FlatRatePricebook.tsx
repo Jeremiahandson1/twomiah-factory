@@ -246,16 +246,16 @@ export default function FlatRatePricebook() {
 
 function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   const colors = {
-    gray: 'bg-gray-50 text-gray-600 dark:bg-slate-800 dark:text-slate-300',
-    green: 'bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400',
-    blue: 'bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400',
+    gray: 'bg-gray-50 text-gray-700 dark:bg-slate-800 dark:text-slate-300',
+    green: 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400',
+    blue: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
   };
 
   return (
     <div className={`p-4 rounded-xl ${colors[color]}`}>
       <Icon className="w-5 h-5 mb-2" />
       <p className="text-2xl font-bold">{value}</p>
-      <p className="text-sm opacity-75">{label}</p>
+      <p className="text-sm">{label}</p>
     </div>
   );
 }
