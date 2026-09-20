@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
-import { storeTimeZone } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDayRange } from '../utils/isoTime.ts'
 import { settledSale, taxCollected } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -44,14 +44,24 @@ const licenseSchema = z.object({
 // diversion_prevention — which used to fail the enum with a 400 the UI swallowed, so
 // "Generate" did nothing (go-live QA H-1). Accept the aliases and map them here.
 /**
- * A date-only end of range means the whole of that day. Every query here compares `<= endDate`, so a bare
- * "2026-09-19" (midnight) silently dropped the 19th from a 1–19 September report. A caller that sends a real
- * timestamp is asking for that instant and gets it. (Dispensary T20 B3)
+ * The half-open UTC range [start, end) covering the requested dates on the STORE's clock.
+ *
+ * Two faults meet here. A date-only end parses to midnight, so `<= endDate` dropped the whole of the
+ * last day and a 1–19 September report came back silently short — no error, no gap, just a missing
+ * day (T20 B3). The fix for that then used the SERVER's day: T24 N1 moved this report's GROUPING onto
+ * the store's zone but left its RANGE on UTC, so within one query the two disagreed. Asked for a
+ * single Saturday, an Ohio shop's report both lost that evening's trade ($150 read as $100) and grew
+ * a phantom row for a Friday nobody asked about — on the one figure a regulator reads. (T27 H2)
+ *
+ * A caller that sends a real timestamp is asking for that instant and still gets it inclusively: the
+ * bound is nudged a millisecond so the half-open comparison keeps exactly the old meaning. The UI
+ * only ever sends date-only (`<input type="date">`).
  */
-const endOfDayIfDateOnly = (v: string): Date => {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(`${v}T23:59:59.999Z`)
-  return new Date(v)
-}
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+const reportRange = (start: string, end: string, tz: string): { start: Date; end: Date } => ({
+  start: DATE_ONLY.test(start) ? storeDayRange(tz, start).start : new Date(start),
+  end: DATE_ONLY.test(end) ? storeDayRange(tz, end).end : new Date(new Date(end).getTime() + 1),
+})
 
 /**
  * A SETTLED sale: money changed hands. A sale that was later refunded still happened and still belongs in a
@@ -332,9 +342,6 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
   // below asks for `<= endDate`, so the whole of the last day fell outside the window and the report came
   // back silently short — no error, no gap, just a missing day. A date-only end is the END of that day; a
   // caller who sends a full timestamp means that instant and is left alone. (Dispensary T20 B3)
-  const startDate = new Date(data.startDate)
-  const endDate = endOfDayIfDateOnly(data.endDate)
-
   // Which DAY a sale falls on is the store's question, not the server's. completed_at is a naive UTC
   // timestamp, so ::date cut the report at UTC midnight and filed the last hours of each evening's trade
   // under the next day — on a state sales report, which is the one figure a regulator reads. Label it
@@ -342,6 +349,10 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
   const [coRow] = await db.select({ settings: company.settings, state: company.state })
     .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   const tzDay = storeTimeZone(coRow)
+
+  // …and the RANGE has to be read on that same clock, or the filter and the grouping disagree inside
+  // one query. See reportRange above. (T20 B3, T27 H2)
+  const { start: startDate, end: endDate } = reportRange(data.startDate, data.endDate, tzDay)
 
   let reportData: any = null
 
@@ -365,7 +376,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
         WHERE o.company_id = ${currentUser.companyId}
           AND o.status IN ${settledSale}
           AND o.completed_at >= ${startDate}
-          AND o.completed_at <= ${endDate}
+          AND o.completed_at < ${endDate}
         GROUP BY 1
         ORDER BY 1 ASC
       `)
@@ -406,7 +417,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
         FROM waste_log wl
         WHERE wl.company_id = ${currentUser.companyId}
           AND wl.created_at >= ${startDate}
-          AND wl.created_at <= ${endDate}
+          AND wl.created_at < ${endDate}
         GROUP BY wl.waste_type, wl.reason, wl.unit_of_measure
         ORDER BY total_quantity DESC
       `)
@@ -435,7 +446,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
         LEFT JOIN products p ON p.id = ti.product_id
         WHERE t.company_id = ${currentUser.companyId}
           AND COALESCE(t.transferred_at, t.created_at) >= ${startDate}
-          AND COALESCE(t.transferred_at, t.created_at) <= ${endDate}
+          AND COALESCE(t.transferred_at, t.created_at) < ${endDate}
         GROUP BY lf.name, lt.name, t.status
         ORDER BY lf.name, lt.name, t.status
       `)
@@ -481,7 +492,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
         WHERE o.company_id = ${currentUser.companyId}
           AND o.status IN ${taxCollected}
           AND o.completed_at >= ${startDate}
-          AND o.completed_at <= ${endDate}
+          AND o.completed_at < ${endDate}
         GROUP BY 1
         ORDER BY 1 ASC
       `)
@@ -507,7 +518,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
         WHERE o.company_id = ${currentUser.companyId}
           AND o.status IN ('completed', 'partially_refunded', 'refunded')
           AND o.completed_at >= ${startDate}
-          AND o.completed_at <= ${endDate}
+          AND o.completed_at < ${endDate}
       `)
       const patientsOnFile = await db.execute(sql`
         SELECT COUNT(*)::int as patients_on_file,
@@ -534,7 +545,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
         WHERE o.company_id = ${currentUser.companyId}
           AND o.status IN ('completed', 'partially_refunded', 'refunded')
           AND o.completed_at >= ${startDate}
-          AND o.completed_at <= ${endDate}
+          AND o.completed_at < ${endDate}
       `)
       const repeat = await db.execute(sql`
         SELECT o.contact_id, c.name as customer_name, (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date as sale_date, COUNT(*)::int as orders_that_day,
@@ -544,7 +555,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           AND o.status IN ('completed', 'partially_refunded', 'refunded')
           AND o.contact_id IS NOT NULL
           AND o.completed_at >= ${startDate}
-          AND o.completed_at <= ${endDate}
+          AND o.completed_at < ${endDate}
         GROUP BY o.contact_id, c.name, (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date
         HAVING COUNT(*) > 1
         ORDER BY cannabis_oz_that_day DESC
@@ -556,7 +567,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
         FROM orders
         WHERE company_id = ${currentUser.companyId}
           AND COALESCE(refunded_at, updated_at, created_at) >= ${startDate}
-          AND COALESCE(refunded_at, updated_at, created_at) <= ${endDate}
+          AND COALESCE(refunded_at, updated_at, created_at) < ${endDate}
       `)
       reportData = {
         ...(((result as any).rows || result)[0] || {}),

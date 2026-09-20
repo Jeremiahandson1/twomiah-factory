@@ -1429,3 +1429,14 @@ jobs:
           bun-version: latest
       - name: "a write schema means what the product means"
         run: bun run scripts/check-roof-validation.ts
+
+  store-day-ranges:
+    name: "Reporting ranges are read on the store's clock"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check store-day ranges"
+        run: bun run scripts/check-store-day-ranges.ts

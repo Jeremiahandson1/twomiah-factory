@@ -21,10 +21,17 @@ const src = read(file)
 if (!src) fail(`${file} is missing`)
 
 // 1 — the window includes its last day
-if (!/const endOfDayIfDateOnly = \(v: string\): Date =>/.test(src)) fail('a date-only end of range must be widened to the end of that day, in one place')
-if (!/if \(\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test\(v\)\) return new Date\(`\$\{v\}T23:59:59\.999Z`\)/.test(src)) fail('…to 23:59:59.999 of that day')
-if (!/return new Date\(v\)/.test(src)) fail('…while a caller that sends a real timestamp still means that instant')
-if (!/const endDate = endOfDayIfDateOnly\(data\.endDate\)/.test(src)) fail('the report generator must use it')
+//
+// The helper was `endOfDayIfDateOnly`, widening a date-only end to 23:59:59.999Z. T27 H2 folded it
+// into `reportRange`, which widens to the end of that day on the STORE's clock instead — the report
+// already grouped rows by the store's day, so the old server-day window disagreed with its own
+// grouping. The rule here is unchanged and is about the WINDOW, not the spelling: a date-only end
+// covers the whole of that day, from one place, and a real timestamp still means that instant.
+// Which clock it uses, and that the bound is half-open, belong to check-store-day-ranges.ts.
+if (!/const reportRange = \(start: string, end: string, tz: string\): \{ start: Date; end: Date \} =>/.test(src)) fail('a date-only end of range must be widened to the end of that day, in one place')
+if (!/end: DATE_ONLY\.test\(end\) \? storeDayRange\(tz, end\)\.end :/.test(src)) fail('…to the end of that day, read on the clock the report groups by')
+if (!/: new Date\(new Date\(end\)\.getTime\(\) \+ 1\)/.test(src)) fail('…while a caller that sends a real timestamp still means that instant (nudged a millisecond so the half-open bound keeps the old inclusive meaning)')
+if (!/const \{ start: startDate, end: endDate \} = reportRange\(data\.startDate, data\.endDate, tzDay\)/.test(src)) fail('the report generator must use it')
 if (/const endDate = new Date\(data\.endDate\)/.test(src)) fail('…and must not go back to the raw midnight parse, which drops the last day from every query below it')
 
 // 2 — a refunded sale is still a sale

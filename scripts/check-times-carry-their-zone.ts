@@ -46,7 +46,19 @@ if (!/try \{ new Intl\.DateTimeFormat\('en-US', \{ timeZone: tz \}\); return tru
 const an = read(B + 'routes/analytics.ts')
 if (/EXTRACT\(HOUR FROM created_at\)/.test(codeOnly(an))) fail('Peak Hours must not bucket on UTC — that charts a 7pm rush in the small hours of the next day')
 if (!/EXTRACT\(HOUR FROM \(created_at AT TIME ZONE 'UTC' AT TIME ZONE \$\{tz\}\)\)::int as hour/.test(an)) fail('…it must label the stored time UTC and convert it to the store zone')
-if (!/const tz = storeTimeZone\(coRow\)/.test(an)) fail('…using the shared store-zone rule')
+// The lookup moved into a local `tzFor` helper when all five analytics endpoints came to need it
+// (T27 H2). The rule is that analytics takes its zone from the SHARED definition rather than a
+// private guess — so pin the delegation, which is the part that actually carries the rule.
+if (!/const tzFor = async \(companyId: string\): Promise<string> => \{[\s\S]{0,300}?return storeTimeZone\(row\)/.test(an)) fail('…using the shared store-zone rule')
+// Scoped to the peak-hours handler: /summary carries the same line, so an unscoped match would go on
+// passing while peak-hours itself was switched to a hardcoded zone.
+{
+  const from = an.indexOf("app.get('/peak-hours'")
+  const rest = an.slice(from + 1)
+  const peakHours = from < 0 ? '' : an.slice(from, from + 1 + (rest.indexOf('\napp.get(') + 1 || rest.length))
+  if (!peakHours) fail('the peak-hours endpoint is missing')
+  else if (!/const tz = await tzFor\(currentUser\.companyId\)/.test(peakHours)) fail('…and peak-hours must resolve its zone through it')
+}
 if (!/timeZone: tz/.test(an)) fail('…and the response must name the clock it used')
 
 if (failed) { console.error(`\ntimes carry their zone: ${failed} check(s) FAILED`); process.exit(1) }

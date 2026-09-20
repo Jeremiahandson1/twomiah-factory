@@ -3,7 +3,7 @@ import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { sql, eq } from 'drizzle-orm'
 import { settledSale, taxCollected, netExprBare, refundedExprBare } from '../utils/revenue.ts'
-import { storeTimeZone } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDayRange, storeDateString } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 
@@ -13,6 +13,36 @@ app.use('*', authenticate)
 // All analytics endpoints require manager+
 app.use('*', requireRole('manager'))
 
+/** The store's zone — from its configured timezone, else its state. */
+const tzFor = async (companyId: string): Promise<string> => {
+  const [row] = await db.select({ settings: company.settings, state: company.state })
+    .from(company).where(eq(company.id, companyId)).limit(1)
+  return storeTimeZone(row)
+}
+
+/**
+ * The half-open UTC range [start, end) covering the requested dates on the STORE's clock.
+ *
+ * Every range on this page used to be built like this:
+ *
+ *     const start = new Date(startDate + 'T00:00:00')
+ *     const end   = new Date(endDate   + 'T23:59:59.999')
+ *
+ * A bare datetime with no `Z` is parsed in the SERVER's zone, and Render runs UTC — so the analytics
+ * page answered for the UTC day while the dashboard tile, the compliance report and the end-of-day
+ * cash sheet beside it had all been moved onto the store's day (T24 N1). An Ohio shop's trade after
+ * 8pm therefore sat on Saturday on one screen and Sunday on the next, and the two revenue figures
+ * never reconciled: the end-of-day sheet said $150 and analytics said $100 for the same Saturday.
+ *
+ * Half-open to match the dashboard exactly (`>= start AND < end`). The old inclusive
+ * `<= 23:59:59.999` also dropped anything in the final millisecond of the day. (T27 H2)
+ */
+const storeRange = (tz: string, startDate?: string, endDate?: string, backDays = 30) => {
+  const from = startDate || storeDateString(new Date(Date.now() - backDays * 86400000), tz)
+  const to = endDate || storeDateString(new Date(), tz)
+  return { start: storeDayRange(tz, from).start, end: storeDayRange(tz, to).end, from, to }
+}
+
 // Sales by period
 app.get('/sales', async (c) => {
   const currentUser = c.get('user') as any
@@ -20,11 +50,9 @@ app.get('/sales', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
 
-  // endDate must cover the WHOLE day. Parsing it as bare midnight made `completed_at <= end`
-  // exclude every sale after 00:00 today, so a "Today" chart came back empty and the last day
-  // of any range dropped its daytime orders. Match /summary's full-day bounds. (retest#8)
-  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
-  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
+  // The range covers whole STORE days — see storeRange above. (retest#8, T27 H2)
+  const dayTz = await tzFor(currentUser.companyId)
+  const { start, end } = storeRange(dayTz, startDate, endDate)
 
   let dateTrunc: string
   switch (period) {
@@ -41,10 +69,6 @@ app.get('/sales', async (c) => {
   // midnight, so an Ohio shop's evening trade after 8pm was charted on the following day — the same
   // fault the peak-hours chart had (T21 M3), one unit larger and costlier, because this one moves money
   // between days rather than between bars. Label it UTC, read it in the store's zone. (T24 N1)
-  const [coRowForDay] = await db.select({ settings: company.settings, state: company.state })
-    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-  const dayTz = storeTimeZone(coRowForDay)
-
   const result = await db.execute(sql`
     SELECT
       date_trunc(${dateTrunc}, (COALESCE(completed_at, created_at) AT TIME ZONE 'UTC' AT TIME ZONE ${dayTz}))::date as period,
@@ -60,7 +84,7 @@ app.get('/sales', async (c) => {
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${settledSale}
       AND COALESCE(completed_at, created_at) >= ${start}
-      AND COALESCE(completed_at, created_at) <= ${end}
+      AND COALESCE(completed_at, created_at) < ${end}
     GROUP BY 1
     ORDER BY 1 ASC
   `)
@@ -87,11 +111,8 @@ app.get('/products', async (c) => {
   const endDate = c.req.query('endDate')
   const limit = +(c.req.query('limit') || '20')
 
-  // endDate must cover the WHOLE day. Parsing it as bare midnight made `completed_at <= end`
-  // exclude every sale after 00:00 today, so a "Today" chart came back empty and the last day
-  // of any range dropped its daytime orders. Match /summary's full-day bounds. (retest#8)
-  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
-  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
+  // The range covers whole STORE days — see storeRange above. (retest#8, T27 H2)
+  const { start, end } = storeRange(await tzFor(currentUser.companyId), startDate, endDate)
 
   const result = await db.execute(sql`
     -- One row per PRODUCT. An order line keeps a snapshot of the name and category as they were at the time
@@ -113,7 +134,7 @@ app.get('/products', async (c) => {
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status IN ${settledSale}
       AND COALESCE(o.completed_at, o.created_at) >= ${start}
-      AND COALESCE(o.completed_at, o.created_at) <= ${end}
+      AND COALESCE(o.completed_at, o.created_at) < ${end}
     GROUP BY oi.product_id, CASE WHEN oi.product_id IS NULL THEN oi.product_name END
     ORDER BY total_revenue DESC
     LIMIT ${limit}
@@ -131,10 +152,13 @@ app.get('/summary', async (c) => {
   // to a single `date` for back-compat. (retest#9)
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
-  const date = c.req.query('date') || new Date().toISOString().slice(0, 10)
+  // "Today" is the STORE's today. toISOString() names the UTC date, so after 8pm in Ohio this asked
+  // for TOMORROW — an evening manager opened the page to a day that had barely begun while the
+  // dashboard beside it still showed the shift they were working. (T27 H2)
+  const tz = await tzFor(currentUser.companyId)
+  const date = c.req.query('date') || storeDateString(new Date(), tz)
 
-  const dayStart = new Date((startDate || date) + 'T00:00:00')
-  const dayEnd = new Date((endDate || date) + 'T23:59:59.999')
+  const { start: dayStart, end: dayEnd } = storeRange(tz, startDate || date, endDate || date)
 
   const [ordersResult, categoryResult, paymentResult, loyaltyResult] = await Promise.all([
     // Order totals
@@ -158,7 +182,7 @@ app.get('/summary', async (c) => {
       FROM orders
       WHERE company_id = ${currentUser.companyId}
         AND created_at >= ${dayStart}
-        AND created_at <= ${dayEnd}
+        AND created_at < ${dayEnd}
     `),
     // Sales by category
     db.execute(sql`
@@ -168,7 +192,7 @@ app.get('/summary', async (c) => {
       WHERE o.company_id = ${currentUser.companyId}
         AND o.status = 'completed'
         AND o.created_at >= ${dayStart}
-        AND o.created_at <= ${dayEnd}
+        AND o.created_at < ${dayEnd}
       GROUP BY oi.category
       ORDER BY revenue DESC
     `),
@@ -179,7 +203,7 @@ app.get('/summary', async (c) => {
       WHERE company_id = ${currentUser.companyId}
         AND status = 'completed'
         AND created_at >= ${dayStart}
-        AND created_at <= ${dayEnd}
+        AND created_at < ${dayEnd}
       GROUP BY payment_method
     `),
     // Loyalty activity
@@ -191,7 +215,7 @@ app.get('/summary', async (c) => {
       FROM loyalty_transactions
       WHERE company_id = ${currentUser.companyId}
         AND created_at >= ${dayStart}
-        AND created_at <= ${dayEnd}
+        AND created_at < ${dayEnd}
     `),
   ])
 
@@ -210,19 +234,12 @@ app.get('/peak-hours', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
 
-  // endDate must cover the WHOLE day. Parsing it as bare midnight made `completed_at <= end`
-  // exclude every sale after 00:00 today, so a "Today" chart came back empty and the last day
-  // of any range dropped its daytime orders. Match /summary's full-day bounds. (retest#8)
-  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
-  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
-
   // Bucketed on the STORE's clock, not the server's. EXTRACT(HOUR FROM created_at) reads UTC, so a
   // 7pm Friday rush was charted in the small hours of Saturday and "peak hour" named a time the shop
   // was shut. created_at is a naive UTC timestamp: label it UTC, then convert to the store's zone.
-  // (T21 M3)
-  const [coRow] = await db.select({ settings: company.settings, state: company.state })
-    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-  const tz = storeTimeZone(coRow)
+  // (T21 M3) — and the range is whole STORE days for the same reason. (retest#8, T27 H2)
+  const tz = await tzFor(currentUser.companyId)
+  const { start, end } = storeRange(tz, startDate, endDate)
 
   const result = await db.execute(sql`
     SELECT
@@ -234,7 +251,7 @@ app.get('/peak-hours', async (c) => {
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${settledSale}
       AND created_at >= ${start}
-      AND created_at <= ${end}
+      AND created_at < ${end}
     GROUP BY 1
     ORDER BY 1 ASC
   `)
@@ -256,9 +273,9 @@ app.get('/customers', async (c) => {
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')
 
-  // Match /summary + /sales full-day bounds so the panel lines up with the KPI row and charts.
-  const start = startDate ? new Date(startDate + 'T00:00:00') : new Date(Date.now() - 30 * 86400000)
-  const end = endDate ? new Date(endDate + 'T23:59:59.999') : new Date()
+  // Match /summary + /sales bounds so the panel lines up with the KPI row and charts — whole STORE
+  // days, see storeRange above. (retest#8, T27 H2)
+  const { start, end } = storeRange(await tzFor(currentUser.companyId), startDate, endDate)
 
   const [rangeResult, newResult, ltvResult] = await Promise.all([
     // In-range cohort: unique/returning customers, avg visits, retention.
@@ -277,7 +294,7 @@ app.get('/customers', async (c) => {
           AND status IN ${settledSale}
           AND contact_id IS NOT NULL
           AND COALESCE(completed_at, created_at) >= ${start}
-          AND COALESCE(completed_at, created_at) <= ${end}
+          AND COALESCE(completed_at, created_at) < ${end}
       ),
       per_customer AS (
         SELECT contact_id, COUNT(*)::int AS order_count
@@ -315,7 +332,7 @@ app.get('/customers', async (c) => {
       )
       SELECT COUNT(*)::int AS new_customers
       FROM first_order
-      WHERE first_at >= ${start} AND first_at <= ${end}
+      WHERE first_at >= ${start} AND first_at < ${end}
     `),
     // Customer Lifetime Value: all-time average completed spend per customer.
     db.execute(sql`
