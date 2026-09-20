@@ -19,6 +19,14 @@ import logger from '../services/logger.ts'
 import lenders, { LenderNotConfiguredError } from '../services/lenders.ts'
 
 const app = new Hono()
+
+// Registered BEFORE `authenticate`, deliberately. Hono runs matched handlers in registration
+// order, so anything declared after the middleware is behind it — which is why this callback
+// answered 401 for every status update Wisetack ever sent. It authenticates itself by signature
+// (verifyWisetackWebhook), which is what the handler checks first. `wisetackWebhook` is a hoisted
+// function declaration, defined further down beside the rest of the financing logic.
+app.post('/webhooks/wisetack', wisetackWebhook)
+
 app.use('*', authenticate)
 
 const appSchema = z.object({
@@ -139,8 +147,7 @@ app.get('/lenders/status', (c) => {
 // Wisetack webhook handler. Wisetack POSTs application status updates
 // (approved, declined, funded). Requires WISETACK_WEBHOOK_SECRET to verify.
 // No auth middleware on this route (webhook is authenticated via signature).
-const webhookApp = new Hono()
-webhookApp.post('/webhooks/wisetack', async (c) => {
+async function wisetackWebhook(c: any) {
   const signature = c.req.header('x-wisetack-signature') || ''
   const rawBody = await c.req.text()
   try {
@@ -182,8 +189,7 @@ webhookApp.post('/webhooks/wisetack', async (c) => {
     logger.error('Financing webhook failed', { message: e?.message, stack: e?.stack })
     return c.json({ error: 'webhook_failed' }, 500)
   }
-})
-app.route('/', webhookApp)
+}
 
 // Update with lender approval (called by lender webhook handler)
 app.post('/:id/approve', async (c) => {
