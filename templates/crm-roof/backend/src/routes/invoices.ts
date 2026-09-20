@@ -413,9 +413,14 @@ app.get('/:id/pdf', async (c) => {
   doc.text(balance > 0 ? 'Balance Due:' : 'Paid in Full', 370, y, { width: 80, align: 'right' })
   doc.text(money(balance), 460, y, { width: 80, align: 'right' })
 
-  // No Notes section: the invoice table has no `notes` column. POST / accepts `notes` in its schema
-  // and writes it anyway, so it is silently discarded — a separate, pre-existing defect that needs a
-  // migration to fix properly, and not something to paper over by printing a field that is never there.
+  // Notes now exist: the column was added in the same change that built this PDF. POST and PUT had
+  // both been writing `notes` to a column that was never there, so anything typed was discarded.
+  if (foundInvoice.notes) {
+    doc.moveDown(2)
+    doc.font('Helvetica').fontSize(10)
+    doc.text('Notes:', { underline: true })
+    doc.text(String(foundInvoice.notes))
+  }
 
   doc.end()
   const pdfBuffer = await pdfReady

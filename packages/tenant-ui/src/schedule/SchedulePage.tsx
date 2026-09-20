@@ -147,7 +147,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     </div>
                   ))}
                   {eventsFor(day).map((e) => (
-                    <div key={e.id} onClick={() => setEditEvent(e)} title="Click to edit or cancel" className={`p-2 rounded text-xs cursor-pointer hover:shadow-sm ${e.status === 'cancelled' ? 'bg-gray-50 border-l-2 border-gray-300 opacity-60 text-gray-500 line-through dark:bg-slate-800 dark:text-slate-400' : 'bg-indigo-50 border-l-2 border-indigo-500 dark:bg-indigo-900/20 text-gray-900 dark:text-slate-100'}`}>
+                    <div key={e.id} onClick={() => setEditEvent(e)} title="Click to edit or cancel" className={`p-2 rounded text-xs cursor-pointer hover:shadow-sm ${e.status === 'cancelled' ? /* No opacity. The strikethrough already says "cancelled", so the dimming was doing redundant work
+   and cost the label its readability: gray-500 on gray-50 at 60% renders 2.28:1, against 4.63:1 at
+   full strength. State on text is carried by a token and a non-colour signal, never by opacity —
+   opacity multiplies against whatever surface it lands on, which is exactly how a correct-looking
+   palette renders wrong. WCAG exempts a DISABLED control; a cancelled booking is content. */
+                        'bg-gray-50 border-l-2 border-gray-300 text-gray-500 line-through dark:bg-slate-800 dark:text-slate-400' : 'bg-indigo-50 border-l-2 border-indigo-500 dark:bg-indigo-900/20 text-gray-900 dark:text-slate-100'}`}>
                       <p className="font-medium truncate">{e.title}</p>
                       <p className="text-gray-500 truncate dark:text-slate-400">{e.allDay ? 'All day' : timeOf(e.start)}{e.type ? ' · ' + e.type.replace(/_/g, ' ') : ''}</p>
                     </div>

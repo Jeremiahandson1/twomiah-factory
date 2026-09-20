@@ -33,6 +33,14 @@ for (const t of LEGACY_TABLES) {
 // exist with every column the recurring service writes (idempotent).
 const ENSURE = [
   `ALTER TABLE quote ADD COLUMN IF NOT EXISTS discount numeric DEFAULT 0`,
+  // The invoice table never had a notes column, yet POST /api/invoices has always accepted `notes`
+  // in its schema and written it — so every note anyone typed on an invoice was silently discarded,
+  // with a 200 back. Quotes have had notes since the module was built. (roof T17 follow-up)
+  `ALTER TABLE invoice ADD COLUMN IF NOT EXISTS notes text`,
+  // A job had nowhere to end but "paid": the pipeline ran lead → collected with no exit, so anything
+  // that fell through sat on the board for ever and kept counting in every pipeline report.
+  `ALTER TABLE job ADD COLUMN IF NOT EXISTS lost_reason text`,
+  `ALTER TABLE job ADD COLUMN IF NOT EXISTS closed_at timestamp`,
   // takeoff_item column drift: fieldservice-lineage migrations created this table
   // with the old cost columns; schema.ts uses assembly_id + measurement columns.
   // Pre-add them so drizzle-kit push sees no NEW column to rename-prompt on.

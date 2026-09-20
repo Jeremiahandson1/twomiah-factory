@@ -7,9 +7,13 @@ import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
 const JOB_TYPES = ['insurance', 'retail', 'commercial', 'new_construction', 'emergency'];
+// Mirrors lib/validation.ts. The first eleven are the pipeline the board draws columns for; `lost`
+// and `cancelled` are terminal — a job that will not be paid leaves the board but must stay findable
+// here, or closing one would look like deleting it.
 const STATUSES = [
   'lead', 'inspection_scheduled', 'inspected', 'measurement_ordered', 'proposal_sent',
   'signed', 'material_ordered', 'in_production', 'final_inspection', 'invoiced', 'collected',
+  'lost', 'cancelled',
 ];
 
 const STATUS_COLORS: Record<string, string> = {

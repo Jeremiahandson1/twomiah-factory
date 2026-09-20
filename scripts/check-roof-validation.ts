@@ -35,32 +35,65 @@ if (!/d\.length >= 10 && d\.length <= 15/.test(lib)) fail('…by digit count, so
 if (!/export const email = z\.string\(\)\.trim\(\)\.email/.test(lib)) fail('…and an email likewise')
 if (!/export const optional = /.test(lib)) fail('"blank" must mean "not given" rather than "invalid", or every optional field becomes required')
 
-/** the eleven statuses, read from the one place that declares them */
-const statuses = (lib.match(/export const JOB_STATUSES = \[([\s\S]*?)\] as const/)?.[1] ?? '')
+/**
+ * Two lists, read from the one place that declares them.
+ *
+ * PIPELINE_STATUSES is the ordered walk from lead to collected — what Advance steps along and what
+ * the board draws a column for. TERMINAL_STATUSES (lost, cancelled) is where a job ends when it is
+ * NOT going to be paid; those are valid statuses but deliberately not stages, because a closed job
+ * comes off the board and Advance must never walk a collected job into `lost`.
+ */
+const pipeline = (lib.match(/export const PIPELINE_STATUSES = \[([\s\S]*?)\] as const/)?.[1] ?? '')
   .match(/'[a-z_]+'/g)?.map((s) => s.slice(1, -1)) ?? []
-if (statuses.length < 5) fail('could not read JOB_STATUSES — this guard is not looking where it thinks it is')
+const terminal = (lib.match(/export const TERMINAL_STATUSES = \[([^\]]*)\] as const/)?.[1] ?? '')
+  .match(/'[a-z_]+'/g)?.map((s) => s.slice(1, -1)) ?? []
+const statuses = pipeline
+if (pipeline.length < 5) fail('could not read PIPELINE_STATUSES — this guard is not looking where it thinks it is')
+if (!terminal.length) fail('a job needs somewhere to end that is not "paid" — TERMINAL_STATUSES is how a job that fell through leaves the board')
+if (!/export const JOB_STATUSES = \[\.\.\.PIPELINE_STATUSES, \.\.\.TERMINAL_STATUSES\] as const/.test(lib))
+  fail('JOB_STATUSES must be the two lists joined, so the accepted values and the board can never disagree')
+for (const t of terminal) {
+  if (pipeline.includes(t))
+    fail(`"${t}" is in PIPELINE_STATUSES — Advance would walk a job into it, so a collected job could become ${t}`)
+}
 
 // ── H5: the pipeline is declared once and enforced ────────────────────────────────────────────────
 {
   const jobs = read(B + 'routes/jobs.ts')
   if (/const PIPELINE_ORDER = \[\s*\n\s*'lead'/.test(jobs))
     fail('jobs.ts is keeping its own copy of the pipeline again — it drifted from the schema once already')
-  if (!/const PIPELINE_ORDER: readonly string\[\] = JOB_STATUSES/.test(jobs))
-    fail('…the "Advance" order and the accepted values must be the same list')
+  // Was `= JOB_STATUSES`, which was right while every status was a stage. Now that a job can end as
+  // lost or cancelled, Advance must walk the PIPELINE half only — the rule is unchanged (no local
+  // copy; the order comes from the shared declaration), the source is narrower.
+  if (!/const PIPELINE_ORDER: readonly string\[\] = PIPELINE_STATUSES/.test(jobs))
+    fail('…the "Advance" order must be the shared PIPELINE_STATUSES, never a local copy and never the terminal statuses')
+  if (!/app\.post\('\/:id\/close'/.test(jobs))
+    fail('a job that falls through needs a way to be closed — without one it sits on the board for ever and keeps counting in pipeline reports')
+  if (!/lostReason: z\.string\(\)\.trim\(\)\.min\(1/.test(jobs))
+    fail('…and closing must require a REASON: close-rate by reason is the number the business is run on, and a bare flag throws it away')
+  if (!/existing\.status === 'collected'/.test(jobs))
+    fail('…while a job that was PAID must not be closeable as lost, or revenue walks out of the report')
   if (/status: z\.string\(\)\.optional\(\)/.test(jobs))
     fail('a job status must be one of the pipeline values — as a free string, five junk statuses were accepted and their jobs dropped out of the report breakdown (H5)')
   if (!/status: optional\(jobStatus\)/.test(jobs))
     fail('…so the schema must use the enum')
 
-  // the frontend declares the same list twice; all three must agree or a status renders as a blank column
-  for (const [file, decl] of [['pages/roofing/PipelineBoard.tsx', 'STAGES'], ['pages/roofing/JobsPage.tsx', 'STATUSES']] as Array<[string, string]>) {
+  // The frontend declares the list twice, for two different jobs:
+  //   the BOARD draws a column per pipeline stage — a terminal status there would be a column for
+  //     jobs that are off the board, which is the opposite of closing one;
+  //   the LIST filters by any status a job can hold, terminal included, or a closed job becomes
+  //     unfindable and closing would look like deleting.
+  for (const [file, decl, expected, what] of [
+    ['pages/roofing/PipelineBoard.tsx', 'STAGES', pipeline, 'PIPELINE_STATUSES'],
+    ['pages/roofing/JobsPage.tsx', 'STATUSES', [...pipeline, ...terminal], 'JOB_STATUSES'],
+  ] as Array<[string, string, string[], string]>) {
     const src = read(F + file)
     const feList = (src.match(new RegExp(`const ${decl} = \\[([\\s\\S]*?)\\]`))?.[1] ?? '').match(/'[a-z_]+'/g)?.map((s) => s.slice(1, -1)) ?? []
     if (!feList.length) { fail(`${file} no longer declares ${decl} where this guard can read it`); continue }
-    const missing = statuses.filter((s) => !feList.includes(s))
-    const extra = feList.filter((s) => !statuses.includes(s))
+    const missing = expected.filter((s) => !feList.includes(s))
+    const extra = feList.filter((s) => !expected.includes(s))
     if (missing.length || extra.length)
-      fail(`${file} ${decl} has drifted from JOB_STATUSES — missing [${missing}], unexpected [${extra}]. A status the backend accepts but the board does not know renders as a blank column.`)
+      fail(`${file} ${decl} has drifted from ${what} — missing [${missing}], unexpected [${extra}]. A status the backend accepts but the screen does not know renders as a blank column or an unfindable job.`)
   }
 }
 

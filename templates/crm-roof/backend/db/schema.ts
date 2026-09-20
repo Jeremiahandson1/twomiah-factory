@@ -202,6 +202,12 @@ export const job = pgTable('job', {
   source: text('source').notNull(),
   priority: text('priority').default('medium').notNull(),
   notes: text('notes'),
+
+  // Why a job ended without being paid. The reason is the point, not the flag: "we lost 40% of storm
+  // leads on price" is the number a roofer runs the business on, and a bare `lost` status throws it
+  // away. Same pattern crm-restaurant already uses for enquiries. (roof T17 follow-up)
+  lostReason: text('lost_reason'),
+  closedAt: timestamp('closed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -316,6 +322,9 @@ export const invoice = pgTable('invoice', {
   total: decimal('total', { precision: 10, scale: 2 }).notNull(),
   amountPaid: decimal('amount_paid', { precision: 10, scale: 2 }).default('0').notNull(),
   balance: decimal('balance', { precision: 10, scale: 2 }).notNull(),
+  // POST /api/invoices has always accepted `notes` and written it, with no column to write it to —
+  // so every note typed on an invoice was discarded and the caller got a 200. (roof T17 follow-up)
+  notes: text('notes'),
   dueDate: timestamp('due_date'),
   paidAt: timestamp('paid_at'),
   qbInvoiceId: text('qb_invoice_id'),

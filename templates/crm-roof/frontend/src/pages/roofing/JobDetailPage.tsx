@@ -124,6 +124,56 @@ export default function JobDetailPage() {
     }
   };
 
+  // Closing a job that will not be paid. The pipeline had no exit, so anything that fell through sat
+  // on the board for ever and kept counting in pipeline reports. The reason is required — close-rate
+  // by reason is what tells a roofer whether they are losing on price or on response time.
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closeStatus, setCloseStatus] = useState<'lost' | 'cancelled'>('lost');
+  const [closeReason, setCloseReason] = useState('');
+  const [closing, setClosing] = useState(false);
+  const isClosed = job?.status === 'lost' || job?.status === 'cancelled';
+
+  const closeJob = async () => {
+    if (!closeReason.trim()) { toast.error('A reason is required'); return; }
+    setClosing(true);
+    try {
+      const res = await fetch(`/api/jobs/${id}/close`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: closeStatus, lostReason: closeReason.trim() }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
+      const updated = await res.json();
+      setJob((prev: any) => ({ ...prev, ...updated }));
+      setCloseOpen(false);
+      setCloseReason('');
+      toast.success(closeStatus === 'lost' ? 'Job closed as lost' : 'Job cancelled');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to close the job');
+    } finally {
+      setClosing(false);
+    }
+  };
+
+  const reopenJob = async () => {
+    setClosing(true);
+    try {
+      const res = await fetch(`/api/jobs/${id}/reopen`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'lead' }),
+      });
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
+      const updated = await res.json();
+      setJob((prev: any) => ({ ...prev, ...updated }));
+      toast.success('Job reopened');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to reopen the job');
+    } finally {
+      setClosing(false);
+    }
+  };
+
   const updateAssignment = async (field: string, value: string) => {
     try {
       const res = await fetch(`/api/jobs/${id}`, {
@@ -275,16 +325,89 @@ export default function JobDetailPage() {
               <Clock className="w-3.5 h-3.5" /> {daysOpen} days open
             </span>
           </div>
-          <button
-            onClick={advanceStage}
-            disabled={advancing || job.status === 'collected'}
-            className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
-          >
-            <ChevronRight className="w-4 h-4" />
-            {advancing ? 'Advancing...' : 'Advance Stage'}
-          </button>
+          <div className="flex items-center gap-2">
+            {isClosed ? (
+              <>
+                <span className="text-sm text-gray-600 dark:text-slate-300">
+                  Closed as <span className="font-semibold">{job.status}</span>
+                  {job.lostReason ? ` — ${job.lostReason}` : ''}
+                </span>
+                <button
+                  onClick={reopenJob}
+                  disabled={closing}
+                  className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {closing ? 'Reopening…' : 'Reopen'}
+                </button>
+              </>
+            ) : (
+              <>
+                {job.status !== 'collected' && (
+                  <button
+                    onClick={() => { setCloseStatus(job.status === 'signed' || job.status === 'material_ordered' || job.status === 'in_production' ? 'cancelled' : 'lost'); setCloseOpen(true); }}
+                    className="px-4 py-2 border border-gray-300 dark:border-slate-700 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800"
+                  >
+                    Close Job
+                  </button>
+                )}
+                <button
+                  onClick={advanceStage}
+                  disabled={advancing || job.status === 'collected'}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  {advancing ? 'Advancing...' : 'Advance Stage'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Close a job that will not be paid. Not a delete — the quotes, photos, supplements and claim
+          trail stay attached, which matters for lien rights and warranty claims as well as reporting. */}
+      {closeOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setCloseOpen(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100 mb-1">Close this job</h2>
+            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
+              It comes off the pipeline board and out of pipeline reports. Nothing is deleted.
+            </p>
+
+            <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Outcome</label>
+            <div className="flex gap-2 mb-4">
+              {([['lost', 'Lost', 'Never signed'], ['cancelled', 'Cancelled', 'Signed, then fell through']] as const).map(([v, label, hint]) => (
+                <button
+                  key={v}
+                  onClick={() => setCloseStatus(v)}
+                  className={`flex-1 p-3 rounded-lg border-2 text-left transition-colors ${closeStatus === v ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300' : 'border-gray-200 dark:border-slate-700 text-gray-600 dark:text-slate-300'}`}
+                >
+                  <p className="font-semibold text-sm">{label}</p>
+                  <p className="text-xs">{hint}</p>
+                </button>
+              ))}
+            </div>
+
+            <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Why? *</label>
+            <input
+              value={closeReason}
+              onChange={(e) => setCloseReason(e.target.value)}
+              placeholder="Went with a competitor · price · carrier denied · unresponsive"
+              className="w-full text-sm border rounded-lg px-3 py-2"
+            />
+            <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+              Required. Close-rate by reason is what tells you whether you&rsquo;re losing on price or on response time.
+            </p>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setCloseOpen(false)} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
+              <button onClick={closeJob} disabled={closing} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                {closing ? 'Closing…' : `Close as ${closeStatus}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto p-6 space-y-6">
         {/* Two column layout */}

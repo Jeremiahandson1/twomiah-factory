@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { cleanText } from '../utils/sanitize.ts'
-import { JOB_STATUSES, JOB_PHOTO_TYPES, jobStatus, phone, email, optional, sniffImage } from '../lib/validation.ts'
+import { JOB_STATUSES, PIPELINE_STATUSES, TERMINAL_STATUSES, JOB_PHOTO_TYPES, jobStatus, phone, email, optional, sniffImage } from '../lib/validation.ts'
 import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzle-orm'
@@ -34,7 +34,9 @@ const ownContact = async (companyId: string, contactId: string) => {
 // the schema below. It used to be a local copy while `status` was a free string, so "Advance" walked a
 // list the writer never had to respect: five junk statuses were accepted, and the jobs they belonged
 // to dropped out of the report breakdown (50 jobs, 44 counted).
-const PIPELINE_ORDER: readonly string[] = JOB_STATUSES
+// The forward pipeline only. JOB_STATUSES also contains the terminal ones (lost, cancelled), and
+// walking Advance into those would turn a collected job into a lost one.
+const PIPELINE_ORDER: readonly string[] = PIPELINE_STATUSES
 
 const AUTO_SMS_TEMPLATES: Record<string, string> = {
   inspection_scheduled: 'Hi [FirstName], your roof inspection is scheduled for [date]. – [CompanyName]',
@@ -249,6 +251,87 @@ app.put('/:id', async (c) => {
   if (data.totalSquares !== undefined) updateData.totalSquares = data.totalSquares.toString()
 
   const [updated] = await db.update(job).set(updateData).where(eq(job.id, id)).returning()
+  return c.json(updated)
+})
+
+/**
+ * Close a job that is not going to be paid.
+ *
+ * The pipeline had no exit, so a job that fell through stayed at whatever stage it died — cluttering
+ * the board and counting in every report built on pipeline status. `lost` is never-signed (a sales
+ * loss); `cancelled` is signed-then-collapsed, which is a different and worse outcome, so the two are
+ * reported apart.
+ *
+ * The REASON is required, and that is the whole point: close-rate by reason is what tells a roofer
+ * whether they are losing on price, on response time, or on carrier denials. It is not deletion —
+ * quotes, photos, supplements and the claim trail stay attached, which also matters for lien rights
+ * and warranty claims.
+ */
+app.post('/:id/close', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const schema = z.object({
+    status: z.enum(TERMINAL_STATUSES),
+    lostReason: z.string().trim().min(1, 'A reason is required — it is what close-rate reporting is built on'),
+  })
+  const data = schema.parse(await c.req.json())
+
+  const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Job not found' }, 404)
+  if ((TERMINAL_STATUSES as readonly string[]).includes(existing.status)) {
+    return c.json({ error: `This job is already ${existing.status}.`, status: existing.status }, 409)
+  }
+  // Collected means the money is in. Closing it as lost would take a paid job out of revenue.
+  if (existing.status === 'collected') {
+    return c.json({ error: 'This job was paid, so it cannot be closed as lost or cancelled.' }, 409)
+  }
+
+  const [updated] = await db.update(job)
+    .set({ status: data.status, lostReason: data.lostReason, closedAt: new Date(), updatedAt: new Date() })
+    .where(eq(job.id, id)).returning()
+
+  await db.insert(jobNote).values({
+    companyId: currentUser.companyId,
+    jobId: id,
+    userId: currentUser.userId,
+    body: `Job closed as ${data.status} (from ${existing.status}): ${data.lostReason}`,
+    isInternal: true,
+  })
+
+  return c.json(updated)
+})
+
+/**
+ * Put a closed job back on the board — a carrier reverses a denial, a homeowner comes back.
+ * It returns to the stage it was at, which is what `closedAt` and the note preserve.
+ */
+app.post('/:id/reopen', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const { status } = z.object({ status: jobStatus }).parse(await c.req.json())
+  if (!(PIPELINE_STATUSES as readonly string[]).includes(status)) {
+    return c.json({ error: 'Reopen to a pipeline stage, not a terminal one.' }, 400)
+  }
+
+  const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Job not found' }, 404)
+  if (!(TERMINAL_STATUSES as readonly string[]).includes(existing.status)) {
+    return c.json({ error: 'This job is not closed.' }, 409)
+  }
+
+  const [updated] = await db.update(job)
+    .set({ status, lostReason: null, closedAt: null, updatedAt: new Date() })
+    .where(eq(job.id, id)).returning()
+
+  await db.insert(jobNote).values({
+    companyId: currentUser.companyId,
+    jobId: id,
+    userId: currentUser.userId,
+    body: `Job reopened to ${status} (was ${existing.status}${existing.lostReason ? `: ${existing.lostReason}` : ''})`,
+    isInternal: true,
+  })
+
   return c.json(updated)
 })
 

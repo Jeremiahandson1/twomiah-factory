@@ -16,10 +16,38 @@ import { z } from 'zod'
  * JobsPage.STATUSES — and a status outside it renders as a blank column and drops out of the report
  * breakdown. check-roof-validation.ts cross-checks all three so they cannot drift.
  */
-export const JOB_STATUSES = [
+/**
+ * The forward pipeline: the stages a job walks through on its way to being paid. Ordered — the
+ * Advance button steps along this list, so nothing may be appended that is not the next stage.
+ */
+export const PIPELINE_STATUSES = [
   'lead', 'inspection_scheduled', 'inspected', 'measurement_ordered', 'proposal_sent',
   'signed', 'material_ordered', 'in_production', 'final_inspection', 'invoiced', 'collected',
 ] as const
+
+/**
+ * Where a job ends when it does NOT get paid — and until now there was nowhere.
+ *
+ * The pipeline ran lead → collected with no exit, so a job that fell through sat at whatever stage it
+ * died: on the board for ever, and counted in every report built on the pipeline. A roofer loses jobs
+ * constantly — homeowner went with a competitor, the carrier denied the claim, the storm lead never
+ * answered — and the industry answer (JobNimbus, AccuLynx, Buildertrend) is the same everywhere: a
+ * terminal disposition with a REASON, because "we lost 40% of storm leads on price" is the number the
+ * business is actually run on. A bare flag throws that away.
+ *
+ * `lost` and `cancelled` are kept apart because they are different outcomes on a report: lost is never
+ * signed (a sales loss), cancelled is signed and then collapsed (a much worse one).
+ *
+ * These are deliberately NOT in PIPELINE_STATUSES — putting them there would make Advance walk a
+ * collected job into `lost`.
+ *
+ * The fleet already settled this: crm-rv uses `closed_lost` on leads, and crm-restaurant carries
+ * `lostReason` with the comment "why it didn't close — the only way to learn".
+ */
+export const TERMINAL_STATUSES = ['lost', 'cancelled'] as const
+
+/** Every status a job may validly hold. */
+export const JOB_STATUSES = [...PIPELINE_STATUSES, ...TERMINAL_STATUSES] as const
 
 export const MATERIAL_ORDER_STATUSES = ['not_ordered', 'ordered', 'partial', 'delivered', 'cancelled'] as const
 
