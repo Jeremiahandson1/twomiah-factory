@@ -3,6 +3,7 @@
 // built on their own tables; this is the one the three job-based CRMs used to carry as identical copies.
 import { Hono } from 'hono'
 import { eq, and, gte, lt, count, desc, inArray, sql } from 'drizzle-orm'
+import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { invoiceBalance } from '../invoicing/money'
 
 export interface JobsDashboardTables { contact: any; project: any; job: any; quote: any; invoice: any }
@@ -26,16 +27,21 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
 
   app.get('/stats', async (c) => {
     const companyId = (c.get('user') as any).companyId
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today.getTime() + 86_400_000)
+    // The store's day, not the server's. setHours(0,0,0,0) is UTC midnight on Render, so this board
+    // rolled over at 8pm in Ohio and "completed today" counted only what was finished after 7pm.
+    // Unconfigured companies resolve to UTC and are unaffected. (T24 N1, the shared surfaces)
+    const tz = await companyTimeZone(db, companyId)
+    const { start: today, end: tomorrow, date: localToday } = storeDayRange(tz)
 
     const [contactRows, projectsByStatus, jobsByStatus, todayRows, completedTodayRows, quotes, invoices] = await Promise.all([
       safe(() => db.select({ value: count() }).from(t.contact).where(eq(t.contact.companyId, companyId)), [{ value: 0 }]),
       safe(() => db.select({ status: t.project.status, c: count() }).from(t.project).where(eq(t.project.companyId, companyId)).groupBy(t.project.status), [] as any[]),
       safe(() => db.select({ status: t.job.status, c: count() }).from(t.job).where(eq(t.job.companyId, companyId)).groupBy(t.job.status), [] as any[]),
       // Today's board: work scheduled for today that is still live.
+      // scheduled_date holds a calendar-day marker for a job made here and a real instant for one made
+      // by a booking, so the day is taken per row — see jobLocalDay.
       safe(() => db.select({ status: t.job.status, c: count() }).from(t.job)
-        .where(and(eq(t.job.companyId, companyId), gte(t.job.scheduledDate, today), lt(t.job.scheduledDate, tomorrow), sql`${t.job.status} <> 'cancelled'`)).groupBy(t.job.status), [] as any[]),
+        .where(and(eq(t.job.companyId, companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`, sql`${t.job.status} <> 'cancelled'`)).groupBy(t.job.status), [] as any[]),
       safe(() => db.select({ value: count() }).from(t.job)
         .where(and(eq(t.job.companyId, companyId), eq(t.job.status, 'completed'), gte(t.job.completedAt, today), lt(t.job.completedAt, tomorrow))), [{ value: 0 }]),
       safe(() => db.select({ status: t.quote.status, total: t.quote.total }).from(t.quote).where(eq(t.quote.companyId, companyId)), [] as any[]),

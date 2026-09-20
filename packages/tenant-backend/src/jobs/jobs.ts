@@ -14,6 +14,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, ne, and, gte, lt, lte, count, asc, desc, or, ilike, inArray, notInArray, sql } from 'drizzle-orm'
 import { nextNumber } from '../invoicing/money'
+import { companyTimeZone, storeDayRange, jobLocalDay } from '../time/businessDay'
 import { checkFilter } from '../listFilter'
 import { withinHorizon, horizonMessage } from '../dateInput'
 import { sniffType, baseMime } from '../files/storage'
@@ -243,9 +244,15 @@ export function createJobRoutes(deps: JobDeps) {
 
   app.get('/today', async (c) => {
     const currentUser = c.get('user') as any
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1)
-    const rows = await db.select().from(t.job).where(and(eq(t.job.companyId, currentUser.companyId), gte(t.job.scheduledDate, today), lt(t.job.scheduledDate, tomorrow))).orderBy(asc(t.job.scheduledTime))
+    // The crew's day, not the server's: this listed tomorrow's work from 8pm in Ohio, because
+    // setHours(0,0,0,0) is UTC midnight on Render. scheduled_date is a calendar-day marker for a job
+    // made here and a real instant for one made by a booking, so the day is taken per row. An
+    // unconfigured company resolves to UTC and sees exactly what it sees today. (T24 N1)
+    const tz = await companyTimeZone(db, currentUser.companyId)
+    const { date: localToday } = storeDayRange(tz)
+    const rows = await db.select().from(t.job)
+      .where(and(eq(t.job.companyId, currentUser.companyId), sql`${jobLocalDay(t.job.scheduledDate, t.job.source, tz)} = ${localToday}::date`))
+      .orderBy(asc(t.job.scheduledTime))
     return c.json(await withRelations(rows, currentUser.companyId, { id: t.contact.id, name: t.contact.name, phone: t.contact.phone }))
   })
 

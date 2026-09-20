@@ -1363,3 +1363,14 @@ jobs:
           bun-version: latest
       - name: "Settings keys removable; refusals honest; no portal secret; theme at boot"
         run: bun run scripts/check-salon-lows.ts
+
+  business-day:
+    name: "business day"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "today belongs to the business: instants convert, calendar markers do not"
+        run: bun run scripts/check-business-day.ts
