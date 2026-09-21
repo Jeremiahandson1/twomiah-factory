@@ -579,7 +579,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
     length: '',
     width: '',
     height: '',
-    quantity: 1,
+    quantity: '1',
   });
   const [saving, setSaving] = useState<boolean>(false);
 
@@ -591,6 +591,8 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
     try {
       await api.post(`/api/takeoffs/sheets/${sheetId}/items`, {
         ...form,
+        // quantity holds text while it is typed; it becomes a number here, once
+        quantity: Number(form.quantity) || 0,
         name: form.name || selectedAssembly?.name,
       });
       onSave();
@@ -713,7 +715,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
                 <input
                   type="number"
                   value={form.quantity}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   min="1"
                   required

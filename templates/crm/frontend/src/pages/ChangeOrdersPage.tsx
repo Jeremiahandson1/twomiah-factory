@@ -6,10 +6,17 @@ import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
+// While a row is being typed, quantity and unitPrice hold TEXT; they become numbers once, in
+// handleSave. Coercing on every keystroke drops a minus sign in silence — a lone "-" reads back as ""
+// from a number input, Number("") is 0, React writes that 0 into the field and the digits that follow
+// land beside it, so -15 is stored as 15. The same shape is allowed here for rows read back from the
+// API, which really are numbers. (roof T18 L7, same defect)
+const num0 = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+
 interface LineItem {
   description: string;
-  quantity: number;
-  unitPrice: number;
+  quantity: number | string;
+  unitPrice: number | string;
   [key: string]: unknown;
 }
 
@@ -18,7 +25,7 @@ interface ChangeOrderForm {
   description: string;
   projectId: string;
   reason: string;
-  daysAdded: number;
+  daysAdded: number | string;
   lineItems: LineItem[];
 }
 
@@ -38,7 +45,7 @@ export default function ChangeOrdersPage() {
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Record<string, unknown> | null>(null);
-  const [form, setForm] = useState<ChangeOrderForm>({ title: '', description: '', projectId: '', reason: '', daysAdded: 0, lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] });
+  const [form, setForm] = useState<ChangeOrderForm>({ title: '', description: '', projectId: '', reason: '', daysAdded: '0', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] });
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
@@ -56,13 +63,24 @@ export default function ChangeOrdersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const calcTotal = () => form.lineItems.reduce((s: number, li: LineItem) => s + (li.quantity * li.unitPrice), 0);
+  const calcTotal = () => form.lineItems.reduce((s: number, li: LineItem) => s + (num0(li.quantity) * num0(li.unitPrice)), 0);
 
   const handleSave = async () => {
     if (!form.title || !form.projectId) { toast.error('Title and project required'); return; }
+    // Text becomes numbers here, once. daysAdded is deliberately allowed to be negative — a change
+    // order can shorten a schedule as well as extend it, which is precisely the sign the old
+    // on-keystroke Number() threw away.
+    const lineItems = form.lineItems
+      .filter((li: LineItem) => String(li.description || '').trim())
+      .map((li: LineItem) => ({ ...li, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }));
+    if (lineItems.some((li) => !Number.isFinite(li.quantity) || li.quantity < 0 || !Number.isFinite(li.unitPrice) || li.unitPrice < 0)) {
+      toast.error('Quantity and price must be zero or more'); return;
+    }
+    const daysAdded = Number(form.daysAdded);
+    if (!Number.isFinite(daysAdded)) { toast.error('Days added must be a number'); return; }
     setSaving(true);
     try {
-      const payload = { ...form, lineItems: form.lineItems.filter((li: LineItem) => li.description.trim()) };
+      const payload = { ...form, daysAdded, lineItems };
       if (editing) { await api.changeOrders.update(editing.id as string, payload); toast.success('Updated'); }
       else { await api.changeOrders.create(payload); toast.success('Created'); }
       setModalOpen(false); load();
@@ -75,12 +93,12 @@ export default function ChangeOrdersPage() {
   const handleApprove = async (co: Record<string, unknown>) => { try { await api.changeOrders.approve(co.id as string, { approvedBy: 'Current User' }); toast.success('Approved'); load(); } catch (err) { toast.error((err as Error).message); } };
   const handleReject = async (co: Record<string, unknown>) => { try { await api.changeOrders.reject(co.id as string); toast.success('Rejected'); load(); } catch (err) { toast.error((err as Error).message); } };
 
-  const addLineItem = () => setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: 1, unitPrice: 0 }] });
+  const addLineItem = () => setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: '1', unitPrice: '' }] });
   const updateLineItem = (idx: number, field: string, val: string | number) => { const items = [...form.lineItems]; (items[idx] as Record<string, unknown>)[field] = val; setForm({ ...form, lineItems: items }); };
   const removeLineItem = (idx: number) => setForm({ ...form, lineItems: form.lineItems.filter((_: LineItem, i: number) => i !== idx) });
 
-  const openCreate = () => { setEditing(null); setForm({ title: '', description: '', projectId: '', reason: '', daysAdded: 0, lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
-  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ title: item.title as string, description: (item.description as string) || '', projectId: item.projectId as string, reason: (item.reason as string) || '', daysAdded: (item.daysAdded as number) || 0, lineItems: (item.lineItems as LineItem[])?.length ? (item.lineItems as LineItem[]).map((li: LineItem) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
+  const openCreate = () => { setEditing(null); setForm({ title: '', description: '', projectId: '', reason: '', daysAdded: '0', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] }); setModalOpen(true); };
+  const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ title: item.title as string, description: (item.description as string) || '', projectId: item.projectId as string, reason: (item.reason as string) || '', daysAdded: String((item.daysAdded as number) ?? 0), lineItems: (item.lineItems as LineItem[])?.length ? (item.lineItems as LineItem[]).map((li: LineItem) => ({ description: li.description, quantity: String(li.quantity ?? ''), unitPrice: String(li.unitPrice ?? '') })) : [{ description: '', quantity: '1', unitPrice: '' }] }); setModalOpen(true); };
 
   const columns = [
     { key: 'number', label: '#', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
@@ -111,16 +129,16 @@ export default function ChangeOrdersPage() {
           <div><label className="block text-sm font-medium mb-1">Description</label><textarea value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({...form, description: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div className="grid md:grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium mb-1">Reason</label><input value={form.reason} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, reason: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="Owner request, unforeseen conditions..." /></div>
-            <div><label className="block text-sm font-medium mb-1">Days Added</label><input type="number" value={form.daysAdded} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, daysAdded: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Days Added</label><input type="number" value={form.daysAdded} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({...form, daysAdded: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
           <div><label className="block text-sm font-medium mb-2">Line Items</label>
             <div className="border rounded-lg">
               <table className="w-full"><thead className="bg-gray-50 dark:bg-slate-900"><tr><th className="px-4 py-2 text-left text-xs">Description</th><th className="px-4 py-2 w-20">Qty</th><th className="px-4 py-2 w-28">Price</th><th className="px-4 py-2 text-right w-28">Total</th><th className="w-10"></th></tr></thead>
                 <tbody className="divide-y">{form.lineItems.map((li: LineItem, idx: number) => (
                   <tr key={idx}><td className="px-4 py-2"><input value={li.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'description', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
-                    <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', Number(e.target.value))} className="w-full px-2 py-1 border rounded" /></td>
-                    <td className="px-4 py-2"><input type="number" value={li.unitPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'unitPrice', Number(e.target.value))} className="w-full px-2 py-1 border rounded" /></td>
-                    <td className="px-4 py-2 text-right">${(li.quantity * li.unitPrice).toLocaleString()}</td>
+                    <td className="px-4 py-2"><input type="number" value={li.quantity} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'quantity', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
+                    <td className="px-4 py-2"><input type="number" value={li.unitPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLineItem(idx, 'unitPrice', e.target.value)} className="w-full px-2 py-1 border rounded" /></td>
+                    <td className="px-4 py-2 text-right">${(num0(li.quantity) * num0(li.unitPrice)).toLocaleString()}</td>
                     <td><button onClick={() => removeLineItem(idx)} className="p-1 text-red-500"><Trash2 className="w-4 h-4" /></button></td></tr>
                 ))}</tbody>
               </table>

@@ -615,7 +615,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }: AddSelect
     name: '',
     location: '',
     allowance: '',
-    quantity: 1,
+    quantity: '1',
     unit: 'each',
     dueDate: '',
   });
@@ -625,7 +625,8 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }: AddSelect
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post(`/api/selections/project/${projectId}`, form);
+      // quantity holds text while it is typed; it becomes a number here, once
+      await api.post(`/api/selections/project/`, { ...form, quantity: Number(form.quantity) || 0 });
       onSave();
     } catch (error: unknown) {
       alert('Failed to create selection');
@@ -695,7 +696,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }: AddSelect
                 <input
                   type="number"
                   value={form.quantity}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: Number(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>

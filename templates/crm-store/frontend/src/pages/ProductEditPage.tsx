@@ -34,7 +34,7 @@ export default function ProductEditPage() {
       const body = {
         name: form.name, tagline: form.tagline, description: form.description,
         status: form.status, featured: form.featured,
-        leadTimeDays: form.leadTimeDays === '' ? null : form.leadTimeDays,
+        leadTimeDays: form.leadTimeDays === '' || form.leadTimeDays == null ? null : Number(form.leadTimeDays),
         seoTitle: form.seoTitle, seoDescription: form.seoDescription,
       }
       if (isNew) {
@@ -94,7 +94,7 @@ export default function ProductEditPage() {
           </div>
           <div>
             <label className="label">Lead time (days)</label>
-            <input className="input" type="number" value={form.leadTimeDays ?? ''} onChange={(e) => set('leadTimeDays', e.target.value === '' ? null : Number(e.target.value))} placeholder="Optional" />
+            <input className="input" type="number" value={form.leadTimeDays ?? ''} onChange={(e) => set('leadTimeDays', e.target.value === '' ? null : e.target.value)} placeholder="Optional" />
           </div>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-700">

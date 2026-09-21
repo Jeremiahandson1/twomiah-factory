@@ -26,7 +26,7 @@ export default function LienWaiversPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
-  const [form, setForm] = useState({ projectId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: 0, amountCurrent: 0, amountTotal: 0, notes: '' });
+  const [form, setForm] = useState({ projectId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: '', amountCurrent: '', amountTotal: 0, notes: '' });
 
   useEffect(() => { load(); }, []);
   const load = async () => {
@@ -41,7 +41,7 @@ export default function LienWaiversPage() {
     e.preventDefault();
     const total = Number(form.amountPrevious) + Number(form.amountCurrent);
     await api.post('/api/lien-waivers', { ...form, amountPrevious: Number(form.amountPrevious), amountCurrent: Number(form.amountCurrent), amountTotal: total });
-    setShowCreate(false); setForm({ projectId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: 0, amountCurrent: 0, amountTotal: 0, notes: '' });
+    setShowCreate(false); setForm({ projectId: '', vendorName: '', vendorType: 'subcontractor', waiverType: 'conditional_progress', throughDate: '', amountPrevious: '', amountCurrent: '', amountTotal: 0, notes: '' });
     load();
   };
 
@@ -94,8 +94,8 @@ export default function LienWaiversPage() {
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div><label className="text-xs text-gray-500 dark:text-slate-400">Through Date</label><input type="date" value={form.throughDate} onChange={(e) => setForm({ ...form, throughDate: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
-                <div><label className="text-xs text-gray-500 dark:text-slate-400">Previous $</label><input type="number" step="0.01" value={form.amountPrevious} onChange={(e) => setForm({ ...form, amountPrevious: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>
-                <div><label className="text-xs text-gray-500 dark:text-slate-400">Current $</label><input type="number" step="0.01" value={form.amountCurrent} onChange={(e) => setForm({ ...form, amountCurrent: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Previous $</label><input type="number" step="0.01" value={form.amountPrevious} onChange={(e) => setForm({ ...form, amountPrevious: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Current $</label><input type="number" step="0.01" value={form.amountCurrent} onChange={(e) => setForm({ ...form, amountCurrent: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
               </div>
               <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full border rounded-lg px-3 py-2" />
               <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-orange-500 text-white rounded-lg">Create</button></div>

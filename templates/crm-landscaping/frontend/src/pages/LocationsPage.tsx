@@ -11,7 +11,7 @@ export default function LocationsPage() {
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: '', code: '', address: '', city: '', state: '', zip: '', phone: '', email: '', timezone: 'America/Chicago', serviceAreaRadiusMiles: 25, notes: '' });
+  const [form, setForm] = useState({ name: '', code: '', address: '', city: '', state: '', zip: '', phone: '', email: '', timezone: 'America/Chicago', serviceAreaRadiusMiles: '25', notes: '' });
 
   useEffect(() => { load(); }, []);
   const load = async () => { try { const { data } = await api.get('/api/locations'); setLocations(data || []); } catch (e) { console.error(e); } finally { setLoading(false); } };
@@ -20,7 +20,7 @@ export default function LocationsPage() {
     e.preventDefault();
     await api.post('/api/locations', { ...form, serviceAreaRadiusMiles: Number(form.serviceAreaRadiusMiles) });
     setShowCreate(false);
-    setForm({ name: '', code: '', address: '', city: '', state: '', zip: '', phone: '', email: '', timezone: 'America/Chicago', serviceAreaRadiusMiles: 25, notes: '' });
+    setForm({ name: '', code: '', address: '', city: '', state: '', zip: '', phone: '', email: '', timezone: 'America/Chicago', serviceAreaRadiusMiles: '25', notes: '' });
     load();
   };
 
@@ -78,7 +78,7 @@ export default function LocationsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <input placeholder="Timezone" value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} className="border rounded-lg px-3 py-2" />
-                <input type="number" placeholder="Service radius (miles)" value={form.serviceAreaRadiusMiles} onChange={(e) => setForm({ ...form, serviceAreaRadiusMiles: Number(e.target.value) })} className="border rounded-lg px-3 py-2" />
+                <input type="number" placeholder="Service radius (miles)" value={form.serviceAreaRadiusMiles} onChange={(e) => setForm({ ...form, serviceAreaRadiusMiles: e.target.value })} className="border rounded-lg px-3 py-2" />
               </div>
               <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full border rounded-lg px-3 py-2" />
               <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-sky-500 text-white rounded-lg">Create</button></div>

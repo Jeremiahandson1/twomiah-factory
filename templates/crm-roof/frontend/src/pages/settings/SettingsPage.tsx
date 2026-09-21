@@ -33,11 +33,16 @@ export default function SettingsPage() {
   const [syncing, setSyncing] = useState(false);
 
   // Storm settings state
+  // minHailSize and maxLeadsPerZip hold the TEXT being typed. They used to be
+  // `parseFloat(e.target.value) || 1.0` and `parseInt(e.target.value) || 200`, which is the worst
+  // version of this: a lone "-" reads back as "" from a number input, parseFloat("") is NaN, and the
+  // `||` then snaps the field to the DEFAULT — so a half-typed figure visibly jumps to 1 or 200 under
+  // the cursor. They become numbers once, in saveStormSettings. (roof T18 L7)
   const [stormSettings, setStormSettings] = useState({
     zipCodes: [] as string[],
     stormAlertEnabled: false,
-    minHailSize: 1.0,
-    maxLeadsPerZip: 200,
+    minHailSize: '1.0',
+    maxLeadsPerZip: '200',
     autoGenerate: false,
   });
   const [zipInput, setZipInput] = useState('');
@@ -77,7 +82,14 @@ export default function SettingsPage() {
       } else if (hasQB) idx++;
       if (hasStorm && results[idx]?.ok) {
         const stormData = await results[idx].json();
-        setStormSettings(prev => ({ ...prev, ...stormData }));
+        // The API returns these two as numbers; the fields hold text while they are being edited, so
+        // they are normalised on the way in rather than letting a number sit in a string field.
+        setStormSettings(prev => ({
+          ...prev,
+          ...stormData,
+          ...(stormData.minHailSize != null ? { minHailSize: String(stormData.minHailSize) } : {}),
+          ...(stormData.maxLeadsPerZip != null ? { maxLeadsPerZip: String(stormData.maxLeadsPerZip) } : {}),
+        }));
       }
     } catch {
       toast.error('Failed to load settings');
@@ -220,12 +232,17 @@ export default function SettingsPage() {
   };
 
   const saveStormSettings = async () => {
+    // text becomes numbers here, once, and a figure that is not one is refused by name
+    const minHailSize = Number(stormSettings.minHailSize);
+    const maxLeadsPerZip = Number(stormSettings.maxLeadsPerZip);
+    if (!Number.isFinite(minHailSize) || minHailSize <= 0) { toast.error('Minimum hail size must be more than zero'); return; }
+    if (!Number.isFinite(maxLeadsPerZip) || maxLeadsPerZip < 1) { toast.error('Max leads per ZIP must be at least 1'); return; }
     setSavingStorm(true);
     try {
       const res = await fetch('/api/storms/service-area', {
         method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(stormSettings),
+        body: JSON.stringify({ ...stormSettings, minHailSize, maxLeadsPerZip }),
       });
       if (!res.ok) throw new Error();
       toast.success('Storm settings saved');
@@ -540,7 +557,7 @@ export default function SettingsPage() {
                     step="0.25"
                     min="0.5"
                     value={stormSettings.minHailSize}
-                    onChange={(e) => setStormSettings(prev => ({ ...prev, minHailSize: parseFloat(e.target.value) || 1.0 }))}
+                    onChange={(e) => setStormSettings(prev => ({ ...prev, minHailSize: e.target.value }))}
                     className="w-full text-sm border rounded-lg px-3 py-2"
                   />
                 </div>
@@ -551,7 +568,7 @@ export default function SettingsPage() {
                     min="10"
                     max="1000"
                     value={stormSettings.maxLeadsPerZip}
-                    onChange={(e) => setStormSettings(prev => ({ ...prev, maxLeadsPerZip: parseInt(e.target.value) || 200 }))}
+                    onChange={(e) => setStormSettings(prev => ({ ...prev, maxLeadsPerZip: e.target.value }))}
                     className="w-full text-sm border rounded-lg px-3 py-2"
                   />
                 </div>

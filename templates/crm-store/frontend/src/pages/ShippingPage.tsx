@@ -11,7 +11,7 @@ export default function ShippingPage() {
   const [apiKey, setApiKey] = useState('')
   const [mode, setMode] = useState<'test' | 'live'>('test')
   const [from, setFrom] = useState({ name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: 'US', phone: '' })
-  const [parcel, setParcel] = useState({ lengthIn: 10, widthIn: 8, heightIn: 4, weightOz: 16 })
+  const [parcel, setParcel] = useState({ lengthIn: '10', widthIn: '8', heightIn: '4', weightOz: '16' })
   const [saving, setSaving] = useState(false)
 
   const load = async () => {
@@ -19,7 +19,14 @@ export default function ShippingPage() {
       const c = await api.shippingConfig()
       setCfg(c)
       if (c.fromAddress) setFrom({ name: '', line2: '', phone: '', ...(c.fromAddress as any) })
-      if (c.defaultParcel) setParcel(c.defaultParcel)
+      // The API stores these as numbers; the fields hold text while they are being edited, so they
+      // are normalised on the way in rather than letting a number sit in a string field.
+      if (c.defaultParcel) setParcel({
+        lengthIn: String(c.defaultParcel.lengthIn ?? ''),
+        widthIn: String(c.defaultParcel.widthIn ?? ''),
+        heightIn: String(c.defaultParcel.heightIn ?? ''),
+        weightOz: String(c.defaultParcel.weightOz ?? ''),
+      })
       if (c.mode === 'live' || c.mode === 'test') setMode(c.mode)
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Could not load shipping settings', 'error')
@@ -36,7 +43,8 @@ export default function ShippingPage() {
         apiKey,
         mode,
         fromAddress: { ...from, line2: from.line2 || undefined, phone: from.phone || undefined },
-        defaultParcel: parcel,
+        // the fields hold text while they are typed; parcel dimensions become numbers here, once
+        defaultParcel: { lengthIn: Number(parcel.lengthIn) || 0, widthIn: Number(parcel.widthIn) || 0, heightIn: Number(parcel.heightIn) || 0, weightOz: Number(parcel.weightOz) || 0 },
       })
       setApiKey('')
       toast('Carrier connected')
@@ -108,10 +116,10 @@ export default function ShippingPage() {
         <h3 className="font-medium text-gray-900 pt-2">Default parcel</h3>
         <p className="text-sm text-gray-500">Used for quotes and labels unless you change it later per order.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div><label className="label">Length (in)</label><input type="number" className="input" value={parcel.lengthIn} onChange={(e) => setParcel({ ...parcel, lengthIn: Number(e.target.value) })} /></div>
-          <div><label className="label">Width (in)</label><input type="number" className="input" value={parcel.widthIn} onChange={(e) => setParcel({ ...parcel, widthIn: Number(e.target.value) })} /></div>
-          <div><label className="label">Height (in)</label><input type="number" className="input" value={parcel.heightIn} onChange={(e) => setParcel({ ...parcel, heightIn: Number(e.target.value) })} /></div>
-          <div><label className="label">Weight (oz)</label><input type="number" className="input" value={parcel.weightOz} onChange={(e) => setParcel({ ...parcel, weightOz: Number(e.target.value) })} /></div>
+          <div><label className="label">Length (in)</label><input type="number" className="input" value={parcel.lengthIn} onChange={(e) => setParcel({ ...parcel, lengthIn: e.target.value })} /></div>
+          <div><label className="label">Width (in)</label><input type="number" className="input" value={parcel.widthIn} onChange={(e) => setParcel({ ...parcel, widthIn: e.target.value })} /></div>
+          <div><label className="label">Height (in)</label><input type="number" className="input" value={parcel.heightIn} onChange={(e) => setParcel({ ...parcel, heightIn: e.target.value })} /></div>
+          <div><label className="label">Weight (oz)</label><input type="number" className="input" value={parcel.weightOz} onChange={(e) => setParcel({ ...parcel, weightOz: e.target.value })} /></div>
         </div>
 
         <button onClick={connect} disabled={saving || (!apiKey && !cfg?.connected) || !from.line1 || !from.postalCode} className="btn-primary">

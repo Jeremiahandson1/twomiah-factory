@@ -39,9 +39,9 @@ export default function InvoicesPage() {
     contactId: '',
     jobId: '',
     dueDate: '',
-    taxRate: 0,
+    taxRate: '0',
     notes: '',
-    lineItems: [{ description: '', quantity: 1, unitPrice: 0 }],
+    lineItems: [{ description: '', quantity: '1', unitPrice: '' }],
   });
 
   const limit = 25;
@@ -76,8 +76,18 @@ export default function InvoicesPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [tab]);
 
-  const subtotal = form.lineItems.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
-  const tax = subtotal * (form.taxRate / 100);
+  // Money fields hold the TEXT being typed, not a number.
+  //
+  // `Number(e.target.value)` on every keystroke looks harmless and is not: a lone "-" reads back as
+  // "" from a number input, Number("") is 0, React writes that 0 into the field, and the digits that
+  // follow land beside it. Typing -15 leaves 15 — the sign is gone and nothing says so. Measured in
+  // Chrome with real key events, not assumed. (Same defect as the supplement price, roof T18 L7.)
+  //
+  // Decimals were never the problem: a half-typed "2." leaves state unchanged, so React writes
+  // nothing and the text survives. Only the sign is lost, and only when the value is coerced here.
+  const num0 = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const subtotal = form.lineItems.reduce((s, li) => s + num0(li.quantity) * num0(li.unitPrice), 0);
+  const tax = subtotal * (num0(form.taxRate) / 100);
   const grandTotal = subtotal + tax;
 
   const updateLine = (idx: number, field: string, value: any) => {
@@ -89,21 +99,32 @@ export default function InvoicesPage() {
 
   const handleCreate = async () => {
     if (!form.contactId) { toast.error('Select a contact'); return; }
-    const validLines = form.lineItems.filter((li) => li.description.trim());
+    // Text becomes money here, once, and a figure that is not a number or is negative is REFUSED by
+    // name. Mirrors the server's own rule (routes/invoices.ts: quantity and unitPrice are min(0)).
+    const validLines = form.lineItems
+      .filter((li) => li.description.trim())
+      .map((li) => ({ ...li, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }));
     if (validLines.length === 0) { toast.error('Add at least one line item'); return; }
+    if (validLines.some((li) => !Number.isFinite(li.quantity) || li.quantity < 0 || !Number.isFinite(li.unitPrice) || li.unitPrice < 0)) {
+      toast.error('Quantity and price must be zero or more');
+      return;
+    }
+    const taxRate = Number(form.taxRate);
+    if (!Number.isFinite(taxRate) || taxRate < 0) { toast.error('Tax rate must be zero or more'); return; }
     setSaving(true);
     try {
       const res = await fetch('/api/invoices', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, lineItems: validLines }),
+        body: JSON.stringify({ ...form, taxRate, lineItems: validLines }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
       toast.success('Invoice created');
       setModalOpen(false);
       load();
-    } catch {
-      toast.error('Failed to create invoice');
+    } catch (e: any) {
+      // say what the server refused; a bare "Failed" on a 400 leaves the typist retrying blindly
+      toast.error(e?.message || 'Failed to create invoice');
     } finally {
       setSaving(false);
     }
@@ -164,7 +185,7 @@ export default function InvoicesPage() {
           </div>
           <button
             onClick={() => {
-              setForm({ contactId: '', jobId: '', dueDate: '', taxRate: 0, notes: '', lineItems: [{ description: '', quantity: 1, unitPrice: 0 }] });
+              setForm({ contactId: '', jobId: '', dueDate: '', taxRate: '0', notes: '', lineItems: [{ description: '', quantity: '1', unitPrice: '' }] });
               setModalOpen(true);
             }}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
@@ -331,7 +352,7 @@ export default function InvoicesPage() {
                       type="number"
                       min={1}
                       value={li.quantity}
-                      onChange={(e) => updateLine(idx, 'quantity', Number(e.target.value))}
+                      onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
                       className="w-16 text-sm border rounded px-2 py-1.5"
                       placeholder="Qty"
                     />
@@ -340,11 +361,11 @@ export default function InvoicesPage() {
                       min={0}
                       step={0.01}
                       value={li.unitPrice}
-                      onChange={(e) => updateLine(idx, 'unitPrice', Number(e.target.value))}
+                      onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
                       className="w-24 text-sm border rounded px-2 py-1.5"
                       placeholder="Price"
                     />
-                    <span className="text-sm text-gray-700 w-20 text-right dark:text-slate-200">${(li.quantity * li.unitPrice).toFixed(2)}</span>
+                    <span className="text-sm text-gray-700 w-20 text-right dark:text-slate-200">${(num0(li.quantity) * num0(li.unitPrice)).toFixed(2)}</span>
                     {form.lineItems.length > 1 && (
                       <button onClick={() => setForm((prev) => ({ ...prev, lineItems: prev.lineItems.filter((_, i) => i !== idx) }))} className="p-1 text-gray-400 hover:text-red-500">
                         <X className="w-3.5 h-3.5" />
@@ -352,14 +373,14 @@ export default function InvoicesPage() {
                     )}
                   </div>
                 ))}
-                <button onClick={() => setForm((prev) => ({ ...prev, lineItems: [...prev.lineItems, { description: '', quantity: 1, unitPrice: 0 }] }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add line</button>
+                <button onClick={() => setForm((prev) => ({ ...prev, lineItems: [...prev.lineItems, { description: '', quantity: '1', unitPrice: '' }] }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add line</button>
               </div>
               <div className="flex justify-end">
                 <div className="w-56 space-y-1 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500 dark:text-slate-400">Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500 dark:text-slate-400">Tax (%)</span>
-                    <input type="number" min={0} step={0.1} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: Number(e.target.value) })} className="w-16 text-sm border rounded px-2 py-1 text-right" />
+                    <input type="number" min={0} step={0.1} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })} className="w-16 text-sm border rounded px-2 py-1 text-right" />
                   </div>
                   <div className="flex justify-between font-bold border-t pt-1"><span>Total</span><span>${grandTotal.toFixed(2)}</span></div>
                 </div>

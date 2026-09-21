@@ -49,12 +49,13 @@ const defaultSettings: Settings = {
   forwardingNumber: '',
 }
 
-const defaultRule: Omit<Rule, 'id' | 'created_at'> = {
+type RuleForm = Omit<Rule, 'id' | 'created_at' | 'delayMinutes'> & { delayMinutes: string }
+const defaultRule: RuleForm = {
   name: '',
   trigger: 'missed_call',
   channel: 'sms',
   keywordMatch: '',
-  delayMinutes: 5,
+  delayMinutes: '5',
   messageTemplate: '',
   isActive: true,
 }
@@ -83,7 +84,7 @@ export default function AIReceptionistPage() {
   // Modal state
   const [showModal, setShowModal] = useState(false)
   const [editingRule, setEditingRule] = useState<Rule | null>(null)
-  const [form, setForm] = useState(defaultRule)
+  const [form, setForm] = useState<RuleForm>(defaultRule)
 
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
@@ -134,7 +135,7 @@ export default function AIReceptionistPage() {
         ? `/api/ai-receptionist/rules/${editingRule.id}`
         : '/api/ai-receptionist/rules'
       const method = editingRule ? 'PUT' : 'POST'
-      await fetch(url, { method, headers, body: JSON.stringify(form) })
+      await fetch(url, { method, headers, body: JSON.stringify({ ...form, delayMinutes: Number(form.delayMinutes) || 0 }) })
       await loadRules()
       closeModal()
     } catch { /* ignore */ }
@@ -181,7 +182,7 @@ export default function AIReceptionistPage() {
       trigger: rule.trigger,
       channel: rule.channel,
       keywordMatch: rule.keywordMatch || '',
-      delayMinutes: rule.delayMinutes,
+      delayMinutes: String(rule.delayMinutes),
       messageTemplate: rule.messageTemplate,
       isActive: rule.isActive,
     })
@@ -541,7 +542,7 @@ export default function AIReceptionistPage() {
                   type="number"
                   min={0}
                   value={form.delayMinutes}
-                  onChange={e => setForm(f => ({ ...f, delayMinutes: parseInt(e.target.value) || 0 }))}
+                  onChange={e => setForm(f => ({ ...f, delayMinutes: e.target.value }))}
                   className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

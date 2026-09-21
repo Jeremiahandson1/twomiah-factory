@@ -53,7 +53,7 @@ export default function RoofReportsPage() {
   const [purchasing, setPurchasing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [form, setForm] = useState({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: 12 })
+  const [form, setForm] = useState({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: '12' })
   const [preview, setPreview] = useState<any>(null)
   const [finalizing, setFinalizing] = useState(false)
 
@@ -136,7 +136,7 @@ export default function RoofReportsPage() {
           city: form.city,
           state: form.state,
           zip: form.zip,
-          eaveOverhangInches: form.eaveOverhangInches,
+          eaveOverhangInches: Number(form.eaveOverhangInches) || 0,
           mode,
           ...(form.contactId && { contactId: form.contactId }),
         }),
@@ -214,7 +214,7 @@ export default function RoofReportsPage() {
       })
       toast.success('Roof report created!')
       setPreview(null)
-      setForm({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: 12 })
+      setForm({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: '12' })
       loadReports()
     } catch (err: any) {
       toast.error(err?.message || 'Failed to create report')
@@ -369,7 +369,7 @@ export default function RoofReportsPage() {
                   min={0}
                   max={36}
                   value={form.eaveOverhangInches}
-                  onChange={(e) => setForm({ ...form, eaveOverhangInches: Number(e.target.value) || 0 })}
+                  onChange={(e) => setForm({ ...form, eaveOverhangInches: e.target.value })}
                   className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <span className="text-sm text-gray-500 dark:text-slate-400">inches (expands roof segments outward to account for eave overhang)</span>

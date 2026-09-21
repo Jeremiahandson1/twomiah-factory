@@ -22,7 +22,7 @@ export default function CommissionsPage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPlan, setShowPlan] = useState(false);
-  const [planForm, setPlanForm] = useState({ name: '', planType: 'percent_of_invoice', flatRateAmount: 0, percentRate: 10, appliesToRole: 'technician' });
+  const [planForm, setPlanForm] = useState({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: 'technician' });
 
   useEffect(() => { load(); }, []);
   const load = async () => {
@@ -35,7 +35,7 @@ export default function CommissionsPage() {
   const createPlan = async (e: React.FormEvent) => {
     e.preventDefault();
     await api.post('/api/commissions/plans', { ...planForm, flatRateAmount: Number(planForm.flatRateAmount), percentRate: Number(planForm.percentRate) });
-    setShowPlan(false); setPlanForm({ name: '', planType: 'percent_of_invoice', flatRateAmount: 0, percentRate: 10, appliesToRole: 'technician' });
+    setShowPlan(false); setPlanForm({ name: '', planType: 'percent_of_invoice', flatRateAmount: '', percentRate: '10', appliesToRole: 'technician' });
     load();
   };
 
@@ -116,8 +116,8 @@ export default function CommissionsPage() {
                   <option value="all">All roles</option>
                 </select>
               </div>
-              {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>}
-              {planForm.planType !== 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Percent rate</label><input type="number" step="0.1" value={planForm.percentRate} onChange={(e) => setPlanForm({ ...planForm, percentRate: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>}
+              {planForm.planType === 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Flat amount per job</label><input type="number" step="0.01" value={planForm.flatRateAmount} onChange={(e) => setPlanForm({ ...planForm, flatRateAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>}
+              {planForm.planType !== 'flat_rate' && <div><label className="text-xs text-gray-500 dark:text-slate-400">Percent rate</label><input type="number" step="0.1" value={planForm.percentRate} onChange={(e) => setPlanForm({ ...planForm, percentRate: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>}
               <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowPlan(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-sky-500 text-white rounded-lg">Create</button></div>
             </form>
           </div>

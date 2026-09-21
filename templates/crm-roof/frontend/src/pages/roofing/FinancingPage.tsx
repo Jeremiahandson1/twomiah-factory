@@ -25,7 +25,7 @@ const LENDER_LABELS: Record<string, string> = {
 export default function FinancingPage() {
   const [apps, setApps] = useState<any[]>([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ contactId: '', jobId: '', quoteId: '', lender: 'wisetack' as const, amountRequested: 0, termMonths: 60, notes: '' });
+  const [form, setForm] = useState({ contactId: '', jobId: '', quoteId: '', lender: 'wisetack' as const, amountRequested: '', termMonths: '60', notes: '' });
 
   useEffect(() => { load(); }, []);
   const load = async () => { try { const { data } = await api.get('/api/financing'); setApps(data || []); } catch (e) { console.error(e); } };
@@ -33,7 +33,7 @@ export default function FinancingPage() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     await api.post('/api/financing', { ...form, amountRequested: Number(form.amountRequested), termMonths: Number(form.termMonths) });
-    setShowCreate(false); setForm({ contactId: '', jobId: '', quoteId: '', lender: 'wisetack', amountRequested: 0, termMonths: 60, notes: '' });
+    setShowCreate(false); setForm({ contactId: '', jobId: '', quoteId: '', lender: 'wisetack', amountRequested: '', termMonths: '60', notes: '' });
     load();
   };
 
@@ -84,8 +84,8 @@ export default function FinancingPage() {
                 {Object.entries(LENDER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs text-gray-500 dark:text-slate-400">Amount requested</label><input required type="number" step="0.01" value={form.amountRequested} onChange={(e) => setForm({ ...form, amountRequested: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>
-                <div><label className="text-xs text-gray-500 dark:text-slate-400">Term (months)</label><input type="number" value={form.termMonths} onChange={(e) => setForm({ ...form, termMonths: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Amount requested</label><input required type="number" min="0.01" step="0.01" value={form.amountRequested} onChange={(e) => setForm({ ...form, amountRequested: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Term (months)</label><input type="number" min="1" step="1" value={form.termMonths} onChange={(e) => setForm({ ...form, termMonths: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
               </div>
               <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full border rounded-lg px-3 py-2" />
               <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-orange-500 text-white rounded-lg">Create</button></div>

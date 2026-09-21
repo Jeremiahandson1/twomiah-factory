@@ -26,8 +26,8 @@ export default function DrawSchedulesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showDraw, setShowDraw] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
-  const [form, setForm] = useState({ projectId: '', name: '', totalAmount: 0, lenderName: '', lenderContact: '', notes: '' });
-  const [drawForm, setDrawForm] = useState({ amountRequested: 0, percentComplete: 0, notes: '' });
+  const [form, setForm] = useState({ projectId: '', name: '', totalAmount: '', lenderName: '', lenderContact: '', notes: '' });
+  const [drawForm, setDrawForm] = useState({ amountRequested: '', percentComplete: '', notes: '' });
 
   useEffect(() => { load(); }, []);
   const load = async () => {
@@ -41,14 +41,14 @@ export default function DrawSchedulesPage() {
   const createSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     await api.post('/api/draw-schedules', { ...form, totalAmount: Number(form.totalAmount) });
-    setShowCreate(false); setForm({ projectId: '', name: '', totalAmount: 0, lenderName: '', lenderContact: '', notes: '' });
+    setShowCreate(false); setForm({ projectId: '', name: '', totalAmount: '', lenderName: '', lenderContact: '', notes: '' });
     load();
   };
 
   const createDraw = async (e: React.FormEvent) => {
     e.preventDefault();
     await api.post('/api/draw-schedules/requests', { ...drawForm, amountRequested: Number(drawForm.amountRequested), percentComplete: Number(drawForm.percentComplete), drawScheduleId: selected.id });
-    setShowDraw(false); setDrawForm({ amountRequested: 0, percentComplete: 0, notes: '' });
+    setShowDraw(false); setDrawForm({ amountRequested: '', percentComplete: '', notes: '' });
     loadDetail(selected.id);
   };
 
@@ -129,7 +129,7 @@ export default function DrawSchedulesPage() {
             <form onSubmit={createSchedule} className="space-y-3">
               <select required value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="w-full border rounded-lg px-3 py-2"><option value="">Select project...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
               <input required placeholder="Schedule name (e.g., Main construction loan)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
-              <input required type="number" step="0.01" placeholder="Total loan amount" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />
+              <input required type="number" step="0.01" placeholder="Total loan amount" value={form.totalAmount} onChange={(e) => setForm({ ...form, totalAmount: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <input placeholder="Lender name" value={form.lenderName} onChange={(e) => setForm({ ...form, lenderName: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <input placeholder="Lender contact (email/phone)" value={form.lenderContact} onChange={(e) => setForm({ ...form, lenderContact: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <textarea placeholder="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="w-full border rounded-lg px-3 py-2" />
@@ -144,8 +144,8 @@ export default function DrawSchedulesPage() {
           <div className="bg-white rounded-xl w-full max-w-md p-6 dark:bg-slate-900">
             <h2 className="text-xl font-bold mb-4">New Draw Request</h2>
             <form onSubmit={createDraw} className="space-y-3">
-              <input required type="number" step="0.01" placeholder="Amount requested" value={drawForm.amountRequested} onChange={(e) => setDrawForm({ ...drawForm, amountRequested: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />
-              <input type="number" step="0.1" min="0" max="100" placeholder="% complete" value={drawForm.percentComplete} onChange={(e) => setDrawForm({ ...drawForm, percentComplete: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" />
+              <input required type="number" step="0.01" placeholder="Amount requested" value={drawForm.amountRequested} onChange={(e) => setDrawForm({ ...drawForm, amountRequested: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
+              <input type="number" step="0.1" min="0" max="100" placeholder="% complete" value={drawForm.percentComplete} onChange={(e) => setDrawForm({ ...drawForm, percentComplete: e.target.value })} className="w-full border rounded-lg px-3 py-2" />
               <textarea placeholder="Notes" value={drawForm.notes} onChange={(e) => setDrawForm({ ...drawForm, notes: e.target.value })} rows={2} className="w-full border rounded-lg px-3 py-2" />
               <div className="flex justify-end gap-2"><button type="button" onClick={() => setShowDraw(false)} className="px-4 py-2 border rounded-lg">Cancel</button><button type="submit" className="px-4 py-2 bg-orange-500 text-white rounded-lg">Create Draw</button></div>
             </form>

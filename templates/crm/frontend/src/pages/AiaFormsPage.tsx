@@ -20,8 +20,8 @@ export default function AiaFormsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [form, setForm] = useState({
-    projectId: '', formType: 'G702', applicationNumber: 1, periodTo: '',
-    contractSum: 0, netChangeByChangeOrders: 0, retainagePercent: 10, lessPreviousCertificates: 0,
+    projectId: '', formType: 'G702', applicationNumber: '1', periodTo: '',
+    contractSum: '', netChangeByChangeOrders: '0', retainagePercent: '10', lessPreviousCertificates: '0',
     lineItems: [{ itemNumber: '1', description: '', scheduledValue: 0, workPreviouslyCompleted: 0, workThisPeriod: 0, materialsStored: 0, totalCompletedAndStored: 0, percentComplete: 0, balanceToFinish: 0, retainage: 0 }],
   });
 
@@ -97,12 +97,12 @@ export default function AiaFormsPage() {
               <div className="grid grid-cols-3 gap-3">
                 <select required value={form.projectId} onChange={(e) => setForm({ ...form, projectId: e.target.value })} className="border rounded-lg px-3 py-2"><option value="">Project...</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
                 <select value={form.formType} onChange={(e) => setForm({ ...form, formType: e.target.value })} className="border rounded-lg px-3 py-2"><option value="G702">G702 (App for Payment)</option><option value="G703">G703 (Continuation)</option></select>
-                <input type="number" placeholder="App #" value={form.applicationNumber} onChange={(e) => setForm({ ...form, applicationNumber: Number(e.target.value) })} className="border rounded-lg px-3 py-2" />
+                <input type="number" placeholder="App #" value={form.applicationNumber} onChange={(e) => setForm({ ...form, applicationNumber: e.target.value })} className="border rounded-lg px-3 py-2" />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div><label className="text-xs text-gray-500 dark:text-slate-400">Period To</label><input type="date" required value={form.periodTo} onChange={(e) => setForm({ ...form, periodTo: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
-                <div><label className="text-xs text-gray-500 dark:text-slate-400">Contract Sum</label><input type="number" step="0.01" value={form.contractSum} onChange={(e) => setForm({ ...form, contractSum: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>
-                <div><label className="text-xs text-gray-500 dark:text-slate-400">Retainage %</label><input type="number" step="0.1" value={form.retainagePercent} onChange={(e) => setForm({ ...form, retainagePercent: Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Contract Sum</label><input type="number" step="0.01" value={form.contractSum} onChange={(e) => setForm({ ...form, contractSum: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
+                <div><label className="text-xs text-gray-500 dark:text-slate-400">Retainage %</label><input type="number" step="0.1" value={form.retainagePercent} onChange={(e) => setForm({ ...form, retainagePercent: e.target.value })} className="w-full border rounded-lg px-3 py-2" /></div>
               </div>
 
               <div className="border-t pt-3">

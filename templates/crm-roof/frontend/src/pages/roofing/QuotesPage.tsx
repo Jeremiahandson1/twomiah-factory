@@ -17,13 +17,17 @@ function formatStatus(s: string) {
   return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Quantity and price hold the TEXT being typed, not a number.
+// Quantity, price and tax rate hold the TEXT being typed, not a number.
 //
-// They used to clamp on every keystroke — `Math.max(1, Number(e.target.value) || 1)`. That does keep a
-// quote from going negative, but it swaps the typed figure for a different one without a word: a
-// mistyped -1500 comes back as a positive line, and a half-typed "2." loses its decimal point because
-// Number("2.") is 2 and the field is re-rendered from it. A refused value is visible on screen; a
-// quietly rewritten one is not. Same defect the supplement modal had. (roof T18 L7)
+// They used to be rewritten on every keystroke — `Math.max(1, Number(e.target.value) || 1)`. That
+// does keep a quote from going negative, and that is the trap: it swaps the typed figure for a
+// different one without a word. A lone "-" reads back as "" from a number input, Number("") is 0,
+// React writes that 0 into the field, and the digits that follow land beside it — so -15 becomes 15
+// and -0.5 becomes 0.5. Measured in Chrome with real key events, not reasoned about.
+//
+// Decimals are NOT affected, contrary to the first diagnosis here: a half-typed "2." leaves state
+// unchanged, so React writes nothing and the text stays in the field until it parses again. Only the
+// sign is lost, and only because the value was coerced on the way in. (roof T18 L7)
 //
 // `num0` prices a row that is still being filled in; the value is checked once, on submit.
 const num0 = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -46,7 +50,7 @@ export default function QuotesPage() {
     contactId: '',
     jobId: '',
     notes: '',
-    taxRate: 0,
+    taxRate: '0',
     expiresAt: '',
     lineItems: [{ ...emptyLine }],
   });
@@ -84,7 +88,7 @@ export default function QuotesPage() {
   // modal matches the list, which used toLocaleString.
   const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const subtotal = form.lineItems.reduce((s, li) => s + num0(li.quantity) * num0(li.unitPrice), 0);
-  const tax = subtotal * (form.taxRate / 100);
+  const tax = subtotal * (num0(form.taxRate) / 100);
   const grandTotal = subtotal + tax;
 
   const updateLine = (idx: number, field: string, value: any) => {
@@ -98,7 +102,7 @@ export default function QuotesPage() {
   const removeLine = (idx: number) => setForm((prev) => ({ ...prev, lineItems: prev.lineItems.filter((_, i) => i !== idx) }));
 
   const openCreate = () => {
-    setForm({ contactId: '', jobId: '', notes: '', taxRate: 0, expiresAt: '', lineItems: [{ ...emptyLine }] });
+    setForm({ contactId: '', jobId: '', notes: '', taxRate: '0', expiresAt: '', lineItems: [{ ...emptyLine }] });
     setModalOpen(true);
   };
 
@@ -117,12 +121,16 @@ export default function QuotesPage() {
       toast.error('Quantity and price must be zero or more');
       return;
     }
+    // taxRate is text too now, and the API takes a number — convert it here or zod rejects the whole
+    // quote with a type error that means nothing to the person who typed it.
+    const taxRate = Number(form.taxRate);
+    if (!Number.isFinite(taxRate) || taxRate < 0) { toast.error('Tax rate must be zero or more'); return; }
     setSaving(true);
     try {
       const res = await fetch('/api/quotes', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, lineItems: validLines }),
+        body: JSON.stringify({ ...form, taxRate, lineItems: validLines }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
       toast.success('Quote created');
@@ -420,7 +428,7 @@ export default function QuotesPage() {
                       min={0}
                       step={0.1}
                       value={form.taxRate}
-                      onChange={(e) => setForm({ ...form, taxRate: Number(e.target.value) })}
+                      onChange={(e) => setForm({ ...form, taxRate: e.target.value })}
                       className="w-16 text-sm border rounded px-2 py-1 text-right"
                     />
                   </div>
