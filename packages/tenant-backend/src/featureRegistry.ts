@@ -170,7 +170,11 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Roofing
   { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'], hidden: true },
   { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
-  { id: 'pipeline_board', name: 'Pipeline Board', description: 'Visual Kanban pipeline for roofing jobs', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  // Not a switch. The pipeline board is roof's INDEX ROUTE — the first screen after login — so there is
+  // no state of the product where it is off, and the Settings toggle could never do anything. `core` is a
+  // global flag, but this feature is offered to crm-roof alone, so marking it core locks it to "Included"
+  // for roofers and touches nothing else. (roof T18 L9)
+  { id: 'pipeline_board', name: 'Pipeline Board', description: 'Visual Kanban pipeline for roofing jobs', category: 'Roofing', core: true, templates: ['crm-roof'] },
   { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },

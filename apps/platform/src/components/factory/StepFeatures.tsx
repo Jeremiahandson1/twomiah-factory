@@ -144,7 +144,8 @@ const CRM_REGISTRY = [
   ]},
   { category: 'Roofing', features: [
     { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim and supplement tracking', core: false },
-    { id: 'pipeline_board', name: 'Pipeline Board', description: 'Kanban sales pipeline for roof leads', core: false },
+    // core in the feature registry: it is roof's index route, so it is never off. Kept in step here.
+    { id: 'pipeline_board', name: 'Pipeline Board', description: 'Kanban sales pipeline for roof leads', core: true },
     { id: 'crews', name: 'Crews', description: 'Crew scheduling and management', core: false },
     { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', core: false },
     { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing with GPS', core: false },

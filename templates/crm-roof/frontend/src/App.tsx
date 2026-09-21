@@ -164,7 +164,11 @@ export default function App() {
                 <Route path="settings/billing" element={<BillingPage smsBilling />} />
                 <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
                 <Route path="email" element={<InboundMessagesPage />} />
-                <Route path="google-reviews" element={<FeatureRoute feature="google_reviews"><GbpReviewsPage /></FeatureRoute>} />
+                {/* Google Business Profile, not the review-request module. This page calls /api/gbp only, and the
+                    nav row beside it has always gated on google_business — M7 gated the ROUTE on google_reviews,
+                    so a tenant with GBP on and review requests off saw the sidebar link and got bounced by it.
+                    /crm/reviews below is the other one, and it really is google_reviews. (roof T18) */}
+                <Route path="google-reviews" element={<FeatureRoute feature="google_business"><GbpReviewsPage /></FeatureRoute>} />
                 <Route path="estimator" element={<EstimatorPage />} />
                 <Route path="ai-receptionist" element={<FeatureRoute feature="ai_receptionist"><AIReceptionistPage /></FeatureRoute>} />
                 <Route path="ads" element={<AdsPage />} />

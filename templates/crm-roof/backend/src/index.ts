@@ -166,6 +166,14 @@ app.route('/api/internal/gbp', gbpInternal)
 app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/company', companyRoutes)
 app.route('/api/contacts', contactsRoutes)
+// Photo Capture has a real surface on roof — POST/GET/DELETE /api/jobs/:id/photos, and the before/after
+// tabs on the job — but nothing enforced the flag, so the Settings toggle changed nothing and the business
+// tier sold what every tier already had. Gated the way crm, crm-fieldservice and crm-landscaping already
+// gate the same feature. This MUST sit above app.route('/api/jobs'): Hono matches in registration order,
+// so middleware added after the route never runs. (roof T18 L9)
+app.use('/api/jobs/:id/photos', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/jobs/:id/photos/*', authenticate, requireEnabledFeature('photo_capture'))
+
 app.route('/api/jobs', jobsRoutes)
 /**
  * M7: a feature switch that only hides the nav is not a switch.

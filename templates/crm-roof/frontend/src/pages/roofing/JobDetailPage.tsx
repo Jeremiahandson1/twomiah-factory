@@ -56,6 +56,9 @@ export default function JobDetailPage() {
   // The claims module is optional — a retail-only roofer never touches a carrier. With the API gated,
   // an ungated link here would be a button that 403s, which is worse than no button.
   const hasInsurance = hasFeature('insurance_workflow');
+  // Photo Capture is a business-tier switch with a real API behind it now, so the card follows the
+  // same rule as the claims link above: no button over an endpoint that would 403. (roof T18 L9)
+  const hasPhotos = hasFeature('photo_capture');
   const toast = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -670,6 +673,7 @@ export default function JobDetailPage() {
             )}
 
             {/* Photos */}
+            {hasPhotos && (
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4 dark:text-slate-100">
                 <Camera className="w-4 h-4 text-gray-400" /> Photos
@@ -720,6 +724,7 @@ export default function JobDetailPage() {
                 {uploading ? 'Uploading...' : 'Upload Photos'}
               </button>
             </div>
+            )}
 
             {/* Notes */}
             <div className="bg-white rounded-xl shadow-sm border p-6 dark:bg-slate-900">
