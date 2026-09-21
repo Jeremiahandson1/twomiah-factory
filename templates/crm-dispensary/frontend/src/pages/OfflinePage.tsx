@@ -378,7 +378,7 @@ export default function OfflinePage() {
               </ul>
             </div>
 
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-gray-900">
               <h4 className="font-medium text-yellow-800 flex items-center gap-2 mb-2">
                 <AlertTriangle className="w-4 h-4" />If Sync Fails
               </h4>

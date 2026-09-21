@@ -28,28 +28,35 @@ import { join } from 'node:path'
 
 const ROOT = join(import.meta.dir, '..', 'templates')
 
-// Known-open, deliberately visible rather than silently skipped. Keyed by `template` (whole-template,
-// for the ones with no base rule at all) or `template:relative/path.tsx`.
+// ALL=1 ignores the allowlist, to audit what is still owed rather than what CI enforces.
+const AUDIT = process.env.ALL === '1'
+
+// Known-open, deliberately visible rather than silently skipped.
 //
-//   crm-homecare  — parked pending the re-base from the live CVHC CRM; not to be touched meanwhile.
-//   crm-store     — no tenant provisioned yet, so a fix here cannot be verified against a running app.
-//   the rest      — real, live dark-mode defects of exactly this shape, found by this guard when it
-//                   was first written for roof. Same one-class fix; queued behind the roof work.
-const KNOWN_OPEN = new Set([
-  'crm-homecare',
-  'crm-store',
-  'crm:frontend/src/pages/DrawSchedulesPage.tsx',
-  'crm:frontend/src/pages/takeoffs/TakeoffsPage.tsx',
-  'crm-dispensary:frontend/src/pages/BatchesPage.tsx',
-  'crm-dispensary:frontend/src/pages/CompliancePage.tsx',
-  'crm-dispensary:frontend/src/pages/GrowInputsPage.tsx',
-  'crm-dispensary:frontend/src/pages/KioskPage.tsx',
-  'crm-dispensary:frontend/src/pages/OfflinePage.tsx',
-  'crm-dispensary:frontend/src/pages/RFIDPage.tsx',
-  'crm-fieldservice:frontend/src/pages/LocationsPage.tsx',
-  'crm-landscaping:frontend/src/pages/LocationsPage.tsx',
-  'crm-rv:frontend/src/pages/rv/AlertsPage.tsx',
-])
+//   crm-homecare — parked pending the re-base from the live CVHC CRM; not to be touched meanwhile.
+//                  Its 864 inline-styled elements are the bigger half of the same problem; see
+//                  check-inline-styles-are-theme-aware.ts. It is also the one template carrying
+//                  `dark:` classes with NO `darkMode: 'class'`, so Tailwind's default puts them on
+//                  prefers-color-scheme: they fire off the visitor's OS with no toggle to stop them.
+//
+// Everything else this guard first reported has been fixed, so the list stays this short. crm-store
+// is NOT here: it has no dark mode at all (see below), which is a different thing from having one
+// that is broken.
+const KNOWN_OPEN = new Set(['crm-homecare'])
+
+/**
+ * Does this template actually have a theme to break?
+ *
+ * Only `darkMode: 'class'` gives a toggle — the shell puts `dark` on <html> and the variants respond.
+ * crm-store has no darkMode setting and not one `dark:` class in its source: nothing ever flips, so
+ * there is no invisible text to prevent and demanding the base rule there would be cargo cult.
+ * Skipping on that fact rather than by name means a template that GAINS a toggle is picked up
+ * automatically, instead of sitting silently on an allowlist.
+ */
+const hasThemeToggle = (t: string) => {
+  const cfg = join(ROOT, t, 'frontend', 'tailwind.config.js')
+  return existsSync(cfg) && /darkMode:\s*'class'/.test(readFileSync(cfg, 'utf8'))
+}
 
 const LIGHT = /(?<!:)\bbg-(?:white|(?:gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(?:50|100))\b/
 const COLOUR = /(?<!:)\btext-(?:white|black|inherit|current|transparent|(?:gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3})\b/
@@ -63,8 +70,10 @@ const templates = readdirSync(ROOT).filter((t) =>
   t !== 'crm-automotive' && // parked
   existsSync(join(ROOT, t, 'frontend', 'src', 'index.css')))
 
+const skipped: string[] = []
 for (const t of templates) {
-  if (KNOWN_OPEN.has(t)) continue
+  if (!AUDIT && KNOWN_OPEN.has(t)) continue
+  if (!hasThemeToggle(t)) { skipped.push(t); continue }
   const css = readFileSync(join(ROOT, t, 'frontend', 'src', 'index.css'), 'utf8')
 
   const body = css.match(/\bbody\s*\{[^}]*\}/s)?.[0] ?? ''
@@ -84,7 +93,7 @@ for (const t of templates) {
       if (!p.endsWith('.tsx')) continue
       const rel = p.slice(join(ROOT, t).length + 1).replace(/\\/g, '/')
       if (/\/pages\/portal\//.test('/' + rel)) continue // permanently dark by design
-      if (KNOWN_OPEN.has(`${t}:${rel}`)) continue
+      if (!AUDIT && KNOWN_OPEN.has(`${t}:${rel}`)) continue
       const lines = readFileSync(p, 'utf8').split('\n')
       lines.forEach((ln, i) => {
         const cm = ln.match(/className=\{?["'`]([^"'`]{2,400})["'`]/)
@@ -107,7 +116,8 @@ for (const t of templates) {
   walk(join(ROOT, t, 'frontend', 'src'))
 }
 
+if (skipped.length) console.log(`  (no dark mode, nothing to break: ${skipped.join(', ')})`)
 console.log(failures === 0
-  ? `check-inherited-ink-follows-theme: ok (${templates.length} templates, ${KNOWN_OPEN.size} known-open entries)`
+  ? `check-inherited-ink-follows-theme: ok (${templates.length - skipped.length - KNOWN_OPEN.size} themed templates checked, ${KNOWN_OPEN.size} known-open)`
   : `check-inherited-ink-follows-theme: ${failures} failure(s)`)
 process.exit(failures ? 1 : 0)

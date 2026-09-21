@@ -658,7 +658,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProp
             </div>
 
             {selectedAssembly && (
-              <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="p-3 bg-blue-50 rounded-lg text-gray-900">
                 <p className="text-sm text-blue-700">
                   Measurement type: <strong>{MEASUREMENT_LABELS[selectedAssembly.measurementType]}</strong>
                 </p>

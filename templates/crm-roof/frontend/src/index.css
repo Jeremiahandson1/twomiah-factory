@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  /* Tailwind's preflight already paints every border gray-200, so the light half of this is a no-op —
+     only the dark half is new. Without it a bare `border` keeps that light hairline when the card
+     behind it goes slate-900, which is 371 elements drawing pale lines across a dark UI. Borders that
+     name their own colour (`border border-blue-200`) are utilities and still win over this. */
+  * {
+    @apply border-gray-200 dark:border-slate-700;
+  }
+
   /* Text with no colour class of its own sits at the browser default — near-black — and Tailwind's
      preflight does not change that. Light mode never noticed. The moment the theme toggle flips the
      shell to slate-900, every one of those elements is black on navy: the invoice table's cells, the

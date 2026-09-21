@@ -90,7 +90,7 @@ export default function AlertsPage() {
           {rows.map((row) => {
             const dismissed = !!row.alert.dismissedAt;
             return (
-              <div key={row.alert.id} className={`bg-white rounded-xl border p-4 flex items-start gap-4 ${dismissed ? 'opacity-60' : ''}`}>
+              <div key={row.alert.id} className={`bg-white dark:bg-slate-900 rounded-xl border p-4 flex items-start gap-4 ${dismissed ? 'opacity-60' : ''}`}>
                 <div className="mt-0.5">
                   <BellRing className={`w-6 h-6 ${dismissed ? 'text-gray-300' : 'text-amber-500'}`} />
                 </div>

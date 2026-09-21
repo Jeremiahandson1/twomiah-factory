@@ -73,7 +73,7 @@ export default function DrawSchedulesPage() {
         <div className="lg:col-span-1 space-y-2">
           {schedules.length === 0 && <div className="bg-white rounded-lg border p-6 text-center text-gray-500 dark:text-slate-400 text-sm dark:bg-slate-900">No draw schedules yet.</div>}
           {schedules.map((s) => (
-            <button key={s.id} onClick={() => loadDetail(s.id)} className={`w-full text-left bg-white rounded-lg border p-4 hover:shadow ${selected?.id === s.id ? 'border-orange-500 shadow' : ''}`}>
+            <button key={s.id} onClick={() => loadDetail(s.id)} className={`w-full text-left bg-white dark:bg-slate-900 rounded-lg border p-4 hover:shadow ${selected?.id === s.id ? 'border-orange-500 shadow' : ''}`}>
               <div className="flex items-start justify-between">
                 <div><div className="font-semibold">{s.name}</div><div className="text-xs text-gray-500 mt-1 dark:text-slate-400">{s.lenderName || 'No lender'}</div></div>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[s.status]}`}>{s.status}</span>

@@ -138,7 +138,7 @@ export default function KioskPage() {
             </h2>
 
             <div className="space-y-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-gray-900">
                 <h3 className="font-medium text-green-800 mb-2">How to enable kiosk mode</h3>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-green-700">
                   <li>Select the location for this kiosk below</li>

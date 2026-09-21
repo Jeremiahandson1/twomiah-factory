@@ -1717,7 +1717,7 @@ function TraceabilityTab() {
                 {traceData.inputs && traceData.inputs.length > 0 && (
                   <div className="relative">
                     <div className="absolute -left-[2.35rem] w-4 h-4 bg-green-500 rounded-full border-2 border-white" />
-                    <div className="bg-green-50 rounded-lg p-4">
+                    <div className="bg-green-50 rounded-lg p-4 text-gray-900">
                       <h4 className="font-semibold text-green-900 mb-2">Inputs Applied ({traceData.inputs.length})</h4>
                       <div className="space-y-2">
                         {traceData.inputs.map((inp: any, i: number) => (
