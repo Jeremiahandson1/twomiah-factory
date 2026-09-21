@@ -7,6 +7,30 @@ import { authenticate } from '../middleware/auth.ts'
 import fileService from '../services/fileUpload.ts'
 import logger from '../services/logger.ts'
 
+/**
+ * What a dispensary files, and the only types this API will store.
+ *
+ * Held identical to frontend/src/docsConfig.ts by check-document-types-match-the-picker.ts. Without a
+ * list the API keeps whatever string it is handed — `type: "banana"` became a document category on
+ * roof, and a picker is a convenience, not a validator. (roof T18 D4, applied here)
+ *
+ * The list is the paperwork a licensed cannabis retailer actually keeps: the state licence, a lab
+ * COA per batch, METRC transport manifests, SOPs and inspection reports.
+ */
+export const DOCUMENT_TYPES = [
+  'general', 'license', 'coa', 'manifest', 'sop', 'compliance', 'contract', 'invoice', 'receipt', 'other',
+] as const
+
+/** the type to store, or an { error } to hand back as a 400 */
+const checkType = (raw: unknown): { type: string } | { error: string } => {
+  const value = typeof raw === 'string' ? raw.trim().slice(0, 50) : ''
+  if (!value) return { type: 'general' }
+  if (!(DOCUMENT_TYPES as readonly string[]).includes(value)) {
+    return { error: `Unknown document type "${value}". Use one of: ${DOCUMENT_TYPES.join(', ')}.` }
+  }
+  return { type: value }
+}
+
 const app = new Hono()
 app.use('*', authenticate)
 
@@ -104,6 +128,13 @@ app.post('/', async (c) => {
     return c.json({ error: 'No file uploaded' }, 400)
   }
 
+  // Check the type BEFORE the bytes go to storage. The other way round, a bogus type still writes the
+  // object to the bucket and then returns a 400 — the row is refused, the file is not, and it is left
+  // behind with nothing pointing at it.
+  const checked = checkType(body['type'])
+  if ('error' in checked) return c.json({ error: checked.error }, 400)
+  const type = checked.type
+
   let uploaded
   try {
     uploaded = await fileService.saveFile(file, currentUser.companyId, 'documents')
@@ -112,7 +143,6 @@ app.post('/', async (c) => {
   }
 
   const name = (body['name'] as string) || uploaded.originalname
-  const type = (body['type'] as string) || 'general'
   const contactId = body['contactId'] as string | undefined
   const orderId = body['orderId'] as string | undefined
   const tags = body['tags'] ? JSON.parse(body['tags'] as string) : []
@@ -153,7 +183,9 @@ app.post('/bulk', async (c) => {
 
   const contactId = body['contactId'] as string | undefined
   const orderId = body['orderId'] as string | undefined
-  const type = (body['type'] as string) || 'general'
+  const checkedBulk = checkType(body['type'])
+  if ('error' in checkedBulk) return c.json({ error: checkedBulk.error }, 400)
+  const type = checkedBulk.type
   const documents: any[] = []
 
   for (const file of files) {
@@ -197,7 +229,11 @@ app.put('/:id', async (c) => {
 
   const updateData: any = { updatedAt: new Date() }
   if (name !== undefined) updateData.name = name
-  if (type !== undefined) updateData.type = type
+  if (type !== undefined) {
+    const checkedEdit = checkType(type)
+    if ('error' in checkedEdit) return c.json({ error: checkedEdit.error }, 400)
+    updateData.type = checkedEdit.type
+  }
   if (contactId !== undefined) updateData.contactId = contactId || null
   if (orderId !== undefined) updateData.orderId = orderId || null
   if (tags !== undefined) updateData.tags = tags

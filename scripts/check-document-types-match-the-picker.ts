@@ -56,7 +56,11 @@ for (const t of readdirSync(ROOT)) {
   }
 
   const picker = listFrom(readFileSync(cfgPath, 'utf8'), /types:\s*\[([^\]]*)\]/s)
-  const api = listFrom(readFileSync(routePath, 'utf8'), /types:\s*\[([^\]]*)\]/s)
+  // Two shapes express the same thing: the shared module takes `options.types`, and a template with
+  // its own route (crm-dispensary) declares `DOCUMENT_TYPES`. The rule is that the list AGREES with
+  // the picker, not how it is spelled.
+  const routeSrc = readFileSync(routePath, 'utf8')
+  const api = listFrom(routeSrc, /types:\s*\[([^\]]*)\]/s) ?? listFrom(routeSrc, /DOCUMENT_TYPES\s*=\s*\[([^\]]*)\]/s)
 
   if (!picker?.length) { fail(`${t}: docsConfig.ts declares no types`); continue }
   if (!api?.length) {

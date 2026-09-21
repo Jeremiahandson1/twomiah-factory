@@ -36,6 +36,7 @@ import SettingsPage from './pages/SettingsPage';
 import MetrcPage from './pages/MetrcPage';
 import LabelsPage from './pages/LabelsPage';
 import CompliancePage from './pages/CompliancePage';
+import DocumentsPage from './pages/DocumentsPage';
 import LocationsPage from './pages/LocationsPage';
 import BatchesPage from './pages/BatchesPage';
 import RFIDPage from './pages/RFIDPage';
@@ -167,6 +168,7 @@ function App() {
                     <Route path="metrc" element={<MetrcPage />} />
                     <Route path="labels" element={<LabelsPage />} />
                     <Route path="compliance" element={<CompliancePage />} />
+              <Route path="documents" element={<DocumentsPage />} />
                     <Route path="locations" element={<LocationsPage />} />
                     <Route path="batches" element={<BatchesPage />} />
                     <Route path="rfid" element={<RFIDPage />} />

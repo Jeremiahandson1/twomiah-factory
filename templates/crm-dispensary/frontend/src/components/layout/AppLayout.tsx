@@ -11,7 +11,7 @@ import {
   FileSearch, TrendingUp, Tv, Car, Scale, Receipt,
   Puzzle, Activity, Server, Calendar, GraduationCap, AlertTriangle,
   CheckSquare, WifiOff, ClipboardList, ShoppingBag as PurchaseIcon, RefreshCw
-, Mail, LifeBuoy } from 'lucide-react';
+, Mail, LifeBuoy, FileText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import api from '../../services/api';
@@ -41,6 +41,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/labels', icon: Tag, label: 'Labels', features: ['labels'] },
   { to: '/crm/metrc', icon: Leaf, label: 'Metrc', features: ['metrc'] },
   { to: '/crm/compliance', icon: FileCheck, label: 'Compliance', features: ['compliance'] },
+  { to: '/crm/documents', icon: FileText, label: 'Documents', features: ['documents'] },
 
   // Sales & Marketing
   { to: '/crm/loyalty', icon: Star, label: 'Loyalty' },

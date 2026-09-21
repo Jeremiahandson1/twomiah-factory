@@ -156,7 +156,12 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Advanced
   { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
-  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof'] },
+  // crm-dispensary was added in T18: it had shipped a complete, authenticated /api/documents for a
+  // long time with no page, no route and no nav entry in front of it, so the only way to reach it was
+  // by hand. A licensed retailer keeps its state licence, a lab COA per batch and METRC transport
+  // manifests, so the answer was to finish it rather than delete it. Non-core, so it stays OFF until
+  // an owner switches it on — no existing tenant changes behaviour.
+  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant', 'crm-roof', 'crm-dispensary'] },
   { id: 'reports', name: 'Reports', description: 'Drill-down reporting — visits, revenue, reminders due, reactivation', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: ['crm'] },
   { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
