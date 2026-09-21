@@ -7,6 +7,17 @@ import { displayName } from '../../utils/user';
 import { useToast } from '../../contexts/ToastContext';
 
 const JOB_TYPES = ['insurance', 'retail', 'commercial', 'new_construction', 'emergency'];
+/**
+ * The vocabulary, plus anything the data actually holds.
+ *
+ * `jobType` is a free string on the server, so a tenant can hold values this list never had —
+ * imported jobs, an older seed, an API caller. When that happened the Type filter dropped those
+ * jobs entirely (they showed only under "All Types") and the edit form had no <option> to show
+ * their type with. Neither should be possible: a record must not go missing because its value is
+ * not on today's list. (roof T18)
+ */
+const typeOptions = (...present: Array<string | undefined | null>) =>
+  [...new Set([...JOB_TYPES, ...present.filter((t): t is string => !!t)])];
 // Mirrors lib/validation.ts. The first eleven are the pipeline the board draws columns for; `lost`
 // and `cancelled` are terminal — a job that will not be paid leaves the board but must stay findable
 // here, or closing one would look like deleting it.
@@ -181,7 +192,7 @@ export default function JobsPage() {
           </select>
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Types</option>
-            {JOB_TYPES.map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
+            {typeOptions(...jobs.map((j: any) => j.jobType)).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
           </select>
           <select value={crewFilter} onChange={(e) => setCrewFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Crews</option>
@@ -287,7 +298,7 @@ export default function JobsPage() {
               <div>
                 <label className="text-xs text-gray-500 block mb-1 dark:text-slate-400">Job Type</label>
                 <select value={form.jobType} onChange={(e) => setForm({ ...form, jobType: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
-                  {JOB_TYPES.map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
+                  {typeOptions(form.jobType).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
                 </select>
               </div>
               <div>
