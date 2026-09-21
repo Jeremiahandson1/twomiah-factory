@@ -561,7 +561,34 @@ export default function InsuranceClaimPage() {
     );
   }
 
-  const netToCont = Number(claim.finalApprovedAmount || claim.rcv || 0) - Number(claim.deductible || 0);
+  // The money on an insurance job, totalled the way the scope export in services/xactimate.ts already
+  // totals it — and the way the trade reads it.
+  //
+  // What was here computed `(finalApprovedAmount || rcv) - deductible` and called it "Net to
+  // Contractor". That is wrong three ways at once:
+  //
+  //   1. APPROVED SUPPLEMENTS WERE LEFT OUT. The panel printed "Supplement Total $4,200" one row above
+  //      a headline that excluded it. Supplementing is the whole profit lever on a restoration job —
+  //      an approved supplement is a revised carrier scope, and it RAISES the claim. The scope export
+  //      has always added supplement line items into its subtotal; only this panel disagreed.
+  //   2. It subtracted the deductible from an RCV figure. The export subtracts it from ACV, which is
+  //      the correct ladder: depreciation comes off first, and the deductible comes off the cheque the
+  //      carrier writes, not off the value of the job.
+  //   3. The deductible is not lost revenue at all. The homeowner pays it TO the contractor. Netting it
+  //      out of the headline understated the job by exactly the amount collected at the door.
+  //
+  // So the headline is the total approved claim, and the ladder under it shows where the money lands.
+  // `finalApprovedAmount` stays authoritative when it has been entered — a carrier's revised figure
+  // beats our arithmetic — and the ladder says so, so a stale entry is visible rather than silent.
+  // (roof T18 D3)
+  const baseRcv = Number(claim.rcv || 0);
+  const supTotal = Number(claim.supplementAmount || 0);
+  const hasFinal = claim.finalApprovedAmount != null && String(claim.finalApprovedAmount) !== '';
+  const totalApproved = hasFinal ? Number(claim.finalApprovedAmount) : baseRcv + supTotal;
+  const depHeld = Number(claim.depreciationHeld || 0);
+  const deductible = Number(claim.deductible || 0);
+  const acvNow = totalApproved - depHeld;
+  const carrierFirstCheck = acvNow - deductible;
   const daysSinceLoss = claim.dateOfLoss ? Math.floor((Date.now() - new Date(claim.dateOfLoss).getTime()) / (1000 * 60 * 60 * 24)) : null;
 
   return (
@@ -770,9 +797,47 @@ export default function InsuranceClaimPage() {
                   <input defaultValue={claim.finalApprovedAmount || ''} onBlur={(e) => saveClaim({ finalApprovedAmount: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="$0.00" />
                 </div>
               </div>
-              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
-                <span className="text-sm font-medium text-green-800">Net to Contractor</span>
-                <span className="text-lg font-bold text-green-700">{fmt$(netToCont > 0 ? netToCont : 0)}</span>
+              <div className="mt-4 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/25">
+                <div className="flex items-center justify-between p-3">
+                  <span className="text-sm font-medium text-green-800 dark:text-green-200">Total approved (RCV)</span>
+                  <span className="text-lg font-bold text-green-700 dark:text-green-200">{fmt$(totalApproved)}</span>
+                </div>
+                <dl className="border-t border-green-200 dark:border-green-800 px-3 py-2 text-xs text-green-900 dark:text-green-100">
+                  {hasFinal ? (
+                    <div className="flex justify-between py-0.5">
+                      <dt>Carrier&rsquo;s final approved figure</dt>
+                      <dd className="tabular-nums">{fmt$(claim.finalApprovedAmount)}</dd>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between py-0.5">
+                        <dt>Original RCV</dt>
+                        <dd className="tabular-nums">{fmt$(baseRcv)}</dd>
+                      </div>
+                      <div className="flex justify-between py-0.5">
+                        <dt>Approved supplements</dt>
+                        <dd className="tabular-nums">+ {fmt$(supTotal)}</dd>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between py-0.5">
+                    <dt>Less depreciation held</dt>
+                    <dd className="tabular-nums">&minus; {fmt$(depHeld)}</dd>
+                  </div>
+                  <div className="flex justify-between py-0.5">
+                    <dt>Less deductible &mdash; you collect this from the homeowner</dt>
+                    <dd className="tabular-nums">&minus; {fmt$(deductible)}</dd>
+                  </div>
+                  <div className="flex justify-between py-1 mt-1 border-t border-green-200 dark:border-green-800 font-semibold">
+                    <dt>Carrier&rsquo;s first cheque (ACV net)</dt>
+                    <dd className="tabular-nums">{fmt$(carrierFirstCheck)}</dd>
+                  </div>
+                  {depHeld > 0 && (
+                    <p className="pt-1.5 text-green-800 dark:text-green-200">
+                      {fmt$(depHeld)} of recoverable depreciation is released once the work is complete and invoiced.
+                    </p>
+                  )}
+                </dl>
               </div>
             </div>
 

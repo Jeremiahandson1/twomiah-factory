@@ -96,7 +96,12 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
 // instead of rendering a module from a different product (H-02). The nav already
 // hides these; this closes the direct-URL / stale-link path.
 function FeatureGate({ feature, children }: { feature: string; children: React.ReactNode }) {
-  const { hasFeature } = useAuth();
+  const { loading, hasFeature } = useAuth();
+  // Wait for /api/auth/me before acting on the answer. Until the company lands, hasFeature() says false
+  // for EVERYTHING, so a hard page load (a refresh, a bookmark, a link out of an email) redirected the
+  // tenant away from a module they DO have — and `replace` meant Back could not undo it. (roof T18 M7
+  // hit the same race with the same shape.)
+  if (loading) return null;
   if (!hasFeature(feature)) return <Navigate to="/crm" replace />;
   return <>{children}</>;
 }

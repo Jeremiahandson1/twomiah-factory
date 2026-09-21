@@ -130,6 +130,11 @@ export default function AppLayout() {
   // the sidebar hid it, but /crm/rfis, /crm/lien-waivers… still rendered contractor pages inside a
   // salon. Gate from the same nav list so there is one source of truth. (SALON launch QA)
   const gatedItem = useMemo(() => {
+    // Not until we know. `company` lands from /api/auth/me a moment after mount, and until it does
+    // hasFeature() answers false for everything — which flashed "<module> isn't part of this CRM" over
+    // a page the tenant owns on every hard load. Same race the roof route gate had, milder because it
+    // only flashes rather than navigating away. Same answer: wait. (T18 M7)
+    if (!company) return null;
     const path = location.pathname.replace(/\/+$/, '');
     const candidates: { to: string; label: string; features?: string[] }[] = [
       ...ALL_NAV_ITEMS.map((i: any) => ({ to: i.to as string, label: i.label as string, features: i.features as string[] | undefined })),
@@ -140,7 +145,7 @@ export default function AppLayout() {
       .sort((a, b) => b.to.length - a.to.length)[0];
     if (!match) return null;
     return match.features!.some((f: string) => hasFeature(f)) ? null : match;
-  }, [location.pathname, hasFeature]);
+  }, [location.pathname, company, hasFeature]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {

@@ -1517,3 +1517,14 @@ jobs:
           bun-version: latest
       - name: "Check crm-salon never builds a day from the UTC clock"
         run: bun run scripts/check-salon-days-are-the-shop-calendar.ts
+
+  feature-gate-waits:
+    name: "Feature route gates wait for the answer"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check no route gate redirects before /api/auth/me has landed"
+        run: bun run scripts/check-feature-gates-wait-for-the-answer.ts

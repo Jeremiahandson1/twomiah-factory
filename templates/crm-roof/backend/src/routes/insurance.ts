@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { insuranceClaim, supplement, adjusterContact, claimActivity, job, measurementReport, company } from '../../db/schema.ts'
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { eq, and, ne, desc, sql } from 'drizzle-orm'
 import { authenticate, requireManager } from '../middleware/auth.ts'
 import { phone as phoneField, email as emailField, optional } from '../lib/validation.ts'
 import { generateXactimateScopeDocument } from '../services/xactimate.ts'
@@ -563,9 +563,12 @@ app.post('/claims/:claimId/xactimate-export', async (c) => {
     measurement = m
   }
 
-  // Get supplements
+  // Get supplements. A DENIED one is not part of the scope: its line items were refused, and adding
+  // them back into the subtotal overstated the RCV Total printed on the PDF that goes to the carrier —
+  // the mirror of the panel that left APPROVED ones out. Drafts and submitted ones stay: this document
+  // is the ask, not the settlement. (roof T18 D3)
   const supplements = await db.select().from(supplement)
-    .where(and(eq(supplement.claimId, claimId), eq(supplement.companyId, currentUser.companyId)))
+    .where(and(eq(supplement.claimId, claimId), eq(supplement.companyId, currentUser.companyId), ne(supplement.status, 'denied')))
 
   try {
     const result = await generateXactimateScopeDocument(claim, j, comp, measurement, supplements)

@@ -53,6 +53,11 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
   // sidebar hid it, but /crm/rfis still rendered contractor pages inside a salon. Gate from the same
   // list (plus routes that have no sidebar entry) so there is one source of truth. (SALON launch QA)
   const gatedItem = useMemo(() => {
+    // Not until we know. `company` lands from /api/auth/me a moment after mount, and until it does
+    // hasFeature() answers false for everything — which flashed "<module> isn't part of this CRM" over
+    // a page the tenant owns on every hard load. Unlike the templates' own route gates this only
+    // flashed rather than navigating away, but it is the same race and the same answer: wait. (T18 M7)
+    if (!company) return null
     const path = location.pathname.replace(/\/+$/, '')
     const candidates: { to: string; label: string; features?: string[] }[] = [
       ...config.nav.filter((i) => !i.external).map((i) => ({ to: i.to, label: i.label, features: i.features })),
@@ -62,7 +67,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
       .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
       .sort((a, b) => b.to.length - a.to.length)
     return blockedRoute(matches, hasFeature)
-  }, [location.pathname, hasFeature, config.nav, config.routeGates])
+  }, [location.pathname, company, hasFeature, config.nav, config.routeGates])
 
   useEffect(() => { if (isMobile) setSidebarOpen(false) }, [location, isMobile])
   useEffect(() => {

@@ -78,7 +78,15 @@ function OnboardingGate({ children }: { children: ReactNode }) {
  * that simply is not part of this plan. Same shape crm-restaurant already uses.
  */
 function FeatureRoute({ feature, children }: { feature: string; children: ReactNode }) {
-  const { hasFeature } = useAuth()
+  const { company, hasFeature } = useAuth()
+  // Wait for the answer before acting on it. `company` arrives from /api/auth/me a moment after mount,
+  // and until it does hasFeature() says false for EVERYTHING — so on a hard page load (a refresh, a
+  // bookmark, a link out of an email) this redirected the tenant away from a module they own, before
+  // the answer had arrived, and `replace` meant Back could not undo it. Insurance and Adjusters were
+  // unreachable that way on a tenant with insurance_workflow switched on. OnboardingGate above already
+  // waits on `company` for exactly this reason. Rendering nothing for that moment is the safe side:
+  // rendering the children instead would flash a module the tenant may not have and 403 its API calls.
+  if (!company) return null
   if (!hasFeature(feature)) return <Navigate to="/crm" replace />
   return <>{children}</>
 }
