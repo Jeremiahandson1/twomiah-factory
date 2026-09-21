@@ -26,16 +26,24 @@ import { readdirSync, statSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = join(import.meta.dir, '..', 'templates')
+const SHARED = join(import.meta.dir, '..', 'packages', 'tenant-ui', 'src')
 
 // a clamp wrapped around the value of the field being typed into
 const CLAMPED = /onChange=\{[^}]*Math\.(?:max|min|abs)\s*\([^;]*?e\.target\.value/
 
 let failures = 0
-const templates = readdirSync(ROOT).filter((t) =>
-  t.startsWith('crm') && t !== 'crm-automotive' && existsSync(join(ROOT, t, 'frontend', 'src')))
+// packages/tenant-ui is checked too, and it matters MORE: a shared component ships into every
+// vertical that mounts it, so one clamp there is the defect in a dozen products at once. The first
+// version of this guard walked only templates/ and missed two clamps in the marketing sequence
+// editor for exactly that reason.
+const roots: Array<[string, string]> = [
+  ...readdirSync(ROOT)
+    .filter((t) => t.startsWith('crm') && t !== 'crm-automotive' && existsSync(join(ROOT, t, 'frontend', 'src')))
+    .map((t) => [t, join(ROOT, t, 'frontend', 'src')] as [string, string]),
+  ...(existsSync(SHARED) ? [['packages/tenant-ui', SHARED] as [string, string]] : []),
+]
 
-for (const t of templates) {
-  const src = join(ROOT, t, 'frontend', 'src')
+for (const [t, src] of roots) {
   const walk = (d: string) => {
     for (const e of readdirSync(d)) {
       if (e === 'node_modules' || e === 'dist') continue
@@ -55,6 +63,6 @@ for (const t of templates) {
 }
 
 console.log(failures === 0
-  ? `check-number-inputs-are-not-clamped: ok (${templates.length} templates)`
+  ? `check-number-inputs-are-not-clamped: ok (${roots.length} sources, incl. the shared components)`
   : `check-number-inputs-are-not-clamped: ${failures} failure(s)`)
 process.exit(failures ? 1 : 0)

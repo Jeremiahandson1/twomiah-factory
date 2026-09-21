@@ -12,7 +12,7 @@ import type { MarketingApi, MarketingToast, MarketingConfig } from './types'
 interface Stats { totalCampaigns: number; activeSequences: number; activeEnrollments?: number; emailsSent30Days: number; campaignSends30Days?: number; openRate?: number; clickRate?: number; totalOptOuts?: number }
 interface Campaign { id: string; name: string; subject?: string; content?: string; status: string; audienceType?: string; audienceFilter?: any; recipientCount?: number; openCount?: number; clickCount?: number; unsubscribeCount?: number; lastError?: string | null; scheduledDate?: string | null; sentAt?: string | null }
 interface Template { id: string; name: string; subject: string; body: string; category?: string; type?: string; active?: boolean }
-interface Step { delayDays: number; delayHours: number; subject: string; body: string }
+interface Step { delayDays: string | number; delayHours: string | number; subject: string; body: string }
 interface Sequence { id: string; name: string; description?: string | null; trigger?: string; active: boolean; steps: Step[]; enrollmentCount?: number; activeEnrollments?: number }
 type Tab = 'campaigns' | 'templates' | 'sequences'
 const TEMPLATE_CATEGORIES = ['general', 'followup', 'promotion', 'newsletter', 'reminder']
@@ -293,7 +293,7 @@ function SequencesTab({ api, toast, label, onChanged }: { api: MarketingApi; toa
             <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-2">
               {s.steps.map((st, i) => (
                 <div key={i} className="flex items-center">
-                  <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm whitespace-nowrap dark:bg-slate-800"><p className="font-medium text-gray-900 dark:text-slate-100">Step {i + 1}</p><p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" />{st.delayDays > 0 && `${st.delayDays}d `}{st.delayHours > 0 && `${st.delayHours}h`}{!st.delayDays && !st.delayHours && 'Immediately'}</p><p className="text-xs text-gray-500 dark:text-slate-400 max-w-[12rem] truncate">{st.subject}</p></div>
+                  <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm whitespace-nowrap dark:bg-slate-800"><p className="font-medium text-gray-900 dark:text-slate-100">Step {i + 1}</p><p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1"><Clock className="w-3 h-3" />{Number(st.delayDays) > 0 && `${st.delayDays}d `}{Number(st.delayHours) > 0 && `${st.delayHours}h`}{!st.delayDays && !st.delayHours && 'Immediately'}</p><p className="text-xs text-gray-500 dark:text-slate-400 max-w-[12rem] truncate">{st.subject}</p></div>
                   {i < s.steps.length - 1 && <div className="w-8 h-0.5 bg-gray-200 dark:bg-slate-700" />}
                 </div>
               ))}
@@ -319,7 +319,12 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
     setSaving(true); setError('')
     try {
       // Only manual enrolment exists today — no trigger fires automatically, so none is offered.
-      const payload = { name: form.name.trim(), trigger: 'manual', active: form.active, steps: form.steps }
+      // The delay fields hold text while they are typed — they used to be clamped on every keystroke
+      // (`Math.max(0, parseInt(e.target.value) || 0)`), which replaced a half-typed figure with 0
+      // under the cursor. They become numbers here, once.
+      const steps = form.steps.map((s) => ({ ...s, delayDays: Number(s.delayDays) || 0, delayHours: Number(s.delayHours) || 0 }))
+      if (steps.some((s) => s.delayDays < 0 || s.delayHours < 0)) { toast.error('A step delay cannot be negative.'); return }
+      const payload = { name: form.name.trim(), trigger: 'manual', active: form.active, steps }
       if (sequence) await api.put(`/api/marketing/sequences/${sequence.id}`, payload); else await api.post('/api/marketing/sequences', payload)
       toast.success(sequence ? 'Sequence updated' : 'Sequence created'); onSaved()
     } catch (e) { setError(errMsg(e, 'Failed to save sequence')) } finally { setSaving(false) }
@@ -341,8 +346,8 @@ function SequenceForm({ api, toast, sequence, label, onSaved, onClose }: { api: 
                 <span className="font-medium text-gray-900 dark:text-slate-100">Step {i + 1}</span>
                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
                   <span>{i === 0 ? 'Send' : 'Wait'}</span>
-                  <input type="number" min={0} value={s.delayDays} onChange={(e) => setStep(i, { delayDays: Math.max(0, parseInt(e.target.value) || 0) })} className={`${controlNoWidthCls} w-16 py-1`} /> days
-                  <input type="number" min={0} max={23} value={s.delayHours} onChange={(e) => setStep(i, { delayHours: Math.max(0, parseInt(e.target.value) || 0) })} className={`${controlNoWidthCls} w-16 py-1`} /> hours
+                  <input type="number" min={0} value={s.delayDays} onChange={(e) => setStep(i, { delayDays: e.target.value })} className={`${controlNoWidthCls} w-16 py-1`} /> days
+                  <input type="number" min={0} max={23} value={s.delayHours} onChange={(e) => setStep(i, { delayHours: e.target.value })} className={`${controlNoWidthCls} w-16 py-1`} /> hours
                   <span>{i === 0 ? 'after enrolling' : 'after the previous step'}</span>
                   {form.steps.length > 1 && <button type="button" onClick={() => setForm({ ...form, steps: form.steps.filter((_, j) => j !== i) })} className="p-1 text-gray-400 hover:text-red-600" title="Remove step"><X className="w-4 h-4" /></button>}
                 </div>

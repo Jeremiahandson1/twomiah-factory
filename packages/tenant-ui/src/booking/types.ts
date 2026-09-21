@@ -63,7 +63,8 @@ export interface BookingSettings {
   slotDurationMinutes: number
   leadTimeDays: number
   maxDaysOut: number
-  concurrentBookings: number
+  // text while it is being typed in the settings tab; normalize() and the save both convert it
+  concurrentBookings: number | string
   timezone: string
   workingHours: Record<string, { start: string; end: string; enabled: boolean }>
   welcomeMessage: string

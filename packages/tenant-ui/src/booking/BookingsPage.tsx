@@ -205,15 +205,15 @@ function ServiceModal({ service, onClose, onSave }: { service: BookableServiceRo
         <Field label="Name"><input value={form.name} required onChange={e => setForm({ ...form, name: e.target.value })} className={inputCls} /></Field>
         <Field label="Description"><input value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} className={inputCls} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Duration (minutes)"><input type="number" min={5} max={480} step={5} value={form.durationMinutes} onChange={e => setForm({ ...form, durationMinutes: Number(e.target.value) })} className={inputCls} /></Field>
-          <Field label="Price"><input type="number" min={0} step="0.01" value={form.price} onChange={e => setForm({ ...form, price: Number(e.target.value) })} className={inputCls} /></Field>
+          <Field label="Duration (minutes)"><input type="number" min={5} max={480} step={5} value={form.durationMinutes} onChange={e => setForm({ ...form, durationMinutes: e.target.value as any })} className={inputCls} /></Field>
+          <Field label="Price"><input type="number" min={0} step="0.01" value={form.price} onChange={e => setForm({ ...form, price: e.target.value as any })} className={inputCls} /></Field>
         </div>
         <div className="p-3 rounded-lg bg-gray-50 dark:bg-slate-800/60">
           <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={!!form.depositRequired} onChange={e => setForm({ ...form, depositRequired: e.target.checked })} className={check} /><span className="text-sm font-medium text-gray-700 dark:text-slate-200">Require a deposit to hold the slot</span></label>
           {form.depositRequired && (
             <div className="mt-3">
               <Field label="Deposit amount" hint="The booking stays pending until this is paid. Requires card payments to be set up.">
-                <input type="number" min={0} step="0.01" value={form.depositAmount} onChange={e => setForm({ ...form, depositAmount: Number(e.target.value) })} className={inputCls} />
+                <input type="number" min={0} step="0.01" value={form.depositAmount} onChange={e => setForm({ ...form, depositAmount: e.target.value as any })} className={inputCls} />
               </Field>
             </div>
           )}

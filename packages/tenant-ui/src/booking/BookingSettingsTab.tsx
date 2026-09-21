@@ -61,9 +61,13 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
       const h = settings.workingHours[d]
       if (h.enabled && h.start >= h.end) { toast.error(`${cap(d)}: opening time must be before closing time.`); return }
     }
+    // the concurrent-bookings field holds text while it is typed; it becomes a number here, once
+    const n = Number(settings.concurrentBookings)
+    if (!Number.isFinite(n) || n < 1 || n > 20) { toast.error('Concurrent bookings must be between 1 and 20.'); return }
     setSaving(true)
     try {
-      const saved = await api.put('/api/booking/settings', settings)
+      // the field holds text while it is typed; it becomes a number here, once
+      const saved = await api.put('/api/booking/settings', { ...settings, concurrentBookings: n })
       setSettings(normalize(saved)); setDirty(false)
       toast.success('Booking settings saved — the booking page updates immediately.')
       onSaved?.(normalize(saved))
@@ -134,7 +138,7 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
             </select>
           </Field>
           <Field label={cfg.concurrentLabel} hint={cfg.concurrentHelp}>
-            <input type="number" min={1} max={20} value={settings.concurrentBookings} onChange={e => set('concurrentBookings', Math.max(1, Math.min(20, Number(e.target.value) || 1)))} className={inputCls} />
+            <input type="number" min={1} max={20} value={settings.concurrentBookings} onChange={e => set('concurrentBookings', e.target.value)} className={inputCls} />
           </Field>
           <Field label="Timezone" hint="Slot times are shown to customers in this zone.">
             <select value={settings.timezone} onChange={e => set('timezone', e.target.value)} className={inputCls}>

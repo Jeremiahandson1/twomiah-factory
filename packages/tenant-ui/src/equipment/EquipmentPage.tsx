@@ -398,8 +398,8 @@ function EquipmentFormModal({ equipment, api, config, onSave, onClose }: Equipme
     serialNumber: string;
     location: string;
     installDate: string;
-    warrantyMonths: number;
-    maintenanceIntervalMonths: number;
+    warrantyMonths: string | number;
+    maintenanceIntervalMonths: string | number;
     condition: string;
     contactId: string;
     siteId: string;
@@ -594,7 +594,7 @@ function EquipmentFormModal({ equipment, api, config, onSave, onClose }: Equipme
                 <input
                   type="number"
                   value={form.warrantyMonths}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, warrantyMonths: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, warrantyMonths: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -604,7 +604,7 @@ function EquipmentFormModal({ equipment, api, config, onSave, onClose }: Equipme
                 <input
                   type="number"
                   value={form.maintenanceIntervalMonths}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, maintenanceIntervalMonths: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, maintenanceIntervalMonths: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>

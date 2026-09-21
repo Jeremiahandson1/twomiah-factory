@@ -649,10 +649,10 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
     description: string;
     price: string | number;
     billingFrequency: string;
-    visitsIncluded: number;
-    discountPercent: number;
+    visitsIncluded: string | number;
+    discountPercent: string | number;
     priorityService: boolean;
-    durationMonths: number;
+    durationMonths: string | number;
     autoRenew: boolean;
   }>({
     name: plan?.name || '',
@@ -669,12 +669,26 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // The number fields hold text while they are typed — coercing on every keystroke drops a minus
+    // sign in silence, because a lone "-" reads back as "" from a number input and Number("") is 0.
+    // They become numbers here, once, and a figure that is not one is refused rather than replaced.
+    const payload = {
+      ...form,
+      price: Number(form.price),
+      visitsIncluded: Number(form.visitsIncluded),
+      discountPercent: Number(form.discountPercent),
+      durationMonths: Number(form.durationMonths),
+    };
+    for (const [k, v] of [['Price', payload.price], ['Visits included', payload.visitsIncluded],
+      ['Discount %', payload.discountPercent], ['Term (months)', payload.durationMonths]] as Array<[string, number]>) {
+      if (!Number.isFinite(v) || v < 0) { alert(`${k} must be zero or more`); return; }
+    }
     setSaving(true);
     try {
       if (plan) {
-        await api.put(`/api/agreements/plans/${plan.id}`, form);
+        await api.put(`/api/agreements/plans/${plan.id}`, payload);
       } else {
-        await api.post('/api/agreements/plans', form);
+        await api.post('/api/agreements/plans', payload);
       }
       onSave();
     } catch (error) {
@@ -745,7 +759,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="number"
                   value={form.visitsIncluded}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, visitsIncluded: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, visitsIncluded: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -754,7 +768,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="number"
                   value={form.discountPercent}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, discountPercent: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, discountPercent: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -763,7 +777,7 @@ function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
                 <input
                   type="number"
                   value={form.durationMonths}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, durationMonths: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, durationMonths: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -817,7 +831,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
     autoSchedule: boolean;
     recurrenceFrequency: string;
     nextServiceDate: string;
-    reminderDaysBefore: number;
+    reminderDaysBefore: string | number;
   }>({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
@@ -861,7 +875,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
           recurrenceRule: { frequency: form.recurrenceFrequency },
           nextServiceDate: form.nextServiceDate,
           autoSchedule: on,
-          reminderDaysBefore: form.reminderDaysBefore,
+          reminderDaysBefore: Number(form.reminderDaysBefore) || 0,
         });
       };
       if (agreement) {
@@ -884,7 +898,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
   };
 
   const reminderDate = form.autoSchedule && form.nextServiceDate
-    ? (() => { const d = new Date(form.nextServiceDate); d.setDate(d.getDate() - form.reminderDaysBefore); return d.toLocaleDateString(); })()
+    ? (() => { const d = new Date(form.nextServiceDate); d.setDate(d.getDate() - (Number(form.reminderDaysBefore) || 0)); return d.toLocaleDateString(); })()
     : null;
 
   return (
@@ -992,7 +1006,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementForm
                     <input
                       type="number"
                       value={form.reminderDaysBefore}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, reminderDaysBefore: parseInt(e.target.value) || 7 })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, reminderDaysBefore: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg"
                       min="0"
                       max="60"
