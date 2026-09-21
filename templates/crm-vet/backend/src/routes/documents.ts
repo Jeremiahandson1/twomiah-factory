@@ -15,5 +15,8 @@ export default createDocumentRoutes({
   audit: (event, actor, meta) => logger.audit(event, actor.userId, actor.companyId, meta),
   // A clinic files against the animal: an x-ray, a referral letter, a vaccination certificate. Filing it
   // under the owner loses track of which pet it was in a multi-pet household. (Vet T12 M6)
-  options: { links: { patientId: patient } },
+  options: {
+    types: ['general', 'consent_form', 'medical_record', 'lab_result', 'photo', 'invoice', 'receipt', 'other'],
+    links: { patientId: patient },
+  },
 })

@@ -13,4 +13,6 @@ export default createDocumentRoutes({
   storage,
   authenticate,
   audit: (event, actor, meta) => logger.audit(event, actor.userId, actor.companyId, meta),
+  // Only what this vertical actually files — the API used to keep any string it was sent. (roof T18 D4)
+  options: { types: ['general', 'contract', 'title', 'inspection', 'photo', 'invoice', 'receipt', 'other'] },
 })

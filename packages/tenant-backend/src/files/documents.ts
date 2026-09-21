@@ -39,6 +39,19 @@ export interface DocumentDeps {
      * company before it is stored.
      */
     links?: Record<string, any>
+    /**
+     * The document types this vertical files, and the only ones it will store.
+     *
+     * The picker on the page was the only thing deciding this, so anything that did not come from the
+     * picker was kept verbatim: `type: "banana"` stored a banana, and it then appeared in the type
+     * filter as a real category. The list belongs to the vertical — a roofer files a scope and a
+     * warranty, a vet files a lab result — so it is passed in rather than hardcoded here, and
+     * check-document-types-match-the-picker.ts holds it identical to the frontend's docsConfig.
+     * (roof T18 D4)
+     *
+     * Omitted = no check, which is how a template that has not been given a list yet keeps working.
+     */
+    types?: string[]
   }
 }
 
@@ -52,6 +65,23 @@ export function createDocumentRoutes(deps: DocumentDeps) {
   const maxLimit = deps.options?.maxLimit || 100
   const links: Record<string, any> = deps.options?.links || {}
   const linkCols = Object.keys(links)
+
+  /**
+   * The document type, checked against what this vertical actually files.
+   *
+   * Returns the type to store, or an { error } to hand straight back as a 400. An absent type is the
+   * vertical's 'general', which every list contains — only a type that was SENT and is unknown is
+   * refused, and the message lists the real ones so the caller can correct it.
+   */
+  const allowedTypes: string[] | undefined = deps.options?.types
+  const checkType = (raw: unknown): { type: string } | { error: string } => {
+    const value = str(raw, 50)
+    if (!value) return { type: 'general' }
+    if (allowedTypes && !allowedTypes.includes(value)) {
+      return { error: `Unknown document type "${value}". Use one of: ${allowedTypes.join(', ')}.` }
+    }
+    return { type: value }
+  }
   const linkLabel = (col: string) => col.replace(/Id$/, '').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()
   /** the extra link columns from a body, refusing an id that is not this company's */
   const linkValues = async (companyId: string, src: Record<string, any>): Promise<{ values: Record<string, any> } | { error: string }> => {
@@ -207,13 +237,15 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     if (!(file instanceof File)) return c.json({ error: 'No file uploaded' }, 400)
     const extra = await linkValues(companyId, body)
     if ('error' in extra) return c.json({ error: extra.error }, 404)
+    const checked = checkType(body['type'])
+    if ('error' in checked) return c.json({ error: checked.error }, 400)
     let stored
     try { stored = await storeUpload(file, companyId) } catch (err: any) { return c.json({ error: err.message }, 400) }
     const [doc] = await db.insert(t.document).values({
       companyId,
       name: str(body['name'], 200) || stored.originalName,
       description: str(body['description'], 2000) || null,
-      type: str(body['type'], 50) || 'general',
+      type: checked.type,
       ...stored,
       ...(hasProjects ? { projectId: idOrNull(body["projectId"]) } : {}),
       contactId: idOrNull(body['contactId']),
@@ -233,7 +265,9 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     const raw = body['files'] ?? body['files[]']
     const files: File[] = Array.isArray(raw) ? raw.filter((f: any) => f instanceof File) : raw instanceof File ? [raw] : []
     if (!files.length) return c.json({ error: 'No files uploaded' }, 400)
-    const type = str(body['type'], 50) || 'general'
+    const checkedBulk = checkType(body['type'])
+    if ('error' in checkedBulk) return c.json({ error: checkedBulk.error }, 400)
+    const type = checkedBulk.type
     const projectId = hasProjects ? idOrNull(body["projectId"]) : undefined, contactId = idOrNull(body['contactId']), jobId = idOrNull(body['jobId'])
     const extra = await linkValues(companyId, body)
     if ('error' in extra) return c.json({ error: extra.error }, 404)
@@ -261,7 +295,11 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     const u: Record<string, unknown> = { updatedAt: new Date() }
     if (body.name !== undefined) { const n = str(body.name, 200); if (!n) return c.json({ error: 'Name cannot be empty' }, 400); u.name = n }
     if (body.description !== undefined) u.description = str(body.description, 2000) || null
-    if (body.type !== undefined) u.type = str(body.type, 50) || 'general'
+    if (body.type !== undefined) {
+      const checked = checkType(body.type)
+      if ('error' in checked) return c.json({ error: checked.error }, 400)
+      u.type = checked.type
+    }
     if (hasProjects && body.projectId !== undefined) u.projectId = idOrNull(body.projectId)
     if (body.contactId !== undefined) u.contactId = idOrNull(body.contactId)
     if (body.jobId !== undefined) u.jobId = idOrNull(body.jobId)

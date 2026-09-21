@@ -47,6 +47,19 @@ function fmt$(n: any) {
   return `$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// A money/qty field being typed into holds a STRING, not a number.
+//
+// The create modal used to coerce on every keystroke — `Number(e.target.value)`, later wrapped in
+// `Math.max(0, …)` to stop negatives. That does stop the negative, but it replaces what the typist
+// entered with a different, plausible number and says nothing: an intended -1500 becomes a positive
+// line nobody queries. Silently rewriting someone's figure is worse than refusing it, because there
+// is no wrong-looking value to notice. (roof T18 L7)
+//
+// So the field keeps the raw text, `num0` is used only to price the row while it is being filled in,
+// and the value is checked once on submit — the same shape the EDIT modal below already used.
+const num0 = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const newSupRow = () => ({ code: '', description: '', qty: '1', unit: 'SQ', unitPrice: '', total: 0 });
+
 // Xactimate code options for line item picker
 const XACT_CODES = [
   { code: 'RFG 220', desc: 'Remove asphalt shingles', unit: 'SQ' },
@@ -90,7 +103,7 @@ export default function InsuranceClaimPage() {
   // Supplement modal
   const [supOpen, setSupOpen] = useState(false);
   const [supReason, setSupReason] = useState('');
-  const [supLineItems, setSupLineItems] = useState<any[]>([{ code: '', description: '', qty: 1, unit: 'SQ', unitPrice: 0, total: 0 }]);
+  const [supLineItems, setSupLineItems] = useState<any[]>([newSupRow()]);
   const [supNotes, setSupNotes] = useState('');
   const [submittingSup, setSubmittingSup] = useState(false);
 
@@ -251,29 +264,42 @@ export default function InsuranceClaimPage() {
 
   const createSupplement = async () => {
     if (!supReason.trim()) { toast.error('Reason required'); return; }
-    const total = supLineItems.reduce((s, li) => s + Number(li.total || 0), 0);
-    if (total <= 0) { toast.error('Add line items'); return; }
+    // The fields hold text while they are being typed, so this is where it becomes money. A value
+    // that is not a number, or is negative, is REFUSED and named — never quietly rounded up to 0,
+    // which is how a mistyped figure used to turn into a real line item. (roof T18 L7)
+    const lineItems = supLineItems
+      .filter((li) => String(li.description || '').trim())
+      .map((li) => ({ ...li, qty: Number(li.qty), unitPrice: Number(li.unitPrice) }));
+    if (!lineItems.length) { toast.error('A supplement needs at least one line item'); return; }
+    if (lineItems.some((li) => !Number.isFinite(li.qty) || li.qty < 0 || !Number.isFinite(li.unitPrice) || li.unitPrice < 0)) {
+      toast.error('Quantity and price must be zero or more');
+      return;
+    }
+    const total = lineItems.reduce((s, li) => s + num0(li.total), 0);
+    if (total <= 0) { toast.error('A supplement needs a total above zero'); return; }
     setSubmittingSup(true);
     try {
+      // totalAmount is deliberately not sent — the server computes it from the line items.
       const res = await fetch(`/api/insurance/claims/${claim.id}/supplements`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           reason: supReason,
-          lineItems: supLineItems,
-          totalAmount: String(total),
+          lineItems,
           notes: supNotes || undefined,
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
       setSupOpen(false);
       setSupReason('');
-      setSupLineItems([{ code: '', description: '', qty: 1, unit: 'SQ', unitPrice: 0, total: 0 }]);
+      setSupLineItems([newSupRow()]);
       setSupNotes('');
       load();
       toast.success('Supplement created');
-    } catch {
-      toast.error('Failed to create supplement');
+    } catch (e: any) {
+      // Say what the server refused. A bare "Failed to create supplement" on a 400 leaves the typist
+      // re-pressing a button that will never work.
+      toast.error(e?.message || 'Failed to create supplement');
     } finally {
       setSubmittingSup(false);
     }
@@ -428,7 +454,9 @@ export default function InsuranceClaimPage() {
       if (i !== idx) return li;
       const updated = { ...li, [field]: value };
       if (field === 'qty' || field === 'unitPrice') {
-        updated.total = Math.round(Number(updated.qty || 0) * Number(updated.unitPrice || 0) * 100) / 100;
+        // Half-typed text ("", "-", "1.") prices as 0 for the running total; it is not written back
+        // to the field, so the typist keeps seeing exactly what they typed.
+        updated.total = Math.round(num0(updated.qty) * num0(updated.unitPrice) * 100) / 100;
       }
       if (field === 'code') {
         const match = XACT_CODES.find(c => c.code === value);
@@ -970,20 +998,18 @@ export default function InsuranceClaimPage() {
                           <input value={li.description} onChange={(e) => updateSupLineItem(i, 'description', e.target.value)} className="w-full text-xs border rounded px-1 py-1" />
                         </td>
                         <td className="py-1 pr-1">
-                          <input type="number" value={li.qty} onChange={(e) => updateSupLineItem(i, 'qty', Number(e.target.value))} className="w-full text-xs border rounded px-1 py-1 text-right" />
+                          <input type="number" min="0" step="any" inputMode="decimal" value={li.qty}
+                            onChange={(e) => updateSupLineItem(i, 'qty', e.target.value)}
+                            className="w-full text-xs border rounded px-1 py-1 text-right" />
                         </td>
                         <td className="py-1 pr-1">
                           <input value={li.unit} onChange={(e) => updateSupLineItem(i, 'unit', e.target.value)} className="w-full text-xs border rounded px-1 py-1 text-center" />
                         </td>
                         <td className="py-1 pr-1">
-                          {/* L7: `value={li.unitPrice}` with Number() on every keystroke meant typing
-                              "-1500" produced 0 from the lone minus, rendered it as "0", and the next
-                              digits appended to it — "01500", a $1,500.00 line the typist did not ask
-                              for. An empty field now stays empty while it is being filled in, and a
-                              supplement price cannot be negative in the first place. */}
-                          <input type="number" min="0" step="0.01" inputMode="decimal"
-                            value={li.unitPrice === 0 || li.unitPrice === undefined ? '' : li.unitPrice}
-                            onChange={(e) => updateSupLineItem(i, 'unitPrice', e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)))}
+                          {/* Holds the raw text: see num0/newSupRow above. Coercing here is what let
+                              a typed -1500 come back as a different positive number with no warning. */}
+                          <input type="number" min="0" step="0.01" inputMode="decimal" value={li.unitPrice}
+                            onChange={(e) => updateSupLineItem(i, 'unitPrice', e.target.value)}
                             className="w-full text-xs border rounded px-1 py-1 text-right" />
                         </td>
                         <td className="py-1 pr-1 text-right text-xs font-medium">{fmt$(li.total)}</td>
@@ -996,7 +1022,7 @@ export default function InsuranceClaimPage() {
                     ))}
                   </tbody>
                 </table>
-                <button onClick={() => setSupLineItems(prev => [...prev, { code: '', description: '', qty: 1, unit: 'SQ', unitPrice: 0, total: 0 }])} className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+                <button onClick={() => setSupLineItems(prev => [...prev, newSupRow()])} className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                   + Add Line Item
                 </button>
                 <div className="flex justify-end mt-2">

@@ -17,7 +17,17 @@ function formatStatus(s: string) {
   return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-const emptyLine = { description: '', quantity: 1, unitPrice: 0 };
+// Quantity and price hold the TEXT being typed, not a number.
+//
+// They used to clamp on every keystroke — `Math.max(1, Number(e.target.value) || 1)`. That does keep a
+// quote from going negative, but it swaps the typed figure for a different one without a word: a
+// mistyped -1500 comes back as a positive line, and a half-typed "2." loses its decimal point because
+// Number("2.") is 2 and the field is re-rendered from it. A refused value is visible on screen; a
+// quietly rewritten one is not. Same defect the supplement modal had. (roof T18 L7)
+//
+// `num0` prices a row that is still being filled in; the value is checked once, on submit.
+const num0 = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+const emptyLine = { description: '', quantity: '1', unitPrice: '' };
 
 export default function QuotesPage() {
   const { token } = useAuth();
@@ -73,7 +83,7 @@ export default function QuotesPage() {
   // Consistent currency formatting (2 decimals + thousands separators) so the
   // modal matches the list, which used toLocaleString.
   const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const subtotal = form.lineItems.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
+  const subtotal = form.lineItems.reduce((s, li) => s + num0(li.quantity) * num0(li.unitPrice), 0);
   const tax = subtotal * (form.taxRate / 100);
   const grandTotal = subtotal + tax;
 
@@ -94,8 +104,19 @@ export default function QuotesPage() {
 
   const handleCreate = async () => {
     if (!form.contactId) { toast.error('Select a contact'); return; }
-    const validLines = form.lineItems.filter((li) => li.description.trim());
+    // The line fields hold text while they are being typed, so this is where they become numbers. A
+    // figure that is not a number, or is negative, is REFUSED and named — never silently clamped into
+    // a different one, which is what the old on-keystroke Math.max did. (roof T18 L7)
+    const validLines = form.lineItems
+      .filter((li) => li.description.trim())
+      .map((li) => ({ ...li, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) }));
     if (validLines.length === 0) { toast.error('Add at least one line item'); return; }
+    // Mirrors the server's own rule (routes/quotes.ts: quantity and unitPrice are `min(0)`), rather
+    // than being stricter here — a client that refuses what the API accepts reads as a bug.
+    if (validLines.some((li) => !Number.isFinite(li.quantity) || li.quantity < 0 || !Number.isFinite(li.unitPrice) || li.unitPrice < 0)) {
+      toast.error('Quantity and price must be zero or more');
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch('/api/quotes', {
@@ -103,12 +124,12 @@ export default function QuotesPage() {
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, lineItems: validLines }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { const d = await res.json().catch(() => null); throw new Error(d?.error || ''); }
       toast.success('Quote created');
       setModalOpen(false);
       load();
-    } catch {
-      toast.error('Failed to create quote');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to create quote');
     } finally {
       setSaving(false);
     }
@@ -357,7 +378,7 @@ export default function QuotesPage() {
                             type="number"
                             min={1}
                             value={li.quantity}
-                            onChange={(e) => updateLine(idx, 'quantity', Math.max(1, Number(e.target.value) || 1))}
+                            onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
                             className="w-full text-sm border rounded px-2 py-1.5"
                           />
                         </td>
@@ -367,12 +388,12 @@ export default function QuotesPage() {
                             min={0}
                             step={0.01}
                             value={li.unitPrice}
-                            onChange={(e) => updateLine(idx, 'unitPrice', Math.max(0, Number(e.target.value) || 0))}
+                            onChange={(e) => updateLine(idx, 'unitPrice', e.target.value)}
                             className="w-full text-sm border rounded px-2 py-1.5"
                           />
                         </td>
                         <td className="py-1 text-right text-gray-700 font-medium dark:text-slate-200">
-                          ${money(li.quantity * li.unitPrice)}
+                          ${money(num0(li.quantity) * num0(li.unitPrice))}
                         </td>
                         <td className="py-1 pl-1">
                           {form.lineItems.length > 1 && (

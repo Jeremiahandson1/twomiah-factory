@@ -24,5 +24,8 @@ export default createDocumentRoutes({
   tables: { document, documentVersion, contact, user },
   storage,
   authenticate,
-  options: { links: { jobId: job, contactId: contact, invoiceId: invoice } },
+  options: {
+    types: ['general', 'contract', 'permit', 'warranty', 'insurance', 'scope', 'inspection', 'photo', 'invoice', 'receipt', 'other'],
+    links: { jobId: job, contactId: contact, invoiceId: invoice },
+  },
 })

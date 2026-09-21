@@ -381,11 +381,20 @@ for (const t of terminal) {
   if (!/convertedToJobId: newJob\.id, jobId: newJob\.id/.test(q))
     fail('a converted quote left its own jobId null, so the Job column stayed blank for ever (L6)')
 
+  // A supplement price field must hand back exactly what was typed.
+  //
+  // This pinned the first attempt at that — clamping with `Math.max(0, Number(...))` and blanking a 0
+  // — which stopped the negative but swapped the typist's figure for a different positive one in
+  // silence. T18 L7 replaced it with the shape the EDIT modal on the same page already used: the
+  // field holds the raw string, and the value is checked once on submit. So what is pinned here is
+  // the property (the typed text survives, and a bad figure is refused by name), not the mechanism.
   const claim = read(F + 'pages/roofing/InsuranceClaimPage.tsx')
-  if (/value=\{li\.unitPrice\} onChange=\{\(e\) => updateSupLineItem\(i, 'unitPrice', Number\(e\.target\.value\)\)\}/.test(claim))
-    fail('typing -1500 into a supplement price produced 01500 — Number() on every keystroke turns a lone minus into 0 and the digits append to it (L7)')
-  if (!/value=\{li\.unitPrice === 0 \|\| li\.unitPrice === undefined \? '' : li\.unitPrice\}/.test(claim))
-    fail('…an empty field must stay empty while it is being filled in')
+  if (/updateSupLineItem\(i, 'unitPrice', [^)]*(?:Number|Math\.max)\s*\(/.test(claim))
+    fail('a supplement price must not be coerced on every keystroke — it replaces the typed figure with a different one and says nothing (L7)')
+  if (!/updateSupLineItem\(i, 'unitPrice', e\.target\.value\)/.test(claim))
+    fail('…the field has to hold the raw text while it is being filled in')
+  if (!/Quantity and price must be zero or more/.test(claim))
+    fail('…and createSupplement must refuse a bad figure by name instead of rounding it away')
 }
 
 if (failed) { console.error(`\nroof validation: ${failed} check(s) FAILED`); process.exit(1) }

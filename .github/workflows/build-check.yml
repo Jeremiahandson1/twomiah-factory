@@ -1484,3 +1484,25 @@ jobs:
           bun-version: latest
       - name: "Check inline styles are not pinned to one theme"
         run: bun run scripts/check-inline-styles-are-theme-aware.ts
+
+  number-clamp:
+    name: "Number inputs are not clamped as typed"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check a number field does not rewrite the value being typed"
+        run: bun run scripts/check-number-inputs-are-not-clamped.ts
+
+  doc-types:
+    name: "Document types match the picker"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check the API accepts exactly the document types the page offers"
+        run: bun run scripts/check-document-types-match-the-picker.ts

@@ -23,7 +23,9 @@ if (!/Object\.assign\(u, extra\.values\)/.test(docs)) fail('…and the update')
 
 // the vet wiring
 const vetRoute = read('templates/crm-vet/backend/src/routes/documents.ts')
-if (!/options: \{ links: \{ patientId: patient \} \}/.test(vetRoute)) fail('crm-vet must file documents against the patient')
+// whitespace-tolerant: what matters is that the link exists, not how the options object is laid out
+// (it gained a `types` list in T18 D4 and had to wrap onto several lines)
+if (!/links:\s*\{[^}]*patientId:\s*patient/s.test(vetRoute)) fail('crm-vet must file documents against the patient')
 if (!/import \{ document, documentVersion, project, contact, user, patient \}/.test(vetRoute)) fail('…which means importing the patient table')
 
 // the column
