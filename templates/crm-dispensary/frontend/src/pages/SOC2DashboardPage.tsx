@@ -94,7 +94,7 @@ function riskBadge(level: string) {
 
 const initialRetentionForm = {
   category: '',
-  retentionDays: 365,
+  retentionDays: '365',
   action: 'archive',
   description: '',
 };
@@ -275,7 +275,7 @@ export default function SOC2DashboardPage() {
       setEditingRetention(policy);
       setRetentionForm({
         category: policy.category || '',
-        retentionDays: policy.retentionDays || 365,
+        retentionDays: String(policy.retentionDays ?? 365),
         action: policy.action || 'archive',
         description: policy.description || '',
       });
@@ -292,7 +292,8 @@ export default function SOC2DashboardPage() {
       // Backend schema uses dataCategory, not category.
       const payload = {
         dataCategory: retentionForm.category,
-        retentionDays: retentionForm.retentionDays,
+        // the field holds text while it is typed; it becomes a number here, once
+        retentionDays: Number(retentionForm.retentionDays) || 365,
         action: retentionForm.action,
         description: retentionForm.description,
       };
@@ -672,7 +673,7 @@ export default function SOC2DashboardPage() {
                   type="number"
                   min={1}
                   value={retentionForm.retentionDays}
-                  onChange={(e) => setRetentionForm(f => ({ ...f, retentionDays: parseInt(e.target.value) || 365 }))}
+                  onChange={(e) => setRetentionForm(f => ({ ...f, retentionDays: e.target.value }))}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
               </div>

@@ -19,7 +19,7 @@ const initialConfig = {
   state: '',
   apiUrl: '',
   autoSync: false,
-  syncInterval: 60,
+  syncInterval: '60',
 };
 
 export default function BioTrackPage() {
@@ -60,7 +60,7 @@ export default function BioTrackPage() {
           state: data.state || '',
           apiUrl: data.apiUrl || '',
           autoSync: data.autoSync ?? false,
-          syncInterval: data.syncInterval || 60,
+          syncInterval: String(data.syncInterval ?? 60),
         });
       }
     } catch (err) {
@@ -80,7 +80,8 @@ export default function BioTrackPage() {
   const saveConfig = async () => {
     setSavingConfig(true);
     try {
-      await api.put('/api/biotrack/config', config);
+      // syncInterval holds text while it is typed; it becomes a number here, once
+      await api.put('/api/biotrack/config', { ...config, syncInterval: Number(config.syncInterval) || 60 });
       toast.success('BioTrack configuration saved');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save configuration');
@@ -92,7 +93,7 @@ export default function BioTrackPage() {
   const testConnection = async () => {
     setTestingConnection(true);
     try {
-      const result = await api.post('/api/biotrack/config/test', config);
+      const result = await api.post('/api/biotrack/config/test', { ...config, syncInterval: Number(config.syncInterval) || 60 });
       if (result?.success) {
         toast.success('Connection successful');
       } else {
@@ -273,7 +274,7 @@ export default function BioTrackPage() {
                   type="number"
                   min={5}
                   value={config.syncInterval}
-                  onChange={(e) => setConfig({ ...config, syncInterval: parseInt(e.target.value) || 60 })}
+                  onChange={(e) => setConfig({ ...config, syncInterval: e.target.value })}
                   className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
               </div>

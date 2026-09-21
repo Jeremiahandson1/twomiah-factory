@@ -8,6 +8,17 @@ import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { Button, PageHeader } from '../components/ui/DataTable';
 
+// The config fields that are numbers to the API but TEXT while someone is typing into them.
+// Listed once so the load, the save and the validation cannot drift apart.
+const NUMERIC_CONFIG_FIELDS = ['referrerRewardValue', 'referredRewardValue', 'minPurchase', 'expirationDays', 'maxReferralsPerCustomer'] as const;
+const CONFIG_FIELD_LABELS: Record<string, string> = {
+  referrerRewardValue: 'Referrer reward',
+  referredRewardValue: 'Referred reward',
+  minPurchase: 'Minimum purchase',
+  expirationDays: 'Expiry (days)',
+  maxReferralsPerCustomer: 'Max referrals per customer',
+};
+
 const referralStatusColors: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
   qualified: 'bg-blue-100 text-blue-700',
@@ -25,12 +36,12 @@ export default function ReferralsPage() {
   const [config, setConfig] = useState<any>({
     enabled: false,
     referrerRewardType: 'discount_percent',
-    referrerRewardValue: 10,
+    referrerRewardValue: '10',
     referredRewardType: 'discount_percent',
-    referredRewardValue: 10,
-    minPurchase: 0,
-    expirationDays: 30,
-    maxReferralsPerCustomer: 0,
+    referredRewardValue: '10',
+    minPurchase: '0',
+    expirationDays: '30',
+    maxReferralsPerCustomer: '0',
   });
   const [savingConfig, setSavingConfig] = useState(false);
 
@@ -52,7 +63,9 @@ export default function ReferralsPage() {
     setLoading(true);
     try {
       const data = await api.get('/api/referrals/config');
-      if (data) setConfig(data);
+      // The API returns the money and counts as numbers; these fields hold text while they are being
+      // edited (see saveConfig), so they are normalised on the way in.
+      if (data) setConfig({ ...data, ...NUMERIC_CONFIG_FIELDS.reduce((acc, k) => ({ ...acc, [k]: String(data[k] ?? '') }), {}) });
     } catch (err) {
       // Config may not exist yet
     } finally {
@@ -61,9 +74,20 @@ export default function ReferralsPage() {
   };
 
   const saveConfig = async () => {
+    // Text becomes numbers here, once, and a figure that is not one is refused BY NAME. The fields
+    // used to coerce on every keystroke — `parseFloat(e.target.value) || 0`, and worse
+    // `parseInt(e.target.value) || 30`, which snapped the field back to the DEFAULT mid-word. A lone
+    // "-" reads back as "" from a number input, so the fallback fired and the typed figure was gone.
+    // (same defect as roof T18 L7)
+    const numbers: Record<string, number> = {};
+    for (const k of NUMERIC_CONFIG_FIELDS) {
+      const n = Number(config[k]);
+      if (!Number.isFinite(n) || n < 0) { toast.error(`${CONFIG_FIELD_LABELS[k]} must be zero or more`); return; }
+      numbers[k] = n;
+    }
     setSavingConfig(true);
     try {
-      await api.put('/api/referrals/config', config);
+      await api.put('/api/referrals/config', { ...config, ...numbers });
       toast.success('Referral program settings saved');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save settings');
@@ -213,7 +237,7 @@ export default function ReferralsPage() {
                         type="number"
                         step="0.01"
                         value={config.referrerRewardValue}
-                        onChange={e => setConfig({ ...config, referrerRewardValue: parseFloat(e.target.value) || 0 })}
+                        onChange={e => setConfig({ ...config, referrerRewardValue: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       />
                     </div>
@@ -245,7 +269,7 @@ export default function ReferralsPage() {
                         type="number"
                         step="0.01"
                         value={config.referredRewardValue}
-                        onChange={e => setConfig({ ...config, referredRewardValue: parseFloat(e.target.value) || 0 })}
+                        onChange={e => setConfig({ ...config, referredRewardValue: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       />
                     </div>
@@ -262,7 +286,7 @@ export default function ReferralsPage() {
                       type="number"
                       step="0.01"
                       value={config.minPurchase}
-                      onChange={e => setConfig({ ...config, minPurchase: parseFloat(e.target.value) || 0 })}
+                      onChange={e => setConfig({ ...config, minPurchase: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       placeholder="0"
                     />
@@ -272,7 +296,7 @@ export default function ReferralsPage() {
                     <input
                       type="number"
                       value={config.expirationDays}
-                      onChange={e => setConfig({ ...config, expirationDays: parseInt(e.target.value) || 30 })}
+                      onChange={e => setConfig({ ...config, expirationDays: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       placeholder="30"
                     />
@@ -282,7 +306,7 @@ export default function ReferralsPage() {
                     <input
                       type="number"
                       value={config.maxReferralsPerCustomer}
-                      onChange={e => setConfig({ ...config, maxReferralsPerCustomer: parseInt(e.target.value) || 0 })}
+                      onChange={e => setConfig({ ...config, maxReferralsPerCustomer: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                       placeholder="0 = unlimited"
                     />

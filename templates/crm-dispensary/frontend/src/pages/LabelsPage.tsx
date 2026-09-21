@@ -62,7 +62,7 @@ export default function LabelsPage() {
   const [printProducts, setPrintProducts] = useState<any[]>([]);
   const [loadingPrintProducts, setLoadingPrintProducts] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
-  const [printQuantity, setPrintQuantity] = useState(1);
+  const [printQuantity, setPrintQuantity] = useState('1');
   const [generatingLabels, setGeneratingLabels] = useState(false);
   const [generatedPreview, setGeneratedPreview] = useState('');
 
@@ -227,7 +227,8 @@ export default function LabelsPage() {
       const result = await api.post('/api/labels/generate', {
         templateId: selectedTemplate,
         productIds: selectedProductIds,
-        quantity: printQuantity,
+        // the field holds text while it is typed; it becomes a number here, once
+        quantity: Number(printQuantity) || 1,
       });
       setGeneratedPreview(result?.html || '');
       toast.success('Labels generated');
@@ -380,7 +381,7 @@ export default function LabelsPage() {
                     type="number"
                     min={1}
                     value={printQuantity}
-                    onChange={(e) => setPrintQuantity(parseInt(e.target.value) || 1)}
+                    onChange={(e) => setPrintQuantity(e.target.value)}
                     className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                   />
                 </div>

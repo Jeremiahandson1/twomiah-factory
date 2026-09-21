@@ -26,7 +26,7 @@ export default function AIBudtenderPage() {
     personality: 'friendly',
     greeting: 'Hey there! Welcome to the shop. What kind of experience are you looking for today?',
     systemPrompt: '',
-    maxRecommendations: 3,
+    maxRecommendations: '3',
     channels: ['pos_kiosk', 'website_chat'] as string[],
   });
   const [savingConfig, setSavingConfig] = useState(false);
@@ -74,7 +74,7 @@ export default function AIBudtenderPage() {
           personality: data.personality || 'friendly',
           greeting: data.greeting || '',
           systemPrompt: data.systemPrompt || '',
-          maxRecommendations: data.maxRecommendations || 3,
+          maxRecommendations: String(data.maxRecommendations ?? 3),
           channels: data.channels || ['pos_kiosk', 'website_chat'],
         });
       }
@@ -86,7 +86,8 @@ export default function AIBudtenderPage() {
   const saveConfig = async () => {
     setSavingConfig(true);
     try {
-      await api.put('/api/ai-budtender/config', config);
+      // maxRecommendations holds text while it is typed; it becomes a number here, once
+      await api.put('/api/ai-budtender/config', { ...config, maxRecommendations: Number(config.maxRecommendations) || 3 });
       toast.success('AI Budtender configuration saved');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save configuration');
@@ -255,7 +256,7 @@ export default function AIBudtenderPage() {
               min={1}
               max={10}
               value={config.maxRecommendations}
-              onChange={(e) => setConfig({ ...config, maxRecommendations: parseInt(e.target.value) || 3 })}
+              onChange={(e) => setConfig({ ...config, maxRecommendations: e.target.value })}
               className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>

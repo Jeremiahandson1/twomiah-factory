@@ -25,18 +25,34 @@ const tabs = [
   { id: 'security-events', label: 'Security Events' },
 ];
 
+// The policy fields that are numbers to the API but TEXT while someone is typing into them.
+// Listed once so the load, the save and the validation cannot drift apart.
+const NUMERIC_POLICY_FIELDS = [
+  'minLength', 'maxAgeDays', 'historyCount', 'maxFailedAttempts',
+  'lockoutDurationMinutes', 'sessionTimeoutMinutes', 'idleTimeoutMinutes',
+] as const;
+const POLICY_FIELD_LABELS: Record<string, string> = {
+  minLength: 'Minimum length',
+  maxAgeDays: 'Password age (days)',
+  historyCount: 'Password history',
+  maxFailedAttempts: 'Failed attempts before lockout',
+  lockoutDurationMinutes: 'Lockout duration (minutes)',
+  sessionTimeoutMinutes: 'Session timeout (minutes)',
+  idleTimeoutMinutes: 'Idle timeout (minutes)',
+};
+
 const defaultPasswordPolicy = {
-  minLength: 8,
+  minLength: '8',
   requireUppercase: true,
   requireLowercase: true,
   requireNumbers: true,
   requireSpecialChars: false,
-  maxAgeDays: 90,
-  historyCount: 5,
-  maxFailedAttempts: 5,
-  lockoutDurationMinutes: 30,
-  sessionTimeoutMinutes: 480,
-  idleTimeoutMinutes: 30,
+  maxAgeDays: '90',
+  historyCount: '5',
+  maxFailedAttempts: '5',
+  lockoutDurationMinutes: '30',
+  sessionTimeoutMinutes: '480',
+  idleTimeoutMinutes: '30',
   mfaRequired: false,
   mfaRequiredRoles: [] as string[],
 };
@@ -138,7 +154,13 @@ export default function SecurityPage() {
     setLoadingPolicy(true);
     try {
       const data = await api.get('/api/security/password-policy');
-      if (data) setPolicy({ ...defaultPasswordPolicy, ...data });
+      // The API holds these as numbers; the fields hold text while they are being edited (see
+      // savePolicy), so they are normalised on the way in.
+      if (data) {
+        const asText: Record<string, string> = {}
+        for (const k of NUMERIC_POLICY_FIELDS) if (data[k] != null) asText[k] = String(data[k])
+        setPolicy({ ...defaultPasswordPolicy, ...data, ...asText });
+      }
     } catch {
       // Use defaults
     } finally {
@@ -284,9 +306,18 @@ export default function SecurityPage() {
 
   // Password Policy
   const savePolicy = async () => {
+    // Text becomes numbers here, once, and a figure that is not one is refused BY NAME. Each of these
+    // fields used to run `parseInt(e.target.value) || <default>` on every keystroke, so a half-typed
+    // value visibly snapped back to 8, 30 or 480 under the cursor. (roof T18 L7)
+    const nums: Record<string, number> = {};
+    for (const k of NUMERIC_POLICY_FIELDS) {
+      const n = Number((policy as any)[k]);
+      if (!Number.isFinite(n) || n < 0) { toast.error(`${POLICY_FIELD_LABELS[k]} must be zero or more`); return; }
+      nums[k] = n;
+    }
     setSavingPolicy(true);
     try {
-      await api.put('/api/security/password-policy', policy);
+      await api.put('/api/security/password-policy', { ...policy, ...nums });
       toast.success('Password policy saved');
     } catch {
       toast.error('Failed to save password policy');
@@ -634,7 +665,7 @@ export default function SecurityPage() {
                     min={6}
                     max={128}
                     value={policy.minLength}
-                    onChange={(e) => setPolicy(p => ({ ...p, minLength: parseInt(e.target.value) || 8 }))}
+                    onChange={(e) => setPolicy(p => ({ ...p, minLength: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
@@ -664,7 +695,7 @@ export default function SecurityPage() {
                     type="number"
                     min={0}
                     value={policy.maxAgeDays}
-                    onChange={(e) => setPolicy(p => ({ ...p, maxAgeDays: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) => setPolicy(p => ({ ...p, maxAgeDays: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
@@ -674,7 +705,7 @@ export default function SecurityPage() {
                     type="number"
                     min={0}
                     value={policy.historyCount}
-                    onChange={(e) => setPolicy(p => ({ ...p, historyCount: parseInt(e.target.value) || 0 }))}
+                    onChange={(e) => setPolicy(p => ({ ...p, historyCount: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
@@ -692,7 +723,7 @@ export default function SecurityPage() {
                     type="number"
                     min={1}
                     value={policy.maxFailedAttempts}
-                    onChange={(e) => setPolicy(p => ({ ...p, maxFailedAttempts: parseInt(e.target.value) || 5 }))}
+                    onChange={(e) => setPolicy(p => ({ ...p, maxFailedAttempts: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
@@ -702,7 +733,7 @@ export default function SecurityPage() {
                     type="number"
                     min={1}
                     value={policy.lockoutDurationMinutes}
-                    onChange={(e) => setPolicy(p => ({ ...p, lockoutDurationMinutes: parseInt(e.target.value) || 30 }))}
+                    onChange={(e) => setPolicy(p => ({ ...p, lockoutDurationMinutes: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
@@ -712,7 +743,7 @@ export default function SecurityPage() {
                     type="number"
                     min={5}
                     value={policy.sessionTimeoutMinutes}
-                    onChange={(e) => setPolicy(p => ({ ...p, sessionTimeoutMinutes: parseInt(e.target.value) || 480 }))}
+                    onChange={(e) => setPolicy(p => ({ ...p, sessionTimeoutMinutes: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>
@@ -722,7 +753,7 @@ export default function SecurityPage() {
                     type="number"
                     min={1}
                     value={policy.idleTimeoutMinutes}
-                    onChange={(e) => setPolicy(p => ({ ...p, idleTimeoutMinutes: parseInt(e.target.value) || 30 }))}
+                    onChange={(e) => setPolicy(p => ({ ...p, idleTimeoutMinutes: e.target.value }))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                   />
                 </div>

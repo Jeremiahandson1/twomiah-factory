@@ -187,7 +187,7 @@ export default function LocationsPage() {
   const addTransferItem = () => {
     setTransferForm(prev => ({
       ...prev,
-      items: [...prev.items, { productId: '', productName: '', quantity: 1 }],
+      items: [...prev.items, { productId: '', productName: '', quantity: '1' }],
     }));
   };
 
@@ -225,7 +225,11 @@ export default function LocationsPage() {
     }
     setSavingTransfer(true);
     try {
-      await api.post('/api/locations/transfers', transferForm);
+      // line quantities hold text while they are typed; they become numbers here, once
+      await api.post('/api/locations/transfers', {
+        ...transferForm,
+        items: (transferForm.items || []).map((i: any) => ({ ...i, quantity: Number(i.quantity) || 0 })),
+      });
       toast.success('Transfer created');
       setTransferModal(false);
       loadTransfers();
@@ -250,7 +254,8 @@ export default function LocationsPage() {
     setSavingReceive(true);
     try {
       await api.put(`/api/locations/transfers/${receivingTransfer.id}/receive`, {
-        items: receiveItems,
+        // the fields hold text while they are typed; they become numbers here, once
+        items: receiveItems.map((i: any) => ({ ...i, receivedQuantity: Number(i.receivedQuantity) || 0 })),
       });
       toast.success('Transfer received');
       setReceiveModal(false);
@@ -852,7 +857,7 @@ export default function LocationsPage() {
                       type="number"
                       min={1}
                       value={item.quantity}
-                      onChange={(e) => updateTransferItem(idx, 'quantity', parseInt(e.target.value) || 1)}
+                      onChange={(e) => updateTransferItem(idx, 'quantity', e.target.value)}
                       className="w-24 px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-white text-sm"
                       placeholder="Qty"
                     />
@@ -900,7 +905,7 @@ export default function LocationsPage() {
                 value={item.receivedQuantity}
                 onChange={(e) => {
                   const items = [...receiveItems];
-                  items[idx] = { ...items[idx], receivedQuantity: parseInt(e.target.value) || 0 };
+                  items[idx] = { ...items[idx], receivedQuantity: e.target.value };
                   setReceiveItems(items);
                 }}
                 className="w-24 px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-white text-sm"

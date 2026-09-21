@@ -23,10 +23,10 @@ export default function LoyaltyPage() {
 
   // Config
   const [config, setConfig] = useState({
-    pointsPerDollar: 1,
-    tierThresholds: { silver: 500, gold: 1500, platinum: 5000 },
-    welcomePoints: 50,
-    birthdayBonus: 100,
+    pointsPerDollar: '1',
+    tierThresholds: { silver: '500', gold: '1500', platinum: '5000' },
+    welcomePoints: '50',
+    birthdayBonus: '100',
     isEnabled: true,
   });
   const [savingConfig, setSavingConfig] = useState(false);
@@ -60,13 +60,19 @@ export default function LoyaltyPage() {
     try {
       const data = await api.get('/api/company');
       if (data) {
+        // The API holds these as numbers; the fields hold text while they are being edited (see
+        // saveConfig), so they are normalised on the way in rather than letting a number sit in a
+        // text field. The tier thresholds are a nested object and need the same treatment.
+        const t = data.loyaltyTierThresholds;
         setConfig(prev => ({
           ...prev,
-          pointsPerDollar: data.loyaltyPointsPerDollar ?? prev.pointsPerDollar,
+          pointsPerDollar: data.loyaltyPointsPerDollar != null ? String(data.loyaltyPointsPerDollar) : prev.pointsPerDollar,
           isEnabled: data.loyaltyEnabled ?? prev.isEnabled,
-          tierThresholds: data.loyaltyTierThresholds ?? prev.tierThresholds,
-          welcomePoints: data.loyaltyWelcomePoints ?? prev.welcomePoints,
-          birthdayBonus: data.loyaltyBirthdayBonus ?? prev.birthdayBonus,
+          tierThresholds: t
+            ? { silver: String(t.silver ?? ''), gold: String(t.gold ?? ''), platinum: String(t.platinum ?? '') }
+            : prev.tierThresholds,
+          welcomePoints: data.loyaltyWelcomePoints != null ? String(data.loyaltyWelcomePoints) : prev.welcomePoints,
+          birthdayBonus: data.loyaltyBirthdayBonus != null ? String(data.loyaltyBirthdayBonus) : prev.birthdayBonus,
         }));
       }
     } catch (err) {
@@ -101,14 +107,31 @@ export default function LoyaltyPage() {
   };
 
   const saveConfig = async () => {
+    // Text becomes numbers here, once, and a figure that is not one is refused BY NAME. The fields
+    // used to run `parseInt(e.target.value) || 0` on every keystroke: a lone "-" reads back as "" from
+    // a number input, parseInt("") is NaN, and the `|| 0` then wrote 0 into the field under the
+    // cursor — so a points rate typed as -5 was saved as 5, and nothing said so. (roof T18 L7)
+    const nums: Record<string, number> = {};
+    for (const [key, value, label] of [
+      ['pointsPerDollar', config.pointsPerDollar, 'Points per dollar'],
+      ['welcomePoints', config.welcomePoints, 'Welcome points'],
+      ['birthdayBonus', config.birthdayBonus, 'Birthday bonus'],
+      ['silver', config.tierThresholds.silver, 'Silver tier'],
+      ['gold', config.tierThresholds.gold, 'Gold tier'],
+      ['platinum', config.tierThresholds.platinum, 'Platinum tier'],
+    ] as Array<[string, string, string]>) {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0) { toast.error(`${label} must be zero or more`); return; }
+      nums[key] = n;
+    }
     setSavingConfig(true);
     try {
       await api.put('/api/company', {
-        loyaltyPointsPerDollar: config.pointsPerDollar,
+        loyaltyPointsPerDollar: nums.pointsPerDollar,
         loyaltyEnabled: config.isEnabled,
-        loyaltyTierThresholds: config.tierThresholds,
-        loyaltyWelcomePoints: config.welcomePoints,
-        loyaltyBirthdayBonus: config.birthdayBonus,
+        loyaltyTierThresholds: { silver: nums.silver, gold: nums.gold, platinum: nums.platinum },
+        loyaltyWelcomePoints: nums.welcomePoints,
+        loyaltyBirthdayBonus: nums.birthdayBonus,
       });
       toast.success('Loyalty settings saved');
     } catch (err: any) {
@@ -242,7 +265,7 @@ export default function LoyaltyPage() {
             <input
               type="number"
               value={config.pointsPerDollar}
-              onChange={(e) => setConfig({ ...config, pointsPerDollar: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setConfig({ ...config, pointsPerDollar: e.target.value })}
               className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
@@ -252,7 +275,7 @@ export default function LoyaltyPage() {
             <input
               type="number"
               value={config.welcomePoints}
-              onChange={(e) => setConfig({ ...config, welcomePoints: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setConfig({ ...config, welcomePoints: e.target.value })}
               className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
@@ -262,7 +285,7 @@ export default function LoyaltyPage() {
             <input
               type="number"
               value={config.birthdayBonus}
-              onChange={(e) => setConfig({ ...config, birthdayBonus: parseInt(e.target.value) || 0 })}
+              onChange={(e) => setConfig({ ...config, birthdayBonus: e.target.value })}
               className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
             />
           </div>
@@ -277,7 +300,7 @@ export default function LoyaltyPage() {
                   value={config.tierThresholds.silver}
                   onChange={(e) => setConfig({
                     ...config,
-                    tierThresholds: { ...config.tierThresholds, silver: parseInt(e.target.value) || 0 },
+                    tierThresholds: { ...config.tierThresholds, silver: e.target.value },
                   })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
@@ -289,7 +312,7 @@ export default function LoyaltyPage() {
                   value={config.tierThresholds.gold}
                   onChange={(e) => setConfig({
                     ...config,
-                    tierThresholds: { ...config.tierThresholds, gold: parseInt(e.target.value) || 0 },
+                    tierThresholds: { ...config.tierThresholds, gold: e.target.value },
                   })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
@@ -301,7 +324,7 @@ export default function LoyaltyPage() {
                   value={config.tierThresholds.platinum}
                   onChange={(e) => setConfig({
                     ...config,
-                    tierThresholds: { ...config.tierThresholds, platinum: parseInt(e.target.value) || 0 },
+                    tierThresholds: { ...config.tierThresholds, platinum: e.target.value },
                   })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
                 />
