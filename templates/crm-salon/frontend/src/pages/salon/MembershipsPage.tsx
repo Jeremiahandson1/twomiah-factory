@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Loader2, X, CreditCard, Edit2, Trash2, Check, Users, UserPlus } from 'lucide-react';
 import api from '../../services/api';
 import ClientPicker from '../../components/salon/ClientPicker';
+import { todayStr } from '../../utils/date';
 
 /**
  * Memberships — plans (GET/POST/PUT/DELETE /api/memberships) and the people on
@@ -385,7 +386,7 @@ function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => 
   const [saving, setSaving] = useState(false);
   const [contactId, setContactId] = useState<string>('');
   const [planId, setPlanId] = useState<string>(plans[0]?.id || '');
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState<string>(todayStr());
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

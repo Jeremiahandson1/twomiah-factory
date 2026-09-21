@@ -1506,3 +1506,14 @@ jobs:
           bun-version: latest
       - name: "Check the API accepts exactly the document types the page offers"
         run: bun run scripts/check-document-types-match-the-picker.ts
+
+  salon-shop-calendar:
+    name: "Salon days come from the shop's calendar"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check crm-salon never builds a day from the UTC clock"
+        run: bun run scripts/check-salon-days-are-the-shop-calendar.ts

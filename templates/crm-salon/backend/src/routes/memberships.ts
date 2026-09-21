@@ -8,6 +8,7 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 import { billFirstPeriod, settleMembershipBilling } from '../services/membershipBilling.ts'
+import { salonToday } from '../utils/salonDate.ts'
 
 /**
  * Memberships and prepaid packages — recurring revenue between visits.
@@ -82,7 +83,9 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
     contactId: body.contactId,
     status: body.status || 'active',
     creditsRemaining: body.creditsRemaining ?? plan.creditsTotal ?? null,
-    startDate: body.startDate || new Date().toISOString().slice(0, 10),
+    // The day the client signed up, on the SHOP'S calendar — a 7pm Chicago enrolment used to be
+    // recorded as starting tomorrow, and nextRenewal() then carried that day into every anniversary. (T25 N2)
+    startDate: body.startDate || (await salonToday(currentUser.companyId)),
     renewsAt: body.renewsAt || null,
     companyId: currentUser.companyId,
   }).returning()

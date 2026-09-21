@@ -126,7 +126,10 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
             </div>
 
             <div className={`grid grid-cols-1 ${chartsTwoUp ? 'lg:grid-cols-2' : ''} gap-6`}>
-              <div className={card}><h3 className={h3}>Revenue trend</h3><RevenueChart data={monthly} /></div>
+              {/* The trend is by calendar month, so it plots a wider window than the period selector: "Last 30 days"
+                  draws three months, two of them necessarily empty. Say which window, so the two blank bars on the
+                  left read as history rather than as a chart that lost its data. (Salon T25 L6) */}
+              <div className={card}><h3 className={h3}>Revenue trend{monthly.length > 1 ? ` · last ${monthly.length} months` : ''}</h3><RevenueChart data={monthly} /></div>
               {cfg.eventsPipeline && <div className={card}><h3 className={h3}>Events pipeline</h3><PipelineBar segments={[['enquiry', 'Enquiry', 'bg-blue-500'], ['tentative', 'Tentative', 'bg-yellow-500'], ['confirmed', 'Confirmed', 'bg-green-500'], ['completed', 'Completed', 'bg-teal-500'], ['lost', 'Lost', 'bg-gray-400'], ['cancelled', 'Cancelled', 'bg-gray-300']]} counts={events?.pipeline || {}} /></div>}
               {cfg.dealership && <div className={card}><h3 className={h3}>Sales pipeline (open leads)</h3><PipelineBar segments={[['new', 'New', 'bg-blue-500'], ['contacted', 'Contacted', 'bg-indigo-500'], ['demo', 'Demo', 'bg-purple-500'], ['desking', 'Desking', 'bg-yellow-500']]} counts={dealer?.pipeline || {}} /></div>}
               {showJobs && (() => { const bar = jobStatusBar(jobs); return <div className={card}><h3 className={h3}>{cfg.jobsLabel.replace(/s$/, '')} status</h3><PipelineBar segments={bar.segments} counts={bar.counts} /></div> })()}

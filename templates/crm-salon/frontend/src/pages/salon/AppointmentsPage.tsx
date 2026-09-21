@@ -5,6 +5,7 @@ import api from '../../services/api';
 import ClientPicker from '../../components/salon/ClientPicker';
 import ServiceRecordEditorModal from '../../components/salon/ServiceRecordEditorModal';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { todayStr } from '../../utils/date';
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -65,10 +66,6 @@ function visitWarnings(profile: ClientProfileLite | null | undefined, service: S
 }
 async function loadProfile(contactId: string): Promise<ClientProfileLite | null> {
   try { const d = await api.get(`/api/clients/${contactId}`); return (d?.profile as ClientProfileLite) || null; } catch { return null; }
-}
-
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 /**

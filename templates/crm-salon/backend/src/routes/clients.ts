@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, bookingSettings } from '../../db/schema.ts'
+import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, ne } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -8,6 +8,7 @@ import { emitToCompany, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { isClient } from '../utils/clientTypes.ts'
 import { createId } from '@paralleldrive/cuid2'
+import { calendarDateIn, salonTimezone, salonToday } from '../utils/salonDate.ts'
 
 /**
  * The client chart. Unlike crm-vet (owner -> pet), a salon client IS the
@@ -152,11 +153,9 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
   const withInterval = serviceRecords.find(r => r.rebookIntervalDays)
   // Count the interval from the visit's calendar date in the salon's timezone — an 11:03 PM visit is
   // stored after midnight UTC and used to push due-back a day late. (SALON-H9)
-  const [bs] = await db.select({ timezone: bookingSettings.timezone }).from(bookingSettings).where(eq(bookingSettings.companyId, currentUser.companyId)).limit(1)
-  const tz = bs?.timezone || 'America/Chicago'
-  const calendarDateIn = (d: Date) => { try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d) } catch { return d.toISOString().slice(0, 10) } }
+  const tz = await salonTimezone(currentUser.companyId)
   const dueBackAt = withInterval
-    ? (() => { const [y, m, d] = calendarDateIn(new Date(withInterval.performedAt)).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d) + withInterval.rebookIntervalDays * 86400000).toISOString().slice(0, 10) })()
+    ? (() => { const [y, m, d] = calendarDateIn(new Date(withInterval.performedAt), tz).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d) + withInterval.rebookIntervalDays * 86400000).toISOString().slice(0, 10) })()
     : null
 
   const lifetimeValue = serviceRecords.reduce((s: number, r: any) => s + Number(r.priceCharged || 0), 0)
@@ -183,12 +182,13 @@ app.put('/:contactId/profile', requirePermission('contacts:update'), async (c) =
   if (!ct) return c.json({ error: 'Client not found' }, 404)
 
   // Whitelist editable columns — never let companyId/id/contactId be set from the body.
+  const today = await salonToday(currentUser.companyId)
   const EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'preferences', 'pronouns', 'birthday', 'notes'] as const
   for (const k of ['birthday', 'patchTestAt'] as const) {
     if (body[k] == null || body[k] === '') continue
     const v = String(body[k])
     if (!/^\d{4}-\d{2}-\d{2}/.test(v) || isNaN(new Date(v.slice(0, 10) + 'T00:00:00Z').getTime())) return c.json({ error: `${k === 'birthday' ? 'Birthday' : 'Patch test date'} must be a valid date (YYYY-MM-DD).` }, 400)
-    if (v.slice(0, 10) > new Date().toISOString().slice(0, 10)) return c.json({ error: `${k === 'birthday' ? 'Birthday' : 'Patch test date'} cannot be in the future.` }, 400)
+    if (v.slice(0, 10) > today) return c.json({ error: `${k === 'birthday' ? 'Birthday' : 'Patch test date'} cannot be in the future.` }, 400)
   }
 
   const [existing] = await db.select().from(clientProfile)

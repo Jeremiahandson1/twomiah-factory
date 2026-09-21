@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Scissors, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { todayStr, toDayString } from '../../utils/date';
 
 /**
  * Service record editor — the formula log.
@@ -61,8 +62,10 @@ interface Props {
 
 function toDateInput(s?: string): string {
   const d = s ? new Date(s) : new Date();
-  if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
-  return d.toISOString().slice(0, 10);
+  // Local day, not the UTC one: a visit performed at 7pm in Chicago is stored past midnight UTC and
+  // came back into the date box as TOMORROW. (Salon T25 N2)
+  if (isNaN(d.getTime())) return todayStr();
+  return toDayString(d);
 }
 
 export default function ServiceRecordEditorModal({ contactId, record, appointmentId, onSave, onClose }: Props) {

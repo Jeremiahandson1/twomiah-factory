@@ -19,3 +19,19 @@ export function formatDate(value?: string | number | Date | null): string {
   }
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
 }
+
+/**
+ * An instant as YYYY-MM-DD on the calendar the person at the desk is looking at.
+ *
+ * The obvious `toISOString().slice(0, 10)` is the UTC date, and anywhere west of UTC that flips early:
+ * at 7pm in Chicago it is already tomorrow in UTC. The Book opened on TOMORROW with the heading still
+ * reading "Today", the enrol form pre-filled tomorrow, and a visit logged in the evening was dated the
+ * next day. Evening is exactly when a salon is still checking people out. (Salon T25 N2)
+ */
+export function toDayString(d: Date = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Today, on that same calendar. */
+export const todayStr = (): string => toDayString();

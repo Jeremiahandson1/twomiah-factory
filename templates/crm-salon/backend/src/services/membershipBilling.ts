@@ -19,12 +19,21 @@ import { and, eq, isNotNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { membershipPlan, membershipEnrollment, contact, invoice, invoiceLineItem, company } from '../../db/schema.ts'
 import { dueDateFromTerms } from '../shared/index.ts'
+import { salonToday } from '../utils/salonDate.ts'
 import { nextInvoiceNumber } from './salonCheckout.ts'
 import { emitToCompany, EVENTS } from './socket.ts'
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const iso = (d: Date) => d.toISOString().slice(0, 10)
-const today = () => iso(new Date())
+/**
+ * Every date this file writes is a CALENDAR day on the shop's wall, so it is asked of the shop's
+ * timezone. It used to be asked of UTC: a 7pm Chicago enrolment was recorded as starting TOMORROW,
+ * its first invoice line was labelled with tomorrow's period, and nextRenewal() carried that extra
+ * day into every anniversary after it. (Salon T25 N2)
+ */
+const today = (companyId: string) => salonToday(companyId)
+/** The UTC day — only ever the WIDE end of a "has this period arrived?" filter, never a written date. */
+const utcToday = () => iso(new Date())
 
 const cycleOf = (plan: any) => String(plan?.billingCycle || 'monthly').toLowerCase()
 /** A one-off membership is charged once and never renews. */
@@ -143,7 +152,7 @@ async function adoptUnscheduled(companyId?: string): Promise<number> {
     const cycle = cycleOf(plan)
     // A one-off package has nothing to renew; leave it alone rather than inventing a schedule.
     if (isOneTime(cycle)) continue
-    const from = today()
+    const from = await today(row.companyId)
     await db.update(membershipEnrollment)
       // last_billed_for is set to today as well: the current period is treated as settled, so the
       // adoption itself never raises a charge.
@@ -163,14 +172,17 @@ export async function settleMembershipBilling(companyId?: string, maxPeriodsPerE
   const due = await db.select().from(membershipEnrollment).where(and(
     eq(membershipEnrollment.status, 'active'),
     isNotNull(membershipEnrollment.renewsAt),
-    lte(membershipEnrollment.renewsAt, today()),
+    // Deliberately the UTC day: a sweep with no companyId has no single shop calendar to ask, and the
+    // UTC day is never behind a shop west of it, so this is the WIDE end of the filter. The per-enrolment
+    // guard in the loop below is what actually decides whether the period has arrived. (Salon T25 N2)
+    lte(membershipEnrollment.renewsAt, utcToday()),
     ...(companyId ? [eq(membershipEnrollment.companyId, companyId)] : []),
   ))
   for (const row of due) {
     let cursor: any = { ...row }
     for (let i = 0; i < maxPeriodsPerEnrollment; i++) {
       const period = cursor.renewsAt
-      if (!period || period > today()) break
+      if (!period || period > (await today(row.companyId))) break
       const one = await billPeriod(cursor, period)
       if (one) billed.push(one)
       const [fresh] = await db.select().from(membershipEnrollment).where(eq(membershipEnrollment.id, row.id)).limit(1)
@@ -184,7 +196,7 @@ export async function settleMembershipBilling(companyId?: string, maxPeriodsPerE
 
 /** Enrolling bills the first period straight away, so a membership sold today is invoiced today. */
 export async function billFirstPeriod(enrollment: any): Promise<BilledOne | null> {
-  const start = enrollment.startDate || today()
+  const start = enrollment.startDate || (await today(enrollment.companyId))
   const one = await billPeriod(enrollment, start)
   if (!one) {
     // Nothing billable (a free plan) — still schedule the renewal so the enrolment is not stuck with a
