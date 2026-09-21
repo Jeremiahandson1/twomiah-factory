@@ -10,7 +10,9 @@ app.use('*', authenticate)
 // does not have at all (false) — is left out of search, quick search and Recent, and cannot be asked for with
 // ?types=. The same gates the API applies (index.ts, #167); scripts/check-search-feature-gates.ts keeps the two
 // in step. Types not listed are always shown. (events T18: "review jobs" under Recent on a tenant with Jobs off)
-const TYPE_FEATURES: Record<string, string[] | false> = { rfi: false }
+// `project` joins the list with T18 M6: /api/projects is gated on `projects` now, and search that
+// still returned project rows would hand back links the API refuses to open.
+const TYPE_FEATURES: Record<string, string[] | false> = { rfi: false, project: ['projects'] }
 
 async function shownTypes(companyId: string) {
   const enabled = await enabledFeaturesFor(companyId)

@@ -226,10 +226,8 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
     radius: geofence?.radius || 100,
     address: geofence?.address || '',
     jobId: geofence?.jobId || '',
-    projectId: geofence?.projectId || '',
   });
   const [jobs, setJobs] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [gettingLocation, setGettingLocation] = useState(false);
 
   useEffect(() => {
@@ -238,12 +236,11 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
 
   const loadOptions = async () => {
     try {
-      const [jobsRes, projectsRes] = await Promise.all([
-        api.get('/api/jobs?status=scheduled&limit=100'),
-        api.get('/api/projects?status=active&limit=100'),
-      ]);
+      // Jobs only. This used to Promise.all a /api/projects fetch alongside it — `projects` is the
+      // construction module and is not offered on this template, so once it was gated that rejection
+      // would have taken the JOBS list down with it and left the picker permanently empty. (T18 M6)
+      const jobsRes = await api.get('/api/jobs?status=scheduled&limit=100');
       setJobs(jobsRes.data || jobsRes || []);
-      setProjects(projectsRes.data || []);
     } catch (error) {
       console.error('Failed to load options:', error);
     }
@@ -298,7 +295,6 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
       lng: parseFloat(form.lng),
       radius: parseInt(form.radius),
       jobId: form.jobId || null,
-      projectId: form.projectId || null,
     });
   };
 
@@ -340,20 +336,10 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               </select>
             </div>
 
-            {/* Link to Project */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Link to Project (optional)</label>
-              <select
-                value={form.projectId}
-                onChange={(e) => setForm({ ...form, projectId: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg"
-              >
-                <option value="">No project</option>
-                {projects.map(proj => (
-                  <option key={proj.id} value={proj.id}>{proj.name} ({proj.number})</option>
-                ))}
-              </select>
-            </div>
+            {/* No project picker: `projects` is the CONSTRUCTION module (draw schedules, AIA pay
+                applications, lien waivers) and the registry offers it to `crm` only. Field service
+                models the same work as a JOB, which the picker above already links. This dropdown
+                was contractor residue and fetched /api/projects, which is gated now. (T18 M6) */}
 
             {/* Address */}
             <div>

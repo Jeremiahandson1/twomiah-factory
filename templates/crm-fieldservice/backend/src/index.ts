@@ -225,6 +225,19 @@ app.use('/api/warranties', authenticate, requireEnabledFeature('warranties'))
 app.use('/api/warranties/*', authenticate, requireEnabledFeature('warranties'))
 app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
 app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
+// T18 M6: both of these answered 200 with the switch off.
+//
+// A geofence is a GPS boundary — it only means anything to a tenant tracking where their people are,
+// so it belongs to the same switch as the tracking itself.
+app.use('/api/geofencing', authenticate, requireEnabledFeature('gps_tracking'))
+app.use('/api/geofencing/*', authenticate, requireEnabledFeature('gps_tracking'))
+// `projects` is the CONSTRUCTION module — multi-phase management with draw schedules, AIA pay
+// applications and lien waivers — and the registry offers it to `crm` only. Field service models the
+// same day-to-day work as a JOB, which is what its geofences attach to. Gating on the real feature
+// keeps that honest without hardcoding "never": if projects is ever offered here, this opens by
+// itself.
+app.use('/api/projects', authenticate, requireEnabledFeature('projects'))
+app.use('/api/projects/*', authenticate, requireEnabledFeature('projects'))
 // Photo Capture off means the API says so (403), not "No photo provided" from a validation check that never
 // should have been reached — job photos are uploaded by the mobile app, so the API is the only gate. (T21 L8)
 app.use('/api/photos', authenticate, requireEnabledFeature('photo_capture'))
