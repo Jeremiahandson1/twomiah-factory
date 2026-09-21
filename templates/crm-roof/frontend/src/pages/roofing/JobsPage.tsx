@@ -59,6 +59,7 @@ export default function JobsPage() {
   const navigate = useNavigate();
 
   const [jobs, setJobs] = useState<any[]>([]);
+  const [knownTypes, setKnownTypes] = useState<string[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [crews, setCrews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +108,12 @@ export default function JobsPage() {
       const crewsData = await crewsRes.json();
 
       setJobs(Array.isArray(jobsData) ? jobsData : jobsData.data || []);
+      // The distinct set for the whole tenant, not just this page — a legacy type further down the
+      // list would otherwise be unselectable and its jobs unreachable. (roof T18)
+      try {
+        const tr = await fetch('/api/jobs/types', { headers: { Authorization: `Bearer ${token}` } });
+        if (tr.ok) setKnownTypes(await tr.json());
+      } catch { /* the filter still works from the vocabulary + this page */ }
       setTotal(jobsData.pagination?.total || jobsData.total || (Array.isArray(jobsData) ? jobsData.length : 0));
       setUsers(Array.isArray(usersData) ? usersData : usersData.data || []);
       setCrews(Array.isArray(crewsData) ? crewsData : crewsData.data || []);
@@ -192,7 +199,7 @@ export default function JobsPage() {
           </select>
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Types</option>
-            {typeOptions(...jobs.map((j: any) => j.jobType)).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
+            {typeOptions(...knownTypes, ...jobs.map((j: any) => j.jobType)).map((t) => <option key={t} value={t}>{formatStatus(t)}</option>)}
           </select>
           <select value={crewFilter} onChange={(e) => setCrewFilter(e.target.value)} className="text-sm border rounded-lg px-3 py-2">
             <option value="">All Crews</option>

@@ -196,6 +196,20 @@ app.post('/', async (c) => {
 })
 
 // Get job detail
+// Every jobType this tenant actually holds.
+//
+// `jobType` is a free string, so a tenant can carry values the UI's list never had — imported jobs,
+// an older seed, an API caller. The Type filter built from the jobs ON SCREEN only covered the
+// current page, so a legacy type further down the list stayed unreachable. This is the whole set.
+//
+// Registered above '/:id' deliberately: Hono matches in order and would otherwise read "types" as a
+// job id. (roof T18)
+app.get('/types', async (c) => {
+  const currentUser = c.get('user') as any
+  const rows = await db.selectDistinct({ jobType: job.jobType }).from(job).where(eq(job.companyId, currentUser.companyId))
+  return c.json(rows.map((r: any) => r.jobType).filter(Boolean).sort())
+})
+
 app.get('/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
