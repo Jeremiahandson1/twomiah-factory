@@ -43,7 +43,17 @@ export function createEnabledFeatureGate({ db, tables: { company } }: EnabledFea
     }
   }
 
-  return { requireEnabledFeature, isFeatureEnabled, enabledFeaturesFor }
+  /**
+   * Drop the cached list so the very next request re-reads it.
+   *
+   * Without this the 15 s TTL is also a 15 s lie: the owner switches a module on, the sidebar shows
+   * the link immediately (the frontend re-reads /api/auth/me), and the API goes on refusing it —
+   * "This module is not enabled for your account" on a module they just enabled. Call it from
+   * whatever writes company.enabledFeatures.
+   */
+  const forgetFeatures = (companyId?: string) => { companyId ? cache.delete(companyId) : cache.clear() }
+
+  return { requireEnabledFeature, isFeatureEnabled, enabledFeaturesFor, forgetFeatures }
 }
 
 export type EnabledFeatureGate = ReturnType<typeof createEnabledFeatureGate>

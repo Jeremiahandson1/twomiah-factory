@@ -11,6 +11,7 @@ import { requirePermission } from '../middleware/permissions.ts'
 // Settings → Features page (every feature free to toggle, admin/owner only).
 import { getFeaturesForTemplate } from '../shared/featureRegistry.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
+import { forgetFeatures } from '../middleware/enabledFeature.ts'
 
 const app = new Hono()
 // Never serialize provider secrets to the client (VET-41 / F-26): GET & PUT /api/company
@@ -62,6 +63,10 @@ app.put('/features', requireAdmin, async (c) => {
   const next = [...new Set([...offered.filter(f => f.core).map(f => f.id), ...(features as string[])])]
   const [result] = await db.update(company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
+  // The API gate caches this list for 15 s. Without dropping it here the owner switches a module on,
+  // the sidebar shows the link straight away, and the page they land on answers "This module is not
+  // enabled for your account" for another quarter of a minute. (roof T18)
+  forgetFeatures(currentUser.companyId)
   return c.json(sanitizeCompany(result))
 })
 

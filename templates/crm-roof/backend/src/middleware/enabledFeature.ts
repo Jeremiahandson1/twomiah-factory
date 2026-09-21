@@ -8,4 +8,4 @@ import { createEnabledFeatureGate } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 
-export const { requireEnabledFeature, isFeatureEnabled, enabledFeaturesFor } = createEnabledFeatureGate({ db, tables: { company } })
+export const { requireEnabledFeature, isFeatureEnabled, enabledFeaturesFor, forgetFeatures } = createEnabledFeatureGate({ db, tables: { company } })
