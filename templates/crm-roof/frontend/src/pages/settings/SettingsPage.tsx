@@ -622,7 +622,7 @@ export default function SettingsPage() {
             {users.map((u) => (
               <div key={u.id} className="flex items-center justify-between py-3">
                 <div>
-                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900'}`}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</p>
+                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900 dark:text-slate-100'}`}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</p>
                   <p className="text-xs text-gray-500 dark:text-slate-400">{u.email}</p>
                 </div>
                 <div className="flex items-center gap-3">

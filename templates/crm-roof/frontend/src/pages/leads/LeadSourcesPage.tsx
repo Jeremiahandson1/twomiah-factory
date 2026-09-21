@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useIsDark } from '../../shared';
 import {
   Settings, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Check,
   Mail, Webhook, Info
@@ -75,8 +76,34 @@ const PLATFORMS = [
   },
 ];
 
+// Like its sibling Lead Inbox, this page is painted entirely with inline styles, which no `dark:`
+// variant can reach. See LeadInboxPage for the reasoning; the tokens are the same Tailwind values so
+// the two pages stay in step.
+//
+// Two things here are deliberately NOT theme-aware, and both are pairs that carry their own ground:
+// the platform table at the top of this file (a brand tint with matching ink) and the Active/Paused
+// pill, which stays light in both themes exactly like the bg-green-100/text-green-700 badges used
+// across the app. The pill's "Paused" ink did move — #999 on #f5f5f5 measured 2.61:1 and failed in
+// light mode, so it is gray-600 (6.93:1) now.
+const themeColors = (dark: boolean) => ({
+  panel: dark ? '#0f172a' : '#fff',
+  code: dark ? '#1e293b' : '#f5f5f5',
+  tint: dark ? '#1e293b' : '#f8f9ff',
+  tintBorder: dark ? '#334155' : '#e8ecff',
+  border: dark ? '#334155' : '#e5e7eb',
+  control: dark ? '#334155' : '#ddd',
+  divider: dark ? '#1e293b' : '#f0f0f0',
+  ink: dark ? '#f1f5f9' : '#111827',
+  muted: dark ? '#94a3b8' : '#6b7280',
+  // the enabled toggle sits on the panel, so it moves with it: #2e7d32 is 3.48:1 on slate-900
+  ok: dark ? '#4ade80' : '#2e7d32',
+  // the delete icon was red-500, which is 3.76:1 on white — it failed in light mode, not dark
+  danger: dark ? '#f87171' : '#dc2626',
+});
+
 export default function LeadSourcesPage() {
   const { token } = useAuth();
+  const c = themeColors(useIsDark());
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -136,7 +163,7 @@ export default function LeadSourcesPage() {
           <h1 style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Settings size={24} /> Lead Sources
           </h1>
-          <p style={{ color: '#666', marginTop: 4, fontSize: 14 }}>Connect your lead platforms to receive leads automatically</p>
+          <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>Connect your lead platforms to receive leads automatically</p>
         </div>
         <button
           onClick={() => setShowAdd(true)}
@@ -149,14 +176,14 @@ export default function LeadSourcesPage() {
       {/* Add Source Modal */}
       {showAdd && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }} onClick={() => setShowAdd(false)}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, width: '100%', maxWidth: 500, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: c.panel, borderRadius: 12, padding: 24, width: '100%', maxWidth: 500, maxHeight: '80vh', overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Add Lead Source</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {PLATFORMS.filter(p => !connectedPlatforms.includes(p.value)).map(p => (
                 <button
                   key={p.value}
                   onClick={() => addSource(p.value)}
-                  style={{ padding: '14px 16px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, transition: 'border-color 0.15s' }}
+                  style={{ padding: '14px 16px', border: `1px solid ${c.border}`, borderRadius: 8, background: c.panel, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 12, transition: 'border-color 0.15s' }}
                   onMouseOver={e => (e.currentTarget.style.borderColor = p.color)}
                   onMouseOut={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
                 >
@@ -165,10 +192,10 @@ export default function LeadSourcesPage() {
                 </button>
               ))}
               {connectedPlatforms.length === PLATFORMS.length && (
-                <p style={{ textAlign: 'center', color: '#999', padding: 16, fontSize: 14 }}>All platforms connected!</p>
+                <p style={{ textAlign: 'center', color: c.muted, padding: 16, fontSize: 14 }}>All platforms connected!</p>
               )}
             </div>
-            <button onClick={() => setShowAdd(false)} style={{ marginTop: 16, padding: '8px 20px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', width: '100%', fontSize: 13 }}>
+            <button onClick={() => setShowAdd(false)} style={{ marginTop: 16, padding: '8px 20px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', width: '100%', fontSize: 13 }}>
               Cancel
             </button>
           </div>
@@ -177,12 +204,12 @@ export default function LeadSourcesPage() {
 
       {/* Source List */}
       {loading ? (
-        <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>Loading sources...</div>
+        <div style={{ padding: 40, textAlign: 'center', color: c.muted }}>Loading sources...</div>
       ) : sources.length === 0 ? (
-        <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 40, textAlign: 'center' }}>
-          <Settings size={48} style={{ marginBottom: 12, opacity: 0.3, color: '#999' }} />
+        <div style={{ background: c.panel, borderRadius: 12, border: `1px solid ${c.border}`, padding: 40, textAlign: 'center' }}>
+          <Settings size={48} style={{ marginBottom: 12, opacity: 0.3, color: c.muted }} />
           <div style={{ fontSize: 16, fontWeight: 600 }}>No lead sources configured</div>
-          <div style={{ fontSize: 13, color: '#666', marginTop: 4 }}>Click "Add Source" to connect your first platform</div>
+          <div style={{ fontSize: 13, color: c.muted, marginTop: 4 }}>Click "Add Source" to connect your first platform</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -191,24 +218,24 @@ export default function LeadSourcesPage() {
             const color = platformInfo?.color || '#666';
 
             return (
-              <div key={source.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f0f0f0' }}>
+              <div key={source.id} style={{ background: c.panel, borderRadius: 12, border: `1px solid ${c.border}`, overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: `1px solid ${c.divider}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{ width: 10, height: 10, borderRadius: '50%', background: color }} />
                     <span style={{ fontWeight: 700, fontSize: 16 }}>{source.label}</span>
                     <span style={{
                       padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                       background: source.enabled ? '#e8f5e9' : '#f5f5f5',
-                      color: source.enabled ? '#2e7d32' : '#999',
+                      color: source.enabled ? '#2e7d32' : '#4b5563',
                     }}>
                       {source.enabled ? 'Active' : 'Paused'}
                     </span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? '#2e7d32' : '#999' }}>
+                    <button onClick={() => toggleSource(source)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: source.enabled ? c.ok : c.muted }}>
                       {source.enabled ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
                     </button>
-                    <button onClick={() => deleteSource(source.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
+                    <button onClick={() => deleteSource(source.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.danger }}>
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -217,16 +244,16 @@ export default function LeadSourcesPage() {
                 <div style={{ padding: '16px 20px' }}>
                   {source.inboundEmail && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#666', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: c.muted, marginBottom: 6 }}>
                         <Mail size={14} /> Inbound Email Address
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <code style={{ flex: 1, padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }}>
+                        <code style={{ flex: 1, padding: '8px 12px', background: c.code, borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }}>
                           {source.inboundEmail}
                         </code>
                         <button
                           onClick={() => copyToClipboard(source.inboundEmail!, `email-${source.id}`)}
-                          style={{ padding: '8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          style={{ padding: '8px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >
                           {copiedField === `email-${source.id}` ? <Check size={14} color="#2e7d32" /> : <Copy size={14} />}
                         </button>
@@ -236,16 +263,16 @@ export default function LeadSourcesPage() {
 
                   {source.webhookUrl && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#666', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: c.muted, marginBottom: 6 }}>
                         <Webhook size={14} /> Webhook URL
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <code style={{ flex: 1, padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, fontSize: 13, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        <code style={{ flex: 1, padding: '8px 12px', background: c.code, borderRadius: 6, fontSize: 13, fontFamily: 'monospace', wordBreak: 'break-all' }}>
                           {source.webhookUrl}
                         </code>
                         <button
                           onClick={() => copyToClipboard(source.webhookUrl!, `webhook-${source.id}`)}
-                          style={{ padding: '8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          style={{ padding: '8px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >
                           {copiedField === `webhook-${source.id}` ? <Check size={14} color="#2e7d32" /> : <Copy size={14} />}
                         </button>
@@ -255,16 +282,16 @@ export default function LeadSourcesPage() {
 
                   {source.webhookSecret && (
                     <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#666', marginBottom: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: c.muted, marginBottom: 6 }}>
                         Webhook Secret
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <code style={{ flex: 1, padding: '8px 12px', background: '#f5f5f5', borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }}>
+                        <code style={{ flex: 1, padding: '8px 12px', background: c.code, borderRadius: 6, fontSize: 13, fontFamily: 'monospace' }}>
                           {source.webhookSecret}
                         </code>
                         <button
                           onClick={() => copyToClipboard(source.webhookSecret!, `secret-${source.id}`)}
-                          style={{ padding: '8px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                          style={{ padding: '8px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                         >
                           {copiedField === `secret-${source.id}` ? <Check size={14} color="#2e7d32" /> : <Copy size={14} />}
                         </button>
@@ -273,11 +300,11 @@ export default function LeadSourcesPage() {
                   )}
 
                   {platformInfo?.instructions && (
-                    <div style={{ background: '#f8f9ff', borderRadius: 8, padding: 14, border: '1px solid #e8ecff' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 8 }}>
+                    <div style={{ background: c.tint, borderRadius: 8, padding: 14, border: `1px solid ${c.tintBorder}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: c.ink, marginBottom: 8 }}>
                         <Info size={14} /> Setup Instructions
                       </div>
-                      <ol style={{ paddingLeft: 20, margin: 0, fontSize: 13, color: '#555', lineHeight: 1.8 }}>
+                      <ol style={{ paddingLeft: 20, margin: 0, fontSize: 13, color: c.muted, lineHeight: 1.8 }}>
                         {platformInfo.instructions.map((step, i) => (
                           <li key={i}>{step}</li>
                         ))}

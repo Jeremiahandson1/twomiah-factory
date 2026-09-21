@@ -180,7 +180,7 @@ export default function InvoicesPage() {
               key={t}
               onClick={() => setTab(t)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 capitalize ${
-                tab === t ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                tab === t ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
               }`}
             >
               {t}
@@ -215,7 +215,7 @@ export default function InvoicesPage() {
                     return (
                       <tr key={inv.id} className="border-b last:border-0 hover:bg-gray-50">
                         <td
-                          className="px-4 py-3 font-mono text-xs font-semibold text-blue-600 cursor-pointer hover:underline"
+                          className="px-4 py-3 font-mono text-xs font-semibold text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
                           onClick={() => navigate(`/crm/invoices/${inv.id}`)}
                         >
                           {inv.invoiceNumber || `INV-${String(inv.id).padStart(4, '0')}`}
@@ -246,7 +246,7 @@ export default function InvoicesPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
                             {inv.status === 'draft' && (
-                              <button onClick={() => sendInvoice(inv.id)} title="Send" className="p-1 text-blue-600 hover:bg-blue-50 rounded">
+                              <button onClick={() => sendInvoice(inv.id)} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
                                 <Send className="w-4 h-4" />
                               </button>
                             )}
@@ -296,7 +296,7 @@ export default function InvoicesPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                <Receipt className="w-5 h-5 text-blue-600" /> New Invoice
+                <Receipt className="w-5 h-5 text-blue-600 dark:text-blue-400" /> New Invoice
               </h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
             </div>
@@ -352,7 +352,7 @@ export default function InvoicesPage() {
                     )}
                   </div>
                 ))}
-                <button onClick={() => setForm((prev) => ({ ...prev, lineItems: [...prev.lineItems, { description: '', quantity: 1, unitPrice: 0 }] }))} className="text-xs text-blue-600 hover:underline">+ Add line</button>
+                <button onClick={() => setForm((prev) => ({ ...prev, lineItems: [...prev.lineItems, { description: '', quantity: 1, unitPrice: 0 }] }))} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add line</button>
               </div>
               <div className="flex justify-end">
                 <div className="w-56 space-y-1 text-sm">

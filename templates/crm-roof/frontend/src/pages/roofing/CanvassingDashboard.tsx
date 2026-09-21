@@ -221,7 +221,7 @@ export default function CanvassingDashboard() {
     return (
       <div className="p-6">
         <button onClick={() => { setSelectedSession(null); setSessionStops([]) }}
-          className="text-sm text-blue-600 font-medium mb-4 flex items-center gap-1 hover:underline">
+          className="text-sm text-blue-600 dark:text-blue-400 font-medium mb-4 flex items-center gap-1 hover:underline">
           &larr; Back to Dashboard
         </button>
 
@@ -231,7 +231,7 @@ export default function CanvassingDashboard() {
             <div className="flex items-center gap-4 mt-1 text-sm text-gray-500 dark:text-slate-400">
               <span>{formatDate(s.startedAt || s.createdAt)}</span>
               {s.weatherEvent && (
-                <span className="text-blue-600 flex items-center gap-1">
+                <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
                   <CloudLightning size={14} /> {s.weatherEvent}
                 </span>
               )}
@@ -283,7 +283,7 @@ export default function CanvassingDashboard() {
                   {stop.notes && <p className="text-xs text-gray-500 mt-1 truncate dark:text-slate-400">{stop.notes}</p>}
                   {stop.jobId && (
                     <button onClick={() => navigate(`/crm/jobs/${stop.jobId}`)}
-                      className="text-xs text-blue-600 mt-1 hover:underline">
+                      className="text-xs text-blue-600 dark:text-blue-400 mt-1 hover:underline">
                       View CRM Lead &rarr;
                     </button>
                   )}
@@ -351,7 +351,7 @@ export default function CanvassingDashboard() {
                     <td className="px-4 py-3">
                       <p className="font-medium truncate max-w-[200px]">{s.name}</p>
                       {s.weatherEvent && (
-                        <p className="text-xs text-blue-600 flex items-center gap-1 mt-0.5">
+                        <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1 mt-0.5">
                           <CloudLightning size={10} /> {s.weatherEvent}
                         </p>
                       )}
@@ -414,7 +414,7 @@ export default function CanvassingDashboard() {
           <div className="bg-white rounded-xl border p-4 dark:bg-slate-900">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold">Canvassing Scripts</h3>
-              <button onClick={() => openScriptEditor()} className="text-xs text-blue-600 font-medium">+ New</button>
+              <button onClick={() => openScriptEditor()} className="text-xs text-blue-600 dark:text-blue-400 font-medium">+ New</button>
             </div>
             {scripts.length > 0 ? (
               <div className="space-y-2">
@@ -424,7 +424,7 @@ export default function CanvassingDashboard() {
                       <p className="text-sm font-medium truncate">{script.name}</p>
                       <p className="text-[10px] text-gray-500 dark:text-slate-400">
                         {Array.isArray(script.steps) ? script.steps.length : 0} steps
-                        {script.isDefault && <span className="ml-1 text-blue-600 font-medium">(default)</span>}
+                        {script.isDefault && <span className="ml-1 text-blue-600 dark:text-blue-400 font-medium">(default)</span>}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">

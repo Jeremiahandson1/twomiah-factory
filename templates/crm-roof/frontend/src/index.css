@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Text with no colour class of its own sits at the browser default — near-black — and Tailwind's
+     preflight does not change that. Light mode never noticed. The moment the theme toggle flips the
+     shell to slate-900, every one of those elements is black on navy: the invoice table's cells, the
+     supplement number and amount on a claim card, the pipeline card titles. Giving the body an ink
+     that follows the theme fixes all of them at once, and because this lives in @layer base, any
+     explicit text-* utility still wins over it. (Roof T18 D1) */
+  body {
+    @apply text-gray-900 dark:text-slate-100;
+  }
+
+  /* Preflight sets `color: inherit` on form controls, so they follow the body — which would put light
+     ink in a field that is still white and make typed text vanish. Roof has 169 of them and only 4
+     carried a dark variant, so the field itself has to become dark here too. */
+  input,
+  select,
+  textarea {
+    @apply text-gray-900 dark:text-slate-100;
+    @apply dark:bg-slate-800 dark:border-slate-700;
+  }
+}
 
 /* Google Places autocomplete dropdown — dark theme (pac-container is appended to <body>) */
 .dark .pac-container {

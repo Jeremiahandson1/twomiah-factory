@@ -84,7 +84,7 @@ export default function ReviewsPage() {
                     <td className="px-4 py-3 text-sm">{r.channel}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[r.status]}`}>{r.status}</span></td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{r.sentAt ? formatDate(r.sentAt) : '—'}</td>
-                    <td className="px-4 py-3">{r.status === 'pending' && <button onClick={() => markSent(r.id)} className="text-blue-600 text-xs hover:underline flex items-center gap-1"><Send className="w-3 h-3" />Mark Sent</button>}</td>
+                    <td className="px-4 py-3">{r.status === 'pending' && <button onClick={() => markSent(r.id)} className="text-blue-600 dark:text-blue-400 text-xs hover:underline flex items-center gap-1"><Send className="w-3 h-3" />Mark Sent</button>}</td>
                   </tr>
                 ))}
             </tbody>

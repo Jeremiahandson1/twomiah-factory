@@ -197,7 +197,7 @@ export default function RoofReportsPage() {
   if (confirming) {
     return (
       <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+        <Loader2 className="w-10 h-10 text-blue-600 dark:text-blue-400 animate-spin" />
         <p className="text-gray-600 font-medium dark:text-slate-400">Generating your roof report...</p>
         <p className="text-sm text-gray-500 dark:text-slate-400">Analyzing satellite imagery and computing measurements</p>
       </div>

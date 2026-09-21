@@ -339,7 +339,7 @@ export default function PipelineBoard() {
                           )}
 
                           {job.source === 'canvassing' && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-blue-600 font-medium">
+                            <span className="flex items-center gap-0.5 text-[10px] text-blue-600 dark:text-blue-400 font-medium">
                               <MapPin className="w-3 h-3" />
                               canvass
                             </span>

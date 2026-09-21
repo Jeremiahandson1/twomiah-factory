@@ -1462,3 +1462,25 @@ jobs:
           bun-version: latest
       - name: "Check settings writes are admin"
         run: bun run scripts/check-settings-writes-are-admin.ts
+
+  inherited-ink:
+    name: "Inherited ink follows the theme"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check uncoloured text is not left at the browser default"
+        run: bun run scripts/check-inherited-ink-follows-theme.ts
+
+  inline-theme:
+    name: "Inline styles follow the theme"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check inline styles are not pinned to one theme"
+        run: bun run scripts/check-inline-styles-are-theme-aware.ts

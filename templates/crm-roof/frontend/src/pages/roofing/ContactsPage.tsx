@@ -307,7 +307,7 @@ export default function ContactsPage() {
                       key={tab}
                       onClick={() => setDetailTab(tab)}
                       className={`flex-1 py-2.5 text-xs font-medium uppercase tracking-wider ${
-                        detailTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                        detailTab === tab ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
                       }`}
                     >
                       {tab}
@@ -319,12 +319,12 @@ export default function ContactsPage() {
                   {detailTab === 'info' && (
                     <div className="space-y-4">
                       {selected.phone && (
-                        <a href={`tel:${selected.phone}`} className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
+                        <a href={`tel:${selected.phone}`} className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">
                           <Phone className="w-4 h-4" /> {selected.phone}
                         </a>
                       )}
                       {selected.email && (
-                        <a href={`mailto:${selected.email}`} className="flex items-center gap-2 text-sm text-blue-600 hover:underline">
+                        <a href={`mailto:${selected.email}`} className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">
                           <Mail className="w-4 h-4" /> {selected.email}
                         </a>
                       )}
@@ -355,7 +355,7 @@ export default function ContactsPage() {
                         {selected.portalEnabled && (
                           <button
                             onClick={resendInvite}
-                            className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline"
+                            className="flex items-center gap-1.5 text-sm text-blue-600 dark:text-blue-400 hover:underline"
                           >
                             <Send className="w-3.5 h-3.5" /> Resend Invite
                           </button>

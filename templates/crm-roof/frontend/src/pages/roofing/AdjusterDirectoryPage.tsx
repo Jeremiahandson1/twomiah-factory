@@ -113,14 +113,14 @@ export default function AdjusterDirectoryPage() {
                       <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{adj.territory || '—'}</td>
                       <td className="px-4 py-3">
                         {adj.phone ? (
-                          <a href={`tel:${adj.phone}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                          <a href={`tel:${adj.phone}`} className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
                             <Phone className="w-3 h-3" /> {adj.phone}
                           </a>
                         ) : '—'}
                       </td>
                       <td className="px-4 py-3">
                         {adj.email ? (
-                          <a href={`mailto:${adj.email}`} className="flex items-center gap-1 text-blue-600 hover:underline">
+                          <a href={`mailto:${adj.email}`} className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline">
                             <Mail className="w-3 h-3" /> {adj.email}
                           </a>
                         ) : '—'}

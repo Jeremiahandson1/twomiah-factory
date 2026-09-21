@@ -564,7 +564,7 @@ export default function AIReceptionistPage() {
                   type="checkbox"
                   checked={form.isActive}
                   onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
-                  className="rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
+                  className="rounded bg-slate-700 border-slate-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
                 />
                 Active
               </label>

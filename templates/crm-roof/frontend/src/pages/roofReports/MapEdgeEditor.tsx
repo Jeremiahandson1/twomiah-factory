@@ -797,7 +797,7 @@ export default function MapEdgeEditor({
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-slate-400">w/ Waste</span>
-                <span className="font-bold text-blue-600">{measurements.squaresWithWaste}</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">{measurements.squaresWithWaste}</span>
               </div>
             </div>
           </div>

@@ -346,14 +346,14 @@ export default function StormLeadsPage() {
                         <td className="px-4 py-2">
                           {lead.status === 'new' && !lead.isExistingCustomer && (
                             <button onClick={() => { setShowConvertModal(lead.id); setConvertName(''); setConvertPhone(''); setConvertEmail('') }}
-                              className="text-xs text-blue-600 font-medium hover:underline">Convert</button>
+                              className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">Convert</button>
                           )}
                           {lead.isExistingCustomer && lead.status === 'new' && (
                             <button className="text-xs text-yellow-600 font-medium hover:underline">Follow Up</button>
                           )}
                           {lead.jobId && (
                             <button onClick={() => navigate(`/crm/jobs/${lead.jobId}`)}
-                              className="text-xs text-blue-600 font-medium flex items-center gap-0.5 hover:underline">
+                              className="text-xs text-blue-600 dark:text-blue-400 font-medium flex items-center gap-0.5 hover:underline">
                               View <ArrowRight size={10} />
                             </button>
                           )}

@@ -132,7 +132,7 @@ export default function EstimatorPage() {
       </div>
 
       {/* How it works */}
-      <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
+      <div className="bg-blue-50 rounded-xl border border-blue-200 p-5 text-gray-900">
         <h2 className="text-sm font-semibold text-blue-900 mb-2">How It Works</h2>
         <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
           <li>Homeowner visits the "Free Estimate" page on your website</li>

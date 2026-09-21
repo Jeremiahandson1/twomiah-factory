@@ -215,7 +215,7 @@ export default function QuotesPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
                           {q.status === 'draft' && (
-                            <button onClick={() => performAction(q.id, 'send')} title="Send" className="p-1 text-blue-600 hover:bg-blue-50 rounded">
+                            <button onClick={() => performAction(q.id, 'send')} title="Send" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded">
                               <Send className="w-4 h-4" />
                             </button>
                           )}
@@ -273,7 +273,7 @@ export default function QuotesPage() {
               </button>
             </div>
 
-            <div className="border border-green-200 rounded-lg bg-green-50 p-4">
+            <div className="border border-green-200 rounded-lg bg-green-50 p-4 text-gray-900">
               {certQuote.signature && (
                 <img src={certQuote.signature} alt="Customer signature" className="max-h-24 bg-white rounded dark:bg-slate-900" />
               )}
@@ -303,7 +303,7 @@ export default function QuotesPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 dark:text-slate-100">
-                <FileText className="w-5 h-5 text-blue-600" /> New Quote
+                <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" /> New Quote
               </h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-500 dark:text-slate-400 hover:text-gray-600 dark:hover:text-slate-200">
                 <X className="w-5 h-5" />
@@ -385,7 +385,7 @@ export default function QuotesPage() {
                     ))}
                   </tbody>
                 </table>
-                <button onClick={addLine} className="text-xs text-blue-600 hover:underline">+ Add line</button>
+                <button onClick={addLine} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">+ Add line</button>
               </div>
 
               {/* Totals */}

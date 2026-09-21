@@ -70,7 +70,7 @@ export default function OnboardingWizard() {
                 Your roofing CRM is ready — pipeline, jobs, insurance claims, crews, and storm tools are all set up.
                 Two quick things and you're in.
               </p>
-              <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6">
+              <div className="flex items-start gap-3 p-4 bg-orange-50 border border-orange-200 rounded-lg mb-6 text-gray-900">
                 <Mail className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-gray-700 dark:text-slate-200">
                   Next, we'll set up branded email addresses on your domain — <span className="font-mono">sales@</span>,{' '}

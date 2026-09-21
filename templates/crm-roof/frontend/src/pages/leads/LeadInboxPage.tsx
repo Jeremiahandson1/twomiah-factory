@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useIsDark } from '../../shared';
 import {
   Inbox, Phone, MessageSquare, UserPlus, XCircle,
   Search, RefreshCw, Clock, TrendingUp, ChevronDown
@@ -42,8 +43,35 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   dismissed: { bg: '#f5f5f5', text: '#9e9e9e' },
 };
 
+// This page paints itself with inline styles instead of utility classes, and an inline style is the
+// one thing a `dark:` variant can never reach — the cascade can override a class, but not a style
+// attribute. So the toggle left the page exactly as it was: a white panel, and (once the base ink rule
+// landed) light text on it. useIsDark() reads the `dark` class the shell puts on <html> and re-renders
+// when it changes, which is what lets these values follow the theme at all.
+//
+// The hexes are the Tailwind tokens the rest of the app already uses, so the page matches its
+// neighbours rather than inventing a second palette: slate-900 panel, slate-800 raised row, slate-700
+// border. `muted` is the pair the contrast guard pins — gray-500 at 4.83:1 on white, slate-400 at
+// 6.96:1 on slate-900. The old #999 was 2.85:1 and failed in light mode too.
+const themeColors = (dark: boolean) => ({
+  panel: dark ? '#0f172a' : '#fff',
+  alt: dark ? '#1e293b' : '#f0f0f0',
+  hover: dark ? '#1e293b' : '#fafafa',
+  border: dark ? '#334155' : '#e5e7eb',
+  control: dark ? '#334155' : '#ddd',
+  muted: dark ? '#94a3b8' : '#6b7280',
+  // The three counters on the stats card sit directly on the panel, so they move with it. Measured on
+  // the two grounds they actually have: #1565c0 is 5.75 on white but 3.11 on slate-900, and #2e7d32 is
+  // 5.13 then 3.48 — both fine until the panel went dark. #e65100 was already failing the other way,
+  // 3.79 on white, so its light value moves to orange-700 (5.18) rather than being kept for symmetry.
+  countNew: dark ? '#60a5fa' : '#1565c0',
+  countContacted: dark ? '#fb923c' : '#c2410c',
+  countConverted: dark ? '#4ade80' : '#2e7d32',
+});
+
 export default function LeadInboxPage() {
   const { token } = useAuth();
+  const c = themeColors(useIsDark());
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,18 +145,18 @@ export default function LeadInboxPage() {
           <h1 style={{ fontSize: 24, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Inbox size={24} /> Lead Inbox
           </h1>
-          <p style={{ color: '#666', marginTop: 4, fontSize: 14 }}>All inbound leads from Angi, Thumbtack, Google LSA & more</p>
+          <p style={{ color: c.muted, marginTop: 4, fontSize: 14 }}>All inbound leads from Angi, Thumbtack, Google LSA & more</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={() => setShowStats(!showStats)}
-            style={{ padding: '8px 16px', border: '1px solid #ddd', borderRadius: 6, background: showStats ? '#f0f0f0' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+            style={{ padding: '8px 16px', border: `1px solid ${c.control}`, borderRadius: 6, background: showStats ? c.alt : c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
           >
             <TrendingUp size={14} /> Stats
           </button>
           <button
             onClick={() => { fetchLeads(); fetchStats(); }}
-            style={{ padding: '8px 16px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+            style={{ padding: '8px 16px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
           >
             <RefreshCw size={14} /> Refresh
           </button>
@@ -138,24 +166,24 @@ export default function LeadInboxPage() {
       {/* Stats Panel */}
       {showStats && stats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
-          <div style={{ padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: 12, color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total (30d)</div>
+          <div style={{ padding: 16, background: c.panel, borderRadius: 8, border: `1px solid ${c.border}` }}>
+            <div style={{ fontSize: 12, color: c.muted, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Total (30d)</div>
             <div style={{ fontSize: 28, fontWeight: 700, marginTop: 4 }}>{stats.totals.total}</div>
             <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: 12 }}>
-              <span style={{ color: '#1565c0' }}>{stats.totals.new} new</span>
-              <span style={{ color: '#e65100' }}>{stats.totals.contacted} contacted</span>
-              <span style={{ color: '#2e7d32' }}>{stats.totals.converted} converted</span>
+              <span style={{ color: c.countNew }}>{stats.totals.new} new</span>
+              <span style={{ color: c.countContacted }}>{stats.totals.contacted} contacted</span>
+              <span style={{ color: c.countConverted }}>{stats.totals.converted} converted</span>
             </div>
           </div>
           {stats.stats.map(s => {
             const info = getSourceInfo(s.platform);
             return (
-              <div key={s.platform} style={{ padding: 16, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+              <div key={s.platform} style={{ padding: 16, background: c.panel, borderRadius: 8, border: `1px solid ${c.border}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: info.bg, color: info.text }}>{info.label}</span>
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 700, marginTop: 8 }}>{s.leadsReceived} leads</div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, color: '#666' }}>
+                <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, color: c.muted }}>
                   <span>{s.conversionRate}% conv.</span>
                   {s.avgResponseTimeMin !== null && <span>{s.avgResponseTimeMin}min avg resp.</span>}
                 </div>
@@ -168,19 +196,19 @@ export default function LeadInboxPage() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
-          <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#999' }} />
+          <Search size={16} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: c.muted }} />
           <input
             type="text"
             placeholder="Search leads..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            style={{ width: '100%', padding: '8px 12px 8px 34px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}
+            style={{ width: '100%', padding: '8px 12px 8px 34px', border: `1px solid ${c.control}`, borderRadius: 6, fontSize: 14 }}
           />
         </div>
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
+          style={{ padding: '8px 12px', border: `1px solid ${c.control}`, borderRadius: 6, fontSize: 14, background: c.panel }}
         >
           <option value="">All Statuses</option>
           <option value="new">New</option>
@@ -191,7 +219,7 @@ export default function LeadInboxPage() {
         <select
           value={sourceFilter}
           onChange={e => { setSourceFilter(e.target.value); setPage(1); }}
-          style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
+          style={{ padding: '8px 12px', border: `1px solid ${c.control}`, borderRadius: 6, fontSize: 14, background: c.panel }}
         >
           <option value="">All Sources</option>
           <option value="angi">Angi</option>
@@ -203,11 +231,11 @@ export default function LeadInboxPage() {
       </div>
 
       {/* Lead List */}
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+      <div style={{ background: c.panel, borderRadius: 8, border: `1px solid ${c.border}`, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>Loading leads...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: c.muted }}>Loading leads...</div>
         ) : leads.length === 0 ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>
+          <div style={{ padding: 40, textAlign: 'center', color: c.muted }}>
             <Inbox size={48} style={{ marginBottom: 12, opacity: 0.3 }} />
             <div style={{ fontSize: 16, fontWeight: 600 }}>No leads yet</div>
             <div style={{ fontSize: 13, marginTop: 4 }}>Set up your lead sources to start receiving leads</div>
@@ -219,11 +247,11 @@ export default function LeadInboxPage() {
             const isExpanded = expandedLead === lead.id;
 
             return (
-              <div key={lead.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+              <div key={lead.id} style={{ borderBottom: `1px solid ${c.alt}` }}>
                 <div
                   onClick={() => setExpandedLead(isExpanded ? null : lead.id)}
-                  style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.15s', background: isExpanded ? '#fafafa' : 'transparent' }}
-                  onMouseOver={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = '#fafafa'; }}
+                  style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.15s', background: isExpanded ? c.hover : 'transparent' }}
+                  onMouseOver={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = c.hover; }}
                   onMouseOut={e => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                 >
                   <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: srcInfo.bg, color: srcInfo.text, whiteSpace: 'nowrap', minWidth: 80, textAlign: 'center' }}>
@@ -232,9 +260,9 @@ export default function LeadInboxPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontWeight: 600, fontSize: 14 }}>{lead.homeownerName}</span>
-                      {lead.jobType && <span style={{ fontSize: 12, color: '#666' }}>- {lead.jobType}</span>}
+                      {lead.jobType && <span style={{ fontSize: 12, color: c.muted }}>- {lead.jobType}</span>}
                     </div>
-                    <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#999', marginTop: 2 }}>
+                    <div style={{ display: 'flex', gap: 12, fontSize: 12, color: c.muted, marginTop: 2 }}>
                       {lead.location && <span>{lead.location}</span>}
                       {lead.budget && <span>Budget: {lead.budget}</span>}
                       {lead.phone && <span>{lead.phone}</span>}
@@ -243,30 +271,30 @@ export default function LeadInboxPage() {
                   <span style={{ padding: '3px 10px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: statusStyle.bg, color: statusStyle.text, textTransform: 'capitalize' }}>
                     {lead.status}
                   </span>
-                  <span style={{ fontSize: 12, color: '#999', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 12, color: c.muted, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <Clock size={12} /> {timeAgo(lead.receivedAt)}
                   </span>
-                  <ChevronDown size={16} style={{ color: '#999', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  <ChevronDown size={16} style={{ color: c.muted, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                 </div>
 
                 {isExpanded && (
-                  <div style={{ padding: '0 16px 16px', borderTop: '1px solid #f0f0f0' }}>
+                  <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${c.alt}` }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: '12px 0', fontSize: 13 }}>
                       <div>
-                        <div style={{ color: '#999', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Contact</div>
+                        <div style={{ color: c.muted, fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Contact</div>
                         {lead.homeownerName && <div><strong>Name:</strong> {lead.homeownerName}</div>}
                         {lead.email && <div><strong>Email:</strong> {lead.email}</div>}
                         {lead.phone && <div><strong>Phone:</strong> {lead.phone}</div>}
                         {lead.location && <div><strong>Location:</strong> {lead.location}</div>}
                       </div>
                       <div>
-                        <div style={{ color: '#999', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Details</div>
+                        <div style={{ color: c.muted, fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Details</div>
                         {lead.jobType && <div><strong>Job Type:</strong> {lead.jobType}</div>}
                         {lead.budget && <div><strong>Budget:</strong> {lead.budget}</div>}
                         {lead.description && <div style={{ marginTop: 4 }}>{lead.description}</div>}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
+                    <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: `1px solid ${c.alt}` }}>
                       {lead.phone && (
                         <a
                           href={`tel:${lead.phone.replace(/\D/g, '')}`}
@@ -296,7 +324,7 @@ export default function LeadInboxPage() {
                       {lead.status !== 'dismissed' && lead.status !== 'converted' && (
                         <button
                           onClick={e => { e.stopPropagation(); updateStatus(lead.id, 'dismissed'); }}
-                          style={{ padding: '6px 14px', borderRadius: 6, background: '#f5f5f5', color: '#999', border: '1px solid #e0e0e0', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+                          style={{ padding: '6px 14px', borderRadius: 6, background: c.alt, color: c.muted, border: `1px solid ${c.control}`, fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
                         >
                           <XCircle size={14} /> Dismiss
                         </button>
@@ -316,7 +344,7 @@ export default function LeadInboxPage() {
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            style={{ padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.5 : 1 }}
+            style={{ padding: '6px 14px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.5 : 1 }}
           >
             Prev
           </button>
@@ -324,7 +352,7 @@ export default function LeadInboxPage() {
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            style={{ padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: page === totalPages ? 'not-allowed' : 'pointer', opacity: page === totalPages ? 0.5 : 1 }}
+            style={{ padding: '6px 14px', border: `1px solid ${c.control}`, borderRadius: 6, background: c.panel, cursor: page === totalPages ? 'not-allowed' : 'pointer', opacity: page === totalPages ? 0.5 : 1 }}
           >
             Next
           </button>

@@ -129,7 +129,7 @@ export default function CrewsPage() {
                   </div>
                 )}
                 {crew.foremanPhone && (
-                  <a href={`tel:${crew.foremanPhone}`} className="flex items-center gap-2 text-blue-600 hover:underline">
+                  <a href={`tel:${crew.foremanPhone}`} className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline">
                     <Phone className="w-4 h-4" />
                     <span>{crew.foremanPhone}</span>
                   </a>

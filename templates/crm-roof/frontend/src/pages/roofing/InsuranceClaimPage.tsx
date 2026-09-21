@@ -706,7 +706,7 @@ export default function InsuranceClaimPage() {
                   <input defaultValue={claim.adjusterCompany || ''} onBlur={(e) => saveClaim({ adjusterCompany: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
-              <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+              <button onClick={saveAdjusterToDirectory} className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                 Save to Adjuster Directory
               </button>
             </div>
@@ -849,7 +849,7 @@ export default function InsuranceClaimPage() {
                       )}
                       {sup.status === 'draft' && (
                         <div className="mt-2 flex items-center gap-4">
-                          <button onClick={() => submitSupplement(sup.id)} className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:text-blue-800 dark:hover:text-blue-300">
+                          <button onClick={() => submitSupplement(sup.id)} className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium hover:text-blue-800 dark:hover:text-blue-300">
                             <Send className="w-3 h-3" /> Submit to Carrier
                           </button>
                           <button onClick={() => openEditSupplement(sup)} className="flex items-center gap-1 text-xs text-gray-600 font-medium hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200">
@@ -996,7 +996,7 @@ export default function InsuranceClaimPage() {
                     ))}
                   </tbody>
                 </table>
-                <button onClick={() => setSupLineItems(prev => [...prev, { code: '', description: '', qty: 1, unit: 'SQ', unitPrice: 0, total: 0 }])} className="mt-2 text-xs text-blue-600 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
+                <button onClick={() => setSupLineItems(prev => [...prev, { code: '', description: '', qty: 1, unit: 'SQ', unitPrice: 0, total: 0 }])} className="mt-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium">
                   + Add Line Item
                 </button>
                 <div className="flex justify-end mt-2">

@@ -428,7 +428,7 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-green-700 mb-2">Appointments ({appointments.length})</h3>
               {appointments.map((st: Stop) => (
-                <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2">
+                <div key={st.id} className="bg-green-50 border border-green-200 rounded-lg p-3 mb-2 text-gray-900">
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.notes && <p className="text-xs text-gray-600 mt-1 dark:text-slate-400">{st.notes}</p>}
                   {st.jobId && (
@@ -445,7 +445,7 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-yellow-700 mb-2">Interested ({interested.length})</h3>
               {interested.map((st: Stop) => (
-                <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2">
+                <div key={st.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2 text-gray-900">
                   <p className="text-sm font-medium">{st.address}</p>
                   {st.jobId && (
                     <button onClick={() => navigate(`/crm/jobs/${st.jobId}`)} className="text-xs text-blue-600 mt-1 flex items-center gap-1">
@@ -461,7 +461,7 @@ export default function CanvassingView() {
             <div>
               <h3 className="text-sm font-semibold text-blue-700 mb-2">Follow-Ups ({followUps.length})</h3>
               {followUps.map((st: Stop) => (
-                <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                <div key={st.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2 text-gray-900">
                   <p className="text-sm font-medium">{st.address}</p>
                   <p className="text-xs text-gray-600 dark:text-slate-400">Follow up: {formatDate(st.followUpDate)}</p>
                 </div>
@@ -516,14 +516,14 @@ export default function CanvassingView() {
                     <span className="text-green-600 font-medium">{s.leadsCreated || 0} leads</span>
                   </div>
                   {s.weatherEvent && (
-                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 flex items-center gap-1">
                       <CloudLightning size={12} /> {s.weatherEvent}
                     </p>
                   )}
                 </button>
               ))}
               {sessions.length > 5 && (
-                <button onClick={() => setTab('sessions')} className="text-sm text-blue-600 font-medium">
+                <button onClick={() => setTab('sessions')} className="text-sm text-blue-600 dark:text-blue-400 font-medium">
                   View All Sessions
                 </button>
               )}
@@ -577,7 +577,7 @@ export default function CanvassingView() {
         <div className="min-w-0">
           <h1 className="text-sm font-bold truncate">{activeSession.name}</h1>
           {activeSession.weatherEvent && (
-            <p className="text-xs text-blue-600 flex items-center gap-1">
+            <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
               <CloudLightning size={10} /> {activeSession.weatherEvent}
             </p>
           )}
@@ -612,7 +612,7 @@ export default function CanvassingView() {
             <div ref={mapRef} className="h-full w-full" />
 
             {/* Legend */}
-            <div className="absolute top-3 right-3 bg-white/95 rounded-lg shadow-lg p-2 text-[10px] space-y-1 z-[1000]">
+            <div className="absolute top-3 right-3 bg-white/95 rounded-lg shadow-lg p-2 text-[10px] space-y-1 z-[1000] text-gray-900">
               {Object.entries(PIN_COLORS).map(([k, c]) => (
                 <div key={k} className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full" style={{ backgroundColor: c }} />
@@ -640,7 +640,7 @@ export default function CanvassingView() {
               return (
                 <div className="flex-1 flex flex-col">
                   <div className="flex-1 bg-white rounded-xl p-5 border dark:bg-slate-900">
-                    <p className="text-xs text-blue-600 font-semibold mb-1">Step {scriptStep + 1} of {steps.length}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1">Step {scriptStep + 1} of {steps.length}</p>
                     <h3 className="text-lg font-bold mb-3">{step.title}</h3>
                     <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap dark:text-slate-200">{step.body}</p>
                     {step.tips && (
@@ -707,7 +707,7 @@ export default function CanvassingView() {
           <button key={item.key}
             onClick={item.action || (() => setTab(item.key))}
             className={`flex-1 py-2.5 flex flex-col items-center gap-0.5 text-[10px] font-medium ${
-              tab === item.key ? 'text-blue-600' : 'text-gray-500 dark:text-slate-400'
+              tab === item.key ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-slate-400'
             }`}>
             <item.icon size={20} />
             {item.label}
@@ -944,7 +944,7 @@ export default function CanvassingView() {
                   {logDoorHanger && (
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500 dark:text-slate-400">Door Hanger</span>
-                      <span className="font-medium text-blue-600">Yes</span>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">Yes</span>
                     </div>
                   )}
                   {logName && (

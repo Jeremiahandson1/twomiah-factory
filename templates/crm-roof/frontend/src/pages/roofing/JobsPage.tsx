@@ -274,7 +274,7 @@ export default function JobsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalOpen(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6 dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 dark:text-slate-100">
-              <Briefcase className="w-5 h-5 text-blue-600" /> New Job
+              <Briefcase className="w-5 h-5 text-blue-600 dark:text-blue-400" /> New Job
             </h2>
             <div className="space-y-3">
               <div>

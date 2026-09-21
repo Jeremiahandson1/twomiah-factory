@@ -207,7 +207,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
               type="checkbox"
               checked={consent}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConsent(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-600 focus:ring-blue-500"
+              className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-900 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
             />
             <span className="text-xs text-gray-500 dark:text-slate-400">
               {CONSENT_TEXT} <span className="text-red-400">*</span>
