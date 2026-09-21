@@ -39,7 +39,7 @@ const baseNavItems = [
   { label: 'Contacts', icon: Users, to: '/crm/contacts' },
   { label: 'Crews', icon: HardHat, to: '/crm/crews' },
   { label: 'Measurements', icon: Ruler, to: '/crm/measurements' },
-  { label: 'Materials', icon: Package, to: '/crm/materials' },
+  { label: 'Materials', icon: Package, to: '/crm/materials', feature: 'materials' },
   { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
   { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters', feature: 'insurance_workflow' },

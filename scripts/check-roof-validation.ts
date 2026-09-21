@@ -10,7 +10,8 @@
 // — 50 jobs, 44 in the breakdown — or a $2,880 order listing with a blank total.
 //
 //   bun scripts/check-roof-validation.ts
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 
 const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 let failed = 0
@@ -242,11 +243,32 @@ for (const t of terminal) {
    * items are shown unconditionally. A UI that offers a page the API refuses is worse than an API
    * that serves a page the UI hides: it is a 403 in the user's face, on a link the product gave them.
    *
-   * So every server-gated feature must also be gated in the nav.
+   * So nothing VISIBLE may lead to a module the API will refuse. That is the rule — not that every
+   * gated feature owns a nav row, which is narrower and wrong. A module satisfies it three ways:
+   *
+   *   * a nav entry carrying `feature:`                        (materials)
+   *   * gated in the page that surfaces it, via useFeature     (quickbooks lives inside Settings)
+   *   * no frontend surface at all, so there is nothing to click (sms has zero callers on roof)
+   *
+   * The first version checked only the nav list and failed the last two when the UI was already
+   * honest. (T18 M7 remainder)
    */
   const layout = read(F + 'components/layout/AppLayout.tsx')
   const navFeatures = new Set([...layout.matchAll(/feature: '([a-z_]+)'/g)].map((m) => m[1]))
-  const uiWouldStillOffer = pairs.filter(([, feat]) => !navFeatures.has(feat))
+  const frontendSrc = (() => {
+    const out: string[] = []
+    const walk = (d: string) => {
+      for (const e of readdirSync(d)) {
+        const p = join(d, e)
+        if (statSync(p).isDirectory()) { if (e !== 'node_modules' && e !== 'dist') walk(p); continue }
+        if (p.endsWith('.tsx') || p.endsWith('.ts')) out.push(readFileSync(p, 'utf8'))
+      }
+    }
+    walk(F); return out.join('\n')
+  })()
+  const gatedInAPage = (f: string) => new RegExp(`(?:useFeature|hasFeature)\\('${f}'\\)`).test(frontendSrc)
+  const hasNoSurface = (p: string) => !frontendSrc.includes(p)
+  const uiWouldStillOffer = pairs.filter(([p, feat]) => !navFeatures.has(feat) && !gatedInAPage(feat) && !hasNoSurface(p))
   if (uiWouldStillOffer.length)
     fail(`${uiWouldStillOffer.length} module(s) are gated on the server but shown unconditionally in the nav — switching the feature off leaves a visible link that 403s: ${uiWouldStillOffer.map(([p, f]) => `${p} (${f})`).join(', ')}`)
   if (!/const enabled = <T extends \{ feature\?: string \}>\(items: T\[\]\)/.test(layout))

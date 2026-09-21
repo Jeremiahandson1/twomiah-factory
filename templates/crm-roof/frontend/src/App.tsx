@@ -67,6 +67,22 @@ function OnboardingGate({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
+/**
+ * A route for a module the tenant has not switched on sends them to the dashboard.
+ *
+ * The nav already hides these, and the API already refuses them — but the ROUTE rendered anyway, so
+ * a direct URL or a stale link opened a module the tenant does not have and then filled it with 403s.
+ * That was the third side of the same gate: API, nav, and the route itself. (roof T18 M7)
+ *
+ * Not the paywall page — that is the hard lock for an expired trial, a different thing from a module
+ * that simply is not part of this plan. Same shape crm-restaurant already uses.
+ */
+function FeatureRoute({ feature, children }: { feature: string; children: ReactNode }) {
+  const { hasFeature } = useAuth()
+  if (!hasFeature(feature)) return <Navigate to="/crm" replace />
+  return <>{children}</>
+}
+
 function ProtectedRoute() {
   const { token, company } = useAuth()
   const location = useLocation()
@@ -118,21 +134,21 @@ export default function App() {
                 <Route path="pipeline" element={<PipelineBoard />} />
                 <Route path="jobs" element={<JobsPage />} />
                 <Route path="jobs/:id" element={<JobDetailPage />} />
-                <Route path="jobs/:id/insurance" element={<InsuranceClaimPage />} />
-                <Route path="adjusters" element={<AdjusterDirectoryPage />} />
+                <Route path="jobs/:id/insurance" element={<FeatureRoute feature="insurance_workflow"><InsuranceClaimPage /></FeatureRoute>} />
+                <Route path="adjusters" element={<FeatureRoute feature="insurance_workflow"><AdjusterDirectoryPage /></FeatureRoute>} />
                 <Route path="contacts" element={<ContactsPage />} />
                 <Route path="crews" element={<CrewsPage />} />
                 <Route path="measurements" element={<MeasurementsPage />} />
-                <Route path="materials" element={<MaterialsPage />} />
+                <Route path="materials" element={<FeatureRoute feature="materials"><MaterialsPage /></FeatureRoute>} />
                 <Route path="quotes" element={<QuotesPage />} />
                 <Route path="invoices" element={<InvoicesPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="contact-support" element={<ContactSupportPage />} />
-                <Route path="canvassing" element={<CanvassingDashboard />} />
-                <Route path="storm-leads" element={<StormLeadsPage />} />
-                <Route path="leads" element={<LeadInboxPage />} />
-                <Route path="lead-sources" element={<LeadSourcesPage />} />
+                <Route path="canvassing" element={<FeatureRoute feature="canvassing_tool"><CanvassingDashboard /></FeatureRoute>} />
+                <Route path="storm-leads" element={<FeatureRoute feature="storm_lead_gen"><StormLeadsPage /></FeatureRoute>} />
+                <Route path="leads" element={<FeatureRoute feature="lead_inbox"><LeadInboxPage /></FeatureRoute>} />
+                <Route path="lead-sources" element={<FeatureRoute feature="lead_inbox"><LeadSourcesPage /></FeatureRoute>} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                 <Route path="settings/features" element={<FeaturesSettingsPage />} />
                 <Route path="settings/email" element={<EmailAliasesPage />} />
@@ -140,20 +156,20 @@ export default function App() {
                 <Route path="settings/billing" element={<BillingPage smsBilling />} />
                 <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
                 <Route path="email" element={<InboundMessagesPage />} />
-                <Route path="google-reviews" element={<GbpReviewsPage />} />
+                <Route path="google-reviews" element={<FeatureRoute feature="google_reviews"><GbpReviewsPage /></FeatureRoute>} />
                 <Route path="estimator" element={<EstimatorPage />} />
-                <Route path="ai-receptionist" element={<AIReceptionistPage />} />
+                <Route path="ai-receptionist" element={<FeatureRoute feature="ai_receptionist"><AIReceptionistPage /></FeatureRoute>} />
                 <Route path="ads" element={<AdsPage />} />
-                <Route path="documents" element={<DocumentsPage />} />
+                <Route path="documents" element={<FeatureRoute feature="documents"><DocumentsPage /></FeatureRoute>} />
                 <Route path="import" element={<ImportPage />} />
-                <Route path="roof-reports" element={<RoofReportsPage />} />
-                <Route path="roof-reports/:id" element={<RoofReportDetail />} />
+                <Route path="roof-reports" element={<FeatureRoute feature="measurement_reports"><RoofReportsPage /></FeatureRoute>} />
+                <Route path="roof-reports/:id" element={<FeatureRoute feature="measurement_reports"><RoofReportDetail /></FeatureRoute>} />
                 <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                 <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />
-                <Route path="reviews" element={<ReviewsPage />} />
-                <Route path="financing" element={<FinancingPage />} />
-                <Route path="storm-radar" element={<StormRadarPage />} />
+                <Route path="reviews" element={<FeatureRoute feature="google_reviews"><ReviewsPage /></FeatureRoute>} />
+                <Route path="financing" element={<FeatureRoute feature="consumer_financing"><FinancingPage /></FeatureRoute>} />
+                <Route path="storm-radar" element={<FeatureRoute feature="storm_radar_overlay"><StormRadarPage /></FeatureRoute>} />
                 <Route path="paywall" element={<PaywallPage />} />
               </Route>
             </Route>

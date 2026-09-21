@@ -212,6 +212,7 @@ const PUBLIC_WITHIN_GATED = [
   /^\/api\/financing\/webhooks\//,          // Wisetack application status
   /^\/api\/calltracking\/webhook\//,        // CallRail / Twilio
   /^\/api\/ai-receptionist\/webhook\//,     // recording + call status
+  /^\/api\/sms\/webhook$/,                  // Twilio inbound SMS — no bearer token, verifies itself
 ]
 const skipPublic = (mw: any) => async (c: any, next: any) => {
   let pathname = ''
@@ -236,6 +237,12 @@ for (const [path, feature] of [
   ['/api/calltracking', 'ai_receptionist'],
   // Roofing runs on paperwork; the module is shared and five other templates already mount it.
   ['/api/documents', 'documents'],
+  // T18 M7 remainder — these three answered 200 with the switch off, so the plan tiers meant nothing
+  // for them. `materials` is business-tier, `quickbooks` and `two_way_texting` are pro.
+  ['/api/materials', 'materials'],
+  ['/api/quickbooks', 'quickbooks'],
+  // /api/sms/webhook is exempted above: Twilio posts an inbound message with no bearer token.
+  ['/api/sms', 'two_way_texting'],
 ] as Array<[string, string]>) {
   app.use(path, skipPublic(authenticate), skipPublic(requireEnabledFeature(feature)))
   app.use(`${path}/*`, skipPublic(authenticate), skipPublic(requireEnabledFeature(feature)))
