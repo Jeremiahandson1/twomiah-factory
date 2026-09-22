@@ -501,13 +501,22 @@ export default function POSPage() {
         {/* Customer */}
         <div className="p-4 border-b">
           {customer ? (
-            <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2">
+            <div className="flex items-center justify-between bg-green-50 rounded-lg px-3 py-2 dark:bg-green-950/30">
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-green-600" />
+                <User className="w-4 h-4 text-green-700 dark:text-green-300" />
                 <div>
                   <p className="font-medium text-gray-900 text-sm dark:text-slate-100">{customer.name}</p>
-                  {customer.loyaltyTier && (
-                    <span className="text-xs text-green-600">{customer.loyaltyTier} member</span>
+                  {/* The chip said the tier and stopped, so the one number a budtender needs at the till —
+                      can this customer actually redeem anything — was not on the screen they are looking at.
+                      The contacts list has enriched each row with loyaltyPoints since the Customers page
+                      needed it; the register just never read it. (Dispensary T28 L-f)
+                      green-600 on green-50 is 3.16:1, under the 4.5:1 this 12px label needs; green-700 is
+                      4.80:1 on the same ground. The chip had no dark partner either. */}
+                  {(customer.loyaltyTier || customer.loyaltyPoints != null) && (
+                    <span className="text-xs text-green-700 dark:text-green-300">
+                      {customer.loyaltyTier ? `${customer.loyaltyTier} member` : 'Member'}
+                      {customer.loyaltyPoints != null && ` · ${Number(customer.loyaltyPoints).toLocaleString()} pts`}
+                    </span>
                   )}
                 </div>
               </div>

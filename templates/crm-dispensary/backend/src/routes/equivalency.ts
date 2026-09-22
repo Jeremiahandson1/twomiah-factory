@@ -42,7 +42,12 @@ app.get('/rules', async (c) => {
     ORDER BY state ASC, category ASC
   `)
 
-  return c.json(((result as any).rows || result).map(camel))
+  // {data, pagination} like every other list on this API. It answered with a bare array, so a caller
+  // reading `body.data` got undefined here and nowhere else — the one shape you have to special-case.
+  // There is no paging to do (a tenant has a handful of rules and the query fetches all of them), so the
+  // block says exactly that: one page, holding everything. (Dispensary T28 L-c)
+  const data = ((result as any).rows || result).map(camel)
+  return c.json({ data, pagination: { page: 1, limit: data.length, total: data.length, pages: 1 } })
 })
 
 // POST /rules — Create equivalency rule (manager+)
