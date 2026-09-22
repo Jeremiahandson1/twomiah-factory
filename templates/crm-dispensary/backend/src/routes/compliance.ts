@@ -556,7 +556,12 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           AND o.contact_id IS NOT NULL
           AND o.completed_at >= ${startDate}
           AND o.completed_at < ${endDate}
-        GROUP BY o.contact_id, c.name, (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date
+        -- GROUP BY the select-list positions, not a repeat of the expression. Interpolating the timezone a
+        -- second time makes a SECOND bind parameter, and Postgres matches GROUP BY to the select list
+        -- structurally -- two different placeholders are not the same expression -- so it demanded
+        -- o.completed_at in the GROUP BY and the whole diversion report answered 500. The other two
+        -- day-bucketed reports in this file already group by ordinal, which is why only this one broke.
+        GROUP BY 1, 2, 3
         HAVING COUNT(*) > 1
         ORDER BY cannabis_oz_that_day DESC
         LIMIT 100
