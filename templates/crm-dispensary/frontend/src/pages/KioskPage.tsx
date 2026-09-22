@@ -138,14 +138,22 @@ export default function KioskPage() {
             </h2>
 
             <div className="space-y-4">
+              {/* These steps used to start at "Launch Kiosk", from before tablets were paired. Following
+                  them landed the operator on the "Pair this kiosk" screen holding no code, because the
+                  code is minted one level down in Settings → Kiosks and this page never said so. (T28 M-g) */}
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-gray-900">
-                <h3 className="font-medium text-green-800 mb-2">How to enable kiosk mode</h3>
+                <h3 className="font-medium text-green-800 mb-2">How to set up a kiosk</h3>
                 <ol className="list-decimal list-inside space-y-1 text-sm text-green-700">
-                  <li>Select the location for this kiosk below</li>
-                  <li>Click "Launch Kiosk" to open the customer-facing ordering interface</li>
-                  <li>Set the browser to fullscreen mode (F11) on your kiosk device</li>
+                  <li>
+                    Go to <span className="font-medium">Settings → Kiosks</span> and choose{' '}
+                    <span className="font-medium">Add Kiosk</span> to name the tablet. A pairing code appears —
+                    it is shown once and expires on its own.
+                  </li>
+                  <li>On the tablet itself, open the kiosk screen with "Launch Kiosk" below, and enter that code</li>
+                  <li>The tablet stays paired until you revoke it, back in Settings → Kiosks</li>
+                  <li>Set the browser to fullscreen mode (F11) on the tablet</li>
                   <li>Customers can browse products, add to cart, and place orders</li>
-                  <li>Orders appear in your POS queue for fulfillment</li>
+                  <li>Each order arrives pending in your POS queue — a budtender checks ID and takes payment at the register</li>
                 </ol>
               </div>
 
