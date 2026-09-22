@@ -533,6 +533,14 @@ async function send(
   const from = (options.from as any) || { name: FROM_NAME, address: FROM_EMAIL };
 
   // Console mode (no provider configured)
+  //
+  // In development this is the point: the message goes to the log and nothing is sent. In PRODUCTION it
+  // would be a lie — the invoice send route treats a clean return as "it went", stamps the invoice Sent,
+  // and the customer never receives it. Refuse instead, so the caller can say so and leave the record
+  // alone. The wording mapper has a sentence for this case. (T14 L4, the half that was still open)
+  if (!transporter && process.env.NODE_ENV === 'production') {
+    throw new Error('SMTP_HOST is not configured')
+  }
   if (!transporter) {
     console.log('\nEMAIL (dev mode):');
     console.log('To:', to);
