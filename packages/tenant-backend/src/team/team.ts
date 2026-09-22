@@ -188,11 +188,26 @@ export function createTeamRoutes(deps: TeamDeps) {
     const id = c.req.param('id')
     const [existing] = await db.select({ id: t.teamMember.id }).from(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId))).limit(1)
     if (!existing) return c.json({ error: 'Team member not found' }, 404)
-    // Their jobs are about to lose their assignee (the column is ON DELETE SET NULL). Count them first and
-    // say so — a caller that only ever sees 204 has no way to learn work was left unassigned. (T26 L2)
+    // Their jobs are about to lose their assignee. Count them first and say so — a caller that only ever
+    // sees 204 has no way to learn work was left unassigned. (T26 L2)
     const counts = await assignedJobCounts(user.companyId, [id])
     const unassignedJobs = counts[id] || 0
-    await db.delete(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId)))
+    // …and do the unassigning HERE, rather than leaving it to ON DELETE SET NULL.
+    //
+    // The constraint is declared in the schema and in 0018_job_roster_assignee.sql, but that migration is
+    // `ADD COLUMN IF NOT EXISTS`: on a tenant where the boot reconcile had already created the column, the
+    // whole statement is skipped — REFERENCES clause and all — leaving a column with nothing behind it. The
+    // delete then answered {"success":true,"unassignedJobs":1} while the job kept the dead member's id, so
+    // the one number this endpoint returns described something that had not happened. Nulling it explicitly
+    // is true on every tenant, drifted or not, and in one transaction with the delete so a failure cannot
+    // strand jobs half-detached. (Field Service T26 M2)
+    await db.transaction(async (tx: any) => {
+      if (t.job?.assignedToMemberId) {
+        await tx.update(t.job).set({ assignedToMemberId: null })
+          .where(and(eq(t.job.companyId, user.companyId), eq(t.job.assignedToMemberId, id)))
+      }
+      await tx.delete(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId)))
+    })
     return c.json({ success: true, unassignedJobs })
   })
 
