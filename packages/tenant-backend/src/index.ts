@@ -39,7 +39,7 @@ export { createInvoiceRoutes, insertInvoice, retotalInvoice, replaceInvoiceLines
 export type { InvoiceDeps, InvoiceOptions, InvoiceTables, InvoiceLine, RecordPaymentInput, RecordPaymentOutcome, RecordRefundInput, RecordRefundOutcome } from './invoicing/invoices'
 export { createQuoteRoutes } from './invoicing/quotes'
 export type { QuoteDeps, QuoteOptions, QuoteTables } from './invoicing/quotes'
-export { round2, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, normalizeDateInput, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
+export { round2, calcTotals, isOverdue, deriveStatus, startOfUtcDay, overdueCutoff, DEFAULT_OPEN_STATUSES, defaultTaxRateFrom, paymentTermsDaysFrom, dueDateFromTerms, quoteValidityDaysFrom, quoteExpiryFromTerms, normalizeDateInput, nextNumber, invoiceBalance, recomputeStatus } from './invoicing/money'
 
 // Online booking — one implementation for every CRM; the template injects its tables + the calendar it books onto.
 export { createBookingRoutes, externalBookingsProxy } from './booking/routes'

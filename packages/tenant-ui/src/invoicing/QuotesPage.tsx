@@ -140,7 +140,9 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
           <div className="grid md:grid-cols-3 gap-4">
             <Field label="Tax Rate (%)"><NumberInput min="0" max="100" step="0.01" value={form.taxRate} onValue={n => setForm({ ...form, taxRate: n })} className={inputCls} /></Field>
             <Field label="Discount ($)"><NumberInput min="0" step="0.01" value={form.discount} onValue={n => setForm({ ...form, discount: n })} className={inputCls} /></Field>
-            <Field label="Expiry Date"><input type="date" value={form.expiryDate} onChange={e => setForm({ ...form, expiryDate: e.target.value })} className={inputCls} /></Field>
+            {/* Blank means "our usual validity", the same way a blank due date on an invoice means "our payment
+                terms" — say so, rather than letting it read as "no expiry". (Field Service T26 L2) */}
+            <Field label="Expiry Date" hint="Leave blank for the default validity (30 days)"><input type="date" value={form.expiryDate} onChange={e => setForm({ ...form, expiryDate: e.target.value })} className={inputCls} /></Field>
           </div>
           <TotalsBox subtotal={totals.subtotal} discount={totals.effectiveDiscount} taxRate={form.taxRate} taxAmount={totals.taxAmount} total={totals.total} warning={inputError || (totals.discountTooBig ? `Discount cannot exceed the subtotal (${money(totals.subtotal)})` : undefined)} />
           {cfg.quoteCustomerMessage && <Field label={<>Customer Message <span className="text-gray-500 dark:text-slate-400 font-normal">(shown on the quote)</span></>}><textarea value={form.customerMessage} onChange={e => setForm({ ...form, customerMessage: e.target.value })} rows={2} className={inputCls} placeholder="Thank you for choosing us…" /></Field>}

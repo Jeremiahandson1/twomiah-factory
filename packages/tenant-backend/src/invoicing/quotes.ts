@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, ilike, inArray } from 'drizzle-orm'
-import { round2, calcTotals, rawSubtotal, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { round2, calcTotals, rawSubtotal, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { checkFilter } from '../listFilter'
 
 /** Today at 00:00 UTC — dates are stored as calendar days at UTC midnight, so compare on the same boundary. */
@@ -196,9 +196,16 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     const exp = normalizeDateInput(data.expiryDate)
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
     if (exp.value && exp.value < startOfToday()) return c.json({ error: 'Expiry date is in the past — pick today or later.' }, 400)
-    const taxRate = data.taxRate ?? defaultTaxRateFrom(await companySettings(cid))
+    // One read, two answers — the tax rate and how long the quote stands both come off the same settings blob.
+    const settings = await companySettings(cid)
+    const taxRate = data.taxRate ?? defaultTaxRateFrom(settings)
     const totals = calcTotals(data.lineItems, taxRate, data.discount)
-    const values: any = { companyId: cid, expiryDate: exp.value ?? null, subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
+    // A blank expiry means "use our usual validity", exactly as a blank due date on an invoice means "use our
+    // payment terms" — the form sends `expiryDate: form.expiryDate || null` for both. It used to land as a
+    // literal null, which is not a missing date but an open-ended price: no "Valid until" line for the
+    // customer, no way for the status to reach `expired`, and convertible to an invoice for ever at a months-old
+    // price. (Field Service T26 L2)
+    const values: any = { companyId: cid, expiryDate: exp.value ?? quoteExpiryFromTerms(settings), subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
     for (const k of COPY_FIELDS) if (data[k] !== undefined) values[k] = data[k]
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
     const result = await db.transaction(async (tx: any) => {

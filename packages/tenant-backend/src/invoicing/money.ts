@@ -125,6 +125,26 @@ export function dueDateFromTerms(settings: any, from: Date = new Date()): Date {
   return startOfUtcDay(new Date(from.getTime() + paymentTermsDaysFrom(settings) * 86400000))
 }
 
+/** How long a quote stands, in whole days. Settings → Company can set it; thirty days is the trade default. */
+export function quoteValidityDaysFrom(settings: any): number {
+  const d = Number(settings?.quoteValidityDays)
+  return Number.isFinite(d) && d >= 0 ? Math.floor(d) : 30
+}
+
+/**
+ * When a quote stops standing = today + the validity period.
+ *
+ * A quote used to be created with `expiryDate: exp.value ?? null` — no fallback at all, where an invoice has
+ * always fallen back to the company's payment terms. So a blank field (which is what the form sends: `expiryDate:
+ * form.expiryDate || null`) produced a quote that never expires. That is not a missing date, it is an open-ended
+ * price: the portal prints "Valid until …" only when there IS an expiry, so the customer is shown no limit, the
+ * status can never turn `expired`, and the quote stays convertible to an invoice for ever at a price that may be
+ * months old. 39 of 42 quotes on the test tenant had none. (Field Service T26 L2)
+ */
+export function quoteExpiryFromTerms(settings: any, from: Date = new Date()): Date {
+  return startOfUtcDay(new Date(from.getTime() + quoteValidityDaysFrom(settings) * 86400000))
+}
+
 /**
  * Normalise a date field coming from a form. '' / null clear the field (→ null); undefined leaves it
  * alone; anything else must parse. Returns { error } for garbage so the route can answer 400 instead
