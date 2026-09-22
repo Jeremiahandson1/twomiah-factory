@@ -14,7 +14,14 @@ import { eq, and, gte, lte, lt, count, desc, asc, sum, isNull, isNotNull, inArra
 import { companyTimeZone, storeDateString, dayMarker } from './businessDay'
 import { hasHappened } from '../dateInput'
 
-export interface TimeTables { timeEntry: any; user: any; job?: any; project?: any }
+export interface TimeTables { timeEntry: any; user: any; job?: any; project?: any
+  /**
+   * The roster, where a person's pay rate lives. A time entry carries its own hourlyRate — the rate as it was
+   * when the work was logged — but nothing ever filled it in: the screens do not ask for a rate, so every entry
+   * stored null and billableAmount, which only sums entries that have one, reported 0 against 17 billable
+   * hours. With the roster in reach the rate is taken from the person's card. (Field Service T26 L12)
+   */
+  teamMember?: any }
 export interface TimeDeps {
   db: any
   tables: TimeTables
@@ -116,6 +123,36 @@ export function createTimeRoutes(deps: TimeDeps) {
   /** Which user's entries this caller may look at: managers any (or all), everyone else only their own. */
   const scopeUser = (u: any, requested?: string) => (isManager(u) ? requested || undefined : u.userId)
 
+  /**
+   * What each of these people is paid, from their roster card. The roster has no user_id — it is matched to a
+   * login by EMAIL, the same way the Team page decides who already has one — so this joins on a lowercased
+   * email. A person with no roster card, no email, or no rate on their card simply is not in the map.
+   *
+   * Used twice: to stamp a rate onto a new entry, and to value older entries that were stored before anything
+   * filled that column in. Returns {} when the template did not wire the roster. (T26 L12)
+   */
+  const ratesByUserId = async (companyId: string, userIds: string[]): Promise<Record<string, number>> => {
+    if (!t.teamMember || userIds.length === 0) return {}
+    const ids = [...new Set(userIds.filter(Boolean))]
+    if (!ids.length) return {}
+    const [users, roster] = await Promise.all([
+      db.select({ id: t.user.id, email: t.user.email }).from(t.user).where(and(eq(t.user.companyId, companyId), inArray(t.user.id, ids))),
+      db.select({ email: t.teamMember.email, rate: t.teamMember.hourlyRate }).from(t.teamMember).where(eq(t.teamMember.companyId, companyId)),
+    ])
+    const byEmail = new Map<string, number>()
+    for (const m of roster) {
+      const e = String(m.email || '').toLowerCase()
+      const n = Number(m.rate)
+      if (e && Number.isFinite(n) && n > 0) byEmail.set(e, n)
+    }
+    const out: Record<string, number> = {}
+    for (const u of users) {
+      const rate = byEmail.get(String(u.email || '').toLowerCase())
+      if (rate != null) out[String(u.id)] = rate
+    }
+    return out
+  }
+
   app.get('/', requirePermission('time:read'), async (c) => {
     const currentUser = (c as any).get('user')
     const q = c.req.query()
@@ -141,11 +178,17 @@ export function createTimeRoutes(deps: TimeDeps) {
     const conditions: any[] = [eq(t.timeEntry.companyId, currentUser.companyId), ...rangeConds(q)]
     const userId = scopeUser(currentUser, q.userId)
     if (userId) conditions.push(eq(t.timeEntry.userId, userId))
-    const entries = await db.select({ hours: t.timeEntry.hours, billable: t.timeEntry.billable, hourlyRate: t.timeEntry.hourlyRate }).from(t.timeEntry).where(and(...conditions))
+    const entries = await db.select({ hours: t.timeEntry.hours, billable: t.timeEntry.billable, hourlyRate: t.timeEntry.hourlyRate, userId: t.timeEntry.userId }).from(t.timeEntry).where(and(...conditions))
     const totalHours = entries.reduce((s: number, e: any) => s + Number(e.hours || 0), 0)
     const billable = entries.filter((e: any) => e.billable)
     const billableHours = billable.reduce((s: number, e: any) => s + Number(e.hours || 0), 0)
-    const billableAmount = billable.filter((e: any) => e.hourlyRate).reduce((s: number, e: any) => s + Number(e.hours || 0) * Number(e.hourlyRate), 0)
+    // An entry's own rate wins — it is the rate as it was when the work was logged. Entries stored before
+    // anything filled that column in fall back to what the person's roster card says now, so seventeen
+    // billable hours stop being worth nothing. An entry with neither still contributes 0, which is the
+    // honest answer for work by somebody who has no rate anywhere. (T26 L12)
+    const rates = await ratesByUserId(currentUser.companyId, billable.filter((e: any) => e.hourlyRate == null).map((e: any) => e.userId))
+    const rateOf = (e: any) => (e.hourlyRate != null ? Number(e.hourlyRate) : rates[String(e.userId)] ?? 0)
+    const billableAmount = billable.reduce((s: number, e: any) => s + Number(e.hours || 0) * rateOf(e), 0)
     return c.json({ totalHours: round2(totalHours), billableHours: round2(billableHours), nonBillableHours: round2(totalHours - billableHours), billableAmount: round2(billableAmount), entries: entries.length })
   })
 
@@ -309,10 +352,19 @@ export function createTimeRoutes(deps: TimeDeps) {
     const entryDate = data.date ? dayMarker(String(data.date)) : dayMarker(storeDateString(new Date(), tz))
     const derived = deriveHours(data, entryDate)
     if ('error' in derived) return c.json({ error: derived.error }, 400)
+    // Stamp the person's rate onto the entry when the caller did not name one. The screens do not ask for a
+    // rate and never have, so without this every entry stores null and is worth nothing for ever after. Taking
+    // it now — rather than reading the roster at report time — is what keeps an old entry worth what the work
+    // was worth when it was done, after somebody's rate changes. A caller that sends a rate still wins. (T26 L12)
+    let rate = data.hourlyRate == null ? null : String(data.hourlyRate)
+    if (rate == null) {
+      const found = (await ratesByUserId(currentUser.companyId, [targetUserId]))[String(targetUserId)]
+      if (found != null) rate = String(found)
+    }
     const [row] = await db.insert(t.timeEntry).values({
       userId: targetUserId, companyId: currentUser.companyId, jobId: data.jobId, projectId: data.projectId,
       date: entryDate, hours: String(derived.hours), clockIn: derived.clockIn || null, clockOut: derived.clockOut || null,
-      hourlyRate: data.hourlyRate == null ? null : String(data.hourlyRate), description: data.description ?? data.notes ?? null,
+      hourlyRate: rate, description: data.description ?? data.notes ?? null,
       billable: data.billable ?? true,
     }).returning()
     audit?.log({ action: 'create', entity: 'time_entry', entityId: row.id, metadata: { hours: row.hours, userId: targetUserId }, req: { user: currentUser } })
