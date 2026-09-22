@@ -1,5 +1,5 @@
 // Portal messages: inbox list, detail (marks inbound read), compose.
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { MessageSquare, Send, ArrowLeft, Mail, MailOpen, Plus } from 'lucide-react'
 import { usePortal } from './PortalContext'
 import { Spinner, PageTitle, Empty, card, btnPrimary, btnSecondary, inputCls, labelCls, formatDate } from './common'
@@ -89,9 +89,13 @@ function ComposeMessage({ onBack, onSent }: { onBack: () => void; onSent: () => 
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  const bodyRef = useRef<HTMLTextAreaElement>(null)
   const [error, setError] = useState('')
   const send = async () => {
-    if (!body.trim()) { setError('Please enter a message.'); return }
+    // The note below was not enough: the button stayed disabled, so the click never landed and this line
+    // never ran. T23 diagnosed exactly that and then kept the button disabled; T26 filed it again. Let the
+    // press through and answer it — say what is missing and put the cursor in it. (Field Service T26 L13)
+    if (!body.trim()) { setError('Type a message before sending.'); bodyRef.current?.focus(); return }
     setSending(true); setError('')
     try { await portalFetch('/messages', { method: 'POST', body: JSON.stringify({ subject: subject || undefined, body }) }); onSent() }
     catch (e) { setError('Failed to send message: ' + (e as Error).message) } finally { setSending(false) }
@@ -103,7 +107,7 @@ function ComposeMessage({ onBack, onSent }: { onBack: () => void; onSent: () => 
         <div className="p-6 border-b dark:border-slate-700"><h1 className="text-xl font-bold text-gray-900 dark:text-slate-100">New Message</h1></div>
         <div className="p-6 space-y-4">
           <div><label htmlFor="msg-subject" className={labelCls}>Subject</label><input id="msg-subject" type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="What is this about?" className={inputCls} /></div>
-          <div><label htmlFor="msg-body" className={labelCls}>Message</label><textarea id="msg-body" value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder="Type your message..." className={`${inputCls} resize-none`} /></div>
+          <div><label htmlFor="msg-body" className={labelCls}>Message</label><textarea id="msg-body" ref={bodyRef} value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder="Type your message..." className={`${inputCls} resize-none`} /></div>
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
         </div>
         <div className="p-6 bg-gray-50 border-t flex justify-end gap-3 dark:bg-slate-800/60 dark:border-slate-700">
@@ -113,7 +117,7 @@ function ComposeMessage({ onBack, onSent }: { onBack: () => void; onSent: () => 
               why, where the person is looking. (Salon/field service T23) */}
           {!body.trim() && !sending && <p role="note" className="text-sm text-gray-500 self-center mr-auto dark:text-slate-400">Type a message to send.</p>}
           <button onClick={onBack} className={btnSecondary}>Cancel</button>
-          <button onClick={send} disabled={sending || !body.trim()} title={!body.trim() ? 'Type a message to send.' : undefined} className={btnPrimary}><Send className="w-4 h-4" /> {sending ? 'Sending...' : 'Send Message'}</button>
+          <button onClick={send} disabled={sending} title={!body.trim() ? 'Type a message to send.' : undefined} className={btnPrimary}><Send className="w-4 h-4" /> {sending ? 'Sending...' : 'Send Message'}</button>
         </div>
       </div>
     </div>

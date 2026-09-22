@@ -1,5 +1,5 @@
 // Service-customer pages: equipment (+ service history), service plans, request service.
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { Wrench, Shield, ChevronRight, ChevronDown, ChevronUp, Calendar, CheckCircle, AlertTriangle, X, CalendarCheck, ArrowRight, LifeBuoy, Loader2 } from 'lucide-react'
 import { usePortal } from './PortalContext'
@@ -181,6 +181,7 @@ export function PortalServiceRequest() {
   const [error, setError] = useState('')
   const [done, setDone] = useState<{ jobNumber: string; responseHours: number } | null>(null)
   const [form, setForm] = useState({ equipmentId: '', description: '', urgency: 'routine' as 'routine' | 'urgent', preferredContact: 'call' as 'call' | 'text' | 'email' })
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (!sections.equipment) { setLoading(false); return }
@@ -189,7 +190,15 @@ export function PortalServiceRequest() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.description.trim()) return
+    // Answer the click. Submit used to be disabled while the description was empty, so pressing it did
+    // nothing and said nothing — and this early `return` could never be reached to explain why. A control
+    // the person has just pressed has to respond: say what is missing, and put the cursor in it.
+    // (Field Service T26 L6)
+    if (!form.description.trim()) {
+      setError('Tell us what the issue is before sending the request.')
+      descriptionRef.current?.focus()
+      return
+    }
     setSubmitting(true); setError('')
     try { setDone(await portalFetch('/service-request', { method: 'POST', body: JSON.stringify({ equipmentId: form.equipmentId || null, description: form.description.trim(), urgency: form.urgency, preferredContact: form.preferredContact }) })) }
     catch (err) { setError((err as Error).message || 'Failed to submit request') } finally { setSubmitting(false) }
@@ -215,7 +224,7 @@ export function PortalServiceRequest() {
         {sections.equipment && (
           <div><label htmlFor="sr-equipment" className={labelCls}>{config.labels.equipment}</label><select id="sr-equipment" value={form.equipmentId} onChange={(e) => setForm((f) => ({ ...f, equipmentId: e.target.value }))} className={inputCls}><option value="">Other / Not sure</option>{units.map((u) => <option key={u.id} value={u.id}>{u.name}{u.manufacturer ? ` (${u.manufacturer})` : ''}</option>)}</select></div>
         )}
-        <div><label htmlFor="sr-description" className={labelCls}>What's the issue?</label><textarea id="sr-description" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Describe what's happening..." rows={4} required className={`${inputCls} resize-none`} /></div>
+        <div><label htmlFor="sr-description" className={labelCls}>What's the issue?</label><textarea id="sr-description" ref={descriptionRef} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Describe what's happening..." rows={4} required className={`${inputCls} resize-none`} /></div>
         <div>
           <p className={labelCls}>How urgent is this?</p>
           <div className="grid grid-cols-2 gap-3">
@@ -228,7 +237,7 @@ export function PortalServiceRequest() {
           <div className="flex gap-2">{(['call', 'text', 'email'] as const).map((m) => <button key={m} type="button" onClick={() => setForm((f) => ({ ...f, preferredContact: m }))} className={`flex-1 py-2.5 rounded-lg border text-sm font-medium capitalize transition-colors ${form.preferredContact === m ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/30' : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:text-slate-300'}`}>{m}</button>)}</div>
         </div>
         {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-        <button type="submit" disabled={submitting || !form.description.trim()} className={`w-full justify-center py-3 font-bold ${btnPrimary}`}>{submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <LifeBuoy className="w-5 h-5" />} Submit Request</button>
+        <button type="submit" disabled={submitting} className={`w-full justify-center py-3 font-bold ${btnPrimary}`}>{submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <LifeBuoy className="w-5 h-5" />} Submit Request</button>
       </form>
     </div>
   )
