@@ -79,13 +79,28 @@ export interface PortalDeps {
  * Which feature id has to be on for a section to be offered. Only sections that ARE a switchable feature
  * appear here: the rest are decided by whether this vertical has the tables at all.
  */
-const SECTION_FEATURES: Record<string, string[]> = {
+/**
+ * What each portal section needs switched on. Every entry in the list must be satisfied; an entry that is
+ * itself a list is satisfied by ANY id in it — the same "one id, or any of these" rule requireEnabledFeature
+ * applies to the CRM's own routes, so a section and its module cannot disagree about what turns them on.
+ *
+ * equipment and agreements were missing entirely, so neither could ever be switched off: a field service
+ * customer was shown an Equipment tab reading "No equipment registered yet." and a Maintenance Plans tab, on
+ * a tenant that had bought neither. The CRM gates /api/equipment on equipment_tracking and /api/agreements on
+ * service_agreements OR maintenance_contracts; the portal now asks the same questions. (Field Service T26 M7)
+ */
+const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   projects: ['projects'],
   changeOrders: ['change_orders'],
   selections: ['selections'],
   sharedDocuments: ['documents'],
   projectFiles: ['documents', 'projects'],
+  equipment: ['equipment_tracking'],
+  agreements: [['service_agreements', 'maintenance_contracts']],
 }
+/** One id: is it on. A nested list: is ANY of them on. */
+const featureSatisfied = (need: string | string[], enabled: string[]): boolean =>
+  Array.isArray(need) ? need.some((f) => enabled.includes(f)) : enabled.includes(need)
 
 /** Quote statuses a customer may see — drafts are the office's business until they are sent. */
 export const PORTAL_QUOTE_HIDDEN = ['draft']
@@ -269,7 +284,7 @@ export function createPortalRoutes(deps: PortalDeps) {
     const out = { ...has }
     for (const section of Object.keys(out) as Array<keyof typeof has>) {
       const needed = SECTION_FEATURES[section]
-      if (needed && !needed.every((f) => enabled.includes(f))) out[section] = false
+      if (needed && !needed.every((f) => featureSatisfied(f, enabled))) out[section] = false
     }
     return out
   }
@@ -825,7 +840,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   // SERVICE CUSTOMERS — equipment, service plans, service requests (HVAC / plumbing / landscaping)
   // =============================================
   if (has.equipment) {
-    app.get('/p/:token/equipment', portalAuth, async (c) => {
+    app.get('/p/:token/equipment', portalAuth, gate('equipment'), async (c) => {
       const { contact } = P(c)
       const list = await db.select({ id: t.equipment.id, name: t.equipment.name, model: t.equipment.model, manufacturer: t.equipment.manufacturer, serialNumber: t.equipment.serialNumber, status: t.equipment.status, location: t.equipment.location, purchaseDate: t.equipment.purchaseDate, warrantyExpiry: t.equipment.warrantyExpiry })
         .from(t.equipment).where(and(eq(t.equipment.contactId, contact.id), eq(t.equipment.companyId, contact.companyId))).orderBy(asc(t.equipment.name))
@@ -835,7 +850,7 @@ export function createPortalRoutes(deps: PortalDeps) {
       const lastMap = Object.fromEntries(last.map((r: any) => [r.equipmentId, r.completedAt]))
       return c.json(list.map((e: any) => ({ ...e, lastServiceDate: lastMap[e.id] || null })))
     })
-    app.get('/p/:token/equipment/:equipmentId/history', portalAuth, async (c) => {
+    app.get('/p/:token/equipment/:equipmentId/history', portalAuth, gate('equipment'), async (c) => {
       const { contact } = P(c)
       const equipmentId = c.req.param('equipmentId')
       const [unit] = await db.select().from(t.equipment).where(and(eq(t.equipment.id, equipmentId), eq(t.equipment.contactId, contact.id), eq(t.equipment.companyId, contact.companyId))).limit(1)
@@ -860,7 +875,7 @@ export function createPortalRoutes(deps: PortalDeps) {
   }
 
   if (has.agreements) {
-    app.get('/p/:token/agreements', portalAuth, async (c) => {
+    app.get('/p/:token/agreements', portalAuth, gate('agreements'), async (c) => {
       const { contact } = P(c)
       const rows = await db.select({ id: t.serviceAgreement.id, name: t.serviceAgreement.name, status: t.serviceAgreement.status, startDate: t.serviceAgreement.startDate, endDate: t.serviceAgreement.endDate, renewalType: t.serviceAgreement.renewalType, billingFrequency: t.serviceAgreement.billingFrequency, amount: t.serviceAgreement.amount, terms: t.serviceAgreement.terms, notes: t.serviceAgreement.notes, nextServiceDate: t.serviceAgreement.nextServiceDate })
         .from(t.serviceAgreement).where(and(eq(t.serviceAgreement.contactId, contact.id), eq(t.serviceAgreement.companyId, contact.companyId))).orderBy(desc(t.serviceAgreement.startDate))
