@@ -1528,3 +1528,14 @@ jobs:
           bun-version: latest
       - name: "Check no route gate redirects before /api/auth/me has landed"
         run: bun run scripts/check-feature-gates-wait-for-the-answer.ts
+
+  kiosk-lines-say-what-they-are:
+    name: "Kiosk order lines say what they are"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check kiosk lines carry category and weight"
+        run: bun run scripts/check-kiosk-lines-say-what-they-are.ts

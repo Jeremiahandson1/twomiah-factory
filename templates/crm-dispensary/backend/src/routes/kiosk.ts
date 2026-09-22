@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ } from '../utils/cannabis.ts'
+import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ, isCannabisLine, unitGramsOf } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 import { deviceForToken, claimPairingCode, kioskEnforcement, newPairingCode, PAIRING_TTL_MS, type PairedDevice } from '../services/kioskDevice.ts'
@@ -373,8 +373,10 @@ app.post('/session/:token/add-item', async (c) => {
   const data = itemSchema.parse(await c.req.json())
 
   // Validate product exists and is in stock. Products are company-scoped, not location-scoped.
+  // The weight/category columns come back too, because the purchase limit below has to weigh this line.
   const productResult = await db.execute(sql`
-    SELECT id, name, price, sale_price, in_stock FROM products
+    SELECT id, name, price, sale_price, in_stock, category, tax_category, weight_grams, weight, weight_unit
+    FROM products
     WHERE id = ${data.productId} AND company_id = ${session.company_id} AND active = true
   `)
   const product = rows(productResult)?.[0]
@@ -384,14 +386,46 @@ app.post('/session/:token/add-item', async (c) => {
   const items = sessionItems(session)
   const unitPrice = Number(product.sale_price || product.price)
 
-  items.push({
+  const newItem = {
     productId: data.productId,
     productName: product.name,
     quantity: data.quantity,
     unitPrice,
     total: unitPrice * data.quantity,
     notes: data.notes || null,
-  })
+  }
+
+  // The purchase limit belongs here, not only at checkout. Weighing the cart was something only checkout
+  // did, so a customer could add 20 eighths, watch every one of them be accepted, and be refused the whole
+  // basket at the end — "Purchase exceeds limit: 2.47oz exceeds the 1oz maximum" — with nothing to say
+  // which item took them over. Same helpers, same limit, same message as checkout and the register; the
+  // only difference is that it runs as each item is added, so the refusal names the item that caused it.
+  // Session items carry no product (only checkout ever looked one up), so the prospective cart is
+  // backfilled exactly the way checkout backfills it. (Dispensary T28 M-e)
+  const prospective = [...items, newItem]
+  const byId = new Map<string, any>([[String(product.id), camel(product)]])
+  const needed = [...new Set(prospective.map((i: any) => String(i.productId)).filter((id) => id && id !== 'undefined' && !byId.has(id)))]
+  if (needed.length) {
+    const pr = await db.execute(sql`
+      SELECT id, category, tax_category, weight_grams, weight, weight_unit
+      FROM products WHERE company_id = ${session.company_id}
+        AND id IN (${sql.join(needed.map((m) => sql`${m}`), sql`, `)})
+    `)
+    for (const p of rows(pr)) byId.set(String(p.id), camel(p))
+  }
+  const factors = await loadEquivalencyFactors(session.company_id)
+  const totalGrams = cartCannabisGrams(
+    prospective.map((i: any) => ({ product: byId.get(String(i.productId)) || {}, quantity: i.quantity })),
+    factors,
+  )
+  const [companyRow] = rows(await db.execute(sql`SELECT purchase_limit_oz, state FROM company WHERE id = ${session.company_id} LIMIT 1`))
+  const over = overPurchaseLimit(totalGrams, resolvePurchaseLimitOz(camel(companyRow) as any))
+  if (over) {
+    audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: { ...over, at: 'add_item', productId: data.productId, quantity: data.quantity }, req: { user: { companyId: session.company_id } } })
+    return c.json(over, 400)
+  }
+
+  items.push(newItem)
 
   const result = await db.execute(sql`
     UPDATE kiosk_sessions
@@ -509,9 +543,32 @@ app.post('/session/:token/checkout', async (c) => {
   const order = rows(orderResult)?.[0]
 
   // Order line items live in order_items (the orders list / detail read from there).
+  //
+  // The line has to say WHAT it is, not just what it cost. This INSERT named nine columns and left
+  // category, tax_category and the weights null on every kiosk line, and three things read them:
+  //
+  //   • checkAgeGate decides a sale is cannabis by reading the LINE (isCannabisLine → tax_category, else
+  //     category). With all of them null a kiosk cannabis order looked like a sale of nothing in
+  //     particular, the gate returned "no cannabis here" and never required the ID tick — so the order
+  //     settled with id_verified false and landed on the diversion report as an unverified-ID sale. That
+  //     is Dispensary T28 M-d, and it is the reason the flag was wrong: not that the kiosk should set it,
+  //     but that the register was never made to ask for it. (T28 M-d)
+  //   • a state report or an audit is rebuilt from LINES, which is why the register started writing
+  //     weight_grams per line — the kiosk never did, so kiosk lines could not say what they weighed even
+  //     though the order total could. (the same gap as T20 M11, on the other till)
+  //   • analytics, tax filing and recommendations all group by oi.category, where kiosk sales were
+  //     grouping under null.
+  //
+  // Same resolution the register uses, so one sale reads the same whichever till rang it.
   for (const item of items) {
+    // A line whose product could not be resolved (deleted mid-session) records NULL rather than
+    // asserting 'non_cannabis' — an unknown line should read as unknown, not as a cleared one.
+    const prod = item.product || null
+    const isCannabis = prod ? isCannabisLine(prod) : false
+    const unitGrams = prod ? unitGramsOf(prod) : 0
+    const lineGrams = unitGrams > 0 ? String(Math.round(unitGrams * Number(item.quantity || 0) * 100) / 100) : null
     await db.execute(sql`
-      INSERT INTO order_items(id, order_id, product_id, product_name, quantity, unit_price, total_price, line_total, company_id)
+      INSERT INTO order_items(id, order_id, product_id, product_name, quantity, unit_price, total_price, line_total, company_id, category, tax_category, weight_grams, weight, weight_unit)
       VALUES (
         gen_random_uuid(),
         ${order.id},
@@ -521,7 +578,12 @@ app.post('/session/:token/checkout', async (c) => {
         ${String(item.unitPrice)},
         ${String(item.total)},
         ${String(item.total)},
-        ${companyId}
+        ${companyId},
+        ${prod?.category ?? null},
+        ${prod ? (isCannabis ? 'cannabis' : 'non_cannabis') : null},
+        ${lineGrams},
+        ${prod?.weight ?? null},
+        ${prod?.weightUnit ?? null}
       )
     `)
   }
