@@ -63,7 +63,11 @@ export interface InvoiceDeps {
 
 const lineItemSchema = z.object({
   description: z.string().min(1),
-  quantity: z.number().min(0, 'Quantity cannot be negative').default(1),
+  // A line billing nothing has no business on the document: quantity 0 sailed through and produced a
+  // $0.00 invoice from a slip of the keyboard. Fractions are real work (2.5 hours), so the rule is
+  // "more than zero" rather than "at least one". A genuinely free item is priced at 0, not counted 0.
+  // (Field Service T26 L7)
+  quantity: z.number().gt(0, 'Quantity must be more than zero').default(1),
   unitPrice: z.number().min(0, 'Price cannot be negative').default(0),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))

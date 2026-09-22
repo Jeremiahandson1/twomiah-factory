@@ -55,13 +55,20 @@ export const calcTotals = (items: { quantity: number; unitPrice: number }[], tax
  * never quietly turned into a positive amount.
  */
 export const moneyInputError = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number): string | null => {
+  // EVERY problem, not just the first. This used to return on the first match, and the tax rate is
+  // checked before the discount — so a form holding a 150% tax rate AND a discount of −999 reported only
+  // the tax rate, and the discount was silent until the first was fixed. Fixing a form one hidden error
+  // at a time is the complaint. (Field Service T26 L3)
+  const problems: string[] = []
+  const add = (m: string) => { if (!problems.includes(m)) problems.push(m) }
   for (const li of items) {
-    if (Number(li.quantity) < 0) return 'Quantity cannot be negative'
-    if (Number(li.unitPrice) < 0) return 'Price cannot be negative'
+    if (Number(li.quantity) < 0) add('Quantity cannot be negative')
+    if (Number(li.quantity) === 0) add('Quantity must be more than zero')
+    if (Number(li.unitPrice) < 0) add('Price cannot be negative')
   }
-  if (Number(taxRate) < 0 || Number(taxRate) > 100) return 'Tax rate must be between 0 and 100'
-  if (Number(discount) < 0) return 'Discount cannot be negative'
-  return null
+  if (Number(taxRate) < 0 || Number(taxRate) > 100) add('Tax rate must be between 0 and 100')
+  if (Number(discount) < 0) add('Discount cannot be negative')
+  return problems.length ? problems.join(' · ') : null
 }
 /**
  * What a refund does to THIS invoice's balance — the two halves of the refund model (invoicing/money.ts
@@ -374,13 +381,24 @@ export function LineItemsEditor({ items, onChange }: { items: { description: str
   )
 }
 
+/**
+ * The running total for a document being edited.
+ *
+ * When the figures it was given cannot make a document, it stops quoting them. A tax rate of 150 is
+ * refused by the server (taxRate is 0-100), and this box went on presenting a $100 line as "Tax (150%)
+ * $150.00 / Total $250.00" with the warning underneath — a total nobody can ever save, printed in the
+ * same bold as a real one, which is a worse answer than no answer. The warning is the only thing worth
+ * reading at that point, so the money reads "—" until the input is something the document could be made
+ * from. (Field Service T26 L4)
+ */
 export function TotalsBox({ subtotal, discount, taxRate, taxAmount, total, warning }: { subtotal: number; discount: number; taxRate: number; taxAmount: number; total: number; warning?: string }) {
+  const show = (n: number) => (warning ? '—' : money(n))
   return (
     <div className="bg-gray-50 dark:bg-slate-800/60 rounded-lg p-4 text-sm text-right space-y-1 text-gray-800 dark:text-slate-200">
-      <p>Subtotal <span className="font-medium ml-2">{money(subtotal)}</span></p>
-      {discount > 0 && <p>Discount <span className="font-medium ml-2">-{money(discount)}</span></p>}
-      <p>Tax ({taxRate}%) <span className="font-medium ml-2">{money(taxAmount)}</span></p>
-      <p className="text-lg font-bold">Total <span className="ml-2">{money(total)}</span></p>
+      <p>Subtotal <span className="font-medium ml-2">{show(subtotal)}</span></p>
+      {discount > 0 && <p>Discount <span className="font-medium ml-2">{warning ? '—' : `-${money(discount)}`}</span></p>}
+      <p>Tax ({taxRate}%) <span className="font-medium ml-2">{show(taxAmount)}</span></p>
+      <p className="text-lg font-bold">Total <span className="ml-2">{show(total)}</span></p>
       {warning && <p className="text-xs text-red-600 dark:text-red-300 text-right">{warning}</p>}
     </div>
   )
