@@ -1550,3 +1550,14 @@ jobs:
           bun-version: latest
       - name: "Check loyalty defaults agree"
         run: bun run scripts/check-loyalty-defaults-agree.ts
+
+  no-null-invoice-due-date:
+    name: "Invoices always have a due date"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check no null invoice due date"
+        run: bun run scripts/check-no-null-invoice-due-date.ts

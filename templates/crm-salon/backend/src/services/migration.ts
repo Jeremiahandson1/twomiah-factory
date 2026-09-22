@@ -15,8 +15,23 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, quoteLineItem, invoice, invoiceLineItem, payment, pricebookItem } from '../../db/schema.ts'
+import { contact, project, job, quote, quoteLineItem, invoice, invoiceLineItem, payment, pricebookItem, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
+import { dueDateFromTerms } from '../shared/index.ts'
+/**
+ * The due date to store for a migrated invoice.
+ *
+ * A source system that does not carry one used to land here as `dueDate: null`, and isOverdue() returns
+ * false the moment dueDate is null — so every such invoice was silently uncollectable for ever: never
+ * overdue, never chased, invisible to the one report that exists to find unpaid money. Creating an invoice
+ * by hand has always fallen back to the tenant's payment terms (Settings → Company); a migration has no
+ * business doing less. (Field Service T26 L1)
+ */
+async function migratedDueDate(companyId: string, raw: unknown): Promise<Date> {
+  if (raw) { const d = new Date(String(raw)); if (!isNaN(d.getTime())) return d }
+  const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  return dueDateFromTerms((co as any)?.settings)
+}
 
 // ============================================
 // TYPES
@@ -398,7 +413,7 @@ async function migrateFromJobber(
           subtotal: inv.amounts?.subtotal?.toString() || '0',
           tax: inv.amounts?.tax?.toString() || '0',
           issueDate: inv.issuedDate ? new Date(inv.issuedDate) : new Date(),
-          dueDate: inv.dueDate ? new Date(inv.dueDate) : null,
+          dueDate: await migratedDueDate(companyId, inv.dueDate),
           contactId,
           notes: inv.subject || null,
         }).returning()
@@ -571,7 +586,7 @@ async function migrateFromServiceTitan(
           subtotal: String(inv.subtotal || inv.total || 0),
           tax: String(inv.salesTax || 0),
           issueDate: inv.createdOn ? new Date(inv.createdOn) : new Date(),
-          dueDate: inv.dueDate ? new Date(inv.dueDate) : null,
+          dueDate: await migratedDueDate(companyId, inv.dueDate),
         }).returning()
         progress.imported++
       } catch (err: any) {
@@ -725,7 +740,7 @@ async function migrateFromHousecallPro(
           subtotal: String(inv.subtotal || inv.total_amount || 0),
           tax: String(inv.tax_amount || 0),
           issueDate: inv.created_at ? new Date(inv.created_at) : new Date(),
-          dueDate: inv.due_date ? new Date(inv.due_date) : null,
+          dueDate: await migratedDueDate(companyId, inv.due_date),
         })
         progress.imported++
       } catch (err: any) {
