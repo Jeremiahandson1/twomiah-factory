@@ -34,6 +34,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [profile, setProfileForm] = useState({ firstName: '', lastName: '', phone: '' })
   const [users, setUsers] = useState<any[]>([])
+  // Blank is fine — it means "use the default". Anything else has to be a colour the portal header, the
+  // Stripe payment form and the invoice PDF can all actually paint. (T26 L5)
+  const brandInvalid = form.primaryColor.trim() !== '' && !/^#[0-9a-fA-F]{6}$/.test(form.primaryColor.trim())
   const [saving, setSaving] = useState(false)
   const [addUserOpen, setAddUserOpen] = useState(false)
   const [addingUser, setAddingUser] = useState(false)
@@ -208,8 +211,17 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                     onChange={set('primaryColor')}
                     className="h-10 w-12 shrink-0 rounded border border-gray-300 bg-white dark:border-slate-700 dark:bg-slate-800"
                   />
-                  <input value={form.primaryColor} onChange={set('primaryColor')} className={inputCls} placeholder={DEFAULT_BRAND} />
+                  <input value={form.primaryColor} onChange={set('primaryColor')} className={inputCls} placeholder={DEFAULT_BRAND} aria-invalid={brandInvalid || undefined} />
                 </div>
+                {/* An <input type="color"> cannot display a value it cannot parse, so it falls back to
+                    DEFAULT_BRAND — and DEFAULT_BRAND is orange. Typing "notahex" therefore painted the swatch
+                    a confident orange, which reads as "accepted, and your brand is orange" rather than
+                    "unusable". The refusal existed, but only at Save. Say it where it is typed. (T26 L5) */}
+                {brandInvalid && (
+                  <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-300">
+                    That is not a 6-digit hex value — the swatch is showing the default until this is fixed. Use something like {DEFAULT_BRAND}, or leave it blank.
+                  </p>
+                )}
               </Field>
               <h3 className="text-md font-semibold pt-2 text-gray-900 dark:text-white">Billing Defaults</h3>
               <div className="grid grid-cols-2 gap-4">

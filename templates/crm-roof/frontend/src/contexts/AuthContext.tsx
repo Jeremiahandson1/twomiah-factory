@@ -2,7 +2,10 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../lib/authToken'
 
 type User = { userId: string; email: string; role: string; companyId: string }
-type Company = { id: string; name: string; enabledFeatures: string[]; settings: any }
+// primaryColor and logo have been on the company row all along — /api/auth/me returns them and Settings →
+// Company sets them — this type just never named them, so anything in roof that wanted the tenant's brand
+// could not reach it without a cast. Optional, because a company that has never set one has neither.
+type Company = { id: string; name: string; enabledFeatures: string[]; settings: any; primaryColor?: string | null; logo?: string | null }
 type AuthState = { user: User | null; company: Company | null; token: string | null; login: (email: string, password: string) => Promise<void>; logout: () => void; hasFeature: (featureId: string) => boolean }
 
 const AuthContext = createContext<AuthState>(null as any)
