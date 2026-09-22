@@ -184,17 +184,28 @@ export function createTimeRoutes(deps: TimeDeps) {
     // into Monday, so the sheet jumped a week ahead while the crew was still working the old one.
     const weekTz = await companyTimeZone(db, currentUser.companyId)
     const weekStart = q.weekStart && validDate(q.weekStart) ? q.weekStart : getWeekStart(dayMarker(storeDateString(new Date(), weekTz)))
-    const start = new Date(weekStart); start.setHours(0, 0, 0, 0)
-    const end = new Date(start); end.setDate(end.getDate() + 7)
+    // `date` is a UTC-midnight day marker, so the week must be walked in UTC too.
+    //
+    // `new Date('2026-09-14')` parses as midnight UTC, and `setHours(0,0,0,0)` then moves it to the
+    // server's LOCAL midnight — which on any host behind UTC is the PREVIOUS day. Asking for the week
+    // of Monday the 14th returned a sheet that began on Sunday the 13th, and the buckets below had the
+    // same fault from the other side: `toDateString()` reads a UTC marker in local time, so Saturday's
+    // hours were counted on Friday. At a week boundary that puts them in the wrong PAY WEEK. The hours
+    // were never lost — they were paid in the wrong period, which is worse. (T24 N1, the read half:
+    // the write half was fixed by the day markers and /repair-day-markers.)
+    const start = dayMarker(weekStart)
+    const end = new Date(start); end.setUTCDate(end.getUTCDate() + 7)
     const rows = await db.select().from(t.timeEntry)
       .where(and(eq(t.timeEntry.userId, userId), eq(t.timeEntry.companyId, currentUser.companyId), gte(t.timeEntry.date, start), lt(t.timeEntry.date, end)))
       .orderBy(asc(t.timeEntry.date))
     const entries = await withRelations(currentUser.companyId, rows)
+    const dayOf = (v: any) => new Date(v).toISOString().slice(0, 10)
     const days = []
     for (let i = 0; i < 7; i++) {
-      const dayDate = new Date(start); dayDate.setDate(dayDate.getDate() + i)
-      const dayEntries = entries.filter((e: any) => new Date(e.date).toDateString() === dayDate.toDateString())
-      days.push({ date: dayDate, dayName: dayDate.toLocaleDateString('en-US', { weekday: 'short' }), entries: dayEntries, totalHours: round2(dayEntries.reduce((s: number, e: any) => s + Number(e.hours || 0), 0)) })
+      const dayDate = new Date(start); dayDate.setUTCDate(dayDate.getUTCDate() + i)
+      const key = dayOf(dayDate)
+      const dayEntries = entries.filter((e: any) => dayOf(e.date) === key)
+      days.push({ date: dayDate, dayName: dayDate.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' }), entries: dayEntries, totalHours: round2(dayEntries.reduce((s: number, e: any) => s + Number(e.hours || 0), 0)) })
     }
     return c.json({ weekStart: start, weekEnd: end, days, totalHours: round2(days.reduce((s, d) => s + d.totalHours, 0)) })
   })
