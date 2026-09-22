@@ -11,7 +11,7 @@
 // There is no `project` table here — that is the contractor lineage, not this one.
 import { createDocumentRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { document, documentVersion, contact, job, invoice, user } from '../../db/schema.ts'
+import { document, documentVersion, contact, job, invoice, user, planMarkup } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import storage from '../services/fileUpload.ts'
 
@@ -21,7 +21,7 @@ import storage from '../services/fileUpload.ts'
 // (uploadedById + createdAt) and by the version history.
 export default createDocumentRoutes({
   db,
-  tables: { document, documentVersion, contact, user },
+  tables: { document, documentVersion, contact, user, planMarkup },
   storage,
   authenticate,
   options: {

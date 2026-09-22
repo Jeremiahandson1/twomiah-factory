@@ -711,6 +711,24 @@ export const documentVersion = pgTable('document_version', {
   index('document_version_document_id_idx').on(t.documentId),
 ])
 
+// One saved layer of annotations over a document — boxes, freehand strokes and pinned notes, drawn on
+// a site photo or a plan. Shared with crm; the endpoints are in the shared files module and mount only
+// when this table is passed in.
+export const planMarkup = pgTable('plan_markup', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').default('Markup').notNull(),
+  // Annotation JSON: [{ kind: 'rect'|'line'|'pen'|'pin', points/coords, color, note? }]
+  data: text('data').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('plan_markup_document_id_idx').on(t.documentId),
+])
+
+
 
 // ==================== TEAM ====================
 
