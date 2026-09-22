@@ -1,7 +1,7 @@
 // The CRM shell: sidebar (feature-gated nav with optional section headers), header (search, theme,
 // user menu), trial banner, URL gate for modules the tenant doesn't have, error boundary per route.
 // One implementation for every CRM; the template passes its nav list, api, auth and socket state.
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useOutlet, useLocation, useNavigate } from 'react-router-dom'
 import { Menu, X, Home, Settings, LogOut, ChevronDown, Building, User, Sun, Moon } from 'lucide-react'
 import { useTheme, useIsMobile } from './hooks'
@@ -48,6 +48,23 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
 
   // Core items always show; feature-gated items show if ANY listed feature is enabled.
   const navItems = useMemo(() => config.nav.filter((i) => !i.features || i.features.some((f) => hasFeature(f))), [config.nav, hasFeature])
+
+  // Is there nav below the fold? Drives the fade at the bottom of the sidebar. Recomputed on scroll and on
+  // resize, and whenever the list itself changes length — switching a module on in Settings can be what
+  // tips the column over. ResizeObserver is guarded because jsdom does not always have one. (T26 L10)
+  const navRef = useRef<HTMLElement | null>(null)
+  const [moreNavBelow, setMoreNavBelow] = useState(false)
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return
+    const update = () => setMoreNavBelow(el.scrollHeight - el.scrollTop - el.clientHeight > 4)
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null
+    ro?.observe(el)
+    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update); ro?.disconnect() }
+  }, [navItems.length])
 
   // A module that is not part of this tenant's vertical/plan must not be reachable by URL either — the
   // sidebar hid it, but /crm/rfis still rendered contractor pages inside a salon. Gate from the same
@@ -116,7 +133,18 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
           </div>
         )}
 
-        <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Sidebar">
+        {/* The nav scrolls when a tenant has enough modules — 828px of links in a 613px column — and said so
+            nowhere: Windows and macOS both hide overlay scrollbars until you are already scrolling, so the
+            links below the fold simply did not exist as far as the eye was concerned. Two affordances, because
+            they fail in different places: `scrollbar-color` makes the browser draw a real, persistent bar
+            (setting it opts Chromium out of overlay scrollbars), and the fade below says "more" even where a
+            bar is styled away. (Field Service T26 L10) */}
+        <div className="relative flex-1 min-h-0">
+        <nav
+          ref={navRef}
+          className="h-full overflow-y-auto py-4 px-3 [scrollbar-width:thin] [scrollbar-color:rgb(203_213_225)_transparent] dark:[scrollbar-color:rgb(51_65_85)_transparent]"
+          aria-label="Sidebar"
+        >
           <ul className="space-y-1" role="list">
             {navItems.map((item, index) => {
               const prev = navItems[index - 1]
@@ -140,6 +168,14 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
             })}
           </ul>
         </nav>
+        {moreNavBelow && (
+          <div
+            aria-hidden="true"
+            data-testid="sidebar-more-below"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white to-transparent dark:from-slate-900"
+          />
+        )}
+        </div>
 
         <div className="border-t dark:border-slate-800 p-3">
           <RouterLink to="/crm/settings" className={({ isActive }) => linkCls(isActive)}>
