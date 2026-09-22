@@ -14,6 +14,10 @@ export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading, hasFeature } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
+  // The recent-activity feed is its OWN endpoint. The panel below used to read stats.recentActivity —
+  // a key /api/dashboard/stats has never returned — so it showed "No recent activity" permanently, over
+  // a tenant with 5 jobs, 5 quotes and 5 invoices waiting on /api/dashboard/recent-activity. (T26 M1)
+  const [activity, setActivity] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,12 +27,13 @@ export default function CustomerPortal() {
   async function fetchStats() {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_URL}/api/dashboard/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setStats(await res.json());
-      }
+      const auth = { headers: { 'Authorization': `Bearer ${token}` } };
+      const [statsRes, activityRes] = await Promise.all([
+        fetch(`${API_URL}/api/dashboard/stats`, auth).catch(() => null),
+        fetch(`${API_URL}/api/dashboard/recent-activity`, auth).catch(() => null),
+      ]);
+      if (statsRes?.ok) setStats(await statsRes.json());
+      if (activityRes?.ok) setActivity(await activityRes.json());
     } catch (err) {
       // Stats may not be available yet
     } finally {
@@ -250,23 +255,46 @@ export default function CustomerPortal() {
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
-            {stats?.recentActivity?.length > 0 ? (
-              stats.recentActivity.slice(0, 5).map((item, i) => (
-                <div key={i} className="px-6 py-3 flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-sm text-slate-700">{item.description}</span>
-                  <span className="text-xs text-slate-400 ml-auto">
-                    {formatDate(item.createdAt)}
-                  </span>
+            {(() => {
+              // /api/dashboard/recent-activity answers with recentJobs / recentQuotes / recentInvoices —
+              // the three lists this panel is for. It read stats.recentActivity, which no endpoint on this
+              // CRM produces, so the empty state was the only thing it could ever render. (T26 M1)
+              const jobs = activity?.recentJobs || [];
+              const quotes = activity?.recentQuotes || [];
+              const invoices = activity?.recentInvoices || [];
+              const when = (v: any) => (v ? formatDate(v) : '');
+              return (jobs.length || quotes.length || invoices.length) ? (
+                <>
+                  {jobs.slice(0, 2).map((item: any) => (
+                    <div key={`j-${item.id}`} className="px-6 py-3 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span className="text-sm text-slate-700">Job: {item.title || item.number || item.id} — {(item.status || 'scheduled').replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt || item.createdAt)}</span>
+                    </div>
+                  ))}
+                  {quotes.slice(0, 2).map((item: any) => (
+                    <div key={`q-${item.id}`} className="px-6 py-3 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="text-sm text-slate-700">Quote {item.number || item.id} — {(item.status || 'draft').replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt || item.createdAt)}</span>
+                    </div>
+                  ))}
+                  {invoices.slice(0, 2).map((item: any) => (
+                    <div key={`i-${item.id}`} className="px-6 py-3 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-sm text-slate-700">Invoice {item.number || item.id} — {(item.status || 'draft').replace(/_/g, ' ')}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt || item.createdAt)}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="px-6 py-8 text-center">
+                  <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">No recent activity</p>
+                  <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
                 </div>
-              ))
-            ) : (
-              <div className="px-6 py-8 text-center">
-                <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">No recent activity</p>
-                <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
 
