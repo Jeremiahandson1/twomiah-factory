@@ -422,7 +422,13 @@ export default function LoyaltyPage() {
                         {member.tier || member.loyaltyTier || 'Bronze'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{member.points || 0}</td>
+                    {/* The balance column is `points_balance` on loyalty_members, and GET /api/loyalty/members
+                        is a `SELECT lm.*` camelCased — so it arrives as pointsBalance and there has never been
+                        a `points` field on it to read. This cell asked for one, got undefined, and printed 0 for
+                        every member on every run, beside a Lifetime Points column reading the right number from
+                        the right name. Nine reports. (T28 M-a)
+                        `points` is kept as a fallback because /api/contacts/:id/loyalty does send that name. */}
+                    <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-slate-100">{member.pointsBalance ?? member.points ?? 0}</td>
                     <td className="px-4 py-3 text-right text-gray-600 dark:text-slate-400">{member.lifetimePoints || 0}</td>
                     <td className="px-4 py-3 text-right text-gray-900 dark:text-slate-100">${Number(member.totalSpent || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">{member.joinedAt ? formatDate(member.joinedAt) : '—'}</td>
