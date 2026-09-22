@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal } from '../components/ui/Modal';
+import { orderLabel } from '../utils/order';
 
 const statusSteps = ['pending', 'processing', 'completed'];
 
@@ -139,7 +140,7 @@ export default function OrderDetailPage() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">
-              Order #{order.orderNumber || order.id?.slice(0, 8)}
+              Order #{orderLabel(order)}
             </h1>
             <p className="text-gray-500 dark:text-slate-400">
               {order.createdAt ? new Date(order.createdAt).toLocaleString() : '—'}
@@ -339,10 +340,58 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-slate-400">Processed by</span>
-                <span className="text-gray-900 dark:text-slate-100">{order.processedBy || order.createdByName || '—'}</span>
+                {/* The endpoint resolves budtender_id to a name now; this read `processedBy || createdByName`
+                    and the API returned neither, so every order said "—". A kiosk order has no budtender
+                    until the register settles it, and that still says so rather than guessing. (T28 L-g) */}
+                <span className="text-gray-900 dark:text-slate-100">{order.processedBy || (order.type === 'kiosk' ? 'Kiosk (not yet settled)' : '—')}</span>
               </div>
             </div>
           </div>
+
+          {/* Customer — the page carried the name as a suffix on the heading and nothing else, so a sale
+              that belonged to a real customer looked anonymous and there was no way to reach them from the
+              order. Shown only when there is one: a walk-in is genuinely nobody. (T28 L-g) */}
+          {(order.customer || order.customerName) && (
+            <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
+              <h2 className="font-semibold text-gray-900 mb-4 dark:text-slate-100">Customer</h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-500 dark:text-slate-400">Name</span>
+                  {order.customer?.id ? (
+                    <button
+                      onClick={() => navigate(`/crm/customers/${order.customer.id}`)}
+                      className="text-green-700 hover:underline font-medium text-right dark:text-green-300"
+                    >
+                      {order.customerName || order.customer.name}
+                    </button>
+                  ) : (
+                    <span className="text-gray-900 text-right dark:text-slate-100">{order.customerName}</span>
+                  )}
+                </div>
+                {order.customer?.email && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500 dark:text-slate-400">Email</span>
+                    <a href={`mailto:${order.customer.email}`} className="text-gray-900 text-right break-all hover:underline dark:text-slate-100">{order.customer.email}</a>
+                  </div>
+                )}
+                {order.customer?.phone && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500 dark:text-slate-400">Phone</span>
+                    <a href={`tel:${order.customer.phone}`} className="text-gray-900 text-right hover:underline dark:text-slate-100">{order.customer.phone}</a>
+                  </div>
+                )}
+                {order.customer?.medicalCardNumber && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-500 dark:text-slate-400">Medical card</span>
+                    <span className="font-mono text-gray-900 text-right dark:text-slate-100">{order.customer.medicalCardNumber}</span>
+                  </div>
+                )}
+                {!order.customer && (
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Name taken at the till — this sale is not linked to a customer record.</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Audit Trail */}
           <div className="bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
@@ -370,7 +419,7 @@ export default function OrderDetailPage() {
       <Modal
         isOpen={refundOpen}
         onClose={() => !refunding && setRefundOpen(false)}
-        title={`Refund order #${order.orderNumber || order.id?.slice(0, 8)}`}
+        title={`Refund order #${orderLabel(order)}`}
         size="lg"
       >
         <div className="space-y-5">

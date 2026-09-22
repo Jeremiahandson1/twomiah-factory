@@ -1,3 +1,4 @@
+import { orderRef } from '../utils/order';
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -150,10 +151,10 @@ export default function DashboardPage() {
             {recentOrders.length > 0 ? recentOrders.slice(0, 8).map((order: any) => (
               <div key={order.id} className="p-4 flex items-center justify-between">
                 <div>
-                  {/* `number` is what the order carries — orderNumber was never a field on it, so this
-                      printed the row id. Falling back to the id is worse than saying nothing: it looks
-                      like an order number and is not one. (Dispensary T24) */}
-                  <p className="font-medium text-gray-900 dark:text-slate-100">{order.number ? `#${order.number}` : '—'}</p>
+                  {/* `number` is what the order carries. This was right and the Orders list was not, which
+                      is how the same sale read "#ORD-1145" here and "#1145" there — so both go through one
+                      helper now. (Dispensary T24, T28 L-b) */}
+                  <p className="font-medium text-gray-900 dark:text-slate-100">{orderRef(order)}</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400">{order.customerName || 'Walk-in'}</p>
                 </div>
                 <div className="text-right">

@@ -150,7 +150,14 @@ if (!/COUNT\(CASE WHEN status IN \$\{settledSale\} THEN 1 END\)::int as complete
   const page = read('templates/crm-dispensary/frontend/src/pages/DashboardPage.tsx')
   if (/order\.orderNumber/.test(page)) fail('the Recent Orders widget reads orderNumber, which an order does not have')
   if (/\|\| order\.id\}/.test(page)) fail('…and must not fall back to the row id: that looks like an order number and is not one')
-  if (!/order\.number \? `#\$\{order\.number\}` : '—'/.test(page)) fail('…it must print the order number, or nothing')
+  // The rule has not changed; where it lives has. T28 L-b found the dashboard printing "#ORD-1145" and the
+  // Orders list "#1145" for the same sale, so all six surfaces now go through utils/order. The assertion
+  // follows the logic: the widget must use that helper, and the helper must obey what T24 settled here —
+  // an order number, or an em dash, and never the row id dressed up as one. (It tried to: this caught it.)
+  if (!/orderRef\(order\)/.test(page)) fail('…it must render the order label through utils/order, like every other surface')
+  const helper = read('templates/crm-dispensary/frontend/src/utils/order.ts')
+  if (/\.id\b[^\n]*slice\(0, ?8\)/.test(helper)) fail('…and the shared label helper must not fall back to the row id either — that is the T24 fault, moved')
+  if (!/return '—'/.test(helper)) fail('…it has to be able to say there is no order number at all')
 }
 
 if (failed) { console.error(`\nrevenue one definition: ${failed} check(s) FAILED`); process.exit(1) }

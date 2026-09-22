@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
+import { orderRef } from '../utils/order';
 import { useNavigate } from 'react-router-dom';
 import { Search, Eye, RotateCcw, ShoppingCart } from 'lucide-react';
 import api from '../services/api';
@@ -84,8 +85,11 @@ export default function OrdersPage() {
     {
       key: 'orderNumber',
       label: 'Order #',
-      render: (val: string, row: any) => (
-        <span className="font-medium text-gray-900 dark:text-slate-100">#{val || row.id?.slice(0, 8)}</span>
+      // One label for every surface. This column printed the raw sequence integer ("#1145") while the
+      // dashboard printed the ORD- code ("#ORD-1145") for the same sale — and an order raised from the
+      // online menu or an offline sync has no sequence integer at all. (T28 L-b)
+      render: (_val: string, row: any) => (
+        <span className="font-medium text-gray-900 dark:text-slate-100">{orderRef(row)}</span>
       ),
     },
     {

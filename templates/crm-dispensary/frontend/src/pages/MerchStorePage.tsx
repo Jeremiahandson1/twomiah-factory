@@ -1,3 +1,4 @@
+import { orderRef } from '../utils/order';
 import { useState, useEffect, useCallback } from 'react';
 import { formatDate } from '../utils/date';
 import { useNavigate } from 'react-router-dom';
@@ -138,7 +139,8 @@ export default function MerchStorePage() {
     {
       key: 'orderNumber',
       label: 'Order #',
-      render: (val: string, row: any) => <span className="font-medium text-gray-900 dark:text-slate-100">#{val || row.id?.slice(0, 8)}</span>,
+      // Same /api/orders rows as the Orders list, so the same label. (T28 L-b)
+      render: (_val: string, row: any) => <span className="font-medium text-gray-900 dark:text-slate-100">{orderRef(row)}</span>,
     },
     {
       key: 'customerName',

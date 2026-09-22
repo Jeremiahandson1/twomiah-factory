@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { order, orderItem, product, contact, company } from '../../db/schema.ts'
+import { order, orderItem, product, contact, company, user } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc, count, sql, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -162,7 +162,23 @@ app.get('/:id', async (c) => {
     customer = c || null
   }
 
-  return c.json({ ...foundOrder, items, customer })
+  // customer_name is only filled in for a walk-in whose name was typed, so an order linked to a real
+  // customer came back with customerName null and the detail page printed nothing — even though the
+  // nested customer object was sitting right there. The LIST has resolved this since T20; the single-order
+  // read never got the same treatment. Same answer, so the two agree. (Dispensary T28 L-g)
+  const customerName = foundOrder.customerName || customer?.name || null
+
+  // Who rang it up. The page asks for `processedBy`, the column is budtender_id, and nothing ever turned
+  // one into the other — so every order read "Processed by —". A kiosk order genuinely has no budtender
+  // until the register settles it, and that stays null rather than being filled in with a guess.
+  let processedBy: string | null = null
+  if ((foundOrder as any).budtenderId) {
+    const [u] = await db.select({ firstName: user.firstName, lastName: user.lastName, email: user.email })
+      .from(user).where(eq(user.id, (foundOrder as any).budtenderId)).limit(1)
+    if (u) processedBy = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.email || null
+  }
+
+  return c.json({ ...foundOrder, customerName, processedBy, items, customer })
 })
 
 // Create order (budtender/field+)

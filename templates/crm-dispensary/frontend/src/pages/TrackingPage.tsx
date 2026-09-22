@@ -1,3 +1,4 @@
+import { orderRef } from '../utils/order';
 import { useState, useEffect, useCallback } from 'react';
 import {
   MapPin, Navigation, Clock, CheckCircle, Truck, User, Phone, Battery,
@@ -392,7 +393,7 @@ export default function TrackingPage() {
                       className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 dark:border-slate-700"
                     />
                     <div className="flex-1 text-sm">
-                      <span className="font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id?.slice(0, 8)}</span>
+                      <span className="font-medium text-gray-900 dark:text-slate-100">{orderRef(order)}</span>
                       <span className="mx-2 text-gray-500 dark:text-slate-400">|</span>
                       <span className="text-gray-600 dark:text-slate-400">{order.customerName || 'Unknown'}</span>
                       <span className="mx-2 text-gray-500 dark:text-slate-400">|</span>

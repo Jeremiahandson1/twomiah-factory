@@ -1,3 +1,4 @@
+import { orderRef } from '../../utils/order';
 import { useState, useEffect } from 'react';
 import { formatDate } from '../../utils/date';
 import { useParams, useNavigate, Link } from 'react-router-dom';
@@ -258,7 +259,7 @@ export default function ContactDetailPage() {
                     <div className="flex items-center gap-3">
                       <ShoppingCart className="w-5 h-5 text-gray-400" />
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-slate-100">#{order.orderNumber || order.id?.slice(0, 8)}</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">{orderRef(order)}</p>
                         <p className="text-sm text-gray-500 dark:text-slate-400">
                           {order.createdAt ? formatDate(order.createdAt) : '—'}
                           {' · '}{order.itemCount || order.items?.length || 0} items
