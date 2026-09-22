@@ -1561,3 +1561,14 @@ jobs:
           bun-version: latest
       - name: "Check no null invoice due date"
         run: bun run scripts/check-no-null-invoice-due-date.ts
+
+  money-keeps-its-currency:
+    name: "Money keeps its currency symbol"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check money figures print a currency symbol"
+        run: bun run scripts/check-money-keeps-its-currency.ts

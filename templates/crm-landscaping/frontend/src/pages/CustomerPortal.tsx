@@ -38,7 +38,7 @@ export default function CustomerPortal() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600" />
       </div>
     );
@@ -74,7 +74,7 @@ export default function CustomerPortal() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
       <header className="bg-white border-b border-slate-200 dark:bg-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -90,10 +90,10 @@ export default function CustomerPortal() {
                   {companyName.charAt(0)}
                 </div>
               )}
-              <h1 className="text-lg font-bold text-slate-900">{companyName}</h1>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">{companyName}</h1>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-slate-500">
+              <span className="text-sm text-slate-500 dark:text-slate-400">
                 {user?.firstName} {user?.lastName}
               </span>
               <button
@@ -111,10 +111,10 @@ export default function CustomerPortal() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
             Welcome back{user?.firstName ? `, ${user.firstName}` : ''}
           </h2>
-          <p className="text-slate-500 mt-1">Manage your business from one place</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">Manage your business from one place</p>
         </div>
 
         {/* Quick Stats */}
@@ -126,14 +126,14 @@ export default function CustomerPortal() {
               { label: 'Contacts', value: (stats as any).contacts ?? 0, icon: Users, color: 'blue' },
               { label: 'Open Jobs', value: (stats as any).jobs?.open ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Pending Quotes', value: (stats as any).quotes?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Total Invoiced', value: `${Number((stats as any).invoices?.totalValue ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Total Invoiced', value: `$${Number((stats as any).invoices?.totalValue ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
                   <stat.icon className={`w-4 h-4 text-${stat.color}-500`} />
                 </div>
-                <p className="text-xl font-bold text-slate-900">{loading ? '—' : stat.value}</p>
-                <p className="text-xs text-slate-500">{stat.label}</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-slate-100">{loading ? '—' : stat.value}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{stat.label}</p>
               </div>
             ))}
           </div>
@@ -157,10 +157,10 @@ export default function CustomerPortal() {
               >
                 <Briefcase className="w-6 h-6" style={{ color: primaryColor }} />
               </div>
-              <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 dark:text-slate-400 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Business CRM</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Business CRM</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Contacts, jobs, quotes, invoices, scheduling, and more
             </p>
           </div>
@@ -179,19 +179,19 @@ export default function CustomerPortal() {
                   <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
                     <Globe className="w-6 h-6 text-emerald-600" />
                   </div>
-                  <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
+                  <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 dark:text-slate-400 transition-all" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
-                <p className="text-sm text-slate-500">View your public-facing website</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Live Website</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">View your public-facing website</p>
               </a>
             ) : (
               <div className="bg-white rounded-xl border border-slate-200 p-6 relative overflow-hidden opacity-75 dark:bg-slate-900">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-slate-300" />
-                <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center mb-4">
+                <div className="w-12 h-12 rounded-xl bg-slate-50 dark:bg-slate-950 flex items-center justify-center mb-4">
                   <Globe className="w-6 h-6 text-slate-400" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
-                <p className="text-sm text-slate-500">Your website address hasn’t been set yet — add it in Settings.</p>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Live Website</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Your website address hasn’t been set yet — add it in Settings.</p>
               </div>
             )
           )}
@@ -209,10 +209,10 @@ export default function CustomerPortal() {
                 <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center">
                   <Palette className="w-6 h-6 text-purple-600" />
                 </div>
-                <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
+                <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 dark:text-slate-400 transition-all" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Website Manager</h3>
-              <p className="text-sm text-slate-500">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Website Manager</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Edit pages, services, gallery, and content
               </p>
             </a>
@@ -234,8 +234,8 @@ export default function CustomerPortal() {
                   FREE TRIAL
                 </span>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Pricebook</h3>
-              <p className="text-sm text-slate-500">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Pricebook</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Standardized pricing catalog — consistent quotes, faster estimates
               </p>
             </div>
@@ -251,10 +251,10 @@ export default function CustomerPortal() {
               <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
                 <Settings className="w-6 h-6 text-slate-600" />
               </div>
-              <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
+              <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 dark:text-slate-400 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Account Settings</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1">Account Settings</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
               Company info, users, integrations, billing
             </p>
           </div>
@@ -263,14 +263,14 @@ export default function CustomerPortal() {
         {/* Recent Activity */}
         <div className="bg-white rounded-xl border border-slate-200 dark:bg-slate-900">
           <div className="px-6 py-4 border-b border-slate-100">
-            <h3 className="font-semibold text-slate-900">Recent Activity</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
             {stats?.recentActivity?.length > 0 ? (
               stats.recentActivity.slice(0, 5).map((item, i) => (
                 <div key={i} className="px-6 py-3 flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-sm text-slate-700">{item.description}</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{item.description}</span>
                   <span className="text-xs text-slate-400 ml-auto">
                     {formatDate(item.createdAt)}
                   </span>
@@ -279,7 +279,7 @@ export default function CustomerPortal() {
             ) : (
               <div className="px-6 py-8 text-center">
                 <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">No recent activity</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">No recent activity</p>
                 <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
               </div>
             )}
