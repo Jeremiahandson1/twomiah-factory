@@ -113,7 +113,13 @@ export default function AnalyticsPage() {
               key={p.value}
               onClick={() => setPeriod(p.value)}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                period === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900 dark:hover:text-slate-200'
+                // Both states sat inside a dark:bg-slate-800 rail with no dark partner of their own: the
+                // unselected label stayed gray-600 on slate-800 (measured 1.94:1) and the selected pill
+                // stayed a stark white chip. Give each its dark half rather than darkening the light one.
+                // (T28 M-f)
+                period === p.value
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200'
               }`}
             >
               {p.label}
@@ -188,16 +194,20 @@ export default function AnalyticsPage() {
             {revenueData.length > 0 ? revenueData.map((day: any, idx: number) => (
               <div key={idx} className="flex items-center gap-3">
                 <span className="text-xs text-gray-500 w-16 shrink-0 dark:text-slate-400">{day.label || day.date}</span>
+                {/* The amount used to sit INSIDE the bar as white-on-green-500 — about 2.1:1, and wrong in
+                    both themes rather than only the dark one, so no dark: partner could have fixed it. It
+                    reads as body text beside the bar now, the way the Product Mix chart below already shows
+                    its figures. The bar's 40px minimum went with it: that width existed only to keep the
+                    label legible, and it overstated small days. (T28 M-f) */}
                 <div className="flex-1 bg-gray-100 rounded-full h-6 overflow-hidden dark:bg-slate-800">
                   <div
-                    className="bg-green-500 h-full rounded-full flex items-center justify-end pr-2"
-                    style={{ width: `${(day.revenue / maxRevenue) * 100}%`, minWidth: day.revenue > 0 ? '40px' : '0' }}
-                  >
-                    {day.revenue > 0 && (
-                      <span className="text-xs text-white font-medium">${Number(day.revenue).toLocaleString()}</span>
-                    )}
-                  </div>
+                    className="bg-green-500 h-full rounded-full"
+                    style={{ width: `${(day.revenue / maxRevenue) * 100}%`, minWidth: day.revenue > 0 ? '4px' : '0' }}
+                  />
                 </div>
+                <span className="text-xs font-medium text-gray-900 w-24 shrink-0 text-right tabular-nums dark:text-slate-100">
+                  {day.revenue > 0 ? `$${Number(day.revenue).toLocaleString()}` : ''}
+                </span>
               </div>
             )) : (
               <p className="text-gray-500 text-sm text-center py-8 dark:text-slate-400">No revenue data for this period</p>

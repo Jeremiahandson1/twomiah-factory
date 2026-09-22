@@ -245,9 +245,14 @@ export default function ProductsPage() {
             key={cat.value}
             onClick={() => setCategory(cat.value)}
             className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+              // The selected chip was white on green-600, which is 3.30:1 — the figure the tester
+              // measured, and wrong in BOTH themes, so unlike the rest of this sweep there is no dark:
+              // partner that could fix it. green-700 carries white at 5.01:1 and stays the same green.
+              // The unselected chip is the ordinary case: a bare white pill with no dark half at all,
+              // sitting on a dark page. (T28 M-f)
               category === cat.value
-                ? 'bg-green-600 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                ? 'bg-green-700 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800'
             }`}
           >
             {cat.label}

@@ -266,16 +266,23 @@ export default function CashPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-slate-200">{session.openedByName || '—'}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(session.openingAmount || 0).toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-right text-green-600">${Number(session.cashSales || 0).toFixed(2)}</td>
+                    {/* Same missing partner, one column over — it was not measured only because green-600
+                        scrapes 5.42:1 on this ground. Paired anyway, so the money columns match. */}
+                    <td className="px-4 py-3 text-sm text-right text-green-600 dark:text-green-400">${Number(session.cashSales || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(expected).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium dark:text-slate-100">
                       {session.closingAmount != null ? `$${Number(session.closingAmount).toFixed(2)}` : '—'}
                     </td>
+                    {/* Each variance variant carried only its light colour, so on the dark row the shortfall
+                        read 3.70:1 (red-600 on slate-900) and the overage 3.46:1 (blue-600) — the two figures
+                        the tester measured. The 400-weight partners land at 6.45:1 and 7.02:1 on the same
+                        ground. The exact-match green already passed at 5.42:1 and gets its partner too, so
+                        the three stay one set. (T28 M-f) */}
                     <td className="px-4 py-3 text-sm text-right">
                       {variance != null ? (
                         <span className={`font-medium ${
-                          Math.abs(variance) < 0.01 ? 'text-green-600' :
-                          variance > 0 ? 'text-blue-600' : 'text-red-600'
+                          Math.abs(variance) < 0.01 ? 'text-green-600 dark:text-green-400' :
+                          variance > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'
                         }`}>
                           {variance > 0 ? '+' : ''}{Number(variance).toFixed(2)}
                         </span>
