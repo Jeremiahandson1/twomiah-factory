@@ -1539,3 +1539,14 @@ jobs:
           bun-version: latest
       - name: "Check kiosk lines carry category and weight"
         run: bun run scripts/check-kiosk-lines-say-what-they-are.ts
+
+  loyalty-defaults-agree:
+    name: "Loyalty form defaults match the engine"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check loyalty defaults agree"
+        run: bun run scripts/check-loyalty-defaults-agree.ts

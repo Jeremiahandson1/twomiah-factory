@@ -22,11 +22,19 @@ export default function LoyaltyPage() {
   const [tab, setTab] = useState('config');
 
   // Config
+  // These are what the form shows BEFORE the saved config arrives, so each one has to be the value the
+  // server would actually use if nothing has been configured — otherwise the screen advertises a setting
+  // the engine will not honour. Points per dollar (1), the tier thresholds and the on/off switch all match
+  // their backend defaults. The two bonuses did not: they showed 50 and 100 against a deliberate backend
+  // default of 0 ("nothing is given away that nobody asked for"), so a tenant that had never configured a
+  // bonus still read as offering one. A tester reading 50 here and then seeing an $80 first purchase award
+  // exactly 80 points is looking at two different numbers, not a bug in the award engine. (T28 M-b)
+  // Keep these in step with DEFAULT_* in backend/src/utils/loyaltyConfig.ts.
   const [config, setConfig] = useState({
     pointsPerDollar: '1',
     tierThresholds: { silver: '500', gold: '1500', platinum: '5000' },
-    welcomePoints: '50',
-    birthdayBonus: '100',
+    welcomePoints: '0',
+    birthdayBonus: '0',
     isEnabled: true,
   });
   const [savingConfig, setSavingConfig] = useState(false);
