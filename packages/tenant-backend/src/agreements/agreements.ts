@@ -349,14 +349,21 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       agreementId, scheduledDate: new Date(data.scheduledDate), notes: data.notes, status: 'scheduled',
     }).returning()
     if (data.createJob) {
-      await db.insert(job).values({
-        companyId,
-        contactId: agreement.contactId,
-        number: `JOB-AGR-${Date.now()}`,
-        title: `${agreement.name} - ${data.serviceType || 'Maintenance Visit'}`,
-        scheduledDate: new Date(data.scheduledDate),
-        status: 'scheduled',
-        notes: `Service Agreement: ${agreement.name}`,
+      // Same JOB- sequence as every other job. It used to be `JOB-AGR-<timestamp>`, so a customer's
+      // list read JOB-00047, JOB-AGR-1758543210123, JOB-00048 — unreadable, out of order, and outside
+      // the numbering an auditor expects to be unbroken. nextNumber takes a per-company advisory lock
+      // released at commit, which is why this runs in a transaction. (N4)
+      await db.transaction(async (tx: any) => {
+        const number = await nextNumber(tx, job, job.number, job.companyId, companyId, { prefix: 'JOB', pad: 5 })
+        await tx.insert(job).values({
+          companyId,
+          contactId: agreement.contactId,
+          number,
+          title: `${agreement.name} - ${data.serviceType || 'Maintenance Visit'}`,
+          scheduledDate: new Date(data.scheduledDate),
+          status: 'scheduled',
+          notes: `Service Agreement: ${agreement.name}`,
+        })
       })
     }
     return visit
@@ -417,22 +424,33 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
   async function processAgreementBilling(agreementId: string, companyId: string) {
     const agreement = await getAgreement(agreementId, companyId)
     if (!agreement) throw new Error('Agreement not found')
-    const [inv] = await db.insert(invoice).values({
-      companyId,
-      contactId: agreement.contactId,
-      number: `INV-AGR-${Date.now()}`,
-      status: 'sent',
-      issueDate: new Date(),
-      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      subtotal: String(agreement.amount),
-      total: String(agreement.amount),
-    }).returning()
-    await db.insert(invoiceLineItem).values({
-      invoiceId: inv.id,
-      description: `${agreement.name} - ${agreement.billingFrequency} billing`,
-      quantity: '1',
-      unitPrice: String(agreement.amount),
-      total: String(agreement.amount),
+    // An agreement invoice is an invoice: it belongs in the INV- sequence with the rest.
+    //
+    // `INV-AGR-<timestamp>` put a number in the customer's list that no one can read aloud, that sorts
+    // nowhere, and that breaks the unbroken sequence a tax authority expects. money.ts already had to
+    // teach nextNumber to IGNORE these so they could not hijack the real sequence — damage control for
+    // a number that should never have been minted. The line item is written in the same transaction so
+    // an invoice can never exist without it. (N4)
+    const inv = await db.transaction(async (tx: any) => {
+      const number = await nextNumber(tx, invoice, invoice.number, invoice.companyId, companyId, { prefix: 'INV', pad: 5 })
+      const [created] = await tx.insert(invoice).values({
+        companyId,
+        contactId: agreement.contactId,
+        number,
+        status: 'sent',
+        issueDate: new Date(),
+        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        subtotal: String(agreement.amount),
+        total: String(agreement.amount),
+      }).returning()
+      await tx.insert(invoiceLineItem).values({
+        invoiceId: created.id,
+        description: `${agreement.name} - ${agreement.billingFrequency} billing`,
+        quantity: '1',
+        unitPrice: String(agreement.amount),
+        total: String(agreement.amount),
+      })
+      return created
     })
     const billedAt = new Date()
     await db.update(serviceAgreement).set({
@@ -601,9 +619,14 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       if (lastJob && !['completed', 'cancelled'].includes(lastJob.status)) throw new Error('Previous scheduled job still pending')
     }
     const [agrContact] = await db.select().from(contact).where(eq(contact.id, agr.contactId)).limit(1)
-    const [{ value: cnt }] = await db.select({ value: count() }).from(job).where(eq(job.companyId, companyId))
-    const [newJob] = await db.insert(job).values({
-      number: `JOB-${String(Number(cnt) + 1).padStart(5, '0')}`,
+    // Counting the rows was worse than the timestamp it sat beside: delete one job and the next count
+    // lands on a number already in use, and job.number carries no unique constraint to catch it — two
+    // jobs, one number, saved without complaint. Two staff generating at the same moment collide the
+    // same way. nextNumber reads the highest number actually issued, under a per-company lock. (N4)
+    const newJob = await db.transaction(async (tx: any) => {
+      const number = await nextNumber(tx, job, job.number, job.companyId, companyId, { prefix: 'JOB', pad: 5 })
+      const [row] = await tx.insert(job).values({
+      number,
       title: `${agr.name} — Scheduled Maintenance`,
       description: `Auto-generated from service agreement: ${agr.name}`,
       status: 'scheduled',
@@ -618,7 +641,9 @@ export function createAgreementsService(deps: AgreementsServiceDeps) {
       companyId,
       contactId: agr.contactId,
       serviceAgreementId: agreementId,
-    }).returning()
+      }).returning()
+      return row
+    })
     const rule = agr.recurrenceRule as { frequency: string; dayOfMonth?: number; monthOfYear?: number[] }
     const nextDate = advanceDate(agr.nextServiceDate, rule)
     await db.update(serviceAgreement).set({ lastGeneratedJobId: newJob.id, nextServiceDate: nextDate, updatedAt: new Date() })
