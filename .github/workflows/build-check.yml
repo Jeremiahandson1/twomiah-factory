@@ -1627,3 +1627,14 @@ jobs:
           bun-version: latest
       - name: "Check the purchase-limit sellability test"
         run: bun run scripts/check-one-countable-definition.ts
+
+  no-invented-data:
+    name: "No invented dispensary data"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check tax category is derived and the seed ships no trading data"
+        run: bun run scripts/check-dispensary-no-invented-data.ts

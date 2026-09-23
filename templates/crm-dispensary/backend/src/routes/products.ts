@@ -8,6 +8,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { putObject } from '../services/fileUpload.ts'
 import { stripHtml } from '../utils/sanitize.ts'
+import { isCannabisLine } from '../utils/cannabis.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -94,7 +95,12 @@ const productSchema = z.object({
   weightUnit: z.enum(['g', 'oz', 'mg', 'ml', 'each']).default('g'),
   price: z.coerce.number().min(0).max(1_000_000),
   costPrice: z.coerce.number().min(0).max(1_000_000).optional(),
-  taxCategory: z.enum(['cannabis', 'non_cannabis']).default('cannabis'),
+  // NOT defaulted. The form does not send this field, so `.default('cannabis')` meant every product
+  // added through Add Product was cannabis — merch and accessories included, charged cannabis excise
+  // since March and, once weightless cannabis started being refused, unsellable as well. Left
+  // optional here and derived from the CATEGORY below, using the one definition of what cannabis is.
+  // (Dispensary T33 H1)
+  taxCategory: z.enum(['cannabis', 'non_cannabis']).optional(),
   trackInventory: z.boolean().default(true),
   stockQuantity: z.coerce.number().int().min(0).default(0),
   lowStockThreshold: z.coerce.number().int().min(0).default(10),
@@ -226,6 +232,10 @@ app.post('/', requireRole('manager'), async (c) => {
   // the legal limit. (compliance)
   // An explicit weightGrams wins: it is already the unit the purchase-limit maths reads, so
   // re-deriving it from weight+unit would round-trip for nothing. The column is TEXT. (T32 L4)
+  // An explicit taxCategory from the caller wins (an operator can say a hemp product is not
+  // cannabis); otherwise the category decides, through isCannabisLine — the same function the
+  // register, the kiosk, tax and the purchase limit all use.
+  values.taxCategory = data.taxCategory ?? (isCannabisLine({ category: data.category }) ? 'cannabis' : 'non_cannabis')
   if (data.weightGrams != null) values.weightGrams = String(data.weightGrams)
   else if (data.weight != null) values.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
   if (data.thcMg != null) values.thcMg = String(data.thcMg)
@@ -258,6 +268,10 @@ app.put('/:id', requireRole('manager'), async (c) => {
   if (data.price != null) updateData.price = String(data.price)
   if (data.costPrice != null) updateData.costPrice = String(data.costPrice)
   if ('unit' in updateData) { updateData.unitType = updateData.unit; delete updateData.unit }
+  // Changing a product FROM Flower TO Merch has to move its tax category with it, or the row keeps
+  // charging excise under a new name. An explicit taxCategory still wins.
+  if (data.taxCategory != null) updateData.taxCategory = data.taxCategory
+  else if (data.category != null) updateData.taxCategory = isCannabisLine({ category: data.category }) ? 'cannabis' : 'non_cannabis'
   if (data.weightGrams != null) updateData.weightGrams = String(data.weightGrams)
   else if (data.weight != null) updateData.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
   if (data.thcMg != null) updateData.thcMg = String(data.thcMg)
