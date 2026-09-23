@@ -216,6 +216,21 @@ if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
 // the two drift apart. A list of features means ANY of them unlocks the family, exactly as the nav
 // reads it. The kiosk is deliberately absent: its routes are public by design (a customer at a tablet,
 // no user to authenticate) and carry their own paired-device gate.
+// The tester turned Kiosk, Loyalty and Cash Management off and all three kept working: the M5 list
+// was built from the SIDEBAR, and these three have no nav entry keyed to their feature, so mirroring
+// the menu left them out. The registry is the real list of what can be switched off — 55 switchable
+// features for this template — and the menu is only one view of it. (Dispensary T31)
+app.use('/api/cash', authenticate, requireEnabledFeature('cash_management'))
+app.use('/api/cash/*', authenticate, requireEnabledFeature('cash_management'))
+app.use('/api/loyalty', authenticate, requireEnabledFeature('loyalty_rewards'))
+app.use('/api/loyalty/*', authenticate, requireEnabledFeature('loyalty_rewards'))
+// The SOC 2 page is the one place the nav name and the API name disagree: /crm/soc2 reads
+// /api/compliance-controls. The M5 guard compares the two lists by NAME, so it could not see this
+// pair at all — and it could not even read the nav entry, because its path has a digit in it and the
+// pattern only allowed letters. The nav hid the page; every shop could still read the controls
+// dashboard, the retention policies and the access reviews straight off the API. (Dispensary T31)
+app.use('/api/compliance-controls', authenticate, requireEnabledFeature('soc2'))
+app.use('/api/compliance-controls/*', authenticate, requireEnabledFeature('soc2'))
 app.use('/api/batches', authenticate, requireEnabledFeature('batches'))
 app.use('/api/batches/*', authenticate, requireEnabledFeature('batches'))
 app.use('/api/locations', authenticate, requireEnabledFeature('multi_location'))

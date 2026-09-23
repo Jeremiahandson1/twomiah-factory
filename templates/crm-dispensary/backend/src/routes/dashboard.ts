@@ -127,16 +127,26 @@ app.get('/stats', async (c) => {
     // sales. Counted over the SAME settled row set and the same store day as the tiles beside it, so
     // it cannot contradict them. (Dispensary T29 M8)
     safe(() => db.execute(sql`
-      SELECT oi.product_id as id, oi.product_name as name, oi.category,
-             SUM(oi.quantity)::int as units_sold,
-             COALESCE(SUM(NULLIF(oi.line_total, '')::numeric), 0) as revenue
+      -- Written to be the same question Analytics → Product Mix answers, because the two panels sit one
+      -- click apart and a buyer restocks from whichever they happen to be looking at. Two ways they
+      -- differed, both fixed in the mix and neither here:
+      --   returns   a Shatter sold twice and returned twice read "2 sold / $80" on the dashboard and
+      --             "0 sold / $0" in the mix. refunded_quantity records the units that came back. (T31 L3)
+      --   renames   grouping by the line's NAME snapshot splits a renamed product in two. Group by the
+      --             id, which is what identifies a product, and show the name it has now. (T21)
+      SELECT oi.product_id as id,
+             COALESCE(MAX(p.name), MAX(oi.product_name)) as name,
+             COALESCE(MAX(p.category), MAX(oi.category)) as category,
+             GREATEST(0, SUM(oi.quantity) - SUM(COALESCE(oi.refunded_quantity, 0)))::int as units_sold,
+             GREATEST(0, COALESCE(SUM(NULLIF(oi.line_total, '')::numeric), 0) - COALESCE(SUM(COALESCE(oi.refunded_quantity, 0) * NULLIF(oi.unit_price, '')::numeric), 0)) as revenue
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
+      LEFT JOIN products p ON p.id = oi.product_id
       WHERE o.company_id = ${companyId}
         AND o.status IN ${settledSale}
         AND o.completed_at >= ${today}
         AND o.completed_at < ${tomorrow}
-      GROUP BY oi.product_id, oi.product_name, oi.category
+      GROUP BY oi.product_id, CASE WHEN oi.product_id IS NULL THEN oi.product_name END
       ORDER BY units_sold DESC
       LIMIT 5
     `), { rows: [] }),

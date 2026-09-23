@@ -276,7 +276,9 @@ export default function OrderDetailPage() {
             {!order.idVerified && (
               <p className="text-xs text-gray-600 dark:text-slate-300">
                 A cannabis sale cannot be completed until someone has checked the customer's ID.
-                {order.customerDob ? ' The kiosk recorded a date of birth — check it against the card.' : ''}
+                {/* Show the date, not just the fact that there is one: a budtender holding the card cannot
+                    check it against a sentence. (T31 L5) */}
+                {order.customerDob ? ` The kiosk recorded ${new Date(String(order.customerDob).slice(0, 10) + 'T00:00:00').toLocaleDateString()} as the date of birth — check it against the card.` : ''}
               </p>
             )}
           </div>

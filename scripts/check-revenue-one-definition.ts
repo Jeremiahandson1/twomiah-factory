@@ -104,7 +104,15 @@ for (const [file, label] of TAX_SURFACES) {
 // The filing is the one people submit, so it gets pinned by name as well as by shape.
 const filing = read(R + 'routes/tax-filing.ts')
 if (/\n      AND status = 'completed'\n/.test(filing)) fail('the tax filing must not select its orders on completed-only — that is the figure the return is built from')
-if ((filing.match(/AND status IN \$\{taxCollected\}/g) || []).length < 3) fail('…every tax total in it (the filing itself and both year-to-date summaries) must use the shared row set')
+// Either form counts: `AND status IN ${taxCollected}` in the WHERE, or `FILTER (WHERE status IN
+// ${taxCollected})` on each sum. The filing's own query now needs the second, because its COUNT is a
+// different question from its money — a sale handed back in full is still a sale that happened, and
+// filing 31 on a day everything else called 33 is what T31 L4 reported. The money is still scoped to
+// the tax row set; only the count is not.
+if ((filing.match(/status IN \$\{taxCollected\}/g) || []).length < 3) fail('…every tax total in it (the filing itself and both year-to-date summaries) must use the shared row set')
+if (/AND status IN \$\{settledSale\}/.test(filing) && !/FILTER \(WHERE status IN \$\{taxCollected\}\)/.test(filing)) {
+  fail('the tax filing selects the settled row set without scoping its tax sums back to taxCollected — that credits the state with the gross of a sale that was handed back in full')
+}
 // EOD was already right; pinned so it cannot drift back.
 const eod = read(R + 'routes/eod.ts')
 if ((eod.match(/FILTER \(WHERE status IN \$\{taxCollected\}\)/g) || []).length < 3) fail('the EOD report must take excise, sales and total tax from the shared row set')

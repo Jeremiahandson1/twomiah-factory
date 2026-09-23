@@ -281,7 +281,7 @@ app.get('/customers', async (c) => {
 
   // Match /summary + /sales bounds so the panel lines up with the KPI row and charts — whole STORE
   // days, see storeRange above. (retest#8, T27 H2)
-  const { start, end } = storeRange(await tzFor(currentUser.companyId), startDate, endDate)
+  const { start, end, from, to } = storeRange(await tzFor(currentUser.companyId), startDate, endDate)
 
   const [rangeResult, newResult, ltvResult] = await Promise.all([
     // In-range cohort: unique/returning customers, avg visits, retention.
@@ -374,6 +374,11 @@ app.get('/customers', async (c) => {
     retentionRate,
     avgVisits: Number(range.avg_visits || 0),
     lifetimeValue: Number(ltvRow.lifetime_value || 0),
+    // The window these numbers were counted over, in the STORE's calendar. Omitting the dates means
+    // the last 30 days, which nothing said: a tester read 4 customers / 4.75 visits off this endpoint
+    // and 2 / 7.5 off the Analytics page, called it a disagreement, and both were right — the page had
+    // asked for 7 days. Two figures cannot be compared until you can see what each one covers. (T31 L2)
+    range: { from, to },
   })
 })
 

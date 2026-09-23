@@ -203,6 +203,20 @@ export default function POSPage() {
   const round2 = (n: number) => Math.round(n * 100) / 100;
   const subtotal = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const cannabisSubtotal = cart.reduce((sum, i) => sum + (isCannabisItem(i) ? i.price * i.quantity : 0), 0);
+
+  // Can this product be rung up at all? The server refuses a cannabis line whose weight in grams and
+  // THC in milligrams are both unknown, because it cannot be counted against the purchase limit
+  // (utils/cannabis.ts, uncountableCannabisLines). Ask the same question HERE so the refusal arrives
+  // on the tile, not at the end of a basket. (Dispensary T31)
+  const unitGramsOf = (p: any) => Number(
+    p?.weightGrams != null && String(p.weightGrams) !== ''
+      ? p.weightGrams
+      : p?.weight ? (p.weightUnit === 'oz' ? Number(p.weight) * 28.3495 : Number(p.weight)) : 0
+  ) || 0;
+  const cannotBeSold = (p: any) =>
+    (p?.taxCategory === 'cannabis' || (p?.taxCategory !== 'non_cannabis' && CANNABIS_CATEGORIES.includes(String(p?.category || '').toLowerCase())))
+    && unitGramsOf(p) <= 0
+    && !(Number(p?.thcMg) > 0);
   const discountAmount = loyaltyApplied ? Math.min(loyaltyDiscount, subtotal) : 0;
   const cannabisShare = subtotal > 0 ? cannabisSubtotal / subtotal : 0;
   const exciseAmount = round2(Math.max(0, cannabisSubtotal - discountAmount * cannabisShare) * exciseRate);
@@ -457,14 +471,18 @@ export default function POSPage() {
                 <button
                   key={product.id}
                   onClick={() => addToCart(product)}
-                  disabled={product.stockQuantity <= 0}
+                  disabled={product.stockQuantity <= 0 || cannotBeSold(product)}
+                  title={cannotBeSold(product) ? 'No weight or THC mg recorded, so this cannot be counted against the purchase limit. Set one in Products.' : undefined}
                   className={`p-3 rounded-lg text-left transition-all ${
-                    product.stockQuantity <= 0
+                    product.stockQuantity <= 0 || cannotBeSold(product)
                       ? 'bg-gray-100 opacity-50 cursor-not-allowed dark:bg-slate-800'
                       : 'bg-white hover:shadow-md hover:border-green-300 border border-gray-200 dark:bg-slate-800 dark:border-slate-700'
                   }`}
                 >
                   <p className="font-medium text-gray-900 text-sm truncate dark:text-slate-100">{product.name}</p>
+                  {cannotBeSold(product) && (
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">Needs a weight or THC mg</p>
+                  )}
                   <div className="flex items-center gap-1 mt-1">
                     {product.strainType && product.strainType !== 'na' && (
                       <span className={`text-xs px-1.5 py-0.5 rounded ${

@@ -9,7 +9,13 @@ import { readFileSync } from 'node:fs'
 const file = 'templates/crm-dispensary/backend/src/routes/kiosk.ts'
 const raw = readFileSync(new URL('../' + file, import.meta.url), 'utf8')
 // Strip line + block comments so the guard checks real code, not prose describing the old bug.
-const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+//
+// Both patterns are anchored to the start of a line, because `/*` and `//` are also ordinary text
+// inside a string: the first wildcard route mounted here — app.use('/devices/*', …) — opened a block
+// comment that ran 8,410 characters and swallowed resolveCompanyId's SQL, so this guard reported the
+// tenant-isolation rule broken by a route mount that has nothing to do with it. A guard that fails on
+// correct code gets switched off, which would have cost the real check it exists to make. (T31)
+const src = raw.replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '').replace(/^[ \t]*\/\/[^\n]*/gm, '')
 
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
@@ -116,7 +122,9 @@ else {
 }
 // the order has to carry what the register and the state reports read afterwards (T21 M13)
 if (!/total_cannabis_weight_oz, total_weight_grams, customer_dob/.test(src)) fail('a kiosk order must record grams and the date of birth it checked, not just the ounces')
-if (!/\$\{totalGrams\.toFixed\(2\)\}/.test(src)) fail('…the computed grams, which EOD and Metrc read')
+// Through the shared rounder, which is what stops 0.1 g + 0.2 g being written as 0.30000000000000004 —
+// the kiosk had its own .toFixed(2) and the register and online menu had nothing at all. (T31 L7)
+if (!/\$\{gramsText\(totalGrams\)\}/.test(src)) fail('…the computed grams, through gramsText(), which EOD and Metrc read')
 if (!/\$\{session\.dob_provided \|\| null\}/.test(src)) fail("…and the date of birth from the session, so the budtender's own check does not start blank")
 
 // The kiosk API had no credential at all: anyone with the hostname could create real orders. A customer is
@@ -175,7 +183,9 @@ else {
   if (!/createEnabledFeatureGate\(\{ db, tables: \{ company \} \}\)/.test(dispGate) || !/from '\.\.\/shared\/index\.ts'/.test(dispGate)) fail('crm-dispensary/middleware/enabledFeature.ts must be glue over the shared gate, not its own copy')
   if (/db\.select\(/.test(dispGate)) fail('…and must not carry its own gate logic')
 }
-if (!/isFeatureEnabled \} from '\.\.\/middleware\/enabledFeature\.ts'/.test(src)) fail(`${file}: must import the enabled-feature gate`)
+// Named alongside whatever else it needs — T31 added requireEnabledFeature here for the manager routes,
+// and pinning the import to exactly one name made a correct file fail.
+if (!/import \{[^}]*\bisFeatureEnabled\b[^}]*\} from '\.\.\/middleware\/enabledFeature\.ts'/.test(src)) fail(`${file}: must import the enabled-feature gate`)
 if (!/!\(await isFeatureEnabled\(companyId, 'kiosk'\)\)/.test(src)) fail(`${file}: a shop with the kiosk switched off must be refused the endpoint outright`)
 if (!/code: 'FEATURE_NOT_ENABLED'/.test(src)) fail(`${file}: …under the fleet's own code, so the screen reads it the same way everywhere`)
 {

@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
+import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -103,6 +103,14 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   if (isNaN(periodStart.getTime()) || isNaN(periodEnd.getTime())) {
     return c.json({ error: 'Invalid date range' }, 400)
   }
+  // "2026-09-30" parses to the INSTANT that day begins, and the queries below bound on
+  // `completed_at <= periodEnd` — so a September filing counted nothing that happened on the 30th,
+  // and a single-day filing counted nothing at all. A period named by two dates means the whole of
+  // both days, which is what the start bound already assumes. Only a bare date is extended; a caller
+  // that sends a timestamp means that instant. (Dispensary T31, found proving L4)
+  const periodEndBound = /^\d{4}-\d{2}-\d{2}$/.test(String(endStr))
+    ? new Date(periodEnd.getTime() + 86_400_000 - 1)
+    : periodEnd
   const state = data.state ? data.state.toUpperCase().slice(0, 2) : null
 
   // The sales tax was actually collected on, in the period. orders.subtotal/excise_tax/sales_tax/total_tax
@@ -112,24 +120,35 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
   // whole of that sale's tax, not just the refunded share. The figure a return is filed from was the one
   // under-reporting the liability. It now uses the same row set as the EOD and compliance tax reports, so
   // the number you file matches the number you reconcile against. (T23 H1)
+  // Two row sets on purpose, and the difference is the whole of T31 L4.
+  //
+  // COUNT is "sales in this period", which has one answer everywhere in this product: the settled set,
+  // fully refunded sales included. Filing over taxCollected alone reported 31 sales on a day every
+  // other surface called 33, and a count that disagrees with the rest of the CRM is the kind of thing
+  // a person notices on the one report they sign.
+  //
+  // MONEY stays on taxCollected. A sale handed back in full handed its tax back too, so it owes
+  // nothing — but a legacy row refunded before refunded_tax existed records no returned tax, and
+  // widening the sums would credit the state with its gross. The filing is not the place to find out.
+  // (Dispensary T31 L4)
   const ordersResult = await db.execute(sql`
     SELECT
       COUNT(*)::int as total_orders,
-      COALESCE(SUM(CAST(NULLIF(subtotal, '') AS numeric)), 0) as total_subtotal,
+      COALESCE(SUM(CAST(NULLIF(subtotal, '') AS numeric)) FILTER (WHERE status IN ${taxCollected}), 0) as total_subtotal,
       -- NET of tax handed back with refunds, like every other tax surface. This summed the gross, so
       -- once refunds started being netted elsewhere (T29 M4) this became the one report left
       -- over-stating: $1,056.00 here against $1,031.68 everywhere else, the gap widening with every
       -- amount refund — on the figure someone actually files. There are TWO tax-filing surfaces, this
       -- route and the block inside compliance.ts, and M4 only found the other one. (Dispensary T31)
-      COALESCE(SUM(${exciseNetExprBare}), 0) as total_excise_tax,
-      COALESCE(SUM(${salesNetExprBare}), 0) as total_sales_tax,
-      COALESCE(SUM(${taxNetExprBare}), 0) as total_tax_collected,
-      COALESCE(SUM(CAST(NULLIF(total, '') AS numeric)), 0) as total_revenue
+      COALESCE(SUM(${exciseNetExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_excise_tax,
+      COALESCE(SUM(${salesNetExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_sales_tax,
+      COALESCE(SUM(${taxNetExprBare}) FILTER (WHERE status IN ${taxCollected}), 0) as total_tax_collected,
+      COALESCE(SUM(CAST(NULLIF(total, '') AS numeric)) FILTER (WHERE status IN ${taxCollected}), 0) as total_revenue
     FROM orders
     WHERE company_id = ${currentUser.companyId}
-      AND status IN ${taxCollected}
+      AND status IN ${settledSale}
       AND completed_at >= ${periodStart}
-      AND completed_at <= ${periodEnd}
+      AND completed_at <= ${periodEndBound}
   `)
   const orderStats = ((ordersResult as any).rows || ordersResult)?.[0] || {}
 
@@ -145,7 +164,7 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status = 'completed'
       AND o.completed_at >= ${periodStart}
-      AND o.completed_at <= ${periodEnd}
+      AND o.completed_at <= ${periodEndBound}
     GROUP BY oi.category
     ORDER BY category_revenue DESC
   `)

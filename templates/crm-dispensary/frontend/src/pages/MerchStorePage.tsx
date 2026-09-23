@@ -196,7 +196,7 @@ export default function MerchStorePage() {
         <button
           onClick={() => setTab('products')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'products' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'products' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           <Package className="w-4 h-4" /> Products
@@ -204,7 +204,7 @@ export default function MerchStorePage() {
         <button
           onClick={() => setTab('orders')}
           className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            tab === 'orders' ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            tab === 'orders' ? 'border-green-600 text-green-700 dark:text-green-300' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           <ShoppingBag className="w-4 h-4" /> Online Orders

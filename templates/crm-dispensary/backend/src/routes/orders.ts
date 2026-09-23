@@ -8,11 +8,15 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
 import { taxRatesFor, assessTax, cannabisSubtotalOf } from '../utils/tax.ts'
+import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
 import { checkFilter } from '../shared/index.ts'
+
+/** Does this shop have loyalty switched on? The award below is the thing the switch has to reach. */
+const loyaltyEnabled = (companyId: string) => isFeatureEnabled(companyId, 'loyalty_rewards')
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -328,6 +332,13 @@ app.post('/', async (c) => {
   // kiosk (utils/tax.ts) so the two tills cannot charge differently. (T29 B2)
   const { salesRate, exciseRate } = taxRatesFor(companyRow)
 
+  // Spending points is the same module as earning them, so it answers to the same switch. A shop
+  // that has switched Loyalty off should not be able to take a reward off a cart either — the whole
+  // point of turning a module off is that it stops, not that one half of it does. (Dispensary T31)
+  if ((data.loyaltyRewardId || data.loyaltyPointsRedeemed > 0) && !(await loyaltyEnabled(currentUser.companyId))) {
+    return c.json({ error: 'Loyalty is switched off for this shop. Turn it on in Settings to redeem points or rewards.' }, 403)
+  }
+
   // Reward redemption (M-7): price the chosen catalog reward server-side and charge its
   // pointsCost. fixed → $value; percent → value% of the eligible lines (applicableCategories,
   // else the whole cart); free_item → the reward's product must be in the cart, its unit price
@@ -480,7 +491,7 @@ app.post('/', async (c) => {
       loyaltyPointsRedeemed: data.loyaltyPointsRedeemed,
       loyaltyRewardId: rewardId,
       total: String(grandTotal),
-      totalWeightGrams: String(totalWeightGrams),
+      totalWeightGrams: gramsText(totalWeightGrams),
       // Compliance/EOD read the oz field too; it was left at its '0' default. (retest#7)
       totalCannabisWeightOz: (totalWeightGrams / 28.3495).toFixed(2),
       notes: data.notes,
@@ -735,6 +746,12 @@ app.post('/:id/complete', async (c) => {
     ? Math.max(0, round2(data.cashTendered - orderTotal))  // round to cents (retest#6 N6); never negative (F-08)
     : 0
 
+  // Read the switch BEFORE the transaction opens. Asking for it inside meant a query on the outer
+  // connection pool while the transaction held a connection — on a single-connection database that is
+  // a deadlock, and on a pooled one it is a read that is not part of the transaction deciding on it.
+  // It is also one lookup per sale either way, and this one is cached. (Dispensary T31)
+  const loyaltyOn = await loyaltyEnabled(currentUser.companyId)
+
   try {
   await db.transaction(async (tx) => {
     // CLAIM the order before spending anything. `completed_at IS NULL` in the WHERE makes settling it
@@ -761,6 +778,12 @@ app.post('/:id/complete', async (c) => {
       paymentStatus: 'paid',
       idVerified: idVerifiedNow,
       ...(data.idVerified === true && !existing.idVerified ? { idVerifiedBy: currentUser.userId } : {}),
+      // Who rang it up. A register sale records this when the order is created; a KIOSK order has no
+      // user at that moment, so budtender_id stayed null and Order Detail read "Kiosk (not yet
+      // settled)" for ever — including after a budtender had settled it at the counter, which is
+      // exactly when the question "who handled this sale?" starts having an answer. COALESCE, not an
+      // overwrite: on a register sale the person who rang it up keeps the credit. (Dispensary T31 L5)
+      ...((existing as any).budtenderId ? {} : { budtenderId: currentUser.userId }),
       paymentMethod: data.paymentMethod,
       cashTendered: data.cashTendered != null ? String(data.cashTendered) : null,
       changeDue: String(changeDue),
@@ -797,7 +820,12 @@ app.post('/:id/complete', async (c) => {
     // "operator does not exist: text + unknown" and rolled the ENTIRE completion back
     // (no stock decrement, no payment) for any sale with a customer attached. Cast to
     // numeric so the arithmetic works whatever the column type is. (register/M5)
-    if (existing.contactId) {
+    //
+    // …and only when the shop HAS loyalty switched on. Gating /api/loyalty alone would have been
+    // another half-fix: the tester turned the module off and points kept accruing on every sale,
+    // because the award lives here, on the till, not behind that route. A switch has to reach the
+    // thing it switches off, not just the page that displays it. (Dispensary T31)
+    if (existing.contactId && loyaltyOn) {
       const [coRow] = await tx.select({ settings: company.settings, loyaltyPointsPerDollar: company.loyaltyPointsPerDollar }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
       const loyalty = loyaltyConfig(coRow)
       const pointsEarned = Math.floor(pointsBasis(existing) * loyalty.pointsPerDollar)

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { product, company, order, orderItem, contact } from '../../db/schema.ts'
 import { eq, and, asc, sql } from 'drizzle-orm'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, gramsText } from '../utils/cannabis.ts'
 
 // Cannabis purchase limit: the company's configured/state limit (utils/cannabis.ts) — was a hardcoded 2.5 oz.
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax
@@ -305,7 +305,7 @@ app.post('/order', async (c) => {
       salesTax: String(salesTax),
       totalTax: String(totalTax),
       total: String(grandTotal),
-      totalWeightGrams: String(totalWeightGrams),
+      totalWeightGrams: gramsText(totalWeightGrams),
       notes: data.notes,
       pickupTime: data.pickupTime ? new Date(data.pickupTime) : null,
       deliveryAddress: data.deliveryAddress,

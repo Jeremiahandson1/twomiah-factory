@@ -5,12 +5,12 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ, isCannabisLine, unitGramsOf, uncountableCannabisLines, unweighedCannabisRefusal } from '../utils/cannabis.ts'
+import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ, isCannabisLine, unitGramsOf, uncountableCannabisLines, unweighedCannabisRefusal, gramsText } from '../utils/cannabis.ts'
 import { taxRatesFor, assessTax, cannabisSubtotalOf } from '../utils/tax.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 import { deviceForToken, claimPairingCode, kioskEnforcement, newPairingCode, PAIRING_TTL_MS, type PairedDevice } from '../services/kioskDevice.ts'
-import { isFeatureEnabled } from '../middleware/enabledFeature.ts'
+import { isFeatureEnabled, requireEnabledFeature } from '../middleware/enabledFeature.ts'
 
 // Typed context: the signed-in user on the manager routes, and the paired tablet on the customer ones.
 // Untyped, every c.get(...) in this file was a TS2769 — two of them before this change, six after it.
@@ -30,6 +30,21 @@ app.use('/session/:token/checkout', createRateLimiter(KIOSK_WINDOW_MS, KIOSK_MAX
  * a tablet is enforcing — see kioskEnforcement(); one that has not still works and is recorded instead, so
  * this cannot black out a shop mid-onboarding. (Dispensary T21 B1, reopened four runs running as T23 B1)
  */
+/**
+ * What the KIOSK says when a product cannot be sold. The register's refusal names the product and
+ * tells the reader to "Set a weight (or THC mg) on it in Products" — correct for a budtender, and
+ * addressed to someone who is not standing at the tablet. A customer got it at checkout, with a full
+ * basket, no way to take the item back out, and an instruction they cannot act on. Same fact, said to
+ * the person actually reading it. (Dispensary T31)
+ */
+const CANNOT_SELL_HERE = (names: string[]) => ({
+  error: names.length === 1
+    ? `Sorry — ${names[0]} isn't available to buy right now. Please ask a member of staff.`
+    : `Sorry — ${names.join(', ')} aren't available to buy right now. Please ask a member of staff.`,
+  code: 'product_unavailable',
+  products: names,
+})
+
 const requireDevice = async (c: any, next: any) => {
   const token = c.req.header('x-kiosk-token') || c.req.header('X-Kiosk-Token')
   const device = await deviceForToken(token)
@@ -57,11 +72,37 @@ const requireDevice = async (c: any, next: any) => {
 // be driven from anywhere without a paired device. (Dispensary T29 M1)
 // abandon is here for the same reason: it mutates a session, the tablet always holds the token, and
 // leaving one member of the family off the list is what produced this gap in the first place.
+// remove-item joined the family in T31 and joined this list in the same edit.
 app.use('/session/start', requireDevice)
 app.use('/session/:token/verify-age', requireDevice)
 app.use('/session/:token/add-item', requireDevice)
 app.use('/session/:token/checkout', requireDevice)
+app.use('/session/:token/remove-item', requireDevice)
 app.use('/session/:token/abandon', requireDevice)
+
+// The tester switched Kiosk off and the whole module kept answering: the manager pages still listed
+// devices and sessions, and the public menu still served. requireDevice covers the five routes that
+// move a SESSION forward, which is every route a customer drives — but a module is not only what the
+// customer touches. These are the rest of it: the menu and pairing on the public side, and the four
+// manager endpoints behind Settings and the Kiosk page. (Dispensary T31)
+const kioskModuleOn = async (c: any, next: any) => {
+  // No user here — these are public — so the company comes from the device or the host, same as requireDevice.
+  const device = await deviceForToken(c.req.header('x-kiosk-token') || c.req.header('X-Kiosk-Token'))
+  const companyId = device?.companyId || c.get('kioskCompanyId') || (await resolveCompanyId(null))
+  if (companyId && !(await isFeatureEnabled(companyId, 'kiosk'))) {
+    return c.json({ error: 'The kiosk is not enabled for this account.', code: 'FEATURE_NOT_ENABLED', feature: 'kiosk' }, 403)
+  }
+  return next()
+}
+app.use('/menu', kioskModuleOn)
+app.use('/pair', kioskModuleOn)
+app.use('/pair/status', kioskModuleOn)
+
+// The manager side has a user, so it answers to the ordinary gate every other module uses.
+app.use('/devices', authenticate, requireEnabledFeature('kiosk'))
+app.use('/devices/*', authenticate, requireEnabledFeature('kiosk'))
+app.use('/sessions', authenticate, requireEnabledFeature('kiosk'))
+app.use('/stats', authenticate, requireEnabledFeature('kiosk'))
 
 // Raw-SQL rows come back snake_case, but the kiosk UI and the manager Sessions page read
 // camelCase (sessionToken, ageVerified, locationName, strainType, thcPercent, imageUrl...).
@@ -349,6 +390,24 @@ app.get('/menu', async (c) => {
     return c.json({ data: [], pagination: { page, limit, total: 0, pages: 0 } })
   }
 
+  // A product the checkout cannot count is a product this menu must not offer. The tester tapped a
+  // chocolate bar with no weight recorded, filled a basket, and was stopped at the end by a message
+  // written for staff — a dead end, because a kiosk cart has no way back out. The test is the same
+  // helper the register and the checkout use, run over the catalog, so the menu and the till cannot
+  // disagree about what is sellable; only the ids it excludes are pushed into SQL, so paging and the
+  // count stay exact. (Dispensary T31)
+  const sellability = await db.execute(sql`
+    SELECT id, name, category, tax_category, weight_grams, weight, weight_unit, thc_mg, thc_percent
+    FROM products
+    WHERE company_id = ${companyId} AND active = true AND COALESCE(in_stock, true) = true
+  `)
+  const unsellableIds = rows(sellability)
+    .filter((p: any) => uncountableCannabisLines([{ product: camel(p), quantity: 1 }]).length > 0)
+    .map((p: any) => String(p.id))
+  const sellableFilter = unsellableIds.length
+    ? sql`AND p.id NOT IN (${sql.join(unsellableIds.map((m) => sql`${m}`), sql`, `)})`
+    : sql``
+
   let categoryFilter = sql``
   if (category) categoryFilter = sql`AND p.category = ${category}`
 
@@ -365,6 +424,7 @@ app.get('/menu', async (c) => {
       AND COALESCE(p.in_stock, true) = true
       ${categoryFilter}
       ${searchFilter}
+      ${sellableFilter}
     ORDER BY p.category ASC, p.name ASC
     LIMIT ${limit} OFFSET ${offset}
   `)
@@ -376,6 +436,7 @@ app.get('/menu', async (c) => {
       AND COALESCE(p.in_stock, true) = true
       ${categoryFilter}
       ${searchFilter}
+      ${sellableFilter}
   `)
 
   const data = rows(dataResult).map(camel)
@@ -401,13 +462,19 @@ app.post('/session/:token/add-item', async (c) => {
   // Validate product exists and is in stock. Products are company-scoped, not location-scoped.
   // The weight/category columns come back too, because the purchase limit below has to weigh this line.
   const productResult = await db.execute(sql`
-    SELECT id, name, price, sale_price, in_stock, category, tax_category, weight_grams, weight, weight_unit
+    SELECT id, name, price, sale_price, in_stock, category, tax_category, weight_grams, weight, weight_unit, thc_mg, thc_percent
     FROM products
     WHERE id = ${data.productId} AND company_id = ${session.company_id} AND active = true
   `)
   const product = rows(productResult)?.[0]
   if (!product) return c.json({ error: 'Product not found' }, 404)
   if (product.in_stock === false) return c.json({ error: 'Product is out of stock' }, 400)
+
+  // …and the same refusal the checkout would have given, given HERE, where there is still nothing in
+  // the basket to be stuck with. The menu hides these now, but a tablet holding a stale page can still
+  // ask for one, and the rule belongs on the write either way. (Dispensary T31)
+  const unsellable = uncountableCannabisLines([{ product: camel(product), quantity: data.quantity }])
+  if (unsellable.length) return c.json(CANNOT_SELL_HERE(unsellable), 400)
 
   const items = sessionItems(session)
   const unitPrice = Number(product.sale_price || product.price)
@@ -520,14 +587,18 @@ app.post('/session/:token/checkout', async (c) => {
   const totalGrams = cartCannabisGrams(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })), factors)
   const [companyRow] = rows(await db.execute(sql`SELECT purchase_limit_oz, state, tax_rate, excise_tax_rate FROM company WHERE id = ${companyId} LIMIT 1`))
   const limitOz = resolvePurchaseLimitOz(camel(companyRow) as any)
-  // Same refusal as the register: a cannabis line with no recorded weight counted as zero against the
-  // cap, so a basket of unweighed edibles walked straight through. (T29 H3)
-  const unweighed = unweighedCannabisRefusal(
-    uncountableCannabisLines(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })), factors),
+  // The same TEST as the register — a cannabis line with no recorded weight counted as zero against
+  // the cap, so a basket of unweighed edibles walked straight through (T29 H3) — but not the same
+  // SENTENCE. unweighedCannabisRefusal() tells the reader to set a weight in Products, which is the
+  // right instruction for a budtender and useless to a customer at a tablet. The audit entry keeps the
+  // staff wording, because that is who reads the audit log. (Dispensary T31)
+  const unsellableNames = uncountableCannabisLines(
+    items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })),
+    factors,
   )
-  if (unweighed) {
-    audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: unweighed, req: { user: { companyId } } })
-    return c.json(unweighed, 400)
+  if (unsellableNames.length) {
+    audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: unweighedCannabisRefusal(unsellableNames), req: { user: { companyId } } })
+    return c.json(CANNOT_SELL_HERE(unsellableNames), 400)
   }
   const over = overPurchaseLimit(totalGrams, limitOz)
   if (over) {
@@ -585,7 +656,7 @@ app.post('/session/:token/checkout', async (c) => {
       ${String(tax.grandTotal)},
       ${totalCannabisWeightOz},
       -- the register writes grams too, and EOD/Metrc read that column; a kiosk order left it at 0 (T21 M13)
-      ${totalGrams.toFixed(2)},
+      ${gramsText(totalGrams)},
       -- the date of birth the customer actually passed the gate with, so the budtender's own age check at the
       -- register has something to check against instead of starting blank (T21 M13)
       ${session.dob_provided || null},
@@ -684,6 +755,37 @@ app.post('/session/:token/abandon', async (c) => {
   `)
 
   return c.json({ message: 'Session abandoned' })
+})
+
+// POST /session/:token/remove-item — take one line back out of the basket
+//
+// There was no way to. Every other till in this product can void a line; the kiosk could only add,
+// so a customer who tapped the wrong thing — or tapped something the checkout then refused — had
+// exactly one exit, which was to abandon the whole session and start again. Indexed, not keyed on
+// productId, because the same product can sit on the basket twice with different notes and the
+// customer means the line they are looking at. (Dispensary T31)
+app.post('/session/:token/remove-item', async (c) => {
+  const token = c.req.param('token')
+  const session = await getSession(token)
+  if (!session) return c.json({ error: 'Session not found or expired' }, 404)
+  if (!session.age_verified) return c.json({ error: 'Age verification required' }, 403)
+
+  const body = await c.req.json().catch(() => ({} as any))
+  const items = sessionItems(session)
+  const index = Number(body?.index)
+  if (!Number.isInteger(index) || index < 0 || index >= items.length) {
+    return c.json({ error: 'That item is no longer in the basket.', code: 'item_not_in_basket' }, 400)
+  }
+  items.splice(index, 1)
+
+  const result = await db.execute(sql`
+    UPDATE kiosk_sessions
+    SET items = ${JSON.stringify(items)}::json, status = 'browsing', updated_at = NOW()
+    WHERE session_token = ${token}
+    RETURNING *
+  `)
+
+  return c.json(camel(rows(result)?.[0]))
 })
 
 // ===== ADMIN SESSION LIST (auth required) =====

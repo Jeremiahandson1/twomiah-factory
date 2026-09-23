@@ -42,6 +42,8 @@ export default function KioskOrderPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [cart, setCart] = useState<CartItem[]>([]);
+  // Why the last tap did not add anything. Shown on the shelf, not held back until checkout.
+  const [addError, setAddError] = useState('');
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -101,7 +103,10 @@ export default function KioskOrderPage() {
     let cancelled = false;
     api.request('/api/kiosk/pair/status', { method: 'GET', headers: kioskToken ? { 'X-Kiosk-Token': kioskToken } : {} })
       .then((s: any) => { if (!cancelled) setNeedsPairing(!s?.paired && s?.enforcement === 'enforce'); })
-      .catch(() => {});
+      // A shop that has switched the Kiosk module off now refuses every kiosk route, this one included.
+      // Say so on load: without this the tablet showed the age screen, took a date of birth, and only
+      // then answered "The kiosk is not enabled for this account." (Dispensary T31)
+      .catch((err: any) => { if (!cancelled && err?.data?.code === 'FEATURE_NOT_ENABLED') setError(err.message); });
     return () => { cancelled = true; };
   }, [kioskToken]);
 
@@ -161,6 +166,7 @@ export default function KioskOrderPage() {
   };
 
   const addToCart = async (product: any) => {
+    const snapshot = cart;
     const existing = cart.find(item => item.productId === product.id);
     if (existing) {
       setCart(prev => prev.map(item =>
@@ -180,15 +186,22 @@ export default function KioskOrderPage() {
       }]);
     }
 
-    // Sync with backend
+    // The till is the authority on what can go in the basket, so listen to it. This used to swallow
+    // every refusal — "Silently fail - cart state is local" — which meant an item the server had just
+    // rejected stayed on screen, in the cart, looking bought, until checkout refused the whole basket
+    // with a message written for staff. That is the dead end the tester walked into: a product that
+    // could never be sold, added without complaint, and no explanation until the end. Put the item
+    // back the way it was and say so now, while the customer is still looking at the shelf. (T31)
     if (sessionToken) {
       try {
         await kioskPost(`/api/kiosk/session/${sessionToken}/add-item`, {
           productId: product.id,
           quantity: 1,
         });
-      } catch (err) {
-        // Silently fail - cart state is local
+        setAddError('');
+      } catch (err: any) {
+        setCart(snapshot);
+        setAddError(err?.message || `Sorry — ${product.name} isn't available to buy right now. Please ask a member of staff.`);
       }
     }
   };
@@ -342,6 +355,13 @@ export default function KioskOrderPage() {
             )}
           </button>
         </div>
+
+        {addError && (
+          <div className="mx-6 mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-base text-amber-900 flex items-start justify-between gap-3 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            <span>{addError}</span>
+            <button onClick={() => setAddError('')} className="font-semibold underline underline-offset-2 shrink-0 touch-manipulation">Dismiss</button>
+          </div>
+        )}
 
         {/* Search */}
         <div className="px-6 pt-4">

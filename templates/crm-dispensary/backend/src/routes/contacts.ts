@@ -275,12 +275,25 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
 
+  // The same notice the create path gives. T29 L8 put it on POST only, so editing a customer and
+  // typing "T31 <i>it</i>" still saved "T31 it" in silence — the half of the screen most likely to
+  // be used, since a customer is created once and edited for years. Markup still goes (F-09); what
+  // changes is that the person who typed it is told. (Dispensary T31 L8)
+  const warnings: string[] = []
+  for (const [field, label] of [['name', 'name'], ['notes', 'notes'], ['address', 'address']] as const) {
+    const sent = (uBody as any)?.[field]
+    const stored = (data as any)?.[field]
+    if (typeof sent === 'string' && typeof stored === 'string' && sent.trim() !== stored.trim()) {
+      warnings.push(`The ${label} was saved as "${stored}" — formatting or markup was removed.`)
+    }
+  }
+
   const [updated] = await db.update(contact).set({ ...data, updatedAt: new Date() }).where(eq(contact.id, id)).returning()
   const safeUpdated = stripPortal(updated)
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_UPDATED, safeUpdated)
   const changes = audit.diff(existing, updated)
   if (changes) audit.log({ action: audit.ACTIONS.UPDATE, entity: 'contact', entityId: updated.id, entityName: updated.name, changes, req: c })
-  return c.json(safeUpdated)
+  return c.json(warnings.length ? { ...safeUpdated, warnings } : safeUpdated)
 })
 
 app.delete('/:id', requirePermission('contacts:delete'), async (c) => {

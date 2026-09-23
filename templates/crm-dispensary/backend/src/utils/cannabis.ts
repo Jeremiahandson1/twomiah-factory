@@ -94,6 +94,17 @@ export function unweighedCannabisRefusal(names: string[]): { error: string; code
   }
 }
 
+/**
+ * Grams the way an order stores them.
+ *
+ * A cart is weighed by adding floating-point numbers, so 0.1 g + 0.2 g lands on
+ * 0.30000000000000004 — and because the column is text, that is the string that got written and
+ * printed back on Order Detail. Three decimals is one milligram, finer than any scale in a
+ * dispensary. All three tills write through here, so the register, the online menu and the kiosk
+ * cannot record the same basket differently. (Dispensary T31 L7)
+ */
+export const gramsText = (g: number): string => String(Math.round((Number(g) || 0) * 1000) / 1000)
+
 /** Cannabis grams on a cart. Non-cannabis lines weigh nothing toward the limit. */
 export function cartCannabisGrams(lines: Array<{ product: any; quantity: any }>, factors?: EquivalencyFactors): number {
   let grams = 0

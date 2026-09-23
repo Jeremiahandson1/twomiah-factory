@@ -137,7 +137,11 @@ app.post('/members', async (c) => {
     req: c,
   })
 
-  return c.json(member, 201)
+  // camel(), like every other row this file returns. Enrolment was the one raw row that went out as
+  // it came back from Postgres — company_id, points_balance, total_points_earned — while the members
+  // list beside it was camelCase, so the page that had just enrolled someone read undefined off its own
+  // response and showed a blank balance until a reload. (Dispensary T31 L6)
+  return c.json(camel(member), 201)
 })
 
 // Adjust points manually (manager+)

@@ -119,8 +119,10 @@ export default function CustomersPage() {
     setSaving(true);
     try {
       if (editingCustomer) {
-        await api.put(`/api/contacts/${editingCustomer.id}`, formData);
+        const saved: any = await api.put(`/api/contacts/${editingCustomer.id}`, formData);
         toast.success('Customer updated');
+        // An edit that strips markup says so here too, not only on create. (T31 L8)
+        for (const w of saved?.warnings || []) toast.error(w);
       } else {
         let created: any;
         try {

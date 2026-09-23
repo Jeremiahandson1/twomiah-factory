@@ -79,7 +79,13 @@ const productSchema = z.object({
   // someone has typed grams. (Dispensary T31 high)
   thcMg: z.coerce.number().min(0).max(1000).optional(),
   cbdPercent: z.coerce.number().min(0).max(100).optional(),
-  weight: z.coerce.number().optional(),
+  // A weight cannot be negative. -3 was accepted on update and stored, and dropped to null on
+  // create — the product then could not be sold at all ("no weight recorded"), so the operator got
+  // a 200, a product that looked saved, and a till that refused it. Every other measure on this
+  // schema already says min(0); this one was the only one that did not. No ceiling: a wholesale
+  // unit can legitimately be large, and a new upper bound would turn existing rows into a wall.
+  // (Dispensary T31 L9)
+  weight: z.coerce.number().min(0).optional(),
   weightUnit: z.enum(['g', 'oz', 'mg', 'ml', 'each']).default('g'),
   price: z.coerce.number().min(0).max(1_000_000),
   costPrice: z.coerce.number().min(0).max(1_000_000).optional(),
