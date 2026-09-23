@@ -270,7 +270,7 @@ export default function KioskOrderPage() {
           <button
             onClick={handlePair}
             disabled={loading || pairingCode.trim().length < 6}
-            className="w-full py-6 px-8 bg-green-600 hover:bg-green-700 text-white text-2xl font-bold rounded-2xl transition-colors disabled:opacity-50 touch-manipulation"
+            className="w-full py-6 px-8 bg-green-600 hover:bg-green-800 text-white text-2xl font-bold rounded-2xl transition-colors disabled:opacity-50 touch-manipulation"
           >
             {loading ? 'Pairing...' : 'Pair kiosk'}
           </button>
@@ -307,7 +307,7 @@ export default function KioskOrderPage() {
           <button
             onClick={handleAgeVerify}
             disabled={loading || !dateOfBirth}
-            className="w-full py-6 px-8 bg-green-600 hover:bg-green-700 text-white text-2xl font-bold rounded-2xl transition-colors disabled:opacity-50 touch-manipulation"
+            className="w-full py-6 px-8 bg-green-600 hover:bg-green-800 text-white text-2xl font-bold rounded-2xl transition-colors disabled:opacity-50 touch-manipulation"
           >
             {loading ? 'Checking...' : 'Continue'}
           </button>
@@ -331,7 +331,7 @@ export default function KioskOrderPage() {
           </h1>
           <button
             onClick={() => setStep('cart')}
-            className="relative flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold text-lg transition-colors touch-manipulation"
+            className="relative flex items-center gap-2 bg-green-600 hover:bg-green-800 text-white px-6 py-3 rounded-xl font-semibold text-lg transition-colors touch-manipulation"
           >
             <ShoppingCart className="w-6 h-6" />
             Cart
@@ -363,7 +363,7 @@ export default function KioskOrderPage() {
             onClick={() => setSelectedCategory('all')}
             className={`px-5 py-2.5 rounded-xl text-base font-medium whitespace-nowrap transition-colors touch-manipulation ${
               selectedCategory === 'all'
-                ? 'bg-green-600 text-white'
+                ? 'bg-green-700 text-white'
                 : 'bg-white text-gray-700 border border-gray-200'
             }`}
           >
@@ -375,7 +375,7 @@ export default function KioskOrderPage() {
               onClick={() => setSelectedCategory(cat)}
               className={`px-5 py-2.5 rounded-xl text-base font-medium whitespace-nowrap capitalize transition-colors touch-manipulation ${
                 selectedCategory === cat
-                  ? 'bg-green-600 text-white'
+                  ? 'bg-green-700 text-white'
                   : 'bg-white text-gray-700 border border-gray-200'
               }`}
             >
@@ -425,7 +425,7 @@ export default function KioskOrderPage() {
                     <span className="text-xl font-bold text-green-700">${Number(product.price || 0).toFixed(2)}</span>
                     <button
                       onClick={() => addToCart(product)}
-                      className="w-12 h-12 bg-green-600 hover:bg-green-700 text-white rounded-xl flex items-center justify-center transition-colors touch-manipulation"
+                      className="w-12 h-12 bg-green-600 hover:bg-green-800 text-white rounded-xl flex items-center justify-center transition-colors touch-manipulation"
                     >
                       <Plus className="w-6 h-6" />
                     </button>
@@ -470,7 +470,7 @@ export default function KioskOrderPage() {
               <p className="text-2xl font-medium mb-2">Your cart is empty</p>
               <button
                 onClick={() => setStep('browse')}
-                className="mt-4 px-8 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold text-lg transition-colors touch-manipulation"
+                className="mt-4 px-8 py-3 bg-green-600 hover:bg-green-800 text-white rounded-xl font-semibold text-lg transition-colors touch-manipulation"
               >
                 Browse Products
               </button>
@@ -525,7 +525,7 @@ export default function KioskOrderPage() {
 
               <button
                 onClick={() => setStep('checkout')}
-                className="w-full py-5 bg-green-600 hover:bg-green-700 text-white text-xl font-bold rounded-xl transition-colors touch-manipulation"
+                className="w-full py-5 bg-green-600 hover:bg-green-800 text-white text-xl font-bold rounded-xl transition-colors touch-manipulation"
               >
                 Proceed to Checkout
                 <ChevronRight className="w-6 h-6 inline ml-2" />
@@ -599,7 +599,7 @@ export default function KioskOrderPage() {
               <button
                 onClick={handleCheckout}
                 disabled={submitting}
-                className="w-full mt-6 py-5 bg-green-600 hover:bg-green-700 text-white text-xl font-bold rounded-xl transition-colors disabled:opacity-50 touch-manipulation"
+                className="w-full mt-6 py-5 bg-green-600 hover:bg-green-800 text-white text-xl font-bold rounded-xl transition-colors disabled:opacity-50 touch-manipulation"
               >
                 {submitting ? 'Placing Order...' : 'Place Order for Pickup'}
               </button>

@@ -120,7 +120,7 @@ export default function CurbsidePage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                : 'border-transparent text-gray-500 dark:text-slate-300 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -198,7 +198,7 @@ export default function CurbsidePage() {
                     {pickup.status === 'bringing_out' && (
                       <button
                         onClick={() => updateStatus(pickup.id, 'completed')}
-                        className="flex-1 px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-1"
+                        className="flex-1 px-3 py-1.5 text-xs font-medium bg-green-700 text-white rounded-lg hover:bg-green-800 flex items-center justify-center gap-1"
                       >
                         <CheckCircle className="w-3 h-3" />
                         Complete

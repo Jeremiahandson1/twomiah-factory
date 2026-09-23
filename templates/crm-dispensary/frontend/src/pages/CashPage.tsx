@@ -198,7 +198,12 @@ export default function CashPage() {
                   className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
                     closingAmount
                       ? 'bg-red-600 text-white hover:bg-red-700'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      // A disabled control is exempt from the contrast rule, but a light-grey pill on a
+                      // dark card reads as broken rather than unavailable. It gets the theme's own
+                      // disabled surface — and slate-400 rather than the dimmer slate-500 a disabled
+                      // label could justify, because check-muted-label-contrast draws that line for the
+                      // whole fleet and one cosmetic exception is not worth a hole in it. (T30 M7)
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-400'
                   }`}
                 >
                   <Lock className="w-4 h-4" /> Close Drawer

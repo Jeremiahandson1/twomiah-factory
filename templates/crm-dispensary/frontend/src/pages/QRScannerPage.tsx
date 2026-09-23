@@ -344,7 +344,7 @@ function InputResultCard({ result, context, toast }: { result: any; context: str
               </span>
             )}
             {input.isOMRIListed && (
-              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-600 text-white">OMRI</span>
+              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-700 text-white">OMRI</span>
             )}
           </div>
           <div className="flex items-center gap-4 mt-2 text-sm">

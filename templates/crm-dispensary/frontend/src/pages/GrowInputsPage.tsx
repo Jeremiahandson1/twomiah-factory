@@ -408,7 +408,7 @@ function InventoryTab() {
             <span className="text-gray-500 dark:text-slate-400 text-xs">--</span>
           )}
           {row.isOMRIListed && (
-            <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-600 text-white ml-1">OMRI</span>
+            <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold rounded bg-green-700 text-white ml-1">OMRI</span>
           )}
         </div>
       ),

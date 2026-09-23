@@ -421,7 +421,7 @@ export default function POSPage() {
               onClick={() => setActiveCategory(cat.value)}
               className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
                 activeCategory === cat.value
-                  ? 'bg-green-600 text-white'
+                  ? 'bg-green-700 text-white'
                   : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
               }`}
             >
@@ -710,7 +710,7 @@ export default function POSPage() {
               onClick={() => setPaymentMethod('cash')}
               className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${
                 paymentMethod === 'cash'
-                  ? 'bg-green-600 text-white'
+                  ? 'bg-green-700 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
               }`}
             >
@@ -720,7 +720,7 @@ export default function POSPage() {
               onClick={() => setPaymentMethod('debit')}
               className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${
                 paymentMethod === 'debit'
-                  ? 'bg-green-600 text-white'
+                  ? 'bg-green-700 text-white'
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
               }`}
             >
@@ -776,7 +776,7 @@ export default function POSPage() {
             className={`w-full py-3 rounded-lg font-bold text-lg flex items-center justify-center gap-2 transition-colors ${
               processing || cart.length === 0 || !idVerified || overWeight || overStock
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-green-700 text-white hover:bg-green-800'
             }`}
           >
             <Check className="w-5 h-5" />

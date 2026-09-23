@@ -206,7 +206,7 @@ export default function OrderDetailPage() {
               <div key={step} className="flex items-center gap-2 flex-1">
                 <div className={`flex items-center gap-2 ${isActive ? 'text-green-600' : 'text-gray-500 dark:text-slate-400'}`}>
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    isCurrent ? 'bg-green-600 text-white' : isActive ? 'bg-green-100' : 'bg-gray-100'
+                    isCurrent ? 'bg-green-700 text-white' : isActive ? 'bg-green-100' : 'bg-gray-100'
                   }`}>
                     <Icon className="w-4 h-4" />
                   </div>
@@ -267,7 +267,7 @@ export default function OrderDetailPage() {
               <button
                 onClick={handleComplete}
                 disabled={completing}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
+                className="px-3 py-1.5 bg-green-700 text-white rounded-lg text-sm hover:bg-green-800 disabled:opacity-50"
               >
                 {completing ? 'Completing…' : 'Complete Sale'}
               </button>

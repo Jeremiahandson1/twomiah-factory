@@ -166,7 +166,7 @@ export default function OrdersPage() {
         action={
           <button
             onClick={() => navigate('/crm/orders/new')}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium flex items-center gap-2"
+            className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 font-medium flex items-center gap-2"
           >
             <ShoppingCart className="w-4 h-4" /> New Sale
           </button>

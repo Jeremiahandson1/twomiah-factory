@@ -439,7 +439,7 @@ export default function ContactDetailPage() {
           <button
             onClick={handleSendSms}
             disabled={smsSending}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
+            className="px-4 py-2 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 disabled:opacity-50"
           >
             {smsSending ? 'Sending...' : 'Send'}
           </button>

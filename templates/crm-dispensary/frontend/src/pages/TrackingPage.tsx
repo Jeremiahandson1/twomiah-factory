@@ -162,7 +162,7 @@ export default function TrackingPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                : 'border-transparent text-gray-500 dark:text-slate-300 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />

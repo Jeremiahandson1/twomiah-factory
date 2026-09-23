@@ -188,7 +188,7 @@ export default function IDScannerPage() {
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               tab === t.id
                 ? 'border-green-600 text-green-700'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                : 'border-transparent text-gray-500 dark:text-slate-300 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             <t.icon className="w-4 h-4" />
@@ -214,7 +214,7 @@ export default function IDScannerPage() {
                     onClick={() => { setScanMethod(m.value); setRawData(''); setScanResult(null); }}
                     className={`px-4 py-2 text-sm font-medium rounded-lg ${
                       scanMethod === m.value
-                        ? 'bg-green-600 text-white'
+                        ? 'bg-green-700 text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -520,7 +520,7 @@ export default function IDScannerPage() {
                       )}
                     </div>
                     <div className="flex gap-2 ml-4">
-                      <button className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
+                      <button className="px-3 py-1.5 text-sm bg-green-700 text-white rounded-lg hover:bg-green-800">
                         Dismiss
                       </button>
                       <button className="px-3 py-1.5 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200">
