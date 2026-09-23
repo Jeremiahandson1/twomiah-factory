@@ -315,9 +315,15 @@ app.post('/', async (c) => {
   const limitOz = resolvePurchaseLimitOz(companyRow)
   // A cannabis line nobody can weigh cannot be counted, and a limit that silently counts it as zero is
   // not a limit. Refuse by name before the cap is applied, rather than selling past it. (T29 H3)
-  const unweighed = unweighedCannabisRefusal(
-    uncountableCannabisLines(data.items.map(i => ({ product: productMap.get(i.productId), quantity: i.quantity })), equivalencyFactors),
+  const uncountableNames = uncountableCannabisLines(
+    data.items.map(i => ({ product: productMap.get(i.productId), quantity: i.quantity })),
+    equivalencyFactors,
   )
+  // One of the offending products, so the refusal can name the measurement ITS category is counted
+  // in — "Set a weight" for flower, "Set the THC mg" for an edible. Offering both made half of every
+  // refusal a wrong instruction. (T34 L4)
+  const uncountableSample = data.items.map(i => productMap.get(i.productId)).find((pr: any) => pr && uncountableNames.includes(pr.name))
+  const unweighed = unweighedCannabisRefusal(uncountableNames, equivalencyFactors, uncountableSample)
   if (unweighed) return c.json(unweighed, 400)
   // The over-limit answer is shared with the kiosk, so both tills refuse the same basket the same way.
   const overLimit = overPurchaseLimit(totalWeightGrams, limitOz)

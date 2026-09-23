@@ -104,7 +104,15 @@ else if (!/not\s*\n?\s*legal advice/.test(equivPage) || !/state&rsquo;s rules/.t
 if (/^const DEFAULT_RULES/m.test(readFile('templates/crm-dispensary/backend/src/routes/equivalency.ts'))) fail('routes/equivalency.ts must not keep a second copy of the defaults — the page that seeds and the till that enforces would describe the same state differently')
 if (!/export function lineFlowerEquivalentGrams\(/.test(cannabis)) fail('utils/cannabis.ts must convert a line to FLOWER EQUIVALENT grams')
 if (!/if \(!rule\) return grams/.test(cannabis)) fail('…falling back to the raw weight when a tenant has configured no rule, so nobody is worse off for not setting them up')
-if (!/return mg > 0 \? mg \* rule\.factor : grams/.test(cannabis)) fail('…and, for a rule written in mg of THC, never counting an unknown potency as ZERO — that is the under-count this fixes')
+// For a rule written in mg of THC, the potency is the measurement — the product's MASS is a different
+// quantity and must not stand in for it. This used to fall back to grams, so an edible whose 100 mg was
+// typed into the weight field counted as 0.1 g of flower and forty of them came to 0.14 oz against a
+// 1 oz cap. The zero this now returns is not an under-count: uncountableCannabisLines reads the same
+// function and turns it into a refusal that names the product (check-one-countable-definition pins
+// that). Unknown potency stops the sale; it never quietly weighs nothing. (T34 L3)
+if (!/if \(rule\.unit === 'mg_thc'\) \{[\s\S]*?return unitThcMg\(product\) \* rule\.factor/.test(cannabis)) {
+  fail("…and, for a rule written in mg of THC, reading the POTENCY and never falling back to the product's mass — mass is not potency, and substituting it is the under-count this fixes")
+}
 if (!/const unitGrams = lineFlowerEquivalentGrams\(prod, equivalencyFactors\)/.test(ordersSrc)) fail('the register must weigh in flower equivalent')
 if (!/const equivalencyFactors = await loadEquivalencyFactors\(currentUser\.companyId\)/.test(ordersSrc)) fail('…from the tenant\'s own rules')
 if (!/cartCannabisGrams\(items\.map\(\(i: any\) => \(\{ product: i\.product \|\| \{\}, quantity: i\.quantity \}\)\), factors\)/.test(src)) fail(`${file}: the kiosk must weigh in flower equivalent too, or the two tills disagree`)

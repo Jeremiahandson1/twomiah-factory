@@ -603,7 +603,7 @@ app.post('/session/:token/checkout', async (c) => {
     factors,
   )
   if (unsellableNames.length) {
-    audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: unweighedCannabisRefusal(unsellableNames), req: { user: { companyId } } })
+    audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: unweighedCannabisRefusal(unsellableNames, factors, (items as any[]).map((i: any) => i.product).find((pr: any) => pr && unsellableNames.includes(pr.name))), req: { user: { companyId } } })
     return c.json(CANNOT_SELL_HERE(unsellableNames), 400)
   }
   const over = overPurchaseLimit(totalGrams, limitOz)

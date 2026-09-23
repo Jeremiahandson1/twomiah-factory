@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { product, company, order, orderItem, contact } from '../../db/schema.ts'
 import { eq, and, asc, sql } from 'drizzle-orm'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, gramsText } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, gramsText, cartCannabisGrams, overPurchaseLimit, uncountableCannabisLines, unweighedCannabisRefusal } from '../utils/cannabis.ts'
+import { loadEquivalencyFactors } from '../services/equivalency.ts'
 
 // Cannabis purchase limit: the company's configured/state limit (utils/cannabis.ts) — was a hardcoded 2.5 oz.
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax
@@ -218,12 +219,10 @@ app.post('/order', async (c) => {
       return c.json({ error: `Insufficient stock for ${prod.name}` }, 400)
     }
 
-    // Track cannabis weight for purchase limit (shared classification — QA F-01)
+    // Classification only. The WEIGHING is done once, below, by the same function the register and
+    // the kiosk use — this loop used to add prod.weight by hand, which missed weight_grams entirely
+    // (every seeded product counted as zero) and never applied the equivalency factors. (T34)
     const isCannabis = isCannabisLine(prod)
-    if (isCannabis && prod.weight) {
-      const weightInGrams = prod.weightUnit === 'oz' ? Number(prod.weight) * 28.3495 : Number(prod.weight)
-      totalWeightGrams += weightInGrams * item.quantity
-    }
 
     const unitPrice = Number(prod.price)
     const lineTotal = unitPrice * item.quantity
@@ -244,15 +243,19 @@ app.post('/order', async (c) => {
     })
   }
 
-  // Purchase limit validation — configured/state limit (V-1)
-  const limitOz = resolvePurchaseLimitOz(foundCompany)
-  if (totalWeightGrams > limitOz * GRAMS_PER_OZ + 1e-6) {
-    return c.json({
-      error: `Purchase exceeds the ${limitOz}oz cannabis limit (${(totalWeightGrams / GRAMS_PER_OZ).toFixed(2)}oz requested)`,
-      totalWeightOz: (totalWeightGrams / GRAMS_PER_OZ).toFixed(2),
-      limitOz: String(limitOz),
-    }, 400)
+  // The SAME purchase limit as the register and the kiosk, through the same three helpers, so a
+  // customer ordering online cannot buy what a budtender would have refused. (T34)
+  const menuFactors = await loadEquivalencyFactors(foundCompany.id)
+  const menuLines = data.items.map((i: any) => ({ product: productMap.get(i.productId), quantity: i.quantity }))
+  const uncountable = uncountableCannabisLines(menuLines, menuFactors)
+  if (uncountable.length) {
+    const sample = menuLines.map((l: any) => l.product).find((pr: any) => pr && uncountable.includes(pr.name))
+    return c.json(unweighedCannabisRefusal(uncountable, menuFactors, sample), 400)
   }
+  totalWeightGrams = cartCannabisGrams(menuLines, menuFactors)
+  const limitOz = resolvePurchaseLimitOz(foundCompany)
+  const menuOver = overPurchaseLimit(totalWeightGrams, limitOz)
+  if (menuOver) return c.json(menuOver, 400)
 
   // Calculate taxes
   const cannabisSubtotal = resolvedItems

@@ -91,11 +91,23 @@ export function uncountableCannabisLines(
 }
 
 /** The one refusal, so the register and the kiosk say the same thing. Null when every line can be counted. */
-export function unweighedCannabisRefusal(names: string[]): { error: string; code: string; products: string[] } | null {
+/**
+ * The one refusal, worded for the category it is refusing.
+ *
+ * It used to say "Set a weight (or THC mg)" for everything. For flower, pre-rolls, concentrate and
+ * vape the mg half is useless — those are measured in grams and their mg is never read. For an
+ * edible the weight half is useless. Offering both meant half of every refusal was a wrong
+ * instruction, and the tester followed it. (Dispensary T34 L4)
+ */
+export function unweighedCannabisRefusal(names: string[], factors?: EquivalencyFactors, sample?: any): { error: string; code: string; products: string[] } | null {
   if (!names.length) return null
   const list = names.join(', ')
+  // Which measurement this category is actually counted in.
+  const byMg = factors?.get(equivalencyKey(sample || {}))?.unit === 'mg_thc'
+  const missing = byMg ? 'no THC mg recorded' : 'no weight recorded'
+  const remedy = byMg ? 'Set the THC mg' : 'Set a weight'
   return {
-    error: `${list} ${names.length === 1 ? 'has' : 'have'} no weight recorded, so this sale cannot be counted against the purchase limit. Set a weight (or THC mg) on ${names.length === 1 ? 'it' : 'them'} in Products before selling.`,
+    error: `${list} ${names.length === 1 ? 'has' : 'have'} ${missing}, so this sale cannot be counted against the purchase limit. ${remedy} on ${names.length === 1 ? 'it' : 'them'} in Products before selling.`,
     code: 'cannabis_weight_missing',
     products: names,
   }
@@ -151,8 +163,11 @@ export function lineFlowerEquivalentGrams(product: any, factors?: EquivalencyFac
   const rule = factors?.get(equivalencyKey(product))
   if (!rule) return grams
   if (rule.unit === 'mg_thc') {
-    const mg = unitThcMg(product)
-    return mg > 0 ? mg * rule.factor : grams
+    // No fallback to the product's mass. This category is measured against the cap in MILLIGRAMS OF
+    // THC; its weight in grams is a different quantity and using it reads 100 mg of THC as 0.1 g of
+    // flower — forty edibles at 0.14 oz against a 1 oz cap. Unknown potency means uncountable, and
+    // uncountableCannabisLines turns that into a refusal that names the product. (T34 L3)
+    return unitThcMg(product) * rule.factor
   }
   return grams * rule.factor
 }

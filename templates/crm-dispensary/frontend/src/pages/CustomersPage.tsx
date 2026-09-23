@@ -44,6 +44,10 @@ export default function CustomersPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  // What the server changed about what was typed. Held in state rather than thrown at a toast: this is
+  // the one message that has to survive the modal closing, and it has gone unseen in four test runs.
+  // (Dispensary T34 L3)
+  const [savedWarnings, setSavedWarnings] = useState<string[]>([]);
   const [formData, setFormData] = useState(initialFormData);
   const [saving, setSaving] = useState(false);
 
@@ -87,12 +91,14 @@ export default function CustomersPage() {
   }, [search, tierFilter]);
 
   const openCreateModal = () => {
+    setSavedWarnings([]);
     setEditingCustomer(null);
     setFormData(initialFormData);
     setModalOpen(true);
   };
 
   const openEditModal = (customer: any) => {
+    setSavedWarnings([]);
     setEditingCustomer(customer);
     setFormData({
       name: customer.name || '',
@@ -117,14 +123,12 @@ export default function CustomersPage() {
       return;
     }
     setSaving(true);
+    let warned: string[] = [];
     try {
       if (editingCustomer) {
         const saved: any = await api.put(`/api/contacts/${editingCustomer.id}`, formData);
         toast.success('Customer updated');
-        // An edit that strips markup says so here too, not only on create. (T31 L8)
-        // Sticky and amber: the save worked, but what was stored is not what was typed, and a notice
-        // about that cannot be a four-second flash in a corner. (T33 L3)
-        for (const w of saved?.warnings || []) toast.warning(w, 0);
+        warned = saved?.warnings || [];
       } else {
         let created: any;
         try {
@@ -141,12 +145,15 @@ export default function CustomersPage() {
           created = await api.post('/api/contacts', { ...formData, allowDuplicate: true });
         }
         toast.success('Customer created');
-        // Server flags 18–20 year olds (medical-only), and reports any markup it stripped — show it,
-        // don't bury it, and don't let it expire before it is read. (L-2, T33 L3)
-        for (const w of created?.warnings || []) toast.warning(w, 0);
+        warned = created?.warnings || [];
+        // If the notice is going to hold the modal open, it has to hold it open on the record that was
+        // just CREATED — otherwise a second Save from the same form makes a duplicate customer.
+        if (warned.length && created?.id) setEditingCustomer(created);
       }
-      setModalOpen(false);
+      // The list refreshes either way; the modal only closes when there is nothing to tell them.
       loadCustomers();
+      setSavedWarnings(warned);
+      if (!warned.length) setModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save customer');
     } finally {
@@ -313,10 +320,23 @@ export default function CustomersPage() {
       {/* Create/Edit Modal */}
       <Modal
         isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => setModalOpen(false)}
         title={editingCustomer ? 'Edit Customer' : 'New Customer'}
         size="lg"
       >
+        {savedWarnings.length > 0 && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            <p className="font-semibold mb-1">Saved — but not exactly as typed</p>
+            <ul className="list-disc pl-5 space-y-1 text-sm">
+              {savedWarnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+            <button
+              type="button"
+              onClick={() => { setSavedWarnings([]); setModalOpen(false); }}
+              className="mt-3 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700"
+            >Got it</button>
+          </div>
+        )}
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Name *</label>

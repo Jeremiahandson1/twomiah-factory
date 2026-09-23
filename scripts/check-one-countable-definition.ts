@@ -76,7 +76,34 @@ for (const f of files) {
   }
 }
 
+// ---- 3. weighing a cart without refusing first is how a limit stops being a limit ----
+// The public online-order path (menu.ts) had its OWN weighing loop: it read prod.weight and never
+// weight_grams, so every seeded product counted as zero; it ignored the equivalency factors, so 25 g of
+// concentrate counted as 25 g instead of the 62.5 g of flower it is worth; and it refused nothing.
+// Three tills, three answers, and the one a customer drives themselves answered lowest. A surface that
+// weighs a cart against the cap must first refuse the lines it cannot weigh. (T34)
+for (const f of files) {
+  const src = readFileSync(join(ROUTES, f), 'utf8')
+  const weighs = /cartCannabisGrams\(/.test(src) || /overPurchaseLimit\(/.test(src)
+  if (!weighs) continue
+  if (!/uncountableCannabisLines\(/.test(src)) {
+    fail(`routes/${f}: it applies the purchase limit but never refuses an uncountable cannabis line — anything it cannot weigh is counted as zero and sold past the cap`)
+  }
+}
+// …and whatever sums that weight converts a unit the ONE way. Summing in a loop is fine — orders.ts
+// does, alongside its stock and pricing checks — as long as the per-unit figure comes from
+// lineFlowerEquivalentGrams (or cartCannabisGrams, which is that function over a cart). What menu.ts
+// did instead was its own conversion, `weightUnit === 'oz' ? n * 28.3495 : n`, reading `weight` and
+// never weight_grams and never touching the factors. The test is the SOURCE of the per-unit number,
+// not whether there is a loop — flagging every loop failed orders.ts, which is correct code.
+for (const f of files) {
+  const src = readFileSync(join(ROUTES, f), 'utf8')
+  if (!/totalWeightGrams \+=|totalWeightGrams =/.test(src)) continue
+  if (/cartCannabisGrams\(|lineFlowerEquivalentGrams\(/.test(src)) continue
+  fail(`routes/${f}: it totals cannabis weight without lineFlowerEquivalentGrams/cartCannabisGrams — a hand-rolled conversion misses weight_grams and the equivalency factors, which is how the online order path counted every seeded product as zero (T34)`)
+}
+
 console.log(failures
   ? `\n${failures} problem(s).`
-  : 'one definition of countable: the sellability test asks the function that does the counting, with the shop\'s own rules')
+  : 'one definition of countable: the sellability test asks the function that does the counting, with the shop\'s own rules, and every till that weighs a cart refuses first')
 process.exit(failures ? 1 : 0)

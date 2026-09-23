@@ -78,6 +78,11 @@ export default function AnalyticsPage() {
         retentionRate: Number(customersRes?.retentionRate || 0),
         avgVisits: Number(customersRes?.avgVisits || 0),
         lifetimeValue: Number(customersRes?.lifetimeValue || 0),
+        // The window the SERVER actually counted, echoed back since T31 — shown on the tile, so nobody
+        // has to guess whether a figure covers the same days as the one they are comparing it against.
+        // Four runs have read this panel (7 days) against a differently scoped query and called the
+        // difference a defect. (T34 L1)
+        range: customersRes?.range || null,
       });
     } catch (err) {
       console.error('Failed to load analytics:', err);
@@ -186,6 +191,9 @@ export default function AnalyticsPage() {
             <span className="text-sm text-gray-500 dark:text-slate-400">Unique Customers</span>
           </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">{metrics?.uniqueCustomers || 0}</p>
+          {customerMetrics?.range && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{customerMetrics.range.from} → {customerMetrics.range.to}</p>
+          )}
         </div>
       </div>
 
