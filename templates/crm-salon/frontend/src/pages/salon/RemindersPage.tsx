@@ -58,6 +58,11 @@ function fmtDate(s?: string): string {
 function money(v: number | undefined): string {
   return `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
+// Rendered at text-gray-600, not gray-500, in all three tabs. An OVERDUE row is painted red-50
+// (rgb 254,242,242) and gray-500 measures 4.42:1 on that tint — under AA, on the phone number someone
+// is meant to read off the screen and dial. gray-600 clears it on the tint (~6.4:1) and on the plain
+// white row (7.0:1), so the three tabs keep one shade between them rather than diverging on a
+// background that only one of them can have. (Salon T26 N1 residual)
 function contactLine(r: { clientMobile?: string; clientPhone?: string; clientEmail?: string }): string {
   return [r.clientMobile || r.clientPhone, r.clientEmail].filter(Boolean).join(' · ') || '—';
 }
@@ -180,7 +185,10 @@ export default function RemindersPage() {
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap ${
-              tab === t.id ? 'border-teal-600 text-teal-700' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+              // The selected tab had no dark partner, so teal-700 stayed on the dark surface at
+              // 3.69:1 — the one sub-AA item left in dark mode. teal-300 is the pair, not a
+              // re-shading of the light side, which is already correct. (Salon T26 N1 residual)
+              tab === t.id ? 'border-teal-600 text-teal-700 dark:border-teal-400 dark:text-teal-300' : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`}
           >
             {t.icon} {t.label}
@@ -286,7 +294,7 @@ export default function RemindersPage() {
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                     {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{contactLine(r)}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">{contactLine(r)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     {r.serviceName || '—'}
                     {[r.stylistFirstName, r.stylistLastName].filter(Boolean).length > 0 && (
@@ -307,7 +315,7 @@ export default function RemindersPage() {
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                     {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{contactLine(r)}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">{contactLine(r)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.lastVisit)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{r.visits ?? 0}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{money(r.lifetimeValue)}</td>
@@ -322,7 +330,7 @@ export default function RemindersPage() {
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-slate-100">
                     {r.contactId ? <Link to={`/crm/clients/${r.contactId}`} className="hover:text-teal-700 dark:hover:text-teal-300">{r.clientName || '—'}</Link> : (r.clientName || '—')}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{contactLine(r)}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs dark:text-slate-400">{contactLine(r)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">{fmtDate(r.nextBirthday)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
                     {r.daysAway === 0 ? 'Today' : `${r.daysAway} day${r.daysAway === 1 ? '' : 's'}`}

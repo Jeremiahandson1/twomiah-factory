@@ -151,9 +151,13 @@ export default function DashboardPage() {
               <p className="text-sm font-medium text-gray-600 dark:text-slate-400">Due to Rebook</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-slate-100">
                 {overdue} overdue
-                <span className="text-base font-medium text-gray-500 dark:text-slate-400"> · {dueSoon} due soon</span>
+                {/* gray-600, not gray-500: when the banner is alerting, these sit on the light-pink
+                    tint (rgb 254,242,242), where gray-500 measures 4.42:1 and misses AA. gray-600 is
+                    ~6.4:1 there and 7.0:1 on the white resting state, so one shade serves both. The
+                    dark partner is unchanged — dark mode was already clean. (Salon T26 N1 residual) */}
+                <span className="text-base font-medium text-gray-600 dark:text-slate-400"> · {dueSoon} due soon</span>
               </p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">Text them before they book somewhere else</p>
+              <p className="text-sm text-gray-600 dark:text-slate-400">Text them before they book somewhere else</p>
             </div>
           </div>
           <ArrowRight className="w-5 h-5 text-gray-400" />

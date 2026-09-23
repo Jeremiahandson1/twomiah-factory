@@ -139,7 +139,10 @@ export function InvoicesPage({ api, toast, settings, config }: InvoicingPageProp
       const bal = balanceOf(r)
       if (bal > 0.005) return <span className="text-orange-600 dark:text-orange-300 font-medium">{money(bal)}</span>
       if (r.status === 'refunded') return <span className="text-amber-700 dark:text-amber-300">Refunded</span>
-      return Number(r.amountPaid || 0) > 0 ? <span className="text-green-600 dark:text-green-300">Paid</span> : <span className="text-gray-500 dark:text-slate-400">-</span>
+      // green-700, not green-600: on white, green-600 measures 3.30:1 and misses AA for normal text.
+      // This is the column that tells someone whether an invoice has been paid, in every vertical —
+      // the file is shared. The dark partner already cleared AA and is unchanged. (Salon T26 N1 residual)
+      return Number(r.amountPaid || 0) > 0 ? <span className="text-green-700 dark:text-green-300">Paid</span> : <span className="text-gray-500 dark:text-slate-400">-</span>
     } },
     { key: 'dueDate', label: 'Due', render: (v: any) => dateOnly(v) },
   ]
