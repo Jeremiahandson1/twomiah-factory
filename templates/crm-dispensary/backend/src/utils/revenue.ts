@@ -61,6 +61,8 @@ export const salesNetExpr = sql`GREATEST(0, COALESCE(NULLIF(o.sales_tax, '')::nu
 
 /** The same, for a query with no `o.` alias. */
 export const taxNetExprBare = sql`GREATEST(0, COALESCE(NULLIF(total_tax, '')::numeric, 0) - COALESCE(NULLIF(refunded_tax, '')::numeric, 0))`
+export const exciseNetExprBare = sql`GREATEST(0, COALESCE(NULLIF(excise_tax, '')::numeric, 0) - COALESCE(NULLIF(refunded_excise_tax, '')::numeric, 0))`
+export const salesNetExprBare = sql`GREATEST(0, COALESCE(NULLIF(sales_tax, '')::numeric, 0) - COALESCE(NULLIF(refunded_sales_tax, '')::numeric, 0))`
 
 /** The row set tax was actually collected on: a sale returned in full returned its tax too. */
 export const taxCollected = sql`('completed', 'partially_refunded')`

@@ -72,6 +72,12 @@ const productSchema = z.object({
   // form round-trips a fetched product back through PUT those arrive as "22.5" not 22.5. Coerce
   // so the write path accepts exactly what the read path emitted (recurring string/number split).
   thcPercent: z.coerce.number().min(0).max(100).optional(),
+  // THC per unit in MILLIGRAMS, how an edible is labelled. The column shipped and the form field
+  // shipped; this line did not, so zod stripped the value on every save and the field could not be
+  // filled in at all. Third time in one day that a column was added without the route being told to
+  // accept it — storeHours, then this. 1000 mg is a generous ceiling for one package; past that
+  // someone has typed grams. (Dispensary T31 high)
+  thcMg: z.coerce.number().min(0).max(1000).optional(),
   cbdPercent: z.coerce.number().min(0).max(100).optional(),
   weight: z.coerce.number().optional(),
   weightUnit: z.enum(['g', 'oz', 'mg', 'ml', 'each']).default('g'),
@@ -208,6 +214,7 @@ app.post('/', requireRole('manager'), async (c) => {
   // Without this a UI-created flower had weight_grams null → every order rang up 0.00 oz and blew past
   // the legal limit. (compliance)
   if (data.weight != null) values.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
+  if (data.thcMg != null) values.thcMg = String(data.thcMg)
 
   const [created] = await db.insert(product).values(values).returning()
 
@@ -238,6 +245,7 @@ app.put('/:id', requireRole('manager'), async (c) => {
   if (data.costPrice != null) updateData.costPrice = String(data.costPrice)
   if ('unit' in updateData) { updateData.unitType = updateData.unit; delete updateData.unit }
   if (data.weight != null) updateData.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
+  if (data.thcMg != null) updateData.thcMg = String(data.thcMg)
 
   const [updated] = await db.update(product).set(updateData).where(eq(product.id, id)).returning()
 

@@ -32,6 +32,9 @@ const initialFormData = {
   strainType: 'hybrid',
   strainName: '',
   thcPercent: '',
+  // THC per unit in milligrams — how an edible is labelled, and the only way the purchase limit can
+  // count one. Without it 40 bars at 100 mg scored 0.14 oz against a 1 oz cap. (T30/T31)
+  thcMg: '',
   cbdPercent: '',
   price: '',
   costPrice: '',
@@ -365,6 +368,24 @@ export default function ProductsPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
               placeholder="24.5"
             />
+          </div>
+          <div>
+            {/* An edible is labelled in milligrams, not as a percentage of a weight it does not
+                meaningfully have. This is what lets the purchase limit count it: the equivalency rules
+                already know 10 mg of THC is worth a gram of flower, and until now there was nowhere to
+                record the milligrams. A product with mg needs no weight to be sellable. (T30/T31) */}
+            <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">THC mg per unit</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              max="1000"
+              value={formData.thcMg}
+              onChange={(e) => setFormData({ ...formData, thcMg: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:border-slate-700 dark:text-slate-100"
+              placeholder="100"
+            />
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">For edibles and tinctures — the mg on the packet. Counts toward the purchase limit.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">CBD %</label>

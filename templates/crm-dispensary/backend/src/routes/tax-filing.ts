@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { taxCollected } from '../utils/revenue.ts'
+import { taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -116,9 +116,14 @@ app.post('/filings/generate', requireRole('manager'), async (c) => {
     SELECT
       COUNT(*)::int as total_orders,
       COALESCE(SUM(CAST(NULLIF(subtotal, '') AS numeric)), 0) as total_subtotal,
-      COALESCE(SUM(CAST(NULLIF(excise_tax, '') AS numeric)), 0) as total_excise_tax,
-      COALESCE(SUM(CAST(NULLIF(sales_tax, '') AS numeric)), 0) as total_sales_tax,
-      COALESCE(SUM(CAST(NULLIF(total_tax, '') AS numeric)), 0) as total_tax_collected,
+      -- NET of tax handed back with refunds, like every other tax surface. This summed the gross, so
+      -- once refunds started being netted elsewhere (T29 M4) this became the one report left
+      -- over-stating: $1,056.00 here against $1,031.68 everywhere else, the gap widening with every
+      -- amount refund — on the figure someone actually files. There are TWO tax-filing surfaces, this
+      -- route and the block inside compliance.ts, and M4 only found the other one. (Dispensary T31)
+      COALESCE(SUM(${exciseNetExprBare}), 0) as total_excise_tax,
+      COALESCE(SUM(${salesNetExprBare}), 0) as total_sales_tax,
+      COALESCE(SUM(${taxNetExprBare}), 0) as total_tax_collected,
       COALESCE(SUM(CAST(NULLIF(total, '') AS numeric)), 0) as total_revenue
     FROM orders
     WHERE company_id = ${currentUser.companyId}
