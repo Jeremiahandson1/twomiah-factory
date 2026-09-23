@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { order, orderItem, product, contact, company, user } from '../../db/schema.ts'
-import { eq, and, gte, lte, desc, count, sql, inArray } from 'drizzle-orm'
+import { eq, and, gte, lte, desc, count, sql, inArray, isNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -39,6 +39,8 @@ const TIER_ORDER = ['bronze', 'silver', 'gold', 'platinum']
 // Thrown inside the completion transaction when an atomic stock decrement finds nothing to take
 // (a concurrent sale grabbed the last unit) — caught to return 400 instead of a 500.
 class OversellError extends Error {}
+// Thrown when this request lost the race to settle an order someone (or some retry) already settled.
+class AlreadyCompletedError extends Error {}
 const CANNABIS_TAX_RATE = 0.15 // 15% cannabis excise tax (varies by state)
 const SALES_TAX_RATE = 0.0875 // state + local sales tax (varies)
 
@@ -664,8 +666,24 @@ app.post('/:id/complete', async (c) => {
 
   try {
   await db.transaction(async (tx) => {
-    // Mark order completed
-    await tx.update(order).set({
+    // CLAIM the order before spending anything. `completed_at IS NULL` in the WHERE makes settling it
+    // a single conditional statement, which is what serialises the whole completion: Postgres blocks a
+    // second transaction on this row until the first commits, then re-evaluates the condition against
+    // the committed row and matches nothing. The loser does no work.
+    //
+    // The status check above is a read, then a check, then a write, with nothing holding the row — ten
+    // copies of the request all read "pending" before any of them wrote, so all ten passed it and all
+    // ten took stock and awarded points. Ten one-unit sales removed 27 units; three loyalty sales paid
+    // 220 points instead of 60. The atomic stock decrement below only ever protected against
+    // overselling, not against settling the SAME order repeatedly, so with stock on hand it waved every
+    // duplicate through. (Dispensary T29 B1)
+    //
+    // Gated on completed_at, not on status, because status can be moved back: setting a completed order
+    // to pending and completing it again is the same double-spend by hand, and the report found that
+    // too. completed_at is only ever set, never cleared — the PUT status path (nowCompleting) and the
+    // refund restore already treat it as "has ever been settled", so this is that same invariant,
+    // enforced rather than assumed.
+    const claimed = await tx.update(order).set({
       status: 'completed',
       // A completed sale is paid — the record stayed "pending" on paid cash/debit
       // orders, so revenue/AR reporting never saw them as settled. (B6)
@@ -679,7 +697,11 @@ app.post('/:id/complete', async (c) => {
       tipMethod: data.tipMethod || null,
       completedAt: new Date(),
       updatedAt: new Date(),
-    } as any).where(eq(order.id, id))
+    } as any).where(and(eq(order.id, id), eq(order.companyId, currentUser.companyId), isNull(order.completedAt))).returning({ id: order.id })
+
+    // Nothing matched: another request settled this order first. Abort before any stock moves or any
+    // points are awarded — the throw rolls the whole transaction back.
+    if (!claimed.length) throw new AlreadyCompletedError('This order has already been completed.')
 
     // Decrement inventory ATOMICALLY: the WHERE ... stock_quantity >= qty makes the check and the
     // decrement a single statement, so two registers completing the last unit at once can't both
@@ -836,6 +858,9 @@ app.post('/:id/complete', async (c) => {
   })
   } catch (e) {
     if (e instanceof OversellError) return c.json({ error: e.message }, 400)
+    // 409, not 400: the request was well-formed and the caller is not at fault — a retry or a second
+    // tap arrived after the sale was already settled. A till can treat this as "it went through".
+    if (e instanceof AlreadyCompletedError) return c.json({ error: e.message, code: 'order_already_completed' }, 409)
     throw e
   }
 
