@@ -134,9 +134,17 @@ app.get('/pair/status', async (c) => {
 // ===== DEVICE MANAGEMENT (manager) =====
 app.get('/devices', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
+  // sessionCount comes back with each device so the Settings table can offer Delete only where it will
+  // work. It used to offer it on every row, including the ones DELETE refuses 409 for, and the operator
+  // found out by pressing it. Counted exactly the way DELETE /devices/:id counts — same table, same
+  // company scope — so the button and the server cannot disagree about what "has taken a session" means.
+  // (Dispensary T28 L-i)
   const r = await db.execute(sql`
-    SELECT id, name, location_id, status, token_last4, pairing_code, pairing_expires_at, last_seen_at, paired_at, created_at
-    FROM kiosk_devices WHERE company_id = ${user.companyId} ORDER BY created_at DESC
+    SELECT d.id, d.name, d.location_id, d.status, d.token_last4, d.pairing_code, d.pairing_expires_at,
+           d.last_seen_at, d.paired_at, d.created_at,
+           (SELECT COUNT(*)::int FROM kiosk_sessions s
+             WHERE s.kiosk_device_id = d.id AND s.company_id = d.company_id) AS session_count
+    FROM kiosk_devices d WHERE d.company_id = ${user.companyId} ORDER BY d.created_at DESC
   `)
   return c.json({ data: rows(r).map(camel), enforcement: await kioskEnforcement(user.companyId) })
 })

@@ -279,6 +279,51 @@ export default function SettingsPage() {
 
   useEffect(() => { if (tab === 'kiosks' && !kiosksLoaded) loadKiosks(); }, [tab, kiosksLoaded]);
 
+  /**
+   * Watch for the tablet pairing itself.
+   *
+   * Pairing happens on the KIOSK, not here: the tablet spends the code at /pair and the server marks the
+   * device active. Nothing tells this page — the kiosk routes emit no socket event and this screen has
+   * never used one — so the row sat on "Awaiting pairing" until somebody reloaded, while the device was
+   * already live. (Dispensary T28 L-h)
+   *
+   * Polling only while the code is on screen, because that is the whole window anyone cares about: the
+   * manager is standing here reading it out. It stops the moment the device goes active (and says so), if
+   * the panel is dismissed, or after five minutes — the code itself is good for 24 hours, so "poll until
+   * it expires" would be a day-long timer, not a bound.
+   */
+  useEffect(() => {
+    if (!freshPairing) return;
+    let stop = false;
+    const started = Date.now();
+    const tick = async () => {
+      if (stop || Date.now() - started > 5 * 60 * 1000) return;
+      try {
+        const res: any = await api.get('/api/kiosk/devices');
+        const list = res?.data || [];
+        setKiosks(list);
+        const mine = list.find((k: any) => k.id === freshPairing.id);
+        if (mine?.status === 'active') {
+          toast.success(`“${freshPairing.name}” is paired and ready.`);
+          setFreshPairing(null);
+          return;
+        }
+      } catch { /* a failed poll is not worth a toast — the next one will do */ }
+      if (!stop) timer = setTimeout(tick, 4000);
+    };
+    let timer = setTimeout(tick, 4000);
+    return () => { stop = true; clearTimeout(timer); };
+  }, [freshPairing]);
+
+  // Coming back to the desk after pairing at the tablet is the other half of the same story, and costs
+  // nothing to cover: re-read the list when the window is focused again while this tab is open.
+  useEffect(() => {
+    if (tab !== 'kiosks') return;
+    const onFocus = () => { loadKiosks(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [tab]);
+
   const handleAddKiosk = async () => {
     const name = newKioskName.trim();
     if (!name) { toast.error('Give the kiosk a name, so you can tell it from the others.'); return; }
@@ -797,15 +842,28 @@ export default function SettingsPage() {
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
                           {k.lastSeenAt ? new Date(k.lastSeenAt).toLocaleString() : '—'}
                         </td>
+                        {/* Delete is offered only where it will actually work. It used to sit on every row,
+                            including the ones the server refuses 409 for, and the operator found out by
+                            pressing it — the toast explains it well, but a button you cannot use is still a
+                            button you pressed for nothing. A device that HAS taken sessions can only be
+                            revoked, which is already here; once it is revoked there is nothing left to do
+                            with it, so the row says why it is staying rather than showing an empty cell.
+                            (Dispensary T28 L-i) */}
                         <td className="px-4 py-3 text-sm text-right space-x-3">
                           {k.status !== 'revoked' && (
                             <button onClick={() => handleRevokeKiosk(k)} className="text-xs font-medium text-red-600 hover:text-red-700 dark:hover:text-red-300">
                               Revoke
                             </button>
                           )}
-                          <button onClick={() => handleDeleteKiosk(k)} className="text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200" title="Only a kiosk that has never taken a sale can be deleted">
-                            Delete
-                          </button>
+                          {Number(k.sessionCount || 0) === 0 ? (
+                            <button onClick={() => handleDeleteKiosk(k)} className="text-xs font-medium text-gray-600 hover:text-gray-900 dark:text-slate-400 dark:hover:text-slate-200" title="This kiosk has never taken a session, so it can be removed entirely">
+                              Delete
+                            </button>
+                          ) : (
+                            <span className="text-xs text-gray-500 dark:text-slate-400" title={`${k.sessionCount} kiosk session${Number(k.sessionCount) === 1 ? '' : 's'} — part of the sales record`}>
+                              Kept for the sales record
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
