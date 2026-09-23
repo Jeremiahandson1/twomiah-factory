@@ -46,6 +46,50 @@ export function unitGramsOf(p: { weightGrams?: any; weight?: any; weightUnit?: s
   return p.weightUnit === 'oz' ? n * GRAMS_PER_OZ : n
 }
 
+/**
+ * Cannabis lines whose flower-equivalent weight cannot be established, by name.
+ *
+ * The limit used to treat these as ZERO and wave them through: forty chocolate bars carrying 4,000 mg
+ * of THC, and 29 grams of a flower product whose weight field was blank, both counted as 0 oz against
+ * a 1 oz cap. cartCannabisGrams skips any line that comes back as 0 (`if (unit > 0)`), so an unweighed
+ * cannabis product contributed nothing at all rather than refusing. (Dispensary T29 H3)
+ *
+ * The fallback chain below this function was written to avoid under-counting and still ended at zero,
+ * which is the same under-count wearing a comment. There is no safe number to guess here — a limit is
+ * a legal one, and a product nobody can weigh cannot be sold until someone weighs it. So the tills
+ * refuse and name the product, instead of quietly selling past the cap.
+ */
+export function uncountableCannabisLines(
+  lines: Array<{ product: any; quantity: any }>,
+  _factors?: EquivalencyFactors,
+): string[] {
+  const names: string[] = []
+  for (const { product, quantity } of lines) {
+    if (!isCannabisLine(product || {})) continue
+    if ((Number(quantity) || 0) <= 0) continue
+    // The test is the product's OWN WEIGHT, not its flower-equivalent. A topical weighs 200 g and
+    // contributes nothing because its equivalency factor is deliberately 0 — "weighs nothing toward
+    // the limit" and "cannot be weighed" are different facts, and refusing the first would stop a
+    // legitimate sale the rules are written to allow. Only a line whose grams are unknown is
+    // uncountable; an edible with a weight but no potency already falls back to that weight.
+    if (unitGramsOf(product || {}) > 0) continue
+    const name = product?.name || product?.productName || 'A cannabis product'
+    if (!names.includes(name)) names.push(name)
+  }
+  return names
+}
+
+/** The one refusal, so the register and the kiosk say the same thing. Null when every line can be counted. */
+export function unweighedCannabisRefusal(names: string[]): { error: string; code: string; products: string[] } | null {
+  if (!names.length) return null
+  const list = names.join(', ')
+  return {
+    error: `${list} ${names.length === 1 ? 'has' : 'have'} no weight recorded, so this sale cannot be counted against the purchase limit. Set a weight (or THC mg) on ${names.length === 1 ? 'it' : 'them'} in Products before selling.`,
+    code: 'cannabis_weight_missing',
+    products: names,
+  }
+}
+
 /** Cannabis grams on a cart. Non-cannabis lines weigh nothing toward the limit. */
 export function cartCannabisGrams(lines: Array<{ product: any; quantity: any }>, factors?: EquivalencyFactors): number {
   let grams = 0

@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
-import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ, isCannabisLine, unitGramsOf } from '../utils/cannabis.ts'
+import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ, isCannabisLine, unitGramsOf, uncountableCannabisLines, unweighedCannabisRefusal } from '../utils/cannabis.ts'
 import { taxRatesFor, assessTax, cannabisSubtotalOf } from '../utils/tax.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
@@ -52,9 +52,16 @@ const requireDevice = async (c: any, next: any) => {
   console.warn(`[kiosk] unpaired device used ${c.req.method} ${c.req.path}${token ? ' (token not recognised)' : ' (no token)'}`)
   return next()
 }
+// EVERY route that moves a session forward, not just the ones that touch a basket. verify-age was
+// left off this list, so the age gate — the one step whose whole purpose is to be trustworthy — could
+// be driven from anywhere without a paired device. (Dispensary T29 M1)
+// abandon is here for the same reason: it mutates a session, the tablet always holds the token, and
+// leaving one member of the family off the list is what produced this gap in the first place.
 app.use('/session/start', requireDevice)
+app.use('/session/:token/verify-age', requireDevice)
 app.use('/session/:token/add-item', requireDevice)
 app.use('/session/:token/checkout', requireDevice)
+app.use('/session/:token/abandon', requireDevice)
 
 // Raw-SQL rows come back snake_case, but the kiosk UI and the manager Sessions page read
 // camelCase (sessionToken, ageVerified, locationName, strainType, thcPercent, imageUrl...).
@@ -503,6 +510,15 @@ app.post('/session/:token/checkout', async (c) => {
   const totalGrams = cartCannabisGrams(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })), factors)
   const [companyRow] = rows(await db.execute(sql`SELECT purchase_limit_oz, state, tax_rate, excise_tax_rate FROM company WHERE id = ${companyId} LIMIT 1`))
   const limitOz = resolvePurchaseLimitOz(camel(companyRow) as any)
+  // Same refusal as the register: a cannabis line with no recorded weight counted as zero against the
+  // cap, so a basket of unweighed edibles walked straight through. (T29 H3)
+  const unweighed = unweighedCannabisRefusal(
+    uncountableCannabisLines(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })), factors),
+  )
+  if (unweighed) {
+    audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: unweighed, req: { user: { companyId } } })
+    return c.json(unweighed, 400)
+  }
   const over = overPurchaseLimit(totalGrams, limitOz)
   if (over) {
     audit.log({ action: 'kiosk_limit_denied', entity: 'kiosk_session', entityId: String(session.id), metadata: over, req: { user: { companyId } } })

@@ -36,6 +36,14 @@ export default function OrderDetailPage() {
   const [restock, setRestock] = useState(true);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
+  // Settling an order from this screen. A kiosk order arrives here as pending with idVerified false —
+  // the customer passed the tablet's age gate, but the law wants a human to look at the card — and
+  // "Mark Completed" called the status route, which refuses a cannabis sale that has not been ID
+  // checked. There was no checkbox to satisfy it and no way to say how the customer paid, so a kiosk
+  // order could not be completed from anywhere in the product. (Dispensary T29 H1)
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [idChecked, setIdChecked] = useState(false);
+  const [completing, setCompleting] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -118,6 +126,26 @@ export default function OrderDetailPage() {
     }
   };
 
+  // Settle the sale properly: POST /complete is the path that takes payment, moves the stock, marks
+  // the order paid and awards loyalty. The status route only ever changed a word on the record.
+  const handleComplete = async () => {
+    setCompleting(true);
+    try {
+      await api.post(`/api/orders/${id}/complete`, {
+        paymentMethod,
+        // Only assert the check when the budtender actually ticked it — the server records who
+        // verified, and a default of `true` would put a name against an ID nobody looked at.
+        ...(idChecked ? { idVerified: true } : {}),
+      });
+      toast.success('Sale completed');
+      loadOrder();
+    } catch (err: any) {
+      toast.error(err.message || 'Could not complete this sale');
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -190,30 +218,64 @@ export default function OrderDetailPage() {
             );
           })}
         </div>
-        {order.status === 'pending' && (
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={() => handleStatusUpdate('processing')}
-              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
-            >
-              Start Processing
-            </button>
-            <button
-              onClick={() => handleStatusUpdate('completed')}
-              className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-            >
-              Mark Completed
-            </button>
-          </div>
-        )}
-        {order.status === 'processing' && (
-          <div className="mt-4">
-            <button
-              onClick={() => handleStatusUpdate('completed')}
-              className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700"
-            >
-              Mark Completed
-            </button>
+        {(order.status === 'pending' || order.status === 'processing' || order.status === 'ready') && (
+          <div className="mt-4 space-y-3">
+            {order.status === 'pending' && (
+              <button
+                onClick={() => handleStatusUpdate('processing')}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+              >
+                Start Processing
+              </button>
+            )}
+
+            {/* Taking the money. A kiosk order lands here already built and already age-gated by the
+                tablet; the budtender still has to see the card and say how it was paid. */}
+            <div className="flex flex-wrap items-end gap-3 p-3 rounded-lg border border-gray-200 bg-gray-50 dark:border-slate-700 dark:bg-slate-800">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1 dark:text-slate-300" htmlFor="order-payment-method">Payment</label>
+                <select
+                  id="order-payment-method"
+                  value={paymentMethod}
+                  onChange={e => setPaymentMethod(e.target.value)}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="debit">Debit</option>
+                  <option value="credit">Credit</option>
+                  <option value="check">Check</option>
+                  <option value="ach">ACH</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {!order.idVerified && (
+                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-slate-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={idChecked}
+                    onChange={e => setIdChecked(e.target.checked)}
+                    className="w-4 h-4 rounded text-green-600 focus:ring-green-500"
+                  />
+                  ID checked, 21+
+                </label>
+              )}
+
+              <button
+                onClick={handleComplete}
+                disabled={completing}
+                className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50"
+              >
+                {completing ? 'Completing…' : 'Complete Sale'}
+              </button>
+            </div>
+
+            {!order.idVerified && (
+              <p className="text-xs text-gray-600 dark:text-slate-300">
+                A cannabis sale cannot be completed until someone has checked the customer's ID.
+                {order.customerDob ? ' The kiosk recorded a date of birth — check it against the card.' : ''}
+              </p>
+            )}
           </div>
         )}
       </div>

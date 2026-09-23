@@ -8,7 +8,7 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { getApprovalConfig, requireApproval, linkApprovalToOrder, ApprovalRequiredError } from '../services/approvals.ts'
 import { escapeHtml } from '../utils/sanitize.ts'
-import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams } from '../utils/cannabis.ts'
+import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
 import { taxRatesFor, assessTax } from '../utils/tax.ts'
@@ -309,6 +309,12 @@ app.post('/', async (c) => {
     purchaseLimitOz: company.purchaseLimitOz, state: company.state, settings: company.settings,
   }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   const limitOz = resolvePurchaseLimitOz(companyRow)
+  // A cannabis line nobody can weigh cannot be counted, and a limit that silently counts it as zero is
+  // not a limit. Refuse by name before the cap is applied, rather than selling past it. (T29 H3)
+  const unweighed = unweighedCannabisRefusal(
+    uncountableCannabisLines(data.items.map(i => ({ product: productMap.get(i.productId), quantity: i.quantity })), equivalencyFactors),
+  )
+  if (unweighed) return c.json(unweighed, 400)
   // The over-limit answer is shared with the kiosk, so both tills refuse the same basket the same way.
   const overLimit = overPurchaseLimit(totalWeightGrams, limitOz)
   if (overLimit) return c.json(overLimit, 400)
@@ -542,6 +548,27 @@ app.put('/:id/status', async (c) => {
     const lines = await db.select().from(orderItem).where(eq(orderItem.orderId, id))
     const gate = await checkAgeGate(existing, lines, !!existing.idVerified)
     if (gate) return c.json(gate.body, gate.status)
+  }
+
+  // A sale that has been SETTLED cannot be cancelled — it has to be refunded. Cancelling one made the
+  // money and the stock both disappear: the order kept payment_status 'paid' and its completed_at, no
+  // stock came back, no refund was recorded, and every revenue surface that excludes cancelled orders
+  // simply stopped counting it. The takings were short by the value of the sale with nothing anywhere
+  // to explain it, and none of the refund rules — manager role, a reason, the refundable cap, the
+  // stock restore — were involved. (Dispensary T29 H2)
+  //
+  // Cancelling stays available for the thing it is for: an order that never took money. The test for
+  // that is completed_at, the same "has ever been settled" marker /complete and the refund restore
+  // use, plus the payment fields for anything settled by another route.
+  if (status === 'cancelled' && existing.status !== 'cancelled') {
+    const settled = !!existing.completedAt || existing.paymentStatus === 'paid' || Number(existing.refundedAmount || 0) > 0
+    if (settled) {
+      return c.json({
+        error: `${existing.number || 'This order'} has already been paid. Refund it instead — cancelling a settled sale would remove the money from your takings and leave the stock out of the building.`,
+        code: 'cancel_requires_refund',
+        refundWith: `POST /api/orders/${id}/refund`,
+      }, 409)
+    }
   }
 
   // Voiding a sale needs manager approval when Settings → Approvals says so. (F-04)
