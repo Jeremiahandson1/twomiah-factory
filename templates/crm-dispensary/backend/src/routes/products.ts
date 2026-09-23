@@ -86,6 +86,11 @@ const productSchema = z.object({
   // unit can legitimately be large, and a new upper bound would turn existing rows into a wall.
   // (Dispensary T31 L9)
   weight: z.coerce.number().min(0).optional(),
+  // The canonical per-unit grams, which every GET returns. It was readable and not writable, so
+  // `weightGrams: -3` came back 201 with nothing saved — a 200 that throws the value away, the
+  // shape this codebase has now hit four times. Accepted, bounded, and it wins over weight+unit
+  // below because it is already in the unit the limit maths uses. (Dispensary T32 L4)
+  weightGrams: z.coerce.number().min(0).optional(),
   weightUnit: z.enum(['g', 'oz', 'mg', 'ml', 'each']).default('g'),
   price: z.coerce.number().min(0).max(1_000_000),
   costPrice: z.coerce.number().min(0).max(1_000_000).optional(),
@@ -219,7 +224,10 @@ app.post('/', requireRole('manager'), async (c) => {
   // Persist the canonical per-unit grams so the purchase-limit math (which reads weight_grams) works.
   // Without this a UI-created flower had weight_grams null → every order rang up 0.00 oz and blew past
   // the legal limit. (compliance)
-  if (data.weight != null) values.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
+  // An explicit weightGrams wins: it is already the unit the purchase-limit maths reads, so
+  // re-deriving it from weight+unit would round-trip for nothing. The column is TEXT. (T32 L4)
+  if (data.weightGrams != null) values.weightGrams = String(data.weightGrams)
+  else if (data.weight != null) values.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
   if (data.thcMg != null) values.thcMg = String(data.thcMg)
 
   const [created] = await db.insert(product).values(values).returning()
@@ -250,7 +258,8 @@ app.put('/:id', requireRole('manager'), async (c) => {
   if (data.price != null) updateData.price = String(data.price)
   if (data.costPrice != null) updateData.costPrice = String(data.costPrice)
   if ('unit' in updateData) { updateData.unitType = updateData.unit; delete updateData.unit }
-  if (data.weight != null) updateData.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
+  if (data.weightGrams != null) updateData.weightGrams = String(data.weightGrams)
+  else if (data.weight != null) updateData.weightGrams = String(toGrams(Number(data.weight), data.weightUnit))
   if (data.thcMg != null) updateData.thcMg = String(data.thcMg)
 
   const [updated] = await db.update(product).set(updateData).where(eq(product.id, id)).returning()
@@ -362,7 +371,7 @@ app.post('/import', requireRole('manager'), async (c) => {
       price: z.number().min(0),
       costPrice: z.number().min(0).optional(),
       stockQuantity: z.number().int().min(0).default(0),
-      weight: z.number().optional(),
+      weight: z.number().min(0).optional(),
       weightUnit: z.string().optional(),
       metrcTag: z.string().optional(),
     })),

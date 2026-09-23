@@ -61,22 +61,29 @@ export function unitGramsOf(p: { weightGrams?: any; weight?: any; weightUnit?: s
  */
 export function uncountableCannabisLines(
   lines: Array<{ product: any; quantity: any }>,
-  _factors?: EquivalencyFactors,
+  factors?: EquivalencyFactors,
 ): string[] {
   const names: string[] = []
   for (const { product, quantity } of lines) {
     if (!isCannabisLine(product || {})) continue
     if ((Number(quantity) || 0) <= 0) continue
-    // The test is the product's OWN WEIGHT, not its flower-equivalent. A topical weighs 200 g and
-    // contributes nothing because its equivalency factor is deliberately 0 — "weighs nothing toward
-    // the limit" and "cannot be weighed" are different facts, and refusing the first would stop a
-    // legitimate sale the rules are written to allow. Only a line whose grams are unknown is
-    // uncountable; an edible with a weight but no potency already falls back to that weight.
-    if (unitGramsOf(product || {}) > 0) continue
-    // …or whose MILLIGRAMS are known. An edible labelled 100 mg is perfectly countable without a
-    // weight — milligrams are how it is sold and how the limit is written — so refusing it for having
-    // no grams would take a correctly-recorded product off the shelf. (T30)
-    if (unitThcMg(product || {}) > 0) continue
+    // A category whose equivalency factor is ZERO counts for nothing by design — topicals. That is an
+    // ANSWER, not a blank, so refusing the sale stops something the rules are written to allow. (T29 H3
+    // made this point about the factor; T32 M2 found the case it still missed.)
+    const rule = factors?.get(equivalencyKey(product || {}))
+    if (rule && rule.factor === 0) continue
+    // Otherwise: can this line produce a weight the limit can actually USE? Ask the function that
+    // weighs the cart — not a second rule that looks like it.
+    //
+    // This used to test grams-OR-mg on its own. mg only means something where the CATEGORY'S rule is
+    // written in mg (edibles, tinctures); concentrate is grams x 2.5 and its mg is never read. So an
+    // 800 mg concentrate with no weight was countable by this test and zero by the one that counts:
+    // 20 units, 16,000 mg of THC, completed at 0.00 oz. Adding thc_mg here without checking what the
+    // weighing side does with it is what opened that. (Dispensary T32 B1)
+    //
+    // Asking the same function means "can be counted" and "was counted" cannot disagree again — not
+    // because both were written carefully, but because there is only one of them.
+    if (lineFlowerEquivalentGrams(product || {}, factors) > 0) continue
     const name = product?.name || product?.productName || 'A cannabis product'
     if (!names.includes(name)) names.push(name)
   }

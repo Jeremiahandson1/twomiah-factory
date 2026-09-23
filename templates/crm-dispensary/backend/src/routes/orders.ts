@@ -715,7 +715,12 @@ app.post('/:id/complete', async (c) => {
     if (openRow) {
       cashSessionId = String(openRow.id)
     } else {
-      const everUsed = ((await db.execute(sql`
+      // …and only while the shop still RUNS drawers. Having used one in the past is not consent to be
+      // locked out of cash after switching Cash Management off: with the module off, every cash sale
+      // was refused for want of a drawer the operator had just said they do not use. A switch that
+      // breaks the till is worse than the gap it closed. (Dispensary T32 M1)
+      const stillRunsDrawers = await isFeatureEnabled(currentUser.companyId, 'cash_management')
+      const everUsed = stillRunsDrawers && ((await db.execute(sql`
         SELECT 1 FROM cash_sessions WHERE company_id = ${currentUser.companyId} LIMIT 1
       `)) as any).rows?.length > 0
       if (everUsed) {
@@ -1167,11 +1172,25 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       throw new Error('__REFUND_RACE__')
     }
 
-    // Record returned units per line
+    // CLAIM the units before any money moves. The bound is in the WHERE, so the check and the write
+    // are a single statement: a second refund for the same line blocks here, re-reads the committed
+    // refunded_quantity, and matches no row. Nothing is pro-rated against a quantity somebody else
+    // already took. (Dispensary T32 B2)
     for (const r of refundPlan) {
-      await tx.update(orderItem)
-        .set({ refundedQuantity: sql`COALESCE(refunded_quantity, 0) + ${r.qty}` } as any)
-        .where(eq(orderItem.id, r.line.id))
+      const claimed: any = await tx.execute(sql`
+        UPDATE order_items
+        SET refunded_quantity = COALESCE(refunded_quantity, 0) + ${r.qty}
+        WHERE id = ${r.line.id}
+          AND COALESCE(refunded_quantity, 0) + ${r.qty} <= quantity
+        RETURNING id
+      `)
+      if (!((claimed.rows || claimed)?.length > 0)) {
+        raceReject = { status: 409, body: {
+          error: `${r.line.productName || 'That item'} was just returned by another action — the units you asked for are no longer outstanding. Reload the order and try again.`,
+          code: 'refund_units_taken', orderItemId: r.line.id, requested: r.qty,
+        } }
+        throw new Error('__REFUND_RACE__')
+      }
     }
 
     // Order status follows how much has been returned: fully refunded closes it; a partial keeps

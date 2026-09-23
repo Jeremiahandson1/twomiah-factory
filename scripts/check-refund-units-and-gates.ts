@@ -22,7 +22,14 @@ if (!ord) fail('the dispensary orders routes are missing')
 // M10 (backend) — units come back off the shelf and are recorded on the line they came back from
 if (!/if \(data\.restoreInventory && existing\.completedAt\) \{/.test(ord)) fail('a refund must restock returned units when the sale decremented them')
 if (!/stockQuantity: sql`\$\{product\.stockQuantity\} \+ \$\{r\.qty\}`/.test(ord)) fail('…by ADDING the returned quantity back to stock')
-if (!/refundedQuantity: sql`COALESCE\(refunded_quantity, 0\) \+ \$\{r\.qty\}`/.test(ord)) fail('…and the line must count the units returned, cumulatively across partial refunds')
+// Cumulative, so repeated partials add up rather than overwrite — and BOUNDED in the same statement,
+// so two refunds of the same line at the same instant cannot both write. The bound used to live in a
+// read before the transaction, which is no bound at all: three concurrent returns of one $50 line went
+// through twice, $100 back and 2 units restocked, on every attempt. The order-level money cap hid it on
+// 2-line sales and stopped hiding it on 3. (Dispensary T32 B2)
+if (!/SET refunded_quantity = COALESCE\(refunded_quantity, 0\) \+ \$\{r\.qty\}/.test(ord)) fail('…and the line must count the units returned, cumulatively across partial refunds')
+if (!/AND COALESCE\(refunded_quantity, 0\) \+ \$\{r\.qty\} <= quantity/.test(ord)) fail('…with the outstanding-units bound in the WHERE of that same statement, or two simultaneous returns of one line both succeed')
+if (!/refund_units_taken/.test(ord)) fail('…and the caller that loses the race must be told, not silently given a partial refund')
 
 // M11 — the line records the weight that left the shelf
 if (!/weightGrams: unitGramsOf\(prod\) > 0 \? String\(round2\(unitGramsOf\(prod\) \* item\.quantity\)\) : null,/.test(ord)) fail('an order line must record the grams sold (unit weight x quantity), not null')

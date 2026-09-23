@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user, company } = useAuth();
+  const { user, company, hasFeature } = useAuth();
   const [stats, setStats] = useState<any>(null);
   const [lowStock, setLowStock] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -115,7 +115,9 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100">Welcome back, {user?.firstName}!</h1>
           <p className="text-gray-600 dark:text-slate-400">{company?.name} Dashboard</p>
         </div>
-        {/* Cash Session Status */}
+        {/* Cash Session Status — only for a shop that runs drawers. With Cash Management switched
+            off this still offered "Open", linking to a page the API now refuses. (T32 M1) */}
+        {hasFeature('cash_management') && (
         <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
           cashSession?.status === 'open'
             ? 'bg-green-50 text-green-700 border border-green-200'
@@ -127,6 +129,7 @@ export default function DashboardPage() {
             {cashSession?.status === 'open' ? 'View' : 'Open'}
           </Link>
         </div>
+        )}
       </div>
 
       {/* Stats Grid */}

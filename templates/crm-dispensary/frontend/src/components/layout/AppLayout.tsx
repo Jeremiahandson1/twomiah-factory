@@ -44,7 +44,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/documents', icon: FileText, label: 'Documents', features: ['documents'] },
 
   // Sales & Marketing
-  { to: '/crm/loyalty', icon: Star, label: 'Loyalty' },
+  { to: '/crm/loyalty', icon: Star, label: 'Loyalty', features: ['loyalty_rewards'] },
   { to: '/crm/referrals', icon: Share2, label: 'Referrals', features: ['referrals'] },
   { to: '/crm/recommendations', icon: Sparkles, label: 'AI Recs', features: ['ai_recommendations'] },
   { to: '/crm/kiosk', icon: Monitor, label: 'Kiosk', features: ['kiosk'] },
@@ -65,7 +65,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/website-analytics', icon: Globe, label: 'Web Analytics', features: ['website_analytics'] },
 
   // Operations
-  { to: '/crm/cash', icon: DollarSign, label: 'Cash' },
+  { to: '/crm/cash', icon: DollarSign, label: 'Cash', features: ['cash_management'] },
   { to: '/crm/audit', icon: Shield, label: 'Audit Log' },
   { to: '/crm/team', icon: Users2, label: 'Team' },
   { to: '/crm/enterprise', icon: Briefcase, label: 'Enterprise', features: ['franchise', 'multi_store'] },

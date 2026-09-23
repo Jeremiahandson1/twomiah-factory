@@ -401,8 +401,11 @@ app.get('/menu', async (c) => {
     FROM products
     WHERE company_id = ${companyId} AND active = true AND COALESCE(in_stock, true) = true
   `)
+  // With the SAME equivalency rules the register uses. Without them this menu asked a different
+  // question from the till standing behind it. (T32 B1)
+  const menuFactors = await loadEquivalencyFactors(companyId)
   const unsellableIds = rows(sellability)
-    .filter((p: any) => uncountableCannabisLines([{ product: camel(p), quantity: 1 }]).length > 0)
+    .filter((p: any) => uncountableCannabisLines([{ product: camel(p), quantity: 1 }], menuFactors).length > 0)
     .map((p: any) => String(p.id))
   const sellableFilter = unsellableIds.length
     ? sql`AND p.id NOT IN (${sql.join(unsellableIds.map((m) => sql`${m}`), sql`, `)})`
@@ -473,7 +476,10 @@ app.post('/session/:token/add-item', async (c) => {
   // …and the same refusal the checkout would have given, given HERE, where there is still nothing in
   // the basket to be stuck with. The menu hides these now, but a tablet holding a stale page can still
   // ask for one, and the rule belongs on the write either way. (Dispensary T31)
-  const unsellable = uncountableCannabisLines([{ product: camel(product), quantity: data.quantity }])
+  // Same rules as the checkout below it, so the kiosk cannot accept into the basket what it will
+  // refuse at the end — which is how an mg-only concentrate got in. (T32 L6)
+  const addFactors = await loadEquivalencyFactors(session.company_id)
+  const unsellable = uncountableCannabisLines([{ product: camel(product), quantity: data.quantity }], addFactors)
   if (unsellable.length) return c.json(CANNOT_SELL_HERE(unsellable), 400)
 
   const items = sessionItems(session)

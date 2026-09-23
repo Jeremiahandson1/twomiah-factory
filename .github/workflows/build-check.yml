@@ -1616,3 +1616,14 @@ jobs:
           bun-version: latest
       - name: "Check form fields reach the database"
         run: bun run scripts/check-schema-fields-are-writable.ts
+
+  one-countable:
+    name: "One definition of countable"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check the purchase-limit sellability test"
+        run: bun run scripts/check-one-countable-definition.ts
