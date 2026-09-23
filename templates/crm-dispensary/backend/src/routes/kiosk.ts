@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 import { ageFromDob, ADULT_USE_MIN_AGE, cartCannabisGrams, resolvePurchaseLimitOz, overPurchaseLimit, GRAMS_PER_OZ, isCannabisLine, unitGramsOf } from '../utils/cannabis.ts'
+import { taxRatesFor, assessTax, cannabisSubtotalOf } from '../utils/tax.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { createRateLimiter, isWrite, KIOSK_WINDOW_MS, KIOSK_MAX_SESSIONS, KIOSK_MAX_CHECKOUTS } from '../middleware/rateLimit.ts'
 import { deviceForToken, claimPairingCode, kioskEnforcement, newPairingCode, PAIRING_TTL_MS, type PairedDevice } from '../services/kioskDevice.ts'
@@ -500,7 +501,7 @@ app.post('/session/:token/checkout', async (c) => {
   }
   const factors = await loadEquivalencyFactors(companyId)
   const totalGrams = cartCannabisGrams(items.map((i: any) => ({ product: i.product || {}, quantity: i.quantity })), factors)
-  const [companyRow] = rows(await db.execute(sql`SELECT purchase_limit_oz, state FROM company WHERE id = ${companyId} LIMIT 1`))
+  const [companyRow] = rows(await db.execute(sql`SELECT purchase_limit_oz, state, tax_rate, excise_tax_rate FROM company WHERE id = ${companyId} LIMIT 1`))
   const limitOz = resolvePurchaseLimitOz(camel(companyRow) as any)
   const over = overPurchaseLimit(totalGrams, limitOz)
   if (over) {
@@ -508,6 +509,25 @@ app.post('/session/:token/checkout', async (c) => {
     return c.json(over, 400)
   }
   const totalCannabisWeightOz = (totalGrams / GRAMS_PER_OZ).toFixed(2)
+
+  // TAX. The kiosk wrote its subtotal into `total` and charged nothing: a $70 basket completed at $70
+  // here and at $87.50 over the counter, and the difference is excise and sales tax the state is owed.
+  // It was never a missing line — it was a second implementation of "complete a sale" that no money
+  // rule ever reached. The register's arithmetic now lives in utils/tax.ts and both tills call it, so
+  // a rate change, or the rule that tax follows the discounted price, cannot land on one till only.
+  // (Dispensary T29 B2)
+  //
+  // Which lines carry excise is the product's tax_category, exactly as the register reads it — a
+  // separate question from what counts toward the purchase LIMIT, which is why it is not reusing
+  // isCannabisLine here.
+  const rates = taxRatesFor(camel(companyRow) as any)
+  const cannabisSubtotal = cannabisSubtotalOf(
+    items.map((i: any) => ({ taxCategory: i.product?.taxCategory ?? null, lineTotal: i.total })),
+  )
+  // A kiosk basket carries no discount — there is no budtender to apply one — so the discounted and
+  // gross bases are the same here. It is passed explicitly rather than defaulted so that the day a
+  // kiosk promotion exists, the shared helper already handles it.
+  const tax = assessTax({ subtotal, cannabisSubtotal, discount: 0, rates })
 
   // Sequential per-company order number for the Orders list (integer order_number); the
   // `number` text column holds the human-facing kiosk code shown on the thank-you screen.
@@ -522,7 +542,7 @@ app.post('/session/:token/checkout', async (c) => {
 
   // Create order (walk-in style; a budtender reviews and completes it at the register).
   const orderResult = await db.execute(sql`
-    INSERT INTO orders(id, order_number, number, type, status, subtotal, total, total_cannabis_weight_oz, total_weight_grams, customer_dob, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
+    INSERT INTO orders(id, order_number, number, type, status, subtotal, excise_tax, sales_tax, total_tax, tax_amount, total, total_cannabis_weight_oz, total_weight_grams, customer_dob, kiosk_session_id, location_id, company_id, customer_name, notes, created_at, updated_at)
     VALUES (
       gen_random_uuid(),
       ${nextNumber},
@@ -530,7 +550,13 @@ app.post('/session/:token/checkout', async (c) => {
       'kiosk',
       'pending',
       ${String(subtotal)},
-      ${String(subtotal)},
+      ${String(tax.exciseTax)},
+      ${String(tax.salesTax)},
+      ${String(tax.totalTax)},
+      -- the orders list, order detail and every tax export read tax_amount, not total_tax; the register
+      -- learned that the hard way (retest#5 B3) and the kiosk has to write it the same way
+      ${String(tax.totalTax)},
+      ${String(tax.grandTotal)},
       ${totalCannabisWeightOz},
       -- the register writes grams too, and EOD/Metrc read that column; a kiosk order left it at 0 (T21 M13)
       ${totalGrams.toFixed(2)},
@@ -608,7 +634,12 @@ app.post('/session/:token/checkout', async (c) => {
     orderNumber: order.number,
     items,
     subtotal,
-    total: subtotal,
+    // The customer is told what they will actually pay. This said `subtotal`, so the tablet's
+    // thank-you screen quoted a figure the register was never going to charge. (T29 B2)
+    exciseTax: tax.exciseTax,
+    salesTax: tax.salesTax,
+    tax: tax.totalTax,
+    total: tax.grandTotal,
     status: 'pending',
     message: 'Order submitted. A budtender will review your order shortly.',
   }, 201)

@@ -11,6 +11,7 @@ import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
+import { taxRatesFor, assessTax } from '../utils/tax.ts'
 import { checkFilter } from '../shared/index.ts'
 
 const app = new Hono()
@@ -315,20 +316,9 @@ app.post('/', async (c) => {
     .filter(i => i.taxCategory === 'cannabis')
     .reduce((sum, i) => sum + Number(i.lineTotal), 0)
 
-  // Sales tax uses the rate configured in Settings (company.taxRate, a percent
-  // like "8.5") so the register charges what the operator set — not a hardcoded
-  // constant that disagreed with Settings. Excise stays a cannabis-specific rate.
-  // (companyRow was loaded above for the purchase-limit check.)
-  const configuredSalesRate = companyRow?.taxRate != null && companyRow.taxRate !== ''
-    ? Number(companyRow.taxRate) / 100
-    : SALES_TAX_RATE
-  const salesRate = Number.isFinite(configuredSalesRate) ? configuredSalesRate : SALES_TAX_RATE
-  // Excise is a cannabis-specific rate that varies by state — read it from Settings
-  // too, falling back to the 15% default only when unconfigured.
-  const configuredExciseRate = companyRow?.exciseTaxRate != null && companyRow.exciseTaxRate !== ''
-    ? Number(companyRow.exciseTaxRate) / 100
-    : CANNABIS_TAX_RATE
-  const exciseRate = Number.isFinite(configuredExciseRate) ? configuredExciseRate : CANNABIS_TAX_RATE
+  // The rates the operator set in Settings, falling back to the state defaults. Shared with the
+  // kiosk (utils/tax.ts) so the two tills cannot charge differently. (T29 B2)
+  const { salesRate, exciseRate } = taxRatesFor(companyRow)
 
   // Reward redemption (M-7): price the chosen catalog reward server-side and charge its
   // pointsCost. fixed → $value; percent → value% of the eligible lines (applicableCategories,
@@ -431,13 +421,9 @@ app.post('/', async (c) => {
   // and non-cannabis merchandise pro rata so excise (cannabis only) and sales tax (everything)
   // each apply to their own net base. Round to cents: raw floats like 2.8000000000000003
   // rendered badly and broke exact-match reconciliation/exports. (retest#5 tax)
-  const cannabisShare = subtotal > 0 ? cannabisSubtotal / subtotal : 0
-  const taxableCannabis = Math.max(0, cannabisSubtotal - totalDiscount * cannabisShare)
-  const taxableAll = Math.max(0, subtotal - totalDiscount)
-  const exciseTax = round2(taxableCannabis * exciseRate)
-  const salesTax = round2(taxableAll * salesRate)
-  const totalTax = round2(exciseTax + salesTax)
-  const grandTotal = round2(subtotal + totalTax - totalDiscount)
+  const { exciseTax, salesTax, totalTax, grandTotal } = assessTax({
+    subtotal, cannabisSubtotal, discount: totalDiscount, rates: { salesRate, exciseRate },
+  })
 
 
   // Create order in transaction

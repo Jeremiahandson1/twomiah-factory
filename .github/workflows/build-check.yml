@@ -1583,3 +1583,14 @@ jobs:
           bun-version: latest
       - name: "Check column-backed values stay out of settings"
         run: bun run scripts/check-settings-blob-has-no-column-values.ts
+
+  one-tax-definition:
+    name: "One tax definition, every till calls it"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check dispensary tax is defined once"
+        run: bun run scripts/check-one-tax-definition.ts
