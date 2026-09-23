@@ -492,20 +492,25 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
       const result = await db.execute(sql`
         SELECT
           (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date as sale_date,
+          -- Sales in the period, counted the way the dashboard, analytics and the compliance daily
+          -- report count them: every SETTLED sale. Scoping the count to taxCollected dropped fully
+          -- refunded sales and reported 76 where everything else said 78 — the same split T31 L4
+          -- fixed on the filing, still open on this one. The MONEY below stays on taxCollected;
+          -- only the count is a different question. (Dispensary T33 L2)
           COUNT(*)::int as order_count,
-          COALESCE(SUM(o.subtotal::numeric), 0) as subtotal,
+          COALESCE(SUM(o.subtotal::numeric) FILTER (WHERE o.status IN ${taxCollected}), 0) as subtotal,
           -- NET of tax handed back with returns, per component, so the lines below still add up to
           -- the total once refunds are subtracted. Filing the gross overstated the liability. (T29 M4)
-          COALESCE(SUM(${taxNetExpr}), 0) as total_tax,
-          COALESCE(SUM(${exciseNetExpr}), 0) as excise_tax,
-          COALESCE(SUM(${salesNetExpr}), 0) as sales_tax,
+          COALESCE(SUM(${taxNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as total_tax,
+          COALESCE(SUM(${exciseNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as excise_tax,
+          COALESCE(SUM(${salesNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) as sales_tax,
           -- orders has no city_tax column (that reference 500'd every tax report); local tax
           -- is whatever total tax isn't excise or sales.
-          GREATEST(0, COALESCE(SUM(${taxNetExpr}), 0) - COALESCE(SUM(${exciseNetExpr}), 0) - COALESCE(SUM(${salesNetExpr}), 0)) as local_tax,
-          COALESCE(SUM(o.total::numeric), 0) as total_collected
+          GREATEST(0, COALESCE(SUM(${taxNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) - COALESCE(SUM(${exciseNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0) - COALESCE(SUM(${salesNetExpr}) FILTER (WHERE o.status IN ${taxCollected}), 0)) as local_tax,
+          COALESCE(SUM(o.total::numeric) FILTER (WHERE o.status IN ${taxCollected}), 0) as total_collected
         FROM orders o
         WHERE o.company_id = ${currentUser.companyId}
-          AND o.status IN ${taxCollected}
+          AND o.status IN ${settledSale}
           AND o.completed_at >= ${startDate}
           AND o.completed_at < ${endDate}
         GROUP BY 1

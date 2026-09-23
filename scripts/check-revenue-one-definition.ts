@@ -120,6 +120,22 @@ for (const col of ['total_tax', 'excise_tax', 'sales_tax']) {
   if (gross) fail(`the tax filing sums ${col} gross — it must subtract what went back with refunds (utils/revenue.ts), or it over-reports the liability on the one figure people file`)
 }
 if (!/SUM\(\$\{taxNetExprBare\}\)/.test(filing)) fail('…and the filing must use taxNetExprBare for its tax totals')
+
+// "How many sales in this period" has ONE answer everywhere: the settled set. Scoping a COUNT to the
+// TAX row set silently drops every sale handed back in full, and the report disagrees with the
+// dashboard by exactly that many. Fixed on the filing as T31 L4 (31 against 33), found still open on
+// the compliance tax report as T33 L2 (76 against 78) — the same defect twice, on the two surfaces a
+// regulator reads. Both now select the settled set and FILTER the money back to taxCollected.
+const compliance = read(R + 'routes/compliance.ts')
+const taxCase = /case 'tax': \{([\s\S]*?)\n      break/.exec(compliance)?.[1]
+if (taxCase) {
+  if (!/AND o\.status IN \$\{settledSale\}/.test(taxCase)) {
+    fail("the compliance tax report does not count over the settled row set — scoping its COUNT to taxCollected drops fully refunded sales and puts it out of step with every other surface (T33 L2)")
+  }
+  if (!/FILTER \(WHERE o\.status IN \$\{taxCollected\}\)/.test(taxCase)) {
+    fail('…and having widened the rows, its tax sums must be filtered back to taxCollected, or a sale handed back in full is charged tax it does not owe')
+  }
+}
 if (/AND status IN \$\{settledSale\}/.test(filing) && !/FILTER \(WHERE status IN \$\{taxCollected\}\)/.test(filing)) {
   fail('the tax filing selects the settled row set without scoping its tax sums back to taxCollected — that credits the state with the gross of a sale that was handed back in full')
 }

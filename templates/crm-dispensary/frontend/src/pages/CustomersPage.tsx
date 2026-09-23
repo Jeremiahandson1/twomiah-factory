@@ -122,7 +122,9 @@ export default function CustomersPage() {
         const saved: any = await api.put(`/api/contacts/${editingCustomer.id}`, formData);
         toast.success('Customer updated');
         // An edit that strips markup says so here too, not only on create. (T31 L8)
-        for (const w of saved?.warnings || []) toast.error(w);
+        // Sticky and amber: the save worked, but what was stored is not what was typed, and a notice
+        // about that cannot be a four-second flash in a corner. (T33 L3)
+        for (const w of saved?.warnings || []) toast.warning(w, 0);
       } else {
         let created: any;
         try {
@@ -139,8 +141,9 @@ export default function CustomersPage() {
           created = await api.post('/api/contacts', { ...formData, allowDuplicate: true });
         }
         toast.success('Customer created');
-        // Server flags 18–20 year olds (medical-only) — show it, don't bury it. (L-2)
-        for (const w of created?.warnings || []) toast.error(w);
+        // Server flags 18–20 year olds (medical-only), and reports any markup it stripped — show it,
+        // don't bury it, and don't let it expire before it is read. (L-2, T33 L3)
+        for (const w of created?.warnings || []) toast.warning(w, 0);
       }
       setModalOpen(false);
       loadCustomers();
