@@ -41,8 +41,14 @@ const ALLOWED: Record<string, Array<[needle: string, why: string]>> = {
     ['const iso = (d: Date) => d.toISOString().slice(0, 10)', 'feeds utcToday() only — the WIDE end of the "has this period arrived?" prefilter, never a written date'],
   ],
   'templates/crm-salon/backend/src/routes/reminders.ts': [
-    ['const todayStr = () => new Date().toISOString().slice(0, 10)', 'a rebooking call list is a rolling window, not a stored day'],
-    ['const dayStr = (d: Date) => d.toISOString().slice(0, 10)', 'same window — formats the ends of it'],
+    // The entry that used to sit here exempted `todayStr()` because "a rebooking call list is a rolling
+    // window, not a stored day". That conflated two different questions. The WINDOW is rolling and a
+    // day either way at its edges is harmless — but `overdue` is not a window, it is a per-row calendar
+    // judgement (`r.dueDate < today`), it is shown to the user, and it decides who gets chased. On the
+    // UTC day, every client due TODAY on the shop's calendar came back overdue from 7pm onward. The
+    // exemption is withdrawn; /due now anchors on salonToday() and `overdue` is pinned by
+    // saltest/backend/recall-salon-day.test.ts at a frozen 21:05 Chicago.
+    ['const dayStr = (d: Date) => d.toISOString().slice(0, 10)', 'formats a due date DERIVED from a stored performedAt instant plus a whole number of days — not a reading of "today"'],
   ],
   'templates/crm-salon/backend/src/routes/clients.ts': [
     ['calendarDateIn(new Date(withInterval.performedAt), tz)', 'due-back is already anchored on the shop day; this only turns the anchored value back into a string'],
@@ -57,6 +63,7 @@ const MUST_USE: Array<[file: string, needle: string, what: string]> = [
   ['templates/crm-salon/backend/src/routes/memberships.ts', 'salonToday(currentUser.companyId)', 'the enrolment start date'],
   ['templates/crm-salon/backend/src/routes/clients.ts', 'salonToday(currentUser.companyId)', 'the future-visit guard'],
   ['templates/crm-salon/backend/src/services/membershipBilling.ts', 'salonToday', 'the billing period'],
+  ['templates/crm-salon/backend/src/routes/reminders.ts', 'salonToday(u.companyId)', "the rebooking list's today, which sets `overdue`"],
   ['templates/crm-salon/frontend/src/pages/salon/AppointmentsPage.tsx', 'todayStr', "The Book's default day"],
   ['templates/crm-salon/frontend/src/pages/salon/MembershipsPage.tsx', 'todayStr', "the enrol form's start date"],
   ['templates/crm-salon/frontend/src/components/salon/ServiceRecordEditorModal.tsx', 'toDayString', "the visit's date box"],

@@ -5,6 +5,7 @@ import { eq, and, inArray, isNotNull, sql, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { sendSMS } from '../services/sms.ts'
+import { salonToday } from '../utils/salonDate.ts'
 
 /**
  * Rebooking / recall engine — the retention wedge.
@@ -21,8 +22,24 @@ import { sendSMS } from '../services/sms.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
-const todayStr = () => new Date().toISOString().slice(0, 10)
 const dayStr = (d: Date) => d.toISOString().slice(0, 10)
+
+// The rebooking list is answered on the SHOP's calendar, like every other day question in this
+// template (utils/salonDate.ts, Salon T25 N2). It was the one place the N2 sweep missed: `overdue`
+// compared a client's due date against the UTC day, so from 7pm in Chicago every client due TOMORROW
+// was already flagged overdue — and that flag is not just a label, it decides who gets chased.
+// Shifting a plain YYYY-MM-DD by whole days keeps it a calendar question; going via Date.now() would
+// put the UTC clock straight back in.
+// Date.UTC here is calendar arithmetic on a date that is ALREADY the shop's, not a reading of the
+// clock — it never asks what time it is. Formatted by hand rather than via toISOString().slice(0, 10)
+// so it cannot be mistaken for the UTC-today bug, by a reader or by
+// scripts/check-salon-days-are-the-shop-calendar.ts.
+const shiftDays = (day: string, delta: number) => {
+  const [y, m, d] = day.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d) + delta * 86400000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`
+}
 
 // GET /reminders/due?window=14&maxOverdue=90 — clients whose next visit is due
 // within `window` days or overdue by up to `maxOverdue` days. The overdue floor
@@ -33,8 +50,9 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
   const u = c.get('user') as any
   const windowDays = Math.min(365, Math.max(1, +(c.req.query('window') || '14')))
   const maxOverdue = Math.min(3650, Math.max(1, +(c.req.query('maxOverdue') || '90')))
-  const cutoff = dayStr(new Date(Date.now() + windowDays * 86400000))
-  const floor = dayStr(new Date(Date.now() - maxOverdue * 86400000))
+  const today = await salonToday(u.companyId)
+  const cutoff = shiftDays(today, windowDays)
+  const floor = shiftDays(today, -maxOverdue)
 
   const rows = await db.select({
     recordId: serviceRecord.id,
@@ -66,7 +84,7 @@ app.get('/due', requirePermission('contacts:read'), async (c) => {
     if (!cur || new Date(r.performedAt) > new Date(cur.performedAt)) latest.set(key, r)
   }
 
-  const t = todayStr()
+  const t = today
   const data = [...latest.values()]
     .map(r => ({
       ...r,
