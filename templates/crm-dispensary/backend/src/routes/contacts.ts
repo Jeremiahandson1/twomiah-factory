@@ -19,12 +19,41 @@ const stripPortal = (row: any) => { if (!row) return row; const { portalToken, p
 
 // Free-text fields are stored with markup stripped (QA F-09): a customer named `<script>`
 // was persisted verbatim. React escapes it in the SPA, but receipts, labels, emails and CSV
-// exports are not React. Strip on input; a name that is ONLY markup fails min(1).
+// exports are not React. Strip on input — for a paragraph, cleaning beats refusing the lot.
 const cleanText = (min = 0, max?: number) => z.string().transform(stripHtml).pipe(
   max != null
     ? (min > 0 ? z.string().min(min).max(max) : z.string().max(max))
     : (min > 0 ? z.string().min(min) : z.string()),
 )
+
+/**
+ * A NAME is stored as typed, or refused. Never quietly rewritten.
+ *
+ * Five test runs reported markup being removed from a contact name "without telling the user", and
+ * three attempts to tell them failed — the server returns the warning, the running bundle carries the
+ * notice, the deployed handler sets it and holds the form open, and it still does not land. A name is
+ * the wrong field to be guessing about: it goes on receipts, labels, exports and the record of who
+ * bought what. Markup in one is a mistake or an attack, and a refusal answers both — and travels the
+ * error path that demonstrably DOES reach the screen (a name of pure tags has always surfaced its
+ * min(1) failure).
+ *
+ * Only when stripping would CHANGE the value. "Tom & Jerry <3" survives stripHtml untouched and stays
+ * perfectly legal. (Dispensary T37)
+ */
+const cleanName = (max: number) => z.string().superRefine((raw, ctx) => {
+  const cleaned = stripHtml(raw)
+  if (!cleaned) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `A name cannot be only formatting or tags — "${raw.trim().slice(0, 60)}" leaves nothing to store. Enter the customer's name.` })
+    return
+  }
+  if (cleaned !== raw.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `A name cannot contain formatting or tags. Remove them and it will save — "${raw.trim().slice(0, 60)}" would have been stored as "${cleaned.slice(0, 60)}".` })
+    return
+  }
+  if (cleaned.length > max) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `A name can be at most ${max} characters; this one is ${cleaned.length}.` })
+  }
+}).transform((raw) => stripHtml(raw))
 
 // A name is a label a person is known by, not a paragraph. The field had a floor and no ceiling, so a
 // 404-character name was stored happily and then rendered in a table cell 2,437px wide, pushing every
@@ -33,7 +62,7 @@ const cleanText = (min = 0, max?: number) => z.string().transform(stripHtml).pip
 const NAME_MAX = 200
 
 const contactSchema = z.object({
-  name: cleanText(1, NAME_MAX),
+  name: cleanName(NAME_MAX),
   // A dispensary calls the people it serves CUSTOMERS — it is the word on the screen, in the nav and
   // in every toast. The stored vocabulary calls them clients, and the API refused "customer" outright,
   // so the one word the product uses everywhere was the one word its own API would not take. Accepted

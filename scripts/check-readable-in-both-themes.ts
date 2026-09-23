@@ -47,7 +47,16 @@ if (!/break-words" title=\{val\}/.test(customers)) fail('a customer name must wr
 const contacts = read('templates/crm-dispensary/backend/src/routes/contacts.ts')
 if (!contacts) fail('the dispensary contacts routes are missing')
 if (!/const NAME_MAX = 200/.test(contacts)) fail('a name needs a ceiling — the field had a floor and none, and a 404-character name was stored')
-if (!/name: cleanText\(1, NAME_MAX\)/.test(contacts)) fail('…and the name field must actually use it')
+// Pinned to cleanName specifically. Accepting "either helper" let the field be reverted to the silent
+// rewrite while the guard still passed, because cleanName remained DEFINED in the file — a guard that
+// does not fail on the defect is not a guard.
+if (!/name: cleanName\(NAME_MAX\)/.test(contacts)) fail('…and the name field must actually use it, through cleanName')
+// A name is stored as typed or refused — never quietly rewritten. Markup being stripped from a contact
+// name without the person knowing was reported five runs running; three attempts to TELL them failed
+// (the server sends the warning, the bundle carries the notice, the deployed handler shows it), so the
+// edit itself stops. notes and address keep strip-and-warn: a paragraph is not a label. (T37)
+if (!/const cleanName = /.test(contacts)) fail('a contact NAME must go through cleanName — cleanText rewrites silently, which is the defect')
+if (!/cleaned !== raw\.trim\(\)/.test(contacts)) fail('…refusing precisely when stripping would CHANGE the value, so "Tom & Jerry <3" stays legal')
 if (!/max != null/.test(contacts)) fail('…with cleanText able to carry a maximum at all')
 
 if (failed) { console.error(`\nreadable in both themes: ${failed} check(s) FAILED`); process.exit(1) }
