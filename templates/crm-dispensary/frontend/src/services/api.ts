@@ -15,6 +15,9 @@ export type ApiRequestOptions = Omit<RequestInit, 'headers' | 'body'> & {
   headers?: Record<string, string>;
   body?: BodyInit | null;
 };
+/** Why a refresh ended. 'unavailable' is the server failing to answer — NOT a rejected token. */
+type RefreshOutcome = 'ok' | 'rejected' | 'unavailable';
+
 type QueryParams = Record<string, any> | URLSearchParams | string | string[][] | undefined;
 
 function makeTransientError(message: string): ApiError {
@@ -76,7 +79,13 @@ class ApiClient {
       // Handle 401 - try to refresh token
       if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
         const refreshed = await this.refreshAccessToken();
-        if (refreshed) {
+        if (refreshed === 'unavailable') {
+          // The server could not answer. Keep the session; the next attempt can succeed.
+          const err: ApiError = new Error('The server is restarting. Give it a moment and try again.');
+          err.status = 503;
+          throw err;
+        }
+        if (refreshed === 'ok') {
           headers.Authorization = `Bearer ${this.accessToken}`;
           return fetchWithTimeout(url, { ...options, headers }).then(r => this.handleResponse(r));
         } else {
@@ -108,7 +117,7 @@ class ApiClient {
     return data;
   }
 
-  async refreshAccessToken(): Promise<boolean> {
+  async refreshAccessToken(): Promise<RefreshOutcome> {
     // Single-flight: a page that fires several requests at once produces several
     // 401s, each calling this. The server ROTATES the refresh token on use, so the
     // second call presents a token the first already invalidated, fails, and logs
@@ -121,12 +130,16 @@ class ApiClient {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken: this.refreshToken }),
         });
-        if (!response.ok) return false;
+        // 401/403 is the server rejecting the token — that session really is over.
+        // Anything else (502 while the service restarts, 503, 500) is the server failing to ANSWER.
+        if (response.status === 401 || response.status === 403) return 'rejected';
+        if (!response.ok) return 'unavailable';
         const data = await response.json();
         this.setTokens(data.accessToken, data.refreshToken);
-        return true;
+        return 'ok';
       } catch {
-        return false;
+        // a thrown fetch is a network failure, never a verdict on the token
+        return 'unavailable';
       } finally {
         this.refreshPromise = null;
       }

@@ -11,7 +11,7 @@ export function stripHtml(value: string): string {
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<\/?[a-zA-Z][^>]*>/g, '')
-    .replace(/<\/?[^>]*>/g, '')
+    .replace(/<[!?][^>]*>/g, '')
     .replace(/javascript:/gi, '')
     .replace(/\s+/g, ' ')
     .trim()

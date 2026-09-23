@@ -148,7 +148,13 @@ export default function CustomersPage() {
         warned = created?.warnings || [];
         // If the notice is going to hold the modal open, it has to hold it open on the record that was
         // just CREATED — otherwise a second Save from the same form makes a duplicate customer.
-        if (warned.length && created?.id) setEditingCustomer(created);
+        if (warned.length && created?.id) {
+          setEditingCustomer(created);
+          // …and show what was actually STORED. The notice says the value changed; the field beside
+          // it was still showing the text as typed, so the form contradicted the record it had just
+          // written. (Dispensary T38 L3)
+          setFormData((f: any) => ({ ...f, name: created.name ?? f.name, notes: created.notes ?? '', address: created.address ?? '' }));
+        }
       }
       // The list refreshes either way; the modal only closes when there is nothing to tell them.
       loadCustomers();

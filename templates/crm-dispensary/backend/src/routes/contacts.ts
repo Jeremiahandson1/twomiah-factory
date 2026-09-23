@@ -230,11 +230,13 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   // silence, so "T29 <img src=x onerror=...>" came back saved as "T29" with nothing to say why. The
   // person typing it deserves to know their input was changed, even when the change was for their own
   // good. (Dispensary T29 L8)
-  for (const [field, label] of [['name', 'name'], ['notes', 'notes'], ['address', 'address']] as const) {
+  // Each field carries its own verb: "notes" is plural, and one sentence shape for all three read
+  // "The notes was saved as…". (Dispensary T38)
+  for (const [field, label, verb] of [['name', 'name', 'was'], ['notes', 'notes', 'were'], ['address', 'address', 'was']] as const) {
     const sent = (cBody as any)?.[field]
     const stored = (data as any)?.[field]
     if (typeof sent === 'string' && typeof stored === 'string' && sent.trim() !== stored.trim()) {
-      warnings.push(`The ${label} was saved as "${stored}" — formatting or markup was removed.`)
+      warnings.push(`The ${label} ${verb} saved as "${stored}" — formatting or markup was removed.`)
     }
   }
   if (data.dateOfBirth && data.type !== 'vendor') {
@@ -309,11 +311,13 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   // be used, since a customer is created once and edited for years. Markup still goes (F-09); what
   // changes is that the person who typed it is told. (Dispensary T31 L8)
   const warnings: string[] = []
-  for (const [field, label] of [['name', 'name'], ['notes', 'notes'], ['address', 'address']] as const) {
+  // Each field carries its own verb: "notes" is plural, and one sentence shape for all three read
+  // "The notes was saved as…". (Dispensary T38)
+  for (const [field, label, verb] of [['name', 'name', 'was'], ['notes', 'notes', 'were'], ['address', 'address', 'was']] as const) {
     const sent = (uBody as any)?.[field]
     const stored = (data as any)?.[field]
     if (typeof sent === 'string' && typeof stored === 'string' && sent.trim() !== stored.trim()) {
-      warnings.push(`The ${label} was saved as "${stored}" — formatting or markup was removed.`)
+      warnings.push(`The ${label} ${verb} saved as "${stored}" — formatting or markup was removed.`)
     }
   }
 
