@@ -105,6 +105,10 @@ interface ImportOptions {
   dryRun?: boolean
   skipDuplicates?: boolean
   createContacts?: boolean
+  /** What a row with NO type column becomes. The route has always sent it; it was never declared here,
+   *  so it was silently ignored and every untyped row became a lead. (Salon T27 N6) */
+  defaultType?: string
+  updateExisting?: boolean
 }
 
 interface ImportResults {
@@ -142,6 +146,23 @@ export async function importContacts(csvContent: string, companyId: string, opti
 
       if (!name) {
         results.errors.push({ line: lineNum, error: 'Name is required (provide name, first_name + last_name, or company_name)' })
+        results.skipped++
+        continue
+      }
+
+      // The same two rules the contact API enforces. Both of these used to import silently: an email
+      // of "not-an-email" was stored verbatim, and an unrecognised Type became "other". A row the API
+      // would refuse is reported here by line and by value, so the person who built the CSV can fix
+      // it rather than discover it later in a count that does not add up. (Salon T27 N6)
+      if (email && !EMAIL_RE.test(email)) {
+        results.errors.push({ line: lineNum, error: `"${email}" is not a valid email address` })
+        results.skipped++
+        continue
+      }
+      const rawType = getValue(row, ...CONTACT_COLUMN_MAP.type)
+      const resolvedType = mapContactType(rawType) ?? (rawType ? null : (options.defaultType || 'lead'))
+      if (!resolvedType) {
+        results.errors.push({ line: lineNum, error: `"${rawType}" is not a contact type — use client, lead, vendor or subcontractor` })
         results.skipped++
         continue
       }
@@ -190,7 +211,7 @@ export async function importContacts(csvContent: string, companyId: string, opti
         phone: getValue(row, ...CONTACT_COLUMN_MAP.phone),
         mobile: getValue(row, ...CONTACT_COLUMN_MAP.mobile),
         company: getValue(row, ...CONTACT_COLUMN_MAP.company),
-        type: mapContactType(getValue(row, ...CONTACT_COLUMN_MAP.type)),
+        type: resolvedType,
         address: fullAddress || null,
         city: primaryCity,
         state: primaryState,
@@ -237,15 +258,27 @@ export async function importContacts(csvContent: string, companyId: string, opti
   return results
 }
 
-function mapContactType(type: string | null): string {
-  if (!type) return 'lead'
+/**
+ * The contact type this CSV value means, or null if it means nothing.
+ *
+ * This used to answer 'other' for anything it did not recognise, so a Type column reading "banana"
+ * imported cleanly — with errors [] — as a contact of a type the contact API refuses outright. That
+ * row then counted as a client on the Clients page and in the dashboard tile while /contacts/stats
+ * disagreed, because "other" is in nobody's definition of anything. An import must not be able to
+ * create a record the API would reject. (Salon T27 N6)
+ */
+function mapContactType(type: string | null): string | null {
+  if (!type) return null
   const t = type.toLowerCase()
   if (t.includes('client') || t.includes('customer')) return 'client'
   if (t.includes('vendor') || t.includes('supplier')) return 'vendor'
   if (t.includes('sub')) return 'subcontractor'
   if (t.includes('lead') || t.includes('prospect')) return 'lead'
-  return 'other'
+  return null
 }
+
+/** The same shape the contact API accepts. A CSV is not a reason to relax it. (Salon T27 N6) */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ============================================
 // PROJECT IMPORT

@@ -11,6 +11,21 @@ import type { WorkingHours } from './time'
 
 const BOOKING_STATUSES: BookingStatus[] = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show']
 const num = (v: unknown, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d }
+
+/**
+ * A number a SETTING is being set to. num() above falls back to a default, which is right when reading
+ * a row that has never been filled in and wrong when someone is writing: "abc" became 0, sailed through
+ * the 0–60 range check and switched same-day online booking ON, silently. A range check cannot catch
+ * garbage that has already been turned into a number inside the range. (Salon T27 N7)
+ */
+const settingNum = (v: unknown, field: string): number => {
+  if (typeof v === 'boolean' || v === null || v === '' || (typeof v === 'string' && v.trim() === '')) {
+    throw new BookingError(`${field} must be a number.`)
+  }
+  const n = Number(v)
+  if (!Number.isFinite(n)) throw new BookingError(`${field} must be a number.`)
+  return n
+}
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
 function confirmationCode(): string {
@@ -110,22 +125,22 @@ export function createBookingService(deps: BookingDeps) {
     const u: Record<string, unknown> = { updatedAt: new Date() }
     if (typeof data.enabled === 'boolean') u.enabled = data.enabled
     if (data.slotDurationMinutes != null) {
-      const n = num(data.slotDurationMinutes)
+      const n = settingNum(data.slotDurationMinutes, 'Slot length')
       if (n < 5 || n > 480) throw new BookingError('Slot length must be between 5 and 480 minutes.')
       u.slotDurationMinutes = Math.round(n)
     }
     if (data.maxDaysOut != null) {
-      const n = num(data.maxDaysOut)
+      const n = settingNum(data.maxDaysOut, 'Booking window')
       if (n < 1 || n > 365) throw new BookingError('Booking window must be between 1 and 365 days.')
       u.maxDaysOut = Math.round(n)
     }
     if (data.leadTimeDays != null || data.leadTimeHours != null) {
-      const days = data.leadTimeDays != null ? num(data.leadTimeDays) : Math.ceil(num(data.leadTimeHours) / 24)
+      const days = data.leadTimeDays != null ? settingNum(data.leadTimeDays, 'Notice needed') : Math.ceil(settingNum(data.leadTimeHours, 'Notice needed') / 24)
       if (days < 0 || days > 60) throw new BookingError('Notice needed must be between 0 and 60 days.')
       u.leadTimeDays = Math.round(days)
     }
     if (data.concurrentBookings != null) {
-      const n = num(data.concurrentBookings)
+      const n = settingNum(data.concurrentBookings, 'Bookings per slot')
       if (n < 1 || n > maxConcurrent) throw new BookingError(`Bookings per slot must be between 1 and ${maxConcurrent}.`)
       u.concurrentBookings = Math.round(n)
     }
@@ -134,7 +149,16 @@ export function createBookingService(deps: BookingDeps) {
       u.timezone = data.timezone
     }
     if (data.workingHours !== undefined) u.workingHours = validateHours(data.workingHours)
-    for (const k of ['welcomeMessage', 'confirmationMessage', 'primaryColor'] as const) if (typeof data[k] === 'string') u[k] = (data[k] as string).slice(0, 500)
+    for (const k of ['welcomeMessage', 'confirmationMessage'] as const) if (typeof data[k] === 'string') u[k] = (data[k] as string).slice(0, 500)
+    // A brand colour is a colour. "banana" saved with a 200 and then reached the widget as a CSS value
+    // the browser silently drops, so the booking page rendered unbranded with nothing to explain why.
+    // (Salon T27 N11)
+    if (data.primaryColor !== undefined) {
+      const raw = String(data.primaryColor ?? '').trim()
+      if (raw === '') u.primaryColor = null
+      else if (!/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw)) throw new BookingError('Brand colour must be a hex value like #1d4ed8.')
+      else u.primaryColor = raw
+    }
     if (typeof data.logo === 'string' || data.logo === null) u.logo = data.logo
     if (typeof data.notifyEmail === 'boolean') u.notifyEmail = data.notifyEmail
     if (typeof data.notifySms === 'boolean') u.notifySms = data.notifySms

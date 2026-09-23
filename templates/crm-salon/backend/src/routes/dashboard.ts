@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { salonDayWindows } from '../utils/salonDate.ts'
 import { db } from '../../db/index.ts'
 import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice, teamMember } from '../../db/schema.ts'
-import { eq, and, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
+import { eq, and, or, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { clientsOf } from '../utils/clientTypes.ts'
 
@@ -51,17 +51,23 @@ app.get('/stats', async (c) => {
     safe(() => db.select({ value: count() }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [{ value: 0 }]),
     safe(() => db.select({ amt: serviceRecord.priceCharged }).from(serviceRecord).where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth))), [] as { amt: string | null }[]),
     // Chair productivity this month — the number an owner actually manages by.
+    // A chair is a chair whoever sits in it. This grouped and joined on stylist_id ALONE, so every
+    // roster stylist was missing from the one number an owner manages by — the salon could not see
+    // the productivity of the people it had just added. (Salon T27 N5)
     safe(() => db.select({
       stylistId: serviceRecord.stylistId,
+      stylistMemberId: serviceRecord.stylistMemberId,
       firstName: user.firstName,
       lastName: user.lastName,
+      memberName: teamMember.name,
       visits: count(),
       revenue: sql<string>`coalesce(sum(${serviceRecord.priceCharged}), 0)`,
     })
       .from(serviceRecord)
       .leftJoin(user, eq(serviceRecord.stylistId, user.id))
-      .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth), isNotNull(serviceRecord.stylistId)))
-      .groupBy(serviceRecord.stylistId, user.firstName, user.lastName), [] as any[]),
+      .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
+      .where(and(eq(serviceRecord.companyId, companyId), gte(serviceRecord.performedAt, startOfMonth), lt(serviceRecord.performedAt, startOfNextMonth), or(isNotNull(serviceRecord.stylistId), isNotNull(serviceRecord.stylistMemberId))))
+      .groupBy(serviceRecord.stylistId, serviceRecord.stylistMemberId, user.firstName, user.lastName, teamMember.name), [] as any[]),
     safe(() => db.select({ value: count() }).from(membershipEnrollment).where(and(eq(membershipEnrollment.companyId, companyId), eq(membershipEnrollment.status, 'active'))), [{ value: 0 }]),
     // Rebooking due: latest visit per (client, service) whose interval has elapsed
     // or elapses within 14 days. Mirrors GET /reminders/due — same rule, one number.
@@ -112,8 +118,9 @@ app.get('/stats', async (c) => {
     },
     services: { thisMonth: visitsMonthRows[0]?.value ?? 0, revenueThisMonth },
     byStylist: (byStylistRows as any[]).map(r => ({
-      stylistId: r.stylistId,
-      name: [r.firstName, r.lastName].filter(Boolean).join(' ') || 'Unassigned',
+      // whichever column held them — the page only ever shows one id per chair
+      stylistId: r.stylistId ?? r.stylistMemberId,
+      name: [r.firstName, r.lastName].filter(Boolean).join(' ') || r.memberName || 'Unassigned',
       visits: Number(r.visits),
       revenue: Number(r.revenue || 0),
     })).sort((a, b) => b.revenue - a.revenue),
@@ -136,11 +143,14 @@ app.get('/recent-activity', async (c) => {
   const [recentClients, recentServices, upcomingAppointments] = await Promise.all([
     safe(() => db.select({ id: contact.id, name: contact.name, phone: contact.phone, email: contact.email, updatedAt: contact.updatedAt })
       .from(contact).where(eq(contact.companyId, companyId)).orderBy(desc(contact.updatedAt)).limit(5), []),
-    safe(() => db.select({ id: serviceRecord.id, performedAt: serviceRecord.performedAt, priceCharged: serviceRecord.priceCharged, serviceName: serviceMenu.name, clientName: contact.name, stylistFirstName: user.firstName, stylistLastName: user.lastName })
+    // stylistMemberName for the same reason as the appointments query below it: a roster stylist
+    // showed as no stylist at all on Recent Services. (Salon T27 N5)
+    safe(() => db.select({ id: serviceRecord.id, performedAt: serviceRecord.performedAt, priceCharged: serviceRecord.priceCharged, serviceName: serviceMenu.name, clientName: contact.name, stylistFirstName: user.firstName, stylistLastName: user.lastName, stylistMemberName: teamMember.name })
       .from(serviceRecord)
       .leftJoin(serviceMenu, eq(serviceRecord.serviceId, serviceMenu.id))
       .leftJoin(contact, eq(serviceRecord.contactId, contact.id))
       .leftJoin(user, eq(serviceRecord.stylistId, user.id))
+      .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
       .where(eq(serviceRecord.companyId, companyId)).orderBy(desc(serviceRecord.performedAt)).limit(5), []),
     safe(() => db.select({ id: appointment.id, startTime: appointment.startTime, status: appointment.status, station: appointment.station, serviceName: serviceMenu.name, clientName: contact.name, stylistFirstName: user.firstName, stylistLastName: user.lastName, stylistMemberName: teamMember.name })
       .from(appointment)

@@ -175,6 +175,26 @@ export function quoteExpiryFromTerms(settings: any, from: Date = new Date()): Da
  * alone; anything else must parse. Returns { error } for garbage so the route can answer 400 instead
  * of handing Postgres an empty string (which was a 500).
  */
+/**
+ * Does the DATE PART of this string name a day that exists?
+ *
+ * `new Date('2027-02-30T15:00Z')` is not an error — it is 2 March, silently. normalizeDateInput below
+ * already refuses that for date-only fields, but its check is gated on a `YYYY-MM-DD` shape, so a
+ * TIMESTAMP walked straight past it: an appointment booked for 30 February 2027 came back 201 and sat
+ * on 2 March, five weeks from where anyone would look for it. (Salon T27 N8)
+ *
+ * Returns true for anything that is not a date-led string, so a caller can use it as a veto rather
+ * than a parser.
+ */
+export function isRealCalendarDay(v: unknown): boolean {
+  if (typeof v !== 'string') return true
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v.trim())
+  if (!m) return true
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const dt = new Date(Date.UTC(y, mo - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d
+}
+
 export function normalizeDateInput(v: unknown): { value?: Date | null; error?: string } {
   if (v === undefined) return {}
   if (v === null || v === '') return { value: null }

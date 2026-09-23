@@ -10,6 +10,8 @@ import { createId } from '@paralleldrive/cuid2'
 import { ensureInvoiceForVisit } from '../services/salonCheckout.ts'
 import { scheduleReviewRequestForVisit } from '../services/reviews.ts'
 import { resolveStylist, unknownStylist, stylistIdOf, type StylistRef } from '../utils/stylist.ts'
+import { isRealCalendarDay } from '../shared/index.ts'
+import { salonTimezone, calendarDateIn } from '../utils/salonDate.ts'
 
 /**
  * The book. A salon books a CHAIR for a duration, so endTime is derived from
@@ -194,6 +196,14 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (!body.startTime) return c.json({ error: 'startTime is required' }, 400)
 
+  // 30 February is not a day. JS does not say so — it rolls to 2 March — so a booking for 2027-02-30
+  // came back 201 and landed five weeks from where anyone would look for it. (Salon T27 N8)
+  if (!isRealCalendarDay(body.startTime)) {
+    return c.json({ error: `${String(body.startTime).slice(0, 10)} is not a real calendar date — check the day and month.`, code: 'BAD_DATE' }, 400)
+  }
+  if (body.endTime && !isRealCalendarDay(body.endTime)) {
+    return c.json({ error: `${String(body.endTime).slice(0, 10)} is not a real calendar date — check the day and month.`, code: 'BAD_DATE' }, 400)
+  }
   const startTime = new Date(body.startTime)
   if (Number.isNaN(startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
   if (body.status && !APPT_STATUSES.includes(body.status)) return c.json({ error: `status must be one of ${APPT_STATUSES.join(', ')}` }, 400)
@@ -293,6 +303,27 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
     updates.stylistMemberId = resolved.stylistMemberId
   }
   const nextStatus = 'status' in updates ? updates.status : existing.status
+  // Completing an appointment WRITES A VISIT dated to its start time, and a visit can only be dated to
+  // a day that has happened — Log Service says so in as many words and refuses. Complete did not ask,
+  // so an appointment five weeks out could be completed from The Book, producing a service record
+  // dated in the future and a sale to go with it. Two doors into the same act, one of them unlocked.
+  // (Salon T27 N4)
+  //
+  // The test is a future DAY, not a future instant. Finishing the 2pm client at 1:55 is an ordinary
+  // afternoon, and an earlier version of this refused it — the existing roster test books today at
+  // 22:00 and completes it, and went red, correctly. "A day that has happened" is the same wording the
+  // visit rule uses, so the two now agree instead of one being stricter than the act it guards.
+  if (nextStatus === 'completed' && existing.status !== 'completed') {
+    const tz = await salonTimezone(currentUser.companyId)
+    const apptDay = calendarDateIn(nextStart, tz)
+    const today = calendarDateIn(new Date(), tz)
+    if (apptDay > today) {
+      return c.json({
+        error: `That appointment is booked for ${apptDay}, which has not happened yet — completing it would record a visit on a future date. Move it to today first if the client came in early.`,
+        code: 'FUTURE_APPOINTMENT',
+      }, 400)
+    }
+  }
   // Re-validate the effective pair — editing the end (or dragging the start) must not
   // produce an end at/before the start. (SCHED-01)
   if (nextEnd.getTime() <= nextStart.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
@@ -334,6 +365,19 @@ app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
     .where(and(eq(appointment.id, id), eq(appointment.companyId, currentUser.companyId)))
     .limit(1)
   if (!existing) return c.json({ error: 'Appointment not found' }, 404)
+
+  // Checking in a CANCELLED or no-show appointment quietly revived it: 200, status checked_in, and a
+  // slot the salon had given away was occupied again. Cancelling is a decision; undoing it is
+  // rebooking, which is a different act with a different conversation. (Salon T27 N4)
+  if (CANCELLED.includes(existing.status)) {
+    return c.json({
+      error: `That appointment was ${existing.status === 'no_show' ? 'marked a no-show' : 'cancelled'} and cannot be checked in. Book a new appointment for this client.`,
+      code: 'APPOINTMENT_NOT_LIVE',
+    }, 409)
+  }
+  if (existing.status === 'completed') {
+    return c.json({ error: 'That appointment has already been completed.', code: 'APPOINTMENT_NOT_LIVE' }, 409)
+  }
 
   const [updated] = await db.update(appointment)
     .set({ status: 'checked_in', checkedInAt: new Date(), updatedAt: new Date() })
