@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
 import { storeTimeZone, storeDayRange } from '../utils/isoTime.ts'
-import { settledSale, taxCollected } from '../utils/revenue.ts'
+import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -367,7 +367,7 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as total_refunded,
           COALESCE(SUM(o.total::numeric), 0) - COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as net_revenue,
           -- the WHERE keeps every settled sale for the revenue columns; tax is only what stayed collected
-          COALESCE(SUM(CASE WHEN o.status IN ${taxCollected} THEN o.total_tax::numeric ELSE 0 END), 0) as total_tax,
+          COALESCE(SUM(CASE WHEN o.status IN ${taxCollected} THEN ${taxNetExpr} ELSE 0 END), 0) as total_tax,
           COALESCE(SUM(o.discount_amount::numeric), 0) as total_discounts,
           COUNT(CASE WHEN o.is_medical = true THEN 1 END)::int as medical_orders,
           COUNT(CASE WHEN o.is_medical = false OR o.is_medical IS NULL THEN 1 END)::int as recreational_orders,
@@ -481,12 +481,14 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           (o.completed_at AT TIME ZONE 'UTC' AT TIME ZONE ${tzDay})::date as sale_date,
           COUNT(*)::int as order_count,
           COALESCE(SUM(o.subtotal::numeric), 0) as subtotal,
-          COALESCE(SUM(o.total_tax::numeric), 0) as total_tax,
-          COALESCE(SUM(NULLIF(o.excise_tax, '')::numeric), 0) as excise_tax,
-          COALESCE(SUM(NULLIF(o.sales_tax, '')::numeric), 0) as sales_tax,
+          -- NET of tax handed back with returns, per component, so the lines below still add up to
+          -- the total once refunds are subtracted. Filing the gross overstated the liability. (T29 M4)
+          COALESCE(SUM(${taxNetExpr}), 0) as total_tax,
+          COALESCE(SUM(${exciseNetExpr}), 0) as excise_tax,
+          COALESCE(SUM(${salesNetExpr}), 0) as sales_tax,
           -- orders has no city_tax column (that reference 500'd every tax report); local tax
           -- is whatever total tax isn't excise or sales.
-          GREATEST(0, COALESCE(SUM(NULLIF(o.total_tax, '')::numeric), 0) - COALESCE(SUM(NULLIF(o.excise_tax, '')::numeric), 0) - COALESCE(SUM(NULLIF(o.sales_tax, '')::numeric), 0)) as local_tax,
+          GREATEST(0, COALESCE(SUM(${taxNetExpr}), 0) - COALESCE(SUM(${exciseNetExpr}), 0) - COALESCE(SUM(${salesNetExpr}), 0)) as local_tax,
           COALESCE(SUM(o.total::numeric), 0) as total_collected
         FROM orders o
         WHERE o.company_id = ${currentUser.companyId}

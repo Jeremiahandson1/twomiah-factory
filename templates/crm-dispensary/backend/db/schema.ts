@@ -246,6 +246,16 @@ export const order = pgTable('orders', {
   discountAmount: text('discount_amount').default('0'),
   loyaltyDiscount: text('loyalty_discount').default('0'),
   refundedAmount: text('refunded_amount').default('0'), // cumulative $ refunded across partial refunds
+  // How much of refundedAmount was TAX. Without this the tax surfaces could only ever report what was
+  // collected and never what was handed back, so a day with $43.75 refunded (carrying $8.75 of tax)
+  // still filed $30.00 of tax — an overstated liability, on the one number a regulator reads.
+  // (Dispensary T29 M4)
+  refundedTax: text('refunded_tax').default('0'),
+  // Split the same way the charge is, so the Tax Filing report's excise / sales / local lines still
+  // add up to its total once refunds are netted off. Netting only the total would have pushed the
+  // derived local-tax line (total − excise − sales) negative.
+  refundedExciseTax: text('refunded_excise_tax').default('0'),
+  refundedSalesTax: text('refunded_sales_tax').default('0'),
   total: text('total').default('0'),
   totalCannabisWeightOz: text('total_cannabis_weight_oz').default('0'),
   paymentMethod: text('payment_method'), // cash|debit|ach

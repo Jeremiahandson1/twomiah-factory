@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { sql, eq } from 'drizzle-orm'
-import { settledSale, taxCollected, netExprBare, refundedExprBare } from '../utils/revenue.ts'
+import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare } from '../utils/revenue.ts'
 import { storeTimeZone, storeDayRange, storeDateString } from '../utils/isoTime.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -77,7 +77,7 @@ app.get('/sales', async (c) => {
       COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as revenue,
       COALESCE(SUM(subtotal::numeric), 0) as subtotal,
       -- the WHERE above keeps every settled sale for revenue; tax is only the ones not handed back in full
-      COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
+      COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
       COALESCE(SUM(discount_amount::numeric), 0) as discounts_given,
       COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
     FROM orders
@@ -170,7 +170,7 @@ app.get('/summary', async (c) => {
         -- Revenue is NET of refunds: a partially-refunded sale counts what the customer kept,
         -- a fully-refunded one counts $0 (go-live QA V-3).
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0) as revenue,
-        COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
+        COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN discount_amount::numeric ELSE 0 END), 0) as discounts,
         -- AOV on the same NET basis as revenue (AOV × completed orders = revenue). (retest: AOV vs revenue)
         COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0) as avg_order_value,

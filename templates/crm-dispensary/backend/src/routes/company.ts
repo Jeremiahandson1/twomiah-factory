@@ -12,6 +12,7 @@ import { passwordSchema } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyConfig.ts'
 import { storeTimeZone, isValidTimeZone } from '../utils/isoTime.ts'
+import { forgetFeatures } from '../middleware/enabledFeature.ts'
 
 const app = new Hono()
 // Never serialize provider secrets to the client (VET-41 / F-26): GET & PUT /api/company
@@ -154,6 +155,7 @@ app.put('/features', requireAdmin, async (c) => {
   if (unknown.length) return c.json({ error: `Unknown feature ids for this product: ${unknown.join(', ')}` }, 400)
   const next = [...new Set([...offered.filter(f => f.core).map(f => f.id), ...(features as string[])])]
   const [result] = await db.update(company).set({ enabledFeatures: next, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
+  forgetFeatures(currentUser.companyId) // so the very next request sees the switch the owner just flipped (M5)
   if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(sanitizeCompany(result))
 })

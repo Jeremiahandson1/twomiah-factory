@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { product, contact, company } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql } from 'drizzle-orm'
-import { settledSale, taxCollected, netExprBare, refundedExprBare } from '../utils/revenue.ts'
+import { settledSale, taxCollected, netExprBare, refundedExprBare, taxNetExprBare } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { storeTimeZone, storeDayRange, storeDateString } from '../utils/isoTime.ts'
 
@@ -62,7 +62,7 @@ app.get('/stats', async (c) => {
         -- differently on the same day ($2,395 / $2,825 / $3,395). See utils/revenue.ts. (T21 H8)
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${netExprBare} ELSE 0 END), 0) as revenue,
         COALESCE(SUM(CASE WHEN status IN ${settledSale} THEN ${refundedExprBare} ELSE 0 END), 0) as refunded,
-        COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
+        COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
         COALESCE(AVG(CASE WHEN status IN ${settledSale} THEN ${netExprBare} END), 0) as avg_order_value,
         COUNT(CASE WHEN is_medical = true AND status IN ${settledSale} THEN 1 END)::int as medical_orders
       FROM orders

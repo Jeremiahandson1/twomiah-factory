@@ -11,7 +11,7 @@ import { escapeHtml } from '../utils/sanitize.ts'
 import { isCannabisLine, resolvePurchaseLimitOz, GRAMS_PER_OZ, ageFromDob, minimumAgeFor, unitGramsOf, overPurchaseLimit, lineFlowerEquivalentGrams, uncountableCannabisLines, unweighedCannabisRefusal } from '../utils/cannabis.ts'
 import { loadEquivalencyFactors } from '../services/equivalency.ts'
 import { loyaltyConfig, inBirthdayMonth } from '../utils/loyaltyConfig.ts'
-import { taxRatesFor, assessTax } from '../utils/tax.ts'
+import { taxRatesFor, assessTax, cannabisSubtotalOf } from '../utils/tax.ts'
 import { checkFilter } from '../shared/index.ts'
 
 const app = new Hono()
@@ -968,10 +968,18 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
   // partials can never return more than was sold. (F-33 real partial refunds)
   // An AMOUNT refund returns money, not units: no lines are marked returned and no stock is
   // restocked (nothing physical came back); loyalty/spend reverse in proportion to the amount.
+  // The rates this company charges, for taxing the units that are coming back (M2).
+  const [refundCompanyRow] = await db.select({ taxRate: company.taxRate, exciseTaxRate: company.exciseTaxRate })
+    .from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+
   const refundPlan: { line: any; qty: number }[] = []
   let refundFraction: number
   let refundAmount: number
   let fullyRefunded: boolean
+  // How much of this refund is tax, so the tax surfaces can net it. (M4)
+  let refundedTaxThisTime = 0
+  let refundedExciseThisTime = 0
+  let refundedSalesThisTime = 0
   if (requestedAmount != null) {
     if (remainingRefundable <= 0) return c.json({ error: 'Nothing left to refund on this order' }, 400)
     if (requestedAmount > remainingRefundable + 0.005) {
@@ -983,6 +991,11 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     refundAmount = round2(Math.min(requestedAmount, remainingRefundable))
     refundFraction = orderTotal > 0 ? Math.min(1, refundAmount / orderTotal) : 1
     fullyRefunded = round2(alreadyRefunded + refundAmount) + 0.005 >= orderTotal
+    // A dollar refund returns money against no particular line, so its tax share is the order's own
+    // tax at the same fraction — there is nothing more specific to go on. (M4)
+    refundedTaxThisTime = round2((Number(existing.taxAmount) || 0) * refundFraction)
+    refundedExciseThisTime = round2((Number(existing.exciseTax) || 0) * refundFraction)
+    refundedSalesThisTime = round2((Number(existing.salesTax) || 0) * refundFraction)
   } else {
     if (data.partialItems && data.partialItems.length) {
       for (const pi of data.partialItems) {
@@ -1003,7 +1016,7 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
     if (refundPlan.length === 0) {
       // Every unit is back but money may still be outstanding after an amount refund — finish it.
       if (remainingRefundable > 0) {
-        refundAmount = remainingRefundable; refundFraction = orderTotal > 0 ? refundAmount / orderTotal : 1; fullyRefunded = true
+        refundAmount = remainingRefundable; refundFraction = orderTotal > 0 ? refundAmount / orderTotal : 1; fullyRefunded = true; refundedTaxThisTime = round2(Math.max(0, (Number(existing.taxAmount) || 0) - (Number(existing.refundedTax) || 0))); refundedExciseThisTime = round2(Math.max(0, (Number(existing.exciseTax) || 0) - (Number(existing.refundedExciseTax) || 0))); refundedSalesThisTime = round2(Math.max(0, (Number(existing.salesTax) || 0) - (Number(existing.refundedSalesTax) || 0)))
       } else {
         return c.json({ error: 'Nothing left to refund on this order' }, 400)
       }
@@ -1013,7 +1026,29 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       const orderSubtotal = Number(existing.subtotal) || 0
       const refundMerch = refundPlan.reduce((s, r) => s + Number(r.line.unitPrice) * r.qty, 0)
       refundFraction = orderSubtotal > 0 ? Math.min(1, refundMerch / orderSubtotal) : 1
-      refundAmount = round2(Math.min(orderTotal * refundFraction, remainingRefundable))
+      // Tax the units actually coming back, with the same arithmetic that charged them — NOT the
+      // order's tax spread pro rata by value. Excise is cannabis-only, so a share of the whole
+      // basket's tax is wrong in both directions: returning $40 of shatter from a $35 + $40 + $25
+      // basket refunded $48.50 (40% of all tax) instead of $50.00, short-changing the customer on a
+      // cannabis return — and returning the t-shirt would have handed back excise that was never
+      // charged on it. (Dispensary T29 M2)
+      //
+      // The discount travels with the lines pro rata, which is how it was applied in the first place.
+      const refundCannabisSubtotal = cannabisSubtotalOf(
+        refundPlan.map(r => ({ taxCategory: r.line.taxCategory, lineTotal: Number(r.line.unitPrice) * r.qty })),
+      )
+      const orderDiscount = round2((Number(existing.discountAmount) || 0) + (Number(existing.loyaltyDiscount) || 0))
+      const refundDiscountShare = orderSubtotal > 0 ? round2(orderDiscount * (refundMerch / orderSubtotal)) : 0
+      const refundTaxed = assessTax({
+        subtotal: refundMerch,
+        cannabisSubtotal: refundCannabisSubtotal,
+        discount: refundDiscountShare,
+        rates: taxRatesFor(refundCompanyRow),
+      })
+      refundAmount = round2(Math.min(refundTaxed.grandTotal, remainingRefundable))
+      refundedTaxThisTime = round2(Math.min(refundTaxed.totalTax, refundAmount))
+      refundedExciseThisTime = refundTaxed.exciseTax
+      refundedSalesThisTime = refundTaxed.salesTax
       const unitsAllBack = items.every(i => {
         const planned = refundPlan.find(r => r.line.id === i.id)?.qty || 0
         return Number(i.refundedQuantity || 0) + planned >= Number(i.quantity)
@@ -1071,6 +1106,10 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       status: fullyRefunded ? 'refunded' : 'partially_refunded',
       paymentStatus: fullyRefunded ? 'refunded' : 'partially_refunded',
       refundedAmount: sql`(COALESCE(NULLIF(refunded_amount, ''), '0')::numeric + ${refundAmount})::text`,
+      // Tax handed back, accumulated the same way, so the tax surfaces can net it. (M4)
+      refundedTax: sql`(COALESCE(NULLIF(refunded_tax, ''), '0')::numeric + ${refundedTaxThisTime})::text`,
+      refundedExciseTax: sql`(COALESCE(NULLIF(refunded_excise_tax, ''), '0')::numeric + ${refundedExciseThisTime})::text`,
+      refundedSalesTax: sql`(COALESCE(NULLIF(refunded_sales_tax, ''), '0')::numeric + ${refundedSalesThisTime})::text`,
       refundReason: data.reason,
       refundedBy: currentUser.userId,
       refundedAt: new Date(),
@@ -1098,10 +1137,19 @@ app.post('/:id/refund', requireRole('manager'), async (c) => {
       // The visit only un-counts when the order becomes fully refunded. (F-33)
       const totalEarned = Number(existing.loyaltyPointsEarned) || Math.floor(pointsBasis(existing) * LOYALTY_POINTS_PER_DOLLAR)
       const pointsToReverse = Math.round(totalEarned * refundFraction)
+      // Points SPENT on the order come back with it. Only the earned side was ever reversed, so a
+      // $5-off reward bought with 500 points and then returned cost the customer the 500 points AND
+      // the reward: the 30 points the sale earned were taken back correctly, and the 500 they had
+      // paid simply stayed spent. Returned on the same fraction as everything else, so repeated
+      // partial refunds give back exactly what was redeemed and no more. (Dispensary T29 M3)
+      //
+      // Balance only: the redemption never added to lifetime/earned totals, so returning it must not
+      // either — that would inflate the tier ladder with points the customer was given back.
+      const pointsToReturn = Math.round((Number(existing.loyaltyPointsRedeemed) || 0) * refundFraction)
       const visitDelta = fullyRefunded ? 1 : 0
       await tx.execute(sql`
         UPDATE loyalty_members
-        SET points_balance = GREATEST(0, COALESCE(points_balance::numeric, 0) - ${pointsToReverse}),
+        SET points_balance = GREATEST(0, COALESCE(points_balance::numeric, 0) - ${pointsToReverse} + ${pointsToReturn}),
             total_points_earned = GREATEST(0, COALESCE(total_points_earned::numeric, 0) - ${pointsToReverse}),
             lifetime_points = GREATEST(0, COALESCE(lifetime_points, 0) - ${pointsToReverse}),
             total_visits = GREATEST(0, COALESCE(total_visits::numeric, 0) - ${visitDelta}),

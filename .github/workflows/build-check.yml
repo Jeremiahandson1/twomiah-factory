@@ -1594,3 +1594,14 @@ jobs:
           bun-version: latest
       - name: "Check dispensary tax is defined once"
         run: bun run scripts/check-one-tax-definition.ts
+
+  dispensary-api-gates:
+    name: "Dispensary API refuses what the sidebar hides"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check dispensary API feature gates"
+        run: bun run scripts/check-dispensary-api-gates.ts

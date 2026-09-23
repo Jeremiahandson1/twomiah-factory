@@ -3,6 +3,7 @@ import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { getFeaturesForPlan, getFeaturesForTemplate } from '../shared/featureRegistry.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
+import { forgetFeatures } from '../middleware/enabledFeature.ts'
 
 // Boot-time fill for a company whose enabledFeatures is EMPTY (tenants provisioned before the Factory
 // seeded features, or a wiped column). Resolves the plan through the shared registry — the same
@@ -22,6 +23,7 @@ export async function syncFeatures() {
     // The Exterior Visualizer is a paid add-on switched on by the Factory setting VISION_URL.
     if (process.env.VISION_URL && getFeaturesForTemplate(CRM_TEMPLATE).some(f => f.id === 'visualizer')) desired.add('visualizer')
     await db.update(company).set({ enabledFeatures: [...desired], subscriptionTier: plan } as any).where(eq(company.id, comp.id))
+    forgetFeatures(comp.id)
     console.log(`[featureSync] Enabled ${desired.size} features for ${plan} plan`)
   } catch (err: any) {
     console.error('[featureSync] Failed to sync features:', err.message)
