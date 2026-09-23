@@ -120,6 +120,7 @@ export default function SettingsPage() {
   const [generalForm, setGeneralForm] = useState({
     name: '', address: '', phone: '', email: '', taxRate: '0', localTaxRate: '0', exciseTaxRate: '15', purchaseLimitOz: '1',
     timezone: '',
+    paymentTermsDays: '30',
   });
   // What the server says Automatic resolves to, so the manager can see the default rather than guess.
   const [effectiveTz, setEffectiveTz] = useState('');
@@ -175,6 +176,7 @@ export default function SettingsPage() {
         exciseTaxRate: pick(company.exciseTaxRate, settings.exciseTaxRate, '15'),
         purchaseLimitOz: pick(company.purchaseLimitOz, settings.purchaseLimitOz, '1'),
         timezone: typeof settings.timezone === 'string' ? settings.timezone : '',
+        paymentTermsDays: settings.paymentTermsDays != null && settings.paymentTermsDays !== '' ? String(settings.paymentTermsDays) : '30',
       });
       // /auth/me returns a trimmed company; fetch the full row so the column values win.
       api.get('/api/company').then((full: any) => {
@@ -187,6 +189,7 @@ export default function SettingsPage() {
           exciseTaxRate: pick(co.exciseTaxRate, prev.exciseTaxRate, '15'),
           purchaseLimitOz: pick(co.purchaseLimitOz, prev.purchaseLimitOz, '1'),
           timezone: typeof co.settings?.timezone === 'string' ? co.settings.timezone : prev.timezone,
+          paymentTermsDays: co.settings?.paymentTermsDays != null && co.settings.paymentTermsDays !== '' ? String(co.settings.paymentTermsDays) : prev.paymentTermsDays,
         }));
         setEffectiveTz(co.effectiveTimeZone || '');
         // Store hours live in the column too, and that is where the seed puts them. Prefer it;
@@ -274,6 +277,9 @@ export default function SettingsPage() {
         // server MERGES settings, so simply omitting the key would leave a previously chosen zone in
         // place and Automatic would not stick. Send null, which is what the reader treats as unset.
         generalSettings.timezone = generalForm.timezone || null;
+        // Payment terms are now on this screen, because a value the server refuses has to be fixable
+        // somewhere. A tenant carrying 400 days from before the rule could not save ANY setting. (T30)
+        generalSettings.paymentTermsDays = Number(generalForm.paymentTermsDays) || 0;
         payload.settings = generalSettings;
       } else if (section === 'loyalty') {
         payload.settings = {
@@ -567,6 +573,21 @@ export default function SettingsPage() {
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">oz</span>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Enforced at the register and online menu. This is the retail SALE limit per transaction (not the personal possession limit) — 1 oz of flower in most adult-use states, including Colorado. Raise it only where your state's retail rules allow.</p>
+                </div>
+
+                <div className="w-64">
+                  <FieldLabel>Payment Terms (days)</FieldLabel>
+                  <Input
+                    value={generalForm.paymentTermsDays}
+                    onChange={v => setGeneralForm({ ...generalForm, paymentTermsDays: v })}
+                    type="number"
+                    placeholder="30"
+                  />
+                  {/* This field exists because the server refuses a value outside 0–365, and a tenant
+                      carrying 400 days from before that rule could not save ANY setting on this page
+                      with nowhere to correct it. A rule the UI gives you no way to satisfy is a trap.
+                      (Dispensary T30) */}
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">How long a customer has to pay an invoice. Used as the default due date; 0–365.</p>
                 </div>
 
                 <div className="w-64">

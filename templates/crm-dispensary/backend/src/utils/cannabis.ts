@@ -73,6 +73,10 @@ export function uncountableCannabisLines(
     // legitimate sale the rules are written to allow. Only a line whose grams are unknown is
     // uncountable; an edible with a weight but no potency already falls back to that weight.
     if (unitGramsOf(product || {}) > 0) continue
+    // …or whose MILLIGRAMS are known. An edible labelled 100 mg is perfectly countable without a
+    // weight — milligrams are how it is sold and how the limit is written — so refusing it for having
+    // no grams would take a correctly-recorded product off the shelf. (T30)
+    if (unitThcMg(product || {}) > 0) continue
     const name = product?.name || product?.productName || 'A cannabis product'
     if (!names.includes(name)) names.push(name)
   }
@@ -129,11 +133,29 @@ export function lineFlowerEquivalentGrams(product: any, factors?: EquivalencyFac
   const rule = factors?.get(equivalencyKey(product))
   if (!rule) return grams
   if (rule.unit === 'mg_thc') {
-    const pct = Number(product?.thcPercent ?? product?.thc_percent)
-    const mg = Number.isFinite(pct) && pct > 0 && grams > 0 ? grams * pct * 10 : 0
+    const mg = unitThcMg(product)
     return mg > 0 ? mg * rule.factor : grams
   }
   return grams * rule.factor
+}
+
+/**
+ * THC in one unit of this product, in milligrams.
+ *
+ * Prefer the number printed on the packet (thc_mg). Before that field existed the only way to express
+ * potency was a percentage of weight, which an edible does not meaningfully have — so 40 chocolate
+ * bars at 100 mg each were counted as 0.14 oz against a 1 oz cap instead of roughly 14 oz, and the
+ * equivalency rules that knew what a milligram is worth had nothing to work with. (T29 H3 / T30)
+ *
+ * The percentage path stays for flower and concentrate, where a percentage of a real weight IS the
+ * potency: mg = grams x percent x 10.
+ */
+export function unitThcMg(p: any): number {
+  const direct = Number(p?.thcMg ?? p?.thc_mg)
+  if (Number.isFinite(direct) && direct > 0) return direct
+  const pct = Number(p?.thcPercent ?? p?.thc_percent)
+  const grams = unitGramsOf(p || {})
+  return Number.isFinite(pct) && pct > 0 && grams > 0 ? grams * pct * 10 : 0
 }
 
 /** The one over-limit answer, so every till says the same thing. Null when the basket is allowed. */

@@ -560,6 +560,20 @@ app.put('/:id/status', async (c) => {
   // Cancelling stays available for the thing it is for: an order that never took money. The test for
   // that is completed_at, the same "has ever been settled" marker /complete and the refund restore
   // use, plus the payment fields for anything settled by another route.
+  // A SETTLED sale cannot be walked backwards to pending/processing/ready either. Cancelling was
+  // blocked (T29 H2) and this was the same hole one door along: moving a paid sale back to Pending
+  // dropped it out of revenue — every money surface counts settled statuses — until someone happened
+  // to set it forward again. The money had been taken, the stock had left, and the report said
+  // neither. Refunding is how a settled sale is undone. (Dispensary T30)
+  const BACKWARDS = ['pending', 'processing', 'ready']
+  if (BACKWARDS.includes(status) && existing.completedAt) {
+    return c.json({
+      error: `${existing.number || 'This order'} has already been completed and paid. It cannot be moved back to ${status} — refund it instead, or the takings will be short by its value until someone sets it forward again.`,
+      code: 'cannot_unsettle_order',
+      refundWith: `POST /api/orders/${id}/refund`,
+    }, 409)
+  }
+
   if (status === 'cancelled' && existing.status !== 'cancelled') {
     const settled = !!existing.completedAt || existing.paymentStatus === 'paid' || Number(existing.refundedAmount || 0) > 0
     if (settled) {

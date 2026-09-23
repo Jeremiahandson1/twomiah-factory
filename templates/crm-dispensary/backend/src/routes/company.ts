@@ -72,6 +72,9 @@ app.put('/', requireAdmin, async (c) => {
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
   const data = schema.parse(body) as any
+  // Read ONCE: the validation below needs to know what is already stored (so an existing value is not
+  // re-rejected on an unrelated save), and the merge further down needs the same row. (T30)
+  const [cur] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   // tax_rate columns are text — validate the RATE before storing. A negative rate silently zeroed the
   // register (−5% → $22 on a $20 order) and 9999% saved fine; both reach the POS. Reject anything outside
   // 0–100%, and coerce blank → '0'. (dispensary negative/oversized tax)
@@ -118,8 +121,26 @@ app.put('/', requireAdmin, async (c) => {
     }
     // Payment terms drive an invoice's due date. −3 days made an invoice overdue the moment it was
     // raised and 400 pushed it past a year; both saved happily. (T29 M6)
+    // Validate only what the caller is actually CHANGING.
+    //
+    // This screen sends the whole settings blob on every save (the server merges, so it must), which
+    // means a value already stored is replayed on a save that has nothing to do with it. Rejecting it
+    // then locks the owner out of the entire page: a tenant carrying paymentTermsDays 400 from before
+    // this rule existed could not save its name, its tax rates or its hours, and the field was not on
+    // the screen to correct. A new rule must not turn old data into a wall. (Dispensary T30, my own
+    // T29 M6 regression — the same shape as SETTING_HAS_A_COLUMN, which locked this page for weeks.)
+    //
+    // So: an existing value is grandfathered until someone edits it, and a NEW value is held to the
+    // rule. The field is on Settings → General now, so there is somewhere to fix it.
+    const storedSettings = (cur?.settings as any) || {}
+    const changed = (key: string) => {
+      const incoming = (data.settings as any)[key]
+      if (incoming === undefined) return false
+      return String(incoming ?? '') !== String(storedSettings[key] ?? '')
+    }
+
     const terms = (data.settings as any).paymentTermsDays
-    if (terms !== undefined && terms !== null && terms !== '') {
+    if (changed('paymentTermsDays') && terms !== null && terms !== '') {
       const n = Number(terms)
       if (!Number.isInteger(n) || n < 0 || n > 365) {
         return c.json({ error: 'Payment terms must be a whole number of days between 0 and 365.', code: 'BAD_PAYMENT_TERMS' }, 400)
@@ -140,9 +161,17 @@ app.put('/', requireAdmin, async (c) => {
   // The loyalty ladder has to ascend. silver 5,000 / gold 100 / platinum 1 was accepted, which makes
   // every tier above bronze unreachable or instantly granted — the award engine compares against these
   // in order and cannot do anything sensible with an inverted ladder. (T29 M6)
+  // Grandfathered the same way payment terms are: the Loyalty tab loads the stored thresholds and
+  // sends them all back, so a tenant already carrying an inverted ladder would be locked out of its
+  // own Loyalty page by a rule added after the fact. Only an actual EDIT is held to the rule. (T30)
   if (data.loyaltyTierThresholds && typeof data.loyaltyTierThresholds === 'object') {
     const ladder = ['bronze', 'silver', 'gold', 'platinum'] as const
-    const given = ladder.filter(t => (data.loyaltyTierThresholds as any)[t] !== undefined)
+    const storedLadder = ((cur?.settings as any)?.loyalty?.tierThresholds) || {}
+    const ladderUnchanged = ladder.every(t => {
+      const incoming = (data.loyaltyTierThresholds as any)[t]
+      return incoming === undefined || String(incoming) === String(storedLadder[t] ?? '')
+    })
+    const given = ladderUnchanged ? [] : ladder.filter(t => (data.loyaltyTierThresholds as any)[t] !== undefined)
     let previous = -Infinity
     let previousName = ''
     for (const tier of given) {
@@ -169,7 +198,8 @@ app.put('/', requireAdmin, async (c) => {
     if (data[bodyKey] !== undefined) { loyaltyPatch[settingKey] = data[bodyKey]; delete updates[bodyKey] }
   }
   if ((data.settings && typeof data.settings === 'object') || Object.keys(loyaltyPatch).length) {
-    const [cur] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+    // `cur` was read once at the top — the validation above and this merge must see the same stored
+    // blob, or a value could pass validation against one read and be merged against another.
     const base = { ...((cur?.settings as any) || {}), ...(data.settings && typeof data.settings === 'object' ? data.settings : {}) }
     // A merge has no way to say "remove this" — so null means remove. Without it a key could be
     // added and never taken away: the tester's t29Probe could not be cleared off the tenant at all,

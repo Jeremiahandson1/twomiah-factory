@@ -176,6 +176,12 @@ export const product = pgTable('products', {
   strainName: text('strain_name'),
   strainType: text('strain_type'), // indica|sativa|hybrid|cbd
   thcPercent: text('thc_percent'),
+  // THC per unit in MILLIGRAMS — how an edible is labelled, and how a state writes an edible limit.
+  // Potency could only be given as a percentage of weight, which an edible does not meaningfully have:
+  // 40 chocolate bars carrying 100 mg each counted as 0.14 oz against a 1 oz cap instead of roughly
+  // 14 oz. The equivalency rules already know what a milligram of THC is worth in flower; there was
+  // simply nowhere to record the milligrams. (Dispensary T29 H3, reopened T30)
+  thcMg: text('thc_mg'),
   cbdPercent: text('cbd_percent'),
   weightGrams: text('weight_grams'),
   unitType: text('unit_type'), // each|gram|eighth|quarter|half|ounce

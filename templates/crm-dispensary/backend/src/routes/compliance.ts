@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
 import { storeTimeZone, storeDayRange, isNaiveTimestamp, toIsoUtc } from '../utils/isoTime.ts'
-import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr } from '../utils/revenue.ts'
+import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr, netExpr } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
@@ -373,7 +373,12 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           COALESCE(SUM(o.total::numeric), 0) as total_revenue,
           -- what was given back, reported rather than deducted by omission
           COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as total_refunded,
-          COALESCE(SUM(o.total::numeric), 0) - COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as net_revenue,
+          -- Netted PER SALE, like every other surface. This summed the two columns and subtracted one
+          -- total from the other, so three legacy orders refunded $90 beyond what they cost dragged the
+          -- month down with them: the compliance report read $5,391 where the dashboard, analytics and
+          -- Tax Filing all read $5,481. Same rule everywhere or the report a regulator reads is the odd
+          -- one out — which is the exact failure utils/revenue.ts exists to prevent. (T30)
+          COALESCE(SUM(${netExpr}), 0) as net_revenue,
           -- the WHERE keeps every settled sale for the revenue columns; tax is only what stayed collected
           COALESCE(SUM(CASE WHEN o.status IN ${taxCollected} THEN ${taxNetExpr} ELSE 0 END), 0) as total_tax,
           COALESCE(SUM(o.discount_amount::numeric), 0) as total_discounts,
