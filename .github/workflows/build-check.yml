@@ -1572,3 +1572,14 @@ jobs:
           bun-version: latest
       - name: "Check money figures print a currency symbol"
         run: bun run scripts/check-money-keeps-its-currency.ts
+
+  settings-blob-columns:
+    name: "Settings blob carries no column-backed value"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Check column-backed values stay out of settings"
+        run: bun run scripts/check-settings-blob-has-no-column-values.ts

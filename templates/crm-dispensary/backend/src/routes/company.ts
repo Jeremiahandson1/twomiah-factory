@@ -39,6 +39,10 @@ app.get('/', async (c) => {
 app.put('/', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), taxRate: z.union([z.string(), z.number()]).optional(), localTaxRate: z.union([z.string(), z.number()]).optional(), exciseTaxRate: z.union([z.string(), z.number()]).optional(), purchaseLimitOz: z.union([z.string(), z.number()]).optional(), settings: z.record(z.any()).optional(),
+    // store_hours is a real column and the refusal below tells callers to send it top-level — but it
+    // had no place in this schema, so zod stripped it and the hours were dropped in silence. Settings
+    // → General is the only writer; it sends {mon:{open,close,closed}, …}.
+    storeHours: z.record(z.any()).optional(),
     // Settings → Loyalty sends these five. They had no place in this schema, so zod stripped every one
     // and the screen reported a save that never happened. (T21 M7)
     loyaltyPointsPerDollar: z.number().min(0).optional(),

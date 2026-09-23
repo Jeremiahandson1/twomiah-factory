@@ -239,7 +239,14 @@ export default function OnboardingWizard() {
       if (profile.website) profileUpdate.website = profile.website;
       if (profile.logo) profileUpdate.logo = profile.logo;
 
-      const currentSettings = (company?.settings && typeof company.settings === 'object') ? company.settings : {};
+      // taxRate / localTaxRate / exciseTaxRate / purchaseLimitOz / storeHours have real company
+      // columns and PUT /api/company refuses them inside `settings`. A tenant that saved Settings →
+      // General before this fix has the legacy copies in its blob, so spreading it verbatim made the
+      // last click of onboarding fail with a 400. Carry everything else through untouched.
+      const COLUMN_BACKED = ['taxRate', 'localTaxRate', 'exciseTaxRate', 'purchaseLimitOz', 'storeHours'];
+      const stored = (company?.settings && typeof company.settings === 'object') ? company.settings : {};
+      const currentSettings: Record<string, any> = { ...stored };
+      for (const k of COLUMN_BACKED) delete currentSettings[k];
       profileUpdate.settings = {
         ...currentSettings,
         onboardingComplete: true,

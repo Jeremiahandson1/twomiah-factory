@@ -15,6 +15,43 @@ type StoreHours = Record<string, DayHours>;
 const defaultHours = (): StoreHours =>
   Object.fromEntries(DAYS.map(d => [d, { open: '09:00', close: '21:00', closed: false }]));
 
+// These five have a real company column, which is the one place they are stored and validated.
+// PUT /api/company REFUSES them inside `settings` (SETTING_HAS_A_COLUMN) so a value cannot end up
+// with two homes holding two answers. This screen used to mirror them into the blob, and every tab
+// spreads the stored blob back up on save — so once a tenant had the legacy copies, every section
+// here failed with a 400, including the four that never touch a rate.
+const COLUMN_BACKED = ['taxRate', 'localTaxRate', 'exciseTaxRate', 'purchaseLimitOz', 'storeHours'] as const;
+
+/** The stored settings blob, minus anything that belongs in a column. Send this, never the raw blob. */
+function settingsWithoutColumns(stored: any): Record<string, any> {
+  const out: Record<string, any> = { ...(stored || {}) };
+  for (const k of COLUMN_BACKED) delete out[k];
+  return out;
+}
+
+const pad = (t: string) => { const [h, m] = String(t).split(':'); return `${String(h ?? '').padStart(2, '0')}:${m ?? '00'}`; };
+
+/** Store hours arrive in two shapes: the seeded column form ({mon:'9:00-21:00'}) and this form's own
+ *  ({mon:{open,close,closed}}). Read either, so the hours a dispensary was generated with are the
+ *  hours it is shown — before this the column was never read and every day rendered 09:00–21:00. */
+function normalizeHours(raw: any): StoreHours {
+  const out = defaultHours();
+  if (!raw || typeof raw !== 'object') return out;
+  for (const d of DAYS) {
+    const v = (raw as any)[d];
+    if (v == null) continue;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s || /^closed$/i.test(s)) { out[d] = { ...out[d], closed: true }; continue; }
+      const [open, close] = s.split('-').map(p => p.trim());
+      if (open && close) out[d] = { open: pad(open), close: pad(close), closed: false };
+    } else if (typeof v === 'object') {
+      out[d] = { open: pad(v.open || out[d].open), close: pad(v.close || out[d].close), closed: !!v.closed };
+    }
+  }
+  return out;
+}
+
 function Toggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button type="button" onClick={() => onChange(!enabled)} className="flex items-center gap-3 group">
@@ -127,8 +164,11 @@ export default function SettingsPage() {
           exciseTaxRate: pick(co.exciseTaxRate, prev.exciseTaxRate, '15'),
           purchaseLimitOz: pick(co.purchaseLimitOz, prev.purchaseLimitOz, '1'),
         }));
+        // Store hours live in the column too, and that is where the seed puts them. Prefer it;
+        // fall back to the blob for tenants that only ever saved there.
+        if (co.storeHours) setStoreHours(normalizeHours(co.storeHours));
       }).catch(() => {});
-      if (settings.storeHours) setStoreHours({ ...defaultHours(), ...settings.storeHours });
+      if (settings.storeHours) setStoreHours(normalizeHours(settings.storeHours));
       if (settings.loyalty) setLoyaltyForm({ ...loyaltyForm, ...settings.loyalty, enabled: !!settings.loyalty?.enabled });
       if (settings.delivery) setDeliveryForm({ ...deliveryForm, ...settings.delivery, enabled: !!settings.delivery?.enabled });
       if (settings.merch) setMerchForm({ ...merchForm, ...settings.merch, enabled: !!settings.merch?.enabled });
@@ -196,23 +236,18 @@ export default function SettingsPage() {
         payload.address = generalForm.address;
         payload.phone = generalForm.phone;
         payload.email = generalForm.email;
-        // Write the rates to the columns the register reads (M-1); mirror into settings for
-        // anything still reading the old location.
+        // Write the rates and the hours to the columns the register and the storefront read (M-1).
+        // Nothing is mirrored into `settings`: the server refuses the shadow copy, and a second
+        // home is how the form came to show 0% while the POS charged 10% in the first place.
         payload.taxRate = parseFloat(generalForm.taxRate) || 0;
         payload.localTaxRate = parseFloat(generalForm.localTaxRate) || 0;
         payload.exciseTaxRate = parseFloat(generalForm.exciseTaxRate) || 0;
         payload.purchaseLimitOz = parseFloat(generalForm.purchaseLimitOz) || 0;
-        payload.settings = {
-          ...(company?.settings || {}),
-          taxRate: payload.taxRate,
-          localTaxRate: payload.localTaxRate,
-          exciseTaxRate: payload.exciseTaxRate,
-          purchaseLimitOz: payload.purchaseLimitOz,
-          storeHours,
-        };
+        payload.storeHours = storeHours;
+        payload.settings = settingsWithoutColumns(company?.settings);
       } else if (section === 'loyalty') {
         payload.settings = {
-          ...(company?.settings || {}),
+          ...settingsWithoutColumns(company?.settings),
           loyalty: {
             enabled: loyaltyForm.enabled,
             pointsPerDollar: loyaltyForm.pointsPerDollar,
@@ -224,7 +259,7 @@ export default function SettingsPage() {
         };
       } else if (section === 'delivery') {
         payload.settings = {
-          ...(company?.settings || {}),
+          ...settingsWithoutColumns(company?.settings),
           delivery: {
             enabled: deliveryForm.enabled,
             defaultFee: deliveryForm.defaultFee,
@@ -233,7 +268,7 @@ export default function SettingsPage() {
         };
       } else if (section === 'merch') {
         payload.settings = {
-          ...(company?.settings || {}),
+          ...settingsWithoutColumns(company?.settings),
           merch: {
             enabled: merchForm.enabled,
             stripePublishableKey: merchForm.stripePublishableKey,
@@ -242,7 +277,7 @@ export default function SettingsPage() {
         };
       } else if (section === 'receipts') {
         payload.settings = {
-          ...(company?.settings || {}),
+          ...settingsWithoutColumns(company?.settings),
           receipts: {
             headerText: receiptForm.headerText,
             footerText: receiptForm.footerText,
