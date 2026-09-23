@@ -31,6 +31,25 @@ function settingsWithoutColumns(stored: any): Record<string, any> {
 
 const pad = (t: string) => { const [h, m] = String(t).split(':'); return `${String(h ?? '').padStart(2, '0')}:${m ?? '00'}`; };
 
+// Which clock the shop runs on. The server's storeTimeZone() prefers settings.timezone, then the
+// licensed state, then UTC — so "Automatic" is a real choice and must write NOTHING rather than an
+// empty string. This is the shortlist a US dispensary needs, not the authority: the server validates
+// the name with Intl, and reports what Automatic resolves to as `effectiveTimeZone`, so this file
+// never carries a second copy of the state→zone table the compliance day is built on. (T28 L-e)
+const TIME_ZONES: Array<[string, string]> = [
+  ['America/New_York', 'Eastern — New York'],
+  ['America/Detroit', 'Eastern — Detroit'],
+  ['America/Indiana/Indianapolis', 'Eastern — Indianapolis'],
+  ['America/Chicago', 'Central — Chicago'],
+  ['America/Denver', 'Mountain — Denver'],
+  ['America/Boise', 'Mountain — Boise'],
+  ['America/Phoenix', 'Mountain, no DST — Phoenix'],
+  ['America/Los_Angeles', 'Pacific — Los Angeles'],
+  ['America/Anchorage', 'Alaska — Anchorage'],
+  ['Pacific/Honolulu', 'Hawaii — Honolulu'],
+  ['UTC', 'UTC'],
+];
+
 /** Store hours arrive in two shapes: the seeded column form ({mon:'9:00-21:00'}) and this form's own
  *  ({mon:{open,close,closed}}). Read either, so the hours a dispensary was generated with are the
  *  hours it is shown — before this the column was never read and every day rendered 09:00–21:00. */
@@ -100,7 +119,10 @@ export default function SettingsPage() {
   // General
   const [generalForm, setGeneralForm] = useState({
     name: '', address: '', phone: '', email: '', taxRate: '0', localTaxRate: '0', exciseTaxRate: '15', purchaseLimitOz: '1',
+    timezone: '',
   });
+  // What the server says Automatic resolves to, so the manager can see the default rather than guess.
+  const [effectiveTz, setEffectiveTz] = useState('');
   const [storeHours, setStoreHours] = useState<StoreHours>(defaultHours());
 
   // Loyalty
@@ -152,6 +174,7 @@ export default function SettingsPage() {
         localTaxRate: pick(company.localTaxRate, settings.localTaxRate, '0'),
         exciseTaxRate: pick(company.exciseTaxRate, settings.exciseTaxRate, '15'),
         purchaseLimitOz: pick(company.purchaseLimitOz, settings.purchaseLimitOz, '1'),
+        timezone: typeof settings.timezone === 'string' ? settings.timezone : '',
       });
       // /auth/me returns a trimmed company; fetch the full row so the column values win.
       api.get('/api/company').then((full: any) => {
@@ -163,7 +186,9 @@ export default function SettingsPage() {
           localTaxRate: pick(co.localTaxRate, prev.localTaxRate, '0'),
           exciseTaxRate: pick(co.exciseTaxRate, prev.exciseTaxRate, '15'),
           purchaseLimitOz: pick(co.purchaseLimitOz, prev.purchaseLimitOz, '1'),
+          timezone: typeof co.settings?.timezone === 'string' ? co.settings.timezone : prev.timezone,
         }));
+        setEffectiveTz(co.effectiveTimeZone || '');
         // Store hours live in the column too, and that is where the seed puts them. Prefer it;
         // fall back to the blob for tenants that only ever saved there.
         if (co.storeHours) setStoreHours(normalizeHours(co.storeHours));
@@ -244,7 +269,12 @@ export default function SettingsPage() {
         payload.exciseTaxRate = parseFloat(generalForm.exciseTaxRate) || 0;
         payload.purchaseLimitOz = parseFloat(generalForm.purchaseLimitOz) || 0;
         payload.storeHours = storeHours;
-        payload.settings = settingsWithoutColumns(company?.settings);
+        const generalSettings = settingsWithoutColumns(company?.settings);
+        // Automatic means "no opinion" — storeTimeZone() then falls back to the licensed state. The
+        // server MERGES settings, so simply omitting the key would leave a previously chosen zone in
+        // place and Automatic would not stick. Send null, which is what the reader treats as unset.
+        generalSettings.timezone = generalForm.timezone || null;
+        payload.settings = generalSettings;
       } else if (section === 'loyalty') {
         payload.settings = {
           ...settingsWithoutColumns(company?.settings),
@@ -537,6 +567,21 @@ export default function SettingsPage() {
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400 text-sm">oz</span>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Enforced at the register and online menu. This is the retail SALE limit per transaction (not the personal possession limit) — 1 oz of flower in most adult-use states, including Colorado. Raise it only where your state's retail rules allow.</p>
+                </div>
+
+                <div className="w-64">
+                  <FieldLabel>Timezone</FieldLabel>
+                  <select
+                    value={generalForm.timezone}
+                    onChange={e => setGeneralForm({ ...generalForm, timezone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Automatic{effectiveTz ? ` — ${effectiveTz}` : ''}</option>
+                    {TIME_ZONES.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">Decides which day a sale is reported on — compliance reports, end-of-day close, the dashboard's "today" and peak-hour charts all use it. Automatic follows the state on your license{effectiveTz ? `, currently ${effectiveTz}` : ''}. Set it if you trade in a different zone.</p>
                 </div>
               </div>
 

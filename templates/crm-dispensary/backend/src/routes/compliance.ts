@@ -590,6 +590,28 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
     : Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 31 ? 'monthly'
     : Math.round((endDate.getTime() - startDate.getTime()) / 86400000) <= 92 ? 'quarterly' : 'annual'
   const [companyRow] = ((await db.execute(sql`SELECT state FROM company WHERE id = ${currentUser.companyId} LIMIT 1`)) as any).rows || []
+  // THE SHAPE OF THE `data` COLUMN. (T28 L-a — the report asked for this to be written down.)
+  //
+  //   data = { reportType, generatedAt, rows: <the report body> }
+  //
+  // `rows` is the only part anything reads, and it is deliberately POLYMORPHIC — each case above
+  // decides its own body, and the two shapes are not interchangeable:
+  //
+  //   ARRAY of record objects   daily_sales, inventory_snapshot, waste, transfer, metrc_reconciliation
+  //   OBJECT of named figures   tax, patient_count, diversion
+  //
+  // reportSections() below is what reconciles them for a reader: an array of objects becomes one
+  // table, an object becomes named sections or key/value pairs. It unwraps this envelope first —
+  // `'rows' in data ? data.rows : data` — which is also why reports stored before the envelope
+  // existed still render.
+  //
+  // `reportType` and `generatedAt` are, as of this writing, read by NOBODY. The export titles itself
+  // from the report_type COLUMN and the Compliance page shows created_at, not generatedAt. They are
+  // kept because a submitted report is a record of what was filed: the type and the moment the
+  // figures were taken belong inside the stored JSON, where a later change to the table's columns
+  // cannot rewrite them. Do not "simplify" data down to the bare rows — reportSections' unwrap is
+  // conditional, so old rows would keep working and the breakage would surface only as reports whose
+  // sections silently stop matching.
   const reportResult = await db.execute(sql`
     INSERT INTO compliance_reports (
       id, company_id, report_type, period, start_date, end_date, state,

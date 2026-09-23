@@ -11,6 +11,7 @@ import { getFeaturesForTemplate } from '../shared/featureRegistry.ts'
 import { passwordSchema } from '../shared/index.ts'
 import { CRM_TEMPLATE } from '../config/template.ts'
 import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyConfig.ts'
+import { storeTimeZone, isValidTimeZone } from '../utils/isoTime.ts'
 
 const app = new Hono()
 // Never serialize provider secrets to the client (VET-41 / F-26): GET & PUT /api/company
@@ -24,6 +25,11 @@ function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   // Settings → Loyalty reads these flat keys; they live under settings.loyalty. Without them the
   // screen fell back to its own placeholder numbers and looked like it had loaded a saved config. (T21 M7)
   Object.assign(clone, loyaltyConfigResponse(row))
+  // Which clock the shop actually runs on, resolved here rather than in the browser. Settings →
+  // General shows this as what "Automatic" resolves to; computing it client-side would mean a second
+  // copy of STATE_TIME_ZONES that can drift from the one the compliance day is built on. Read-only —
+  // it is derived, so it is not accepted on the way in. (T28 L-e)
+  clone.effectiveTimeZone = storeTimeZone(row)
   return clone
 }
 
@@ -87,6 +93,14 @@ app.put('/', requireAdmin, async (c) => {
         code: 'SETTING_HAS_A_COLUMN',
         fields: shadowed,
       }, 400)
+    }
+    // settings.timezone decides which day a sale is reported on — compliance.ts, eod.ts, dashboard.ts
+    // and analytics.ts all read it through storeTimeZone(). An unrecognised name there does not throw,
+    // it silently falls back to the state, so the store would be told it saved a zone it is not using.
+    // Refuse it at the door instead. (T28 L-e)
+    const tz = (data.settings as any).timezone
+    if (tz !== undefined && tz !== null && tz !== '' && !isValidTimeZone(tz)) {
+      return c.json({ error: `"${String(tz).slice(0, 60)}" is not a timezone this system recognises. Use an IANA name such as America/Chicago.`, code: 'BAD_TIME_ZONE' }, 400)
     }
   }
 
