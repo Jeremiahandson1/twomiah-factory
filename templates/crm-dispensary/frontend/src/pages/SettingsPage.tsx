@@ -452,7 +452,7 @@ export default function SettingsPage() {
               key={t.id}
               onClick={() => setTab(t.id)}
               className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left transition ${
-                tab === t.id ? 'bg-green-50 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-100'
+                tab === t.id ? 'bg-green-50 text-green-700 font-medium dark:bg-green-500/15 dark:text-green-300' : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
               }`}
             >
               <t.icon className="w-5 h-5" />

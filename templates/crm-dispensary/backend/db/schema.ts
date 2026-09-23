@@ -256,6 +256,10 @@ export const order = pgTable('orders', {
   // derived local-tax line (total − excise − sales) negative.
   refundedExciseTax: text('refunded_excise_tax').default('0'),
   refundedSalesTax: text('refunded_sales_tax').default('0'),
+  // Which drawer session took the cash. A $121.25 cash sale completed while the dashboard read "Cash
+  // Drawer Closed" belonged to no session, so no close-out would ever expect it and the shortage
+  // would surface as an unexplained variance on some later count. (Dispensary T29 M9)
+  cashSessionId: text('cash_session_id'),
   total: text('total').default('0'),
   totalCannabisWeightOz: text('total_cannabis_weight_oz').default('0'),
   paymentMethod: text('payment_method'), // cash|debit|ach

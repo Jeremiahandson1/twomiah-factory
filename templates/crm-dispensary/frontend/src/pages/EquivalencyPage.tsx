@@ -259,7 +259,7 @@ export default function EquivalencyPage() {
                           <button onClick={() => openEditRule(rule)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                             <Edit className="w-3 h-3" /> Edit
                           </button>
-                          <button onClick={() => { setRuleToDelete(rule); setDeleteOpen(true); }} className="text-sm text-red-600 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
+                          <button onClick={() => { setRuleToDelete(rule); setDeleteOpen(true); }} className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
                             <Trash2 className="w-3 h-3" /> Delete
                           </button>
                         </div>

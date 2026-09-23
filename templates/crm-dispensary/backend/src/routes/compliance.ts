@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { sql, eq } from 'drizzle-orm'
 import { company } from '../../db/schema.ts'
-import { storeTimeZone, storeDayRange } from '../utils/isoTime.ts'
+import { storeTimeZone, storeDayRange, isNaiveTimestamp, toIsoUtc } from '../utils/isoTime.ts'
 import { settledSale, taxCollected, taxNetExpr, exciseNetExpr, salesNetExpr } from '../utils/revenue.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -353,6 +353,14 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
   // …and the RANGE has to be read on that same clock, or the filter and the grouping disagree inside
   // one query. See reportRange above. (T20 B3, T27 H2)
   const { start: startDate, end: endDate } = reportRange(data.startDate, data.endDate, tzDay)
+  // An end before the start produced a 201 and an empty report — which looks exactly like a quiet
+  // period, on a document someone files. Say it instead. (Dispensary T29 L5)
+  if (endDate <= startDate) {
+    return c.json({
+      error: `The end date (${data.endDate}) is before the start date (${data.startDate}). A report needs a period that runs forwards.`,
+      code: 'BAD_REPORT_RANGE',
+    }, 400)
+  }
 
   let reportData: any = null
 
@@ -678,7 +686,20 @@ app.get('/reports/:id/export', async (c) => {
   if (!report) return c.json({ error: 'Report not found' }, 404)
   const data = typeof report.data === 'string' ? JSON.parse(report.data) : report.data
   const label = String(report.report_type || 'report')
-  const period = `${String(report.start_date).slice(0, 10)} to ${String(report.end_date).slice(0, 10)}`
+  // end_date is the EXCLUSIVE bound the query runs on — the start of the day after the period. Printing
+  // it raw told the reader a one-day report covered "2026-09-22 to 2026-09-23", which is two days, on a
+  // document filed with a regulator. Show the last day the report actually covers. (Dispensary T29 L5)
+  const inclusiveEnd = (() => {
+    const raw = String(report.end_date)
+    const d = new Date(raw.length <= 10 ? `${raw}T00:00:00.000Z` : raw)
+    if (Number.isNaN(d.getTime())) return raw.slice(0, 10)
+    return new Date(d.getTime() - 1).toISOString().slice(0, 10)
+  })()
+  const startLabel = String(report.start_date).slice(0, 10)
+  const period = startLabel === inclusiveEnd ? startLabel : `${startLabel} to ${inclusiveEnd}`
+  // created_at arrives from raw SQL as "2026-09-23 01:14:42.188302" — no zone marker and microseconds,
+  // which a reader parses as local time and a spreadsheet mangles. Stamp it properly. (T29 L5)
+  const generatedAt = isNaiveTimestamp(report.created_at) ? toIsoUtc(String(report.created_at)) : String(report.created_at)
   const sections = reportSections(data)
   const fname = `${label}-${String(report.start_date).slice(0, 10)}_${String(report.end_date).slice(0, 10)}`
 
@@ -686,7 +707,7 @@ app.get('/reports/:id/export', async (c) => {
     const lines: string[] = []
     lines.push(['Report', titleCase(label)].map(csvCell).join(','))
     lines.push(['Licensee', report.company_name, 'License', report.license_number || '', 'State', report.company_state || ''].map(csvCell).join(','))
-    lines.push(['Period', period, 'Status', report.status, 'Generated', String(report.created_at)].map(csvCell).join(','))
+    lines.push(['Period', period, 'Status', report.status, 'Generated', generatedAt].map(csvCell).join(','))
     lines.push('')
     for (const s of sections) {
       lines.push(csvCell(s.name))
@@ -707,7 +728,7 @@ app.get('/reports/:id/export', async (c) => {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titleCase(label))} — ${esc(period)}</title>
 <style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:32px;color:#111;font-size:12px}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;margin:20px 0 6px;border-bottom:1px solid #ddd;padding-bottom:2px}.meta{color:#555;margin-bottom:8px}table{border-collapse:collapse;width:100%;margin-bottom:8px}th,td{border:1px solid #ddd;padding:4px 6px;text-align:left;vertical-align:top}th{background:#f5f5f5}table.kv th{width:32%}.foot{margin-top:24px;color:#777;font-size:10px}@media print{body{margin:12mm}}</style></head>
 <body><h1>${esc(titleCase(label))}</h1>
-<div class="meta"><strong>${esc(report.company_name)}</strong>${report.license_number ? ` · License ${esc(report.license_number)}` : ''}${report.company_state ? ` · ${esc(report.company_state)}` : ''}<br>Period ${esc(period)} · Status ${esc(report.status)} · Generated ${esc(String(report.created_at))}${report.submitted_at ? ` · Submitted ${esc(String(report.submitted_at))}` : ''}</div>
+<div class="meta"><strong>${esc(report.company_name)}</strong>${report.license_number ? ` · License ${esc(report.license_number)}` : ''}${report.company_state ? ` · ${esc(report.company_state)}` : ''}<br>Period ${esc(period)} · Status ${esc(report.status)} · Generated ${esc(generatedAt)}${report.submitted_at ? ` · Submitted ${esc(String(report.submitted_at))}` : ''}</div>
 ${sectionHtml}
 <div class="foot">Report ${esc(report.id)} · generated by the point-of-sale compliance module. Figures are as recorded at generation time.</div>
 </body></html>`

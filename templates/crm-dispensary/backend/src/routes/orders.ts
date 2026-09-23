@@ -671,6 +671,36 @@ app.post('/:id/complete', async (c) => {
   // changeDue -37.50 — a silent drawer shortage at reconciliation. Reject under-payment for cash
   // and for split tenders; never emit negative change.
   const orderTotal = round2(Number(existing.total) || 0)
+  // Cash goes into a DRAWER. A $121.25 cash sale completed while the dashboard read "Cash Drawer
+  // Closed" belonged to no session, so no close-out would ever expect it and the money surfaced later
+  // as an unexplained variance — or not at all. The sale is linked to the open session now, and
+  // refused when there is none. (Dispensary T29 M9)
+  //
+  // Only for shops that actually use drawers. A dispensary that has never opened one is not running
+  // its cash that way, and making the till refuse every cash sale to teach it a workflow it never
+  // asked for would be a worse bug than the one being fixed. The moment a shop opens its first
+  // drawer, it has opted in and the rule applies from then on.
+  let cashSessionId: string | null = null
+  const takesCash = data.paymentMethod === 'cash' || (data.splitPayments || []).some(p => p.method === 'cash')
+  if (takesCash) {
+    const openRow = ((await db.execute(sql`
+      SELECT id FROM cash_sessions WHERE company_id = ${currentUser.companyId} AND status = 'open'
+      ORDER BY opened_at DESC LIMIT 1
+    `)) as any).rows?.[0]
+    if (openRow) {
+      cashSessionId = String(openRow.id)
+    } else {
+      const everUsed = ((await db.execute(sql`
+        SELECT 1 FROM cash_sessions WHERE company_id = ${currentUser.companyId} LIMIT 1
+      `)) as any).rows?.length > 0
+      if (everUsed) {
+        return c.json({
+          error: 'No cash drawer is open, so this cash has nowhere to be counted. Open a drawer on the Cash page, then take the payment.',
+          code: 'no_open_cash_drawer',
+        }, 409)
+      }
+    }
+  }
   if (data.paymentMethod === 'cash') {
     // No tender given = exact amount (integrations that don't track change). Under-tender is rejected.
     if (data.cashTendered == null) data.cashTendered = orderTotal
@@ -722,6 +752,8 @@ app.post('/:id/complete', async (c) => {
       changeDue: String(changeDue),
       tipAmount: String(data.tipAmount),
       tipMethod: data.tipMethod || null,
+      // so the drawer close-out expects this money (M9)
+      cashSessionId,
       completedAt: new Date(),
       updatedAt: new Date(),
     } as any).where(and(eq(order.id, id), eq(order.companyId, currentUser.companyId), isNull(order.completedAt))).returning({ id: order.id })

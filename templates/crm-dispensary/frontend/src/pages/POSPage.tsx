@@ -422,7 +422,7 @@ export default function POSPage() {
               className={`px-3 py-1.5 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
                 activeCategory === cat.value
                   ? 'bg-green-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800'
               }`}
             >
               {cat.label}
@@ -481,7 +481,7 @@ export default function POSPage() {
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="font-semibold text-green-700">${Number(product.price).toFixed(2)}</span>
+                    <span className="font-semibold text-green-700 dark:text-green-300">${Number(product.price).toFixed(2)}</span>
                     <span className={`text-xs ${product.stockQuantity <= 5 ? 'text-amber-600' : 'text-gray-500 dark:text-slate-400'}`}>
                       {product.stockQuantity} left
                     </span>
@@ -566,7 +566,7 @@ export default function POSPage() {
         <div className="px-4 py-2 border-b">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs text-gray-500 dark:text-slate-400">Weight Limit</span>
-            <span className={`text-xs font-medium ${overWeight ? 'text-red-600' : 'text-gray-700'}`}>
+            <span className={`text-xs font-medium ${overWeight ? 'text-red-600 dark:text-red-300' : 'text-gray-700 dark:text-slate-200'}`}>
               {Number(totalWeightOz).toFixed(1)} / {WEIGHT_LIMIT_OZ} oz
             </span>
           </div>
@@ -711,7 +711,7 @@ export default function POSPage() {
               className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${
                 paymentMethod === 'cash'
                   ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
               }`}
             >
               <Banknote className="w-4 h-4" /> Cash
@@ -721,7 +721,7 @@ export default function POSPage() {
               className={`flex-1 py-2 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition-colors ${
                 paymentMethod === 'debit'
                   ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
               }`}
             >
               <CreditCard className="w-4 h-4" /> Debit

@@ -14,6 +14,16 @@ import { loyaltyConfigResponse, LOYALTY_SETTING_KEYS } from '../utils/loyaltyCon
 import { storeTimeZone, isValidTimeZone } from '../utils/isoTime.ts'
 import { forgetFeatures } from '../middleware/enabledFeature.ts'
 
+// The 50 states plus DC and the territories a licence can be issued in. A state code is not cosmetic
+// here: it decides the compliance day when no timezone is set, the purchase-limit fallback, and which
+// report a regulator is handed. (T29 M6)
+const US_STATES = new Set([
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA',
+  'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM',
+  'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA',
+  'WV', 'WI', 'WY', 'PR', 'GU', 'VI', 'AS', 'MP',
+])
+
 const app = new Hono()
 // Never serialize provider secrets to the client (VET-41 / F-26): GET & PUT /api/company
 // returned the whole company row — including the Twilio auth token, account SID and Stripe
@@ -74,7 +84,10 @@ app.put('/', requireAdmin, async (c) => {
   }
   if (data.purchaseLimitOz !== undefined) {
     const n = Number(data.purchaseLimitOz)
-    if (!Number.isFinite(n) || n <= 0 || n > 16) return c.json({ error: 'purchaseLimitOz must be a number between 0 and 16 (oz flower-equivalent per transaction)' }, 400)
+    // "between 0 and 16" while refusing 0 sent people looking for a bug that was not there — the
+    // limit is a maximum per transaction, and a maximum of nothing would close the shop. Say what is
+    // actually allowed. (T29 L7)
+    if (!Number.isFinite(n) || n <= 0 || n > 16) return c.json({ error: 'purchaseLimitOz must be a number greater than 0 and no more than 16 (oz flower-equivalent per transaction)' }, 400)
     data.purchaseLimitOz = String(n)
   }
   // MERGE a partial settings object into the stored one — never replace it (see the shared company route:
@@ -103,6 +116,49 @@ app.put('/', requireAdmin, async (c) => {
     if (tz !== undefined && tz !== null && tz !== '' && !isValidTimeZone(tz)) {
       return c.json({ error: `"${String(tz).slice(0, 60)}" is not a timezone this system recognises. Use an IANA name such as America/Chicago.`, code: 'BAD_TIME_ZONE' }, 400)
     }
+    // Payment terms drive an invoice's due date. −3 days made an invoice overdue the moment it was
+    // raised and 400 pushed it past a year; both saved happily. (T29 M6)
+    const terms = (data.settings as any).paymentTermsDays
+    if (terms !== undefined && terms !== null && terms !== '') {
+      const n = Number(terms)
+      if (!Number.isInteger(n) || n < 0 || n > 365) {
+        return c.json({ error: 'Payment terms must be a whole number of days between 0 and 365.', code: 'BAD_PAYMENT_TERMS' }, 400)
+      }
+    }
+  }
+
+  // A state code drives the compliance day, the purchase limit fallback and which report a regulator
+  // is handed — "ZZ" saved without complaint. Two letters, and a real one. (T29 M6)
+  if (data.state !== undefined && data.state !== null && String(data.state).trim() !== '') {
+    const st = String(data.state).trim().toUpperCase()
+    if (!US_STATES.has(st)) {
+      return c.json({ error: `"${String(data.state).slice(0, 20)}" is not a US state code. Use a two-letter code such as OH.`, code: 'BAD_STATE' }, 400)
+    }
+    data.state = st
+  }
+
+  // The loyalty ladder has to ascend. silver 5,000 / gold 100 / platinum 1 was accepted, which makes
+  // every tier above bronze unreachable or instantly granted — the award engine compares against these
+  // in order and cannot do anything sensible with an inverted ladder. (T29 M6)
+  if (data.loyaltyTierThresholds && typeof data.loyaltyTierThresholds === 'object') {
+    const ladder = ['bronze', 'silver', 'gold', 'platinum'] as const
+    const given = ladder.filter(t => (data.loyaltyTierThresholds as any)[t] !== undefined)
+    let previous = -Infinity
+    let previousName = ''
+    for (const tier of given) {
+      const v = Number((data.loyaltyTierThresholds as any)[tier])
+      if (!Number.isFinite(v) || v < 0) {
+        return c.json({ error: `The ${tier} threshold must be zero or more.`, code: 'BAD_TIER_THRESHOLDS' }, 400)
+      }
+      if (v <= previous) {
+        return c.json({
+          error: `Loyalty tiers have to climb: ${tier} (${v}) is not above ${previousName} (${previous}). A customer reaches ${previousName} first, so ${tier} must cost more.`,
+          code: 'BAD_TIER_THRESHOLDS',
+        }, 400)
+      }
+      previous = v
+      previousName = tier
+    }
   }
 
   const updates: any = { ...data, updatedAt: new Date() }
@@ -115,6 +171,12 @@ app.put('/', requireAdmin, async (c) => {
   if ((data.settings && typeof data.settings === 'object') || Object.keys(loyaltyPatch).length) {
     const [cur] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
     const base = { ...((cur?.settings as any) || {}), ...(data.settings && typeof data.settings === 'object' ? data.settings : {}) }
+    // A merge has no way to say "remove this" — so null means remove. Without it a key could be
+    // added and never taken away: the tester's t29Probe could not be cleared off the tenant at all,
+    // and every stale key stays in the blob for good. The one exception is settings.timezone, where
+    // null is a real stored value meaning "follow the licensed state" (T28 L-e); deleting the key
+    // reads the same way to storeTimeZone(), so removal is still the right move. (T29 L6)
+    for (const [k, v] of Object.entries(base)) if (v === null) delete (base as any)[k]
     updates.settings = Object.keys(loyaltyPatch).length
       ? { ...base, loyalty: { ...((base as any).loyalty || {}), ...loyaltyPatch } }
       : base

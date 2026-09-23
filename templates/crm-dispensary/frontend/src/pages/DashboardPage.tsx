@@ -43,7 +43,11 @@ export default function DashboardPage() {
         id: i.id, name: i.name, category: i.category, stock: Number(i.stock_quantity || 0),
       })) : []);
       setRecentOrders(activityData?.recentOrders || []);
-      setTopProducts([]); // Top products requires a separate analytics query; dashboard shows what's available
+      // The panel read "No sales data yet" under 22 completed sales because this was hard-coded to []
+      // — the comment said top products "requires a separate analytics query", and the answer was to
+      // write that query rather than to leave the panel lying. /dashboard/stats returns it now, over
+      // the same settled row set and store day as the tiles beside it. (Dispensary T29 M8)
+      setTopProducts(Array.isArray(statsData?.topProducts) ? statsData.topProducts : []);
       setCashSession(sessionData);
     } catch (err) {
       console.error('Failed to load dashboard:', err);

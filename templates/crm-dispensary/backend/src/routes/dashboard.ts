@@ -44,6 +44,7 @@ app.get('/stats', async (c) => {
     openSessionsResult,
     loyaltyMembersResult,
     todayDeliveriesResult,
+    topProductsResult,
   ] = await Promise.all([
     // Total contacts/customers
     safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }]),
@@ -92,7 +93,7 @@ app.get('/stats', async (c) => {
         AND stock_quantity <= low_stock_threshold
       ORDER BY stock_quantity ASC
       LIMIT 10
-    `), { rows: [] }),
+    `), { rows: [] } as any),
 
     // Open cash sessions
     safe(() => db.execute(sql`
@@ -121,6 +122,24 @@ app.get('/stats', async (c) => {
         AND created_at >= ${today}
         AND created_at < ${tomorrow}
     `), { rows: [{}] }),
+    // Top sellers today. The panel has existed since the dashboard shipped and nothing ever fed it —
+    // topProducts was useState([]) and never set — so it read "No sales data yet" under 22 completed
+    // sales. Counted over the SAME settled row set and the same store day as the tiles beside it, so
+    // it cannot contradict them. (Dispensary T29 M8)
+    safe(() => db.execute(sql`
+      SELECT oi.product_id as id, oi.product_name as name, oi.category,
+             SUM(oi.quantity)::int as units_sold,
+             COALESCE(SUM(NULLIF(oi.line_total, '')::numeric), 0) as revenue
+      FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id
+      WHERE o.company_id = ${companyId}
+        AND o.status IN ${settledSale}
+        AND o.completed_at >= ${today}
+        AND o.completed_at < ${tomorrow}
+      GROUP BY oi.product_id, oi.product_name, oi.category
+      ORDER BY units_sold DESC
+      LIMIT 5
+    `), { rows: [] }),
   ])
 
   const todayOrders = ((todayOrdersResult as any).rows || todayOrdersResult)?.[0] || {}
@@ -129,6 +148,7 @@ app.get('/stats', async (c) => {
   const openSessions = (openSessionsResult as any).rows || openSessionsResult || []
   const loyaltyMembers = ((loyaltyMembersResult as any).rows || loyaltyMembersResult)?.[0]?.total || 0
   const todayDeliveries = ((todayDeliveriesResult as any).rows || todayDeliveriesResult)?.[0] || {}
+  const topProducts = (((topProductsResult as any).rows || topProductsResult) || []).map((r: any) => ({ id: r.id, name: r.name, category: r.category, unitsSold: Number(r.units_sold || 0), revenue: Number(r.revenue || 0) }))
 
   return c.json({
     customers: contactCount[0]?.value ?? 0,
@@ -147,6 +167,7 @@ app.get('/stats', async (c) => {
       revenue: Number(monthRevenue.revenue || 0),
       orderCount: Number(monthRevenue.order_count || 0),
     },
+    topProducts,
     lowStockAlerts: lowStockItems,
     lowStockCount: lowStockItems.length,
     openCashSessions: openSessions,
@@ -167,8 +188,14 @@ app.get('/recent-activity', async (c) => {
   const [recentOrdersResult, recentAuditResult] = await Promise.all([
     db.execute(sql`
       SELECT o.id, o.number, o.type, o.status, o.total, o.payment_method,
-             o.customer_name, o.is_medical, o.created_at, o.completed_at
+             -- The name lives on the linked CONTACT; orders.customer_name is only filled in for a
+             -- walk-in. So every order with a real customer read "Walk-in" in this widget while
+             -- /api/orders showed the name — two panels on the same screen disagreeing about who
+             -- bought something. Same resolution the orders list uses. (Dispensary T29 M8)
+             COALESCE(NULLIF(o.customer_name, ''), ct.name) AS customer_name,
+             o.is_medical, o.created_at, o.completed_at
       FROM orders o
+      LEFT JOIN contact ct ON ct.id = o.contact_id AND ct.company_id = o.company_id
       WHERE o.company_id = ${companyId}
       ORDER BY o.created_at DESC
       LIMIT 10

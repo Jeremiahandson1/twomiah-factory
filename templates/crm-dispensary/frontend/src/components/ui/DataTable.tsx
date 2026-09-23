@@ -137,8 +137,13 @@ export function DataTable<Row extends { id?: any } = any>({
                       container, pushing Tier and every other column off the screen. break-words
                       breaks a run with nothing to break on; the max width is what stops the column
                       growing to fit it in the first place. (T21 M1) */}
+                  {/* Every data cell in the CRM is drawn below. text-gray-700 had no dark partner, so
+                      in dark mode it stayed rgb(55,65,81) on the rgb(15,23,42) surface — 1.73:1, which
+                      is not dim, it is invisible. The Team page reported it on all nine cells; the same
+                      line was painting every other table in the product. The headings above were fixed
+                      for this once and the cells were missed. (Dispensary T29 M7) */}
                   {columns.map((col) => (
-                    <td key={col.key} className={`px-4 py-3 text-gray-700 max-w-xs break-words ${col.cellClassName || ''}`}>
+                    <td key={col.key} className={`px-4 py-3 text-gray-700 dark:text-slate-200 max-w-xs break-words ${col.cellClassName || ''}`}>
                       {col.render ? col.render(row[col.key], row) : row[col.key]}
                     </td>
                   ))}
