@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { salonDayWindows } from '../utils/salonDate.ts'
 import { db } from '../../db/index.ts'
 import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice, teamMember } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
@@ -27,11 +28,11 @@ app.get('/stats', async (c) => {
   const user_ = c.get('user') as any
   const companyId = user_.companyId
   const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const tomorrow = new Date(today.getTime() + 86400000)
-  const in7 = new Date(today.getTime() + 7 * 86400000)
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  // The SHOP's days, not the server's. These were built from now.getFullYear()/getMonth()/getDate(),
+  // which is the server's local time — UTC on Render — so from 19:00 Central the "Appointments Today"
+  // tile counted TOMORROW's book: 8 where the shop had 5. Same fault as T25 N2, spelled differently,
+  // which is why that sweep walked past it. (Salon T27 H1)
+  const { today, tomorrow, in7, startOfMonth, startOfNextMonth } = await salonDayWindows(companyId)
 
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => {
     // A panel that cannot load should degrade, not take the dashboard down — but it must SAY so. Swallowing

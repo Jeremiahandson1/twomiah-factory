@@ -77,6 +77,31 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
     .limit(1)
   if (!ct) return c.json({ error: 'Client not found' }, 404)
 
+  // One live enrolment per client per plan. Enrolling twice was accepted in silence and BOTH
+  // enrolments billed — T27 Money Client ended up with two $107.42 Blowout Club invoices from the same
+  // plan, and would have been charged twice again at every renewal. Nothing about a second enrolment in
+  // the same plan is meaningful: the credits, the renewal date and the billing period all describe the
+  // one membership. (Salon T27 H2)
+  //
+  // Only ACTIVE enrolments block. A client who cancelled and comes back is enrolling again, which is a
+  // real thing a salon does, and their old row is history rather than a duplicate.
+  const [existingEnrolment] = await db.select({ id: membershipEnrollment.id, startDate: membershipEnrollment.startDate })
+    .from(membershipEnrollment)
+    .where(and(
+      eq(membershipEnrollment.companyId, currentUser.companyId),
+      eq(membershipEnrollment.contactId, body.contactId),
+      eq(membershipEnrollment.planId, body.planId),
+      eq(membershipEnrollment.status, 'active'),
+    ))
+    .limit(1)
+  if (existingEnrolment) {
+    return c.json({
+      error: `${ct.name || 'This client'} is already on ${plan.name}${existingEnrolment.startDate ? ` (since ${String(existingEnrolment.startDate).slice(0, 10)})` : ''}. Cancel that membership first if they are starting a new one.`,
+      code: 'ALREADY_ENROLLED',
+      enrollmentId: existingEnrolment.id,
+    }, 409)
+  }
+
   const [created] = await db.insert(membershipEnrollment).values({
     id: createId(),
     planId: body.planId,

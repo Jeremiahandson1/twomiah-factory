@@ -40,7 +40,14 @@ const inv = read('packages/tenant-backend/src/invoicing/invoices.ts')
 if (!/const dueDate = startOfUtcDay\(v\.dueDate\)/.test(inv) || !/const issueDate = startOfUtcDay\(v\.issueDate\)/.test(inv)) {
   fail('insertInvoice must normalise both dates — it is the one write path every vertical raises invoices through')
 }
-if (!/const issueDate = issue\.value \?\? startOfUtcDay\(new Date\(\)\)/.test(inv)) fail('a defaulted issue date must be a day too')
+// A defaulted issue date must still be a DAY (midnight-normalised, never the instant the invoice was
+// raised) — and it must be the BUSINESS's day, not the server's. businessToday() returns a UTC-midnight
+// Date for the tenant's calendar date, so it satisfies the original rule and fixes the half the rule
+// never covered: Render runs UTC, so `startOfUtcDay(new Date())` stamped an invoice raised at 19:00
+// Central with tomorrow, and carried that day into the due date. (Salon T27 H1)
+if (!/const today = businessToday\(/.test(inv)) fail("a defaulted issue date must come from the business's calendar day (businessToday), not the server's")
+if (!/const issueDate = issue\.value \?\? today/.test(inv)) fail('a defaulted issue date must be a day too')
+if (!/const dueDate = due\.value \?\? dueDateFromTerms\(settings, today\)/.test(inv)) fail('payment terms must be counted from that same business day, or the due date slides with it')
 if (!/const now = overdueCutoff\(\)/.test(inv)) fail('the invoice list filter must use the shared cut-off')
 const reporting = read('packages/tenant-backend/src/reporting/reporting.ts')
 if (!/lt\(t\.invoice\.dueDate, overdueCutoff\(\)\)/.test(reporting)) fail('Reports must use it as well, or it disagrees with the page it links to')

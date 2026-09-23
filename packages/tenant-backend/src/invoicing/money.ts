@@ -113,6 +113,31 @@ export function startOfUtcDay(d: Date): Date {
 }
 
 /**
+ * TODAY, on the BUSINESS's calendar — still stored at midnight UTC like every other date here.
+ *
+ * Storing a calendar day at UTC midnight (above) is right and stays. Deciding WHICH day is today by
+ * asking UTC is not: Render runs UTC, so from 19:00 Central a new invoice was stamped with tomorrow's
+ * date and its due date landed a day late. Every US zone loses the tail of the evening this way — two
+ * hours for Central, three for Mountain, four for Pacific. (Salon T27 H1)
+ *
+ * The zone is optional and there is no default beyond UTC: a template that does not tell this module
+ * where it trades keeps exactly the behaviour it has today, so this cannot change a vertical that has
+ * not opted in. An unrecognised zone falls back the same way rather than throwing on a money path.
+ */
+export function businessToday(timeZone?: string | null, now: Date = new Date()): Date {
+  if (!timeZone) return startOfUtcDay(now)
+  try {
+    // en-CA formats as YYYY-MM-DD, which is the calendar date in that zone.
+    const [y, m, d] = new Intl.DateTimeFormat('en-CA', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(now).split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d))
+  } catch {
+    return startOfUtcDay(now)
+  }
+}
+
+/**
  * The cut-off a SQL query compares a due date against: a day BEFORE today is overdue, today is not. Keeps
  * the filtered list, the stats and Reports on the same rule as isOverdue, which waits for the day to end.
  */

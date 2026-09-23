@@ -6,7 +6,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, sql, inArray, lt, gte, isNull } from 'drizzle-orm'
-import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { round2, calcTotals, rawSubtotal, DEFAULT_OPEN_STATUSES, isOverdue, overdueCutoff, startOfUtcDay, businessToday, deriveStatus, invoiceBalance, recomputeStatus, defaultTaxRateFrom, dueDateFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { mailFailureReason } from '../integrations/mailError'
 import { checkFilter } from '../listFilter'
 
@@ -31,6 +31,17 @@ export interface InvoiceOptions {
   minLineItems?: number
   /** Maximum page size for the list. */
   maxLimit?: number
+  /**
+   * Where this business trades, as an IANA zone, so "today" on a new invoice is the tenant's calendar
+   * day rather than the server's. Render runs UTC: without this, an invoice raised at 19:00 Central is
+   * stamped with TOMORROW's date and its due date falls a day late. (Salon T27 H1)
+   *
+   * Optional on purpose. A template that does not supply it keeps exactly the behaviour it has today,
+   * so this cannot move a vertical that has not opted in. Each vertical keeps its zone in a different
+   * place — the salon on bookingSettings, the dispensary in company settings — which is why this is a
+   * resolver the template wires rather than a column this module reads.
+   */
+  timeZoneFor?: (companyId: string) => Promise<string | null | undefined>
   /**
    * Runs inside the payment transaction, before the payment is written (the invoice row is locked). A
    * returned message refuses the payment (409). Events use it: a deposit on an enquiry books the date, or
@@ -583,14 +594,18 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
     const taxRate = data.taxRate ?? defaultTaxRateFrom(settings)
     // Due date: what the form sent, else the company's payment terms (Settings → Company). Never null:
     // an invoice with no due date could never become overdue.
+    // TODAY on the business's own calendar. Render runs UTC, so asking UTC which day it is stamped an
+    // invoice raised at 19:00 Central with tomorrow's date, and carried that day into the due date.
+    // Falls back to the UTC day when the template wires no zone, so nothing moves uninvited. (T27 H1)
+    const today = businessToday(await deps.options?.timeZoneFor?.(cid))
     const due = normalizeDateInput(data.dueDate)
     if (due.error) return c.json({ error: `Due date: ${due.error}` }, 400)
-    const dueDate = due.value ?? dueDateFromTerms(settings)
+    const dueDate = due.value ?? dueDateFromTerms(settings, today)
     // Issue date defaults to today but is settable, so backdated / migrated invoices can be entered.
     const issue = normalizeDateInput(data.issueDate)
     if (issue.error) return c.json({ error: `Issue date: ${issue.error}` }, 400)
     // a calendar day, like the due date — not the instant the invoice happened to be raised (T14 M17)
-    const issueDate = issue.value ?? startOfUtcDay(new Date())
+    const issueDate = issue.value ?? today
     // A due date before the ISSUE date is always invalid — that is what the old rejectPastDueOnCreate guard
     // meant, but it compared against TODAY, so it wrongly rejected a legitimately overdue/backdated invoice
     // and accepted a genuinely backwards one (whose issue date it had silently stamped to today). Compare the
