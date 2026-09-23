@@ -180,7 +180,10 @@ export default function OrderDetailPage() {
           <button className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center gap-2 dark:border-slate-700 dark:text-slate-200">
             <Printer className="w-4 h-4" /> Print Receipt
           </button>
-          {isManager && order.status !== 'refunded' && order.status !== 'cancelled' && (
+          {/* Refund is only meaningful once money has been taken. It was offered on a PENDING, unpaid
+              kiosk order, where pressing it can only produce a refusal — the server refuses anything
+              that is not completed or partially refunded. Offer it where it can work. (T29 L4) */}
+          {isManager && order.completedAt && order.status !== 'refunded' && order.status !== 'cancelled' && (
             <button
               onClick={openRefund}
               className="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 font-medium flex items-center gap-2"
@@ -355,6 +358,22 @@ export default function OrderDetailPage() {
                 <td colSpan={3} className="px-4 py-3 text-right font-bold text-gray-900 dark:text-slate-100">Total</td>
                 <td className="px-4 py-3 text-right font-bold text-gray-900 text-lg dark:text-slate-100">${Number(order.total || 0).toFixed(2)}</td>
               </tr>
+              {/* After a partial refund this page showed the returned units on their line and nothing
+                  anywhere about the money — no refunded figure, no remaining balance. The one question
+                  someone opens a refunded order to answer is "how much went back", and it was the one
+                  thing not on the page. (Dispensary T29 L4) */}
+              {refundedSoFar > 0 && (
+                <>
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-right text-sm text-red-700 dark:text-red-300">Refunded</td>
+                    <td className="px-4 py-2 text-right text-red-700 dark:text-red-300">−${refundedSoFar.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td colSpan={3} className="px-4 py-2 text-right text-sm font-medium text-gray-700 dark:text-slate-200">Kept</td>
+                    <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-slate-100">${Math.max(0, Number(order.total || 0) - refundedSoFar).toFixed(2)}</td>
+                  </tr>
+                </>
+              )}
             </tfoot>
           </table>
         </div>

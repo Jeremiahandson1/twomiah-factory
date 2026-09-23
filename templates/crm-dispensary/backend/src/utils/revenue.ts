@@ -71,10 +71,18 @@ export const refundedExpr = sql`COALESCE(NULLIF(o.refunded_amount, '')::numeric,
 /** What was sold, before refunds. */
 export const grossExpr = sql`COALESCE(o.total::numeric, 0)`
 
-/** What was kept: gross minus what went back. */
-export const netExpr = sql`(COALESCE(o.total::numeric, 0) - COALESCE(NULLIF(o.refunded_amount, '')::numeric, 0))`
+/**
+ * What was kept: gross minus what went back, floored at zero PER SALE.
+ *
+ * A sale cannot have earned negative money. Without the floor, one row whose refunded_amount exceeds
+ * its total — legacy data, or a sale settled twice before the completion was made atomic (T29 B1) —
+ * drags the whole day under: the analytics series showed 13 September at −$50 with an average order
+ * value of −$16.67. Refunds are still reported in full beside this, so nothing is hidden by the
+ * clamp; it only stops one bad row from making a day's takings look like a payout. (T29 L3)
+ */
+export const netExpr = sql`GREATEST(0, COALESCE(o.total::numeric, 0) - COALESCE(NULLIF(o.refunded_amount, '')::numeric, 0))`
 
 /** The same three, for a query with no `o.` alias on the orders table. */
 export const refundedExprBare = sql`COALESCE(NULLIF(refunded_amount, '')::numeric, 0)`
 export const grossExprBare = sql`COALESCE(total::numeric, 0)`
-export const netExprBare = sql`(COALESCE(total::numeric, 0) - COALESCE(NULLIF(refunded_amount, '')::numeric, 0))`
+export const netExprBare = sql`GREATEST(0, COALESCE(total::numeric, 0) - COALESCE(NULLIF(refunded_amount, '')::numeric, 0))`

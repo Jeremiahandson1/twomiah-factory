@@ -75,6 +75,16 @@ const camel = (row: any): any => {
 
 const rows = (result: any): any[] => ((result as any)?.rows || result) as any[]
 
+// A device row carries the hash of its live token. RETURNING * then handed the whole row to the
+// browser, so POST /devices answered with tokenHash — the one field on that table that is a secret,
+// in the response to the request that creates it. Nothing in the UI wants it. (Dispensary T29 L9)
+const KIOSK_DEVICE_SECRETS = ['tokenHash', 'token_hash']
+const publicDevice = (row: any) => {
+  const out: any = { ...(row || {}) }
+  for (const k of KIOSK_DEVICE_SECRETS) delete out[k]
+  return out
+}
+
 // Public kiosk endpoints have no auth (a customer stands at the device), and this CRM is a
 // single-tenant deployment. Resolve the owning company from the supplied location when we
 // have one, otherwise fall back to the single company row. This is what lets a session
@@ -172,7 +182,7 @@ app.post('/devices', authenticate, requireRole('manager'), async (c) => {
   const row = rows(r)?.[0]
   audit.log({ action: 'create', entity: 'kiosk_device', entityId: row?.id, entityName: name, req: c })
   // The code is shown once, here. It is not retrievable later — generate a new one instead.
-  return c.json({ ...camel(row), pairingCode: code }, 201)
+  return c.json({ ...publicDevice(camel(row)), pairingCode: code }, 201)
 })
 
 app.post('/devices/:id/revoke', authenticate, requireRole('manager'), async (c) => {
@@ -185,7 +195,7 @@ app.post('/devices/:id/revoke', authenticate, requireRole('manager'), async (c) 
   const row = rows(r)?.[0]
   if (!row) return c.json({ error: 'Kiosk not found' }, 404)
   audit.log({ action: 'delete', entity: 'kiosk_device', entityId: id, entityName: row.name, req: c })
-  return c.json({ success: true, device: camel(row) })
+  return c.json({ success: true, device: publicDevice(camel(row)) })
 })
 
 /**

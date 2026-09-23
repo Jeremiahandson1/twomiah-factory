@@ -35,7 +35,12 @@ export default function DashboardPage() {
       // Map stats response to what the UI expects
       setStats({
         todayRevenue: statsData?.today?.revenue || 0,
-        todayOrders: statsData?.today?.orderCount || 0,
+        // The SETTLED count, matching the revenue and average beside it. This read total_orders —
+        // every order placed today including pending and cancelled — so the tile said 27 while the
+        // average divided the takings by the 22 that actually sold. Two tiles, one row apart,
+        // counting different things. (Dispensary T29 L1)
+        todayOrders: statsData?.today?.completedOrders || 0,
+        todayPending: statsData?.today?.pendingOrders || 0,
         avgOrderValue: statsData?.today?.avgOrderValue || 0,
         lowStockCount: statsData?.lowStockCount || 0,
       });
@@ -73,7 +78,7 @@ export default function DashboardPage() {
       link: '/crm/orders',
     },
     {
-      label: 'Orders Today',
+      label: stats?.todayPending ? `Sales Today · ${stats.todayPending} open` : 'Sales Today',
       value: stats?.todayOrders || 0,
       icon: ShoppingCart,
       color: 'blue',

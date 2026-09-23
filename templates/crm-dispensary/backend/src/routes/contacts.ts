@@ -197,7 +197,31 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   // in unnoticed. Under 18 is refused outright (no legal cannabis customer is a minor); 18–20
   // is allowed (medical patients) but the response carries a warning the UI surfaces.
   const warnings: string[] = []
+  // Markup is stripped from free text on the way in (F-09) and that stays — but it used to happen in
+  // silence, so "T29 <img src=x onerror=...>" came back saved as "T29" with nothing to say why. The
+  // person typing it deserves to know their input was changed, even when the change was for their own
+  // good. (Dispensary T29 L8)
+  for (const [field, label] of [['name', 'name'], ['notes', 'notes'], ['address', 'address']] as const) {
+    const sent = (cBody as any)?.[field]
+    const stored = (data as any)?.[field]
+    if (typeof sent === 'string' && typeof stored === 'string' && sent.trim() !== stored.trim()) {
+      warnings.push(`The ${label} was saved as "${stored}" — formatting or markup was removed.`)
+    }
+  }
   if (data.dateOfBirth && data.type !== 'vendor') {
+    // "1990-02-30" is not a real day, and `new Date` does not say so — it rolls quietly to 2 March and
+    // the record is stored a couple of days off the card it was copied from. On a date of birth that
+    // decides whether someone may be sold cannabis, a silent adjustment is the wrong answer. Check the
+    // calendar before trusting the parse: the round-trip only survives if the day exists. The tester
+    // got the generic "One of the values is not in a valid format" for this. (Dispensary T29 L8)
+    const asDay = String(data.dateOfBirth).slice(0, 10)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(asDay)) {
+      const [y, m, d] = asDay.split('-').map(Number)
+      const probe = new Date(Date.UTC(y, m - 1, d))
+      if (probe.getUTCFullYear() !== y || probe.getUTCMonth() !== m - 1 || probe.getUTCDate() !== d) {
+        return c.json({ error: `${asDay} is not a real calendar date — check the day and month.`, code: 'BAD_DATE' }, 400)
+      }
+    }
     const dob = new Date(data.dateOfBirth)
     if (Number.isNaN(dob.getTime())) return c.json({ error: 'dateOfBirth is not a valid date' }, 400)
     const today = new Date()

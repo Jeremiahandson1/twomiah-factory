@@ -12,6 +12,9 @@ const statusTabs = [
   { value: 'type:walk_in', label: 'Walk-in', param: 'type' },
   { value: 'type:delivery', label: 'Delivery', param: 'type' },
   { value: 'type:online', label: 'Online', param: 'type' },
+  // Kiosk orders are their own type and had no filter, so the one queue a budtender needs to work
+  // through — self-serve baskets waiting for an ID check — could not be listed. (T29 L11)
+  { value: 'type:kiosk', label: 'Kiosk', param: 'type' },
   // Every status an order can actually hold. The list offered only Completed, Cancelled and Refunded,
   // so on a day of 45 orders with 18 completed the majority could not be listed or worked in bulk —
   // and a partially refunded sale was invisible under every filter there was. (T21 M9)

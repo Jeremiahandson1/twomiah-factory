@@ -74,12 +74,14 @@ app.get('/sales', async (c) => {
       date_trunc(${dateTrunc}, (COALESCE(completed_at, created_at) AT TIME ZONE 'UTC' AT TIME ZONE ${dayTz}))::date as period,
       COUNT(*)::int as order_count,
       -- Revenue and AOV share the same NET basis (total − refunded) so AOV × orders = revenue. (retest: AOV vs revenue)
-      COALESCE(SUM(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as revenue,
+      -- the shared definition, floored per sale: one row refunded beyond its own total used to drag a
+      -- whole day negative (-$50 on 13 Sep). utils/revenue.ts. (T29 L3)
+      COALESCE(SUM(${netExprBare}), 0) as revenue,
       COALESCE(SUM(subtotal::numeric), 0) as subtotal,
       -- the WHERE above keeps every settled sale for revenue; tax is only the ones not handed back in full
       COALESCE(SUM(CASE WHEN status IN ${taxCollected} THEN ${taxNetExprBare} ELSE 0 END), 0) as tax_collected,
       COALESCE(SUM(discount_amount::numeric), 0) as discounts_given,
-      COALESCE(AVG(total::numeric - COALESCE(NULLIF(refunded_amount, '')::numeric, 0)), 0) as avg_order_value
+      COALESCE(AVG(${netExprBare}), 0) as avg_order_value
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${settledSale}
@@ -124,8 +126,11 @@ app.get('/products', async (c) => {
       oi.product_id,
       COALESCE(MAX(p.name), MAX(oi.product_name)) as product_name,
       COALESCE(MAX(p.category), MAX(oi.category)) as category,
-      SUM(oi.quantity)::int as total_sold,
-      COALESCE(SUM(oi.line_total::numeric), 0) as total_revenue,
+      -- NET of returns. order_items.refunded_quantity records the units that came back, and this counted
+      -- the gross: a Shatter returned the same day still read "1 sold" in the mix, so the chart a buyer
+      -- restocks from was describing sales that had been undone. Revenue nets on the same basis. (T29 L11)
+      GREATEST(0, SUM(oi.quantity) - SUM(COALESCE(oi.refunded_quantity, 0)))::int as total_sold,
+      GREATEST(0, COALESCE(SUM(oi.line_total::numeric), 0) - COALESCE(SUM(COALESCE(oi.refunded_quantity, 0) * oi.unit_price::numeric), 0)) as total_revenue,
       COUNT(DISTINCT oi.order_id)::int as order_count,
       COALESCE(AVG(oi.unit_price::numeric), 0) as avg_price
     FROM order_items oi
@@ -186,7 +191,8 @@ app.get('/summary', async (c) => {
     `),
     // Sales by category
     db.execute(sql`
-      SELECT oi.category, SUM(oi.quantity)::int as units_sold, COALESCE(SUM(oi.line_total::numeric), 0) as revenue
+      -- units and revenue NET of returns, like the product mix above (T29 L11)
+      SELECT oi.category, GREATEST(0, SUM(oi.quantity) - SUM(COALESCE(oi.refunded_quantity, 0)))::int as units_sold, GREATEST(0, COALESCE(SUM(oi.line_total::numeric), 0) - COALESCE(SUM(COALESCE(oi.refunded_quantity, 0) * oi.unit_price::numeric), 0)) as revenue
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
       WHERE o.company_id = ${currentUser.companyId}

@@ -20,6 +20,34 @@ const camel = (row: any): any => {
 }
 
 // List cash sessions
+// What is in a drawer right now: the float, plus cash taken in the window, minus cash handed back
+// in it. The LIST computed this live; the DETAIL returned the stored expected_balance column, which
+// is only written when the drawer is CLOSED — so an open session read $0.00 on its own page while
+// the list beside it said $230. One expression, both endpoints. (Dispensary T29 L10)
+//
+// Cash IN counts every cash sale settled in the window, whatever became of it later: a sale that was
+// refunded tomorrow still put cash in this drawer today. Cash OUT is keyed on refunded_at, because a
+// refund of yesterday's sale comes out of TODAY's drawer. (go-live QA M-3)
+const DRAWER_MONEY = sql.raw(`
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(o.total::numeric), 0) as amt FROM orders o
+      WHERE o.company_id = cs.company_id AND o.status IN ('completed', 'refunded', 'partially_refunded')
+        AND o.payment_method = 'cash'
+        AND o.completed_at >= cs.opened_at
+        AND (cs.closed_at IS NULL OR o.completed_at <= cs.closed_at)
+    ) sales ON true
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(NULLIF(o.refunded_amount, '')::numeric), 0) as amt FROM orders o
+      WHERE o.company_id = cs.company_id AND o.status IN ('refunded', 'partially_refunded')
+        AND o.payment_method = 'cash'
+        AND o.refunded_at >= cs.opened_at
+        AND (cs.closed_at IS NULL OR o.refunded_at <= cs.closed_at)
+    ) refunds ON true
+`)
+
+/** The live figure, replacing the stored column for an open drawer. */
+const DRAWER_EXPECTED = sql.raw(`(COALESCE(cs.opening_amount::numeric, 0) + COALESCE(sales.amt, 0) - COALESCE(refunds.amt, 0))`)
+
 app.get('/sessions', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status') // open, closed
@@ -86,6 +114,29 @@ app.get('/sessions', async (c) => {
 })
 
 // Get session detail
+// "Which drawer is open?" had no endpoint: callers had to know to ask the list with ?status=open,
+// and /sessions/open — the name everything else in this API would use — answered 404 while a drawer
+// was open. It is the same row the list returns, so it is the same shape. (Dispensary T29 L10)
+app.get('/sessions/open', async (c) => {
+  const currentUser = c.get('user') as any
+  const r = await db.execute(sql`
+    SELECT cs.*,
+           ou.first_name || ' ' || ou.last_name as opened_by_name,
+           COALESCE(sales.amt, 0) as cash_sales,
+           COALESCE(refunds.amt, 0) as cash_refunds,
+           ${DRAWER_EXPECTED} as expected_balance
+    FROM cash_sessions cs
+    LEFT JOIN "user" ou ON ou.id = cs.opened_by_id
+    ${DRAWER_MONEY}
+    WHERE cs.company_id = ${currentUser.companyId} AND cs.status = 'open'
+    ORDER BY cs.opened_at DESC
+    LIMIT 1
+  `)
+  const row = ((r as any).rows || r)?.[0]
+  // 200 with null, not 404: "no drawer is open" is an answer, not a missing resource.
+  return c.json(row ? camel(row) : null)
+})
+
 app.get('/sessions/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
@@ -93,10 +144,14 @@ app.get('/sessions/:id', async (c) => {
   const sessionResult = await db.execute(sql`
     SELECT cs.*,
            ou.first_name || ' ' || ou.last_name as opened_by_name,
-           cu.first_name || ' ' || cu.last_name as closed_by_name
+           cu.first_name || ' ' || cu.last_name as closed_by_name,
+           COALESCE(sales.amt, 0) as cash_sales,
+           COALESCE(refunds.amt, 0) as cash_refunds,
+           ${DRAWER_EXPECTED} as expected_balance
     FROM cash_sessions cs
     LEFT JOIN "user" ou ON ou.id = cs.opened_by_id
     LEFT JOIN "user" cu ON cu.id = cs.closed_by_id
+    ${DRAWER_MONEY}
     WHERE cs.id = ${id} AND cs.company_id = ${currentUser.companyId}
     LIMIT 1
   `)

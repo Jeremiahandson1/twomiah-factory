@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Users, Clock, DollarSign, Package, Calendar } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { localDay } from '../utils/date';
 
 export default function AnalyticsPage() {
   const { company } = useAuth();
@@ -27,8 +28,13 @@ export default function AnalyticsPage() {
       // put startDate a day too early, so "Today" (1d) spanned yesterday+today — the charts
       // plotted two bars under a Today selection. Subtract periodDays-1 so Today = today only
       // and the range matches the selector label + the KPI's single-day summary. (retest#8)
-      const startDate = new Date(now.getTime() - (periodDays - 1) * 86400000).toISOString().slice(0, 10);
-      const endDate = now.toISOString().slice(0, 10);
+      // The viewer's calendar, not UTC's. toISOString() rolls over at UTC midnight, so from 7pm in
+      // Chicago this asked the server for a window a day ahead of the one the selector names — and the
+      // Unique Customers tile read 2 while the same endpoint answered 4 for that period. The server
+      // already interprets these on the STORE's clock (storeRange); it needs the day a person would
+      // write down. (Dispensary T29 L2)
+      const startDate = localDay(new Date(now.getTime() - (periodDays - 1) * 86400000));
+      const endDate = localDay(now);
       const dateParams = { startDate, endDate };
 
       const [summaryRes, revenueRes, mixRes, peakRes, customersRes] = await Promise.all([

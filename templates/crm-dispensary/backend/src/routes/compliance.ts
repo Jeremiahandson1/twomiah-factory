@@ -526,7 +526,11 @@ app.post('/reports/generate', requireRole('manager'), async (c) => {
           COUNT(DISTINCT o.medical_card_number) FILTER (WHERE o.medical_card_number IS NOT NULL AND o.medical_card_number <> '')::int as distinct_medical_cards
         FROM orders o
         WHERE o.company_id = ${currentUser.companyId}
-          AND o.status IN ('completed', 'partially_refunded', 'refunded')
+          -- Every SETTLED sale, the same row set the sales report uses. This deliberately differs from
+          -- the tax report, which drops a sale handed back in full: what you SOLD and what you OWE are
+          -- different questions (utils/revenue.ts). That is why a day reads 23 here and 22 there — the
+          -- shared constant now says so, instead of a hardcoded tuple that reads like a mistake. (T29 L12)
+          AND o.status IN ${settledSale}
           AND o.completed_at >= ${startDate}
           AND o.completed_at < ${endDate}
       `)

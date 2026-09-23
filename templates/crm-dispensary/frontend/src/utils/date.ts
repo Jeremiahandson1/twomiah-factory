@@ -19,3 +19,17 @@ export function formatDate(value?: string | number | Date | null): string {
   }
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
 }
+
+/**
+ * Today on the viewer's own calendar, as YYYY-MM-DD.
+ *
+ * `new Date().toISOString().slice(0, 10)` is today in UTC, which is tomorrow from 7pm in Chicago. The
+ * analytics page built its date range that way, so west of UTC it asked the server for a window a day
+ * out from the one the selector claimed — and the Unique Customers tile read 2 against an API that
+ * answered 4 for the period the label named. The server already interprets these dates on the STORE's
+ * clock (storeRange); it just has to be given the day a person would write down. (Dispensary T29 L2)
+ */
+export function localDay(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

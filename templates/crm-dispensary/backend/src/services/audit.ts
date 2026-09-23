@@ -153,12 +153,27 @@ const ACTION_WORDS: Record<string, string> = {
 }
 const readable = (s: unknown) => String(s || '').replace(/_/g, ' ').trim()
 
+/** The recorded before/after for one field, if the row carries it. `changes` is json or a json string. */
+function changeOf(row: any, field: string): { old?: unknown; new?: unknown } | null {
+  let changes = row?.changes
+  if (typeof changes === 'string') { try { changes = JSON.parse(changes) } catch { return null } }
+  const hit = changes && typeof changes === 'object' ? (changes as any)[field] : null
+  return hit && typeof hit === 'object' ? hit : null
+}
+
 export function describeLog(row: any): string {
   if (row?.details) return String(row.details)
   const what = readable(row?.entity || row?.entity_type) || 'record'
   const verb = ACTION_WORDS[String(row?.action || '').toLowerCase()] || (readable(row?.action) ? readable(row.action).replace(/^./, (ch) => ch.toUpperCase()) : 'Changed')
   const name = row?.entity_name ? ` "${row.entity_name}"` : ''
-  return `${verb} ${what}${name}`.replace(/\s+/g, ' ').trim()
+  // "Changed the status of order ORD-1173" tells a reader nothing they could not see from the row
+  // itself — and status is the one field an audit log is read to reconstruct. The before/after has
+  // always been recorded in `changes`; it simply was never said out loud. (Dispensary T29 L13)
+  const status = changeOf(row, 'status')
+  const transition = status && (status.old || status.new)
+    ? ` from ${readable(status.old) || 'unset'} to ${readable(status.new) || 'unset'}`
+    : ''
+  return `${verb} ${what}${name}${transition}`.replace(/\s+/g, ' ').trim()
 }
 
 export function presentLog(row: any): any {

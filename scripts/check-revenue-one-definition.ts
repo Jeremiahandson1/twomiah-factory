@@ -23,7 +23,13 @@ const rev = read(R + 'utils/revenue.ts')
 if (!rev) fail('utils/revenue.ts is missing — the definition must have one home')
 if (!/export const SETTLED_SALE_STATUSES = \['completed', 'partially_refunded', 'refunded'\] as const/.test(rev)) fail('the settled statuses must be stated once')
 if (!/export const settledSale = sql`\('completed', 'partially_refunded', 'refunded'\)`/.test(rev)) fail('…with one SQL form for the surfaces that use raw SQL')
-if (!/export const netExprBare = sql`\(COALESCE\(total::numeric, 0\) - COALESCE\(NULLIF\(refunded_amount, ''\)::numeric, 0\)\)`/.test(rev)) fail('net must be gross minus what went back, written once')
+// Net is gross minus what went back, FLOORED AT ZERO per sale. The floor is part of the definition,
+// not an optional nicety: without it a single row refunded beyond its own total drags a whole day
+// negative, and the analytics series showed 13 September at −$50 with an average order value of
+// −$16.67. A sale cannot have earned negative money; refunds are reported separately, so the clamp
+// hides nothing. (Dispensary T29 L3)
+if (!/export const netExprBare = sql`GREATEST\(0, COALESCE\(total::numeric, 0\) - COALESCE\(NULLIF\(refunded_amount, ''\)::numeric, 0\)\)`/.test(rev)) fail('net must be gross minus what went back, floored at zero, written once')
+if (!/export const netExpr = sql`GREATEST\(0, /.test(rev)) fail('the aliased net expression must carry the same floor as the bare one')
 
 // every surface uses it — and none of them keeps its own copy of the rule
 for (const [file, label] of [['routes/compliance.ts', 'the compliance report'], ['routes/analytics.ts', 'analytics'], ['routes/dashboard.ts', 'the dashboard']] as Array<[string, string]>) {
