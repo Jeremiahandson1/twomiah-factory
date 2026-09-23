@@ -110,6 +110,16 @@ if (/\n      AND status = 'completed'\n/.test(filing)) fail('the tax filing must
 // filing 31 on a day everything else called 33 is what T31 L4 reported. The money is still scoped to
 // the tax row set; only the count is not.
 if ((filing.match(/status IN \$\{taxCollected\}/g) || []).length < 3) fail('…every tax total in it (the filing itself and both year-to-date summaries) must use the shared row set')
+// The row set is half the question, and checking only that half is how this file passed for a whole
+// round while the Summary tab — the screen the report was about — summed the GROSS. A correct row set
+// summing the wrong number is still the wrong number. Any SUM over an orders tax COLUMN here has to go
+// through the shared net expression; total_tax_due is a filed amount off tax_filings, not order tax.
+for (const col of ['total_tax', 'excise_tax', 'sales_tax']) {
+  const gross = new RegExp(`SUM\\(CAST\\(NULLIF\\(o?\\.?${col}, ''\\) AS numeric\\)\\)`).test(filing)
+    || new RegExp(`SUM\\(NULLIF\\(o?\\.?${col}, ''\\)::numeric\\)`).test(filing)
+  if (gross) fail(`the tax filing sums ${col} gross — it must subtract what went back with refunds (utils/revenue.ts), or it over-reports the liability on the one figure people file`)
+}
+if (!/SUM\(\$\{taxNetExprBare\}\)/.test(filing)) fail('…and the filing must use taxNetExprBare for its tax totals')
 if (/AND status IN \$\{settledSale\}/.test(filing) && !/FILTER \(WHERE status IN \$\{taxCollected\}\)/.test(filing)) {
   fail('the tax filing selects the settled row set without scoping its tax sums back to taxCollected — that credits the state with the gross of a sale that was handed back in full')
 }

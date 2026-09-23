@@ -372,9 +372,12 @@ app.get('/filings/summary', async (c) => {
   // orders.excise_tax/sales_tax/total_tax are TEXT; NULLIF guards empty strings before cast.
   const collectedResult = await db.execute(sql`
     SELECT
-      COALESCE(SUM(CAST(NULLIF(excise_tax, '') AS numeric)), 0) as excise_collected,
-      COALESCE(SUM(CAST(NULLIF(sales_tax, '') AS numeric)), 0) as sales_collected,
-      COALESCE(SUM(CAST(NULLIF(total_tax, '') AS numeric)), 0) as total_collected
+      -- NET of tax handed back with returns, like every other tax surface in this product. Summing
+      -- the gross here is what made Tax Filing read $1,056.00 against $1,031.68 everywhere else, and
+      -- the gap grew with every amount refund. (Dispensary T31 M3)
+      COALESCE(SUM(${exciseNetExprBare}), 0) as excise_collected,
+      COALESCE(SUM(${salesNetExprBare}), 0) as sales_collected,
+      COALESCE(SUM(${taxNetExprBare}), 0) as total_collected
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${taxCollected}
@@ -478,9 +481,12 @@ app.get('/summary', async (c) => {
   // orders.excise_tax/sales_tax/total_tax/total are TEXT; NULLIF guards empty strings.
   const collectedResult = await db.execute(sql`
     SELECT
-      COALESCE(SUM(CAST(NULLIF(excise_tax, '') AS numeric)), 0) as excise_collected,
-      COALESCE(SUM(CAST(NULLIF(sales_tax, '') AS numeric)), 0) as sales_collected,
-      COALESCE(SUM(CAST(NULLIF(total_tax, '') AS numeric)), 0) as total_collected
+      -- NET of tax handed back with returns, like every other tax surface in this product. Summing
+      -- the gross here is what made Tax Filing read $1,056.00 against $1,031.68 everywhere else, and
+      -- the gap grew with every amount refund. (Dispensary T31 M3)
+      COALESCE(SUM(${exciseNetExprBare}), 0) as excise_collected,
+      COALESCE(SUM(${salesNetExprBare}), 0) as sales_collected,
+      COALESCE(SUM(${taxNetExprBare}), 0) as total_collected
     FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status IN ${taxCollected}
