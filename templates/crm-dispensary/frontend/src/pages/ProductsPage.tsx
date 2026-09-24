@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Package, Filter } from 'lucide-react';
 import api from '../services/api';
@@ -49,6 +50,7 @@ const initialFormData = {
 };
 
 export default function ProductsPage() {
+  const { isManager } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [products, setProducts] = useState<any[]>([]);
@@ -178,6 +180,8 @@ export default function ProductsPage() {
     return 'text-green-700 dark:text-green-300';
   };
 
+  const canAddProducts = isManager;
+
   const columns = [
     {
       key: 'name',
@@ -236,10 +240,14 @@ export default function ProductsPage() {
         title="Products"
         subtitle="Cannabis product catalog"
         action={
+          // products:create is manager and up — a budtender was offered the button and refused on save.
+          // (Dispensary T40 M2)
+          canAddProducts ? (
           <Button onClick={() => { setFormData(initialFormData); setModalOpen(true); }}>
             <Plus className="w-4 h-4 mr-2 inline" />
             Add Product
           </Button>
+          ) : null
         }
       />
 

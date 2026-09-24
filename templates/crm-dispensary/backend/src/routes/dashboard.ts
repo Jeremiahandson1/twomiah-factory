@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { ROLE_HIERARCHY, normalizeRole } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { product, contact, company } from '../../db/schema.ts'
 import { eq, and, gte, lt, lte, count, desc, sql } from 'drizzle-orm'
@@ -22,6 +23,10 @@ const rowsOf = (result: any): any[] => ((result as any)?.rows || result || []) a
 app.get('/stats', async (c) => {
   const user = c.get('user') as any
   const companyId = user.companyId
+  // Month-to-date takings are manager and up. Today stays for everyone who works the till — a
+  // budtender reconciles their drawer against it. Read through the shared hierarchy so `field` and
+  // `user` normalise to budtender, which is the shape the free-text Role box used to produce. (T40)
+  const seesStoreTotals = ROLE_HIERARCHY.indexOf(normalizeRole(user?.role) || 'viewer') >= ROLE_HIERARCHY.indexOf('manager')
   // "Today" is the STORE's day, not the server's. Render runs UTC, so setHours(0,0,0,0) put the tile's
   // window on UTC midnight: an Ohio shop's Today tile reset at 8pm, mid-shift, and the last four hours
   // of Saturday's trade showed up under Sunday. Every US zone loses the tail of the evening this way —
@@ -173,10 +178,10 @@ app.get('/stats', async (c) => {
       avgOrderValue: Number(todayOrders.avg_order_value || 0),
       medicalOrders: Number(todayOrders.medical_orders || 0),
     },
-    month: {
+    ...(seesStoreTotals ? { month: {
       revenue: Number(monthRevenue.revenue || 0),
       orderCount: Number(monthRevenue.order_count || 0),
-    },
+    } } : {}),
     topProducts,
     lowStockAlerts: lowStockItems,
     lowStockCount: lowStockItems.length,

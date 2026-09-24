@@ -30,6 +30,12 @@ import { useTheme } from '../../hooks/useTheme';
 // call answers 403, and Analytics rendered $0.00 revenue rather than saying so. (Dispensary T39 M2)
 const ROLE_RANK: Record<string, number> = { viewer: 0, driver: 1, field: 2, user: 2, budtender: 2, manager: 3, admin: 4, owner: 5 };
 const meetsRole = (role: string | undefined, min?: string) => !min || (ROLE_RANK[String(role || "")] ?? 0) >= (ROLE_RANK[min] ?? 0);
+// Routes that answer to a ROLE but are not nav entries. Settings is reached from the sidebar footer
+// and the user menu, so marking the nav array never touched it — and typing the URL walked past both,
+// which is how a budtender opened the full Settings page. company:update is admin and up.
+// (Dispensary T40 M2)
+const EXTRA_ROUTE_ROLES: Record<string, string> = { '/crm/settings': 'admin', '/crm/billing': 'owner' };
+
 const EXTRA_ROUTE_GATES: Record<string, string[]> = {
 };
 
@@ -53,7 +59,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/loyalty', icon: Star, label: 'Loyalty', features: ['loyalty_rewards'] },
   { to: '/crm/referrals', icon: Share2, label: 'Referrals', features: ['referrals'] },
   { to: '/crm/recommendations', icon: Sparkles, label: 'AI Recs', features: ['ai_recommendations'] },
-  { to: '/crm/kiosk', icon: Monitor, label: 'Kiosk', features: ['kiosk'] },
+  { to: '/crm/kiosk', icon: Monitor, label: 'Kiosk', features: ['kiosk'], minRole: 'manager' },
   { to: '/crm/merch', icon: ShoppingBag, label: 'Merch Store', features: ['merch_store'] },
 
   // Delivery
@@ -145,16 +151,21 @@ export default function AppLayout() {
     // only flashes rather than navigating away. Same answer: wait. (T18 M7)
     if (!company) return null;
     const path = location.pathname.replace(/\/+$/, '');
-    const candidates: { to: string; label: string; features?: string[] }[] = [
-      ...ALL_NAV_ITEMS.map((i: any) => ({ to: i.to as string, label: i.label as string, features: i.features as string[] | undefined })),
+    const candidates: { to: string; label: string; features?: string[]; minRole?: string }[] = [
+      ...ALL_NAV_ITEMS.map((i: any) => ({ to: i.to as string, label: i.label as string, features: i.features as string[] | undefined, minRole: i.minRole as string | undefined })),
       ...Object.entries(EXTRA_ROUTE_GATES).map(([to, features]) => ({ to, label: to.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), features })),
+      ...Object.entries(EXTRA_ROUTE_ROLES).map(([to, minRole]) => ({ to, label: to.split('/').pop()!.replace(/^./, (c) => c.toUpperCase()), minRole })),
     ];
-    const match = candidates
-      .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
+    const here = candidates
+      .filter((i) => path === i.to || path.startsWith(i.to + '/'))
       .sort((a, b) => b.to.length - a.to.length)[0];
-    if (!match) return null;
-    return match.features!.some((f: string) => hasFeature(f)) ? null : match;
-  }, [location.pathname, company, hasFeature]);
+    if (!here) return null;
+    // A role refusal is not a "this module is not part of your CRM" — the module IS here, this
+    // person may not open it. Say which, or the page lies about why it is closed. (T40 M2)
+    if (!meetsRole(user?.role, (here as any).minRole)) return { ...here, reason: "role" as const };
+    if (!here.features || !here.features.length) return null;
+    return here.features.some((f: string) => hasFeature(f)) ? null : here;
+  }, [location.pathname, company, hasFeature, user?.role]);
 
   // Close sidebar on route change (mobile)
   useEffect(() => {
@@ -295,7 +306,10 @@ export default function AppLayout() {
           </ul>
         </nav>
 
-        {/* Settings */}
+        {/* Settings — company configuration: tax rates, the purchase limit, features, hours. The API
+            is admin and up (company:update), and the link was shown to everyone, so a budtender could
+            open the full page and a manager could edit every field and only fail on Save. (T40 M2) */}
+        {meetsRole(user?.role, 'admin') && (
         <div className="border-t dark:border-slate-800 p-3">
 
           <NavLink
@@ -309,6 +323,7 @@ export default function AppLayout() {
             <span>Settings</span>
           </NavLink>
         </div>
+        )}
       </aside>
 
       {/* Main Content */}
@@ -442,6 +457,8 @@ export default function AppLayout() {
                         <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
                       </div>
                       <div className="py-1">
+                        {/* same rule as the sidebar: Settings is admin and up (T40 M2) */}
+                        {meetsRole(user?.role, 'admin') && (
                         <NavLink
                           to="/crm/settings"
                           className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700"
@@ -451,6 +468,7 @@ export default function AppLayout() {
                           <Settings className="w-4 h-4" aria-hidden="true" />
                           Settings
                         </NavLink>
+                        )}
                         <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10"
@@ -472,8 +490,16 @@ export default function AppLayout() {
         <main id="main-content" className="p-4 lg:p-6" tabIndex={-1}>
           {gatedItem ? (
             <div className="max-w-xl mx-auto mt-16 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8">
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">{gatedItem.label} isn't part of this CRM</h1>
-              <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">This module is not included for your business type or plan. Everything you can use is in the left menu.</p>
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">
+                {(gatedItem as any).reason === 'role'
+                  ? `${gatedItem.label} is not available for your role`
+                  : `${gatedItem.label} isn't part of this CRM`}
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+                {(gatedItem as any).reason === 'role'
+                  ? 'Your account does not have access to this screen. Ask a manager or the owner if you need it.'
+                  : 'This module is not included for your business type or plan. Everything you can use is in the left menu.'}
+              </p>
               <NavLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</NavLink>
             </div>
           ) : (

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Scale, Plus, Edit, Trash2, Calculator, List, AlertTriangle } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
@@ -15,6 +16,9 @@ const initialRuleForm = {
 
 export default function EquivalencyPage() {
   const toast = useToast();
+  // Owner/admin may change the factors; a manager reads them. Same authority as the purchase limit,
+  // because these decide what a gram is WORTH against it. (T39 M1 / T40 M2)
+  const { isAdmin } = useAuth();
   const [tab, setTab] = useState('rules');
 
   // Rules
@@ -223,10 +227,12 @@ export default function EquivalencyPage() {
             >
               {seeding ? 'Seeding...' : 'Seed Defaults'}
             </button>
+            {isAdmin && (
             <Button onClick={openCreateRule}>
               <Plus className="w-4 h-4 mr-2 inline" />
               Add Rule
             </Button>
+            )}
           </div>
 
           {loadingRules ? (
@@ -256,12 +262,14 @@ export default function EquivalencyPage() {
                       <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate dark:text-slate-400">{rule.description || '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex gap-2 justify-end">
+                          {isAdmin && (<>
                           <button onClick={() => openEditRule(rule)} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-slate-200 flex items-center gap-1 dark:text-slate-400">
                             <Edit className="w-3 h-3" /> Edit
                           </button>
                           <button onClick={() => { setRuleToDelete(rule); setDeleteOpen(true); }} className="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1">
                             <Trash2 className="w-3 h-3" /> Delete
                           </button>
+                          </>)}
                         </div>
                       </td>
                     </tr>

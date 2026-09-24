@@ -177,13 +177,13 @@ export default function CashPage() {
                     const diff = parseFloat(closingAmount) - expectedClosing;
                     if (Math.abs(diff) < 0.01) {
                       return (
-                        <p className="text-green-600 text-sm flex items-center gap-1">
+                        <p className="text-green-700 dark:text-green-300 text-sm flex items-center gap-1">
                           <CheckCircle className="w-4 h-4" /> Drawer balanced
                         </p>
                       );
                     }
                     return (
-                      <p className={`text-sm flex items-center gap-1 ${diff > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                      <p className={`text-sm flex items-center gap-1 ${diff > 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'}`}>
                         <AlertCircle className="w-4 h-4" />
                         {diff > 0 ? 'Over' : 'Short'} by ${Math.abs(diff).toFixed(2)}
                       </p>
@@ -273,7 +273,7 @@ export default function CashPage() {
                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(session.openingAmount || 0).toFixed(2)}</td>
                     {/* Same missing partner, one column over — it was not measured only because green-600
                         scrapes 5.42:1 on this ground. Paired anyway, so the money columns match. */}
-                    <td className="px-4 py-3 text-sm text-right text-green-600 dark:text-green-400">${Number(session.cashSales || 0).toFixed(2)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-green-700 dark:text-green-300">${Number(session.cashSales || 0).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-700 dark:text-slate-200">${Number(expected).toFixed(2)}</td>
                     <td className="px-4 py-3 text-sm text-right text-gray-900 font-medium dark:text-slate-100">
                       {session.closingAmount != null ? `$${Number(session.closingAmount).toFixed(2)}` : '—'}
@@ -286,8 +286,8 @@ export default function CashPage() {
                     <td className="px-4 py-3 text-sm text-right">
                       {variance != null ? (
                         <span className={`font-medium ${
-                          Math.abs(variance) < 0.01 ? 'text-green-600 dark:text-green-400' :
-                          variance > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'
+                          Math.abs(variance) < 0.01 ? 'text-green-700 dark:text-green-300' :
+                          variance > 0 ? 'text-blue-700 dark:text-blue-300' : 'text-red-700 dark:text-red-300'
                         }`}>
                           {variance > 0 ? '+' : ''}{Number(variance).toFixed(2)}
                         </span>

@@ -500,7 +500,7 @@ export default function POSPage() {
                   </div>
                   <div className="flex items-center justify-between mt-2">
                     <span className="font-semibold text-green-700 dark:text-green-300">${Number(product.price).toFixed(2)}</span>
-                    <span className={`text-xs ${product.stockQuantity <= 5 ? 'text-amber-600' : 'text-gray-500 dark:text-slate-400'}`}>
+                    <span className={`text-xs ${product.stockQuantity <= 5 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-slate-400'}`}>
                       {product.stockQuantity} left
                     </span>
                   </div>
@@ -638,7 +638,7 @@ export default function POSPage() {
                   <Trash2 className="w-4 h-4" />
                 </button>
                 {overStock && (
-                  <p className="w-full text-xs font-medium text-red-600">
+                  <p className="w-full text-xs font-medium text-red-700 dark:text-red-300">
                     Only {stock} in stock — exceeds available
                   </p>
                 )}
