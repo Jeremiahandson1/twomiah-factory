@@ -4,7 +4,11 @@
 // Product categories that are cannabis (excise-taxed, count toward the purchase limit, require
 // 21+/ID). Both spellings of pre-roll are accepted: seeded rows and older data use 'preroll'
 // while the enum is 'pre_roll'.
-export const CANNABIS_CATEGORIES = new Set(['flower', 'pre_roll', 'preroll', 'edible', 'concentrate', 'vape', 'tincture'])
+// `topical` is on this list. It does NOT count toward the purchase limit — its equivalency factor is
+// 0 — but it contains THC, so it is excise-taxed and it needs an ID and 21+. Those are two separate
+// questions, and answering the second with the first sold a 200 mg topical as merchandise: no
+// cannabis excise, no ID check. (Dispensary T39 H1)
+export const CANNABIS_CATEGORIES = new Set(['flower', 'pre_roll', 'preroll', 'edible', 'concentrate', 'vape', 'tincture', 'topical'])
 
 // tax_category is the explicit switch when set; when it is NULL (every seeded product, and any
 // row created before the column existed) fall back to the category. Excise was keyed on

@@ -133,11 +133,11 @@ export default function CashPage() {
               </div>
               <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
                 <p className="text-sm text-gray-500 dark:text-slate-400">Cash Sales</p>
-                <p className="text-xl font-bold text-green-600">${Number(currentSession.cashSales || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-green-700 dark:text-green-300">${Number(currentSession.cashSales || 0).toFixed(2)}</p>
               </div>
               <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-900">
                 <p className="text-sm text-gray-500 dark:text-slate-400">Cash Refunds</p>
-                <p className="text-xl font-bold text-red-600">${Number(currentSession.cashRefunds || 0).toFixed(2)}</p>
+                <p className="text-xl font-bold text-red-700 dark:text-red-300">${Number(currentSession.cashRefunds || 0).toFixed(2)}</p>
               </div>
               <div className="p-4 bg-green-50 rounded-lg border border-green-200">
                 <p className="text-sm text-green-700">Expected in Drawer</p>

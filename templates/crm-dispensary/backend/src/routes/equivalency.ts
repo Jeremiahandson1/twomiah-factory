@@ -51,7 +51,11 @@ app.get('/rules', async (c) => {
 })
 
 // POST /rules — Create equivalency rule (manager+)
-app.post('/rules', requireRole('manager'), async (c) => {
+// Owner/admin only — the same authority that sets the purchase limit itself. These factors decide
+// what a gram of each category is WORTH against that cap, so a manager who can edit them can raise
+// the cap without touching it: concentrate at 0.1 instead of 2.5 turns a 1 oz limit into 25 oz. A
+// lock on the number but not on the arithmetic behind it is not a lock. (Dispensary T39 M1)
+app.post('/rules', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   const ruleSchema = z.object({
@@ -92,7 +96,7 @@ app.post('/rules', requireRole('manager'), async (c) => {
 })
 
 // PUT /rules/:id — Update equivalency rule
-app.put('/rules/:id', requireRole('manager'), async (c) => {
+app.put('/rules/:id', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -138,7 +142,7 @@ app.put('/rules/:id', requireRole('manager'), async (c) => {
 })
 
 // DELETE /rules/:id — Deactivate rule
-app.delete('/rules/:id', requireRole('manager'), async (c) => {
+app.delete('/rules/:id', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -162,7 +166,7 @@ app.delete('/rules/:id', requireRole('manager'), async (c) => {
 })
 
 // POST /rules/seed — Seed default rules for a state (manager+)
-app.post('/rules/seed', requireRole('manager'), async (c) => {
+app.post('/rules/seed', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   const { state } = z.object({ state: z.string().length(2).transform(v => v.toUpperCase()) }).parse(await c.req.json())
@@ -208,7 +212,7 @@ app.post('/rules/seed', requireRole('manager'), async (c) => {
 // The UI's "Seed Defaults" button sends no state, so these are stored state-agnostic (state = '',
 // which the list renders as "All"). Idempotent: categories that already have an active rule are
 // skipped so re-clicking doesn't duplicate. equivalency_factor is a text column (schema.ts).
-app.post('/rules/seed-defaults', requireRole('manager'), async (c) => {
+app.post('/rules/seed-defaults', requireRole('admin'), async (c) => {
   const currentUser = c.get('user') as any
 
   const defaults = DEFAULT_RULES.MI // standard flower-equivalency factors

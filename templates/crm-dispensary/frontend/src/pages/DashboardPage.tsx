@@ -155,7 +155,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 bg-white rounded-lg shadow-sm dark:bg-slate-900">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold text-gray-900 dark:text-slate-100">Recent Orders</h2>
-            <Link to="/crm/orders" className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300 flex items-center gap-1">
+            <Link to="/crm/orders" className="text-sm text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200 flex items-center gap-1">
               View all <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
@@ -221,7 +221,7 @@ export default function DashboardPage() {
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
                 Low Stock Alerts
               </h2>
-              <Link to="/crm/products" className="text-sm text-green-600 hover:text-green-700 dark:hover:text-green-300">View all</Link>
+              <Link to="/crm/products" className="text-sm text-green-700 dark:text-green-300 hover:text-green-800 dark:hover:text-green-200">View all</Link>
             </div>
             <div className="divide-y">
               {lowStock.length > 0 ? lowStock.slice(0, 5).map((item: any) => (

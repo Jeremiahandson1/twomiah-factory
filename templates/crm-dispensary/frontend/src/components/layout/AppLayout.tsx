@@ -24,6 +24,12 @@ import { useTheme } from '../../hooks/useTheme';
 // Items with `features` show if ANY listed feature is enabled.
 // Routes that exist in the app but have no sidebar entry, and the features that make them
 // relevant. Used with ALL_NAV_ITEMS to gate URLs (see gatedItem below).
+// The role ladder, matching backend/src/middleware/permissions.ts. A nav entry carries minRole only
+// where that route family already refuses the role — the menu follows the API, it does not invent a
+// second policy. Staff and managers were being shown all 58 items, including screens whose every
+// call answers 403, and Analytics rendered $0.00 revenue rather than saying so. (Dispensary T39 M2)
+const ROLE_RANK: Record<string, number> = { viewer: 0, driver: 1, field: 2, user: 2, budtender: 2, manager: 3, admin: 4, owner: 5 };
+const meetsRole = (role: string | undefined, min?: string) => !min || (ROLE_RANK[String(role || "")] ?? 0) >= (ROLE_RANK[min] ?? 0);
 const EXTRA_ROUTE_GATES: Record<string, string[]> = {
 };
 
@@ -39,8 +45,8 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'] },
   { to: '/crm/rfid', icon: Radio, label: 'RFID', features: ['rfid'] },
   { to: '/crm/labels', icon: Tag, label: 'Labels', features: ['labels'] },
-  { to: '/crm/metrc', icon: Leaf, label: 'Metrc', features: ['metrc'] },
-  { to: '/crm/compliance', icon: FileCheck, label: 'Compliance', features: ['compliance'] },
+  { to: '/crm/metrc', icon: Leaf, label: 'Metrc', features: ['metrc'] , minRole: 'manager'},
+  { to: '/crm/compliance', icon: FileCheck, label: 'Compliance', features: ['compliance'] , minRole: 'manager'},
   { to: '/crm/documents', icon: FileText, label: 'Documents', features: ['documents'] },
 
   // Sales & Marketing
@@ -60,20 +66,20 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/wholesale', icon: Store, label: 'Wholesale', features: ['wholesale'] },
 
   // Analytics & Reporting
-  { to: '/crm/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/crm/reports', icon: PieChart, label: 'Reports', features: ['custom_reports', 'bi_dashboard'] },
+  { to: '/crm/analytics', icon: BarChart3, label: 'Analytics' , minRole: 'manager'},
+  { to: '/crm/reports', icon: PieChart, label: 'Reports', features: ['custom_reports', 'bi_dashboard'] , minRole: 'manager'},
   { to: '/crm/website-analytics', icon: Globe, label: 'Web Analytics', features: ['website_analytics'] },
 
   // Operations
   { to: '/crm/cash', icon: DollarSign, label: 'Cash', features: ['cash_management'] },
-  { to: '/crm/audit', icon: Shield, label: 'Audit Log' },
-  { to: '/crm/team', icon: Users2, label: 'Team' },
+  { to: '/crm/audit', icon: Shield, label: 'Audit Log' , minRole: 'manager'},
+  { to: '/crm/team', icon: Users2, label: 'Team' , minRole: 'manager'},
   { to: '/crm/enterprise', icon: Briefcase, label: 'Enterprise', features: ['franchise', 'multi_store'] },
 
   // Phase 2 features
   { to: '/crm/checkin', icon: UserCheck, label: 'Check-In', features: ['checkin', 'queue_management'] },
   { to: '/crm/id-scanner', icon: ScanLine, label: 'ID Scanner', features: ['id_verification'] },
-  { to: '/crm/biotrack', icon: Database, label: 'BioTrack', features: ['biotrack'] },
+  { to: '/crm/biotrack', icon: Database, label: 'BioTrack', features: ['biotrack'] , minRole: 'manager'},
   { to: '/crm/pay-by-bank', icon: Wallet, label: 'Pay by Bank', features: ['pay_by_bank'] },
   { to: '/crm/ai-budtender', icon: MessageCircle, label: 'AI Budtender', features: ['ai_budtender'] },
   { to: '/crm/gamified-loyalty', icon: Trophy, label: 'Challenges', features: ['gamified_loyalty'] },
@@ -82,11 +88,11 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/signage', icon: Tv, label: 'Signage', features: ['digital_signage'] },
   { to: '/crm/curbside', icon: Car, label: 'Curbside', features: ['curbside'] },
   { to: '/crm/equivalency', icon: Scale, label: 'Equivalency', features: ['equivalency'] },
-  { to: '/crm/tax-filing', icon: Receipt, label: 'Tax Filing', features: ['tax_filing'] },
+  { to: '/crm/tax-filing', icon: Receipt, label: 'Tax Filing', features: ['tax_filing'] , minRole: 'manager'},
   { to: '/crm/marketplace', icon: Puzzle, label: 'Integrations', features: ['marketplace'] },
   { to: '/crm/platform', icon: Activity, label: 'Platform', features: ['platform'] },
-  { to: '/crm/security', icon: Shield, label: 'Security' },
-  { to: '/crm/soc2', icon: FileCheck, label: 'SOC 2', features: ['soc2'] },
+  { to: '/crm/security', icon: Shield, label: 'Security' , minRole: 'manager'},
+  { to: '/crm/soc2', icon: FileCheck, label: 'SOC 2', features: ['soc2'] , minRole: 'manager'},
   { to: '/crm/grow-inputs', icon: Sprout, label: 'Grow Inputs', features: ['cultivation'] },
   { to: '/crm/qr-scanner', icon: ScanLine, label: 'QR Scanner' },
   { to: '/crm/scheduling', icon: Calendar, label: 'Scheduling', features: ['scheduling'] },
@@ -96,7 +102,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/offline', icon: WifiOff, label: 'Offline Mode', features: ['offline_mode'] },
   { to: '/crm/eod', icon: ClipboardList, label: 'EOD Report' },
   { to: '/crm/purchase-orders', icon: PurchaseIcon, label: 'Purchase Orders', features: ['purchase_orders'] },
-  { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] },
+  { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] , minRole: 'manager'},
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
   { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
@@ -119,12 +125,15 @@ export default function AppLayout() {
   // Filter nav items based on enabled features
   const navItems = useMemo(() => {
     return ALL_NAV_ITEMS.filter(item => {
+      // The ROLE test comes first, before the core-items shortcut: Settings, Team and Billing carry no
+      // features array, so a check placed after that shortcut never reached them. (T39 M2)
+      if (!meetsRole(user?.role, (item as any).minRole)) return false;
       // Core items (no features array) always show
       if (!item.features) return true;
       // Feature-gated items show if ANY listed feature is enabled
       return item.features.some(f => hasFeature(f));
     });
-  }, [hasFeature]);
+  }, [hasFeature, user?.role]);
 
   // A module that is not part of this tenant's vertical/plan must not be reachable by URL either:
   // the sidebar hid it, but /crm/rfis, /crm/lien-waivers… still rendered contractor pages inside a

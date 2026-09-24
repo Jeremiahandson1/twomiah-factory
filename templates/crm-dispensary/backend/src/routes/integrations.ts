@@ -5,6 +5,7 @@ import { db } from '../../db/index.ts'
 import { company, order, orderItem, product, contact, loyaltyMember, loyaltyReward } from '../../db/schema.ts'
 import { eq, and, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requireRole } from '../middleware/permissions.ts'
 import Stripe from 'stripe'
 import audit from '../services/audit.ts'
 
@@ -519,7 +520,9 @@ app.get('/loyalty/:phone', requireIntegrationKey, async (c) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── GET /status — Integration status for the settings page ──────────────────
-app.get('/status', authenticate, async (c) => {
+// Manager and up. The other routes in this file authenticate with an integration KEY (an external
+// POS calling in) or are an OAuth callback, and are deliberately left alone. (Dispensary T39 M3)
+app.get('/status', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({

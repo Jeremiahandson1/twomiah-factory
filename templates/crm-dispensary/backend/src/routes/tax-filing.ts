@@ -8,7 +8,11 @@ import audit from '../services/audit.ts'
 import { settledSale, taxCollected, taxNetExprBare, exciseNetExprBare, salesNetExprBare } from '../utils/revenue.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// Manager and up. Every route in this file is the shop's position with the state — what it owes,
+// what it has filed, what is outstanding. A budtender needs none of it to serve a customer, and it
+// was readable by anyone signed in. Generating and reviewing a filing already required manager.
+// (Dispensary T39 M3)
+app.use('*', authenticate, requireRole('manager'))
 
 // GET /filings — List tax filings (paginated, filterable)
 app.get('/filings', async (c) => {

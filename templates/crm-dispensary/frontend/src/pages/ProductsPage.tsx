@@ -171,9 +171,11 @@ export default function ProductsPage() {
   };
 
   const getStockColor = (stock: number) => {
-    if (stock <= 0) return 'text-red-600 font-semibold';
-    if (stock <= 10) return 'text-amber-600 font-medium';
-    return 'text-green-600';
+    // -600 as TEXT on white is under 4.5:1. -700 clears it, and the dark partner goes on at the same
+    // time so the fix does not just move across themes. (Dispensary T39 M4)
+    if (stock <= 0) return 'text-red-700 dark:text-red-300 font-semibold';
+    if (stock <= 10) return 'text-amber-700 dark:text-amber-300 font-medium';
+    return 'text-green-700 dark:text-green-300';
   };
 
   const columns = [

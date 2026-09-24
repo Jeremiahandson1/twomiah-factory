@@ -501,7 +501,10 @@ app.post('/widgets/:id/data', async (c) => {
 
 // ── Budtender Performance ──────────────────────────────────────────────
 
-app.get('/budtender-performance', async (c) => {
+// Manager and up: this returns EVERY employee's sales, by name. A budtender reading their
+// colleagues' figures is not part of serving a customer. The saved reports and widgets above stay
+// open — those are the caller's own. (Dispensary T39 M3)
+app.get('/budtender-performance', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const startDate = c.req.query('startDate')
   const endDate = c.req.query('endDate')

@@ -506,7 +506,7 @@ app.post('/session/:token/add-item', async (c) => {
   const needed = [...new Set(prospective.map((i: any) => String(i.productId)).filter((id) => id && id !== 'undefined' && !byId.has(id)))]
   if (needed.length) {
     const pr = await db.execute(sql`
-      SELECT id, category, tax_category, weight_grams, weight, weight_unit
+      SELECT id, name, category, tax_category, weight_grams, weight, weight_unit, thc_mg, thc_percent
       FROM products WHERE company_id = ${session.company_id}
         AND id IN (${sql.join(needed.map((m) => sql`${m}`), sql`, `)})
     `)
@@ -582,7 +582,7 @@ app.post('/session/:token/checkout', async (c) => {
   const missing = items.filter((i: any) => !i.product && i.productId).map((i: any) => String(i.productId))
   if (missing.length) {
     const pr = await db.execute(sql`
-      SELECT id, category, tax_category, weight_grams, weight, weight_unit
+      SELECT id, name, category, tax_category, weight_grams, weight, weight_unit, thc_mg, thc_percent
       FROM products WHERE company_id = ${companyId}
         AND id IN (${sql.join(missing.map((m) => sql`${m}`), sql`, `)})
     `)

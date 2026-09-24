@@ -13,6 +13,7 @@ export default function AnalyticsPage() {
   const [peakHours, setPeakHours] = useState<any[]>([]);
   const [customerMetrics, setCustomerMetrics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
     loadAnalytics();
@@ -84,7 +85,11 @@ export default function AnalyticsPage() {
         // difference a defect. (T34 L1)
         range: customersRes?.range || null,
       });
-    } catch (err) {
+    } catch (err: any) {
+      // A 403 is not a quiet day. Leaving the tiles on their initial zeros told a budtender the shop
+      // took $0.00 while the dashboard beside it showed $3,390 — a false figure is worse than an
+      // error, and this is the one screen whose whole job is to be believed. (Dispensary T39 M2)
+      if (err?.status === 403) setDenied(true);
       console.error('Failed to load analytics:', err);
     } finally {
       setLoading(false);
@@ -99,7 +104,14 @@ export default function AnalyticsPage() {
   ];
 
   if (loading) {
-    return (
+    if (denied) return (
+    <div className="p-8 text-center">
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">Analytics is not available for your role</h1>
+      <p className="text-gray-600 dark:text-slate-400">Ask a manager or the owner if you need these figures.</p>
+    </div>
+  );
+
+  return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
       </div>

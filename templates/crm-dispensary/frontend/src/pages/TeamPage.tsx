@@ -66,7 +66,7 @@ export default function TeamPage() {
         <div className="space-y-4">
           <div><label className="block text-sm font-medium mb-1">Name *</label><input value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium mb-1">Role</label><input value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">Role</label><select value={form.role} onChange={(e) => setForm({...form, role: e.target.value})} className="w-full px-3 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"><option value="">Select a role…</option><option value="budtender">Budtender</option><option value="driver">Driver</option><option value="manager">Manager</option><option value="admin">Admin</option><option value="owner">Owner</option><option value="viewer">Viewer</option></select></div>
             <div><label className="block text-sm font-medium mb-1">Department</label><input value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
           <div><label className="block text-sm font-medium mb-1">Email</label><input type="email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>

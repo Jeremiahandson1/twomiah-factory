@@ -10,7 +10,10 @@ import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
 
 const app = new Hono()
-app.use('*', authenticate)
+// Manager and up, like the analytics and audit families beside it. Compliance reports are the
+// shop's filings and its waste log; a budtender needs none of it to serve a customer, and this was
+// the one family of the four in the report that genuinely had no gate. (Dispensary T39 M2)
+app.use('*', authenticate, requireRole('manager'))
 
 // Raw-SQL rows come back snake_case, but the frontend reads camelCase — so fields
 // (license_type, expiration_date, report_data, etc.) rendered blank. Convert row keys
