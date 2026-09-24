@@ -1199,7 +1199,7 @@ jobs:
       - name: "The buyer is findable, visible and keeps their spend"
         run: bun run scripts/check-customer-on-sale.ts
 
-  284:
+  refund-units-and-gates:
     name: "refund units and gates"
     runs-on: ubuntu-latest
     steps:
@@ -1210,7 +1210,7 @@ jobs:
       - name: "Refund returns units; sale records grams; card on file lowers age"
         run: bun run scripts/check-refund-units-and-gates.ts
 
-  285:
+  register-tells-the-cashier:
     name: "register tells the cashier"
     runs-on: ubuntu-latest
     steps:
@@ -1221,7 +1221,7 @@ jobs:
       - name: "Blocked sale states its reason; POS tiles re-read stock"
         run: bun run scripts/check-register-tells-the-cashier.ts
 
-  286:
+  loyalty-bonuses:
     name: "loyalty bonuses"
     runs-on: ubuntu-latest
     steps:
@@ -1232,7 +1232,7 @@ jobs:
       - name: "Loyalty settings persist where read; welcome + birthday bonuses paid"
         run: bun run scripts/check-loyalty-bonuses.ts
 
-  288:
+  times-carry-their-zone:
     name: "times carry their zone"
     runs-on: ubuntu-latest
     steps:
@@ -1243,7 +1243,7 @@ jobs:
       - name: "API times leave as instants; Peak Hours on the shop clock"
         run: bun run scripts/check-times-carry-their-zone.ts
 
-  289:
+  product-form-validates:
     name: "product form validates"
     runs-on: ubuntu-latest
     steps:
@@ -1254,7 +1254,7 @@ jobs:
       - name: "Add Product is a real form; both bounds enforced; import agrees"
         run: bun run scripts/check-product-form-validates.ts
 
-  290:
+  order-filters-complete:
     name: "order filters complete"
     runs-on: ubuntu-latest
     steps:
@@ -1265,7 +1265,7 @@ jobs:
       - name: "Every order state filterable and badged; unknown filter refused"
         run: bun run scripts/check-order-filters-complete.ts
 
-  291:
+  readable-in-both-themes:
     name: "readable in both themes"
     runs-on: ubuntu-latest
     steps:
@@ -1276,7 +1276,7 @@ jobs:
       - name: "Dark mode carries its own colours; a long name cannot take the table"
         run: bun run scripts/check-readable-in-both-themes.ts
 
-  292:
+  dispensary-lows:
     name: "dispensary lows"
     runs-on: ubuntu-latest
     steps:
@@ -1287,7 +1287,7 @@ jobs:
       - name: "One home per value, one order name, customer understood, stocked shelf"
         run: bun run scripts/check-dispensary-lows.ts
 
-  293:
+  roster-stylist-bookable:
     name: "roster stylist bookable"
     runs-on: ubuntu-latest
     steps:
@@ -1298,7 +1298,7 @@ jobs:
       - name: "A chair-only stylist can be booked, named and filtered"
         run: bun run scripts/check-roster-stylist-bookable.ts
 
-  294:
+  membership-billing:
     name: "membership billing"
     runs-on: ubuntu-latest
     steps:
@@ -1309,7 +1309,7 @@ jobs:
       - name: "Enrolling bills and schedules; due periods caught up once each"
         run: bun run scripts/check-membership-billing.ts
 
-  295:
+  visit-sale-not-orphaned:
     name: "visit sale not orphaned"
     runs-on: ubuntu-latest
     steps:
@@ -1320,7 +1320,7 @@ jobs:
       - name: "Deleting a visit voids its sale; payment blocks the delete"
         run: bun run scripts/check-visit-sale-not-orphaned.ts
 
-  296:
+  salon-dark-surfaces:
     name: "salon dark surfaces"
     runs-on: ubuntu-latest
     steps:
@@ -1331,7 +1331,7 @@ jobs:
       - name: "Cards and alerts follow the theme their text follows"
         run: bun run scripts/check-salon-dark-surfaces.ts
 
-  297:
+  dashboard-panels-load:
     name: "dashboard panels load"
     runs-on: ubuntu-latest
     steps:
@@ -1342,7 +1342,7 @@ jobs:
       - name: "Shared predicates module-scoped; panel failures logged"
         run: bun run scripts/check-dashboard-panels-load.ts
 
-  298:
+  salon-mediums:
     name: "salon mediums"
     runs-on: ubuntu-latest
     steps:
@@ -1353,7 +1353,7 @@ jobs:
       - name: "Client book is clients; visits happened; heading honest; brand reads dark"
         run: bun run scripts/check-salon-mediums.ts
 
-  299:
+  salon-lows:
     name: "salon lows"
     runs-on: ubuntu-latest
     steps:
@@ -1704,3 +1704,14 @@ jobs:
           bun-version: latest
       - name: "Salon suite"
         run: bun run tests/salon/harness/run.ts
+
+  ci-workflow-valid:
+    name: "the workflow GitHub has to accept"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "CI workflow valid"
+        run: bun run scripts/check-ci-workflow-valid.ts
