@@ -16,12 +16,26 @@ export interface ReviewsServiceDeps {
   tables: ReviewsTables
   /** The template's email service: sendRaw({ to, subject, html }). */
   sendRaw: (msg: { to: string; subject: string; html: string }) => Promise<any>
+  /**
+   * Records a send for the usage counter. sendRaw deliberately does not record — that is the campaign
+   * path and marketing.ts writes its own rows — so a review request kept none at all, and three of them
+   * went out while Settings › Integrations still read the same figure as a week ago. (Salon T30 L1)
+   */
+  recordEmail?: (entry: { to: string; subject: string; status: 'sent' | 'failed'; errorMessage?: string }) => void | Promise<void>
   usage?: { reportSmsUsage: (segments: number, twilioSid?: string) => void }
   twilio?: TwilioConfig
   /** Public API origin for the tracking link; default API_BASE_URL || FRONTEND_URL. */
   apiBaseUrl?: string
   /** Brand colour for the email button; default the template's {{PRIMARY_COLOR}} token. */
   primaryColor?: string
+  options?: {
+    /**
+     * Fill in what each request was ABOUT, for the list's subject column. The built-in answer is the
+     * JOB the request came from; a vertical with no jobs (a salon raises them from visits) has an empty
+     * column unless it says otherwise. Given the page's rows, returns them with `job` set. (T30 L2)
+     */
+    subjectFor?: (rows: any[]) => Promise<any[]>
+  }
 }
 
 const DEFAULT_SMS_TEMPLATE = 'Hi {firstName}, thanks for choosing {companyName}! We\'d love your feedback — could you leave us a quick Google review? {trackingUrl}'
@@ -147,7 +161,15 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
       <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
       <p style="color: #999; font-size: 12px;">If you have any concerns about your service, please reply to this email and we'll make it right.</p>
     </div>`
-    return deps.sendRaw({ to: emailAddress, subject: `How was your experience with ${companyName}?`, html })
+    const subject = `How was your experience with ${companyName}?`
+    try {
+      const out = await deps.sendRaw({ to: emailAddress, subject, html })
+      void deps.recordEmail?.({ to: emailAddress, subject, status: 'sent' })
+      return out
+    } catch (err: any) {
+      void deps.recordEmail?.({ to: emailAddress, subject, status: 'failed', errorMessage: err?.message })
+      throw err
+    }
   }
 
   /** Send now for a job (owner button). Throws with a client-actionable message when setup is missing. */
@@ -332,7 +354,14 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
       q.where(where).orderBy(sql`${t.reviewRequest.createdAt} DESC`).offset((pg - 1) * lim).limit(lim),
       db.select({ value: count() }).from(t.reviewRequest).where(where),
     ])
-    return { data: data.map((d: any) => ({ ...d.reviewRequest, contact: d.contact, job: d.job || null })), pagination: { page: pg, limit: lim, total: Number(total), pages: Math.ceil(Number(total) / lim) } }
+    let rows = data.map((d: any) => ({ ...d.reviewRequest, contact: d.contact, job: d.job || null }))
+    // What the request was ABOUT, in this vertical's terms. The list renders job.title, and a salon
+    // request has no job — it comes from a visit — so the column was blank on every row. A vertical that
+    // has something better to say supplies it here; one call for the page, not one per row. (T30 L2)
+    if (deps.options?.subjectFor) {
+      try { rows = await deps.options.subjectFor(rows) } catch (e: any) { console.error('[Reviews] subjectFor failed:', e?.message) }
+    }
+    return { data: rows, pagination: { page: pg, limit: lim, total: Number(total), pages: Math.ceil(Number(total) / lim) } }
   }
 
   // Every five minutes, not every hour. Two indexed queries per company: hourly bought nothing and cost

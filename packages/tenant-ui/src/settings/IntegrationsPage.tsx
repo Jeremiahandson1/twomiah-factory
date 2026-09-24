@@ -158,7 +158,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
               ) : (
                 <div className="mt-4 space-y-3">
                   {status.twilio.configured && <p className="text-sm text-gray-600 dark:text-slate-300">Texting currently uses the platform number{status.twilio.phoneNumber ? ` ${status.twilio.phoneNumber}` : ''}. Add your own Twilio account to text from your number.</p>}
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Don't have Twilio? <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" className="text-orange-700 dark:text-orange-300 hover:underline">Create a free account</a></p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Don't have Twilio? <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" className="text-orange-900 dark:text-orange-200 hover:underline">Create a free account</a></p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Account SID</label><input type="text" value={twilioForm.accountSid} onChange={(e) => setTwilioForm((f) => ({ ...f, accountSid: e.target.value }))} placeholder="ACxxxxxxxxxx" className="w-full px-3 py-2 text-sm border dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white" /></div>
                     <div><label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Auth Token</label>

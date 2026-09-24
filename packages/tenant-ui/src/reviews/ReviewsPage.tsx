@@ -69,7 +69,7 @@ function DashboardTab({ api, toast, copy }: { api: SettingsApi; toast?: Settings
                   <td className="px-4 py-3"><span className="inline-flex items-center gap-1 text-xs">{(r.channel === 'sms' || r.channel === 'both') && <Phone className="w-3 h-3" />}{(r.channel === 'email' || r.channel === 'both') && <Mail className="w-3 h-3" />}<span className="capitalize">{r.channel}</span></span></td>
                   <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                   <td className="px-4 py-3 text-gray-500 text-xs dark:text-slate-400">{fmt(r.sentAt || r.createdAt)}</td>
-                  <td className="px-4 py-3">{r.status === 'sent' && !r.followUpSentAt && <button onClick={() => followUp(r.id)} disabled={busy === r.id} className="text-xs text-orange-600 hover:text-orange-700 dark:hover:text-orange-200 font-medium disabled:opacity-50">{busy === r.id ? 'Sending…' : 'Follow Up'}</button>}</td>
+                  <td className="px-4 py-3">{r.status === 'sent' && !r.followUpSentAt && <button onClick={() => followUp(r.id)} disabled={busy === r.id} className="text-xs text-orange-900 dark:text-orange-200 hover:underline font-medium disabled:opacity-50">{busy === r.id ? 'Sending…' : 'Follow Up'}</button>}</td>
                 </tr>
               ))}</tbody>
             </table>

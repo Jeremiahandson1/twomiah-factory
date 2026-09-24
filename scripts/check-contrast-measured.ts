@@ -187,5 +187,53 @@ for (const rel of PANELLED) {
   })
 }
 
+// ---------------------------------------------------------------- the BRAND scale
+//
+// Every template rewrites Tailwind's orange-* with the tenant's own brand hue:
+//     tailwind.config.js → colors: { orange: brandPalette }
+// so `text-orange-700` means "the brand hue at 33% lightness", not a colour. A shade that reads for a
+// blue salon can be unreadable for a yellow one — which is exactly how "Create a free account" measured
+// 5.18:1 against a fixed hex and 4.26:1 on the actual tenant. (Salon T30 M1)
+//
+// So the safe shades are COMPUTED here, from the template's own generator, across all 360 hues.
+const hslToHex = (h: number, sPct: number, lPct: number) => {
+  const s = sPct / 100, l = lPct / 100
+  const a = s * Math.min(l, 1 - l)
+  const f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1) }
+  return '#' + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')
+}
+// shade → [max saturation, lightness] — mirrors generatePalette() in each template's tailwind.config.js
+const BRAND_SHADES: Record<string, [number, number]> = {
+  '200': [100, 80], '300': [95, 65], '400': [95, 55], '600': [100, 40],
+  '700': [100, 33], '800': [100, 26], '900': [100, 20],
+}
+const worstAcrossHues = (shade: string, ground: string) => {
+  const [smax, l] = BRAND_SHADES[shade]
+  let worst = Infinity
+  for (let h = 0; h < 360; h++) worst = Math.min(worst, ratio(hslToHex(h, Math.min(100, smax), l), ground))
+  return worst
+}
+const LIGHT_GROUND = '#ffffff', DARK_GROUND = '#1e293b'
+const safeLight = Object.keys(BRAND_SHADES).filter((sh) => worstAcrossHues(sh, LIGHT_GROUND) >= AA)
+const safeDark = Object.keys(BRAND_SHADES).filter((sh) => worstAcrossHues(sh, DARK_GROUND) >= AA)
+if (!safeLight.length || !safeDark.length) fail('no brand shade is readable for every hue — the palette generator has changed and the rule below needs rewriting')
+
+/**
+ * Brand-coloured TEXT. Icons and accents are not in this list — they are not body text and have their
+ * own (lower) bar; they are a separate pass, not an assumption that they are fine.
+ */
+const BRAND_TEXT: Array<{ where: string; file: string; needle: RegExp }> = [
+  { where: 'Reviews → Follow Up link', file: 'packages/tenant-ui/src/reviews/ReviewsPage.tsx', needle: /text-orange-900 dark:text-orange-200[^"]*font-medium/ },
+  { where: 'Integrations → "Create a free account"', file: 'packages/tenant-ui/src/settings/IntegrationsPage.tsx', needle: /text-orange-900 dark:text-orange-200 hover:underline">Create a free account/ },
+]
+for (const t of BRAND_TEXT) {
+  let src = ''
+  try { src = readFileSync(ROOT + t.file, 'utf8') } catch { /* reported below */ }
+  if (!src) { fail(t.file + ' is missing'); continue }
+  if (!t.needle.test(src)) {
+    fail(`${t.where}: brand-coloured text must be text-orange-${safeLight[0]} dark:text-orange-${safeDark[0]} — those are the only shades that clear ${AA}:1 for EVERY tenant hue (worst case ${worstAcrossHues(safeLight[0], LIGHT_GROUND).toFixed(2)}:1 light, ${worstAcrossHues(safeDark[0], DARK_GROUND).toFixed(2)}:1 dark)`)
+  }
+}
+
 if (failed) { console.error(`\ncontrast measured: ${failed} pair(s) below ${AA}:1`); process.exit(1) }
-console.log(`contrast measured: every chip (${platformColours.size} platform colours x 2 themes) and every coloured banner clears ${AA}:1`)
+console.log(`contrast measured: brand text on shades ${safeLight[0]}/${safeDark[0]} (the only pair safe for every hue); every chip (${platformColours.size} platform colours x 2 themes) and every coloured banner clears ${AA}:1`)

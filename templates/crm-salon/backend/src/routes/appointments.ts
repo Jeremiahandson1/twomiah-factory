@@ -220,7 +220,12 @@ app.post('/', requirePermission('schedule:create'), async (c) => {
   if (Number.isNaN(startTime.getTime())) return c.json({ error: 'startTime is not a valid date' }, 400)
   if (body.status && !APPT_STATUSES.includes(body.status)) return c.json({ error: `status must be one of ${APPT_STATUSES.join(', ')}` }, 400)
   if (body.quotedPrice != null && body.quotedPrice !== '' && (isNaN(Number(body.quotedPrice)) || Number(body.quotedPrice) < 0)) return c.json({ error: 'Quoted price cannot be negative.' }, 400)
-  if (body.contactId) {
+  // An appointment is a chair booked for somebody. Without a client it could still be created AND
+  // completed, which then wrote a visit belonging to nobody — and the New Appointment form has always
+  // refused it ("A client is required"), so the server was the only thing that disagreed. A contractor
+  // job with no customer is a real case; a salon appointment with no client is not. (Salon T30 L3)
+  if (!body.contactId) return c.json({ error: 'An appointment needs a client — choose one before saving.' }, 400)
+  {
     const [ct] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, body.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
     if (!ct) return c.json({ error: 'That client does not exist.' }, 404)
   }

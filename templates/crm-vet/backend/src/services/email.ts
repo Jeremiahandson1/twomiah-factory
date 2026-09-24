@@ -563,11 +563,20 @@ async function sendRaw(
 ): Promise<{ success: boolean; messageId?: string; dev?: boolean }> {
   const from = { name: fromName || FROM_NAME, address: fromEmail || FROM_EMAIL };
 
+  // Same rule as send() above, for the same reason. Answering "success" with no provider tells the
+  // caller the message went; a review request is then stamped Sent and the client never hears from the
+  // salon. In development that console line IS the point; in production it is a lie. (Salon T30 L1)
+  if (!transporter && process.env.NODE_ENV === 'production') {
+    throw new Error('SMTP_HOST is not configured');
+  }
   if (!transporter) {
     console.log('EMAIL (dev mode, no provider configured) ->', to, '|', subject);
     return { success: true, dev: true };
   }
 
+  // NOT recorded here: this is the campaign path, and marketing.ts writes its own rows with the contact
+  // and campaign attached — recording again would double-count every campaign email. A sender that keeps
+  // no rows of its own records them itself; review requests do, since T30 L1.
   const result = await transporter.sendMail({
     from, to, subject, html,
     ...(process.env.REPLY_TO_EMAIL ? { replyTo: process.env.REPLY_TO_EMAIL } : {}),
