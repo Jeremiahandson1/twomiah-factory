@@ -146,8 +146,13 @@ class ApiClient {
     const res = await fetchWithTimeout(`${this.baseUrl}${endpoint}`, { ...options, headers })
 
     if (res.status === 401 && retry && this.refreshToken) {
-      const refreshed = await this.tryRefresh()
-      if (refreshed) return this.request<T>(endpoint, options, false)
+      const outcome = await this.tryRefresh()
+      if (outcome === 'ok') return this.request<T>(endpoint, options, false)
+      // Only the server saying this token is dead ends the session. A 502 while Render rolls the
+      // service over, a 503 mid-deploy or a dropped connection answered "false" here too, and threw
+      // every signed-in shopkeeper out — the tokens were fine, the server just could not answer.
+      // AuthContext already treats isTransient as "session preserved". (fleet sign-out)
+      if (outcome === 'retry') throw transientError('The server is restarting — please try again in a moment.')
       this.clearTokens()
       if (!location.pathname.endsWith('/login')) location.href = '/login'
       throw new Error('Session expired')
@@ -157,17 +162,21 @@ class ApiClient {
     return data as T
   }
 
-  private async tryRefresh(): Promise<boolean> {
+  /** 'ok' refreshed · 'revoked' the server rejected the token · 'retry' it could not answer. */
+  private async tryRefresh(): Promise<'ok' | 'revoked' | 'retry'> {
     try {
       const res = await fetchWithTimeout(`${this.baseUrl}/api/auth/refresh`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken }),
       })
-      if (!res.ok) return false
-      const data = await res.json()
-      this.setTokens(data.accessToken, data.refreshToken)
-      return true
-    } catch { return false }
+      if (res.ok) {
+        const data = await res.json()
+        this.setTokens(data.accessToken, data.refreshToken)
+        return 'ok'
+      }
+      // 401/403 from the refresh endpoint is the session actually being over; a 5xx is not.
+      return (res.status === 401 || res.status === 403) ? 'revoked' : 'retry'
+    } catch { return 'retry' }
   }
 
   // ── Auth ──

@@ -43,7 +43,11 @@ class ApiClient {
   baseUrl: string;
   accessToken: string | null;
   refreshToken: string | null;
-  refreshPromise: Promise<boolean> | null = null;
+  // The single-flight promise carries the same three outcomes the refresh returns. This still said
+  // Promise<boolean> after the refresh stopped answering yes/no, which is worse than untidy: it invites
+  // `if (await this.refreshPromise)`, and 'unavailable' is truthy — the exact confusion the three
+  // outcomes exist to remove.
+  refreshPromise: Promise<RefreshOutcome> | null = null;
 
   constructor() {
     this.baseUrl = API_URL;

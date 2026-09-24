@@ -65,15 +65,21 @@ class ApiClient {
 
       // Handle 401 - try to refresh token
       if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
-        const refreshed = await this.refreshAccessToken();
-        if (refreshed) {
+        const outcome = await this.refreshAccessToken();
+        if (outcome === 'ok') {
           headers.Authorization = `Bearer ${this.accessToken}`;
           return fetchWithTimeout(url, { ...options, headers }).then(r => this.handleResponse(r));
-        } else {
+        }
+        // The only thing that ends a session is the server saying this token is dead.
+        if (outcome === 'revoked') {
           this.clearTokens();
           window.location.href = '/login';
           throw new Error('Session expired');
         }
+        // Everything else — a 502 while Render rolls the service over, a 503 mid-deploy, a dropped
+        // connection — used to land here as "false" and log the user out. The tokens are still good;
+        // the server just could not answer. Keep them and surface a retryable error. (fleet sign-out)
+        throw makeTransientError('The server is restarting — please try again in a moment.');
       }
 
       return this.handleResponse(response);
@@ -98,6 +104,7 @@ class ApiClient {
     return data;
   }
 
+  /** 'ok' refreshed · 'revoked' the server rejected the token · 'retry' it could not answer. */
   async refreshAccessToken() {
     // Single-flight: a page that fires several requests at once produces several
     // 401s, each calling this. The server ROTATES the refresh token on use, so the
@@ -111,12 +118,16 @@ class ApiClient {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken: this.refreshToken }),
         });
-        if (!response.ok) return false;
-        const data = await response.json();
-        this.setTokens(data.accessToken, data.refreshToken);
-        return true;
+        if (response.ok) {
+          const data = await response.json();
+          this.setTokens(data.accessToken, data.refreshToken);
+          return 'ok';
+        }
+        // 401/403 from the refresh endpoint is the session actually being over. A 5xx is the server
+        // having a bad moment, and answering the same to both is what signs everybody out on a deploy.
+        return (response.status === 401 || response.status === 403) ? 'revoked' : 'retry';
       } catch {
-        return false;
+        return 'retry';
       } finally {
         this.refreshPromise = null;
       }
