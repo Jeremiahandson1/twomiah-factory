@@ -10,7 +10,14 @@
 // orange on a tenant whose brand colour is blue.
 import { readFileSync } from 'node:fs'
 
-const W = 'C:/Users/jerem/AppData/Local/Temp/claude/C--ALL-TWOMIAH-PRODUCTS-TwomiahFactory/8d9012ec-37b4-4b2e-b24f-2768a40d407e/scratchpad/wt-disp/'
+// This one runs from the assembled sandbox but reads template SOURCE, so it has to be told where the
+// repository is; the runner passes FACTORY_ROOT. It refuses rather than guess -- pointed at the wrong
+// tree it would read nothing, find nothing, and report success.
+const W = (() => {
+  const r = process.env.FACTORY_ROOT
+  if (!r) throw new Error('FACTORY_ROOT is not set -- run this through tests/salon/harness/run.ts')
+  return r.endsWith('/') ? r : r + '/'
+})()
 const read = (p: string) => readFileSync(W + p, 'utf8').replace(/\r\n/g, '\n')
 
 let failed = 0, passed = 0

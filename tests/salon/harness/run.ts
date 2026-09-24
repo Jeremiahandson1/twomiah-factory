@@ -76,8 +76,13 @@ let failedFiles = 0
 let assertions = 0
 console.log(`\nrunning ${tests.length} file(s)\n`)
 for (const f of tests) {
-  const r = spawnSync('bun', [f], { cwd: SB, encoding: 'utf8', shell: true, env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test' } })
-  const out = (r.stdout || '') + (r.stderr || '')
+  // FACTORY_ROOT: contrast-batch reads template SOURCE rather than calling the API, and the sandbox is a
+  // temp copy, so that one has to be told where the real tree is.
+  const r = spawnSync('bun', [f], { cwd: SB, encoding: 'utf8', shell: true, env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: ROOT } })
+  // Strip ANSI before matching anything. On the ubuntu runner the one failing file reported no reason at
+  // all, and a coloured "error:" that no longer starts the line is the likeliest way a pattern match on
+  // raw output goes quiet exactly when it is needed.
+  const out = ((r.stdout || '') + (r.stderr || '')).replace(/\u001b\[[0-9;]*m/g, '')
   const line = out.split(/\r?\n/).reverse().find((l) => /\d+ passed, \d+ failed/.test(l)) || ''
   const passed = Number(/(\d+) passed/.exec(line)?.[1] || 0)
   const failed = Number(/(\d+) failed/.exec(line)?.[1] || 0)
@@ -87,7 +92,15 @@ for (const f of tests) {
     failedFiles++
     console.log(`FAIL ${f}  ${line || '(no summary — the file did not finish)'}`)
     // only the failures, and only the useful part
-    for (const l of out.split(/\r?\n/)) if (/^\s*FAIL |^error|Error:/.test(l)) console.log('     ' + l.trim().slice(0, 200))
+    const named = out.split(/\r?\n/).filter((l) => /^\s*FAIL |^error|Error:/.test(l))
+    for (const l of named) console.log('     ' + l.trim().slice(0, 200))
+    // A file that dies before printing a summary names nothing above, and reporting "it failed" with no
+    // reason is exactly how a hardcoded Windows path survived into CI. Show its last words.
+    if (!named.length) {
+      const tail = out.split(/\r?\n/).filter((l) => l.trim()).slice(-12)
+      for (const l of tail) console.log('     | ' + l.trim().slice(0, 200))
+      if (!tail.length) console.log('     | (the file produced no output at all)')
+    }
   } else {
     console.log(`ok   ${f}  ${line}`)
   }
