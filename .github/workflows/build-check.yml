@@ -1693,3 +1693,14 @@ jobs:
           bun-version: latest
       - name: "Roster stylist visible"
         run: bun run scripts/check-roster-stylist-visible.ts
+
+  salon-suite:
+    name: "Salon behaviour suite (402 assertions, real PGlite)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Salon suite"
+        run: bun run tests/salon/harness/run.ts
