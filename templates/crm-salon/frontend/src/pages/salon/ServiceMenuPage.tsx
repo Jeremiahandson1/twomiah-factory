@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Scissors, Edit2, Trash2, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 import { money as fmtMoney } from '../../shared';
+import { useConfirm } from '../../shared';
+import { useToast } from '../../contexts/ToastContext';
 
 /**
  * Service Menu — what the salon sells (GET/POST/PUT/DELETE /api/service-menu).
@@ -46,6 +48,8 @@ function money(v: number | string | undefined | null): string {
 }
 
 export default function ServiceMenuPage() {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -66,12 +70,12 @@ export default function ServiceMenuPage() {
   useEffect(() => { load(); }, [load]);
 
   const retire = async (svc: Service) => {
-    if (!confirm(`Retire "${svc.name}"? Past service records keep it for rebooking history.`)) return;
+    if (!(await confirm(`Retire "${svc.name}"? Past service records keep it for rebooking history.`, { title: 'Retire service', confirmText: 'Retire it' }))) return;
     try {
       await api.delete('/api/service-menu', svc.id);
       load();
     } catch {
-      alert('Failed to retire service');
+      toast.error('Failed to retire service');
     }
   };
 
@@ -185,6 +189,7 @@ export default function ServiceMenuPage() {
 /* ---------------- Service Modal ---------------- */
 
 function ServiceModal({ service, onSave, onClose }: { service: Service | null; onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: service?.name || '',
@@ -202,7 +207,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { alert('Service name is required'); return; }
+    if (!form.name.trim()) { toast.error('Service name is required'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -223,7 +228,7 @@ function ServiceModal({ service, onSave, onClose }: { service: Service | null; o
       else await api.post('/api/service-menu', payload);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to save service');
+      toast.error((err as Error).message || 'Failed to save service');
     } finally {
       setSaving(false);
     }

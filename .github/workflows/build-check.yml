@@ -1660,3 +1660,14 @@ jobs:
           bun-version: latest
       - name: "Refresh outcomes"
         run: bun run scripts/check-refresh-outcomes.ts
+
+  no-native-dialogs:
+    name: "The salon asks and reports in its own words"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "No native dialogs"
+        run: bun run scripts/check-no-native-dialogs.ts

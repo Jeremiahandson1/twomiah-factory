@@ -48,8 +48,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   // Route legacy window.alert() calls through the in-app toast instead of a blocking,
   // unstyled native popup (which also leaked the Render hostname). Most existing alerts
-  // are failure messages, so colour them as errors unless they read like info. confirm()
-  // stays native for now — it needs a synchronous boolean a toast can't return.
+  // are failure messages, so colour them as errors unless they read like info.
+  //
+  // This is a safety net for code that has not been converted yet, not the plan: a page that means to
+  // report a failure should call toast.error, which says so and does not depend on a global being
+  // reassigned before the call happens.
+  //
+  // confirm() no longer "stays native because it needs a synchronous boolean a toast can't return" —
+  // ConfirmProvider (../shared) answers with a promise, which is the same boolean one await later.
+  // (Salon T28 L8)
   useEffect(() => {
     const original = window.alert;
     window.alert = (message?: any) => {

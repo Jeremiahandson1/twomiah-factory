@@ -3,6 +3,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { ConfirmProvider } from './shared';
 import { SocketProvider } from './contexts/SocketContext';
 import { PermissionsProvider } from './contexts/PermissionsContext';
 import { ErrorBoundary, ProtectedRoute, PublicRoute } from './shared';
@@ -101,6 +102,7 @@ function App() {
         <AuthProvider>
           <PermissionsProvider>
             <ToastProvider>
+            <ConfirmProvider>
               <SocketProvider>
                 <Routes>
                   {/* Public marketing pages */}
@@ -192,6 +194,7 @@ function App() {
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </SocketProvider>
+            </ConfirmProvider>
             </ToastProvider>
           </PermissionsProvider>
         </AuthProvider>

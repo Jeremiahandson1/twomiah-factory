@@ -39,6 +39,7 @@ export { QuotesPage } from './invoicing/QuotesPage'
 export { QuoteDetailPage } from './invoicing/QuoteDetailPage'
 export type { InvoicingConfig, InvoicingPageProps, InvoicingApi, InvoicingToast } from './invoicing/types'
 export { PAYMENT_METHODS, money } from './invoicing/ui'
+export { ConfirmProvider, useConfirm } from './ui/ConfirmProvider'
 // Online booking — one page for every CRM; the template passes its api/toast + a vertical config.
 export { BookingsPage } from './booking/BookingsPage'
 export { BookingSettingsTab } from './booking/BookingSettingsTab'

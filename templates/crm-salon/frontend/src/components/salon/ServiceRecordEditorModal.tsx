@@ -3,6 +3,8 @@ import { X, Scissors, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { todayStr, toDayString } from '../../utils/date';
+import { useConfirm } from '../../shared';
+import { useToast } from '../../contexts/ToastContext';
 
 /**
  * Service record editor — the formula log.
@@ -69,6 +71,8 @@ function toDateInput(s?: string): string {
 }
 
 export default function ServiceRecordEditorModal({ contactId, record, appointmentId, onSave, onClose }: Props) {
+  const toast = useToast();
+  const confirm = useConfirm();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
@@ -142,20 +146,20 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
       const saved = record?.id ? await api.put(`/api/service-records/${record.id}`, payload) : await api.post('/api/service-records', payload);
       onSave(saved as Record<string, unknown>);
     } catch (err) {
-      alert((err as Error).message || 'Failed to save service record');
+      toast.error((err as Error).message || 'Failed to save service record');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!record?.id || !window.confirm('Delete this service record? This cannot be undone.')) return;
+    if (!record?.id || !(await confirm('Delete this service record? This cannot be undone.', { title: 'Delete visit', confirmText: 'Delete it' }))) return;
     setSaving(true);
     try {
       await api.delete('/api/service-records', record.id);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to delete service record');
+      toast.error((err as Error).message || 'Failed to delete service record');
     } finally {
       setSaving(false);
     }

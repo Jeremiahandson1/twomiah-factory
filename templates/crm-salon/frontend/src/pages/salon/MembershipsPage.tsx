@@ -6,6 +6,7 @@ import ClientPicker from '../../components/salon/ClientPicker';
 import { todayStr } from '../../utils/date';
 import { money as fmtMoney } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
+import { useConfirm } from '../../shared';
 
 /**
  * Memberships — plans (GET/POST/PUT/DELETE /api/memberships) and the people on
@@ -63,6 +64,7 @@ function cycleLabel(c?: string): string {
 }
 
 export default function MembershipsPage() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -90,7 +92,7 @@ export default function MembershipsPage() {
   useEffect(() => { load(); }, [load]);
 
   const retire = async (plan: Plan) => {
-    if (!confirm(`Retire the "${plan.name}" plan? Existing members keep their enrollment.`)) return;
+    if (!(await confirm(`Retire the "${plan.name}" plan? Existing members keep their enrollment.`, { title: 'Retire plan', confirmText: 'Retire it' }))) return;
     try {
       await api.delete('/api/memberships', plan.id);
       load();
@@ -100,7 +102,7 @@ export default function MembershipsPage() {
   };
 
   const cancelEnrollment = async (e: Enrollment) => {
-    if (!window.confirm(`Cancel ${e.clientName || 'this client'}'s ${e.planName || 'membership'}? Remaining credits are forfeited.`)) return;
+    if (!(await confirm(`Cancel ${e.clientName || 'this client'}'s ${e.planName || 'membership'}? Remaining credits are forfeited.`, { title: 'Cancel membership', confirmText: 'Cancel membership' }))) return;
     try {
       await api.put(`/api/memberships/enrollments/${e.id}`, { status: 'cancelled' });
       load();

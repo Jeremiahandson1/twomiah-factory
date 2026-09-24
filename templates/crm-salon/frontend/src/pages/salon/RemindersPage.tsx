@@ -4,6 +4,7 @@ import {
   Loader2, BellRing, RotateCcw, UserX, Cake, Send, X, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import api from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 
 /**
  * Rebooking — the retention page.
@@ -357,6 +358,7 @@ export default function RemindersPage() {
 /* ---------------- Send Reminder Modal ---------------- */
 
 function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { contactIds: string[]; defaultMessage: string; onDone: () => void; onClose: () => void }) {
+  const toast = useToast();
   const [message, setMessage] = useState<string>(defaultMessage);
   const [sending, setSending] = useState<boolean>(false);
   const [result, setResult] = useState<{ sent?: number; failed?: number; noPhone?: number; reason?: string | null } | null>(null);
@@ -367,13 +369,13 @@ function SendReminderModal({ contactIds, defaultMessage, onDone, onClose }: { co
   const walletEmpty = !!wallet?.configured && (!wallet.enabled || wallet.walletCents <= 0);
 
   const send = async () => {
-    if (!message.trim()) { alert('Message is required'); return; }
+    if (!message.trim()) { toast.error('Message is required'); return; }
     setSending(true);
     try {
       const res = await api.post('/api/reminders/send', { contactIds, message: message.trim() });
       setResult({ sent: res.sent || 0, failed: res.failed || 0, noPhone: res.noPhone || 0, reason: res.reason || null });
     } catch (err) {
-      alert((err as Error).message || 'Failed to send');
+      toast.error((err as Error).message || 'Failed to send');
     } finally {
       setSending(false);
     }

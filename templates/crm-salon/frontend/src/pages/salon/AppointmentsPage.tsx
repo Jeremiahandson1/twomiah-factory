@@ -8,6 +8,7 @@ import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { todayStr } from '../../utils/date';
 import { stylistNameOf as stylistName } from '../../lib/staff';
 import { useToast } from '../../contexts/ToastContext';
+import { useConfirm } from '../../shared';
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -108,6 +109,7 @@ function fmtTime(s?: string): string {
 // stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
 
 export default function AppointmentsPage() {
+  const confirm = useConfirm();
   const toast = useToast();
   const [day, setDay] = useState<string>(todayStr());
   const [appts, setAppts] = useState<Appointment[]>([]);
@@ -126,8 +128,8 @@ export default function AppointmentsPage() {
   useEffect(() => { api.get('/api/service-menu').then((r) => setServices(r.data || [])).catch(() => setServices([])); }, []);
 
   // Closing a visit creates the sale (backend); offer to take payment right away. (SALON-H4)
-  const offerCheckout = (invoiceId?: string | null) => {
-    if (invoiceId && confirm('Sale created for this visit. Take payment now?')) navigate(`/crm/invoices/${invoiceId}`);
+  const offerCheckout = async (invoiceId?: string | null) => {
+    if (invoiceId && await confirm('Sale created for this visit. Take payment now?', { title: 'Take payment?', confirmText: 'Open the sale', danger: false })) navigate(`/crm/invoices/${invoiceId}`);
   };
 
   const load = useCallback(async () => {
@@ -154,7 +156,7 @@ export default function AppointmentsPage() {
     try {
       if (a.contactId) {
         const warnings = visitWarnings(await loadProfile(a.contactId), services.find((s) => s.id === a.serviceId));
-        if (warnings.length && !confirm(`⚠ ${warnings.join('\n⚠ ')}\n\nCheck in anyway?`)) return;
+        if (warnings.length && !(await confirm(warnings.join('\n'), { title: 'Before you check them in', confirmText: 'Check in anyway', danger: false }))) return;
       }
       await api.post(`/api/appointments/${a.id}/check-in`);
       load();
@@ -165,8 +167,8 @@ export default function AppointmentsPage() {
 
   // Cancel / no-show / complete so a chair can be freed and no-shows tracked. (CC-25)
   const setStatus = async (a: Appointment, status: string) => {
-    if (status === 'cancelled' && !confirm(`Cancel ${a.clientName || 'this'} appointment? You can reopen it afterwards.`)) return;
-    if (status === 'no_show' && !confirm(`Mark ${a.clientName || 'this client'} as a no-show? You can reopen it afterwards.`)) return;
+    if (status === 'cancelled' && !(await confirm(`Cancel ${a.clientName || 'this'} appointment? You can reopen it afterwards.`, { title: 'Cancel appointment', confirmText: 'Cancel it' }))) return;
+    if (status === 'no_show' && !(await confirm(`Mark ${a.clientName || 'this client'} as a no-show? You can reopen it afterwards.`, { title: 'Mark a no-show', confirmText: 'Mark no-show' }))) return;
     try {
       const res = await api.put(`/api/appointments/${a.id}`, { status });
       load();
