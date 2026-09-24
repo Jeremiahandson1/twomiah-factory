@@ -300,7 +300,8 @@ app.delete('/installed/:id', requireRole('manager'), async (c) => {
 })
 
 // POST /installed/:id/test — Test integration connection
-app.post('/installed/:id/test', async (c) => {
+// Manager and up, like install/config/activate/disable beside it. (Dispensary T41)
+app.post('/installed/:id/test', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -334,7 +335,7 @@ app.post('/installed/:id/test', async (c) => {
 })
 
 // POST /installed/:id/sync — Trigger manual sync
-app.post('/installed/:id/sync', async (c) => {
+app.post('/installed/:id/sync', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -670,7 +670,9 @@ app.get('/quickbooks/callback', async (c) => {
   return c.redirect(`${process.env.FRONTEND_URL}/settings/integrations?success=quickbooks`)
 })
 
-app.post('/quickbooks/disconnect', authenticate, async (c) => {
+// Manager and up. This was `authenticate` alone, so a budtender could do it — disconnecting the accounting integration
+// is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
+app.post('/quickbooks/disconnect', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, user.companyId)).limit(1)
@@ -690,7 +692,9 @@ app.post('/quickbooks/disconnect', authenticate, async (c) => {
   return c.json({ success: true })
 })
 
-app.post('/quickbooks/sync', authenticate, async (c) => {
+// Manager and up. This was `authenticate` alone, so a budtender could do it — pushing a sync to the books
+// is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
+app.post('/quickbooks/sync', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, user.companyId)).limit(1)
@@ -756,7 +760,9 @@ app.get('/stripe/connect-url', authenticate, async (c) => {
   return c.json({ connectUrl: accountLink.url })
 })
 
-app.post('/stripe/disconnect', authenticate, async (c) => {
+// Manager and up. This was `authenticate` alone, so a budtender could do it — disconnecting the payment processor
+// is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
+app.post('/stripe/disconnect', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
 
   const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, user.companyId)).limit(1)
@@ -771,7 +777,9 @@ app.post('/stripe/disconnect', authenticate, async (c) => {
 
 // ─── SMS TOGGLE (Platform Twilio) ─────────────────────────────────────────────
 
-app.post('/sms/toggle', authenticate, async (c) => {
+// Manager and up. This was `authenticate` alone, so a budtender could do it — switching the tenant's SMS on or off
+// is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
+app.post('/sms/toggle', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
   const { enabled } = await c.req.json()
 
@@ -790,7 +798,9 @@ app.post('/sms/toggle', authenticate, async (c) => {
 
 // ─── EMAIL TOGGLE (Platform SendGrid) ─────────────────────────────────────────
 
-app.post('/email/toggle', authenticate, async (c) => {
+// Manager and up. This was `authenticate` alone, so a budtender could do it — switching the tenant's email on or off
+// is not part of serving a customer, and it changes the SHOP, not an order. (Dispensary T41)
+app.post('/email/toggle', authenticate, requireRole('manager'), async (c) => {
   const user = c.get('user') as any
   const { enabled } = await c.req.json()
 

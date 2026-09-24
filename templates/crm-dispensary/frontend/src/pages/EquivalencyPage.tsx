@@ -220,6 +220,8 @@ export default function EquivalencyPage() {
       {tab === 'rules' && (
         <div>
           <div className="flex justify-end gap-3 mb-4">
+            {/* admin only: this REPLACES the shop's factors, which are its limit (T41) */}
+            {isAdmin && (
             <button
               onClick={handleSeedDefaults}
               disabled={seeding}
@@ -227,6 +229,7 @@ export default function EquivalencyPage() {
             >
               {seeding ? 'Seeding...' : 'Seed Defaults'}
             </button>
+            )}
             {isAdmin && (
             <Button onClick={openCreateRule}>
               <Plus className="w-4 h-4 mr-2 inline" />

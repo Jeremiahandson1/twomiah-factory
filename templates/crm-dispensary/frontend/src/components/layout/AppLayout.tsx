@@ -95,7 +95,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/curbside', icon: Car, label: 'Curbside', features: ['curbside'] },
   { to: '/crm/equivalency', icon: Scale, label: 'Equivalency', features: ['equivalency'] },
   { to: '/crm/tax-filing', icon: Receipt, label: 'Tax Filing', features: ['tax_filing'] , minRole: 'manager'},
-  { to: '/crm/marketplace', icon: Puzzle, label: 'Integrations', features: ['marketplace'] },
+  { to: '/crm/marketplace', icon: Puzzle, label: 'Integrations', features: ['marketplace'] , minRole: 'manager'},
   { to: '/crm/platform', icon: Activity, label: 'Platform', features: ['platform'] },
   { to: '/crm/security', icon: Shield, label: 'Security' , minRole: 'manager'},
   { to: '/crm/soc2', icon: FileCheck, label: 'SOC 2', features: ['soc2'] , minRole: 'manager'},
