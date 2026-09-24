@@ -47,10 +47,10 @@ const money = (n: number | null) => (n == null ? null : '$' + (Number.isInteger(
 const date = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : null)
 
 const STATUS: Record<Subscription['status'], { label: string; cls: string }> = {
-  active:   { label: 'Active',    cls: 'bg-green-100 text-green-800' },
-  trialing: { label: 'Trial',     cls: 'bg-blue-100 text-blue-800' },
+  active:   { label: 'Active',    cls: 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200' },
+  trialing: { label: 'Trial',     cls: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200' },
   past_due: { label: 'Past due',  cls: 'bg-amber-100 text-amber-800' },
-  canceled: { label: 'Canceled',  cls: 'bg-red-100 text-red-800' },
+  canceled: { label: 'Canceled',  cls: 'bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200' },
 }
 
 export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): React.ReactElement {
@@ -128,7 +128,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
         Your plan is billed by Twomiah. Change plan, update your card or download invoices in the billing portal — this page just shows where things stand.
       </p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
       {notice && <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-3 mb-4 text-sm text-yellow-800 dark:text-yellow-200">{notice}</div>}
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
@@ -176,7 +176,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
               <div className="mt-4 bg-amber-50 border border-amber-200 rounded-md p-3 text-sm text-amber-800">Your last payment did not go through. Update your card in the billing portal to keep the account active.</div>
             )}
             {sub.status === 'canceled' && (
-              <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">This subscription is not active. Reactivate it in the billing portal or email support.</div>
+              <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">This subscription is not active. Reactivate it in the billing portal or email support.</div>
             )}
 
             <div className="flex flex-wrap gap-3 mt-6">
@@ -220,7 +220,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
                 <div className="mt-4 bg-gray-50 border border-gray-200 rounded-md p-3 text-sm text-gray-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300">Texting is not enabled for this account yet. Enable it and fund the wallet in the texting billing page.</div>
               )}
               {msg && msg.enabled && msg.walletCents <= 0 && (
-                <div className="mt-4 bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">Your texting wallet is empty — reminders and replies will not send until you add funds.</div>
+                <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 text-sm text-red-800 dark:text-red-200">Your texting wallet is empty — reminders and replies will not send until you add funds.</div>
               )}
               {msg?.error && <div className="mt-4 text-sm text-amber-700">Could not reach billing right now: {msg.error}</div>}
               <div className="flex flex-wrap gap-3 mt-6">

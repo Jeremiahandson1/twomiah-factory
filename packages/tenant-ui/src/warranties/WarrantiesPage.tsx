@@ -5,6 +5,7 @@ import {
   ChevronRight, Search, Filter
 } from 'lucide-react';
 import type { WarrantiesApi, WarrantiesPageProps } from './types';
+import { usePrompt } from '../ui/ConfirmProvider'
 
 // api is injected once at the page root; child components read it via useWarranties().
 const WarrantiesCtx = createContext<{ api: WarrantiesApi }>({ api: null as any });
@@ -314,6 +315,7 @@ interface ClaimsListProps {
 }
 
 function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
+  const ask = usePrompt()
   const { api } = useWarranties();
   const [allClaims, setAllClaims] = useState<ClaimData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -337,7 +339,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
   };
 
   const handleSchedule = async (claimId: string) => {
-    const date = prompt('Enter scheduled date (YYYY-MM-DD):');
+    const date = await ask('Enter scheduled date (YYYY-MM-DD):', { title: 'Schedule the visit', placeholder: 'YYYY-MM-DD', confirmText: 'Schedule' });
     if (!date) return;
     try {
       await api.post(`/api/warranties/claims/${claimId}/schedule`, { scheduledDate: date });
@@ -359,7 +361,7 @@ function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
   };
 
   const handleDeny = async (claimId: string) => {
-    const reason = prompt('Enter denial reason:');
+    const reason = await ask('Enter denial reason:', { title: 'Deny the claim', confirmText: 'Deny claim' });
     if (!reason) return;
     try {
       await api.post(`/api/warranties/claims/${claimId}/deny`, { reason });

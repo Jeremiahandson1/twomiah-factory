@@ -5,6 +5,7 @@ import {
   ChevronDown, ChevronRight, MoreVertical
 } from 'lucide-react';
 import type { TasksApi, TasksPageProps } from './types';
+import { useConfirm } from '../ui/ConfirmProvider'
 
 // UTC-safe date formatting (carried from the templates' utils/date). Date-only values are stored as
 // UTC midnight; parsing the date part at LOCAL midnight avoids shifting viewers west of UTC a day back.
@@ -60,6 +61,7 @@ interface ProjectData {
 }
 
 export default function TasksPage({ api }: TasksPageProps) {
+  const confirm = useConfirm()
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -111,7 +113,7 @@ export default function TasksPage({ api }: TasksPageProps) {
   };
 
   const handleDelete = async (taskId: string) => {
-    if (!confirm('Delete this task?')) return;
+    if (!(await confirm('Delete this task?', { title: 'Delete task', confirmText: 'Delete it' }))) return;
     try {
       await api.delete(`/api/tasks/${taskId}`);
       setTasks((prev: TaskData[]) => prev.filter((t: TaskData) => t.id !== taskId));

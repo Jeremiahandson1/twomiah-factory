@@ -64,3 +64,60 @@ const DARK: LeadPalette = {
 export function useLeadPalette(): LeadPalette {
   return useIsDark() ? DARK : LIGHT
 }
+
+// ---------------------------------------------------------------- the source chip
+//
+// A platform keeps its brand colour, on a 12% wash of itself, on whichever card it happens to sit on.
+// That wash is TRANSPARENT, so the colour behind it decides everything — which is what the first attempt
+// at this got wrong: it darkened the ink for a wash composited over white, and in dark mode the chip
+// went dark too (1.99:1, worse than the 2.56:1 it was meant to fix). (Salon T29 M1)
+//
+// So the surface is an argument, the wash is composited for real, and the ink moves in whichever
+// direction actually gains contrast against the result. Pure, so it can be measured rather than argued
+// about — scripts/check-contrast-measured.ts runs it over every platform colour and both palettes.
+
+// Three-digit hex counts: the LIGHT palette's surface is "#fff", and a parser that only accepted six
+// digits read it as BLACK — so the "light" chip was being composited over near-black and the ink moved
+// the wrong way. Caught by check-contrast-measured before it shipped, which is the whole point of it.
+const toRgb = (hex: string): [number, number, number] => {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex || ''))
+  if (!m) return [0, 0, 0]
+  const h = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1]
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+}
+const toHex = (rgb: number[]) => '#' + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')
+const luminance = (rgb: number[]) => {
+  const [r, g, b] = rgb.map((v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4) })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+/** WCAG contrast ratio between two opaque colours. */
+export const contrastRatio = (a: string, b: string): number => {
+  const [hi, lo] = [luminance(toRgb(a)), luminance(toRgb(b))].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+/** `fg` at `alpha` over `bg` — what the eye actually receives from a translucent wash. */
+export const composite = (fg: string, alpha: number, bg: string): string => {
+  const f = toRgb(fg), b = toRgb(bg)
+  return toHex(f.map((v, i) => v * alpha + b[i] * (1 - alpha)))
+}
+
+/** The 12% wash the chip is painted with. Exported so the measurement uses the same number the UI does. */
+export const CHIP_TINT_ALPHA = 0.12
+
+/**
+ * A readable chip for a platform's brand colour on this card. Returns an opaque background (already
+ * composited) and an ink that clears AA against it.
+ */
+export function chipColors(brand: string, surface: string): { bg: string; text: string } {
+  const bg = composite(brand, CHIP_TINT_ALPHA, surface)
+  if (contrastRatio(brand, bg) >= 4.5) return { bg, text: brand }
+  // Move AWAY from the background: darker ink on a light chip, lighter ink on a dark one.
+  const towardsWhite = luminance(toRgb(bg)) < 0.5
+  let ink: number[] = toRgb(brand)
+  for (let i = 0; i < 24; i++) {
+    ink = towardsWhite ? ink.map((v) => v + (255 - v) * 0.18) : ink.map((v) => v * 0.85)
+    if (contrastRatio(toHex(ink), bg) >= 4.5) return { bg, text: toHex(ink) }
+  }
+  // Nothing in the brand's own range works — fall back to plain black or white, whichever reads.
+  return { bg, text: contrastRatio('#ffffff', bg) >= contrastRatio('#000000', bg) ? '#ffffff' : '#000000' }
+}

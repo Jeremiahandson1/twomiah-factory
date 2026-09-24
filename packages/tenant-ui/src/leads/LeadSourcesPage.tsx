@@ -7,10 +7,12 @@ import { Settings, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Check, Mail, Web
 import type { LeadsApi, LeadsConfig, LeadsToast, LeadSourceRow, LeadPlatform } from './types'
 import { TRADES_LEAD_PLATFORMS } from './types'
 import { useLeadPalette } from './theme'
+import { useConfirm } from '../ui/ConfirmProvider'
 
 const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallback
 
 export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?: LeadsToast; config?: LeadsConfig }) {
+  const confirm = useConfirm()
   const c = useLeadPalette()
   const platforms: LeadPlatform[] = config?.platforms || TRADES_LEAD_PLATFORMS
   const subtitle = config?.sourcesSubtitle || 'Connect your lead platforms to receive leads automatically'
@@ -42,8 +44,8 @@ export function LeadSourcesPage({ api, toast, config }: { api: LeadsApi; toast?:
     toast?.success(`${info?.label || platform} connected`)
   }, 'Failed to add lead source')
   const toggleSource = (source: LeadSourceRow) => act(`toggle:${source.id}`, () => api.put(`/api/leads/sources/${source.id}`, { enabled: !source.enabled }), 'Failed to update lead source')
-  const deleteSource = (source: LeadSourceRow) => {
-    if (!window.confirm(`Remove ${source.label}? Leads already received are kept.`)) return
+  const deleteSource = async (source: LeadSourceRow) => {
+    if (!(await confirm(`Remove ${source.label}? Leads already received are kept.`, { title: 'Remove lead source', confirmText: 'Remove it' }))) return
     return act(`delete:${source.id}`, () => api.delete('/api/leads/sources', source.id), 'Failed to remove lead source')
   }
   const copyToClipboard = async (text: string, field: string) => {

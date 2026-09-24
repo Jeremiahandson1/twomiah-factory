@@ -5,6 +5,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Edit, Trash2, Users } from 'lucide-react'
 import { DataTable, PageHeader, Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
+import { useAuth } from '../auth/AuthContext'
+import { meetsRole } from '../shell/types'
 import type { Pagination } from '../invoicing/ui'
 import { ROLE_LABELS } from '../shell/types'
 import type { PeopleApi, PeopleToast, TeamConfig } from './types'
@@ -13,6 +15,10 @@ interface Member { id: string; name: string; email?: string | null; phone?: stri
 const EMPTY = { name: '', email: '', phone: '', role: '', department: '', hourlyRate: '' }
 
 export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: PeopleToast; config?: TeamConfig }) {
+  // team:create / team:update are admin-and-up on the server, so the page has to agree: a manager was
+  // shown "Add Member" and got a 403 for pressing it. (Salon T29 L1)
+  const { user: signedIn } = useAuth()
+  const canManageRoster = meetsRole((signedIn as any)?.role, 'admin')
   const roleLabel = config?.roleLabel || 'Job Title / Trade'
   const rolePlaceholder = config?.rolePlaceholder || 'e.g. Lead Technician'
   const [data, setData] = useState<Member[]>([])
@@ -92,7 +98,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
 
   return (
     <div data-testid="team-page-shared">
-      <PageHeader title="Team" subtitle="The people you schedule and pay. Login access is set under Settings → Users." action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Member</Button>} />
+      <PageHeader title="Team" subtitle="The people you schedule and pay. Login access is set under Settings → Users." action={canManageRoster ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Member</Button> : undefined} />
       {fromLogins && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
           <Users className="w-4 h-4 mt-0.5 shrink-0" />

@@ -5,6 +5,7 @@ import {
   DollarSign, User, Clock, Loader2, ChevronRight
 } from 'lucide-react';
 import type { RecurringPageProps } from './types';
+import { useConfirm } from '../ui/ConfirmProvider'
 
 // UTC-safe date formatting (carried from templates' utils/date).
 function formatDate(value?: string | number | Date | null): string {
@@ -41,6 +42,7 @@ interface RecurringStats {
 }
 
 export default function RecurringInvoiceList({ api }: RecurringPageProps) {
+  const confirm = useConfirm()
   const navigate = useNavigate();
   const [recurring, setRecurring] = useState<Record<string, unknown>[]>([]);
   const [stats, setStats] = useState<RecurringStats | null>(null);
@@ -89,7 +91,7 @@ export default function RecurringInvoiceList({ api }: RecurringPageProps) {
   };
 
   const handleCancel = async (id: string) => {
-    if (!confirm('Cancel this recurring invoice? This cannot be undone.')) return;
+    if (!(await confirm('Cancel this recurring invoice? This cannot be undone.', { title: 'Cancel recurring invoice', confirmText: 'Cancel it' }))) return;
     try {
       await api.post(`/api/recurring/${id}/cancel`);
       loadData();

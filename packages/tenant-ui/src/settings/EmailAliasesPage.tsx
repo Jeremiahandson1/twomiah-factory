@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useConfirm } from '../ui/ConfirmProvider'
 
 // First-class settings page vendored into each tenant.
 // Add / rename / remove / toggle routing mode for email aliases on the
@@ -29,6 +30,7 @@ function authHeaders(): Record<string, string> {
 }
 
 export function EmailAliasesPage(): React.ReactElement {
+  const confirm = useConfirm()
   const [aliases, setAliases] = useState<Alias[]>([])
   const [company, setCompany] = useState<CompanyInfo>({})
   const [loading, setLoading] = useState(true)
@@ -88,7 +90,7 @@ export function EmailAliasesPage(): React.ReactElement {
   }
 
   async function deleteAlias(id: string) {
-    if (!confirm('Delete this alias? Forwarding will stop immediately.')) return
+    if (!(await confirm('Delete this alias? Forwarding will stop immediately.', { title: 'Delete alias', confirmText: 'Delete it' }))) return
     setError('')
     try {
       const res = await fetch('/api/email-aliases/' + id, { method: 'DELETE', headers: authHeaders() })
@@ -106,12 +108,12 @@ export function EmailAliasesPage(): React.ReactElement {
 
       {!domain && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4 mb-6">
-          <div className="font-semibold text-yellow-900 mb-1">Connect a domain first</div>
-          <div className="text-sm text-yellow-800">Email aliases require a domain. Go to <strong>Settings → Email Domain</strong> to connect one.</div>
+          <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">Connect a domain first</div>
+          <div className="text-sm text-yellow-800 dark:text-yellow-200">Email aliases require a domain. Go to <strong>Settings → Email Domain</strong> to connect one.</div>
         </div>
       )}
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
 
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 

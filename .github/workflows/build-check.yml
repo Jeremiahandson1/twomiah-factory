@@ -1671,3 +1671,25 @@ jobs:
           bun-version: latest
       - name: "No native dialogs"
         run: bun run scripts/check-no-native-dialogs.ts
+
+  contrast-measured:
+    name: "Contrast measured, not assumed"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Contrast measured"
+        run: bun run scripts/check-contrast-measured.ts
+
+  roster-stylist-visible:
+    name: "A roster stylist has a name on every screen"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Roster stylist visible"
+        run: bun run scripts/check-roster-stylist-visible.ts

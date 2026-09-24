@@ -15,7 +15,7 @@
 // of booking actions where a restructured async flow could lose an appointment. Anything more clever
 // would have been a bigger change than the defect.
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { ConfirmModal } from '../invoicing/ui'
+import { Button, ConfirmModal, Modal, inputCls } from '../invoicing/ui'
 
 export interface ConfirmOptions {
   /** Dialog heading. Default "Are you sure?". */
@@ -30,7 +30,16 @@ type Ask = (message: string, options?: ConfirmOptions) => Promise<boolean>
 
 const ConfirmContext = createContext<Ask | null>(null)
 
+/**
+ * Ask for a line of TEXT. Same contract as window.prompt — the answer, or null if they backed out —
+ * so a call site keeps its null check and only gains an await. (Salon T29 L3)
+ */
+export interface PromptOptions { title?: string; confirmText?: string; placeholder?: string; initialValue?: string }
+type AskText = (message: string, options?: PromptOptions) => Promise<string | null>
+const PromptContext = createContext<AskText | null>(null)
+
 interface Pending extends ConfirmOptions { message: string; resolve: (answer: boolean) => void }
+interface PendingText extends PromptOptions { message: string; resolve: (answer: string | null) => void }
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const [pending, setPending] = useState<Pending | null>(null)
@@ -44,10 +53,22 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     setPending((p) => { p?.resolve(value); return null })
   }, [])
 
+  const [asking, setAsking] = useState<PendingText | null>(null)
+  const [draft, setDraft] = useState('')
+  const ask = useCallback<AskText>((message, options) => new Promise<string | null>((resolve) => {
+    setDraft(options?.initialValue || '')
+    setAsking({ message, resolve, ...(options || {}) })
+  }), [])
+  const answerText = useCallback((value: string | null) => {
+    setAsking((p) => { p?.resolve(value); return null })
+  }, [])
+
   const value = useMemo(() => confirm, [confirm])
+  const textValue = useMemo(() => ask, [ask])
 
   return (
     <ConfirmContext.Provider value={value}>
+      <PromptContext.Provider value={textValue}>
       {children}
       <ConfirmModal
         isOpen={!!pending}
@@ -58,6 +79,22 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
         confirmText={pending?.confirmText || 'Confirm'}
         danger={pending?.danger !== false}
       />
+      <Modal isOpen={!!asking} onClose={() => answerText(null)} title={asking?.title || 'Enter a value'} size="sm">
+        <label className="block text-sm text-gray-700 dark:text-slate-300 mb-2">{asking?.message}</label>
+        <input
+          className={inputCls}
+          autoFocus
+          value={draft}
+          placeholder={asking?.placeholder || ''}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') answerText(draft) }}
+        />
+        <div className="flex justify-end gap-3 mt-6">
+          <Button variant="secondary" onClick={() => answerText(null)}>Cancel</Button>
+          <Button onClick={() => answerText(draft)}>{asking?.confirmText || 'Save'}</Button>
+        </div>
+      </Modal>
+      </PromptContext.Provider>
     </ConfirmContext.Provider>
   )
 }
@@ -70,4 +107,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 export function useConfirm(): Ask {
   const ctx = useContext(ConfirmContext)
   return ctx || (async (message: string) => window.confirm(message))
+}
+
+/**
+ * Ask for a line of text. Falls back to window.prompt with no provider mounted, for the same reason
+ * useConfirm does: a screen that silently proceeds is worse than an ugly box.
+ */
+export function usePrompt(): AskText {
+  const ctx = useContext(PromptContext)
+  return ctx || (async (message: string, options?: PromptOptions) => window.prompt(message, options?.initialValue || ''))
 }

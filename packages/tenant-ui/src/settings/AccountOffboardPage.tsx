@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useConfirm } from '../ui/ConfirmProvider'
 
 // One-click Leave Twomiah + 30-day grace countdown + reactivate.
 // Calls are proxied through the tenant backend; X-Factory-Key auth happens
@@ -20,6 +21,7 @@ function authHeaders(): Record<string, string> {
 }
 
 export function AccountOffboardPage(): React.ReactElement {
+  const confirm = useConfirm()
   const [status, setStatus] = useState<OffboardStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [confirming, setConfirming] = useState(false)
@@ -56,7 +58,7 @@ export function AccountOffboardPage(): React.ReactElement {
   }
 
   async function reactivate() {
-    if (!confirm('Reactivate your account? This cancels the offboarding process.')) return
+    if (!(await confirm('Reactivate your account? This cancels the offboarding process.', { title: 'Reactivate account', confirmText: 'Reactivate', danger: false }))) return
     setWorking(true); setError(''); setSuccessMsg('')
     try {
       const res = await fetch('/api/account/reactivate', { method: 'POST', headers: authHeaders() })
@@ -78,19 +80,19 @@ export function AccountOffboardPage(): React.ReactElement {
       <h1 className="text-2xl font-bold mb-2">Leave Twomiah</h1>
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">If Twomiah isn't working for your business, we'll offboard you cleanly. You keep your data, you keep your domain, and the door stays open if you ever want to come back.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
-      {successMsg && <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4 text-sm text-green-700">{successMsg}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
+      {successMsg && <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700/50 rounded-md p-3 mb-4 text-sm text-green-700 dark:text-green-200">{successMsg}</div>}
 
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && isOffboarding && graceEnd && (
         <div className="border border-yellow-300 dark:border-yellow-700/50 rounded-md p-5 bg-yellow-50 dark:bg-yellow-900/20 mb-6">
-          <div className="font-semibold text-yellow-900 mb-2">Offboarding in progress</div>
-          <p className="text-sm text-yellow-900 mb-3">
+          <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-2">Offboarding in progress</div>
+          <p className="text-sm text-yellow-900 dark:text-yellow-200 mb-3">
             Your 30-day grace period {graceExpired ? 'has ended' : 'ends on'} <strong>{graceEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
             {!graceExpired && <> — <strong>{daysRemaining} day{daysRemaining === 1 ? '' : 's'} remaining</strong>.</>}
           </p>
-          <ul className="text-sm text-yellow-900 space-y-1 mb-4 pl-5 list-disc">
+          <ul className="text-sm text-yellow-900 dark:text-yellow-200 space-y-1 mb-4 pl-5 list-disc">
             <li>Your subscription is cancelled at the end of the current billing period.</li>
             {status?.domainRegistrar === 'namecheap' && <li>Your domain has been unlocked. Check your email for the EPP transfer code.</li>}
             <li>Your CRM, website, and data stay live through the grace period.</li>
@@ -121,8 +123,8 @@ export function AccountOffboardPage(): React.ReactElement {
 
       {!loading && !isOffboarding && confirming && (
         <div className="border border-red-300 rounded-md p-5 bg-red-50">
-          <h2 className="font-semibold text-red-900 mb-2">Confirm offboarding</h2>
-          <p className="text-sm text-red-900 mb-4">Clicking below triggers: subscription cancellation at period-end, domain unlock (if we bought it for you), and starts the 30-day grace window. You can reactivate any time until the grace ends.</p>
+          <h2 className="font-semibold text-red-900 dark:text-red-200 mb-2">Confirm offboarding</h2>
+          <p className="text-sm text-red-900 dark:text-red-200 mb-4">Clicking below triggers: subscription cancellation at period-end, domain unlock (if we bought it for you), and starts the 30-day grace window. You can reactivate any time until the grace ends.</p>
           <div className="flex gap-2">
             <button onClick={startOffboard} disabled={working} className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-md text-sm font-semibold">
               {working ? 'Working…' : 'Yes, offboard my account'}

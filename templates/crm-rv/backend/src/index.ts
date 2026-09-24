@@ -519,7 +519,13 @@ if (hasFrontendBuild) {
         const ext = path.extname(filePath).toLowerCase()
         const mime = MIME_TYPES[ext] || 'application/octet-stream'
         const body = fs.readFileSync(filePath)
-        return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': 'public, max-age=86400' })
+        // Vite's own output is content-hashed (/assets/index-<hash>.js), so it can be cached hard: the
+        // name changes whenever the bytes do. Everything else — booking-widget.js above all, which is
+        // embedded on the customer's own website — keeps its name across deploys, so a long cache means
+        // a fix cannot reach anybody for a day. That is exactly what happened to the widget. (T29 L4)
+        const hashed = /^\/assets\//.test(c.req.path) && /\.[A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpg|svg)$/.test(c.req.path)
+        const cache = hashed ? 'public, max-age=31536000, immutable' : 'public, max-age=300, must-revalidate'
+        return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': cache })
       }
     } catch {}
     return next()

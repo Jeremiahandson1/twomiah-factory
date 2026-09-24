@@ -17,11 +17,22 @@ const ROOT = new URL('../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, 
 let failed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
 
+// The other templates' OWN pages still call alert()/confirm(); they inherit the fixed shared UI but have
+// not had their own screens converted. Listed, not checked — written-down debt.
 const NOT_YET_CONVERTED = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-vet', 'crm-roof', 'crm-store', 'crm-dispensary', 'crm-homecare']
 
-const SRC = 'templates/crm-salon/frontend/src'
-// ToastContext owns the window.alert shim — it is the one file allowed to name it.
-const EXEMPT = ['contexts/ToastContext.tsx']
+// BOTH: the salon's own pages, and the shared UI vendored into it as ./shared. The first version of this
+// guard read only the first of those, so the six dialogs T29 found — Lead Sources, Delete alias,
+// Disconnect Stripe, Disconnect QuickBooks, Remove Twilio, Revoke access — were all invisible to it. They
+// are in packages/tenant-ui, and they ship to every vertical, not just this one.
+const SOURCES = ['templates/crm-salon/frontend/src', 'packages/tenant-ui/src']
+
+const EXEMPT = [
+  // owns the window.alert shim — the one file allowed to name it
+  'contexts/ToastContext.tsx',
+  // provides useConfirm, and falls back to window.confirm when no provider is mounted
+  'ui/ConfirmProvider.tsx',
+]
 
 const walk = (dir: string): string[] => {
   let out: string[] = []
@@ -34,7 +45,9 @@ const walk = (dir: string): string[] => {
 }
 
 let files: string[] = []
-try { files = walk(SRC) } catch { fail(SRC + ' is missing') }
+for (const src of SOURCES) {
+  try { files = files.concat(walk(src)) } catch { fail(src + ' is missing') }
+}
 
 for (const rel of files) {
   if (EXEMPT.some((e) => rel.endsWith(e))) continue
@@ -42,9 +55,15 @@ for (const rel of files) {
   src.split(/\r?\n/).forEach((line, i) => {
     if (/^\s*(\/\/|\*|\/\*)/.test(line)) return          // a comment naming it is documentation
     if (/\bawait confirm\(/.test(line)) return            // the app's own, via useConfirm()
-    const hit = /\bwindow\.(alert|confirm|prompt)\s*\(/.exec(line) || /(^|[^.\w])(alert|confirm|prompt)\s*\(/.exec(line)
+    // In the salon's own pages every native dialog is banned. In the shared package the ban is on the
+    // ones a person SEES as a browser box and cannot dismiss with the app's own UI — confirm and prompt.
+    // alert() there still reaches a toast through the salon's shim, and several of those pages have no
+    // toast of their own to call instead; they are listed in NOT_YET_CONVERTED rather than pretended away.
+    const shared = rel.startsWith('packages/')
+    const kinds = shared ? '(confirm|prompt)' : '(alert|confirm|prompt)'
+    const hit = new RegExp('\\bwindow\\.' + kinds + '\\s*\\(').exec(line) || new RegExp('(^|[^.\\w])' + kinds + '\\s*\\(').exec(line)
     if (!hit) return
-    const which = hit[1] === 'alert' || hit[1] === 'confirm' || hit[1] === 'prompt' ? hit[1] : hit[2]
+    const which = ['alert', 'confirm', 'prompt'].includes(hit[1]) ? hit[1] : hit[2]
     fail(`${rel}:${i + 1} calls ${which}() — use toast.error for a failure, or useConfirm() to ask: ${line.trim().slice(0, 90)}`)
   })
 }

@@ -33,6 +33,8 @@ export interface AuthDeps {
     normalizeRole: (role: string) => string
     hasPermission: (role: string, permission: string, extra?: string[]) => boolean
     ROLE_HIERARCHY: string[]
+    /** This vertical's word for a rung, for anything a person reads. Absent → the id is used. */
+    roleLabel?: (role: string) => string
   }
   emailService: { sendPasswordReset: (to: string, data: Record<string, unknown>) => Promise<unknown> }
   logger: { info: (msg: string, meta?: any) => void; warn: (msg: string, meta?: any) => void; error: (msg: string, meta?: any) => void }
@@ -73,7 +75,11 @@ export function createAuthRoutes(deps: AuthDeps) {
     visionUrl: options.visionUrl ? options.visionUrl() : null,
     vertical: options.vertical,
   })
-  const userPayload = (u: any, role: string) => ({ id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, phone: u.phone, role, avatar: u.avatar })
+  // roleLabel: the vertical's own word for this rung. The id stays "field" — every gate in the fleet is
+  // written against it — but /api/auth/me was telling a salon stylist their role was "field", which is
+  // scaffolding wording from the trades. Anything a PERSON reads should use roleLabel. (Salon T29 L5)
+  const roleLabelOf = (role: string) => (permissions as any)?.roleLabel?.(role) ?? role
+  const userPayload = (u: any, role: string) => ({ id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, phone: u.phone, role, roleLabel: roleLabelOf(role), avatar: u.avatar })
 
   async function storeRefreshToken(userId: string, token: string, extra: Record<string, any> = {}) {
     const [row] = await db.select({ refreshToken: user.refreshToken }).from(user).where(eq(user.id, userId)).limit(1)

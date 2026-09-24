@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AgreementsApi, AgreementsPageProps } from './types';
+import { useConfirm } from '../ui/ConfirmProvider'
 
 // UTC-safe date formatting (carried from templates' utils/date). Date-only values stored as UTC midnight
 // are parsed at LOCAL midnight so viewers west of UTC don't shift a day back.
@@ -129,6 +130,7 @@ interface AgreementFormModalProps {
  * Service Agreements / Memberships Page
  */
 export default function AgreementsPage({ api, config }: AgreementsPageProps) {
+  const confirm = useConfirm()
   const [tab, setTab] = useState<string>('agreements'); // agreements, plans, visits
   const [agreements, setAgreements] = useState<Agreement[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -375,7 +377,7 @@ export default function AgreementsPage({ api, config }: AgreementsPageProps) {
   );
 
   async function handleRenew(agreementId: string) {
-    if (!confirm('Renew this agreement for another term?')) return;
+    if (!(await confirm('Renew this agreement for another term?', { title: 'Renew agreement', confirmText: 'Renew it', danger: false }))) return;
     try {
       await api.post(`/api/agreements/${agreementId}/renew`);
       loadData();

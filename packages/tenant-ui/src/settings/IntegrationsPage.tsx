@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import type { SettingsApi, IntegrationsConfig, LeadSourceGuide } from './integrationsTypes'
 import { leadSourceGuides } from '../leads/types'
+import { useConfirm } from '../ui/ConfirmProvider'
 
 // The guides are the SAME vocabulary the Lead Sources page offers (one list per vertical — the template derives
 // config.leadSources from its leadsConfig). Before: a second, hand-written list here pointed users at a
@@ -34,6 +35,7 @@ const EMPTY: Status = {
 const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallback
 
 export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: IntegrationsConfig }) {
+  const confirm = useConfirm()
   const copy = { quickbooks: 'Sync invoices, expenses, and customers with your books.', sms: 'Send text updates to customers and crew members.', email: 'Send invoices, quotes, and reminders via email.', intro: 'Connect your accounts, set up lead sources, and configure your domain.', ...(config?.copy || {}) }
   const leadSources = config?.leadSources || DEFAULT_LEAD_SOURCES
   const [loading, setLoading] = useState(true)
@@ -67,17 +69,17 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
   }
 
   const qbConnect = () => run('qb-connect', async () => { const d = await api.get('/api/integrations/quickbooks/auth-url'); const url = d?.authUrl || d?.url; if (url) window.location.href = url; else throw new Error('QuickBooks did not return a sign-in link') }, 'Failed to start QuickBooks connection')
-  const qbDisconnect = () => { if (!confirm('Disconnect QuickBooks? Your data will stop syncing.')) return; run('quickbooks', async () => { await api.post('/api/integrations/quickbooks/disconnect'); setStatus((s) => ({ ...s, quickbooks: { ...EMPTY.quickbooks } })); flash('QuickBooks disconnected') }, 'Failed to disconnect QuickBooks') }
+  const qbDisconnect = async () => { if (!(await confirm('Disconnect QuickBooks? Your data will stop syncing.', { title: 'Disconnect QuickBooks', confirmText: 'Disconnect' }))) return; run('quickbooks', async () => { await api.post('/api/integrations/quickbooks/disconnect'); setStatus((s) => ({ ...s, quickbooks: { ...EMPTY.quickbooks } })); flash('QuickBooks disconnected') }, 'Failed to disconnect QuickBooks') }
   const qbSync = () => run('sync', async () => { await api.post('/api/integrations/quickbooks/sync'); flash('Sync started'); load() }, 'Sync failed')
   const qbAutoSync = () => run('autosync', async () => { const next = !status.quickbooks.syncEnabled; await api.post('/api/quickbooks/auto-sync', { enabled: next }); setStatus((s) => ({ ...s, quickbooks: { ...s.quickbooks, syncEnabled: next } })); flash(`Auto-sync ${next ? 'enabled' : 'disabled'}`) }, 'Failed to update auto-sync')
   const stripeConnect = () => run('stripe-connect', async () => { const d = await api.get('/api/integrations/stripe/connect-url'); if (d?.connectUrl) window.location.href = d.connectUrl; else throw new Error('Stripe did not return an onboarding link') }, 'Failed to start Stripe connection')
-  const stripeDisconnect = () => { if (!confirm("Disconnect Stripe? You won't be able to accept payments.")) return; run('stripe', async () => { await api.post('/api/integrations/stripe/disconnect'); setStatus((s) => ({ ...s, stripe: { ...EMPTY.stripe } })); flash('Stripe disconnected') }, 'Failed to disconnect Stripe') }
+  const stripeDisconnect = async () => { if (!(await confirm("Disconnect Stripe? You won't be able to accept payments.", { title: 'Disconnect Stripe', confirmText: 'Disconnect' }))) return; run('stripe', async () => { await api.post('/api/integrations/stripe/disconnect'); setStatus((s) => ({ ...s, stripe: { ...EMPTY.stripe } })); flash('Stripe disconnected') }, 'Failed to disconnect Stripe') }
   const toggle = (service: 'sms' | 'email') => run(service, async () => { const next = !status[service].enabled; await api.post(`/api/integrations/${service}/toggle`, { enabled: next }); setStatus((s) => ({ ...s, [service]: { ...s[service], enabled: next } })); flash(`${service === 'sms' ? 'Texting' : 'Email'} ${next ? 'enabled' : 'disabled'}`) }, `Failed to update ${service}`)
   const twilioSave = () => {
     if (!twilioForm.accountSid || !twilioForm.authToken || !twilioForm.phoneNumber) { fail('All Twilio fields are required'); return }
     run('twilio', async () => { const d = await api.post('/api/integrations/twilio/configure', twilioForm); setStatus((s) => ({ ...s, twilio: { configured: true, ownAccount: true, phoneNumber: d?.phoneNumber || twilioForm.phoneNumber } })); setTwilioForm((f) => ({ ...f, accountSid: '', authToken: '' })); flash('Twilio configured') }, 'Failed to save Twilio settings')
   }
-  const twilioDisconnect = () => { if (!confirm('Remove your Twilio account? Texting falls back to the platform number if one is configured.')) return; run('twilio-off', async () => { await api.post('/api/integrations/twilio/disconnect'); await load(); flash('Twilio account removed') }, 'Failed to remove Twilio account') }
+  const twilioDisconnect = async () => { if (!(await confirm('Remove your Twilio account? Texting falls back to the platform number if one is configured.', { title: 'Remove Twilio account', confirmText: 'Remove it' }))) return; run('twilio-off', async () => { await api.post('/api/integrations/twilio/disconnect'); await load(); flash('Twilio account removed') }, 'Failed to remove Twilio account') }
   const testSms = () => { if (!testPhone.trim()) { fail('Enter a phone number'); return } run('testsms', async () => { await api.post('/api/sms/test', { to: testPhone }); setTestPhone(''); flash('Test text sent') }, 'Failed to send the test text') }
   const copyWebhookUrl = async () => { try { await navigator.clipboard.writeText(`${window.location.origin}/api/sms/webhook/incoming`); flash('Webhook URL copied') } catch { fail('Could not copy — the URL is shown below the button') } }
 
@@ -156,7 +158,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
               ) : (
                 <div className="mt-4 space-y-3">
                   {status.twilio.configured && <p className="text-sm text-gray-600 dark:text-slate-300">Texting currently uses the platform number{status.twilio.phoneNumber ? ` ${status.twilio.phoneNumber}` : ''}. Add your own Twilio account to text from your number.</p>}
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Don't have Twilio? <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" className="text-orange-600 dark:text-orange-300 hover:underline">Create a free account</a></p>
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Don't have Twilio? <a href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener noreferrer" className="text-orange-700 dark:text-orange-300 hover:underline">Create a free account</a></p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div><label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Account SID</label><input type="text" value={twilioForm.accountSid} onChange={(e) => setTwilioForm((f) => ({ ...f, accountSid: e.target.value }))} placeholder="ACxxxxxxxxxx" className="w-full px-3 py-2 text-sm border dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white" /></div>
                     <div><label className="block text-xs font-medium text-gray-600 dark:text-slate-400 mb-1">Auth Token</label>

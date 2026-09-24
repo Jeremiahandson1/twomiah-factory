@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { BookOpen, Plus, Search, Edit2, Copy, Trash2, Loader2, DollarSign, Clock, Package, Star, Percent, FolderTree } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg, selectCls } from '../invoicing/ui'
 import type { PricebookApi, PricebookToast, PricebookConfig, TierPreset } from './types'
+import { usePrompt } from '../ui/ConfirmProvider'
 
 type Item = Record<string, any>
 type Category = { id: string; name: string; _count?: { items?: number } }
@@ -171,6 +172,7 @@ function ItemModal({ api, toast, item, categories, itemWord, onClose, onSaved }:
 }
 
 function CategoriesModal({ api, toast, categories, onClose, onChanged }: { api: PricebookApi; toast: PricebookToast; categories: Category[]; onClose: () => void; onChanged: () => void }) {
+  const ask = usePrompt()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const add = async () => {
@@ -179,7 +181,7 @@ function CategoriesModal({ api, toast, categories, onClose, onChanged }: { api: 
     try { await api.post('/api/pricebook/categories', { name: name.trim() }); setName(''); toast.success('Category added'); onChanged() } catch (e) { toast.error(errMsg(e, 'Failed to add the category')) } finally { setSaving(false) }
   }
   const rename = async (c: Category) => {
-    const next = window.prompt('Rename category', c.name)?.trim()
+    const next = (await ask('Rename category', { title: 'Rename category', initialValue: c.name, confirmText: 'Rename' }))?.trim()
     if (!next || next === c.name) return
     try { await api.put(`/api/pricebook/categories/${c.id}`, { name: next }); onChanged() } catch (e) { toast.error(errMsg(e, 'Failed to rename')) }
   }

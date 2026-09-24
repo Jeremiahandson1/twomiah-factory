@@ -69,15 +69,15 @@ export function EmailDomainPage(): React.ReactElement {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-2">Email Domain</h1>
-      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Authenticate your domain with SendGrid so outbound email from your CRM sends as <code className="bg-gray-100 px-1 rounded">support@{status.domain || 'yourdomain.com'}</code> with proper SPF/DKIM.</p>
+      <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Authenticate your domain with SendGrid so outbound email from your CRM sends as <code className="bg-gray-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200 px-1 rounded">support@{status.domain || 'yourdomain.com'}</code> with proper SPF/DKIM.</p>
 
-      {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/50 rounded-md p-3 mb-4 text-sm text-red-700 dark:text-red-200">{error}</div>}
 
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && status.status === 'unconfigured' && (
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4">
-          <div className="font-semibold text-yellow-900 mb-1">No domain connected yet</div>
+          <div className="font-semibold text-yellow-900 dark:text-yellow-200 mb-1">No domain connected yet</div>
           <div className="text-sm text-yellow-800 dark:text-yellow-200">Your CRM is running on a temporary URL. Contact support to connect your domain, or re-deploy the tenant with a domain set.</div>
         </div>
       )}
@@ -87,7 +87,7 @@ export function EmailDomainPage(): React.ReactElement {
           <div className={'rounded-md p-4 mb-6 border ' + (status.status === 'verified' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/50' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/50')}>
             <div className="flex items-center justify-between">
               <div>
-                <div className={'font-semibold mb-1 ' + (status.status === 'verified' ? 'text-green-900' : 'text-yellow-900')}>
+                <div className={'font-semibold mb-1 ' + (status.status === 'verified' ? 'text-green-900 dark:text-green-200' : 'text-yellow-900 dark:text-yellow-200')}>
                   {status.status === 'verified' ? '✓ Verified' : '⏳ Pending verification'}
                 </div>
                 <div className={'text-sm ' + (status.status === 'verified' ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200')}>

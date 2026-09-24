@@ -92,9 +92,23 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     const [existing] = await db.select({ id: t.reviewRequest.id }).from(t.reviewRequest).where(and(eq(t.reviewRequest.jobId, jobId), eq(t.reviewRequest.companyId, jobRow.companyId))).limit(1)
     if (existing) return null
     const [request] = await db.insert(t.reviewRequest).values({ companyId: jobRow.companyId, jobId, contactId: jobRow.contactId, channel: settings.reviewChannel || 'both', status: 'pending', reviewLink: linkFor(settings) }).returning()
+    sendNowIfImmediate(request.id, settings.reviewRequestDelay)
     console.log('[Reviews] Scheduled review request for job', jobId)
     return request
   }
+  /**
+   * Send a just-created request straight away when the salon asked for no delay.
+   *
+   * Deliberately fire-and-forget: the row is already written, so nothing is lost if the send fails (it is
+   * recorded as failed and the sweeper leaves it alone), and finishing a visit must not block on an email
+   * or fail because one bounced. Without this, "delay 0" meant "within the hour, if the service has been
+   * up that long". (Salon T29 H1)
+   */
+  function sendNowIfImmediate(requestId: string, delayHours: number) {
+    if (Number(delayHours || 0) > 0) return
+    sendFollowUp(requestId).catch((e: any) => console.error('[Reviews] Immediate send failed', requestId, e?.message || e))
+  }
+
   /** Visit completion (appointments / service records) → one pending request per client per 30 days. (SALON-H2) */
   async function scheduleReviewRequestForVisit({ companyId, contactId }: { companyId: string; contactId: string }) {
     const settings = await getReviewSettings(companyId)
@@ -104,6 +118,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
       .where(and(eq(t.reviewRequest.companyId, companyId), eq(t.reviewRequest.contactId, contactId), gte(t.reviewRequest.createdAt, since))).limit(1)
     if (recent.length) return null
     const [request] = await db.insert(t.reviewRequest).values({ companyId, contactId, jobId: null, channel: settings.reviewChannel || 'both', status: 'pending', reviewLink: linkFor(settings) }).returning()
+    sendNowIfImmediate(request.id, settings.reviewRequestDelay)
     console.log('[Reviews] Scheduled review request for visit — contact', contactId)
     return request
   }
@@ -165,7 +180,7 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     return { requestId: request.id, reviewLink, results }
   }
 
-  /** Hourly: pending requests past the delay → send; sent-but-unclicked past the follow-up delay → follow up. */
+  /** Every few minutes: pending requests past the delay → send; sent-but-unclicked past the follow-up delay → follow up. */
   async function processScheduledRequests() {
     const companies = await db.select().from(t.company)
     const results: any[] = []
@@ -320,11 +335,15 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     return { data: data.map((d: any) => ({ ...d.reviewRequest, contact: d.contact, job: d.job || null })), pagination: { page: pg, limit: lim, total: Number(total), pages: Math.ceil(Number(total) / lim) } }
   }
 
+  // Every five minutes, not every hour. Two indexed queries per company: hourly bought nothing and cost
+  // the feature — a restart (and every deploy is one) put the clock back to zero, so on a tenant that is
+  // deployed more often than hourly the tick could never arrive. (Salon T29 H1)
+  const PROCESS_EVERY_MS = 5 * 60 * 1000
   let processor: any = null
   function startReviewProcessor() {
     if (processor) return
-    console.log('[Reviews] Starting review processor (every 1 hour)')
-    processor = setInterval(() => { processScheduledRequests().catch((err: any) => console.error('[Reviews] Processor error:', err?.message)) }, 60 * 60 * 1000)
+    console.log('[Reviews] Starting review processor (every 5 minutes)')
+    processor = setInterval(() => { processScheduledRequests().catch((err: any) => console.error('[Reviews] Processor error:', err?.message)) }, PROCESS_EVERY_MS)
     setTimeout(() => { processScheduledRequests().catch((err: any) => console.error('[Reviews] Initial run error:', err?.message)) }, 30_000)
   }
 

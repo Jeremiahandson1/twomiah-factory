@@ -11,7 +11,17 @@ import { TrialBanner } from './TrialBanner'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { AppShellProps, NavItem } from './types'
 import { meetsRole } from './types'
+
 import { blockedRoute } from './routeGate'
+
+// Who can open a page that needs a given rung. One sentence per rung, because a single sentence for all
+// of them told a MANAGER that the page was "limited to your salon's managers and owner" — wrong, and
+// confusing to the person reading it. (Salon T29 L2)
+const WHO_CAN_OPEN: Record<string, string> = {
+  owner: 'This page is limited to the account owner',
+  admin: 'This page is limited to admins and the owner',
+  manager: 'This page is limited to managers and above',
+}
 
 // react-router's <NavLink> as JSX fails TS2786 in the typed templates (a second @types/react copy is
 // resolved from the packages path), so links are plain anchors driven by the router hooks.
@@ -98,7 +108,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
     if (roleBlocked) {
       const label = config.nav.find((i) => i.to === roleBlocked)?.label
         || roleBlocked.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-      return { to: roleBlocked, label, reason: 'role' as const }
+      return { to: roleBlocked, label, reason: 'role' as const, needs: roleOf(roleBlocked) }
     }
     const matches = candidates
       .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
@@ -199,9 +209,14 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
         </div>
 
         <div className="border-t dark:border-slate-800 p-3">
-          <RouterLink to="/crm/settings" className={({ isActive }) => linkCls(isActive)}>
-            <Settings className="w-5 h-5" aria-hidden="true" /><span>Settings</span>
-          </RouterLink>
+          {/* Settings is rendered by the shell, not from config.nav, so routeRoles gated the URL and left
+              both links in place — a manager and a stylist could only click through to the blocked
+              screen. Same rule, applied where the link is drawn. (Salon T29 L1) */}
+          {meetsRole(user?.role, config.routeRoles?.['/crm/settings']) && (
+            <RouterLink to="/crm/settings" className={({ isActive }) => linkCls(isActive)}>
+              <Settings className="w-5 h-5" aria-hidden="true" /><span>Settings</span>
+            </RouterLink>
+          )}
         </div>
       </aside>
 
@@ -235,9 +250,11 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
                         <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
                       </div>
                       <div className="py-1">
-                        <RouterLink to="/crm/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700" role="menuitem" onClick={() => setUserMenuOpen(false)}>
-                          <Settings className="w-4 h-4" aria-hidden="true" />Settings
-                        </RouterLink>
+                        {meetsRole(user?.role, config.routeRoles?.['/crm/settings']) && (
+                          <RouterLink to="/crm/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                            <Settings className="w-4 h-4" aria-hidden="true" />Settings
+                          </RouterLink>
+                        )}
                         <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20" role="menuitem">
                           <LogOut className="w-4 h-4" aria-hidden="true" />Sign out
                         </button>
@@ -261,7 +278,7 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
                   {gatedItem.reason === 'role'
-                    ? 'This page is limited to your salon\u2019s managers and owner. Ask them if you need something from it — everything you can use is in the left menu.'
+                    ? `${WHO_CAN_OPEN[String((gatedItem as any).needs || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
                     : 'This module is not included for your business type or plan. Everything you can use is in the left menu.'}
                 </p>
                 <RouterLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</RouterLink>

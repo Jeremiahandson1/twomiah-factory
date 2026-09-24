@@ -6,6 +6,7 @@ import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft,
 import { Button, Field, inputCls, errMsg } from '../invoicing/ui'
 import { DEFAULT_ROLES, ROLE_LABELS } from './types'
 import type { SettingsPageProps, RoleOption } from './types'
+import { useConfirm } from '../ui/ConfirmProvider'
 
 interface CompanyForm { name: string; email: string; phone: string; address: string; city: string; state: string; zip: string; website: string; licenseNumber: string; defaultTaxRate: string; paymentTermsDays: string; logo: string; primaryColor: string }
 /** The colour the portal header and the Stripe payment form fall back to when a tenant has not set one. */
@@ -25,6 +26,7 @@ const SUB_PAGES = [
 const emptyUser = (): NewUserForm => ({ firstName: '', lastName: '', email: '', password: '', role: 'field' })
 
 export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
+  const confirm = useConfirm()
   const navigate = useNavigate()
   const { user, company, updateCompany } = auth
   const roles = config?.roles && config.roles.length ? config.roles : DEFAULT_ROLES
@@ -133,7 +135,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   // Revoking access is a deactivation, not a delete — jobs and quotes point at this user, and the seat
   // count is of ACTIVE users, so this is also what frees a seat.
   const toggleAccess = async (id: string, active: boolean) => {
-    if (active && !confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.')) return
+    if (active && !(await confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.', { title: 'Revoke access', confirmText: 'Revoke it' }))) return
     try { await api.put(`/api/company/users/${id}`, { isActive: !active }); toast.success(active ? 'Access revoked' : 'Access restored'); loadUsers() }
     catch (err) { toast.error(errMsg(err, 'Could not change access')) }
   }

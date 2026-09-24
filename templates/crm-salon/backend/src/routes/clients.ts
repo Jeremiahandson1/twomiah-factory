@@ -125,6 +125,10 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
     rebookIntervalDays: r.rebookIntervalDays,
     stylistFirstName: r.stylistFirstName,
     stylistLastName: r.stylistLastName,
+    // T28 added the join and the SELECT for this and then dropped it here, where the response is
+    // actually built — so Formula History kept printing a visit with no "with …" for a roster stylist
+    // while the query had their name in hand. (Salon T29 M2)
+    stylistMemberName: r.stylistMemberName,
   }))
 
   const apptRows = await db.select({

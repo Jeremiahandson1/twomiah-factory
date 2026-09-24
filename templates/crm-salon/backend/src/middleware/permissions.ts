@@ -5,7 +5,7 @@ import { db } from '../../db/index.ts'
 import { user } from '../../db/schema.ts'
 
 export const {
-  ROLE_HIERARCHY, ROLE_PERMISSIONS, normalizeRole,
+  ROLE_HIERARCHY, ROLE_PERMISSIONS, normalizeRole, roleLabel,
   getExtraPermissions, invalidateExtraPermissions,
   hasPermission, getPermissions,
   requirePermission, requireAnyPermission, requireRole, requireOwnership,

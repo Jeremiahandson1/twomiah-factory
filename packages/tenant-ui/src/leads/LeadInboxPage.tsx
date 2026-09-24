@@ -8,7 +8,7 @@ import { Inbox, Phone, MessageSquare, UserPlus, XCircle, Search, RefreshCw, Cloc
 import { Link } from 'react-router-dom'
 import type { LeadsApi, LeadsConfig, LeadsSubscribe, LeadsToast, LeadRow, LeadPlatform } from './types'
 import { TRADES_LEAD_PLATFORMS } from './types'
-import { useLeadPalette } from './theme'
+import { useLeadPalette, chipColors } from './theme'
 
 interface LeadStats {
   stats: { platform: string; leadsReceived: number; conversionRate: number; avgResponseTimeMin: number | null }[]
@@ -21,31 +21,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   dismissed: { bg: '#f5f5f5', text: '#9e9e9e' },
 }
 const errMsg = (e: unknown, fallback: string) => (e as Error)?.message || fallback
-const hexBg = (hex: string) => hex + '1f' // ~12% tint of the platform colour
-
-/**
- * A platform's brand colour, darkened until it is actually READABLE on the 12% tint of itself that the
- * chip is painted with. The website form's colour measured 2.56:1 against its own tint — and because
- * both are derived from one fixed hex, it was that low in light mode and dark mode alike, with no class
- * to pair. Darkening the ink keeps each platform recognisable while clearing AA; every platform gets it,
- * including any added later. (Salon T28 M7)
- */
-const chipInk = (hex: string): string => {
-  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''))
-  if (!m) return '#374151'
-  const toRgb = (h: string) => [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
-  const lum = (rgb: number[]) => {
-    const [r, g, b] = rgb.map((v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4) })
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
-  }
-  const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
-  const brand = toRgb(m[1])
-  // the tint as it actually paints: 12% of the brand colour over white
-  const tint = brand.map((v) => Math.round(v * 0.12 + 255 * 0.88))
-  let ink = brand
-  for (let i = 0; i < 20 && ratio(ink, tint) < 4.5; i++) ink = ink.map((v) => Math.round(v * 0.85))
-  return '#' + ink.map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('')
-}
+// The chip's colours are worked out against the card it is ACTUALLY on — see chipColors in ./theme.
 
 export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi; toast?: LeadsToast; config?: LeadsConfig; subscribe?: LeadsSubscribe }) {
   const c = useLeadPalette()
@@ -112,7 +88,8 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
   }
   const sourceInfo = (platform: string) => {
     const p = platforms.find((x) => x.value === platform)
-    return p ? { bg: hexBg(p.color), text: chipInk(p.color), label: p.label } : { bg: '#f5f5f5', text: '#4b5563', label: platform ? platform.replace(/_/g, ' ') : 'Other' }
+    const { bg, text } = chipColors(p?.color || '#9e9e9e', c.surface)
+    return { bg, text, label: p ? p.label : (platform ? platform.replace(/_/g, ' ') : 'Other') }
   }
   const statusStyle = (status: string) => STATUS_COLORS[status] || STATUS_COLORS.new
   const btn = (extra: React.CSSProperties = {}): React.CSSProperties => ({ padding: '8px 16px', border: `1px solid ${c.inputBorder}`, borderRadius: 6, background: c.surface, color: c.text, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, ...extra })
