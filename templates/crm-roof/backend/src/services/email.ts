@@ -597,6 +597,12 @@ async function sendRaw(
 ): Promise<{ success: boolean; messageId?: string; dev?: boolean }> {
   const from = { name: fromName || FROM_NAME, address: fromEmail || FROM_EMAIL }
 
+  // Same rule as send(): answering "success" with no provider tells the caller the message went, and it
+  // did not. In development the console line IS the point; in production it is a lie. (Salon T30 L1,
+  // applied here too — roof was skipped on the first pass because its copy is punctuated differently.)
+  if (!transporter && process.env.NODE_ENV === 'production') {
+    throw new Error('SMTP_HOST is not configured')
+  }
   if (!transporter) {
     console.log('EMAIL (dev mode, no provider configured) ->', to, '|', subject)
     return { success: true, dev: true }

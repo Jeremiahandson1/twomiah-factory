@@ -30,6 +30,16 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const navigate = useNavigate()
   const { user, company, updateCompany } = auth
   const roles = config?.roles && config.roles.length ? config.roles : DEFAULT_ROLES
+  /**
+   * What this vertical calls a rung. The table used the fleet-wide ROLE_LABELS ("field" → "Staff") while
+   * the picker directly beside it used config.roles and the API answers roleLabel — three names for one
+   * thing on one page. The vertical's own word wins; `user` is the stored form of `field`.
+   * (Salon T30 L5)
+   */
+  const roleWord = (role?: string) => {
+    const id = role === 'user' ? 'field' : String(role || '')
+    return roles.find((r) => r.value === id)?.label || ROLE_LABELS[id] || ROLE_LABELS[String(role || '')] || role || '—'
+  }
   const showLicense = config?.licenseNumber !== false
   const [tab, setTab] = useState('company')
   const [form, setForm] = useState<CompanyForm>({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30', logo: '', primaryColor: '' })
@@ -247,7 +257,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
               <Field label="Phone"><input value={profile.phone} onChange={setProfile('phone')} className={inputCls} /></Field>
               <div className="p-4 bg-gray-50 rounded-lg dark:bg-slate-800 text-gray-900 dark:text-slate-100 space-y-1">
                 <p><span className="font-medium">Email:</span> {user?.email}</p>
-                <p><span className="font-medium">Role:</span> {ROLE_LABELS[user?.role] || user?.role}</p>
+                <p><span className="font-medium">Role:</span> {roleWord(user?.role)}</p>
                 <p className="text-sm text-gray-500 dark:text-slate-400">Your email address and role are set by an administrator under Settings › Users.</p>
               </div>
               <Button onClick={saveProfile} disabled={saving}>{saving ? 'Saving...' : 'Save Profile'}</Button>
@@ -284,7 +294,7 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                       <tr key={u.id}>
                         <td className="px-4 py-3">{u.firstName} {u.lastName}</td>
                         <td className="px-4 py-3">{u.email}</td>
-                        <td className="px-4 py-3">{ROLE_LABELS[u.role] || u.role}</td>
+                        <td className="px-4 py-3">{roleWord(u.role)}</td>
                         <td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-500 dark:text-slate-400">Inactive</span>}</td>
                         <td className="px-4 py-3 text-right">
                           {u.id === myId ? <span className="text-xs text-gray-500 dark:text-slate-400">You</span> : canManageUsers ? (
