@@ -7,6 +7,8 @@ import type { Pagination } from '../invoicing/ui'
 import { BookingSettingsTab } from './BookingSettingsTab'
 import type { BookableServiceRow, BookingPageProps, BookingRow, BookingSettings } from './types'
 import { resolveBookingConfig } from './types'
+import { useAuth } from '../auth/AuthContext'
+import { meetsRole } from '../shell/types'
 
 type Tab = 'bookings' | 'services' | 'settings' | 'embed'
 const STATUS_FILTERS: Array<[string, string]> = [['', 'All statuses'], ['pending', 'Pending (deposit unpaid)'], ['confirmed', 'Confirmed'], ['completed', 'Completed'], ['no_show', 'No-show'], ['cancelled', 'Cancelled']]
@@ -23,6 +25,11 @@ const whenIn = (iso: string, tz?: string) => {
 export function BookingsPage({ api, toast, config }: BookingPageProps) {
   const cfg = resolveBookingConfig(config)
   const [tab, setTab] = useState<Tab>('bookings')
+  // Who is coming in is a stylist's day; the hours, the services and the embed code are configuration,
+  // and the server refuses those below manager. Showing the tabs anyway is how you learn about a gate by
+  // filling in a form and being told no. (Salon T28 H1 / M5)
+  const { user } = useAuth()
+  const configures = meetsRole((user as any)?.role, 'manager')
   const [rows, setRows] = useState<BookingRow[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [page, setPage] = useState(1)
@@ -108,7 +115,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
       <p className="-mt-4 mb-6 text-gray-500 dark:text-slate-400">What customers can book, and what they have booked.</p>
 
       <div className="flex gap-1 border-b border-gray-200 dark:border-slate-800 mb-6">
-        {([['bookings', 'Bookings'], ['services', 'Bookable Services'], ['settings', 'Settings'], ['embed', 'Embed Code']] as Array<[Tab, string]>).map(([id, label]) => (
+        {(([['bookings', 'Bookings'], ...(configures ? [['services', 'Bookable Services'], ['settings', 'Settings'], ['embed', 'Embed Code']] : [])] as Array<[Tab, string]>)).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === id ? 'border-orange-500 text-orange-600 dark:text-orange-300' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'}`}>{label}</button>
         ))}
       </div>
@@ -138,7 +145,7 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
         </>
       )}
 
-      {tab === 'services' && (
+      {tab === 'services' && configures && (
         <div className="space-y-3">
           {retired && cfg.serviceMenuPath && (
             <div className="p-3 rounded-lg bg-sky-50 border border-sky-200 text-sm text-sky-900 dark:bg-sky-900/30 dark:border-sky-800 dark:text-sky-100">
@@ -182,9 +189,9 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
         </div>
       )}
 
-      {tab === 'settings' && <BookingSettingsTab api={api} toast={toast} config={config} onSaved={(s: BookingSettings) => setTz(s.timezone)} />}
+      {tab === 'settings' && configures && <BookingSettingsTab api={api} toast={toast} config={config} onSaved={(s: BookingSettings) => setTz(s.timezone)} />}
 
-      {tab === 'embed' && (
+      {tab === 'embed' && configures && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-6">
           <h2 className="font-semibold text-gray-900 dark:text-slate-100 mb-2">Put booking on your website</h2>
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">Paste this where you want the booking form to appear. If a service requires a deposit, the customer pays it before the slot is confirmed.</p>
