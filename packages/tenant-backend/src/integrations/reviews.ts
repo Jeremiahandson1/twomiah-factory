@@ -65,6 +65,16 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     const patch: Record<string, unknown> = {}
     for (const k of REVIEW_SETTING_KEYS) if (newSettings && newSettings[k] !== undefined) patch[k] = newSettings[k]
     if (patch.reviewChannel !== undefined && !['sms', 'email', 'both'].includes(String(patch.reviewChannel))) throw new Error('reviewChannel must be sms, email or both')
+    // This is the address the client is sent to. "not a url" saved, and was copied into every request's
+    // reviewLink — so the one thing a review request exists to do would fail, silently, for everyone who
+    // received one. (Salon T28 L3)
+    if (patch.googleReviewUrl !== undefined && patch.googleReviewUrl !== null && String(patch.googleReviewUrl).trim() !== '') {
+      const raw = String(patch.googleReviewUrl).trim()
+      let ok = false
+      try { const u = new URL(raw); ok = u.protocol === 'http:' || u.protocol === 'https:' } catch { ok = false }
+      if (!ok) throw new Error('Review link must be a full web address starting with https://')
+      patch.googleReviewUrl = raw
+    }
     for (const k of ['reviewRequestDelay', 'reviewFollowUpDelay', 'reviewMinimumJobValue']) if (patch[k] !== undefined) { const n = Number(patch[k]); if (!Number.isFinite(n) || n < 0) throw new Error(`${k} must be a number ≥ 0`); patch[k] = n }
     await db.update(t.company).set({ settings: { ...existing, ...patch } }).where(eq(t.company.id, companyId))
     return getReviewSettings(companyId)
@@ -162,8 +172,11 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     for (const comp of companies) {
       try {
         const settings = await getReviewSettings(comp.id)
-        if (!settings.reviewRequestEnabled) continue
-        if (!linkFor(settings)) continue
+        // Skipping is correct — switching review requests off must not fire a backlog at real customers —
+        // but it used to be invisible. Requests sat at "pending" for a fortnight with nothing anywhere
+        // saying why, so the answer goes in the results the admin endpoint returns. (Salon T28 H3)
+        if (!settings.reviewRequestEnabled) { results.push({ companyId: comp.id, action: 'skipped', reason: 'review requests are switched off for this company' }); continue }
+        if (!linkFor(settings)) { results.push({ companyId: comp.id, action: 'skipped', reason: 'no Google review link is set in Settings › Reviews' }); continue }
         const cutoff = new Date(Date.now() - Number(settings.reviewRequestDelay || 0) * 3600000)
         const pending = await db.select({ request: t.reviewRequest, contact: { id: t.contact.id, name: t.contact.name, phone: t.contact.phone, mobile: t.contact.mobile, email: t.contact.email } })
           .from(t.reviewRequest).leftJoin(t.contact, eq(t.reviewRequest.contactId, t.contact.id))
@@ -205,22 +218,56 @@ export function createReviewsService(deps: ReviewsServiceDeps) {
     return results
   }
 
+  /**
+   * Send this request now. A request still waiting gets the original message and becomes "sent"; one
+   * already sent gets the reminder wording and is stamped as followed up.
+   *
+   * Returns null when there is nothing to act on, and THROWS a sentence the caller can act on when it
+   * could not send. It used to stamp the record and answer {status:'follow_up_sent'} whatever happened —
+   * both sends sit in try/catch that only logs, so no phone, no email, unconfigured Twilio or a failing
+   * mail transport all reported success while nothing left the building. (Salon T28 H3)
+   */
   async function sendFollowUp(requestId: string) {
     const [request] = await db.select().from(t.reviewRequest).where(eq(t.reviewRequest.id, requestId)).limit(1)
     if (!request || request.followUpSentAt || request.clickedAt) return null
     const [ct] = await db.select().from(t.contact).where(eq(t.contact.id, request.contactId)).limit(1)
     const [comp] = await db.select().from(t.company).where(eq(t.company.id, request.companyId)).limit(1)
     if (!ct || !comp) return null
+
+    const settings = await getReviewSettings(request.companyId)
+    // No link means the message would ask the client to review nothing.
+    if (!(request.reviewLink || linkFor(settings))) throw new Error('Add your Google review link under Settings › Reviews first — the message would have nowhere to send the client.')
+
+    // Nothing was ever sent, so there is nothing to follow UP on: send the request itself.
+    const firstSend = request.status === 'pending'
+    const channel = request.channel || settings.reviewChannel || 'both'
     const url = trackingUrl(request.id)
     const phone = ct.mobile || ct.phone
-    if (phone && (request.channel === 'sms' || request.channel === 'both')) {
-      try { await sendReviewSms(comp, phone, { contactName: firstName(ct.name), companyName: comp.name || '', reviewLink: url, template: FOLLOW_UP_SMS_TEMPLATE }) } catch (e: any) { console.error('[Reviews] Follow-up SMS failed:', e?.message) }
+    const failures: string[] = []
+    let sent = false
+
+    if ((channel === 'sms' || channel === 'both') && phone) {
+      try {
+        await sendReviewSms(comp, phone, { contactName: firstName(ct.name), companyName: comp.name || '', reviewLink: url, template: firstSend ? (settings.reviewSmsTemplate || DEFAULT_SMS_TEMPLATE) : FOLLOW_UP_SMS_TEMPLATE })
+        sent = true
+      } catch (e: any) { console.error('[Reviews] SMS failed:', e?.message); failures.push('text message: ' + (e?.message || 'failed')) }
     }
-    if (ct.email && (request.channel === 'email' || request.channel === 'both')) {
-      try { await sendReviewEmail(ct.email, { contactName: ct.name || 'Valued Customer', companyName: comp.name || '', jobTitle: '', reviewLink: url }) } catch (e: any) { console.error('[Reviews] Follow-up email failed:', e?.message) }
+    if ((channel === 'email' || channel === 'both') && ct.email) {
+      try {
+        await sendReviewEmail(ct.email, { contactName: ct.name || 'Valued Customer', companyName: comp.name || '', jobTitle: '', reviewLink: url })
+        sent = true
+      } catch (e: any) { console.error('[Reviews] Email failed:', e?.message); failures.push('email: ' + (e?.message || 'failed')) }
     }
-    await db.update(t.reviewRequest).set({ followUpSentAt: new Date() }).where(eq(t.reviewRequest.id, requestId))
-    return { id: requestId, status: 'follow_up_sent' }
+
+    if (!sent) {
+      const missing = channel === 'sms' ? 'a mobile number' : channel === 'email' ? 'an email address' : 'a mobile number or an email address'
+      throw new Error(failures.length ? `Nothing was sent — ${failures.join('; ')}` : `Nothing was sent — ${ct.name || 'this client'} has no ${missing} on file.`)
+    }
+
+    await db.update(t.reviewRequest)
+      .set(firstSend ? { status: 'sent', sentAt: new Date() } : { followUpSentAt: new Date() })
+      .where(eq(t.reviewRequest.id, requestId))
+    return { id: requestId, status: firstSend ? 'sent' : 'follow_up_sent' }
   }
 
   async function markReviewCompleted(requestId: string, { clicked }: { clicked?: boolean } = {}) {
@@ -363,8 +410,12 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
     return request ? c.json(request) : c.json({ error: 'Could not schedule review request — review requests are off, the job has no contact, or one is already scheduled.' }, 400)
   })
   app.post('/follow-up/:requestId', async (c) => {
-    const result = await reviews.sendFollowUp(c.req.param('requestId'))
-    return result ? c.json(result) : c.json({ error: 'Could not send follow-up — the request was already followed up, already clicked, or does not exist.' }, 400)
+    // A thrown error here is a setup or contact-details problem the caller can fix, so it is answered
+    // rather than swallowed — this endpoint used to return success no matter what. (Salon T28 H3)
+    let result
+    try { result = await reviews.sendFollowUp(c.req.param('requestId')) }
+    catch (e: any) { return c.json({ error: e?.message || 'Could not send the review request' }, 400) }
+    return result ? c.json(result) : c.json({ error: 'Nothing to send — the request was already followed up, already clicked, or does not exist.' }, 400)
   })
   app.post('/process-scheduled', requireRole('admin', 'owner'), async (c) => {
     const results = await reviews.processScheduledRequests()

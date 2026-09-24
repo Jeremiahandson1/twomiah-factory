@@ -127,7 +127,7 @@ app.post('/enrollments', requirePermission('contacts:create'), async (c) => {
 
 // POST /memberships/billing/run — bill every membership that has come due. There is no scheduler on a
 // tenant backend, so this is the explicit handle; the enrolment reads settle as well. (T20 H4)
-app.post('/billing/run', requirePermission('contacts:update'), async (c) => {
+app.post('/billing/run', requirePermission('invoices:create'), async (c) => {
   const currentUser = c.get('user') as any
   const billed = await settleMembershipBilling(currentUser.companyId)
   return c.json({ billed: billed.length, invoices: billed })
@@ -206,13 +206,48 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
   return c.json({ data })
 })
 
+/**
+ * A plan is a price the salon charges, so the three fields that decide money are checked here and not
+ * only in the form. Price -5, credits -1 and billingCycle "banana" all saved with 201; the -$5 plan then
+ * raised no invoice on enrolment and the "banana" plan quietly renewed monthly. (Salon T28 M1)
+ */
+const BILLING_CYCLES = ['monthly', 'annual', 'one_time'] as const
+function planProblem(body: any, { partial = false } = {}): string | null {
+  if (!partial || 'price' in body) {
+    if (body.price !== null && body.price !== undefined && body.price !== '') {
+      const n = Number(body.price)
+      if (!Number.isFinite(n)) return 'Price must be a number.'
+      if (n < 0) return 'Price cannot be negative.'
+      if (n > 1_000_000) return 'Price looks too large — check the amount.'
+    }
+  }
+  if (!partial || 'creditsTotal' in body) {
+    if (body.creditsTotal !== null && body.creditsTotal !== undefined && body.creditsTotal !== '') {
+      const n = Number(body.creditsTotal)
+      if (!Number.isInteger(n)) return 'Visit credits must be a whole number.'
+      if (n < 0) return 'Visit credits cannot be negative.'
+      if (n > 10_000) return 'Visit credits looks too large — check the number.'
+    }
+  }
+  if (!partial || 'billingCycle' in body) {
+    if (body.billingCycle !== undefined && body.billingCycle !== null && body.billingCycle !== '') {
+      if (!(BILLING_CYCLES as readonly string[]).includes(String(body.billingCycle))) {
+        return `Billing cycle must be one of ${BILLING_CYCLES.join(', ')}.`
+      }
+    }
+  }
+  return null
+}
+
 // POST /memberships
-app.post('/', requirePermission('contacts:create'), async (c) => {
+app.post('/', requirePermission('pricebook:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (typeof body.name !== 'string' || !body.name.trim()) {
     return c.json({ error: 'name is required' }, 400)
   }
+  const problem = planProblem(body)
+  if (problem) return c.json({ error: problem }, 400)
 
   const [created] = await db.insert(membershipPlan).values({
     id: createId(),
@@ -232,7 +267,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 })
 
 // PUT /memberships/:id
-app.put('/:id', requirePermission('contacts:update'), async (c) => {
+app.put('/:id', requirePermission('pricebook:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -243,6 +278,9 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   if (!existing) return c.json({ error: 'Membership plan not found' }, 404)
 
   // Whitelist editable columns — never let companyId/id be reassigned from the body.
+  const editProblem = planProblem(body, { partial: true })
+  if (editProblem) return c.json({ error: editProblem }, 400)
+
   const EDITABLE = ['name', 'description', 'price', 'billingCycle', 'creditsTotal', 'includedServices', 'active'] as const
   const updates: any = { updatedAt: new Date() }
   for (const k of EDITABLE) if (k in body) updates[k] = body[k]
@@ -255,7 +293,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 
 // DELETE /memberships/:id — retire the plan. Enrollments cascade on a hard
 // delete, so an active plan is deactivated instead of dropped.
-app.delete('/:id', requirePermission('contacts:update'), async (c) => {
+app.delete('/:id', requirePermission('pricebook:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -36,7 +36,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 // POST /service-menu
 const CATEGORIES = ['hair', 'colour', 'color', 'nails', 'skin', 'massage', 'waxing', 'barber', 'lashes', 'brows', 'makeup', 'other']
 
-app.post('/', requirePermission('contacts:create'), async (c) => {
+app.post('/', requirePermission('pricebook:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (typeof body.name !== 'string' || !body.name.trim()) {
@@ -86,7 +86,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 })
 
 // PUT /service-menu/:id
-app.put('/:id', requirePermission('contacts:update'), async (c) => {
+app.put('/:id', requirePermission('pricebook:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -121,7 +121,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 
 // DELETE /service-menu/:id — soft delete. Service records reference the service
 // by id for rebook timing, so a hard delete would orphan the retention math.
-app.delete('/:id', requirePermission('contacts:update'), async (c) => {
+app.delete('/:id', requirePermission('pricebook:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

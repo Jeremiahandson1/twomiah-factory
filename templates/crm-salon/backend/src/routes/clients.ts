@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, invoice } from '../../db/schema.ts'
+import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, invoice, teamMember } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, ne , sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -77,6 +77,8 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
     return {
       ...contactSafe,
       ...(r.profile ? { ...r.profile, id: r.contact.id, profileId: r.profile.id } : {}),
+      // The client's PREFERRED stylist, which is a login user by definition (clientProfile
+      // .preferredStylistId is a foreign key to `user`) — so there is no roster name to carry here.
       stylistFirstName: r.stylistFirstName,
       stylistLastName: r.stylistLastName,
     }
@@ -104,11 +106,15 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
     serviceName: serviceMenu.name,
     rebookIntervalDays: serviceMenu.rebookIntervalDays,
     stylistFirstName: user.firstName,
+    // a chair-only stylist's name lives in team_member; without this a roster stylist reads as nobody
+    // and the visit prints with no "with ...". (Salon T28 M6)
+    stylistMemberName: teamMember.name,
     stylistLastName: user.lastName,
   })
     .from(serviceRecord)
     .leftJoin(serviceMenu, eq(serviceRecord.serviceId, serviceMenu.id))
     .leftJoin(user, eq(serviceRecord.stylistId, user.id))
+    .leftJoin(teamMember, eq(serviceRecord.stylistMemberId, teamMember.id))
     .where(and(eq(serviceRecord.contactId, contactId), eq(serviceRecord.companyId, currentUser.companyId)))
     .orderBy(desc(serviceRecord.performedAt))
     .limit(50)
@@ -125,16 +131,20 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
     appointment,
     serviceName: serviceMenu.name,
     stylistFirstName: user.firstName,
+    // a chair-only stylist's name lives in team_member; without this a roster stylist reads as nobody
+    // and the visit prints with no "with ...". (Salon T28 M6)
+    stylistMemberName: teamMember.name,
     stylistLastName: user.lastName,
   })
     .from(appointment)
     .leftJoin(serviceMenu, eq(appointment.serviceId, serviceMenu.id))
     .leftJoin(user, eq(appointment.stylistId, user.id))
+    .leftJoin(teamMember, eq(appointment.stylistMemberId, teamMember.id))
     .where(and(eq(appointment.contactId, contactId), eq(appointment.companyId, currentUser.companyId)))
     .orderBy(desc(appointment.startTime))
     .limit(30)
 
-  const appointments = apptRows.map((r: any) => ({ ...r.appointment, serviceName: r.serviceName, stylistFirstName: r.stylistFirstName, stylistLastName: r.stylistLastName }))
+  const appointments = apptRows.map((r: any) => ({ ...r.appointment, serviceName: r.serviceName, stylistFirstName: r.stylistFirstName, stylistLastName: r.stylistLastName, stylistMemberName: r.stylistMemberName }))
 
   const enrollmentRows = await db.select({
     enrollment: membershipEnrollment,
@@ -197,6 +207,13 @@ app.put('/:contactId/profile', requirePermission('contacts:update'), async (c) =
 
   // Whitelist editable columns — never let companyId/id/contactId be set from the body.
   const today = await salonToday(currentUser.companyId)
+  // Hair type is a short label on a client card ("fine, colour-treated"), and it stored 5,000 characters,
+  // which the card then has to render. The longer free-text fields keep their own larger ceilings.
+  // (Salon T28 L4)
+  const FIELD_MAX: Record<string, number> = { hairType: 120, pronouns: 40, scalpNotes: 2000, allergies: 2000, preferences: 2000, notes: 5000 }
+  const tooLong = Object.entries(FIELD_MAX).find(([k, max]) => typeof (body as any)[k] === 'string' && (body as any)[k].trim().length > max)
+  if (tooLong) return c.json({ error: `${tooLong[0]} must be ${tooLong[1]} characters or fewer.` }, 400)
+
   const EDITABLE = ['preferredStylistId', 'hairType', 'scalpNotes', 'allergies', 'patchTestAt', 'preferences', 'pronouns', 'birthday', 'notes'] as const
   for (const k of ['birthday', 'patchTestAt'] as const) {
     if (body[k] == null || body[k] === '') continue

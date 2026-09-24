@@ -191,7 +191,14 @@ const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m
 // Reads and writes get independent buckets so browsing can't lock out saving.
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
 app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
-app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
+// Per ADDRESS, not per account — so this is a ceiling on a flood from one place, not the thing that
+// stops a person signing in. At 20 it was the latter: a salon is one Wi-Fi, and one stylist's twenty
+// typos locked out the front desk, the manager and everybody else for fifteen minutes, with a message
+// ("Too many requests") that named neither the cause nor the wait. The protection that belongs to a
+// PERSON already exists and is better — the shared auth locks one account after 10 failures and says
+// how long — it just never got to run. Ten accounts × ten failures is 100; 150 leaves room for a bad
+// afternoon and still stops credential stuffing. (Salon T28 L9)
+app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 150))
 app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 

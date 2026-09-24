@@ -27,6 +27,21 @@ export interface StaffMember {
   kind?: 'user' | 'member';
 }
 
+/**
+ * The stylist on a row, whichever kind they are.
+ *
+ * A chair can be held by a login user (stylistId → user) or by a roster-only stylist
+ * (stylistMemberId → team_member), and the API returns the first as firstName/lastName and the second
+ * as stylistMemberName. Six copies of this function across the salon pages read only the first pair, so
+ * a roster stylist showed as no stylist at all on Recent Services, in Formula History and on the client's
+ * appointment table — even after the queries were fixed to return them. (Salon T28 M6 / T27 N5)
+ */
+export function stylistNameOf(r: { stylistFirstName?: string | null; stylistLastName?: string | null; stylistMemberName?: string | null } | null | undefined): string {
+  if (!r) return ''
+  const login = [r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ').trim()
+  return login || String(r.stylistMemberName || '').trim()
+}
+
 export function staffName(u: StaffMember): string {
   return u.name || [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email || u.id;
 }

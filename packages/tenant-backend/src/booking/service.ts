@@ -242,7 +242,22 @@ export function createBookingService(deps: BookingDeps) {
     return expired.length
   }
 
+  /** One day's free times: read what is booked around that day, then hand it to freeSlots. */
   async function slotsFor(settings: Settings, date: string, service: CatalogService | null, companyId: string, exec: any) {
+    const tz = settings.timezone
+    const dayStart = zonedWallTimeToUtc(date, '00:00', tz)
+    if (Number.isNaN(dayStart.getTime())) throw new BookingError('That date is not valid.')
+    // Every active calendar entry that touches this business-local day.
+    const busy = await calendar.busy(exec, companyId, new Date(dayStart.getTime() - DAY_MS), new Date(dayStart.getTime() + 2 * DAY_MS), tz)
+    return freeSlots(settings, date, service, busy)
+  }
+
+  /**
+   * The free times on one day, given calendar entries that MAY cover more than that day — it keeps only
+   * the ones whose local start falls on that date, so the same function serves one day (slotsFor) and a
+   * whole window at once (getAvailableDates) without a query per day. Pure: no database. (T28 L6)
+   */
+  function freeSlots(settings: Settings, date: string, service: CatalogService | null, busy: Array<{ start: Date; end?: Date | null }>) {
     const tz = settings.timezone
     // Start times step by the tenant's advertised slot grid (stable, independent of which service the
     // customer picks). The booked service's own duration only decides how long a slot is OCCUPIED — how
@@ -263,9 +278,6 @@ export function createBookingService(deps: BookingDeps) {
     const slots: Array<{ time: string; minutes: number; available: boolean }> = []
     for (let m = open; m + occupyMin <= close; m += stepMin) slots.push({ time: minutesToHm(m), minutes: m, available: true })
 
-    // Every active calendar entry that touches this business-local day.
-    const dayStart = zonedWallTimeToUtc(date, '00:00', tz)
-    const busy = await calendar.busy(exec, companyId, new Date(dayStart.getTime() - DAY_MS), new Date(dayStart.getTime() + 2 * DAY_MS), tz)
     const windows: Array<{ s: number; e: number }> = []
     for (const b of busy) {
       const sp = tzParts(b.start, tz)
@@ -322,7 +334,7 @@ export function createBookingService(deps: BookingDeps) {
     const tz = settings.timezone
     const minTime = Date.now() + settings.leadTimeDays * DAY_MS
     const win = bookingWindow(settings)
-    const out: Array<{ date: string; dayOfWeek: string }> = []
+    const candidates: Array<{ date: string; dayOfWeek: string }> = []
     // Offer every day of the window, the last one included — `i <= n`, because day 0 is today and day
     // maxDaysOut is the last date createBooking accepts.
     for (let i = 0; i <= Math.min(days, win.days); i++) {
@@ -332,9 +344,17 @@ export function createBookingService(deps: BookingDeps) {
       if (!d?.enabled) continue
       // A day whose closing time is inside the notice window has no times to offer.
       if (zonedWallTimeToUtc(date, isHm(d.end) ? d.end : '17:00', tz).getTime() <= minTime) continue
-      out.push({ date, dayOfWeek: weekday })
+      candidates.push({ date, dayOfWeek: weekday })
     }
-    return out
+    if (!candidates.length) return []
+
+    // …and a day with nothing left on it is not an available day. The picker used to offer it anyway, so
+    // a client chose a date, waited, and was shown an empty slot list. One calendar read for the whole
+    // window rather than one per day. (Salon T28 L6)
+    const first = zonedWallTimeToUtc(candidates[0].date, '00:00', tz)
+    const last = zonedWallTimeToUtc(candidates[candidates.length - 1].date, '00:00', tz)
+    const busy = await calendar.busy(db, companyId, new Date(first.getTime() - DAY_MS), new Date(last.getTime() + 2 * DAY_MS), tz)
+    return candidates.filter((c) => freeSlots(settings, c.date, null, busy).length > 0)
   }
 
   // ---------------------------------------------------------------- booking submission

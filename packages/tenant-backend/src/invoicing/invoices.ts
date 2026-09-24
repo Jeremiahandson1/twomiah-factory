@@ -368,8 +368,8 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
         ok: false,
         status: 400,
         error: bindsOnOwed
-          ? `Only ${balanceBefore.toFixed(2)} is still owed — the most you can credit is ${cap.toFixed(2)}${taxRate > 0 ? ' before tax' : ''}.`
-          : `A credit can't take the price below $0 — the most you can credit is ${cap.toFixed(2)}.`,
+          ? `Only $${balanceBefore.toFixed(2)} is still owed — the most you can credit is $${cap.toFixed(2)}${taxRate > 0 ? ' before tax' : ''}.`
+          : `A credit can't take the price below $0 — the most you can credit is $${cap.toFixed(2)}.`,
       }
       return
     }

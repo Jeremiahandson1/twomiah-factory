@@ -127,6 +127,13 @@ export interface BookingDeps {
   db: any
   tables: BookingTables
   authenticate: any
+  /**
+   * Minimum-role guard, e.g. requireRole('manager'). REQUIRED, deliberately: the admin half of these
+   * routes sat behind authenticate and nothing else, so any signed-in user could switch online booking
+   * off for the whole company (Salon T28 H1). Making it optional would let a template ship that hole
+   * again silently; required means a template that forgets it does not compile.
+   */
+  requireRole: (minRole: string) => any
   calendar: BookingCalendar
   options?: BookingOptions
 }

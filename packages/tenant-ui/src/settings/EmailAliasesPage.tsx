@@ -105,7 +105,7 @@ export function EmailAliasesPage(): React.ReactElement {
       <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">Create branded email addresses on your domain. Each one can forward to wherever you read email, or route replies into the CRM as conversation threads.</p>
 
       {!domain && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4 mb-6">
           <div className="font-semibold text-yellow-900 mb-1">Connect a domain first</div>
           <div className="text-sm text-yellow-800">Email aliases require a domain. Go to <strong>Settings → Email Domain</strong> to connect one.</div>
         </div>
@@ -193,7 +193,7 @@ function AliasRow({ alias, domain, onUpdate, onDelete }: { alias: Alias; domain:
         <input type="checkbox" checked={alias.enabled} onChange={e => onUpdate({ enabled: e.target.checked })} />
         Enabled
       </label>
-      <button onClick={onDelete} className="text-xs text-red-600 hover:text-red-800 dark:hover:text-red-300">Delete</button>
+      <button onClick={onDelete} className="text-xs text-red-600 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200">Delete</button>
     </div>
   )
 }

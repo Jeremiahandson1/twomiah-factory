@@ -60,6 +60,12 @@ export interface PermissionsDeps {
   extraRolePermissions?: Record<string, string[]>
   /** Template role names mapped onto the standard hierarchy. `user → field` is always included. */
   roleMapping?: Record<string, string>
+  /**
+   * What this vertical CALLS each rung, for anything a person reads. The hierarchy is named for the
+   * trades it was built for, so a salon stylist was told "yourRole: field" when refused. The names are
+   * presentation only — every gate still works on the hierarchy id. (Salon T28 M3)
+   */
+  roleLabels?: Record<string, string>
 }
 
 export function createPermissions(deps: PermissionsDeps) {
@@ -76,6 +82,12 @@ export function createPermissions(deps: PermissionsDeps) {
 
   function normalizeRole(role: string): string {
     return ROLE_MAPPING[role] || role || 'viewer'
+  }
+
+  /** The hierarchy id in this vertical's own words — for messages people read, never for a decision. */
+  function roleLabel(role: string): string {
+    const id = normalizeRole(role)
+    return deps.roleLabels?.[id] || id
   }
 
   // Per-user grants the OWNER hands out on top of the role (Settings › Users), e.g. users:read.
@@ -118,7 +130,7 @@ export function createPermissions(deps: PermissionsDeps) {
       if (!userRole) return c.json({ error: 'Authentication required' }, 401)
       const extra = await getExtraPermissions((c.get('user') as any)?.userId)
       if (!hasPermission(userRole, permission, extra)) {
-        return c.json({ error: 'Permission denied', required: permission, yourRole: normalizeRole(userRole) }, 403)
+        return c.json({ error: 'Permission denied', required: permission, yourRole: roleLabel(userRole) }, 403)
       }
       await next()
     }
@@ -130,7 +142,7 @@ export function createPermissions(deps: PermissionsDeps) {
       if (!userRole) return c.json({ error: 'Authentication required' }, 401)
       const extra = await getExtraPermissions((c.get('user') as any)?.userId)
       if (!permissions.some(p => hasPermission(userRole, p, extra))) {
-        return c.json({ error: 'Permission denied', requiredAny: permissions, yourRole: normalizeRole(userRole) }, 403)
+        return c.json({ error: 'Permission denied', requiredAny: permissions, yourRole: roleLabel(userRole) }, 403)
       }
       await next()
     }
@@ -165,7 +177,7 @@ export function createPermissions(deps: PermissionsDeps) {
   }
 
   return {
-    ROLE_HIERARCHY, ROLE_PERMISSIONS, normalizeRole,
+    ROLE_HIERARCHY, ROLE_PERMISSIONS, normalizeRole, roleLabel,
     getExtraPermissions, invalidateExtraPermissions,
     hasPermission, getPermissions,
     requirePermission, requireAnyPermission, requireRole, requireOwnership,

@@ -9,6 +9,20 @@ import type { FeaturesSettingsPageProps } from './types'
 
 type CatalogFeature = { id: string; name: string; description: string; category: string; core: boolean }
 
+/**
+ * Features whose usefulness is decided somewhere else as well. Switching one on says the salon is
+ * entitled to it; whether it can actually be USED depends on a connection this server may not have —
+ * and Settings › Integrations already knows, and already says so. Without this the two screens
+ * contradicted each other about the same product: "on" here, "Not available on your account yet"
+ * there. (Salon T28, N15 residual)
+ */
+const NEEDS_CONNECTION: Record<string, { flag: (s: any) => boolean; note: string }> = {
+  quickbooks: {
+    flag: (s) => s?.quickbooks?.configured === false,
+    note: 'Not available on your account yet — ask support to switch it on.',
+  },
+}
+
 export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageProps) {
   const navigate = useNavigate()
   const isAdmin = typeof auth.isAdmin === 'boolean' ? auth.isAdmin : ['admin', 'owner'].includes(auth.user?.role)
@@ -17,11 +31,18 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
   const [initial, setInitial] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [integrations, setIntegrations] = useState<any>(null)
 
   useEffect(() => {
     (async () => {
       try {
-        const [cat, fresh] = await Promise.all([api.get('/api/company/features/catalog'), api.get('/api/company').catch(() => null)])
+        const [cat, fresh, status] = await Promise.all([
+          api.get('/api/company/features/catalog'),
+          api.get('/api/company').catch(() => null),
+          // optional: a role that cannot read integrations simply gets no note
+          api.get('/api/integrations/status').catch(() => null),
+        ])
+        setIntegrations(status)
         const enabled = new Set<string>(fresh?.enabledFeatures ?? auth.company?.enabledFeatures ?? [])
         setCatalog(cat?.features ?? [])
         setSelected(enabled)
@@ -82,6 +103,9 @@ export function FeaturesSettingsPage({ api, auth, toast }: FeaturesSettingsPageP
                       <div className="min-w-0">
                         <div className="font-medium text-gray-900 text-sm dark:text-slate-100">{f.name}</div>
                         <div className="text-xs text-gray-500 dark:text-slate-400">{f.description}</div>
+                        {on && NEEDS_CONNECTION[f.id]?.flag(integrations) && (
+                          <div className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{NEEDS_CONNECTION[f.id].note}</div>
+                        )}
                       </div>
                       {f.core ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-slate-400" title="Core feature — always on"><Lock className="w-3 h-3" /> Included</span>

@@ -129,7 +129,7 @@ export function BillingPage({ smsBilling = false }: { smsBilling?: boolean }): R
       </p>
 
       {error && <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 text-sm text-red-700">{error}</div>}
-      {notice && <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4 text-sm text-yellow-800">{notice}</div>}
+      {notice && <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-3 mb-4 text-sm text-yellow-800 dark:text-yellow-200">{notice}</div>}
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && !sub && (

@@ -50,7 +50,11 @@ export function externalBookingsProxy() {
 }
 
 export function createBookingRoutes(deps: BookingDeps) {
-  const { db, tables: t, authenticate } = deps
+  const { db, tables: t, authenticate, requireRole } = deps
+  // Who may CONFIGURE booking — the hours, the notice, whether it is on at all, and which services are
+  // offered. Everything else here is day-to-day work on the bookings themselves and keeps its old
+  // access. qa.staff switched online booking off and the public page went to 403. (Salon T28 H1)
+  const configuresBooking = requireRole('manager')
   const svc = createBookingService(deps)
   const app = new Hono()
 
@@ -89,7 +93,9 @@ export function createBookingRoutes(deps: BookingDeps) {
     if (!settings.enabled) return c.json({ error: 'Online booking is not enabled' }, 403)
     return c.json({
       company: { name: found.name, logo: found.logo || settings.logoUrl, primaryColor: found.primaryColor || settings.primaryColor },
-      settings: { title: settings.title, description: settings.description, requirePhone: settings.requirePhone, requireAddress: settings.requireAddress, timezone: settings.timezone, slotDurationMinutes: settings.slotDurationMinutes },
+      // confirmationMessage: the salon types one on the Online Booking page and the widget never received
+      // it, so every customer saw the built-in wording instead. (Salon T28 L6)
+      settings: { title: settings.title, description: settings.description, confirmationMessage: settings.confirmationMessage, requirePhone: settings.requirePhone, requireAddress: settings.requireAddress, timezone: settings.timezone, slotDurationMinutes: settings.slotDurationMinutes },
       services,
     })
   })
@@ -141,20 +147,20 @@ export function createBookingRoutes(deps: BookingDeps) {
   const companyId = (c: any) => (c.get('user') as any).companyId
 
   app.get('/settings', async (c) => c.json(await svc.getSettings(companyId(c))))
-  app.put('/settings', async (c) => c.json(await svc.updateSettings(companyId(c), await c.req.json().catch(() => ({})))))
+  app.put('/settings', configuresBooking, async (c) => c.json(await svc.updateSettings(companyId(c), await c.req.json().catch(() => ({})))))
 
   app.get('/services', async (c) => {
     const cid = companyId(c)
     const [data, retired] = await Promise.all([svc.listServices(cid), svc.catalogRetired(cid)])
     return c.json({ data, retired })
   })
-  app.post('/services', async (c) => c.json(await svc.createService(companyId(c), await c.req.json().catch(() => ({}))), 201))
-  app.put('/services/:id', async (c) => {
+  app.post('/services', configuresBooking, async (c) => c.json(await svc.createService(companyId(c), await c.req.json().catch(() => ({}))), 201))
+  app.put('/services/:id', configuresBooking, async (c) => {
     const row = await svc.updateService(c.req.param('id'), companyId(c), await c.req.json().catch(() => ({})))
     if (!row) return c.json({ error: 'Service not found' }, 404)
     return c.json(row)
   })
-  app.delete('/services/:id', async (c) => {
+  app.delete('/services/:id', configuresBooking, async (c) => {
     const removed = await svc.deleteService(c.req.param('id'), companyId(c))
     if (!removed) return c.json({ error: 'Service not found' }, 404)
     return c.json({ success: true })

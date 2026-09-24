@@ -203,7 +203,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 })
 
 // POST /appointments
-app.post('/', requirePermission('contacts:create'), async (c) => {
+app.post('/', requirePermission('schedule:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (!body.startTime) return c.json({ error: 'startTime is required' }, 400)
@@ -281,7 +281,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 })
 
 // PUT /appointments/:id
-app.put('/:id', requirePermission('contacts:update'), async (c) => {
+app.put('/:id', requirePermission('schedule:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -376,7 +376,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 })
 
 // POST /appointments/:id/check-in
-app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
+app.post('/:id/check-in', requirePermission('schedule:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -398,6 +398,22 @@ app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
     return c.json({ error: 'That appointment has already been completed.', code: 'APPOINTMENT_NOT_LIVE' }, 409)
   }
 
+  // Checking someone in says they are HERE, so it cannot happen weeks before the appointment. A visit 25
+  // days out checked in with 200 while Complete on that same appointment was correctly refused as not
+  // yet happened (T27 N4) — the two halves of one visit disagreeing about whether it had started.
+  // Answered on the shop's calendar: an early client on the day is fine, next month's is not. (T28 L5)
+  {
+    const tz = await salonTimezone(currentUser.companyId)
+    const today = calendarDateIn(new Date(), tz)
+    const apptDay = calendarDateIn(new Date(existing.startTime), tz)
+    if (apptDay > today) {
+      return c.json({
+        error: `That appointment is on ${apptDay}, not today — check the client in when they arrive.`,
+        code: 'APPOINTMENT_NOT_TODAY',
+      }, 409)
+    }
+  }
+
   const [updated] = await db.update(appointment)
     .set({ status: 'checked_in', checkedInAt: new Date(), updatedAt: new Date() })
     .where(eq(appointment.id, id))
@@ -410,7 +426,7 @@ app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
 
 // DELETE /appointments/:id — cancel, keeping the row so no-show/cancel rates
 // stay measurable.
-app.delete('/:id', requirePermission('contacts:update'), async (c) => {
+app.delete('/:id', requirePermission('schedule:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

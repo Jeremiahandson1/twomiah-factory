@@ -160,7 +160,7 @@
           slotWrap.innerHTML = '';
           if (!slots.length) { slotWrap.textContent = 'No times left on that day.'; return; }
           slots.forEach(function (s) {
-            var b = el('button', { type: 'button', class: 'tw-slot', 'aria-pressed': 'false' }, s.time);
+            var b = el('button', { type: 'button', class: 'tw-slot', 'aria-pressed': 'false' }, fmtTime(s.time));
             b.onclick = function () {
               state.time = s.time;
               Array.prototype.forEach.call(slotWrap.children, function (c) { c.setAttribute('aria-pressed', 'false'); });
@@ -297,13 +297,30 @@
       });
     }
 
+    // "13:30" is not how a customer reads a time. (Salon T28 L6)
+    function fmtTime(hhmm) {
+      var m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ''));
+      if (!m) return hhmm;
+      var h = parseInt(m[1], 10), suffix = h < 12 ? 'AM' : 'PM';
+      var h12 = h % 12; if (h12 === 0) h12 = 12;
+      return h12 + ':' + m[2] + ' ' + suffix;
+    }
+
     function showConfirmed(res, paid) {
       container.innerHTML = '';
       var root = el('div', { class: 'tw-bk' });
       var box = el('div', { class: 'tw-ok' });
-      box.appendChild(el('h2', null, paid ? 'You are booked' : 'Appointment requested'));
-      box.appendChild(el('p', { class: 'tw-sub' },
-        paid ? 'Your deposit is paid and your time is confirmed.' : 'We have your request and will confirm shortly.'));
+      // A booking only WAITS when it is waiting for a deposit. Without one the slot is already taken
+      // and the appointment is on the book — telling that customer "we will confirm shortly" is simply
+      // untrue, and it was what almost everyone saw. The salon's own wording wins when it set any.
+      // (Salon T28 L6)
+      var awaitingDeposit = !paid && !!(res && res.deposit && res.deposit.required);
+      var ownWords = cfg.settings && cfg.settings.confirmationMessage;
+      box.appendChild(el('h2', null, awaitingDeposit ? 'Appointment requested' : 'You are booked'));
+      box.appendChild(el('p', { class: 'tw-sub' }, ownWords ||
+        (awaitingDeposit ? 'We have your request and will confirm once the deposit is paid.'
+          : paid ? 'Your deposit is paid and your time is confirmed.'
+          : 'Your appointment is confirmed — see you then.')));
       box.appendChild(el('p', null, 'Confirmation code: <span class="tw-code">' + (res.confirmationCode || '') + '</span>'));
       root.appendChild(box);
       container.appendChild(root);

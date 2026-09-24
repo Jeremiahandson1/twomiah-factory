@@ -4,6 +4,8 @@ import { Plus, Loader2, X, CreditCard, Edit2, Trash2, Check, Users, UserPlus } f
 import api from '../../services/api';
 import ClientPicker from '../../components/salon/ClientPicker';
 import { todayStr } from '../../utils/date';
+import { money as fmtMoney } from '../../shared';
+import { useToast } from '../../contexts/ToastContext';
 
 /**
  * Memberships — plans (GET/POST/PUT/DELETE /api/memberships) and the people on
@@ -39,9 +41,11 @@ interface Enrollment {
 }
 interface ServiceOption { id: string; name?: string }
 
+// Blank stays an em dash; an amount is formatted by the one formatter that knows currency has two
+// decimals, rather than a fourth copy that renders $12.50 as "$12.5". (Salon T28 M2)
 function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
-  return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return fmtMoney(v);
 }
 function fmtDate(s?: string): string {
   if (!s) return '—';
@@ -59,6 +63,7 @@ function cycleLabel(c?: string): string {
 }
 
 export default function MembershipsPage() {
+  const toast = useToast();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -90,7 +95,7 @@ export default function MembershipsPage() {
       await api.delete('/api/memberships', plan.id);
       load();
     } catch {
-      alert('Failed to retire plan');
+      toast.error('Failed to retire plan');
     }
   };
 
@@ -100,7 +105,7 @@ export default function MembershipsPage() {
       await api.put(`/api/memberships/enrollments/${e.id}`, { status: 'cancelled' });
       load();
     } catch (err) {
-      alert((err as Error).message || 'Failed to cancel the membership');
+      toast.error((err as Error).message || 'Failed to cancel the membership');
     }
   };
 
@@ -109,7 +114,7 @@ export default function MembershipsPage() {
       await api.post(`/api/memberships/enrollments/${e.id}/redeem`);
       load();
     } catch (err) {
-      alert((err as Error).message || 'Failed to redeem a credit');
+      toast.error((err as Error).message || 'Failed to redeem a credit');
     }
   };
 
@@ -261,6 +266,7 @@ export default function MembershipsPage() {
 /* ---------------- Plan Modal ---------------- */
 
 function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [included, setIncluded] = useState<string[]>(plan?.includedServices || []);
@@ -289,7 +295,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim()) { alert('Plan name is required'); return; }
+    if (!form.name.trim()) { toast.error('Plan name is required'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -306,7 +312,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
       else await api.post('/api/memberships', payload);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to save plan');
+      toast.error((err as Error).message || 'Failed to save plan');
     } finally {
       setSaving(false);
     }
@@ -333,7 +339,8 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Price ($)</label>
-                <input type="number" step="any" value={form.price} onChange={(e) => set('price', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                {/* A plan priced below zero produced a card reading "$-10 /mo". (Salon T28 M1) */}
+                <input type="number" step="any" min="0" value={form.price} onChange={(e) => set('price', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Billing</label>
@@ -343,7 +350,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Visit credits</label>
-                <input type="number" value={form.creditsTotal} onChange={(e) => set('creditsTotal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="∞" />
+                <input type="number" min="0" step="1" value={form.creditsTotal} onChange={(e) => set('creditsTotal', e.target.value)} className="w-full px-3 py-2 border rounded-lg" placeholder="∞" />
               </div>
             </div>
             <p className="text-xs text-gray-500 dark:text-slate-400 -mt-2">Leave credits blank for an unlimited or open-ended membership.</p>
@@ -383,6 +390,7 @@ function PlanModal({ plan, onSave, onClose }: { plan: Plan | null; onSave: () =>
 /* ---------------- Enroll Modal ---------------- */
 
 function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [contactId, setContactId] = useState<string>('');
   const [planId, setPlanId] = useState<string>(plans[0]?.id || '');
@@ -390,15 +398,15 @@ function EnrollModal({ plans, onSave, onClose }: { plans: Plan[]; onSave: () => 
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactId) { alert('A client is required'); return; }
-    if (!planId) { alert('A plan is required'); return; }
+    if (!contactId) { toast.error('A client is required'); return; }
+    if (!planId) { toast.error('A plan is required'); return; }
     setSaving(true);
     try {
       // Credits are seeded from the plan by the backend, so they are not sent here.
       await api.post('/api/memberships/enrollments', { contactId, planId, startDate });
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to enroll client');
+      toast.error((err as Error).message || 'Failed to enroll client');
     } finally {
       setSaving(false);
     }

@@ -7,6 +7,9 @@ import {
 import api from '../../services/api';
 import ServiceRecordEditorModal, { ServiceRecord } from '../../components/salon/ServiceRecordEditorModal';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { money } from '../../shared';
+import { stylistNameOf as stylistName } from '../../lib/staff';
+import { useToast } from '../../contexts/ToastContext';
 
 /**
  * Client chart — GET /api/clients/:contactId returns
@@ -45,6 +48,7 @@ interface Appointment {
   startTime?: string;
   serviceName?: string;
   stylistFirstName?: string;
+  stylistMemberName?: string;
   stylistLastName?: string;
 }
 interface Membership {
@@ -86,17 +90,15 @@ function fmtDateTime(s?: string): string {
   if (isNaN(d.getTime())) return '—';
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
-function money(v: number | string | undefined | null): string {
-  return `$${Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-}
+// One currency formatter for the fleet — this copy had no MINIMUM fraction digits, so a lifetime value
+// of $331.70 printed as "$331.7". (Salon T28 L4)
+
 function isPast(dateStr?: string | null): boolean {
   if (!dateStr) return false;
   const d = new Date(dateStr);
   return !isNaN(d.getTime()) && d.getTime() < Date.now();
 }
-function stylistName(r: { stylistFirstName?: string; stylistLastName?: string }): string {
-  return [r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ');
-}
+// stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
 
 type Tab = 'formula' | 'appointments' | 'memberships';
 
@@ -400,6 +402,7 @@ export default function ClientDetailPage() {
 /* ---------------- Profile Modal ---------------- */
 
 function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contactId: string; contact: Contact; profile: Profile; onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
   // The three fields most likely to change (name/phone/email) live on the contact, not the
@@ -434,7 +437,7 @@ function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contac
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactForm.name.trim()) { alert('Name is required'); return; }
+    if (!contactForm.name.trim()) { toast.error('Name is required'); return; }
     setSaving(true);
     try {
       // Contact fields go to the contact; profile fields to the profile. Send every profile
@@ -443,7 +446,7 @@ function ProfileModal({ contactId, contact, profile, onSave, onClose }: { contac
       await api.put(`/api/clients/${contactId}/profile`, form);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to save profile');
+      toast.error((err as Error).message || 'Failed to save profile');
     } finally {
       setSaving(false);
     }

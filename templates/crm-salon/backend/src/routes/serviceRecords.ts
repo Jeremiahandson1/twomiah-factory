@@ -86,7 +86,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
  * clinical record, and that should be something a person triggers and sees the result of. It reports
  * every row it touched, and it is idempotent.
  */
-app.post('/repair-legacy', requirePermission('contacts:update'), async (c: any) => {
+app.post('/repair-legacy', requirePermission('company:update'), async (c: any) => {
   const currentUser = c.get('user') as any
   const cid = currentUser.companyId
 
@@ -171,7 +171,7 @@ app.post('/repair-legacy', requirePermission('contacts:update'), async (c: any) 
  * Written because the first version of the repair got it wrong on a live tenant: it voided two sales
  * whose visits still existed, unlinked, from before H3 gave a visit a link to its sale.
  */
-app.post('/repair-legacy/undo', requirePermission('contacts:update'), async (c: any) => {
+app.post('/repair-legacy/undo', requirePermission('company:update'), async (c: any) => {
   const currentUser = c.get('user') as any
   const cid = currentUser.companyId
   const restored: any = await db.execute(sql`
@@ -204,7 +204,7 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
 
 // POST /service-records — writing a record completes its appointment, so the
 // front desk never has to close the ticket twice.
-app.post('/', requirePermission('contacts:create'), async (c) => {
+app.post('/', requirePermission('schedule:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (typeof body.contactId !== 'string' || !body.contactId) {
@@ -307,7 +307,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 })
 
 // PUT /service-records/:id
-app.put('/:id', requirePermission('contacts:update'), async (c) => {
+app.put('/:id', requirePermission('schedule:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
@@ -341,7 +341,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
 })
 
 // DELETE /service-records/:id
-app.delete('/:id', requirePermission('contacts:update'), async (c) => {
+app.delete('/:id', requirePermission('invoices:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -17,8 +17,30 @@ export interface NavItem {
   section?: string
   /** Opens `<company.website>/admin` in a new tab instead of routing (landscaping Website CMS) */
   external?: boolean
+  /**
+   * Lowest role that may open this page, as a ROLE_RANK id. Absent = no role gate, which is what every
+   * vertical had: a manager and a stylist were shown Email, Billing, Users and Settings › Company and
+   * got the API's raw 403 text when they opened one. (Salon T28 M5)
+   */
+  minRole?: string
   /** Optional stable id (external items have no unique route) */
   id?: string
+}
+
+/**
+ * The role hierarchy, lowest first — the same order the server's ROLE_HIERARCHY uses, because a menu
+ * that disagrees with the API is how you get a page that opens and then refuses.
+ */
+export const ROLE_RANK = ['viewer', 'field', 'manager', 'admin', 'owner']
+/** `user` and `staff` are what some templates store for the field rung. */
+const ROLE_ALIASES: Record<string, string> = { user: 'field', staff: 'field' }
+export const meetsRole = (role: string | undefined, minRole: string | undefined): boolean => {
+  if (!minRole) return true
+  const id = ROLE_ALIASES[String(role || '')] || String(role || '')
+  const have = ROLE_RANK.indexOf(id)
+  const need = ROLE_RANK.indexOf(minRole)
+  // an unknown role is not promoted; an unknown requirement is not enforced
+  return need < 0 ? true : have >= need
 }
 
 export interface ShellAuth {
@@ -36,6 +58,11 @@ export interface ShellConfig {
    * relevant — gated by URL exactly like nav items (a salon must not render /crm/jobs).
    */
   routeGates?: Record<string, string[]>
+  /**
+   * Lowest role for routes that have no sidebar entry of their own, or whose entry is one of several.
+   * Checked by URL exactly like `minRole` on a nav item. (Salon T28 M5)
+   */
+  routeRoles?: Record<string, string>
   brand?: {
     icon?: IconComponent
     /** Shown while the company has not loaded. Default "CRM". */

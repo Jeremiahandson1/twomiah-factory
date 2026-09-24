@@ -5,6 +5,7 @@ import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment,
 import { eq, and, or, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
 import { isClient } from '../utils/clientTypes.ts'
 import { authenticate } from '../middleware/auth.ts'
+import { hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { clientsOf } from '../utils/clientTypes.ts'
 
 /**
@@ -28,6 +29,10 @@ const UPCOMING_APPT = sql`${appointment.status} NOT IN ('cancelled', 'no_show', 
 app.get('/stats', async (c) => {
   const user_ = c.get('user') as any
   const companyId = user_.companyId
+  // The same question the Invoices and Reports pages ask. This endpoint asked nothing, so the role that
+  // is refused both of those was handed the outstanding balance, the month's revenue and every stylist's
+  // takings by the screen they land on first. (Salon T28 M4)
+  const canSeeMoney = hasPermission(user_.role, 'invoices:read', await getExtraPermissions(user_.userId))
   const now = new Date()
   // The SHOP's days, not the server's. These were built from now.getFullYear()/getMonth()/getDate(),
   // which is the server's local time — UTC on Render — so from 19:00 Central the "Appointments Today"
@@ -109,7 +114,8 @@ app.get('/stats', async (c) => {
     return sum + (paid >= total ? 0 : Math.max(0, total - (paid - refunded)))
   }, 0) * 100) / 100
   return c.json({
-    invoices: { outstandingValue },
+    // omitted, not zeroed — "$0 outstanding" would be a different wrong answer
+    ...(canSeeMoney ? { invoices: { outstandingValue } } : {}),
     contacts: clientRows[0]?.value ?? 0,
     clients: { total: clientRows[0]?.value ?? 0 },
     appointments: {
@@ -117,14 +123,15 @@ app.get('/stats', async (c) => {
       upcoming7: upcomingApptRows[0]?.value ?? 0,
       byStatus: Object.fromEntries(apptsByStatus.map(a => [a.status, Number(a.c)])),
     },
-    services: { thisMonth: visitsMonthRows[0]?.value ?? 0, revenueThisMonth },
+    services: { thisMonth: visitsMonthRows[0]?.value ?? 0, ...(canSeeMoney ? { revenueThisMonth } : {}) },
     byStylist: (byStylistRows as any[]).map(r => ({
       // whichever column held them — the page only ever shows one id per chair
       stylistId: r.stylistId ?? r.stylistMemberId,
       name: [r.firstName, r.lastName].filter(Boolean).join(' ') || r.memberName || 'Unassigned',
       visits: Number(r.visits),
-      revenue: Number(r.revenue || 0),
-    })).sort((a, b) => b.revenue - a.revenue),
+      // a stylist may see who is in which chair and how busy they are, not what they each took
+      ...(canSeeMoney ? { revenue: Number(r.revenue || 0) } : {}),
+    })).sort((a, b) => canSeeMoney ? Number(b.revenue || 0) - Number(a.revenue || 0) : Number(b.visits || 0) - Number(a.visits || 0)),
     reminders: { overdue, dueSoon },
     memberships: { activeEnrollments: membershipRows[0]?.value ?? 0 },
   })

@@ -139,9 +139,24 @@ app.get('/tickets/stats', async (c) => {
 });
 
 // POST /support/tickets — create ticket
+// A ticket's subject is the only thing the queue shows, and its priority and status are what the queue
+// is SORTED by — so a blank subject is a row nobody can act on, and "banana" priority is a row that
+// sorts nowhere. All three saved happily. (Salon T28 M8)
+const TICKET_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+const TICKET_STATUSES = ['open', 'in_progress', 'waiting', 'resolved', 'closed'];
+
 app.post('/tickets', async (c) => {
   const u = c.get('user') as any;
   const body = await c.req.json();
+  const subject = typeof body.subject === 'string' ? body.subject.trim() : '';
+  if (!subject) return c.json({ error: 'A subject is required — it is the only thing the ticket list shows.' }, 400);
+  if (subject.length > 200) return c.json({ error: 'Subject must be 200 characters or fewer.' }, 400);
+  if (body.priority !== undefined && body.priority !== null && !TICKET_PRIORITIES.includes(String(body.priority))) {
+    return c.json({ error: `Priority must be one of ${TICKET_PRIORITIES.join(', ')}.` }, 400);
+  }
+  if (body.status !== undefined && body.status !== null && !TICKET_STATUSES.includes(String(body.status))) {
+    return c.json({ error: `Status must be one of ${TICKET_STATUSES.join(', ')}.` }, 400);
+  }
   const number = await nextTicketNumber(u.companyId);
 
   const ai = autoCategory(body.subject, body.description);
@@ -149,7 +164,7 @@ app.post('/tickets', async (c) => {
 
   const [ticket] = await db.insert(supportTicket).values({
     number,
-    subject: body.subject,
+    subject,
     description: body.description,
     priority: body.priority || 'normal',
     category: body.category || ai.category,
@@ -186,7 +201,18 @@ app.patch('/tickets/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
 
+  if (body.status !== undefined && body.status !== null && !TICKET_STATUSES.includes(String(body.status))) {
+    return c.json({ error: `Status must be one of ${TICKET_STATUSES.join(', ')}.` }, 400);
+  }
+  if (body.priority !== undefined && body.priority !== null && !TICKET_PRIORITIES.includes(String(body.priority))) {
+    return c.json({ error: `Priority must be one of ${TICKET_PRIORITIES.join(', ')}.` }, 400);
+  }
+  if (body.subject !== undefined && !String(body.subject).trim()) {
+    return c.json({ error: 'A subject is required — it is the only thing the ticket list shows.' }, 400);
+  }
+
   const updates: any = { updatedAt: new Date() };
+  if (body.subject !== undefined) updates.subject = String(body.subject).trim().slice(0, 200);
   if (body.status) updates.status = body.status;
   if (body.priority) updates.priority = body.priority;
   if (body.category) updates.category = body.category;

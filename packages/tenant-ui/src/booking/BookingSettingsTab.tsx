@@ -69,7 +69,9 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
       // the field holds text while it is typed; it becomes a number here, once
       const saved = await api.put('/api/booking/settings', { ...settings, concurrentBookings: n })
       setSettings(normalize(saved)); setDirty(false)
-      toast.success('Booking settings saved — the booking page updates immediately.')
+      // "the booking page" sent people looking for a page that does not exist — bookings come in through
+      // the widget embedded on the business's own site. (Salon T28 L6)
+      toast.success('Booking settings saved — your booking widget updates immediately.')
       onSaved?.(normalize(saved))
     } catch (e) { toast.error(errMsg(e, 'Could not save settings.')) } finally { setSaving(false) }
   }
@@ -86,7 +88,7 @@ export function BookingSettingsTab({ api, toast, config, onSaved }: { api: Booki
       <div className={`${card} flex items-center justify-between`}>
         <div>
           <div className="font-semibold text-gray-900 dark:text-slate-100">Online booking is {settings.enabled ? 'ON' : 'OFF'}</div>
-          <p className="text-sm text-gray-500 dark:text-slate-400">{settings.enabled ? 'Customers can book from your website and the booking page.' : 'The public booking page tells customers booking is unavailable.'}</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400">{settings.enabled ? 'Customers can book through the booking widget on your website.' : 'The booking widget tells customers that online booking is unavailable.'}</p>
         </div>
         <button role="switch" aria-checked={settings.enabled} onClick={() => set('enabled', !settings.enabled)}
           className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${settings.enabled ? 'bg-orange-500' : 'bg-gray-300 dark:bg-slate-600'}`}>

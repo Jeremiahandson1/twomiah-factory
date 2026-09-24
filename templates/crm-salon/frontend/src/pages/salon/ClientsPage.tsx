@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Search, Loader2, User, AlertTriangle, X } from 'lucide-react';
 import api from '../../services/api';
+import { useToast } from '../../contexts/ToastContext';
 
 /**
  * Clients — searchable list backed by /api/clients (contacts left-joined to
@@ -156,6 +157,7 @@ export default function ClientsPage() {
 /* ---------------- New Client Modal ---------------- */
 
 function NewClientModal({ onSave, onClose }: { onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
   const [saving, setSaving] = useState<boolean>(false);
   const [form, setForm] = useState({
     name: '', phone: '', email: '',
@@ -165,7 +167,7 @@ function NewClientModal({ onSave, onClose }: { onSave: () => void; onClose: () =
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!form.name.trim()) { alert('Client name is required'); return; }
+    if (!form.name.trim()) { toast.error('Client name is required'); return; }
     setSaving(true);
     try {
       const contact = await api.post('/api/contacts', {
@@ -188,7 +190,7 @@ function NewClientModal({ onSave, onClose }: { onSave: () => void; onClose: () =
       }
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to create client');
+      toast.error((err as Error).message || 'Failed to create client');
     } finally {
       setSaving(false);
     }

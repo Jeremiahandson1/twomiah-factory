@@ -61,7 +61,11 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       // "abcdefghij" and other junk used to save and then print on every invoice.
       phone: z.string().trim().optional().refine(v => !v || (v.replace(/\D/g, '').length >= 7 && v.replace(/\D/g, '').length <= 15), 'Enter a valid phone number (7–15 digits).'),
       address: z.string().optional(),
-      city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(),
+      city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(),
+      // The colour on every invoice, email and portal page. It accepted "banana", which then went into
+      // a CSS value and silently did nothing. The booking colour grew this same check in T27 N11 and
+      // this one — the one customers actually see — was missed. (Salon T28 L1)
+      primaryColor: z.string().trim().optional().refine((v: string | undefined) => !v || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v), 'Brand colour must be a hex value like #1d4ed8.'),
       website: z.string().optional(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional(),
     })
     const body = await readBody(c)

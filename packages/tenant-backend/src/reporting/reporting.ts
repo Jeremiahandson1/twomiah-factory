@@ -29,6 +29,21 @@ export interface ReportingTables {
 export interface ReportingOptions {
   /** Upper bound for the monthly trend. Default 36. */
   maxMonths?: number
+  /**
+   * How THIS vertical measures a person's output. The built-in measure is hours logged plus jobs
+   * completed, which is empty for every business that has neither — a salon's panel read "No time
+   * entries in this period" for every period since it launched. (Salon T28 M6)
+   */
+  teamProductivity?: (companyId: string, range: DateRange) => Promise<TeamProductivityRow[]>
+}
+
+export interface TeamProductivityRow {
+  user?: { firstName?: string | null; lastName?: string | null }
+  /** Hours and jobs for the trades; services and revenue for a chair-based business. */
+  hoursWorked?: number
+  jobsCompleted?: number
+  servicesCompleted?: number
+  revenue?: number
 }
 
 export interface ReportingDeps {
@@ -222,6 +237,9 @@ export function createReportingService(deps: ReportingDeps) {
   // ---------------------------------------------------------------- team
 
   async function teamProductivity(companyId: string, range: DateRange) {
+    // A vertical with no timesheets and no jobs — a salon, a vet — gets an empty panel from the work
+    // below, for everyone, always. Those verticals supply their own measure. (Salon T28 M6)
+    if (deps.options?.teamProductivity) return deps.options.teamProductivity(companyId, range)
     const [time, jobs] = await Promise.all([
       db.select({ userId: t.timeEntry.userId, hours: sum(t.timeEntry.hours), count: count() }).from(t.timeEntry)
         .where(and(eq(t.timeEntry.companyId, companyId), ...inRange(t.timeEntry.date, range))).groupBy(t.timeEntry.userId),

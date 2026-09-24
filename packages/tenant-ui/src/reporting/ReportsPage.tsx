@@ -17,7 +17,9 @@ interface Summary {
 }
 interface MonthRow { month: string; invoiced: number; collected: number }
 interface CustomerRow { contact?: { name?: string; company?: string | null }; invoiceCount: number; total: number; collected?: number; invoiced?: number }
-interface TeamRow { user?: { firstName?: string; lastName?: string }; jobsCompleted: number; hoursWorked: number }
+// Hours and jobs for the trades; services and takings for a chair-based business. A vertical supplies
+// whichever it actually measures, and the panel shows what it was given. (Salon T28 M6)
+interface TeamRow { user?: { firstName?: string; lastName?: string }; jobsCompleted?: number; hoursWorked?: number; servicesCompleted?: number; revenue?: number }
 interface DealerReport {
   sales: { unitsSold: number; lost: number; closeRate: number; frontEndGross: number; unitsWithCost: number; averageGross: number; soldByCategory: Record<string, number> }
   pipeline: Record<string, number>
@@ -159,16 +161,20 @@ export function ReportsPage({ api, config }: ReportsPageProps) {
                 <div className={card}>
                   <h3 className={h3}>Team productivity</h3>
                   <div className="space-y-3">
-                    {team.length === 0 ? <p className={`text-sm ${muted}`}>No time entries in this period.</p> : team.slice(0, 5).map((m, i) => (
+                    {team.length === 0 ? <p className={`text-sm ${muted}`}>Nothing recorded in this period.</p> : team.slice(0, 5).map((m, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center"><Users className="w-4 h-4 text-orange-600 dark:text-orange-300" /></div>
                           <div>
                             <p className="font-medium text-sm text-gray-900 dark:text-slate-100">{[m.user?.firstName, m.user?.lastName].filter(Boolean).join(' ') || 'Team member'}</p>
-                            {showJobs && <p className={`text-xs ${muted}`}>{m.jobsCompleted} {labelFor(m.jobsCompleted)} completed</p>}
+                            {m.servicesCompleted !== undefined
+                              ? <p className={`text-xs ${muted}`}>{m.servicesCompleted} service{m.servicesCompleted === 1 ? '' : 's'}</p>
+                              : showJobs && <p className={`text-xs ${muted}`}>{m.jobsCompleted} {labelFor(m.jobsCompleted || 0)} completed</p>}
                           </div>
                         </div>
-                        <p className="font-medium text-gray-900 dark:text-slate-100">{m.hoursWorked}h</p>
+                        <p className="font-medium text-gray-900 dark:text-slate-100">
+                          {m.revenue !== undefined ? money(m.revenue) : `${m.hoursWorked}h`}
+                        </p>
                       </div>
                     ))}
                   </div>

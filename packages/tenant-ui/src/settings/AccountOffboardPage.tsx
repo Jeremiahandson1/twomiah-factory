@@ -84,7 +84,7 @@ export function AccountOffboardPage(): React.ReactElement {
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && isOffboarding && graceEnd && (
-        <div className="border border-yellow-300 rounded-md p-5 bg-yellow-50 mb-6">
+        <div className="border border-yellow-300 dark:border-yellow-700/50 rounded-md p-5 bg-yellow-50 dark:bg-yellow-900/20 mb-6">
           <div className="font-semibold text-yellow-900 mb-2">Offboarding in progress</div>
           <p className="text-sm text-yellow-900 mb-3">
             Your 30-day grace period {graceExpired ? 'has ended' : 'ends on'} <strong>{graceEnd.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong>

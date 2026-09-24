@@ -25,7 +25,14 @@ const B = 'templates/crm-salon/backend/src/'
 // ── M2 ────────────────────────────────────────────────────────────────────────────────────────────
 const types = read(B + 'utils/clientTypes.ts')
 if (!types) fail('utils/clientTypes.ts is missing — who counts as a client needs one definition')
-if (!/export const NON_CLIENT_TYPES = \['lead', 'vendor'\] as const/.test(types)) fail('…a lead has not sat in a chair, and a vendor is not a customer')
+// The RULE, not the spelling of one list: everyone on it is somebody who has not sat in your chairs.
+// 'other' joined in T28 L2 — an imported row of that type was counted as a client by /api/clients and
+// not by /api/contacts/stats, so the two disagreed by exactly one.
+if (!/export const NON_CLIENT_TYPES = \[[^\]]*\] as const/.test(types)) fail('utils/clientTypes.ts must declare who is NOT a client, in one list')
+for (const t of ['lead', 'vendor', 'other']) {
+  if (!new RegExp("export const NON_CLIENT_TYPES = \\[[^\\]]*'" + t + "'").test(types)) fail(`…'${t}' is not somebody who sits in your chairs, so it must be on that list`)
+  if (!new RegExp("isClientSql = sql`[^`]*'" + t + "'").test(types)) fail(`…and the raw-SQL form must exclude '${t}' too, or the two answers drift`)
+}
 const clients = read(B + 'routes/clients.ts')
 if (/ne\(contact\.type, 'vendor'\)\]/.test(clients)) fail('the Clients page must not list leads — excluding only vendors is what put 8 of them in the book')
 if (!/isClient\(\)\]/.test(clients)) fail('…it must use the shared rule')

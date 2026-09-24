@@ -12,17 +12,17 @@ const NAV: NavItem[] = [
   { to: '/crm/service-menu', icon: Scissors, label: 'Service Menu', features: ['service_menu'] },
   { to: '/crm/memberships', icon: CreditCard, label: 'Memberships', features: ['salon_memberships'] },
   { to: '/crm/contacts', icon: Users, label: 'Contacts' },
-  { to: '/crm/invoices', icon: Receipt, label: 'Invoices', features: ['invoices'] },
+  { to: '/crm/invoices', icon: Receipt, label: 'Invoices', features: ['invoices'], minRole: 'manager' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
-  { to: '/crm/team', icon: Users, label: 'Team' },
-  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'] },
+  { to: '/crm/team', icon: Users, label: 'Team', minRole: 'manager' },
+  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['google_reviews'], minRole: 'manager' },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own item above. (T15 M5)
-  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'] },
-  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
-  { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
+  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'], minRole: 'manager' },
+  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'], minRole: 'admin' },
+  { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'], minRole: 'admin' },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'] },
-  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'] },
+  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], minRole: 'manager' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
@@ -38,5 +38,18 @@ export const SHELL: ShellConfig = {
   '/crm/jobs': ['jobs'],
   '/crm/quotes': ['quotes'],
   '/crm/schedule': ['scheduling'],
+  },
+  // Pages with no sidebar entry of their own, or reached from inside Settings. A manager who typed one of
+  // these URLs got the API's raw refusal — "Failed to load: 403", "Status check failed", "Insufficient
+  // permissions" above "Nothing is wrong with your account", and a Company form that would not save.
+  // (Salon T28 M5)
+  routeRoles: {
+    '/crm/settings': 'admin',
+    '/crm/billing': 'owner',
+    '/crm/email-domain': 'admin',
+    '/crm/email-aliases': 'admin',
+    '/crm/import': 'admin',
+    '/crm/migration': 'admin',
+    '/crm/users': 'admin',
   },
 };

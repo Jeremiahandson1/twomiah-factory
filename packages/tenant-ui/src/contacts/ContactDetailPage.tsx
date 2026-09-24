@@ -27,7 +27,7 @@ const cardPad = `${card} p-6`
 const h2 = 'font-semibold text-gray-900 dark:text-slate-100'
 const rowLink = 'p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-800'
 const quickBtn = 'w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-900 dark:text-slate-100'
-const money = (v: unknown) => `$${Number(v || 0).toLocaleString()}`
+import { money } from '../invoicing/ui'
 
 function RelatedList({ title, rows, href, icon: Icon, render }: { title: string; rows: Related[]; href: (r: Related) => string; icon: React.ComponentType<{ className?: string }>; render: (r: Related) => React.ReactNode }) {
   return (
@@ -202,12 +202,23 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
   const showInvoices = gated('invoices')
   const invoices = showInvoices ? (contact.invoices || []) : []
   const jobs = contact.jobs || []
+  /**
+   * What this invoice still owes — the same rule reporting.ts and the dashboard use, which is why the
+   * money reconciles across five screens. This page had its own: total − paid + REFUNDED, with no regard
+   * for status, so a void invoice read "$25 outstanding", a refunded one "$100 outstanding" and a paid
+   * one with a partial refund "$40 outstanding". A refund is money handed back, not money owed, and a
+   * void invoice is cancelled. (Salon T28 M2)
+   */
+  const outstandingOf = (r: Related) => {
+    if (['draft', 'void', 'refunded'].includes(String(r.status || ''))) return 0
+    const total = Number(r.total || 0), paid = Number(r.amountPaid || 0), refunded = Number(r.amountRefunded || 0)
+    return paid >= total ? 0 : Math.max(0, total - (paid - refunded))
+  }
   // "Overdue" is derived, never stored — the same rule the list, the stats, Reports and search use, so a
   // contact's invoices cannot say something different from the invoice itself. (T14 M6 / H10)
   const invoiceStatus = (r: Related) => {
-    const outstanding = Number(r.total || 0) - Number(r.amountPaid || 0) + Number(r.amountRefunded || 0)
     const open = r.status === 'sent' || r.status === 'partial' || r.status === 'open'
-    return open && outstanding > 0.005 && isPastDay(r.dueDate) ? 'overdue' : String(r.status || '')
+    return open && outstandingOf(r) > 0.005 && isPastDay(r.dueDate) ? 'overdue' : String(r.status || '')
   }
   const quickActions = cfg.quickActions.filter((a) => !a.feature || hasFeature(a.feature))
 
@@ -351,9 +362,10 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
           {/* The page counted these in the sidebar and then showed a body with quotes only — "Invoices 4"
               over nothing. Both lists are here now, and an invoice shows what is actually outstanding and
               derives "overdue" the way every other surface does. (T14 M6) */}
+          {/* Newest first. The list arrived in whatever order the API happened to return. (T28 M2) */}
           {showInvoices && invoices.length > 0 && (
-            <RelatedList title="Invoices" rows={invoices} icon={Receipt} href={(r) => `/crm/invoices/${r.id}`} render={(r) => {
-              const outstanding = Number(r.total || 0) - Number(r.amountPaid || 0) + Number(r.amountRefunded || 0)
+            <RelatedList title="Invoices" rows={[...invoices].sort((a, b) => String(b.number || '').localeCompare(String(a.number || ''), undefined, { numeric: true }))} icon={Receipt} href={(r) => `/crm/invoices/${r.id}`} render={(r) => {
+              const outstanding = outstandingOf(r)
               return (
                 <div className="flex-1 flex items-center justify-between gap-3">
                   <div>

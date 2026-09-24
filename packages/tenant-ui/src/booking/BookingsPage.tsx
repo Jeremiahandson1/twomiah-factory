@@ -150,8 +150,16 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
               Tip: tick <strong>Bookable online</strong> on a <NavLink to={cfg.serviceMenuPath} className="underline">Service Menu</NavLink> item to offer your real menu online (duration, price and rebooking rules included). Once one is flagged, this list is retired.
             </div>
           )}
-          {services.length === 0 && (
+          {/* Not when the list is RETIRED: the banner above has just said this list is no longer offered
+              to customers, and "Add one so customers have something to book" directly under it invites a
+              thing that would do nothing. (Salon T28 L6) */}
+          {services.length === 0 && !retired && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-500 dark:text-slate-400">No bookable services yet. Add one so customers have something to book.</div>
+          )}
+          {services.length === 0 && retired && cfg.serviceMenuPath && (
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-500 dark:text-slate-400">
+              Nothing here — which is right. What customers can book lives on your <NavLink to={cfg.serviceMenuPath} className="underline">Service Menu</NavLink>.
+            </div>
           )}
           {services.map(s => (
             <div key={s.id} className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 flex items-start justify-between gap-4">

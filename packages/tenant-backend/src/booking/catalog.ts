@@ -66,7 +66,11 @@ export function createMenuCatalog(db: any, t: { bookableService: any; serviceMen
       return widget.publicServices(companyId, exec)
     },
     async resolve(companyId, serviceId, exec = db) {
-      const [m] = await exec.select().from(menu).where(and(eq(menu.id, serviceId), eq(menu.companyId, companyId), eq(menu.active, true))).limit(1)
+      // flagged(), not "active" — the SAME condition publicServices() lists by. This asked only whether
+      // the menu row was active, so the public list showed the three ticked services while a direct POST
+      // for an unticked one was accepted and took a real slot. A catalogue that advertises one set and
+      // admits another is not a catalogue. (Salon T28 H2)
+      const [m] = await exec.select().from(menu).where(and(eq(menu.id, serviceId), flagged(companyId))).limit(1)
       if (m) return fromMenu(m)
       if (await retired(companyId, exec)) return null
       const w = await widget.resolve(companyId, serviceId, exec)

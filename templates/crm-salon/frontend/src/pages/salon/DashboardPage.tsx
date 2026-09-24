@@ -5,6 +5,7 @@ import {
   CreditCard, DollarSign, ArrowRight, Armchair,
 } from 'lucide-react';
 import api from '../../services/api';
+import { stylistNameOf as stylistName } from '../../lib/staff';
 
 /**
  * Twomiah Salon — dashboard.
@@ -37,6 +38,7 @@ interface RecentService {
   serviceName?: string;
   clientName?: string;
   stylistFirstName?: string;
+  stylistMemberName?: string;
   stylistLastName?: string;
 }
 interface UpcomingAppt {
@@ -47,6 +49,7 @@ interface UpcomingAppt {
   serviceName?: string;
   clientName?: string;
   stylistFirstName?: string;
+  stylistMemberName?: string;
   stylistLastName?: string;
 }
 interface Activity {
@@ -78,9 +81,7 @@ function fmtDate(s?: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function stylistName(r: { stylistFirstName?: string; stylistLastName?: string }): string {
-  return [r.stylistFirstName, r.stylistLastName].filter(Boolean).join(' ');
-}
+// stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats>({});
@@ -121,7 +122,11 @@ export default function DashboardPage() {
   const overdue = reminders.overdue || 0;
   const dueSoon = reminders.dueSoon || 0;
   const reminderTotal = overdue + dueSoon;
-  const topRevenue = Math.max(1, ...byStylist.map((s) => Number(s.revenue || 0)));
+  // A role without invoices:read is sent no money at all, so the page shows what it was given rather
+  // than printing "$0" — which reads as "the salon took nothing" instead of "this is not yours to see".
+  // (Salon T28 M4)
+  const showsMoney = byStylist.some((s) => s.revenue !== undefined) || services.revenueThisMonth !== undefined;
+  const topRevenue = Math.max(1, ...byStylist.map((s) => Number((showsMoney ? s.revenue : s.visits) || 0)));
 
   return (
     <div className="space-y-6">
@@ -190,10 +195,12 @@ export default function DashboardPage() {
             <Scissors className="w-5 h-5 text-purple-500" />
           </div>
           <p className="text-3xl font-bold text-gray-900 mt-1 dark:text-slate-100">{services.thisMonth || 0}</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
-            <DollarSign className="w-3 h-3 text-green-600" />
-            {money(services.revenueThisMonth)} in the chair
-          </p>
+          {services.revenueThisMonth !== undefined && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 flex items-center gap-1">
+              <DollarSign className="w-3 h-3 text-green-600" />
+              {money(services.revenueThisMonth)} in the chair
+            </p>
+          )}
         </div>
 
         <Link to="/crm/memberships" className="bg-white rounded-xl border p-5 hover:shadow-md transition block dark:bg-slate-900">
@@ -219,11 +226,12 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium text-gray-900 dark:text-slate-100">{s.name || 'Unassigned'}</span>
                   <span className="text-gray-600 dark:text-slate-400">
-                    {money(s.revenue)} <span className="text-gray-500 dark:text-slate-400">· {s.visits || 0} service{s.visits === 1 ? '' : 's'}</span>
+                    {s.revenue !== undefined && <>{money(s.revenue)} <span className="text-gray-500 dark:text-slate-400">· </span></>}
+                    <span className="text-gray-500 dark:text-slate-400">{s.visits || 0} service{s.visits === 1 ? '' : 's'}</span>
                   </span>
                 </div>
                 <div className="mt-1 h-2 bg-gray-100 rounded-full overflow-hidden dark:bg-slate-800">
-                  <div className="h-full bg-teal-500" style={{ width: `${Math.round((Number(s.revenue || 0) / topRevenue) * 100)}%` }} />
+                  <div className="h-full bg-teal-500" style={{ width: `${Math.round((Number((showsMoney ? s.revenue : s.visits) || 0) / topRevenue) * 100)}%` }} />
                 </div>
               </li>
             ))}

@@ -49,7 +49,9 @@ for (const [slug, word] of [['field', 'Staff'], ['user', 'Staff'], ['manager', '
 // L6 — one job is not "1 jobs"
 const reports = read('packages/tenant-ui/src/reporting/ReportsPage.tsx')
 if (!/const labelFor = \(n: number\) => \(n === 1 \? cfg\.jobsLabel\.replace\(\/s\$\/, ''\) : cfg\.jobsLabel\)\.toLowerCase\(\)/.test(reports)) fail('Reports must pick the singular label for a count of one')
-if (!/\$\{labelFor\(jobs\.total\)\} in this period/.test(reports) || !/\{labelFor\(m\.jobsCompleted\)\} completed/.test(reports)) fail('both job counts must use labelFor')
+// The team panel's count is optional now — a salon reports services and takings rather than hours and
+// jobs (T28 M6) — so the call carries a default. It is still labelFor, on both counts.
+if (!/\$\{labelFor\(jobs\.total\)\} in this period/.test(reports) || !/\{labelFor\(m\.jobsCompleted[^)]*\)\} completed/.test(reports)) fail('both job counts must use labelFor')
 if (/\$\{cfg\.jobsLabel\.toLowerCase\(\)\} in this period/.test(reports) || /\{cfg\.jobsLabel\.toLowerCase\(\)\} completed/.test(reports)) fail('a job count still uses the plural label unconditionally')
 // L5 — the Recurring Invoices tiles have numbers
 const rec = read('packages/tenant-backend/src/recurring/recurring.ts')

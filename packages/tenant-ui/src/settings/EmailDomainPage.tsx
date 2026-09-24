@@ -76,21 +76,21 @@ export function EmailDomainPage(): React.ReactElement {
       {loading && <div className="text-sm text-gray-500 dark:text-slate-400">Loading…</div>}
 
       {!loading && status.status === 'unconfigured' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-md p-4">
           <div className="font-semibold text-yellow-900 mb-1">No domain connected yet</div>
-          <div className="text-sm text-yellow-800">Your CRM is running on a temporary URL. Contact support to connect your domain, or re-deploy the tenant with a domain set.</div>
+          <div className="text-sm text-yellow-800 dark:text-yellow-200">Your CRM is running on a temporary URL. Contact support to connect your domain, or re-deploy the tenant with a domain set.</div>
         </div>
       )}
 
       {!loading && status.status !== 'unconfigured' && (
         <>
-          <div className={'rounded-md p-4 mb-6 border ' + (status.status === 'verified' ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200')}>
+          <div className={'rounded-md p-4 mb-6 border ' + (status.status === 'verified' ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700/50' : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700/50')}>
             <div className="flex items-center justify-between">
               <div>
                 <div className={'font-semibold mb-1 ' + (status.status === 'verified' ? 'text-green-900' : 'text-yellow-900')}>
                   {status.status === 'verified' ? '✓ Verified' : '⏳ Pending verification'}
                 </div>
-                <div className={'text-sm ' + (status.status === 'verified' ? 'text-green-800' : 'text-yellow-800')}>
+                <div className={'text-sm ' + (status.status === 'verified' ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200')}>
                   {status.status === 'verified'
                     ? 'All DNS records are valid. Outbound email sends as your domain.'
                     : 'Add the records below at your DNS host, then click Verify. DNS propagation usually takes 5–30 minutes.'}

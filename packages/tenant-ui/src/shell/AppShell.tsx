@@ -10,6 +10,7 @@ import { GlobalSearch } from './GlobalSearch'
 import { TrialBanner } from './TrialBanner'
 import { ErrorBoundary } from './ErrorBoundary'
 import type { AppShellProps, NavItem } from './types'
+import { meetsRole } from './types'
 import { blockedRoute } from './routeGate'
 
 // react-router's <NavLink> as JSX fails TS2786 in the typed templates (a second @types/react copy is
@@ -46,8 +47,14 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
   const Brand = config.brand?.icon || Building
   const fallbackName = config.brand?.fallbackName || 'CRM'
 
-  // Core items always show; feature-gated items show if ANY listed feature is enabled.
-  const navItems = useMemo(() => config.nav.filter((i) => !i.features || i.features.some((f) => hasFeature(f))), [config.nav, hasFeature])
+  // Core items always show; feature-gated items show if ANY listed feature is enabled — and, since T28,
+  // only if the signed-in role may open the page at all. The role is checked FIRST: an item with no
+  // `features` used to return true immediately, so a role gate placed after it would never have run on
+  // precisely the core pages (Settings, Billing, Users) this is for. (Salon T28 M5)
+  const navItems = useMemo(
+    () => config.nav.filter((i) => meetsRole(user?.role, i.minRole) && (!i.features || i.features.some((f) => hasFeature(f)))),
+    [config.nav, hasFeature, user?.role],
+  )
 
   // Is there nav below the fold? Drives the fade at the bottom of the sidebar. Recomputed on scroll and on
   // resize, and whenever the list itself changes length — switching a module on in Settings can be what
@@ -80,11 +87,25 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
       ...config.nav.filter((i) => !i.external).map((i) => ({ to: i.to, label: i.label, features: i.features })),
       ...Object.entries(config.routeGates || {}).map(([to, features]) => ({ to, label: to.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), features })),
     ]
+    // Role first. Typing the URL of a page your role cannot open used to render it and let the API
+    // answer — which is where "Failed to load: 403" and a Settings form that cannot be saved came from.
+    const roleOf = (to: string) =>
+      config.routeRoles?.[to] ?? config.nav.find((i) => i.to === to)?.minRole
+    const roleBlocked = [...config.nav.filter((i) => !i.external).map((i) => i.to), ...Object.keys(config.routeRoles || {})]
+      .filter((to) => path === to || path.startsWith(to + '/'))
+      .sort((a, b) => b.length - a.length)
+      .find((to) => !meetsRole(user?.role, roleOf(to)))
+    if (roleBlocked) {
+      const label = config.nav.find((i) => i.to === roleBlocked)?.label
+        || roleBlocked.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+      return { to: roleBlocked, label, reason: 'role' as const }
+    }
     const matches = candidates
       .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
       .sort((a, b) => b.to.length - a.to.length)
-    return blockedRoute(matches, hasFeature)
-  }, [location.pathname, company, hasFeature, config.nav, config.routeGates])
+    const blocked = blockedRoute(matches, hasFeature)
+    return blocked ? { ...blocked, reason: 'feature' as const } : null
+  }, [location.pathname, company, hasFeature, config.nav, config.routeGates, config.routeRoles, user?.role])
 
   useEffect(() => { if (isMobile) setSidebarOpen(false) }, [location, isMobile])
   useEffect(() => {
@@ -235,8 +256,14 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
           <ErrorBoundary resetKey={location.pathname}>
             {gatedItem ? (
               <div className="max-w-xl mx-auto mt-16 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8">
-                <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">{gatedItem.label} isn't part of this CRM</h1>
-                <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">This module is not included for your business type or plan. Everything you can use is in the left menu.</p>
+                <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">
+                  {gatedItem.reason === 'role' ? `You don't have access to ${gatedItem.label}` : `${gatedItem.label} isn't part of this CRM`}
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+                  {gatedItem.reason === 'role'
+                    ? 'This page is limited to your salon\u2019s managers and owner. Ask them if you need something from it — everything you can use is in the left menu.'
+                    : 'This module is not included for your business type or plan. Everything you can use is in the left menu.'}
+                </p>
                 <RouterLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</RouterLink>
               </div>
             ) : (

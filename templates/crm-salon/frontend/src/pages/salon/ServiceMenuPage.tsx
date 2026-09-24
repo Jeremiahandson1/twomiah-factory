@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, Scissors, Edit2, Trash2, Clock, RotateCcw, AlertTriangle } from 'lucide-react';
 import api from '../../services/api';
+import { money as fmtMoney } from '../../shared';
 
 /**
  * Service Menu — what the salon sells (GET/POST/PUT/DELETE /api/service-menu).
@@ -37,9 +38,11 @@ interface Service {
   active?: boolean;
 }
 
+// Blank stays an em dash; an amount is formatted by the one formatter that knows currency has two
+// decimals, rather than a fourth copy that renders $12.50 as "$12.5". (Salon T28 M2)
 function money(v: number | string | undefined | null): string {
   if (v === null || v === undefined || v === '') return '—';
-  return `$${Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  return fmtMoney(v);
 }
 
 export default function ServiceMenuPage() {

@@ -16,7 +16,7 @@ const colors: Record<ToastType, string> = {
   success: 'bg-green-50 border-green-200 text-green-800',
   error: 'bg-red-50 border-red-200 text-red-800',
   info: 'bg-blue-50 border-blue-200 text-blue-800',
-  warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+  warning: 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-700/50 text-yellow-800 dark:text-yellow-100',
 };
 
 const iconColors: Record<ToastType, string> = {

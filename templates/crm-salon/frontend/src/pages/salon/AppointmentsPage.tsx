@@ -6,6 +6,8 @@ import ClientPicker from '../../components/salon/ClientPicker';
 import ServiceRecordEditorModal from '../../components/salon/ServiceRecordEditorModal';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 import { todayStr } from '../../utils/date';
+import { stylistNameOf as stylistName } from '../../lib/staff';
+import { useToast } from '../../contexts/ToastContext';
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -46,6 +48,7 @@ interface Appointment {
   serviceName?: string;
   serviceDurationMin?: number;
   stylistFirstName?: string;
+  stylistMemberName?: string;
   stylistLastName?: string;
 }
 interface ServiceOption { id: string; name?: string; durationMin?: number; price?: string | number; requiresPatchTest?: boolean }
@@ -102,11 +105,10 @@ function fmtTime(s?: string): string {
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 }
 
-function stylistName(a: Appointment): string {
-  return [a.stylistFirstName, a.stylistLastName].filter(Boolean).join(' ');
-}
+// stylistName lives in lib/staff.ts — one definition, and it knows about roster stylists. (T28 M6)
 
 export default function AppointmentsPage() {
+  const toast = useToast();
   const [day, setDay] = useState<string>(todayStr());
   const [appts, setAppts] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -157,7 +159,7 @@ export default function AppointmentsPage() {
       await api.post(`/api/appointments/${a.id}/check-in`);
       load();
     } catch (err) {
-      alert((err as Error).message || 'Failed to check in');
+      toast.error((err as Error).message || 'Failed to check in');
     }
   };
 
@@ -170,7 +172,7 @@ export default function AppointmentsPage() {
       load();
       if (status === 'completed') offerCheckout(res?.invoiceId as string | undefined);
     } catch (err) {
-      alert((err as Error).message || 'Failed to update the appointment');
+      toast.error((err as Error).message || 'Failed to update the appointment');
     }
   };
 
@@ -263,8 +265,8 @@ export default function AppointmentsPage() {
               )}
               {!CLOSED.has(a.status || 'scheduled') && (
                 <>
-                  <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 border border-green-200 text-green-700 rounded-lg hover:bg-green-50 text-sm">Complete</button>
-                  <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">No-Show</button>
+                  <button onClick={() => setStatus(a, 'completed')} className="px-3 py-1.5 border border-green-200 dark:border-green-700 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 text-sm">Complete</button>
+                  <button onClick={() => setStatus(a, 'no_show')} className="px-3 py-1.5 border border-amber-300 dark:border-amber-600 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 text-sm">No-Show</button>
                   <button onClick={() => setStatus(a, 'cancelled')} className="px-3 py-1.5 border border-red-200 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 text-sm">Cancel</button>
                 </>
               )}
@@ -305,6 +307,7 @@ function toLocalParts(iso?: string): { date: string; time: string } {
 }
 
 function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
   const start = toLocalParts(appt.startTime);
   const end = appt.endTime ? toLocalParts(appt.endTime) : { date: start.date, time: '' };
   const [date, setDate] = useState(start.date);
@@ -320,7 +323,7 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
       await api.put(`/api/appointments/${appt.id}`, payload);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to reschedule');
+      toast.error((err as Error).message || 'Failed to reschedule');
     } finally {
       setSaving(false);
     }
@@ -355,6 +358,7 @@ function RescheduleModal({ appt, onSave, onClose }: { appt: Appointment; onSave:
 /* ---------------- New Appointment Modal ---------------- */
 
 function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: string; onSave: () => void; onClose: () => void }) {
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [stylists, setStylists] = useState<StaffMember[]>([]);
@@ -427,7 +431,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!contactId) { alert('A client is required'); return; }
+    if (!contactId) { toast.error('A client is required'); return; }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -445,7 +449,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
       await api.post('/api/appointments', payload);
       onSave();
     } catch (err) {
-      alert((err as Error).message || 'Failed to create appointment');
+      toast.error((err as Error).message || 'Failed to create appointment');
     } finally {
       setSaving(false);
     }

@@ -9,6 +9,15 @@ import { db } from '../../db/index.ts'
 import { contact, project, job, quote, invoice, document, teamMember, rfi, serviceMenu } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
 import { deriveStatus } from '../shared/index.ts'
+import { NON_CLIENT_TYPES } from '../utils/clientTypes.ts'
+
+/**
+ * Where a contact opens. A client belongs on their chart — formula history, visits, memberships — not on
+ * the generic address-book page, which is where search sent everybody. Leads and suppliers have no chart
+ * and keep the contacts page. (Salon T28 L7)
+ */
+const contactUrl = (id: string, type: unknown) =>
+  (NON_CLIENT_TYPES as readonly string[]).includes(String(type || '')) ? `/crm/contacts/${id}` : `/crm/clients/${id}`
 
 interface SearchResult {
   type: string
@@ -69,7 +78,7 @@ export async function globalSearch(
             id: item.id,
             name: item.name,
             description: item.company || item.email || '',
-            url: `/crm/contacts/${item.id}`,
+            url: contactUrl(item.id, (item as any).type),
             icon: 'user',
           }))
         )
@@ -373,7 +382,7 @@ export async function getRecentItems(companyId: string, limit = 10) {
   ])
 
   return [
-    ...contacts.map((c) => ({ type: 'contact', id: c.id, name: c.name, url: `/crm/contacts/${c.id}` })),
+    ...contacts.map((c: any) => ({ type: 'contact', id: c.id, name: c.name, url: contactUrl(c.id, c.type) })),
     ...projects.map((p) => ({ type: 'project', id: p.id, name: p.name, url: `/crm/projects/${p.id}` })),
     ...jobs.map((j) => ({ type: 'job', id: j.id, name: j.title, url: `/crm/jobs/${j.id}` })),
   ].slice(0, limit)
