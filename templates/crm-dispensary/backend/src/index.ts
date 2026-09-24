@@ -487,7 +487,9 @@ if (hasFrontendBuild) {
         // name changes whenever the bytes do. Everything else — booking-widget.js above all, which is
         // embedded on the customer's own website — keeps its name across deploys, so a long cache means
         // a fix cannot reach anybody for a day. That is exactly what happened to the widget. (T29 L4)
-        const hashed = /^\/assets\//.test(c.req.path) && /\.[A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpg|svg)$/.test(c.req.path)
+        // Vite's separator is a HYPHEN: index-BDFO1_KD.js. Matching only "name.hash.ext" meant no bundle
+        // was ever recognised as hashed, so they all revalidated every five minutes. (T29)
+        const hashed = /^\/assets\//.test(c.req.path) && /[-.][A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpe?g|svg)$/.test(c.req.path)
         const cache = hashed ? 'public, max-age=31536000, immutable' : 'public, max-age=300, must-revalidate'
         return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': cache })
       }
