@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc, ne } from 'drizzle-orm'
+import { contact, clientProfile, serviceRecord, serviceMenu, appointment, membershipEnrollment, membershipPlan, user, invoice } from '../../db/schema.ts'
+import { eq, and, or, ilike, count, desc, ne , sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -158,7 +158,21 @@ app.get('/:contactId', requirePermission('contacts:read'), async (c) => {
     ? (() => { const [y, m, d] = calendarDateIn(new Date(withInterval.performedAt), tz).split('-').map(Number); return new Date(Date.UTC(y, m - 1, d) + withInterval.rebookIntervalDays * 86400000).toISOString().slice(0, 10) })()
     : null
 
-  const lifetimeValue = serviceRecords.reduce((s: number, r: any) => s + Number(r.priceCharged || 0), 0)
+  // Money the client actually paid, net of refunds — the same definition serviceRecords.ts uses when
+  // it reports what a visit took (amountPaid − amountRefunded). This summed priceCharged, the price
+  // TYPED on a visit card: a quote, frequently blank, never adjusted when the invoice was discounted,
+  // part-paid or refunded. The profile said $20 for a client who had paid $351.70. (Salon T27 N9)
+  const [paidRow] = await db
+    .select({
+      paid: sql<string>`COALESCE(SUM(GREATEST(0, COALESCE(${invoice.amountPaid}::numeric, 0) - COALESCE(${invoice.amountRefunded}::numeric, 0))), 0)`,
+    })
+    .from(invoice)
+    .where(and(
+      eq(invoice.contactId, contactId),
+      eq(invoice.companyId, currentUser.companyId),
+      sql`${invoice.status} NOT IN ('draft', 'void')`,
+    ))
+  const lifetimeValue = Math.round(Number(paidRow?.paid || 0) * 100) / 100
 
   return c.json({
     contact: ct,

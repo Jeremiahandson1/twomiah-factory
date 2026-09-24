@@ -19,6 +19,10 @@ export default createLeadsRoutes({
   options: {
     // Must match frontend/src/leadsConfig.ts — the platforms this vertical offers on the Lead Sources page.
     platforms: ['google_business', 'instagram', 'yelp', 'booking_app', 'website'],
-    contactType: 'lead',
+    // A person you convert is in the book, so they are a CLIENT. Leaving this at 'lead' made a contact
+    // that salon's own isClient() excludes (NON_CLIENT_TYPES = ['lead', 'vendor']) — Convert appeared to
+    // do nothing, because the new contact never reached the Clients page, while the salon's other convert
+    // button (POST /api/contacts/:id/convert) has always set 'client'. (Salon T27 N13)
+    contactType: 'client',
   },
 })

@@ -24,6 +24,8 @@ interface Status {
   twilio: { configured: boolean; ownAccount?: boolean; phoneNumber: string | null }
 }
 const EMPTY: Status = {
+  // configured is left undefined until the status lands — only an explicit false means "this server has
+  // no QuickBooks credentials", so the card never flashes "not available" while it is still loading.
   quickbooks: { connected: false, companyName: null, lastSync: null, syncEnabled: false },
   stripe: { connected: false, accountId: null, chargesEnabled: false },
   sms: { enabled: false, usage: 0 }, email: { enabled: false, usage: 0 },
@@ -96,7 +98,13 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
 
         <SectionLabel label="Accounting" />
         <Card icon={<BookOpen className="w-6 h-6 text-green-600 dark:text-green-400" />} iconBg="bg-green-100 dark:bg-green-500/20" title="QuickBooks" description={copy.quickbooks}
-          body={status.quickbooks.connected && (
+          body={status.quickbooks.configured === false ? (
+            // The server has no QuickBooks credentials, so "Connect QuickBooks" cannot work: it answered
+            // 503 "not enabled for this CRM yet" AFTER the click. The status endpoint has always carried
+            // "configured" for exactly this and the card ignored it, so the one fact needed was already
+            // on the page. Say it first, and offer the remedy the 503 names. (Salon T27 N15)
+            <p className="mt-2 text-sm text-gray-600 dark:text-slate-300">Not available on your account yet. Email <a href="mailto:support@twomiah.com" className="text-blue-600 dark:text-blue-400 hover:underline">support@twomiah.com</a> and we will switch it on.</p>
+          ) : status.quickbooks.connected && (
             <div className="mt-2 text-sm space-y-1">
               <p className="text-green-600 dark:text-green-400 font-medium">Connected{status.quickbooks.companyName ? ` to ${status.quickbooks.companyName}` : ''}</p>
               {status.quickbooks.lastSync && <p className="text-gray-500 dark:text-slate-400">Last synced: {new Date(status.quickbooks.lastSync).toLocaleString()}</p>}
@@ -106,7 +114,7 @@ export function IntegrationsPage({ api, config }: { api: SettingsApi; config?: I
               </button>
             </div>
           )}
-          actions={status.quickbooks.connected ? (<>
+          actions={status.quickbooks.configured === false ? null : status.quickbooks.connected ? (<>
             <button onClick={qbSync} disabled={saving === 'sync'} className="px-3 py-2 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1">{saving === 'sync' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}Sync Now</button>
             <button onClick={qbDisconnect} disabled={saving === 'quickbooks'} className="px-3 py-2 text-sm text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg">Disconnect</button>
           </>) : (

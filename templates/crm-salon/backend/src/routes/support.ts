@@ -5,6 +5,8 @@ import { db } from '../../db/index.ts';
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy, contact, user } from '../../db/schema.ts';
 import { eq, and, desc, asc, like, or, sql, count, inArray } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
+import { enabledFeaturesFor } from '../middleware/enabledFeature.ts';
+import { visibleArticles, enabledTopics } from '../utils/helpArticles.ts';
 
 const app = new Hono();
 
@@ -288,7 +290,11 @@ app.get('/kb', async (c) => {
       .orderBy(desc(supportKnowledgeBase.viewCount))
       .limit(50);
 
-    return c.json(articles);
+    // Help must not describe a module this tenant does not have. "Marketing campaigns — reach your
+    // clients from the Marketing page" was offered with Email Marketing switched off, where there is no
+    // such page and no sidebar entry to it. Anything the salon wrote themselves is always kept.
+    // (Salon T27 N15)
+    return c.json(visibleArticles(articles, await enabledFeaturesFor(u.companyId)));
   } catch (e: any) {
     if (e.message?.includes('does not exist')) return c.json([]);
     throw e;
@@ -350,6 +356,11 @@ app.post('/ai-chat', async (c) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return c.json({ reply: 'AI support is not configured. Please submit a ticket instead.', resolved: false });
 
+  // What this company actually has. The prompt below used to hard-list every salon feature, so the
+  // assistant recommended the Marketing page to tenants without one — inventing a screen, in the one
+  // place people go when they cannot find a screen. (Salon T27 N15)
+  const companyFeatures = await enabledFeaturesFor(u.companyId);
+
   // Fetch relevant KB articles
   let kbContext = '';
   try {
@@ -360,15 +371,16 @@ app.post('/ai-chat', async (c) => {
       .where(and(eq(supportKnowledgeBase.companyId, u.companyId), eq(supportKnowledgeBase.published, true)))
       .limit(20);
 
-    if (articles.length > 0) {
-      kbContext = '\n\nKnowledge Base Articles:\n' + articles.map(a => `## ${a.title}\n${a.content}`).join('\n\n');
+    const grounded = visibleArticles(articles, companyFeatures);
+    if (grounded.length > 0) {
+      kbContext = '\n\nKnowledge Base Articles:\n' + grounded.map(a => `## ${a.title}\n${a.content}`).join('\n\n');
     }
   } catch {}
 
   // Ground the assistant in THIS product's actual features. It used to describe a generic
   // CRM and told salon users their formula history / rebooking features don't exist and to
   // "create a Job or Schedule page" — construction concepts this app doesn't have. (HELP-01)
-  const systemPrompt = `You are a helpful support assistant for a salon & spa management CRM. The app's features are: Client Profiles (hair type, allergies, colour formula history), the Service Menu, The Book (appointment calendar), online Booking, Rebooking & Recall, Memberships, Invoices & Payments, Marketing campaigns, and Reports. This app has NO "jobs", "projects", "quotes", or "change orders" — never suggest those. Answer from these features and the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`;
+  const systemPrompt = `You are a helpful support assistant for a salon & spa management CRM. The features THIS salon has are: ${enabledTopics(companyFeatures) || 'Client Profiles and the Service Menu'}. Those are the only ones that exist for this user — never mention or suggest a feature that is not in that list, because the page for it is not in their app. This app has NO "jobs", "projects", "quotes", or "change orders" — never suggest those. Answer from these features and the knowledge base articles provided. If you cannot find a relevant answer, say you'll need to create a support ticket for the team to handle.${kbContext}`;
 
   const messages = [
     ...(conversationHistory || []).map((m: any) => ({ role: m.role, content: m.content })),

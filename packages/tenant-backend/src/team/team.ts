@@ -15,12 +15,19 @@ export interface TeamTables { teamMember: any; user: any
    * list can say how much each person is holding and the delete can say what it let go. (Contractor T26 L2)
    */
   job?: any }
+/**
+ * Somewhere a roster member can be holding work: the table, the property on it that points at team_member,
+ * and what one of them is called. Removing the member sets that column to null, so this is also the list of
+ * what a removal strands — the count in the confirm dialog, and the count the delete reports afterwards.
+ * Defaults to jobs (see createTeamRoutes) for the verticals whose work IS jobs. (Salon T27 N14)
+ */
+export interface AssignedWork { table: any; field: string; one: string; many: string }
 export interface TeamDeps {
   db: any
   tables: TeamTables
   authenticate: any
   requirePermission: (permission: string) => any
-  options?: { maxLimit?: number }
+  options?: { maxLimit?: number; assignedWork?: AssignedWork[] }
 }
 
 const clampInt = (v: unknown, min: number, max: number, dflt: number) => { const n = parseInt(String(v ?? ''), 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : dflt }
@@ -45,6 +52,13 @@ export const teamMemberSchema = z.object({
 export function createTeamRoutes(deps: TeamDeps) {
   const { db, tables: t, authenticate, requirePermission } = deps
   const maxLimit = deps.options?.maxLimit || 200
+  // Where this vertical's work lives. Unstated means jobs, which is what every caller meant before salon
+  // arrived holding appointments instead and was told it had stranded nothing. Still the COLUMN and not
+  // just the table: vet, RV and restaurant have a job table with no assigned_to_member_id, and selecting a
+  // column that is not there throws inside drizzle — it 500s the whole Team page, not just the count.
+  const work: AssignedWork[] = deps.options?.assignedWork
+    ?? (t.job?.assignedToMemberId ? [{ table: t.job, field: 'assignedToMemberId', one: 'job', many: 'jobs' }] : [])
+  const workLabel = { one: work[0]?.one || 'job', many: work[0]?.many || 'jobs' }
   const app = new Hono()
   app.use('*', authenticate)
 
@@ -54,16 +68,19 @@ export function createTeamRoutes(deps: TeamDeps) {
     return dupe && dupe.id !== exceptId ? dupe : null
   }
   const normEmail = (body: any) => { if (body && typeof body.email === 'string') body.email = body.email.toLowerCase().trim(); return body }
-  /** How many jobs each of these roster members is holding — what removing them would leave unassigned. */
+  /** How much work each of these roster members is holding — what removing them would leave unassigned. */
   const assignedJobCounts = async (companyId: string, memberIds: string[]): Promise<Record<string, number>> => {
-    // The COLUMN, not just the table: only the verticals that let roster crew hold work (contractor, field
-    // service, landscaping) have job.assigned_to_member_id. Selecting a column that does not exist throws
-    // inside drizzle and would 500 the whole Team page on vet, salon, RV and restaurant.
-    if (!t.job?.assignedToMemberId || memberIds.length === 0) return {}
-    const rows = await db.select({ memberId: t.job.assignedToMemberId, value: count() }).from(t.job)
-      .where(and(eq(t.job.companyId, companyId), inArray(t.job.assignedToMemberId, memberIds)))
-      .groupBy(t.job.assignedToMemberId)
-    return Object.fromEntries(rows.map((r: any) => [String(r.memberId), Number(r.value)]))
+    if (work.length === 0 || memberIds.length === 0) return {}
+    const out: Record<string, number> = {}
+    for (const w of work) {
+      const col = w.table[w.field]
+      if (!col) continue
+      const rows = await db.select({ memberId: col, value: count() }).from(w.table)
+        .where(and(eq(w.table.companyId, companyId), inArray(col, memberIds)))
+        .groupBy(col)
+      for (const r of rows) out[String(r.memberId)] = (out[String(r.memberId)] || 0) + Number(r.value)
+    }
+    return out
   }
   const invalid = (c: any, err: z.ZodError) => c.json({ error: err.errors[0]?.message || 'Invalid team member', details: err.flatten().fieldErrors }, 400)
 
@@ -119,7 +136,9 @@ export function createTeamRoutes(deps: TeamDeps) {
     }
     const hasLogin = (r: any) => r._source === 'user' || loginEmails.has(String(r.email || '').toLowerCase())
     const withCounts = rows.map((r: any) => (r._source === 'user' ? { ...r, hasLogin: true } : { ...r, assignedJobs: counts[r.id] || 0, hasLogin: hasLogin(r) }))
-    return c.json({ data: withCounts, pagination: { page, limit, total: totalN, pages } })
+    // …and what that work is CALLED here, so the confirm dialog warns a salon about appointments rather
+    // than about jobs it does not have. (Salon T27 N14)
+    return c.json({ data: withCounts, workLabel, pagination: { page, limit, total: totalN, pages } })
   })
 
   // Assignable staff = the login USERS a job/appointment's assignedToId can point at. This is NOT the
@@ -188,7 +207,7 @@ export function createTeamRoutes(deps: TeamDeps) {
     const id = c.req.param('id')
     const [existing] = await db.select({ id: t.teamMember.id }).from(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId))).limit(1)
     if (!existing) return c.json({ error: 'Team member not found' }, 404)
-    // Their jobs are about to lose their assignee. Count them first and say so — a caller that only ever
+    // Their work is about to lose its assignee. Count it first and say so — a caller that only ever
     // sees 204 has no way to learn work was left unassigned. (T26 L2)
     const counts = await assignedJobCounts(user.companyId, [id])
     const unassignedJobs = counts[id] || 0
@@ -202,13 +221,15 @@ export function createTeamRoutes(deps: TeamDeps) {
     // is true on every tenant, drifted or not, and in one transaction with the delete so a failure cannot
     // strand jobs half-detached. (Field Service T26 M2)
     await db.transaction(async (tx: any) => {
-      if (t.job?.assignedToMemberId) {
-        await tx.update(t.job).set({ assignedToMemberId: null })
-          .where(and(eq(t.job.companyId, user.companyId), eq(t.job.assignedToMemberId, id)))
+      for (const w of work) {
+        const col = w.table[w.field]
+        if (!col) continue
+        await tx.update(w.table).set({ [w.field]: null })
+          .where(and(eq(w.table.companyId, user.companyId), eq(col, id)))
       }
       await tx.delete(t.teamMember).where(and(eq(t.teamMember.id, id), eq(t.teamMember.companyId, user.companyId)))
     })
-    return c.json({ success: true, unassignedJobs })
+    return c.json({ success: true, unassignedJobs, unassignedLabel: workLabel })
   })
 
   return app

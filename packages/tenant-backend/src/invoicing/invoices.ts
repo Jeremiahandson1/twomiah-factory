@@ -348,14 +348,29 @@ export async function applyInvoiceCredit(db: any, t: { invoice: any; invoiceLine
     const taxRate = Number(row.tax_rate) || 0
     const newDiscount = round2(Number(row.discount || 0) + amount)
     const subtotal = rawSubtotal(lines)
-    if (newDiscount > subtotal + 0.005) { outcome = { ok: false, status: 400, error: `A credit can't take the price below $0 — at most $${round2(Math.max(0, subtotal - Number(row.discount || 0))).toFixed(2)} can be credited.` }; return }
-    // A credit forgives what is owed — it never goes past it (that would be money to hand back: a refund).
-    // Checked first, so the answer names the most that can be credited.
+    // Two bounds, and the caller is told about whichever actually BINDS. These used to be checked in
+    // sequence, so the first one to trip answered: on an $80 invoice with $40 paid, asking for $500
+    // was told "at most $80.00" (the price bound) while asking for $60 was told "$40.00" (the real
+    // one). Two caps for one invoice, and the larger mistake got the more misleading answer.
+    // (Salon T27 N12)
     const takesOff = (c: number) => round2(Number(row.total) - calcTotals(lines, taxRate, round2(Number(row.discount || 0) + c)).total)
-    if (takesOff(amount) > balanceBefore + 0.005) {
-      let most = Math.floor((balanceBefore / (1 + taxRate / 100)) * 100) / 100
-      while (most > 0 && takesOff(most) > balanceBefore + 0.005) most = round2(most - 0.01)
-      outcome = { ok: false, status: 400, error: `Only $${balanceBefore.toFixed(2)} is still owed — the most you can credit is $${most.toFixed(2)}${taxRate > 0 ? ' before tax' : ''}.` }
+
+    // 1. the price cannot fall below $0
+    const priceCap = round2(Math.max(0, subtotal - Number(row.discount || 0)))
+    // 2. a credit forgives what is OWED — past that is money to hand back, which is a refund
+    let owedCap = Math.floor((balanceBefore / (1 + taxRate / 100)) * 100) / 100
+    while (owedCap > 0 && takesOff(owedCap) > balanceBefore + 0.005) owedCap = round2(owedCap - 0.01)
+
+    const cap = Math.min(priceCap, owedCap)
+    const bindsOnOwed = owedCap <= priceCap
+    if (amount > cap + 0.005) {
+      outcome = {
+        ok: false,
+        status: 400,
+        error: bindsOnOwed
+          ? `Only ${balanceBefore.toFixed(2)} is still owed — the most you can credit is ${cap.toFixed(2)}${taxRate > 0 ? ' before tax' : ''}.`
+          : `A credit can't take the price below $0 — the most you can credit is ${cap.toFixed(2)}.`,
+      }
       return
     }
     const retotal = retotalInvoice({ amountPaid: row.amount_paid, status: row.status }, lines, taxRate, newDiscount)

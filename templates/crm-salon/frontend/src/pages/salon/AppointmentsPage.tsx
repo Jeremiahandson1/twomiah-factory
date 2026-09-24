@@ -382,6 +382,19 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
     })();
   }, []);
 
+  // Start + a number of minutes, as "HH:MM". One definition, because the two callers below used to
+  // carry a copy each and only one of them was ever written. (Salon T27 N3)
+  const shiftTime = (from: string, minutes: number) => {
+    const [h, m] = from.split(':').map(Number);
+    const t = new Date(2000, 0, 1, h, m + minutes);
+    return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  };
+  const minutesBetween = (from: string, to: string) => {
+    const [fh, fm] = from.split(':').map(Number);
+    const [th, tm] = to.split(':').map(Number);
+    return (th * 60 + tm) - (fh * 60 + fm);
+  };
+
   // Choosing a service fills in price and end time from the menu — the desk
   // should not have to do duration arithmetic.
   const onService = (id: string) => {
@@ -389,11 +402,25 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
     setForm((f) => {
       const next = { ...f, serviceId: id };
       if (svc?.price && !f.quotedPrice) next.quotedPrice = String(svc.price);
-      if (svc?.durationMin && f.startTime) {
-        const [h, m] = f.startTime.split(':').map(Number);
-        const end = new Date(2000, 0, 1, h, m + svc.durationMin);
-        next.endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
-      }
+      if (svc?.durationMin && f.startTime) next.endTime = shiftTime(f.startTime, svc.durationMin);
+      return next;
+    });
+  };
+
+  // …and so does moving the START. This did nothing, so End kept the time it was given when the
+  // service was picked: moving Start later gave a red "end must be after start", moving it EARLIER
+  // saved silently as a seven-and-a-half-hour booking. The appointment keeps its LENGTH when it is
+  // dragged through the day, which is what the person at the desk means. (Salon T27 N3)
+  const onStart = (value: string) => {
+    setForm((f) => {
+      const next = { ...f, startTime: value };
+      if (!value) return next;
+      const svc = services.find((s) => s.id === f.serviceId);
+      // the length to preserve: what is on the form now, else the service, else an hour
+      const length = f.startTime && f.endTime
+        ? minutesBetween(f.startTime, f.endTime)
+        : (svc?.durationMin ?? 60);
+      if (length > 0) next.endTime = shiftTime(value, length);
       return next;
     });
   };
@@ -467,7 +494,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">Start</label>
-                <input type="time" value={form.startTime} onChange={(e) => set('startTime', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                <input type="time" value={form.startTime} onChange={(e) => onStart(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 dark:text-slate-200">End</label>

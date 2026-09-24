@@ -22,8 +22,17 @@ for (const [re, what] of [
   [/row\.status === 'refunded'/, 'refuse a refunded sale'],
   [/balanceBefore <= 0\.005/, 'refuse when nothing is owed'],
 ] as const) if (!re.test(core)) fail(`applyInvoiceCredit must ${what}`)
-const capAt = core.indexOf('takesOff(amount) > balanceBefore + 0.005'), retotalAt = core.indexOf('retotalInvoice(')
-if (capAt < 0 || retotalAt < 0 || capAt > retotalAt) fail('applyInvoiceCredit must cap the credit at what is owed BEFORE re-totalling')
+// Both bounds, and the refusal compares against the SMALLER — checked before the invoice is re-totalled.
+// These used to be two sequential checks, so the first one to trip answered rather than the one that
+// actually binds: on an $80 invoice with $40 paid, asking for $500 was told "at most $80.00" (the price
+// bound) while asking for $60 was told "$40.00" (the real one). Two caps for one invoice, and the larger
+// mistake got the more misleading answer. (Salon T27 N12)
+if (!/const priceCap = /.test(core)) fail('applyInvoiceCredit must work out how far the price can fall')
+if (!/let owedCap = /.test(core)) fail('…and how much is actually owed')
+if (!/const cap = Math\.min\(priceCap, owedCap\)/.test(core)) fail('…and refuse against the smaller of the two, not whichever is checked first')
+if (!/bindsOnOwed/.test(core)) fail('…naming the bound that binds, so the number it gives is one the caller can use')
+const capAt = core.indexOf('amount > cap + 0.005'), retotalAt = core.indexOf('retotalInvoice(')
+if (capAt < 0 || retotalAt < 0 || capAt > retotalAt) fail('applyInvoiceCredit must cap the credit BEFORE re-totalling')
 if (!/round2\(Number\(row\.discount \|\| 0\) \+ amount\)/.test(core)) fail('applyInvoiceCredit must add the credit to the invoice discount (the price reduction the events ledger keeps)')
 // no money moves: no payment row, and the invoice write carries no amountPaid / amountRefunded
 if (/tx\.insert\(t\.payment\)/.test(core)) fail('applyInvoiceCredit must not write a payment row — a credit moves no money')

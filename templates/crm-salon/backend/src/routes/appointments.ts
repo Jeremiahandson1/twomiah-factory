@@ -34,6 +34,18 @@ async function syncOnlineBooking(appointmentId: string, status: string) {
 }
 
 // Resolve endTime: explicit > service duration > 60 min.
+/**
+ * The service, if it is on THIS salon's menu. An unknown id used to reach the insert and come back as the
+ * generic foreign-key message ("A related record does not exist, or is still in use.", 409) — which names
+ * no field, suggests a conflict where there is none, and offers the opposite problem as a possibility.
+ * A service from another tenant is as absent as one that was never created. (Salon T27 N17)
+ */
+async function ownService(companyId: string, serviceId: string) {
+  const [svc] = await db.select({ id: serviceMenu.id }).from(serviceMenu)
+    .where(and(eq(serviceMenu.id, serviceId), eq(serviceMenu.companyId, companyId))).limit(1)
+  return svc || null
+}
+
 async function resolveEnd(companyId: string, startTime: Date, serviceId: string | null, explicitEnd: string | null): Promise<Date> {
   if (explicitEnd) return new Date(explicitEnd)
   let minutes = 60
@@ -213,6 +225,8 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     if (!ct) return c.json({ error: 'That client does not exist.' }, 404)
   }
   const serviceId = body.serviceId || null
+  // Named here, the way the client two lines up already is. (Salon T27 N17)
+  if (serviceId && !(await ownService(currentUser.companyId, serviceId))) return c.json({ error: 'That service is not on your Service Menu.' }, 404)
   const endTime = await resolveEnd(currentUser.companyId, startTime, serviceId, body.endTime || null)
   // A manually-set end before the start was saved verbatim ("9:00 AM – 8:00 AM"). (SCHED-01)
   if (endTime.getTime() <= startTime.getTime()) return c.json({ error: 'The end time must be after the start time.' }, 400)
@@ -220,7 +234,11 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 
   // A stylist may be a login user or a roster member; work out which before writing. An id that is
   // neither is a 400 naming the field, not a foreign-key 409 that names nothing. (T20 H1)
-  const stylist = await resolveStylist(currentUser.companyId, body.stylistId)
+  // Either field. This read body.stylistId alone, so a caller sending stylistMemberId got their
+  // value echoed back with nobody assigned — silent, and the roster stylist is exactly the case
+  // resolveStylist() was written for: it has taken a user id OR a team-member id since T20 H1.
+  // (Salon T27 N17)
+  const stylist = await resolveStylist(currentUser.companyId, body.stylistId ?? body.stylistMemberId)
   if (!stylist) return unknownStylist(c, body.stylistId)
 
   let created
@@ -289,6 +307,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   // re-derive the end whenever the start or the service changed.
   const nextStart: Date = updates.startTime ?? new Date(existing.startTime)
   const nextService = 'serviceId' in updates ? updates.serviceId : existing.serviceId
+  if ('serviceId' in updates && updates.serviceId && !(await ownService(currentUser.companyId, updates.serviceId))) return c.json({ error: 'That service is not on your Service Menu.' }, 404)
   if (('startTime' in updates || 'serviceId' in updates) && !('endTime' in updates)) {
     updates.endTime = await resolveEnd(currentUser.companyId, nextStart, nextService, null)
   }
@@ -296,7 +315,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   // Reassigning the chair has to land in the right column, and the stylist has to exist. (T20 H1)
   let nextStylist: StylistRef = { stylistId: existing.stylistId, stylistMemberId: (existing as any).stylistMemberId ?? null }
   if ('stylistId' in updates) {
-    const resolved = await resolveStylist(currentUser.companyId, updates.stylistId)
+    const resolved = await resolveStylist(currentUser.companyId, updates.stylistId ?? (updates as any).stylistMemberId)
     if (!resolved) return unknownStylist(c, updates.stylistId)
     nextStylist = resolved
     updates.stylistId = resolved.stylistId

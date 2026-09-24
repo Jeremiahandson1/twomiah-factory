@@ -3,6 +3,7 @@ import { salonDayWindows } from '../utils/salonDate.ts'
 import { db } from '../../db/index.ts'
 import { contact, appointment, serviceRecord, serviceMenu, membershipEnrollment, user, invoice, teamMember } from '../../db/schema.ts'
 import { eq, and, or, gte, lt, count, desc, sql, isNotNull } from 'drizzle-orm'
+import { isClient } from '../utils/clientTypes.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { clientsOf } from '../utils/clientTypes.ts'
 
@@ -141,8 +142,12 @@ app.get('/recent-activity', async (c) => {
   }
 
   const [recentClients, recentServices, upcomingAppointments] = await Promise.all([
+    // Clients, not everyone in the address book. This had no type filter at all, so a webhook LEAD
+    // appeared under Recent Clients the moment it was touched — while the Clients page beside it
+    // correctly left the same row out. isClient() is the one definition of who counts, and it was
+    // already sitting in utils/clientTypes.ts. (Salon T27 N10)
     safe(() => db.select({ id: contact.id, name: contact.name, phone: contact.phone, email: contact.email, updatedAt: contact.updatedAt })
-      .from(contact).where(eq(contact.companyId, companyId)).orderBy(desc(contact.updatedAt)).limit(5), []),
+      .from(contact).where(and(eq(contact.companyId, companyId), isClient())).orderBy(desc(contact.updatedAt)).limit(5), []),
     // stylistMemberName for the same reason as the appointments query below it: a roster stylist
     // showed as no stylist at all on Recent Services. (Salon T27 N5)
     safe(() => db.select({ id: serviceRecord.id, performedAt: serviceRecord.performedAt, priceCharged: serviceRecord.priceCharged, serviceName: serviceMenu.name, clientName: contact.name, stylistFirstName: user.firstName, stylistLastName: user.lastName, stylistMemberName: teamMember.name })

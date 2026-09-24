@@ -25,10 +25,13 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [toDelete, setToDelete] = useState<Member | null>(null)
+  // What this vertical calls the work a member holds. A contractor holds jobs, a stylist holds appointments —
+  // this page used to tell a salon its stylist's "jobs" would be left unassigned. (Salon T27 N14)
+  const [workLabel, setWorkLabel] = useState({ one: 'job', many: 'jobs' })
 
   const load = useCallback(async () => {
     setLoading(true)
-    try { const res = await api.get('/api/team', { page, limit: 25 }); setData(res?.data || []); setPagination(res?.pagination || null) }
+    try { const res = await api.get('/api/team', { page, limit: 25 }); setData(res?.data || []); setPagination(res?.pagination || null); if (res?.workLabel?.one) setWorkLabel(res.workLabel) }
     catch (e) { toast.error(errMsg(e, 'Failed to load team')) }
     finally { setLoading(false) }
   }, [api, page])
@@ -59,7 +62,8 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
       // Say what it cost. Removing someone sets their jobs back to unassigned, which used to happen silently.
       const res: any = await api.delete('/api/team', toDelete.id)
       const freed = Number(res?.unassignedJobs || 0)
-      toast.success(freed > 0 ? `Team member removed — ${freed} ${freed === 1 ? 'job is' : 'jobs are'} now unassigned` : 'Team member removed')
+      const noun = res?.unassignedLabel?.one ? res.unassignedLabel : workLabel
+      toast.success(freed > 0 ? `Team member removed — ${freed} ${freed === 1 ? noun.one + ' is' : noun.many + ' are'} now unassigned` : 'Team member removed')
       setToDelete(null); load()
     }
     catch (e) { toast.error(errMsg(e, 'Failed to remove team member')) }
@@ -130,7 +134,7 @@ export function TeamPage({ api, toast, config }: { api: PeopleApi; toast: People
         title="Remove Member"
         message={`Remove ${toDelete?.name || 'this member'} from the roster?${
           Number(toDelete?.assignedJobs || 0) > 0
-            ? ` ${toDelete!.assignedJobs} ${Number(toDelete!.assignedJobs) === 1 ? 'job assigned to them' : 'jobs assigned to them'} will be left unassigned.`
+            ? ` ${toDelete!.assignedJobs} ${Number(toDelete!.assignedJobs) === 1 ? workLabel.one : workLabel.many} assigned to them will be left unassigned.`
             : ''
         }`}
         confirmText="Remove"

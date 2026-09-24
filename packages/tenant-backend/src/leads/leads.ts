@@ -298,6 +298,19 @@ export function createLeadsRoutes(deps: LeadsDeps) {
     if (!parsed.success) return c.json({ error: `Status must be one of ${SETTABLE_STATUSES.join(', ')} (use Convert to mark a lead converted)` }, 400)
     const existing = await ownLead(id, currentUser.companyId)
     if (!existing) return c.json({ error: 'Lead not found' }, 404)
+    // Converting is a one-way door, and this was the way back out. Setting a converted lead to "new"
+    // answered 200 and left the contact it had created sitting there — the inbox then read 0 converted
+    // beside a contact that came from a lead, with no way to reconnect them. POST /:id/convert has always
+    // refused a second convert for the same reason; the status route simply never asked.
+    //
+    // It refuses only while the contact still EXISTS: a lead whose contact was later deleted is genuinely
+    // orphaned and has to stay workable, so this re-reads the contact rather than trusting the stored id.
+    // No screen reaches this — Dismiss and Reopen are both hidden on a converted row. (Salon T27 N13)
+    if (existing.status === 'converted' && existing.convertedContactId) {
+      const [already] = await db.select({ id: t.contact.id, name: t.contact.name }).from(t.contact)
+        .where(and(eq(t.contact.id, existing.convertedContactId), eq(t.contact.companyId, currentUser.companyId))).limit(1)
+      if (already) return c.json({ error: `This lead was already converted to ${already.name}. Delete that contact first if the conversion was a mistake.`, contactId: already.id }, 409)
+    }
     const updates: any = { status: parsed.data.status, updatedAt: new Date() }
     if (parsed.data.status === 'contacted' && !existing.contactedAt) updates.contactedAt = new Date()
     const [updated] = await db.update(t.lead).set(updates).where(eq(t.lead.id, id)).returning()

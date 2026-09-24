@@ -128,7 +128,7 @@ export function LeadInboxPage({ api, toast, config, subscribe }: { api: LeadsApi
             return (
               <div key={s.platform} style={{ padding: 16, background: c.surface, borderRadius: 8, border: `1px solid ${c.border}` }}>
                 <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: info.bg, color: info.text }}>{info.label}</span>
-                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 8 }}>{s.leadsReceived} leads</div>
+                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 8 }}>{s.leadsReceived} {Number(s.leadsReceived) === 1 ? 'lead' : 'leads'}</div>
                 <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 12, color: c.muted }}>
                   <span>{s.conversionRate}% conv.</span>
                   {s.avgResponseTimeMin !== null && <span>{s.avgResponseTimeMin}min avg resp.</span>}
