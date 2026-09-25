@@ -58,5 +58,39 @@ console.log('\n── with Client Portal ON ──')
   check('…and it can be reissued', again.status === 200, { status: again.status })
 }
 
+// T30 L-P1 — "3 contacts still have portalEnabled; T20 Money Probe has a live token until 18 Dec 2026.
+// Could not check whether that link still opens."
+//
+// It did. Gating /enable and /regenerate stopped new links being minted and left every link already sent
+// working — and a portal link lives in a customer's inbox for as long as they keep the email. Switching
+// the module off has to close the doors that are already open.
+console.log('\n── a link that was ALREADY sent, on a tenant whose portal is off ──')
+{
+  // The token is written straight to the row, which is the state the report found: three contacts still
+  // carrying portalEnabled and a live token on a tenant with Client Portal switched off. Going through
+  // /enable first would not reproduce it — and would also prime the 15-second feature cache with the
+  // answer from BEFORE the switch, so the test would read green on a live defect.
+  const { co, cust } = await mk('t29portal-later', ['jobs', 'contacts', 'invoices'])
+  const token = 'T30LP1' + Math.random().toString(36).slice(2, 10)
+  await db.update(contact).set({ portalEnabled: true, portalToken: token, portalTokenExp: new Date(Date.now() + 90 * 24 * 3600_000) }).where(eq(contact.id, cust.id))
+
+  const after = await app.request(`/api/portal/p/${token}`)
+  const body = await after.text()
+  check('the link in their inbox no longer opens the portal', after.status === 403, { status: after.status, body: body.slice(0, 200) })
+  check('…and says the module is off, not that their link is broken', /FEATURE_NOT_ENABLED/.test(body), { body: body.slice(0, 200) })
+
+  const [row] = await db.select().from(contact).where(eq(contact.id, cust.id))
+  check('the token is left alone, so switching the module back on restores their link', row?.portalToken === token && row?.portalEnabled === true, { hasToken: !!row?.portalToken, portalEnabled: row?.portalEnabled })
+}
+
+console.log('\n── …and the same link on a tenant that HAS the portal still opens ──')
+{
+  const { co, cust } = await mk('t29portal-live', ['jobs', 'contacts', 'invoices', 'client_portal'])
+  const token = 'T30LP1ok' + Math.random().toString(36).slice(2, 10)
+  await db.update(contact).set({ portalEnabled: true, portalToken: token, portalTokenExp: new Date(Date.now() + 90 * 24 * 3600_000) }).where(eq(contact.id, cust.id))
+  const res = await app.request(`/api/portal/p/${token}`)
+  check('a customer of a tenant with Client Portal is unaffected', res.status === 200, { status: res.status, company: co.slug })
+}
+
 console.log(`\nfs-t29-portal-gate: ${passed} passed, ${failed} failed`)
 process.exit(failed ? 1 : 0)

@@ -284,6 +284,12 @@ export function createPortalRoutes(deps: PortalDeps) {
     if (found.portalTokenExp && new Date() > new Date(found.portalTokenExp)) {
       return c.json({ error: 'Portal link has expired. Please contact the company for a new link.' }, 401)
     }
+    // Switching the module off has to close the doors already open, not only stop new ones being made.
+    // T30 L-P1: three contacts still carried portalEnabled and a live token — one valid until December —
+    // on a tenant with Client Portal off. Gating /enable and /regenerate stopped new links; an old link
+    // in somebody's inbox still opened the whole portal. Same rule as those two: a missing or failed
+    // feature lookup ALLOWS, so a tenant whose feature list cannot be read does not lose a live portal.
+    if (await portalFeatureOff(found.companyId)) return c.json(PORTAL_OFF, 403)
     await db.update(t.contact).set({ lastPortalVisit: new Date() }).where(eq(t.contact.id, found.id))
     c.set('portal', {
       contact: found,

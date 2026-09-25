@@ -97,7 +97,9 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
     const path = cfg.calendarPath(cal.id)
     return (
       <span className="inline-flex items-center gap-2">
-        {path ? <NavLink to={path} className="text-orange-600 hover:underline dark:text-orange-300">{label}</NavLink> : <span>{label}</span>}
+        {/* 24px tall at least: the JOB link is one line of small text, which measured under the smallest
+            target WCAG 2.2 asks for on a phone. (Field Service T30 L-MOB3) */}
+        {path ? <NavLink to={path} className="inline-flex items-center min-h-6 text-orange-600 hover:underline dark:text-orange-300">{label}</NavLink> : <span>{label}</span>}
         {cal.status && cal.status !== row.status && <span className="text-xs text-gray-500 dark:text-slate-400">({cal.status.replace(/_/g, ' ')})</span>}
       </span>
     )

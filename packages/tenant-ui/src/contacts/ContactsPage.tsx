@@ -157,7 +157,10 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
     // text-orange-500 is the tenant's brand hex itself, and dark mode reused it unchanged: 2.70:1 on
     // the dark table for a blue brand, across every email cell in the list. Shade 200 is the same hue
     // lifted to 80% lightness and clears AA whatever the brand colour is. (Salon T20 M6)
-    { key: 'email', label: 'Email', render: (val: unknown) => val ? <a href={`mailto:${val}`} onClick={(e) => e.stopPropagation()} className="text-orange-500 dark:text-orange-200 hover:underline">{String(val)}</a> : '-' },
+    // min-h-6 (24px) and inline-flex: a bare inline <a> is only as tall as its text, which measured under
+    // 24px on a phone — below the smallest target WCAG 2.2 asks for, and a real miss when the row it sits
+    // in opens the contact. The row's own click is already stopped here. (Field Service T30 L-MOB3)
+    { key: 'email', label: 'Email', render: (val: unknown) => val ? <a href={`mailto:${val}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center min-h-6 text-orange-500 dark:text-orange-200 hover:underline">{String(val)}</a> : '-' },
     { key: 'phone', label: 'Phone', render: (val: unknown) => <span className="text-gray-700 dark:text-slate-200">{String(val || '-')}</span> },
     { key: 'city', label: 'Location', render: (_v: unknown, row: ContactRow) => <span className="text-gray-700 dark:text-slate-200">{row.city && row.state ? `${row.city}, ${row.state}` : row.city || row.state || '-'}</span> },
   ]
