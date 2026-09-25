@@ -276,14 +276,29 @@ export function createJobRoutes(deps: JobDeps) {
      * is right for the week view, which asks for a range and reads down the days; it is the wrong first
      * screen for someone opening the list to find what is happening now. (Field Service T28 L4)
      *
-     * NULLS LAST is the whole reason this is written as raw SQL: Postgres sorts NULLs FIRST on a DESC
-     * column, so plain desc() opened the list on every UNSCHEDULED call — work with no date at all,
-     * which is no more "what is happening now" than JOB-00001 was. Dated work leads; undated trails.
+     * It took three goes to get this right, and each wrong answer was defensible on its own:
+     *   ascending           opened on JOB-00001, the oldest finished work (T28 L4)
+     *   descending          opened on unscheduled calls — Postgres sorts NULLs first on DESC
+     *   descending dated    opened on test calls booked in 2027, still not today's work (T29)
+     *
+     * "Newest" was never the goal; NEXT was. The list opens on today and reads FORWARD, then past work
+     * follows most-recent-first, then undated. Ordering by a single column cannot express that, which is
+     * why all three attempts to pick one direction failed.
      */
     const viewingRange = !!(q.startDate || q.endDate || q.date)
+    const tzForOrder = await companyTimeZone(db, currentUser.companyId)
+    const { date: todayForOrder } = storeDayRange(tzForOrder)
     const order = viewingRange
       ? [asc(t.job.scheduledDate), desc(t.job.createdAt)]
-      : [sql`${t.job.scheduledDate} DESC NULLS LAST`, desc(t.job.createdAt)]
+      : [
+          // upcoming (0) before past (1) before undated (2)
+          sql`CASE WHEN ${t.job.scheduledDate} IS NULL THEN 2 WHEN ${t.job.scheduledDate} >= ${todayForOrder}::date THEN 0 ELSE 1 END`,
+          // within upcoming: soonest first
+          sql`CASE WHEN ${t.job.scheduledDate} >= ${todayForOrder}::date THEN ${t.job.scheduledDate} END ASC`,
+          // within past: most recent first
+          sql`CASE WHEN ${t.job.scheduledDate} < ${todayForOrder}::date THEN ${t.job.scheduledDate} END DESC`,
+          desc(t.job.createdAt),
+        ]
     const [rows, [{ value: total }]] = await Promise.all([
       db.select().from(t.job).where(where).orderBy(...order).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.job).where(where),

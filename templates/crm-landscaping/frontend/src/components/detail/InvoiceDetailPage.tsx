@@ -8,6 +8,6 @@ import { INVOICING } from '../../invoicingConfig';
 
 export default function InvoiceDetailPage() {
   const toast = useToast();
-  const { company } = useAuth();
-  return <SharedInvoiceDetailPage api={api as any} toast={toast} settings={(company as any)?.settings} config={INVOICING} />;
+  const { company, hasFeature } = useAuth();
+  return <SharedInvoiceDetailPage api={api as any} toast={toast} settings={(company as any)?.settings} config={{ ...INVOICING, hasFeature }} />;
 }

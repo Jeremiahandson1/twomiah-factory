@@ -163,7 +163,7 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                     </div>
                   ))}
                   {bookingsFor(day).map((b) => (
-                    <div key={`${b.source}-${b.id}`} className="p-2 rounded text-xs bg-orange-50 border-l-2 border-orange-500 dark:bg-orange-900/20 text-gray-900 dark:text-slate-100" title={`${b.serviceName || 'Booking'} — ${b.customerName}${b.customerAddress ? ' @ ' + b.customerAddress : ''}`}>
+                    <div key={`${b.source}-${b.id}`} className="p-2 rounded text-xs bg-orange-100 border-l-4 border-orange-500 dark:bg-orange-900/30 text-gray-900 dark:text-slate-100" title={`${b.serviceName || 'Booking'} — ${b.customerName}${b.customerAddress ? ' @ ' + b.customerAddress : ''}`}>
                       <p className="font-medium truncate flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" />{b.customerName}</p>
                       <p className="text-gray-500 truncate dark:text-slate-400">{timeOf(b.startAt)}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
                     </div>

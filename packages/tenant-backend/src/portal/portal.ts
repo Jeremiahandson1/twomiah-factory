@@ -97,6 +97,10 @@ const SECTION_FEATURES: Record<string, Array<string | string[]>> = {
   projectFiles: ['documents', 'projects'],
   equipment: ['equipment_tracking'],
   agreements: [['service_agreements', 'maintenance_contracts']],
+  // Saving a card is only meaningful where the tenant can take card payments at all. The tab was
+  // hardcoded "always available" on both sides, so a customer of a tenant with Online Payments OFF was
+  // shown a Payment Method tab. Same shape as equipment/agreements in T26 M7. (Field Service T29 M1)
+  paymentMethods: ['online_payments'],
 }
 /** One id: is it on. A nested list: is ANY of them on. */
 const featureSatisfied = (need: string | string[], enabled: string[]): boolean =>
@@ -130,6 +134,9 @@ export function createPortalRoutes(deps: PortalDeps) {
     equipment: !!t.equipment && !!t.job && !off('service'),
     agreements: !!t.serviceAgreement && !off('service'),
     serviceRequest: !!t.job && !off('service'),
+    // Mounted by every vertical — a portal can always show cards IF the tenant sells that way.
+    // Whether it does is SECTION_FEATURES above (online_payments), not the vertical mount list.
+    paymentMethods: true,
     // vet: the owner's animals. (T12 H6 — the portal offered a veterinary client projects, change orders and lien
     // waivers, and nothing at all about the pets they actually bring in.)
     pets: !!t.patient && !off('pets'),

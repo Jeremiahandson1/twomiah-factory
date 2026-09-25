@@ -115,7 +115,7 @@ export default function PricebookTrialPage() {
               <button
                 onClick={handleStartTrial}
                 disabled={starting}
-                className="w-full inline-flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
+                className="w-full inline-flex items-center justify-center gap-2 bg-amber-700 hover:bg-amber-800 text-white font-semibold px-6 py-3 rounded-lg transition-colors disabled:opacity-50"
               >
                 {starting ? 'Submitting...' : 'Start Free Trial'}
                 {!starting && <ArrowRight className="w-4 h-4" />}

@@ -92,9 +92,29 @@ for (const abs of files) {
   if (!text.includes('hasFeature')) continue
 
   for (const fn of functions(text)) {
-    // A function that both reads hasFeature() and decides where the user goes is a route gate.
+    /**
+     * A route gate is one where the FEATURE ANSWER decides where the user goes — not merely a component
+     * that happens to do both.
+     *
+     * "reads hasFeature() anywhere && calls navigate() anywhere" caught JobsPage, which navigates to a job
+     * on row click and separately asks whether the tenant has projects before fetching them. Nothing there
+     * routes on a feature. Flagging it pushed toward a pointless `if (!company) return` in a list page, and
+     * a guard that asks for the wrong change is worse than one that stays quiet: the next person satisfies
+     * it rather than thinking. (Field Service T29)
+     *
+     * <Navigate> and blockedRoute() are route decisions wherever they appear. A bare navigate() counts only
+     * when the feature answer is close enough to be plausibly controlling it.
+     */
     const reads = /hasFeature\s*\(/.test(fn.body)
-    const decides = /<Navigate\b/.test(fn.body) || /\bnavigate\s*\(/.test(fn.body) || /blockedRoute\s*\(/.test(fn.body)
+    const routesOutright = /<Navigate\b/.test(fn.body) || /blockedRoute\s*\(/.test(fn.body)
+    const navigatesOnTheAnswer = (() => {
+      for (const m of fn.body.matchAll(/hasFeature\s*\(/g)) {
+        const near = fn.body.slice(m.index ?? 0, (m.index ?? 0) + 300)
+        if (/\bnavigate\s*\(/.test(near)) return true
+      }
+      return false
+    })()
+    const decides = routesOutright || navigatesOnTheAnswer
     if (!reads || !decides) continue
     checked++
     if (!WAITS.some((r) => r.test(fn.body))) {

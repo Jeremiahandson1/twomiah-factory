@@ -38,6 +38,13 @@ export interface InvoicingConfig {
   quoteNamePlaceholder?: string
   /** Show the QuickBooks sync block on the invoice detail (field service, landscaping). */
   quickbooks?: boolean
+  /**
+   * Does THIS TENANT have the feature?  above says the VERTICAL is sold QuickBooks,
+   * which is not the same question — the invoice detail offered "Sync to QuickBooks" to a tenant
+   * without it. Defaults to allowing everything, so a template that does not pass it is unchanged.
+   * (Field Service T29 M1)
+   */
+  hasFeature?: (feature: string) => boolean
 }
 
 export interface InvoicingPageProps {

@@ -53,9 +53,23 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     } catch (err) { toast.error(errMsg(err, `Failed to load ${cfg.labels.plural.toLowerCase()}`)) } finally { setLoading(false) }
   }, [page, search, statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Projects load only where the tenant HAS projects — and this has its OWN effect, keyed on the answer.
+   *
+   * The fetch fired on every load of the Service Calls page and was refused 403 every time: a request the
+   * app already knew the answer to, and console noise that hides real failures. But hasFeature() answers
+   * false until /api/auth/me lands, so testing it inside the mount-once effect would have skipped the
+   * fetch for tenants that DO have projects — trading a harmless 403 for an empty picker. Depending on
+   * the answer means the fetch runs the moment it flips true. (Field Service T29 M1)
+   */
+  const tenantHasProjects = cfg.hasFeature('projects')
+  useEffect(() => {
+    if (!tenantHasProjects) { setProjects([]); return }
+    api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
+  }, [tenantHasProjects]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // pickers load once; a failure must not block the list
   useEffect(() => {
-    api.get('/api/projects', { limit: 100 }).then((r: any) => setProjects(r?.data || [])).catch(() => setProjects([]))
     api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
     // Assignable people: login users AND active roster crew (T21 M12 — crew without a login do the work). GET /api/team
     // drops users once a roster member exists, which erased everyone from the picker. (F-14 / assignee)

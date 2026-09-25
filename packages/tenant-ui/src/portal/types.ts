@@ -51,7 +51,7 @@ export const SECTION_PATH: Record<PortalSection, string> = {
 }
 
 /** What the backend reports it mounted (GET /p/:token → sections). */
-export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest' | 'pets', boolean>>
+export type PortalBackendSections = Partial<Record<'projects' | 'changeOrders' | 'selections' | 'myJobs' | 'lienWaivers' | 'submittals' | 'rfis' | 'sharedDocuments' | 'projectFiles' | 'equipment' | 'agreements' | 'serviceRequest' | 'pets' | 'paymentMethods', boolean>>
 
 export const DEFAULT_ROLE_LABELS: Record<string, string> = {
   client: 'Customer Portal', customer: 'Customer Portal', lead: 'Customer Portal', owner: 'Customer Portal',
@@ -87,7 +87,10 @@ export type ResolvedPortalConfig = ReturnType<typeof resolvePortalConfig>
 
 /** A section is available when the backend mounts it (sections always mounted: quotes, invoices, paymentMethods, messages). */
 export function sectionAvailable(section: PortalSection, backend: PortalBackendSections | undefined): boolean {
-  if (section === 'quotes' || section === 'invoices' || section === 'paymentMethods' || section === 'messages') return true
+  // paymentMethods used to sit in this always-true list, so the card tab showed even with Online
+  // Payments off — the backend reports it like any other gated section now. Quotes, invoices and
+  // messages stay unconditional: they are what a portal IS. (Field Service T29 M1)
+  if (section === 'quotes' || section === 'invoices' || section === 'messages') return true
   if (!backend) return false
   return !!backend[section as keyof PortalBackendSections]
 }

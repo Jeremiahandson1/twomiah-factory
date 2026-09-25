@@ -70,7 +70,7 @@ export default function ContactSupportPage() {
         {statusUrl && (
           <p className="text-sm mt-2">
             Before you write: <a href={statusUrl} target="_blank" rel="noreferrer"
-              className="text-blue-600 underline">check whether we already know about an outage</a>.
+              className="text-blue-600 dark:text-blue-400 underline">check whether we already know about an outage</a>.
           </p>
         )}
       </div>

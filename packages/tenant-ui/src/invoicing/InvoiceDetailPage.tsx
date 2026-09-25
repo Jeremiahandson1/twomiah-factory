@@ -99,7 +99,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
           {invoice.status !== 'void' && netPaid > 0.005 && <Button variant="warn" onClick={() => { setRefund({ amount: netPaid.toFixed(2), method: '', reference: '', notes: '' }); setRefundOpen(true) }}><RotateCcw className="w-4 h-4" /> Refund</Button>}
           {invoice.status !== 'void' && netPaid <= 0.005 && <Button variant="secondary" onClick={() => setVoidOpen(true)}><Ban className="w-4 h-4" /> Void</Button>}
           <Button variant="secondary" onClick={handlePdf}><Download className="w-4 h-4" /> PDF</Button>
-          {cfg.quickbooks && <Button variant="secondary" onClick={handleQuickBooks} disabled={busy}><RefreshCw className="w-4 h-4" /> {invoice.syncedAt ? 'Re-sync QuickBooks' : 'Sync to QuickBooks'}</Button>}
+          {cfg.quickbooks && (cfg.hasFeature ? cfg.hasFeature('quickbooks') : true) && <Button variant="secondary" onClick={handleQuickBooks} disabled={busy}><RefreshCw className="w-4 h-4" /> {invoice.syncedAt ? 'Re-sync QuickBooks' : 'Sync to QuickBooks'}</Button>}
           {!closed && <NavLink to={`/crm/invoices?edit=${id}`} className="px-4 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"><Edit className="w-4 h-4" /> Edit</NavLink>}
           {Number(invoice.amountPaid || 0) <= 0 && invoice.status !== 'paid' && <Button variant="danger" onClick={() => setDeleteOpen(true)} aria-label="Delete invoice"><Trash2 className="w-4 h-4" /></Button>}
         </div>
@@ -167,7 +167,7 @@ export function InvoiceDetailPage({ api, toast, config }: InvoicingPageProps) {
               {invoice.sentAt && <div><p className="text-gray-500 dark:text-slate-400">Sent</p><p>{dateTime(invoice.sentAt)}</p></div>}
               {invoice.paidAt && <div><p className="text-gray-500 dark:text-slate-400">Paid</p><p>{dateTime(invoice.paidAt)}</p></div>}
               <div><p className="text-gray-500 dark:text-slate-400">Created</p><p>{dateTime(invoice.createdAt)}</p></div>
-              {cfg.quickbooks && <div><p className="text-gray-500 dark:text-slate-400">QuickBooks</p><p>{invoice.syncedAt ? `Synced ${dateTime(invoice.syncedAt)}` : 'Not synced'}</p></div>}
+              {cfg.quickbooks && (cfg.hasFeature ? cfg.hasFeature('quickbooks') : true) && <div><p className="text-gray-500 dark:text-slate-400">QuickBooks</p><p>{invoice.syncedAt ? `Synced ${dateTime(invoice.syncedAt)}` : 'Not synced'}</p></div>}
             </div>
           </div>
           <div className={`rounded-xl p-6 text-center ${bigTone}`}>
