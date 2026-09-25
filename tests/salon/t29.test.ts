@@ -26,6 +26,7 @@ const app = new Hono()
 app.route('/api/clients', (await import('./src/routes/clients.ts')).default)
 app.route('/api/dashboard', (await import('./src/routes/dashboard.ts')).default)
 app.route('/api/auth', (await import('./src/routes/auth.ts')).default)
+app.route('/api/company', (await import('./src/routes/company.ts')).default)   // T31: roleLabel on the users list
 app.onError(errorHandler)
 
 let n = 0
@@ -137,7 +138,22 @@ console.log('\n── L5: the API reports a salon word for the role ──')
   const j: any = await res.json().catch(() => ({}))
   check('login succeeds', res.status === 200, { status: res.status })
   check('the hierarchy id is unchanged, so every gate still works', j?.user?.role === 'field' || j?.user?.role === 'user', { role: j?.user?.role })
-  check('…and the label a person reads is "stylist", not "field"', j?.user?.roleLabel === 'stylist', { roleLabel: j?.user?.roleLabel })
+  // Cased the way every screen shows it. It used to answer lower-case "stylist" while the Users table
+  // beside it printed "Stylist" — the same split this finding was about, one layer down. (Salon T31)
+  check('…and the label a person reads is "Stylist", not "field"', j?.user?.roleLabel === 'Stylist', { roleLabel: j?.user?.roleLabel })
+}
+
+// ── T31: the server sends the word, so the screen does not re-derive it ──────────────────────────
+console.log('\n── T31: /api/company/users carries roleLabel ──')
+{
+  const { co, owner, staff } = await mk('t31rl')
+  const res = await as(co, owner)('GET', '/api/company/users')
+  check('the owner may list users', res.status === 200, { status: res.status })
+  const list: any[] = Array.isArray(res.json) ? res.json : (res.json?.data || [])
+  const row = list.find((r: any) => r.email === staff.email)
+  check('the staff row is there', !!row, { got: list.map((r: any) => r.email) })
+  check('…and carries the hierarchy id for gates', row?.role === 'field' || row?.role === 'user', { role: row?.role })
+  check('…and the word a person reads, so the table need not map it', row?.roleLabel === 'Stylist', { roleLabel: row?.roleLabel })
 }
 
 console.log(`\nt29: ${passed} passed, ${failed} failed`)

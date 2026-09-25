@@ -68,6 +68,13 @@ export interface PermissionsDeps {
   roleLabels?: Record<string, string>
 }
 
+/**
+ * What the fleet calls each rung when nothing overrides it. Kept identical to ROLE_LABELS in
+ * packages/tenant-ui/src/shell/types.ts so the server and the screen say the same word — before this,
+ * an unconfigured vertical answered the raw id ("field") while its own Users table showed "Staff".
+ */
+const DEFAULT_ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', manager: 'Manager', field: 'Staff', user: 'Staff', viewer: 'Viewer' }
+
 export function createPermissions(deps: PermissionsDeps) {
   const { db, tables: { user } } = deps
   const ROLE_PERMISSIONS: Record<string, string[]> = {}
@@ -87,7 +94,7 @@ export function createPermissions(deps: PermissionsDeps) {
   /** The hierarchy id in this vertical's own words — for messages people read, never for a decision. */
   function roleLabel(role: string): string {
     const id = normalizeRole(role)
-    return deps.roleLabels?.[id] || id
+    return deps.roleLabels?.[id] || DEFAULT_ROLE_LABELS[id] || (id ? id[0].toUpperCase() + id.slice(1) : id)
   }
 
   // Per-user grants the OWNER hands out on top of the role (Settings › Users), e.g. users:read.
@@ -156,7 +163,9 @@ export function createPermissions(deps: PermissionsDeps) {
       const userLevel = ROLE_HIERARCHY.indexOf(userRole)
       const requiredLevel = ROLE_HIERARCHY.indexOf(minRole)
       if (userLevel < requiredLevel) {
-        return c.json({ error: 'Insufficient role', required: minRole, yourRole: userRole }, 403)
+        // the label, not the id — requirePermission's two refusals above already answer in the vertical's
+        // own words, and this one sat three lines away still saying "field". (Salon T31)
+        return c.json({ error: 'Insufficient role', required: minRole, yourRole: roleLabel(userRole) }, 403)
       }
       await next()
     }

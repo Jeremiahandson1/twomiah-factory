@@ -16,6 +16,9 @@ export interface CompanyDeps {
   /** admin | owner */
   requireAdmin: any
   requirePermission: (permission: string) => any
+  /** The vertical's word for a rung (from createPermissions). Optional so a template that has not wired
+   *  it yet still builds; the row simply carries no label rather than the wrong one. */
+  roleLabel?: (role: string) => string
   /** drops the cached extra-permission grants for a user after they change */
   invalidateExtraPermissions?: (userId: string) => void
   /** this template's id in the feature registry, e.g. 'crm-salon' */
@@ -37,7 +40,7 @@ const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field']
 const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, isActive: user.isActive })
 
 export function createCompanyRoutes(deps: CompanyDeps) {
-  const { db, tables: t, authenticate, requireAdmin, requirePermission, invalidateExtraPermissions, template } = deps
+  const { db, tables: t, authenticate, requireAdmin, requirePermission, invalidateExtraPermissions, template, roleLabel } = deps
   const roles = (deps.options?.roles && deps.options.roles.length ? deps.options.roles : DEFAULT_ROLES) as [string, ...string[]]
   const app = new Hono()
   app.use('*', authenticate)
@@ -133,7 +136,9 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       id: t.user.id, email: t.user.email, firstName: t.user.firstName, lastName: t.user.lastName, phone: t.user.phone, role: t.user.role,
       isActive: t.user.isActive, lastLogin: t.user.lastLogin, createdAt: t.user.createdAt, extraPermissions: t.user.extraPermissions,
     }).from(t.user).where(eq(t.user.companyId, currentUser.companyId))
-    return c.json(rows)
+    // Send the word alongside the id. The Users table used to map the id itself, which is a second
+    // definition of the vocabulary and drifts from this one the moment a vertical renames a rung.
+    return c.json(roleLabel ? rows.map((r: any) => ({ ...r, roleLabel: roleLabel(String(r.role || '')) })) : rows)
   })
 
   app.post('/users', requireAdmin, async (c) => {

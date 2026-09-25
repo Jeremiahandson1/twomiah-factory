@@ -24,5 +24,5 @@ export const {
   },
   // The hierarchy's fifth rung is called "field" because it was built for crews on a job site. A salon
   // has stylists, and the 403 body was telling them "yourRole: field". (Salon T28 M3)
-  roleLabels: { field: 'stylist', viewer: 'front desk' },
+  roleLabels: { field: 'Stylist', viewer: 'Front Desk' },
 })
