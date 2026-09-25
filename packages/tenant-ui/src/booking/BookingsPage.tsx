@@ -160,8 +160,19 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
           {/* Not when the list is RETIRED: the banner above has just said this list is no longer offered
               to customers, and "Add one so customers have something to book" directly under it invites a
               thing that would do nothing. (Salon T28 L6) */}
+          {/* The tip above ends "Once one is flagged, this list is retired", so "Add one so customers have
+              something to book" directly beneath it pushed the reader at the list the tip had just steered
+              them away from. Name the Service Menu first and keep this list as the alternative. Verticals
+              with no Service Menu keep the original wording, which is still the only path there.
+              (Salon T31 L4) */}
           {services.length === 0 && !retired && (
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-500 dark:text-slate-400">No bookable services yet. Add one so customers have something to book.</div>
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-500 dark:text-slate-400">
+              {cfg.serviceMenuPath ? (
+                <>No bookable services yet. Tick <strong>Bookable online</strong> on a <NavLink to={cfg.serviceMenuPath} className="underline">Service Menu</NavLink> item to offer your real menu — or add a standalone one here.</>
+              ) : (
+                <>No bookable services yet. Add one so customers have something to book.</>
+              )}
+            </div>
           )}
           {services.length === 0 && retired && cfg.serviceMenuPath && (
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-12 text-center text-gray-500 dark:text-slate-400">
