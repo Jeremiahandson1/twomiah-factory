@@ -179,6 +179,33 @@
     </form>
   </dialog>
 
+  <!-- The Regulars: find or add a guest -->
+  <dialog class="reg-dlg reg-dlg--wide" id="d-guest" aria-labelledby="d-guest-h">
+    <form method="dialog" class="reg-dlg__body" id="f-guest">
+      <h2 class="reg-dlg__h" id="d-guest-h">A regular</h2>
+      <label class="reg-field">Phone or name<input class="reg-input" id="f-guest-q" autocomplete="off" inputmode="search" placeholder="715 555 0100 or Mike"></label>
+      <ul class="reg-picks" id="f-guest-results" aria-live="polite"></ul>
+      <fieldset class="reg-fieldset reg-danger">
+        <legend>New to the list</legend>
+        <div class="co-row2 reg-two">
+          <label class="reg-field">Name<input class="reg-input" id="f-guest-name" maxlength="60" autocomplete="off"></label>
+          <label class="reg-field">Phone<input class="reg-input" id="f-guest-phone" type="tel" inputmode="tel" autocomplete="off"></label>
+        </div>
+        <div class="reg-two">
+          <label class="reg-field">Birthday month<select class="reg-input" id="f-guest-month"><option value="">—</option><% ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].forEach(function (m, i) { %><option value="<%= i + 1 %>"><%= m %></option><% }) %></select></label>
+          <label class="reg-field">Day<select class="reg-input" id="f-guest-day"><option value="">—</option><% for (let d = 1; d <= 31; d++) { %><option value="<%= d %>"><%= d %></option><% } %></select></label>
+        </div>
+        <label class="reg-field">Email (optional)<input class="reg-input" id="f-guest-email" type="email" autocomplete="off"></label>
+        <label class="reg-consent"><input type="checkbox" id="f-guest-consent"> <span id="f-guest-consent-text"></span></label>
+        <label class="reg-field">Note for the bar (optional)<input class="reg-input" id="f-guest-note" maxlength="200" placeholder="Spotted Cow, no ice"></label>
+        <button class="reg-btn reg-btn--go" type="button" id="f-guest-save">Add to the list and this check</button>
+      </fieldset>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Close</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Manager OK -->
   <dialog class="reg-dlg" id="d-mgr" aria-labelledby="d-mgr-h">
     <form method="dialog" class="reg-dlg__body" id="f-mgr">

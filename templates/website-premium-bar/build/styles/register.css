@@ -132,6 +132,18 @@ button { cursor: pointer; }
 .reg-picks label { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; }
 .reg-picks input { width: 22px; height: 22px; accent-color: var(--brand); }
 .reg-danger { border-top: 1px dashed var(--line); padding-top: 12px; }
+.reg-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.reg-consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-soft); line-height: 1.4; min-height: 48px; cursor: pointer; }
+.reg-consent input { width: 22px; height: 22px; accent-color: var(--brand); flex: none; }
+.reg-guest { border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; background: var(--panel-2); display: grid; gap: 4px; }
+.reg-guest__top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.reg-guest__name { font-weight: 800; font-size: 18px; color: var(--brand-bright); }
+.reg-guest__meta { font-size: 14px; color: var(--ink-soft); }
+.reg-guest__flag { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--held); }
+.reg-guest__row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.reg-guest__row .reg-btn { min-height: 44px; padding: 6px 12px; font-size: 15px; }
+.reg-pick { width: 100%; text-align: left; display: flex; justify-content: space-between; gap: 10px; min-height: 52px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); color: var(--ink); }
+.reg-line[data-kind="reward"] .reg-line__state { color: var(--brand-bright); }
 
 .reg-toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 30; max-width: calc(100vw - 32px); padding: 14px 18px; border-radius: 12px; background: var(--panel-3); border: 1px solid var(--line-strong); font-size: 18px; box-shadow: 0 16px 30px -10px #000; }
 .reg-toast.is-bad { border-color: #D2574B; color: #F6D5D0; }

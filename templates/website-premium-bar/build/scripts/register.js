@@ -7,6 +7,7 @@
   var S = JSON.parse($('r-state').textContent);          // { open, recent, menu, taxRateBps, serverNow }
   var offset = S.serverNow - Date.now();
   var current = null;                                      // the open check (full view) or null
+  var guestCache = {};                                     // guestId → profile
   var tab = S.menu.length ? S.menu[0].id : null;
   var toastTimer = null;
 
@@ -93,7 +94,8 @@
     var held = c.items.filter(function (i) { return i.state === 'held'; }).length;
     var lines = c.items.map(function (i) {
       var word = i.state === 'held' ? 'Not sent' : i.state === 'sent' ? (i.toKitchen ? 'On the grill' : 'Sent') : 'Void';
-      return '<li><button class="reg-line" type="button" data-line="' + esc(i.id) + '" data-state="' + esc(i.state) + '"' + (i.state === 'void' ? ' disabled' : '') + '>' +
+      if (i.kind === 'reward') word = 'Regulars reward · tap twice to take off';
+      return '<li><button class="reg-line" type="button" data-line="' + esc(i.id) + '" data-kind="' + esc(i.kind || 'item') + '" data-state="' + esc(i.state) + '"' + (i.state === 'void' ? ' disabled' : '') + '>' +
         '<span class="reg-line__name">' + (i.qty > 1 ? i.qty + ' × ' : '') + esc(i.name) + (i.size ? ' <span class="reg-muted">(' + esc(i.size.toLowerCase()) + ')</span>' : '') + '</span>' +
         '<span class="reg-line__price">' + money(i.qty * i.unitPriceCents) + '</span>' +
         '<span class="reg-line__meta"><span class="reg-line__state">' + word + '</span>' + (i.seat ? '<span>seat ' + i.seat + '</span>' : '') +
@@ -107,6 +109,7 @@
     box.innerHTML =
       '<div class="reg-check__head"><h2 class="reg-check__title" id="h-check">' + esc(c.label) + '</h2><span class="reg-check__num">#' + c.number + '</span></div>' +
       '<p class="reg-check__sub">' + (c.spot && c.spot !== c.label ? esc(c.spot) + ' · ' : '') + (c.kind === 'tab' ? 'Tab' : c.kind === 'table' ? 'Table' : 'Walk-up') + ' · opened ' + ago(c.openedAt) + '</p>' +
+      guestBlock(c) +
       (c.items.length ? '<ul class="reg-lines">' + lines + '</ul>' : '<p class="reg-muted">Tap food on the menu to add it.</p>') +
       '<dl class="reg-totals"><div><dt>Food &amp; drink</dt><dd>' + money(t.subtotalCents) + '</dd></div><div><dt>Tax</dt><dd>' + money(t.taxCents) + '</dd></div>' +
       '<div class="reg-total"><dt>Total</dt><dd>' + money(t.totalCents) + '</dd></div>' +
@@ -120,6 +123,65 @@
         '<button class="reg-btn reg-btn--ghost" type="button" id="a-close">Put it away</button>' +
       '</div>';
   }
+
+  function guestBlock(c) {
+    if (!c.guestId) return '<div class="reg-guest__row"><button class="reg-btn" type="button" id="a-guest">Add a regular</button></div>';
+    var g = guestCache[c.guestId];
+    if (!g) { loadGuest(c.guestId); return '<div class="reg-guest"><span class="reg-muted">Looking them up…</span></div>'; }
+    var hasReward = c.items.some(function (i) { return i.kind === 'reward' && i.state !== 'void'; });
+    var visits = g.visitCount === 0 ? 'First visit' : ordinal(g.visitCount + 1) + ' visit';
+    return '<div class="reg-guest"><div class="reg-guest__top"><span class="reg-guest__name">' + esc(g.name) + '</span><span class="reg-muted">' + g.pointsBalance + ' pts</span></div>' +
+      '<span class="reg-guest__meta">' + visits + (g.lastVisitAt ? ' · last here ' + (ago(g.lastVisitAt) === 'just now' ? 'just now' : ago(g.lastVisitAt) + ' ago') : '') + '</span>' +
+      (g.usual.length ? '<span class="reg-guest__meta">Usual: ' + g.usual.map(function (u) { return esc(u.name); }).join(', ') + '</span>' : '') +
+      (g.note ? '<span class="reg-guest__meta">' + esc(g.note) + '</span>' : '') +
+      (g.birthdaySoon ? '<span class="reg-guest__flag">Birthday this week (' + esc(g.birthday) + ')</span>' : '') +
+      '<div class="reg-guest__row">' +
+        (g.rewardReady && !hasReward ? '<button class="reg-btn reg-btn--go" type="button" id="a-reward">Use reward: ' + money(g.rewardCents) + ' off</button>' : '') +
+        '<button class="reg-btn reg-btn--ghost" type="button" id="a-guest">Change</button>' +
+      '</div></div>';
+  }
+  function ordinal(n) { var s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); }
+  function loadGuest(id) { return api('GET', '/api/register/guest/' + id).then(function (j) { guestCache[id] = j.guest; renderCheck(); }).catch(function () {}); }
+  function setGuest(guestId) {
+    if (!current) return Promise.resolve();
+    return api('POST', '/api/register/check/' + current.id + '/guest', { guestId: guestId }).then(function (j) { $('d-guest').close(); setCurrent(j.check); }).catch(fail);
+  }
+  var guestTimer = null;
+  function searchGuests() {
+    clearTimeout(guestTimer);
+    var q = $('f-guest-q').value.trim();
+    if (q.length < 2) { $('f-guest-results').innerHTML = ''; return; }
+    guestTimer = setTimeout(function () {
+      api('GET', '/api/register/guests?q=' + encodeURIComponent(q)).then(function (j) {
+        $('f-guest-results').innerHTML = j.guests.length ? j.guests.map(function (g) {
+          return '<li><button class="reg-pick" type="button" data-pick-guest="' + esc(g.id) + '"><span><strong>' + esc(g.name) + '</strong> ' + (g.phone ? '<span class="reg-muted">…' + esc(g.phone.slice(-4)) + '</span>' : '') + '</span><span class="reg-muted">' + g.visitCount + ' visit' + (g.visitCount === 1 ? '' : 's') + ' · ' + g.pointsBalance + ' pts</span></button></li>';
+        }).join('') : '<li class="reg-empty">Nobody by that. Add them below.</li>';
+      }).catch(function () {});
+    }, 250);
+  }
+  function openGuest() {
+    if (!current) return;
+    ['f-guest-q', 'f-guest-name', 'f-guest-phone', 'f-guest-email', 'f-guest-note'].forEach(function (id) { $(id).value = ''; });
+    $('f-guest-month').value = ''; $('f-guest-day').value = ''; $('f-guest-consent').checked = false;
+    $('f-guest-consent-text').textContent = (S.regulars && S.regulars.emailConsentText) || '';
+    $('f-guest-results').innerHTML = current.guestId ? '<li><button class="reg-pick" type="button" data-pick-guest="">Take the regular off this check</button></li>' : '';
+    $('d-guest').showModal(); setTimeout(function () { $('f-guest-q').focus(); }, 30);
+  }
+  $('f-guest-q').addEventListener('input', function () {
+    searchGuests();
+    // Typing digits pre-fills the phone for a new sign-up; letters pre-fill the name.
+    var v = this.value.trim();
+    if (/^[\d\s()+.-]+$/.test(v)) $('f-guest-phone').value = v; else $('f-guest-name').value = v;
+  });
+  $('f-guest-results').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-pick-guest]'); if (!b) return;
+    var id = b.getAttribute('data-pick-guest');
+    setGuest(id || null);
+  });
+  $('f-guest-save').addEventListener('click', function () {
+    var body = { name: $('f-guest-name').value, phone: $('f-guest-phone').value, email: $('f-guest-email').value, birthdayMonth: $('f-guest-month').value, birthdayDay: $('f-guest-day').value, note: $('f-guest-note').value, emailConsent: $('f-guest-consent').checked };
+    api('POST', '/api/register/guests', body).then(function (j) { guestCache[j.guest.id] = j.guest; toast(esc(j.guest.name) + ' is on the list.'); return setGuest(j.guest.id); }).catch(fail);
+  });
 
   function loadCheck(id) { return api('GET', '/api/register/check/' + id).then(function (j) { setCurrent(j.check); }).catch(fail); }
   function refreshOpen() { return api('GET', '/api/register/state').then(function (j) { S.open = j.open; S.recent = j.recent; S.menu = j.menu; renderOpen(); renderMenu(); }).catch(function () {}); }
@@ -272,6 +334,7 @@
     api('POST', '/api/register/check/' + current.id + '/pay', body).then(function (j) {
       $('d-pay').close();
       var closed = j.check.status !== 'open';
+      if (closed && j.check.guestId) delete guestCache[j.check.guestId];   // visits and points just changed
       if (j.changeCents) toast('Change <strong>' + money(j.changeCents) + '</strong>' + (closed ? ' · check closed' : ''), false, 10000);
       else toast(closed ? 'Paid. Check closed.' : 'Payment taken. ' + money(j.check.totals.balanceCents) + ' left.');
       setCurrent(j.check); refreshOpen();
@@ -313,7 +376,16 @@
     var nb = e.target.closest('[data-new]'); if (nb) { openNew(nb.getAttribute('data-new')); return; }
     var ob = e.target.closest('[data-open]'); if (ob) { loadCheck(ob.getAttribute('data-open')); return; }
     var rb = e.target.closest('[data-recent]'); if (rb) { api('GET', '/api/register/check/' + rb.getAttribute('data-recent')).then(function (j) { var c = j.check; toast('#' + c.number + ' ' + esc(c.label) + ' · ' + (c.status === 'void' ? 'voided' : 'paid ' + money(c.totals.paidCents) + (c.totals.tipCents ? ' + tip ' + money(c.totals.tipCents) : '')), false, 6000); }).catch(fail); return; }
-    var lb = e.target.closest('[data-line]'); if (lb && !lb.disabled) { openLine(lb.getAttribute('data-line')); return; }
+    var lb = e.target.closest('[data-line]');
+    if (lb && !lb.disabled && lb.getAttribute('data-kind') === 'reward') {
+      // Taking a reward off gives the points back; two taps so it isn't an accident.
+      if (lb.getAttribute('data-armed') !== '1') { lb.setAttribute('data-armed', '1'); var st = lb.querySelector('.reg-line__state'); if (st) st.textContent = 'Tap again to take it off'; setTimeout(function () { if (lb.isConnected) renderCheck(); }, 4000); return; }
+      api('POST', '/api/register/item/' + lb.getAttribute('data-line') + '/void', {}).then(function (j) { if (current && current.guestId) delete guestCache[current.guestId]; setCurrent(j.check); refreshOpen(); }).catch(fail);
+      return;
+    }
+    if (lb && !lb.disabled) { openLine(lb.getAttribute('data-line')); return; }
+    if (e.target.closest('#a-guest')) { openGuest(); return; }
+    if (e.target.closest('#a-reward') && current) { api('POST', '/api/register/check/' + current.id + '/reward').then(function (j) { delete guestCache[j.check.guestId]; toast('Reward on the check.'); setCurrent(j.check); refreshOpen(); }).catch(fail); return; }
     var vp = e.target.closest('[data-voidpay]');
     if (vp) {
       // Money moves: first tap arms it, a second tap within 4 seconds voids it.

@@ -12,6 +12,8 @@ import { events, menuItems, menuSections, settings as settingsTbl, taps, timelin
 import { buildLiveState, type LiveState } from './live'
 import { isHoursConfig, openingHoursSpecification, specialOpeningHours, EMPTY_HOURS, type HoursConfig } from './hours'
 import type { HoursSpec } from './schema-org/business'
+import { EMAIL_CONSENT_TEXT } from './crm/guests'
+import { loyaltyConfig, type LoyaltyConfig } from './crm/loyalty'
 
 export interface MenuSectionWithItems {
   id: string; slug: string; name: string; description: string | null; kind: string
@@ -27,6 +29,8 @@ export interface SiteData {
   taps: Array<typeof taps.$inferSelect>
   timeline: Array<typeof timelineEntries.$inferSelect>
   events: Array<typeof events.$inferSelect>
+  /** The Regulars: the program's terms and the exact email-consent words the sign-up shows (and the server stores). */
+  regulars: { loyalty: LoyaltyConfig; emailConsentText: string }
   loadedAt: number
 }
 
@@ -82,6 +86,7 @@ async function gather(now: Date): Promise<SiteData> {
     taps: tapRows,
     timeline,
     events: eventRows,
+    regulars: { loyalty: loyaltyConfig(settingsRow?.loyalty), emailConsentText: EMAIL_CONSENT_TEXT },
     loadedAt: now.getTime(),
   }
 }

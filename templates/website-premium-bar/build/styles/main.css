@@ -1382,3 +1382,9 @@ body { background: transparent; }
 .order .menu-section__title { white-space: normal; }
 /* Long price labels ("15 pieces $7.99 · 20 pieces $10.39") wrap inside the price column instead of widening a phone. */
 @media (max-width: 520px) { .menu-line__price { white-space: normal; text-align: right; max-width: 55%; } }
+
+/* The Regulars sign-up (shares the party form's layout) */
+.regulars__consent { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-soft); line-height: 1.45; cursor: pointer; }
+.regulars__consent input { width: 22px; height: 22px; margin-top: 1px; accent-color: var(--brand); flex: none; }
+.regulars__bday { border: 0; padding: 0; margin: 0; }
+.regulars__error { padding: 10px 14px; border: 1px solid var(--oxblood); border-radius: var(--radius); color: color-mix(in srgb, var(--oxblood) 45%, var(--ink)); }

@@ -24,7 +24,9 @@ export const settings = pgTable('settings', {
   // Hours config for lib/hours: { timezone, bar: WeeklyHours, kitchen: WeeklyHours, holidays: [] }.
   // The ONLY place hours live. Console overrides go in service_status.
   hours: jsonb('hours'),
-  taxRateBps: integer('tax_rate_bps').notNull().default(550),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
+  taxRateBps: integer('tax_rate_bps').notNull().default(550),
+  // The Regulars: { enabled, pointsPerDollar, rewardPoints, rewardCents }. null = the defaults in lib/crm/loyalty.ts.
+  loyalty: jsonb('loyalty'),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),
@@ -470,6 +472,7 @@ export const subscribers = pgTable('subscribers', {
   consentAt: timestamp('consent_at', { withTimezone: true }).notNull().defaultNow(),
   consentIp: text('consent_ip'),
   squareCustomerId: text('square_customer_id'),
+  guestId: uuid('guest_id'),
   unsubscribedAt: timestamp('unsubscribed_at', { withTimezone: true }),
 })
 
@@ -581,6 +584,7 @@ export const checkItems = pgTable('check_items', {
   note: text('note'),
   seat: integer('seat'),
   toKitchen: boolean('to_kitchen').notNull().default(true),
+  kind: text('kind').notNull().default('item'),     // 'item' | 'reward' (a Regulars reward: negative price; points come back if it's removed)
   state: text('state').notNull().default('held'),   // 'held' | 'sent' | 'void'
   ticketId: uuid('ticket_id'),
   voidReason: text('void_reason'),
@@ -626,6 +630,45 @@ export const closeouts = pgTable('closeouts', {
   emailedAt: timestamp('emailed_at', { withTimezone: true }),
 }, (t) => ({
   dayIdx: index('closeouts_day_idx').on(t.businessDay),
+}))
+
+// ═══ THE CRM ═══════════════════════════════════════════════════════════════
+// A guest exists only once they give their number (at the bar, on /regulars).
+// Visits and spend are counted when a check with the guest on it is paid.
+// Marketing consent lives in `subscribers` (email) with its evidence; being a
+// guest is not consent to be marketed to.
+export const guests = pgTable('guests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  phone: text('phone'),                             // E.164
+  email: text('email'),
+  birthdayMonth: integer('birthday_month'),
+  birthdayDay: integer('birthday_day'),
+  note: text('note'),                               // "Spotted Cow, no ice" — staff-facing
+  source: text('source').notNull().default('register'),   // 'register' | 'website'
+  visitCount: integer('visit_count').notNull().default(0),
+  lifetimeCents: integer('lifetime_cents').notNull().default(0),
+  pointsBalance: integer('points_balance').notNull().default(0),
+  firstVisitAt: timestamp('first_visit_at', { withTimezone: true }),
+  lastVisitAt: timestamp('last_visit_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  phoneIdx: uniqueIndex('guests_phone_idx').on(t.phone),
+  emailIdx: uniqueIndex('guests_email_idx').on(t.email),
+  nameIdx: index('guests_name_idx').on(t.name),
+}))
+
+export const loyaltyLedger = pgTable('loyalty_ledger', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  guestId: uuid('guest_id').notNull().references(() => guests.id, { onDelete: 'cascade' }),
+  points: integer('points').notNull(),              // + earned, − redeemed
+  reason: text('reason').notNull(),                 // 'visit' | 'redeem' | 'unredeem' | 'adjust'
+  checkId: uuid('check_id'),
+  by: text('by'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  guestIdx: index('loyalty_ledger_guest_idx').on(t.guestId, t.at),
 }))
 
 // ═══ THE GRILL SCREEN ═══════════════════════════════════════════════════════

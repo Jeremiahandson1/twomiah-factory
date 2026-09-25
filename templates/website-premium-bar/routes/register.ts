@@ -26,10 +26,11 @@ import path from 'path'
 import { db } from '../db'
 import { checkItems, menuItems, menuSections, settings as settingsTbl, staffPins } from '../db/schema'
 import { sizesOf } from '../lib/menu/sizes'
-import { addItem, addPayment, CheckError, getCheck, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
+import { addItem, addPayment, attachGuest, CheckError, getCheck, redeemReward, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
 import { localDateString, localToUtc } from '../lib/hours'
 import { requireStaff, type Vars } from './console'
 import { managerApproval } from '../lib/register/managers'
+import { EMAIL_CONSENT_TEXT, GuestError, guestProfile, loyaltySettings, saveGuest, searchGuests } from '../lib/crm/guests'
 import { barTimezone, businessDayOf, loadDay } from '../lib/register/reports'
 import { closeDay, closeoutsFor } from '../lib/register/closeout'
 import { addDays } from '../lib/hours'
@@ -66,15 +67,15 @@ async function registerState() {
     listOpen(db), listRecentClosed(db, await businessDayStart()), menuForRegister(),
     db.select({ taxRateBps: settingsTbl.taxRateBps }).from(settingsTbl).limit(1),
   ])
-  return { serverNow: Date.now(), open, recent, menu, taxRateBps: s?.taxRateBps ?? 550 }
+  return { serverNow: Date.now(), open, recent, menu, taxRateBps: s?.taxRateBps ?? 550, regulars: { loyalty: await loyaltySettings(db), emailConsentText: EMAIL_CONSENT_TEXT } }
 }
 
-/** Run a check action; CheckError becomes a JSON error the screen shows as-is. */
+/** Run a check action; CheckError / GuestError become a JSON error the screen shows as-is. */
 async function act(c: Context, fn: () => Promise<unknown>) {
   try {
     return c.json({ ok: true, ...(await fn() as object) })
   } catch (e: any) {
-    if (e instanceof CheckError) return c.json({ error: e.message }, e.status as 400 | 404 | 409)
+    if (e instanceof CheckError || e instanceof GuestError) return c.json({ error: e.message }, e.status as 400 | 404 | 409)
     console.error('[register]', e?.message || e)
     return c.json({ error: 'That did not save. Try again.' }, 500)
   }
@@ -130,6 +131,25 @@ registerApi.post('/closeout', async (c) => {
   if (!m.ok) return c.json({ error: m.error, needsManager: true }, 403)
   return act(c, async () => ({ closeout: await closeDay(db, { day: String(b.day || ''), floatCents: b.floatCents, countedCents: b.countedCents, note: b.note, force: b.force === true }, m.by) }))
 })
+
+// ── The Regulars at the register ──
+registerApi.get('/guests', async (c) => { c.header('Cache-Control', 'no-store'); return c.json({ guests: await searchGuests(db, c.req.query('q') || '') }) })
+registerApi.post('/guests', async (c) => {
+  const b = await body(c)
+  return act(c, async () => {
+    const g = await saveGuest(db, { ...b, emailConsent: b.emailConsent === true, consentSource: 'register (entered by ' + who(c) + ')' }, 'register')
+    return { guest: await guestProfile(db, g.id, await barTimezone(db)) }
+  })
+})
+registerApi.get('/guest/:id', (c) => { const i = id(c); return i ? act(c, async () => ({ guest: await guestProfile(db, i, await barTimezone(db)) })) : c.json({ error: 'Which guest?' }, 400) })
+registerApi.post('/check/:id/guest', async (c) => {
+  const i = id(c); const b = await body(c)
+  if (!i) return c.json({ error: 'Which check?' }, 400)
+  const g = b.guestId === null ? null : (typeof b.guestId === 'string' && UUID.test(b.guestId) ? b.guestId : undefined)
+  if (g === undefined) return c.json({ error: 'Which guest?' }, 400)
+  return act(c, async () => ({ check: await attachGuest(db, i, g) }))
+})
+registerApi.post('/check/:id/reward', (c) => { const i = id(c); return i ? act(c, async () => ({ check: await redeemReward(db, i, who(c)) })) : c.json({ error: 'Which check?' }, 400) })
 
 registerApi.get('/state', async (c) => { c.header('Cache-Control', 'no-store'); return c.json(await registerState()) })
 

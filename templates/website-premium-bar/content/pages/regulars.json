@@ -1,0 +1,21 @@
+{
+  "title": "The Regulars",
+  "metaTitle": "The Regulars — Amber Inn, Eau Claire",
+  "metaDescription": "Join the Amber Inn's Regulars. Give the bar your number once and it knows your usual, your birthday, and your points toward a free burger.",
+  "sections": [
+    {
+      "type": "regulars",
+      "variant": "signup",
+      "data": {
+        "heading": "The Regulars",
+        "intro": "You're a stranger here but once. Give us your number and the bar knows you the next time: your usual, your birthday, and points toward a burger on the house.",
+        "asHeading": true,
+        "perks": [
+          "The bartender sees your usual when you sit down",
+          "Something on your birthday week",
+          "Points on every tab, food and drink"
+        ]
+      }
+    }
+  ]
+}

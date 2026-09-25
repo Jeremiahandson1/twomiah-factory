@@ -9,9 +9,11 @@
  * Errors are thrown as CheckError with words a bartender can act on.
  */
 import { EventEmitter } from 'events'
-import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, or, sql } from 'drizzle-orm'
 import type { db as DB } from '../../db'
-import { checkItems, checkPayments, checks, kitchenTickets, menuItems, menuSections, onlineOrders, settings as settingsTbl } from '../../db/schema'
+import { checkItems, checkPayments, checks, guests, kitchenTickets, loyaltyLedger, menuItems, menuSections, onlineOrders, settings as settingsTbl } from '../../db/schema'
+import { guestByPhone, loyaltySettings, recordVisit } from '../crm/guests'
+import { rewardAmount } from '../crm/loyalty'
 import { sizesOf } from '../menu/sizes'
 import { fireTicket, notifyKitchen } from '../kitchen/tickets'
 import { changeDue, checkTotals, type CheckTotals } from './money'
@@ -38,7 +40,7 @@ const clean = (v: unknown, max: number) => { const s = String(v ?? '').replace(/
 
 // ─── Reading ────────────────────────────────────────────────────────────────
 export interface CheckView {
-  id: string; number: number; kind: string; label: string; spot: string | null; note: string | null; status: string
+  id: string; number: number; kind: string; label: string; spot: string | null; note: string | null; status: string; guestId: string | null
   openedAt: string; openedBy: string | null; closedAt: string | null
   items: Array<typeof checkItems.$inferSelect>
   payments: Array<typeof checkPayments.$inferSelect>
@@ -55,7 +57,7 @@ export async function getCheck(db: typeof DB, id: string): Promise<CheckView> {
     taxRate(db),
   ])
   return {
-    id: c.id, number: c.number, kind: c.kind, label: c.label, spot: c.spot, note: c.note, status: c.status,
+    id: c.id, number: c.number, kind: c.kind, label: c.label, spot: c.spot, note: c.note, status: c.status, guestId: c.guestId,
     openedAt: c.openedAt.toISOString(), openedBy: c.openedBy, closedAt: c.closedAt ? c.closedAt.toISOString() : null,
     items, payments, totals: checkTotals(items, payments, rate),
     heldFood: items.filter(i => i.state === 'held' && i.toKitchen).length,
@@ -156,6 +158,7 @@ export async function voidItem(db: typeof DB, itemId: string, reason: string, by
   if (!it) throw new CheckError('That item is gone.', 404)
   await openRow(db, it.checkId)
   if (it.state === 'void') throw new CheckError('Already voided.', 409)
+  if (it.kind === 'reward') return unredeem(db, it)
   if (it.state === 'held') { await db.delete(checkItems).where(eq(checkItems.id, itemId)); notifyRegister(); return getCheck(db, it.checkId) }
   const why = clean(reason, 80)
   if (!why) throw new CheckError('Give a reason for the void.')
@@ -210,6 +213,8 @@ async function closeIfPaid(db: typeof DB, checkId: string, by: string): Promise<
   if (view.heldFood || view.items.some(i => i.state === 'held')) await sendCheck(db, checkId, by)
   const t = view.totals
   await db.update(checks).set({ status: 'paid', closedAt: new Date(), closedBy: by, subtotalCents: t.subtotalCents, taxCents: t.taxCents, totalCents: t.totalCents, tipCents: t.tipCents, updatedAt: new Date() }).where(eq(checks.id, checkId))
+  // A regular's visit, spend and points. Never lets a loyalty hiccup undo a paid check.
+  await recordVisit(db, checkId).catch((e) => console.error('[register] visit not recorded:', e?.message || e))
 }
 
 export async function addPayment(db: typeof DB, checkId: string, input: { tender: string; amountCents: number; tipCents?: number; cashTenderedCents?: number | null }, by: string): Promise<CheckView & { changeCents: number | null }> {
@@ -251,7 +256,7 @@ export async function voidPayment(db: typeof DB, paymentId: string, reason: stri
 export async function splitItems(db: typeof DB, checkId: string, itemIds: string[], label: string | null, by: string): Promise<{ from: CheckView; to: CheckView }> {
   const c = await openRow(db, checkId)
   const items = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), inArray(checkItems.id, itemIds.slice(0, 100))))
-  const movable = items.filter(i => i.state !== 'void')
+  const movable = items.filter(i => i.state !== 'void' && i.kind === 'item')   // a reward stays with the regular's check
   if (!movable.length) throw new CheckError('Pick what goes on the new check.')
   const all = await getCheck(db, checkId)
   if (movable.length === all.items.filter(i => i.state !== 'void').length) throw new CheckError('That is everything. Leave it on this check.')
@@ -301,7 +306,64 @@ export async function recordWebOrder(db: typeof DB, orderId: string, ticketId: s
     })))
     await tx.insert(checkPayments).values({ checkId: c.id, tender: 'card_online', amountCents: o.totalCents as number, tipCents: 0, squarePaymentId: o.squarePaymentId, takenBy: 'Website' })
   })
+  // Someone already on the Regulars list gets the visit and the points. Nobody new is created from a web order.
+  const guestId = await guestByPhone(db, o.phone)
+  if (guestId) {
+    const [c] = await db.select({ id: checks.id }).from(checks).where(eq(checks.onlineOrderId, o.id)).limit(1)
+    if (c) { await db.update(checks).set({ guestId }).where(eq(checks.id, c.id)); await recordVisit(db, c.id).catch(() => {}) }
+  }
   notifyRegister()
+}
+
+/** Put a regular on a check (or take them off with null). */
+export async function attachGuest(db: typeof DB, checkId: string, guestId: string | null): Promise<CheckView> {
+  await openRow(db, checkId)
+  if (guestId) {
+    const [g] = await db.select({ id: guests.id }).from(guests).where(eq(guests.id, guestId)).limit(1)
+    if (!g) throw new CheckError('That guest is gone.', 404)
+  } else {
+    const [reward] = await db.select({ id: checkItems.id }).from(checkItems).where(and(eq(checkItems.checkId, checkId), eq(checkItems.kind, 'reward'))).limit(1)
+    if (reward) throw new CheckError('Take the reward off first.', 409)
+  }
+  await db.update(checks).set({ guestId, updatedAt: new Date() }).where(eq(checks.id, checkId))
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+
+/** Spend a reward on this check: a negative line worth the reward (never more than the food and drink). */
+export async function redeemReward(db: typeof DB, checkId: string, by: string): Promise<CheckView> {
+  const c = await openRow(db, checkId)
+  if (!c.guestId) throw new CheckError('Put a regular on the check first.')
+  const cfg = await loyaltySettings(db)
+  if (!cfg.enabled) throw new CheckError('The Regulars program is off.')
+  const [g] = await db.select().from(guests).where(eq(guests.id, c.guestId)).limit(1)
+  if (!g) throw new CheckError('That guest is gone.', 404)
+  const items = await db.select().from(checkItems).where(eq(checkItems.checkId, checkId))
+  if (items.some(i => i.kind === 'reward' && i.state !== 'void')) throw new CheckError('One reward per check.', 409)
+  if (g.pointsBalance < cfg.rewardPoints) throw new CheckError(`${g.name} has ${g.pointsBalance} of ${cfg.rewardPoints} points.`)
+  const amount = rewardAmount(items.filter(i => i.kind === 'item' && i.state !== 'void').reduce((s, i) => s + i.qty * i.unitPriceCents, 0), cfg)
+  if (amount <= 0) throw new CheckError('Nothing on the check to take it off.')
+  await db.transaction(async (tx) => {
+    await tx.insert(checkItems).values({ checkId, name: 'Regulars reward', qty: 1, unitPriceCents: -amount, kind: 'reward', toKitchen: false, state: 'sent', sentAt: new Date(), addedBy: by })
+    await tx.insert(loyaltyLedger).values({ guestId: g.id, points: -cfg.rewardPoints, reason: 'redeem', checkId, by })
+    await tx.update(guests).set({ pointsBalance: sql`${guests.pointsBalance} - ${cfg.rewardPoints}`, updatedAt: new Date() }).where(eq(guests.id, g.id))
+  })
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+
+async function unredeem(db: typeof DB, it: typeof checkItems.$inferSelect): Promise<CheckView> {
+  // Taking a discount off only raises what's owed, so this can never undercut a payment.
+  const [spent] = await db.select().from(loyaltyLedger).where(and(eq(loyaltyLedger.checkId, it.checkId), eq(loyaltyLedger.reason, 'redeem'))).limit(1)
+  await db.transaction(async (tx) => {
+    await tx.delete(checkItems).where(eq(checkItems.id, it.id))
+    if (spent) {
+      await tx.insert(loyaltyLedger).values({ guestId: spent.guestId, points: -spent.points, reason: 'unredeem', checkId: it.checkId, by: it.addedBy })
+      await tx.update(guests).set({ pointsBalance: sql`${guests.pointsBalance} + ${-spent.points}`, updatedAt: new Date() }).where(eq(guests.id, spent.guestId))
+    }
+  })
+  notifyRegister()
+  return getCheck(db, it.checkId)
 }
 
 /** Rename or move a check ("Mike" → "Booth 3"). */

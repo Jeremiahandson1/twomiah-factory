@@ -41,6 +41,7 @@ import { partyInquiries as partyInquiriesTbl, serviceStatus } from './db/schema'
 // ASSET_VERSION (cache-busting per deploy) and renderBase (the base.ejs wrapper) live in lib/render.ts.
 import { ASSET_VERSION, renderBase } from './lib/render'
 import { orderPages, orderApi } from './routes/order'
+import { GuestError, saveGuest } from './lib/crm/guests'
 import { kitchenPages, kitchenApi } from './routes/kitchen'
 import { registerPages, registerApi } from './routes/register'
 
@@ -350,6 +351,37 @@ app.post('/api/parties', async (c) => {
   alertOwner(text).then(r => { if (r.ok) db.update(partyInquiriesTbl).set({ smsSentAt: new Date() }).where(eq(partyInquiriesTbl.id, saved.id)).catch(() => {}) }).catch(() => {})
   bustSiteData()
   return wantsJson ? c.json({ ok: true, id: saved.id }) : c.redirect('/parties/thanks', 303)
+})
+
+// ── The Regulars: sign up from the website (a guest record + email consent evidence if they tick the box) ──
+app.post('/api/regulars', async (c) => {
+  const ip = leadClientIp(c)
+  const nowMs = Date.now()
+  const bucket = (leadBuckets.get(ip) || []).filter(t => nowMs - t < LEAD_WINDOW_MS)
+  if (bucket.length >= LEAD_MAX) return c.text('Too many tries. Ask at the bar.', 429)
+  bucket.push(nowMs); leadBuckets.set(ip, bucket)
+  const b: Record<string, any> = Object.fromEntries((await c.req.formData()).entries())
+  if (String(b.website || '').trim()) return c.redirect('/regulars/thanks', 303)          // honeypot
+  const ts = Number(b.ts || 0)
+  if (ts && nowMs - ts < 3000) return c.redirect('/regulars/thanks', 303)                  // filled in under 3 s = bot
+  try {
+    await saveGuest(db, { name: b.name, phone: b.phone, email: b.email, birthdayMonth: b.birthdayMonth, birthdayDay: b.birthdayDay, emailConsent: b.emailConsent === 'yes', consentSource: 'website:/regulars', consentIp: ip }, 'website')
+  } catch (e: any) {
+    if (e instanceof GuestError) return c.redirect('/regulars?error=' + encodeURIComponent(e.message) + '#regulars', 303)
+    throw e
+  }
+  return c.redirect('/regulars/thanks', 303)
+})
+
+app.get('/regulars/thanks', async (c) => {
+  const settingsRow = await loadSettings()
+  const settings = settingsRow || { companyName: 'Your Company', nav: [], contactCtaLabel: 'Visit' }
+  const body = `<section class="thanks"><div class="container thanks__inner"><div class="eyebrow">The Regulars</div><h1 class="thanks__title foil">You're on the list.</h1>` +
+    `<p class="thanks__lead">Give your number at the bar and it goes on your tab. You're a stranger here but once.</p>` +
+    `<a class="btn btn--outline btn--lg" href="/">Back to tonight's board</a></div></section>`
+  const html = await renderBase({ body, currentPath: '/regulars/thanks', settings: { ...settings, seoTitle: "You're on the list — " + settings.companyName } })
+  c.header('X-Robots-Tag', 'noindex')
+  return c.html(html)
 })
 
 app.get('/parties/thanks', async (c) => {
@@ -973,7 +1005,7 @@ async function renderItemPage(sectionSlug: string, itemSlug: string): Promise<st
 // FULL path in its slug, so loadPage() matches directly and the sitemap emits
 // the nested URL. Falls back to a signature item page. These MUST come after
 // every /api/* and /admin/* route: Hono dispatches the first-registered match.
-const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'kitchen', 'register', 'parties', 'order', '.well-known']
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'kitchen', 'register', 'parties', 'regulars', 'order', '.well-known']
 app.get('/:a/:b', async (c, next) => {
   const { a, b } = c.req.param()
   if (NESTED_RESERVED.includes(a)) return next()   // fall through to /admin/*, /console/*, /media/* etc. registered later
