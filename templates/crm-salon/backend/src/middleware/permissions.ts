@@ -20,7 +20,7 @@ export const {
   // Not here, deliberately: pricebook:* (the Service Menu and membership plans are the price list) and
   // invoices:* / reports:* (the salon's money).
   extraRolePermissions: {
-    field: ['contacts:create', 'contacts:update', 'schedule:create', 'schedule:update'],
+    field: ['contacts:create', 'contacts:update', 'schedule:create', 'schedule:update', 'sms:send'],
   },
   // The hierarchy's fifth rung is called "field" because it was built for crews on a job site. A salon
   // has stylists, and the 403 body was telling them "yourRole: field". (Salon T28 M3)

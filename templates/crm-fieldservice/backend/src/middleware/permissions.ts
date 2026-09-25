@@ -12,4 +12,8 @@ export const {
 } = createPermissions({
   db,
   tables: { user },
+  // sms:send — the 1:1 SMS box on the contact record is built for this vertical — a technician on the way to an address texts the customer. (T30 L-RB)
+  extraRolePermissions: {
+    field: ['sms:send'],
+  },
 })

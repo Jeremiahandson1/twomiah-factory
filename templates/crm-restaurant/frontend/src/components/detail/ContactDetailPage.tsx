@@ -8,6 +8,6 @@ import { CONTACTS } from '../../contactsConfig';
 
 export default function ContactDetailPage() {
   const toast = useToast();
-  const { hasFeature } = useAuth();
-  return <SharedContactDetailPage api={api as any} toast={toast} config={{ ...CONTACTS, hasFeature }} />;
+  const { hasFeature, can } = useAuth();
+  return <SharedContactDetailPage api={api as any} toast={toast} config={{ ...CONTACTS, hasFeature, can }} />;
 }

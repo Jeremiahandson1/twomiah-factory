@@ -20,7 +20,7 @@ const NAV: NavItem[] = [
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks' },
-  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'] },
+  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },

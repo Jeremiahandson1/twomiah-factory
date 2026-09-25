@@ -391,6 +391,16 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   const writesTheScript = requirePermission('marketing:update')
   /** Tidying a thread. Nothing leaves the building, so: whoever may see the customer. */
   const tidiesTheInbox = requirePermission('contacts:read')
+  /**
+   * Texting a customer. Its own right, because it is not one thing with one answer: the 1:1 box on
+   * the contact record is built only for field service and landscaping, whose staff drive to the
+   * address, while the Messages inbox is a marketing surface. Verticals grant it to their field rung
+   * where that rung deals with the customer; the rest keep it at manager and above.
+   *
+   * NOT contacts:update, which was the obvious borrow and would have handed a technician the right to
+   * edit customer records — which T30 confirmed they should not have. (T30 L-RB)
+   */
+  const textsACustomer = requirePermission('sms:send')
 
   app.post('/webhook/incoming', async (c) => {
     const params = await parseTwilioBody(c)
@@ -441,11 +451,7 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     if (result?.status === 'failed') return c.json({ error: result.errorMessage || 'Text could not be sent', message: result }, 502)
     return c.json(result)
   }
-  // NOT guarded, and not by oversight. Sending a text reaches a customer and spends from the
-  // messaging wallet, and who may do that is the open question from T30 L-RB: a technician texting
-  // "on my way" is the product working, while contacts:update would stop that in field service and
-  // allow it in salon and vet, which widen the field rung. It is on the debt list until it is decided.
-  app.post('/send', async (c) => {
+  app.post('/send', textsACustomer, async (c) => {
     const user = (c as any).get('user')
     const { contactId, toPhone, message, jobId, templateId } = await c.req.json().catch(() => ({}))
     if (!message) return c.json({ error: 'Message is required' }, 400)
@@ -453,7 +459,7 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     try { return sendResult(c, await sms.sendSMS(user.companyId, { contactId, toPhone, message, userId: user.userId, jobId, templateId })) }
     catch (e: any) { return c.json({ error: e?.message || 'Text could not be sent' }, 400) }
   })
-  app.post('/conversations/:id/reply', async (c) => {
+  app.post('/conversations/:id/reply', textsACustomer, async (c) => {
     const user = (c as any).get('user')
     const { message } = await c.req.json().catch(() => ({}))
     if (!message) return c.json({ error: 'Message is required' }, 400)
@@ -470,7 +476,7 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     if (!message) return c.json({ error: 'Message is required' }, 400)
     return c.json(await sms.sendBulkSMS(user.companyId, { contactIds, message, templateId, userId: user.userId }))
   })
-  app.post('/job-update/:jobId', async (c) => {
+  app.post('/job-update/:jobId', textsACustomer, async (c) => {
     const user = (c as any).get('user')
     const { updateType } = await c.req.json().catch(() => ({}))
     if (!['scheduled', 'on_way', 'on_my_way', 'started', 'on_site', 'completed', 'reminder'].includes(updateType)) return c.json({ error: 'Invalid updateType' }, 400)

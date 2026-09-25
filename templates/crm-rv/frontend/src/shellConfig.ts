@@ -50,7 +50,7 @@ const NAV: NavItem[] = [
   { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing', permission: 'marketing:read' },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
-  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], section: 'Customers & Marketing' },
+  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], section: 'Customers & Marketing', permission: 'sms:send' },
 
   // Leads
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], section: 'Leads' },

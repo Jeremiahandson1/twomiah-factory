@@ -12,4 +12,8 @@ export const {
 } = createPermissions({
   db,
   tables: { user },
+  // sms:send — same box, same reason: a crew running late tells the customer. (T30 L-RB)
+  extraRolePermissions: {
+    field: ['sms:send'],
+  },
 })

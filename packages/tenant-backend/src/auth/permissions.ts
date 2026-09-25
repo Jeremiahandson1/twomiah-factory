@@ -19,6 +19,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:*',
     // company config (geofencing, Stripe onboarding) + refunds — admin-tier, like company:update
     'settings:*', 'payments:*',
+    // sms:send (text a customer) / sms:* (the canned messages and auto-responders live on
+    // marketing:update). Its own resource rather than borrowing contacts:update, which would hand a
+    // technician the right to EDIT customer records along with the right to text them. (T30 L-RB)
+    'sms:*',
     // ads:read / ads:update (pause, dismiss, A/B tests) / ads:settings (profile, mode, platforms) / ads:spend (launch, resume, apply, AI preview)
     'ads:*',
   ],
@@ -33,6 +37,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     // operational modules (writes gated in their routes; reads are open) + read-only reports
     'equipment:*', 'fleet:*', 'warranties:*', 'inventory:*', 'agreements:*',
     'selections:*', 'takeoffs:*', 'calltracking:*', 'reports:read',
+    'sms:*',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',

@@ -69,14 +69,29 @@ console.log('\n── tidying a thread: nothing leaves the building ──')
   check('a manager too', gotPast(await as(manager)('POST', `/api/sms/conversations/${id}/archive`)))
 }
 
-console.log('\n── sending: still open, still on the debt list, still a question ──')
+// ANSWERED. The question was "does staff texting customers depend on the vertical" and the code already
+// had the answer: the 1:1 SMS box on the contact record is built only for field service and landscaping —
+// the two verticals whose staff drive to a customer's address — while the Messages inbox lives under
+// src/marketing/ and mass texting is already contacts:update.
+//
+// So texting got its own right, sms:send, rather than borrowing contacts:update. Borrowing it would have
+// handed a technician the right to EDIT customer records, which T30 confirmed they should not have.
+// Field service grants sms:send to its field rung, so a technician here CAN text — that is the whole point
+// of the box. crm, restaurant and rv do not, and keep it at manager and above.
+console.log('\n── sending: field service grants its technicians sms:send, and that is deliberate ──')
 {
-  // Asserted as it IS, not as it should be. When the question is answered this fails and someone has to
-  // change it deliberately — which is the point of writing an open item down as a test.
   const r = await as(staff)('POST', '/api/sms/send', { toPhone: '6085550166', message: 'on my way' })
-  check('staff still reach the send path (T30 L-RB, undecided)', gotPast(r), { status: r.status, body: r.json })
+  check('a field service technician may text the customer they are driving to', gotPast(r), { status: r.status, body: r.json })
   const reply = await as(staff)('POST', '/api/sms/conversations/00000000-0000-0000-0000-000000000000/reply', { message: 'on my way' })
-  check('…and the reply path', gotPast(reply), { status: reply.status })
+  check('…and reply in the thread', gotPast(reply), { status: reply.status })
+  check('…because this vertical grants the field rung sms:send', true)
+
+  // …and the gate is real: a viewer holds no sms:send anywhere.
+  const v = await as(viewer)('POST', '/api/sms/send', { toPhone: '6085550166', message: 'probe' })
+  check('a viewer cannot text a customer', refused(v), { status: v.status, body: v.json })
+  check('…and is told it needs sms:send', v.json?.required === 'sms:send', { body: v.json })
+  const ju = await as(viewer)('POST', '/api/sms/job-update/00000000-0000-0000-0000-000000000000', {})
+  check('…nor fire a job-update text', refused(ju), { status: ju.status })
 }
 
 console.log(`\nfs-t30-sms-authorise: ${passed} passed, ${failed} failed`)

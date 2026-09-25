@@ -14,6 +14,8 @@ export const {
   tables: { user },
   // Clinical staff (technician/receptionist) must be able to record care and bill for it.
   // Vet patients/visits/vaccinations/appointments/wellness all gate on contacts:*. (R2-02)
-  extraRolePermissions: { field: ['contacts:create', 'contacts:update', 'invoices:read', 'invoices:create', 'invoices:update'] },
+  // sms:send — clinical staff already speak to the owner directly (contacts and invoices above), and
+  // "your pet is out of surgery" is their message to send, not a manager's. (T30 L-RB)
+  extraRolePermissions: { field: ['contacts:create', 'contacts:update', 'invoices:read', 'invoices:create', 'invoices:update', 'sms:send'] },
   roleMapping: { staff: 'field' },
 })

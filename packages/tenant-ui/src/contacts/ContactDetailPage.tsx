@@ -465,7 +465,7 @@ export function ContactDetailPage({ api, toast, config }: ContactsPageProps) {
             </div>
           )}
 
-          {sections.sms && (
+          {sections.sms && cfg.can('sms:send') && (
             <div className={card}>
               <div className="p-4 border-b dark:border-slate-800 flex items-center justify-between">
                 <h2 className={`${h2} flex items-center gap-2`}><MessageSquare className="w-4 h-4" /> Messages</h2>

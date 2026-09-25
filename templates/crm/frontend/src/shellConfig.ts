@@ -47,7 +47,7 @@ const NAV: NavItem[] = [
   { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'], permission: 'invoices:read' },
   { to: '/crm/takeoffs', icon: Scissors, label: 'Takeoffs', features: ['takeoff_tools'] },
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects'] },
-  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'] },
+  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], permission: 'sms:send' },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'] },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
