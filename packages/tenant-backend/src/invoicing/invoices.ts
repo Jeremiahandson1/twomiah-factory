@@ -803,7 +803,13 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   // A refund is its own ledger event: a negative payment row plus amountRefunded. amountPaid stays gross,
   // so the sale stays paid and a refund never reopens a balance the client must settle again. Only
   // refunding everything collected changes the status (→ 'refunded').
-  app.post('/:id/refund', requirePermission('invoices:update'), async (c) => {
+  //
+  // payments:delete, the same right POST /api/payments/refund asks for. This route asked for
+  // invoices:update, so the same money had two doors with two different locks and a manager could
+  // walk through one of them. The matrix already said which was meant: admin's list carries refunds
+  // as admin-tier alongside company config, and manager has no payments right at all. Raising and
+  // editing an invoice is a manager's job; money going back out is not. (Field Service T30 L-RB)
+  app.post('/:id/refund', requirePermission('payments:delete'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const refundSchema = z.object({ amount: z.number().positive(), method: z.enum(PAYMENT_METHODS).optional(), reference: z.string().optional(), notes: z.string().optional() })
@@ -818,7 +824,9 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
 
   // ---------------------------------------------------------------- credit
   // Lowers what the client owes without returning money (see applyInvoiceCredit). A refund returns money.
-  app.post('/:id/credit', requirePermission('invoices:update'), async (c) => {
+  // Same tier as a refund: it is the same decision with a different instrument, and it is what an
+  // accidental discount looks like on the ledger. (Field Service T30 L-RB)
+  app.post('/:id/credit', requirePermission('payments:delete'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const creditSchema = z.object({

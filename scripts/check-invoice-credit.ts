@@ -42,7 +42,11 @@ else if (/amountPaid|amountRefunded/.test(written)) fail('applyInvoiceCredit mus
 if (!/Credit \$\$\{amount\.toFixed\(2\)\} applied/.test(core)) fail('applyInvoiceCredit must record the credit on the invoice notes')
 
 const route = inv.slice(inv.indexOf("app.post('/:id/credit'"), inv.indexOf('// ---------------------------------------------------------------- pdf'))
-if (!/requirePermission\('invoices:update'\)/.test(route) || !/applyInvoiceCredit\(db, t, \{ invoiceId: id, companyId: currentUser\.companyId/.test(route)) fail('POST /:id/credit must require invoices:update and call applyInvoiceCredit scoped to the company')
+// payments:delete, not invoices:update — the same right POST /api/payments/refund asks for. Writing money
+// off is the same decision as handing it back with a different instrument, and the matrix puts refunds at
+// admin tier next to company config. This route asked for invoices:update, so a manager could credit an
+// invoice while being refused the Stripe refund beside it. (Field Service T30 L-RB)
+if (!/requirePermission\('payments:delete'\)/.test(route) || !/applyInvoiceCredit\(db, t, \{ invoiceId: id, companyId: currentUser\.companyId/.test(route)) fail('POST /:id/credit must require payments:delete (the refund tier) and call applyInvoiceCredit scoped to the company')
 if (!/reason: z\.string/.test(route)) fail('POST /:id/credit must require a reason')
 if (!/emitToCompany\(currentUser\.companyId, EVENTS\.INVOICE_UPDATED/.test(route)) fail('POST /:id/credit must emit INVOICE_UPDATED (event invoices move their due date on it)')
 if (!/applyInvoiceCredit \}/.test(read('packages/tenant-backend/src/index.ts').replace(/\s+/g, ' ').replace(/, /g, ', ')) && !/applyInvoiceCredit/.test(read('packages/tenant-backend/src/index.ts'))) fail('tenant-backend index.ts must export applyInvoiceCredit')
