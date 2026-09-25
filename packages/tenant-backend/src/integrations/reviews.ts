@@ -388,6 +388,14 @@ export interface ReviewsRoutesDeps {
   db: any
   tables: { reviewRequest: any }
   authenticate: any
+  /**
+   * Asking a customer for a public review is marketing done in the company's name, so the three
+   * routes that do it are marketing:create — manager and above, the same three roles
+   * requireRole('manager') names, with the difference that an owner can hand review-chasing to one
+   * person without promoting them. Settings and the scheduled sweep keep their admin rank, which is
+   * what the server asks of company configuration everywhere else. (T30 debt)
+   */
+  requirePermission: (permission: string) => any
   requireRole: (...roles: string[]) => any
   audit?: { log: (input: any) => any }
   /**
@@ -401,7 +409,7 @@ export interface ReviewsRoutesDeps {
 }
 
 export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
-  const { service: reviews, db, tables: t, authenticate, requireRole } = deps
+  const { service: reviews, db, tables: t, authenticate, requireRole, requirePermission } = deps
   const audit = deps.audit || { log: () => {} }
   const app = new Hono()
 
@@ -439,7 +447,7 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
   app.get('/', list)
   app.get('/requests', list)
 
-  app.post('/request/:jobId', async (c) => {
+  app.post('/request/:jobId', requirePermission('marketing:create'), async (c) => {
     const jobId = c.req.param('jobId')
     const { channel = 'both' } = await c.req.json().catch(() => ({}))
     if (!['sms', 'email', 'both'].includes(channel)) return c.json({ error: 'channel must be sms, email or both' }, 400)
@@ -453,11 +461,11 @@ export function createReviewsRoutes(deps: ReviewsRoutesDeps) {
     audit.log({ action: 'REVIEW_REQUEST_SENT', entity: 'job', entityId: jobId, metadata: { channel }, req: c.req })
     return c.json(result)
   })
-  app.post('/schedule/:jobId', async (c) => {
+  app.post('/schedule/:jobId', requirePermission('marketing:create'), async (c) => {
     const request = await reviews.scheduleReviewRequest(c.req.param('jobId'))
     return request ? c.json(request) : c.json({ error: 'Could not schedule review request — review requests are off, the job has no contact, or one is already scheduled.' }, 400)
   })
-  app.post('/follow-up/:requestId', async (c) => {
+  app.post('/follow-up/:requestId', requirePermission('marketing:create'), async (c) => {
     // A thrown error here is a setup or contact-details problem the caller can fix, so it is answered
     // rather than swallowed — this endpoint used to return success no matter what. (Salon T28 H3)
     let result

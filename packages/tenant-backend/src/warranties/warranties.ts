@@ -788,7 +788,9 @@ export function createWarrantiesRoutes(deps: WarrantiesRoutesDeps) {
   });
 
   // Create claim
-  app.post('/claims', async (c) => {
+  // The odd one out in this file: /templates, /templates/seed, / and /from-templates are all
+  // warranties:create, and filing a claim against a warranty was open to anyone signed in. (T30 debt)
+  app.post('/claims', requirePermission('warranties:create'), async (c) => {
     const user = c.get('user') as any;
     const body = await c.req.json();
     if (!body?.warrantyId) return c.json({ error: 'A warranty is required to file a claim.' }, 400);

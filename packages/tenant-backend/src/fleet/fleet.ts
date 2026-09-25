@@ -321,23 +321,28 @@ export function createFleetRoutes(deps: FleetRoutesDeps) {
   })
 
   app.get('/locations', async (c: any) => c.json(await service.getFleetLocations((c.get('user')).companyId)))
-  app.post('/vehicles/:id/location', async (c: any) => {
+  // Driver actions on a vehicle: where it is, a trip starting and ending, a tank filled. Everything
+  // else here is already fleet:create / fleet:update / fleet:delete, and these four were never
+  // guarded. fleet:update, matching the module — which makes the Fleet page coherently read-only for
+  // a technician rather than read-only-except-fuel. No client in this repo calls the trip or location
+  // routes today; when a driver app does, the 403 is where that decision gets made. (T30 debt)
+  app.post('/vehicles/:id/location', requirePermission('fleet:update'), async (c: any) => {
     await service.updateLocation(c.req.param('id'), (c.get('user')).companyId, await c.req.json())
     return c.json({ success: true })
   })
   app.get('/vehicles/:id/location-history', async (c: any) => c.json(await service.getLocationHistory(c.req.param('id'), (c.get('user')).companyId, c.req.query())))
 
   app.get('/trips', async (c: any) => c.json(await service.getTrips((c.get('user')).companyId, c.req.query())))
-  app.post('/trips/start', async (c: any) => {
+  app.post('/trips/start', requirePermission('fleet:update'), async (c: any) => {
     const user = c.get('user'); const body = await c.req.json()
     return c.json(await service.startTrip(body.vehicleId, user.companyId, { ...body, userId: user.userId }), 201)
   })
-  app.post('/trips/:id/end', async (c: any) => c.json(await service.endTrip(c.req.param('id'), (c.get('user')).companyId, await c.req.json())))
+  app.post('/trips/:id/end', requirePermission('fleet:update'), async (c: any) => c.json(await service.endTrip(c.req.param('id'), (c.get('user')).companyId, await c.req.json())))
 
   app.get('/maintenance-due', async (c: any) => c.json(await service.getMaintenanceDue((c.get('user')).companyId)))
   app.post('/vehicles/:id/maintenance', requirePermission('fleet:update'), async (c: any) => c.json(await service.addMaintenance(c.req.param('id'), (c.get('user')).companyId, await c.req.json()), 201))
 
-  app.post('/vehicles/:id/fuel', async (c: any) => c.json(await service.addFuelEntry(c.req.param('id'), (c.get('user')).companyId, await c.req.json()), 201))
+  app.post('/vehicles/:id/fuel', requirePermission('fleet:update'), async (c: any) => c.json(await service.addFuelEntry(c.req.param('id'), (c.get('user')).companyId, await c.req.json()), 201))
   app.get('/vehicles/:id/fuel-stats', async (c: any) => c.json(await service.getFuelStats(c.req.param('id'), (c.get('user')).companyId, c.req.query())))
 
   app.get('/stats', async (c: any) => c.json(await service.getFleetStats((c.get('user')).companyId)))

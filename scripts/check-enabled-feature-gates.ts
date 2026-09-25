@@ -95,7 +95,7 @@ for (const t of TEMPLATES) {
   for (const t of TEMPLATES) {
     const wiring = read(`templates/${t}/backend/src/routes/reviews.ts`)
     if (!/import \{ requireEnabledFeature \} from '\.\.\/middleware\/enabledFeature\.ts'/.test(wiring)) fail(`${t} reviews.ts does not import its enabled-feature gate`)
-    if (!/authenticate, requireRole, audit, requireEnabledFeature \}\)/.test(wiring)) fail(`${t} reviews.ts does not hand the gate to the shared routes — its Reviews API stays open`)
+    if (!/authenticate, requireRole, requirePermission, audit, requireEnabledFeature \}\)/.test(wiring)) fail(`${t} reviews.ts does not hand the gate to the shared routes — its Reviews API stays open`)
     // the API and the menu must be gated on the SAME id, or one of them is wrong
     const shell = read(`templates/${t}/frontend/src/shellConfig.ts`)
     if (/\/crm\/reviews/.test(shell) && !/google_reviews/.test(shell)) fail(`${t} gates /crm/reviews on something other than google_reviews — the API and the menu must agree`)
