@@ -5,6 +5,23 @@
 // checked that the header existed; fieldservice/landscaping checked nothing.
 import crypto from 'crypto'
 
+/**
+ * Could this be dialled at all? Ten digits (North America), eleven starting with 1, or an explicitly
+ * international +NN… of 8 to 15 digits, which is E.164's own range.
+ *
+ * formatPhoneE164 will happily turn "123" into "+123", and that went to the carrier: a send was spent,
+ * a failed message was written into the customer's thread, and the caller got a 502 — for a typo. The
+ * form checked for ten digits; the API, which is the one that can be called directly, did not.
+ * (Field Service T30 L-SMS)
+ */
+export function isDialablePhone(phone: string): boolean {
+  const raw = String(phone || '').trim()
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 10) return true
+  if (digits.length === 11 && digits.startsWith('1')) return true
+  return raw.startsWith('+') && digits.length >= 8 && digits.length <= 15
+}
+
 export function formatPhoneE164(phone: string): string {
   const digits = String(phone || '').replace(/\D/g, '')
   if (digits.length === 10) return `+1${digits}`

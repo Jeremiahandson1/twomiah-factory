@@ -7,7 +7,7 @@
 // and every version parsed Twilio's form-encoded webhook with c.req.json() → the text was dropped with a 200.
 import { Hono } from 'hono'
 import { eq, and, or, desc, asc, count, sum, sql, gt, isNull } from 'drizzle-orm'
-import { formatPhoneE164, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
+import { formatPhoneE164, isDialablePhone, parseTwilioBody, verifyTwilioRequest, twilioClient, twilioConfigFromEnv, twilioConfigFor, companyTwilioNumbers, twilioSender, TWIML_EMPTY, type TwilioConfig } from './twilio'
 
 export interface SmsTables { smsConversation: any; smsMessage: any; smsTemplate: any; contact: any; company: any; job: any; user: any;
   /** crew roster — present → a roster-only assignee's first name is used for {{tech_name}} (T21 M12) */
@@ -78,12 +78,14 @@ export function createSmsService(deps: SmsServiceDeps) {
       toPhone = contactRow.mobile || contactRow.phone
     }
     if (!toPhone) throw new Error('Phone number required')
+    // Before anything is spent: a number that cannot be dialled is a typo, not a carrier problem.
+    if (!isDialablePhone(toPhone)) throw new Error(`That is not a phone number we can text: ${toPhone}. Use a 10-digit number, or +country code for international.`)
     const formattedPhone = formatPhoneE164(toPhone)
 
     // A refused send is not a send: with the usage wallet empty nothing is attempted, so no thread is
     // opened and no message row is written — the caller just gets the refusal. A carrier failure after a
     // real attempt is still recorded as a failed message in the thread. (T16 N2)
-    if (!(await usage.walletSufficient())) return { status: 'failed', errorMessage: 'Messaging paused: usage wallet is empty — top up to resume.', refused: true } as any
+    if (!(await usage.walletSufficient())) return { status: 'refused', errorMessage: 'Messaging paused: usage wallet is empty — top up to resume.', refused: true } as any
 
     // The thread belongs to the person whose number this is (digits compared, so "(608) 555-0166" matches
     // +16085550166) — the same match the inbound webhook makes — so a text typed to a number is filed
@@ -293,10 +295,13 @@ export function createSmsService(deps: SmsServiceDeps) {
     const results = { sent: 0, failed: 0, errors: [] as any[] }
     for (const contactId of contactIds) {
       try {
-        // sendSMS never throws for a carrier/wallet failure — it returns the row with status "failed". Only a real send counts. (SALON-C4)
+        // sendSMS never throws for a carrier/wallet failure — it returns a row with status "failed", or
+        // "refused" when the wallet stopped it before anything was attempted. Only a real send counts.
+        // (SALON-C4; `refused` split out at T30 L-SMS, and it has to be counted here or an empty wallet
+        // reports a bulk send of zero sent and zero failed, which reads like it worked.)
         const row: any = await sendSMS(companyId, { contactId, message, templateId, userId })
         if (!row) { results.failed++; results.errors.push({ contactId, error: 'Opted out or no phone' }) }
-        else if (row.status === 'failed') { results.failed++; results.errors.push({ contactId, error: row.errorMessage || 'Send failed' }) }
+        else if (row.status === 'failed' || row.refused) { results.failed++; results.errors.push({ contactId, error: row.errorMessage || 'Send failed' }) }
         else results.sent++
       } catch (error: any) { results.failed++; results.errors.push({ contactId, error: error.message }) }
       await new Promise((r) => setTimeout(r, 100))
@@ -418,7 +423,12 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
 
   const sendResult = (c: any, result: any) => {
     if (result === null) return c.json({ error: 'That contact has opted out of texts or has no phone number.' }, 400)
-    // A wallet/carrier failure is saved as a failed message; tell the caller instead of returning 200. (SALON-C4)
+    // An empty wallet is a business rule, not a bad gateway: nothing was attempted, Twilio was never
+    // asked, and 502 sends whoever reads the log looking at the wrong system. 402 Payment Required says
+    // what it is and what fixes it. (Field Service T30 L-SMS)
+    if (result?.refused) return c.json({ error: result.errorMessage || 'Texting is paused on this account', refused: true }, 402)
+    // A carrier failure IS an upstream failure: something was attempted and came back bad. It is saved
+    // as a failed message in the thread, and the caller is told rather than given a 200. (SALON-C4)
     if (result?.status === 'failed') return c.json({ error: result.errorMessage || 'Text could not be sent', message: result }, 502)
     return c.json(result)
   }
