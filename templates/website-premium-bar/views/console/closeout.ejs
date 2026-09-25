@@ -1,0 +1,213 @@
+<%
+  // CLOSE-OUT. The night's report (server-rendered, prints cleanly) and the
+  // cash count. A small script works out over/short as you type and posts
+  // the close; the server re-adds everything and freezes it.
+  const m = (c) => { const n = c < 0; c = Math.abs(c || 0); return (n ? '−' : '') + '$' + Math.floor(c / 100).toLocaleString('en-US') + '.' + String(c % 100).padStart(2, '0') }
+  const s = summary
+  const maxHour = Math.max(1, ...s.byHour.map(h => h.totalCents))
+  const dayLabel = new Date(day + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' })
+  const last = closes[0]
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0A08">
+  <title>Close-out <%= day %> — <%= companyName %></title>
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/register.css">
+  <style>
+    .co { max-width: 980px; margin: 0 auto; padding: 16px 16px 60px; display: grid; gap: 18px; }
+    .co-nav { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .co-nav a { color: var(--ink-soft); padding: 12px 6px; }
+    .co-h1 { font-size: 28px; font-weight: 800; color: var(--brand-bright); }
+    .co-sub { color: var(--muted); }
+    .co-big { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+    .co-big div { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 4px; }
+    .co-big dt { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    .co-big dd { margin: 0; font-family: var(--mono); font-size: 26px; font-weight: 700; }
+    .co-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; align-items: start; }
+    .co-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; }
+    .co-card h2 { font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    .co-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    .co-table td, .co-table th { padding: 6px 0; border-bottom: 1px dashed var(--line); text-align: left; vertical-align: top; }
+    .co-table th { font-weight: 600; color: var(--muted); font-size: 13px; }
+    .co-table .n { text-align: right; font-family: var(--mono); white-space: nowrap; padding-left: 10px; }
+    .co-table tr:last-child td { border-bottom: 0; }
+    .co-bar { display: grid; grid-template-columns: 56px 1fr 90px; gap: 8px; align-items: center; font-size: 14px; }
+    .co-bar__track { height: 14px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+    .co-bar__fill { height: 100%; background: var(--brand); }
+    .co-bar .n { text-align: right; font-family: var(--mono); }
+    .co-warn { border: 1px solid #D2574B; background: rgba(142,43,36,.25); border-radius: 12px; padding: 14px; display: grid; gap: 6px; }
+    .co-warn strong { color: #F6D5D0; }
+    .co-form { display: grid; gap: 12px; }
+    .co-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .co-os { font-size: 20px; }
+    .co-os strong { font-family: var(--mono); font-size: 26px; }
+    .co-os[data-state="short"] strong { color: #F0B1A8; }
+    .co-os[data-state="over"] strong { color: var(--brand-bright); }
+    .co-os[data-state="even"] strong { color: #8FC2A6; }
+    .co-check { display: flex; gap: 10px; align-items: center; min-height: 48px; }
+    .co-check input { width: 22px; height: 22px; accent-color: var(--brand); }
+    .co-done { border: 1px solid #3E8E68; background: rgba(46,107,79,.25); border-radius: 12px; padding: 14px; }
+    @media (max-width: 560px) { .co-row2 { grid-template-columns: 1fr; } }
+    @media print {
+      body { background: #fff; color: #000; }
+      .reg-top, .co-form, .co-nav a, .co-noprint { display: none !important; }
+      .co-card, .co-big div { border-color: #999; background: #fff; }
+      .co-h1, .co-big dd, .co-table td, .co-table th { color: #000; }
+    }
+  </style>
+</head>
+<body class="reg">
+  <header class="reg-top">
+    <div class="reg-top__brand">Close-out <span class="reg-top__who"><%= staff.label %></span></div>
+    <nav class="reg-top__nav" aria-label="Staff screens"><a href="/register">Register</a><a href="/kitchen">Grill</a><a href="/console">Console</a></nav>
+  </header>
+
+  <main class="co">
+    <div class="co-nav">
+      <div>
+        <h1 class="co-h1"><%= dayLabel %></h1>
+        <p class="co-sub">6 AM to 6 AM. Totals are what each check closed at.</p>
+      </div>
+      <div>
+        <a href="/register/closeout?day=<%= prevDay %>">← <%= prevDay %></a>
+        <% if (day < today) { %><a href="/register/closeout?day=<%= nextDay %>"><%= nextDay %> →</a><% } %>
+        <a href="#" class="co-noprint" id="co-print">Print</a>
+      </div>
+    </div>
+
+    <% if (open.length && day === today) { %>
+      <section class="co-warn" aria-labelledby="co-open-h">
+        <h2 id="co-open-h"><strong><%= open.length %> check<%= open.length === 1 ? '' : 's' %> still open</strong></h2>
+        <ul>
+          <% for (const o of open) { %><li>#<%= o.number %> <%= o.label %><%= o.spot && o.spot !== o.label ? ' · ' + o.spot : '' %> — <%= m(o.balanceCents) %> owed</li><% } %>
+        </ul>
+        <p>Held cards on tabs expire 36 hours after they're dipped. Close these on the register before counting out.</p>
+      </section>
+    <% } %>
+
+    <dl class="co-big">
+      <div><dt>Total</dt><dd><%= m(s.totalCents) %></dd></div>
+      <div><dt>Checks</dt><dd><%= s.checksPaid %></dd></div>
+      <div><dt>Average</dt><dd><%= m(s.averageCheckCents) %></dd></div>
+      <div><dt>Tips</dt><dd><%= m(s.tipsCents) %></dd></div>
+    </dl>
+
+    <div class="co-grid">
+      <section class="co-card" aria-labelledby="co-sales-h">
+        <h2 id="co-sales-h">Sales</h2>
+        <table class="co-table">
+          <tr><td>Food &amp; drink</td><td class="n"><%= m(s.subtotalCents) %></td></tr>
+          <tr><td>Sales tax</td><td class="n"><%= m(s.taxCents) %></td></tr>
+          <tr><td><strong>Total</strong></td><td class="n"><strong><%= m(s.totalCents) %></strong></td></tr>
+          <% for (const ch of s.byChannel) { %><tr><td><%= ch.channel %> (<%= ch.count %>)</td><td class="n"><%= m(ch.totalCents) %></td></tr><% } %>
+        </table>
+      </section>
+
+      <section class="co-card" aria-labelledby="co-pay-h">
+        <h2 id="co-pay-h">By payment</h2>
+        <table class="co-table">
+          <% for (const t of s.byTender) { %><tr><td><%= t.label %> (<%= t.count %>)</td><td class="n"><%= m(t.amountCents) %><%= t.tipsCents ? ' + ' + m(t.tipsCents) : '' %></td></tr><% } %>
+          <% if (!s.byTender.length) { %><tr><td class="co-sub">No payments.</td><td></td></tr><% } %>
+        </table>
+      </section>
+
+      <section class="co-card" aria-labelledby="co-tips-h">
+        <h2 id="co-tips-h">Tips by person</h2>
+        <table class="co-table">
+          <tr><th>Who</th><th class="n">Cash</th><th class="n">Card</th><th class="n">Total</th></tr>
+          <% for (const t of s.tipsByStaff) { %><tr><td><%= t.who %></td><td class="n"><%= m(t.cashTipsCents) %></td><td class="n"><%= m(t.cardTipsCents) %></td><td class="n"><%= m(t.tipsCents) %></td></tr><% } %>
+          <% if (!s.tipsByStaff.length) { %><tr><td colspan="4" class="co-sub">No tips.</td></tr><% } %>
+        </table>
+      </section>
+
+      <section class="co-card" aria-labelledby="co-items-h">
+        <h2 id="co-items-h">What sold</h2>
+        <table class="co-table">
+          <% for (const i of s.items.slice(0, 15)) { %><tr><td><%= i.name %></td><td class="n"><%= i.qty %></td><td class="n"><%= m(i.salesCents) %></td></tr><% } %>
+          <% if (!s.items.length) { %><tr><td class="co-sub">Nothing yet.</td><td></td></tr><% } %>
+        </table>
+      </section>
+
+      <section class="co-card" aria-labelledby="co-hour-h">
+        <h2 id="co-hour-h">By hour</h2>
+        <% for (const h of s.byHour) { %>
+          <div class="co-bar"><span><%= h.label %></span><span class="co-bar__track" aria-hidden="true"><span class="co-bar__fill" style="display:block;width:<%= Math.round(h.totalCents / maxHour * 100) %>%"></span></span><span class="n"><%= m(h.totalCents) %></span></div>
+        <% } %>
+        <% if (!s.byHour.length) { %><p class="co-sub">No sales yet.</p><% } %>
+      </section>
+
+      <section class="co-card" aria-labelledby="co-void-h">
+        <h2 id="co-void-h">Voids (<%= s.voids.length %>)</h2>
+        <table class="co-table">
+          <% for (const v of s.voids) { %><tr><td>#<%= v.checkNumber %> <%= v.what %><br><span class="co-sub"><%= v.reason %><%= v.by ? ' · ' + v.by : '' %></span></td><td class="n"><%= v.amountCents ? m(v.amountCents) : '' %></td></tr><% } %>
+          <% if (!s.voids.length) { %><tr><td class="co-sub">None.</td><td></td></tr><% } %>
+        </table>
+      </section>
+    </div>
+
+    <% for (const c of closes) { %>
+      <section class="co-done">
+        Closed <%= new Date(c.closedAt).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) %> by <%= c.closedBy %>.
+        Drawer should have <%= m(c.cashExpectedCents) %>, counted <%= c.cashCountedCents === null ? '—' : m(c.cashCountedCents) %>
+        (<%= c.overShortCents === null ? 'not counted' : c.overShortCents === 0 ? 'even' : (c.overShortCents > 0 ? 'over ' : 'short ') + m(Math.abs(c.overShortCents)) %>).
+        <%= c.emailedAt ? 'Report emailed.' : '' %>
+      </section>
+    <% } %>
+
+    <section class="co-card co-form" aria-labelledby="co-count-h">
+      <h2 id="co-count-h">Count the drawer<%= closes.length ? ' again' : '' %></h2>
+      <p class="co-sub">Cash sales <%= m(s.cash.salesCents) %> + cash tips <%= m(s.cash.tipsCents) %> = <strong><%= m(s.cash.inCents) %></strong> came in tonight, plus whatever the drawer started with.</p>
+      <form id="co-form" data-day="<%= day %>" data-cash-in="<%= s.cash.inCents %>" data-open="<%= open.length %>">
+        <div class="co-row2">
+          <label class="reg-field">Drawer started with<input class="reg-input reg-input--money" id="co-float" inputmode="decimal" value="<%= last ? (last.floatCents / 100).toFixed(2) : '' %>" placeholder="0.00"></label>
+          <label class="reg-field">Counted now<input class="reg-input reg-input--money" id="co-counted" inputmode="decimal" placeholder="0.00"></label>
+        </div>
+        <p class="co-os" id="co-os" data-state="none" aria-live="polite">Should be <strong id="co-expected"></strong> · <span id="co-diff">count it</span></p>
+        <label class="reg-field">Note<input class="reg-input" id="co-note" maxlength="500" placeholder="Anything the owner should know"></label>
+        <% if (needPin) { %><label class="reg-field">Manager PIN<input class="reg-input reg-input--money" id="co-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></label><% } %>
+        <% if (open.length) { %><label class="co-check"><input type="checkbox" id="co-force"> Close the night anyway (<%= open.length %> still open)</label><% } %>
+        <p class="co-sub"><%= ownerEmail ? 'The report goes to ' + ownerEmail + ' when email is set up.' : 'Add an email in Admin → Settings to get this report by email.' %></p>
+        <button class="reg-btn reg-btn--go" type="submit" id="co-go">Close the night</button>
+        <p class="co-sub" id="co-msg" role="alert"></p>
+      </form>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    var f = document.getElementById('co-form'); if (!f) return;
+    var $ = function (id) { return document.getElementById(id); };
+    var cents = function (v) { var s = String(v || '').replace(/[^\d.]/g, ''); return s ? Math.round(parseFloat(s) * 100) : null; };
+    var money = function (c) { var n = c < 0; c = Math.abs(c); return (n ? '−' : '') + '$' + Math.floor(c / 100).toLocaleString('en-US') + '.' + String(c % 100).padStart(2, '0'); };
+    var cashIn = Number(f.getAttribute('data-cash-in'));
+    function draw() {
+      var expected = (cents($('co-float').value) || 0) + cashIn, counted = cents($('co-counted').value);
+      $('co-expected').textContent = money(expected);
+      var os = $('co-os');
+      if (counted === null) { os.setAttribute('data-state', 'none'); $('co-diff').textContent = 'count it'; return; }
+      var d = counted - expected;
+      os.setAttribute('data-state', d === 0 ? 'even' : d > 0 ? 'over' : 'short');
+      $('co-diff').innerHTML = d === 0 ? '<strong>even</strong>' : (d > 0 ? 'over ' : 'short ') + '<strong>' + money(Math.abs(d)) + '</strong>';
+    }
+    ['co-float', 'co-counted'].forEach(function (id) { $(id).addEventListener('input', draw); });
+    draw();
+    document.getElementById('co-print').addEventListener('click', function (e) { e.preventDefault(); window.print(); });
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = { day: f.getAttribute('data-day'), floatCents: cents($('co-float').value) || 0, countedCents: cents($('co-counted').value), note: $('co-note').value, force: !!($('co-force') && $('co-force').checked) };
+      if ($('co-pin')) body.managerPin = $('co-pin').value;
+      $('co-go').disabled = true; $('co-msg').textContent = '';
+      fetch('/api/register/closeout', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(function (r) { if (r.status === 401) { location.href = '/console/login?next=/register/closeout'; return null; } return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) { if (!res) return; if (!res.ok) { $('co-msg').textContent = res.j.error || 'That did not save.'; $('co-go').disabled = false; return; } location.reload(); })
+        .catch(function () { $('co-msg').textContent = 'No connection. Not saved.'; $('co-go').disabled = false; });
+    });
+  })();
+  </script>
+</body>
+</html>

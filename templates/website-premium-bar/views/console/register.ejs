@@ -20,6 +20,7 @@
     <nav class="reg-top__nav" aria-label="Staff screens">
       <a href="/kitchen">Grill</a>
       <a href="/console">Console</a>
+      <a href="/register/closeout">Close out</a>
       <span class="reg-conn" id="r-conn" data-state="down">Connecting…</span>
       <span class="reg-clock" id="r-clock"></span>
     </nav>
@@ -175,6 +176,19 @@
         <input class="reg-input" id="f-more-reason" maxlength="80" placeholder="Why" aria-label="Why void the check">
         <button class="reg-btn reg-btn--stop" type="button" id="f-more-void">Void check</button>
       </fieldset>
+    </form>
+  </dialog>
+
+  <!-- Manager OK -->
+  <dialog class="reg-dlg" id="d-mgr" aria-labelledby="d-mgr-h">
+    <form method="dialog" class="reg-dlg__body" id="f-mgr">
+      <h2 class="reg-dlg__h" id="d-mgr-h">Manager PIN</h2>
+      <p class="reg-muted" id="d-mgr-msg">A manager needs to OK that.</p>
+      <label class="reg-field">PIN<input class="reg-input reg-input--money" id="f-mgr-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></label>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok">OK</button>
+      </div>
     </form>
   </dialog>
 

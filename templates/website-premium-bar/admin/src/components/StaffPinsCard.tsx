@@ -6,7 +6,7 @@ import { Plus, X } from 'lucide-react'
 import { api } from '../api/client'
 import { Label, Hint } from './Field'
 
-interface StaffPin { id: string; label: string; isActive: boolean; createdAt: string; lastUsedAt: string | null }
+interface StaffPin { id: string; label: string; role: 'staff' | 'manager'; isActive: boolean; createdAt: string; lastUsedAt: string | null }
 
 function ago(iso: string | null): string {
   if (!iso) return 'never used'
@@ -21,6 +21,7 @@ export function StaffPinsCard() {
   const [pins, setPins] = useState<StaffPin[]>([])
   const [label, setLabel] = useState('')
   const [pin, setPin] = useState('')
+  const [role, setRole] = useState<'staff' | 'manager'>('staff')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
@@ -31,8 +32,8 @@ export function StaffPinsCard() {
   const add = async () => {
     setBusy(true); setError(null)
     try {
-      await api.post('/api/admin/staff-pins', { label, pin })
-      setLabel(''); setPin('')
+      await api.post('/api/admin/staff-pins', { label, pin, role })
+      setLabel(''); setPin(''); setRole('staff')
       await load()
     } catch (e: any) { setError(e.message) } finally { setBusy(false) }
   }
@@ -42,7 +43,13 @@ export function StaffPinsCard() {
     try { await api.delete(`/api/admin/staff-pins/${p.id}`); await load() } catch (e: any) { setError(e.message) } finally { setBusy(false) }
   }
 
+  const setPinRole = async (p: StaffPin, next: 'staff' | 'manager') => {
+    setBusy(true); setError(null)
+    try { await api.patch(`/api/admin/staff-pins/${p.id}`, { role: next }); await load() } catch (e: any) { setError(e.message) } finally { setBusy(false) }
+  }
+
   const active = pins.filter((p) => p.isActive)
+  const managers = active.filter((p) => p.role === 'manager')
   return (
     <section className="card card-padding mb-6">
       <h2 className="text-lg text-ink mb-1">Staff console PINs</h2>
@@ -51,19 +58,23 @@ export function StaffPinsCard() {
       </p>
       {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
       {loaded && active.length === 0 && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">No active PIN — nobody can log into the console until you add one.</p>}
+      {loaded && active.length > 0 && managers.length === 0 && <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">No manager PIN yet, so anyone can void food that's already been sent, a payment or a whole check. Every void still records who and why. Make at least one PIN a manager to require an OK.</p>}
       <ul className="divide-y divide-line border border-line rounded-lg mb-4">
         {pins.map((p) => (
           <li key={p.id} className="flex items-center justify-between gap-3 px-3 py-2">
             <div>
-              <div className={'text-sm ' + (p.isActive ? 'text-ink' : 'text-muted line-through')}>{p.label}</div>
+              <div className={'text-sm ' + (p.isActive ? 'text-ink' : 'text-muted line-through')}>{p.label}{p.role === 'manager' && <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">Manager</span>}</div>
               <div className="text-xs text-muted">{p.isActive ? ago(p.lastUsedAt) : 'deactivated'}</div>
             </div>
-            {p.isActive && <button type="button" onClick={() => deactivate(p)} disabled={busy} className="btn-secondary btn-sm inline-flex items-center gap-1"><X className="w-3 h-3" />Deactivate</button>}
+            {p.isActive && <div className="flex gap-2">
+              <button type="button" onClick={() => setPinRole(p, p.role === 'manager' ? 'staff' : 'manager')} disabled={busy} className="btn-secondary btn-sm">{p.role === 'manager' ? 'Make staff' : 'Make manager'}</button>
+              <button type="button" onClick={() => deactivate(p)} disabled={busy} className="btn-secondary btn-sm inline-flex items-center gap-1"><X className="w-3 h-3" />Deactivate</button>
+            </div>}
           </li>
         ))}
         {loaded && pins.length === 0 && <li className="px-3 py-2 text-sm text-muted">No PINs yet.</li>}
       </ul>
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_auto] gap-3 items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_140px_auto] gap-3 items-end">
         <div>
           <Label htmlFor="pin-label">Label</Label>
           <input id="pin-label" className="input" placeholder="Bar phone, Jess, Kitchen iPad…" value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -71,6 +82,13 @@ export function StaffPinsCard() {
         <div>
           <Label htmlFor="pin-digits">PIN (4–8 digits)</Label>
           <input id="pin-digits" className="input" inputMode="numeric" pattern="[0-9]*" autoComplete="off" placeholder="••••" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))} />
+        </div>
+        <div>
+          <Label htmlFor="pin-role">Role</Label>
+          <select id="pin-role" className="input" value={role} onChange={(e) => setRole(e.target.value === 'manager' ? 'manager' : 'staff')}>
+            <option value="staff">Staff</option>
+            <option value="manager">Manager</option>
+          </select>
         </div>
         <button type="button" onClick={add} disabled={busy || !label.trim() || pin.length < 4} className="btn-primary inline-flex items-center gap-1 disabled:opacity-40"><Plus className="w-4 h-4" />Add PIN</button>
       </div>

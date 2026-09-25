@@ -143,11 +143,11 @@ export async function recallTicket(db: typeof DB, id: string, now = new Date()):
 }
 
 /** A paid web order goes straight to the grill; the customer hears it's on (if they asked for texts). */
-export async function fireWebOrder(db: typeof DB, orderId: string): Promise<void> {
+export async function fireWebOrder(db: typeof DB, orderId: string): Promise<string | null> {
   const [o] = await db.select().from(onlineOrders).where(eq(onlineOrders.id, orderId)).limit(1)
-  if (!o) return
+  if (!o) return null
   const [existing] = await db.select({ id: kitchenTickets.id }).from(kitchenTickets).where(eq(kitchenTickets.onlineOrderId, o.id)).limit(1)
-  if (existing) return   // a retried payment call must not double the ticket
+  if (existing) return existing.id   // a retried payment call must not double the ticket
   const { name, tz } = await company(db)
   const at = o.pickupAt ? new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(o.pickupAt) : ''
   const lines = (Array.isArray(o.lines) ? o.lines : []) as Array<{ itemId?: string; name: string; variation?: string; qty: number; note?: string }>
@@ -155,7 +155,7 @@ export async function fireWebOrder(db: typeof DB, orderId: string): Promise<void
     label: `Web · ${o.customerName}${at ? ' · ' + at : ''}`, source: 'web', onlineOrderId: o.id,
     lines: lines.map(l => ({ menuItemId: l.itemId || null, name: l.name, variation: l.variation && l.variation !== 'Regular' ? l.variation : null, qty: l.qty, note: l.note || null })),
   })
-  if (!t) return
+  if (!t) return null
   const now = new Date()
   const patch: Partial<typeof onlineOrders.$inferInsert> = { status: 'in_progress', updatedAt: now }
   if (o.textUpdates && !o.firedSmsAt) {
@@ -164,4 +164,5 @@ export async function fireWebOrder(db: typeof DB, orderId: string): Promise<void
   }
   await db.update(onlineOrders).set(patch).where(eq(onlineOrders.id, o.id))
   await db.update(kitchenTickets).set({ startedNotifiedAt: now }).where(eq(kitchenTickets.id, t.id))
+  return t.id
 }

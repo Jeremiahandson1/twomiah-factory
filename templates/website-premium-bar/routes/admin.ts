@@ -905,7 +905,7 @@ app.post('/square/webhooks', authMiddleware, requireAdmin, async (c) => {
 // PINs are bcrypt-hashed; only the label, status and last use are ever shown.
 
 app.get('/staff-pins', authMiddleware, async (c) => {
-  const rows = await db.select({ id: staffPinsTbl.id, label: staffPinsTbl.label, isActive: staffPinsTbl.isActive, createdAt: staffPinsTbl.createdAt, lastUsedAt: staffPinsTbl.lastUsedAt })
+  const rows = await db.select({ id: staffPinsTbl.id, label: staffPinsTbl.label, role: staffPinsTbl.role, isActive: staffPinsTbl.isActive, createdAt: staffPinsTbl.createdAt, lastUsedAt: staffPinsTbl.lastUsedAt })
     .from(staffPinsTbl).orderBy(desc(staffPinsTbl.isActive), asc(staffPinsTbl.createdAt))
   return c.json({ pins: rows })
 })
@@ -919,9 +919,22 @@ app.post('/staff-pins', authMiddleware, async (c) => {
   if (/^(\d)\1+$/.test(pin) || '01234567890'.includes(pin) || '09876543210'.includes(pin)) return c.json({ error: 'That PIN is too easy to guess.' }, 400)
   const active = await db.select().from(staffPinsTbl).where(eq(staffPinsTbl.isActive, true))
   for (const r of active) if (await bcrypt.compare(pin, r.pinHash)) return c.json({ error: 'That PIN is already in use.' }, 409)
-  const [row] = await db.insert(staffPinsTbl).values({ label, pinHash: await bcrypt.hash(pin, 10) }).returning({ id: staffPinsTbl.id, label: staffPinsTbl.label, isActive: staffPinsTbl.isActive, createdAt: staffPinsTbl.createdAt, lastUsedAt: staffPinsTbl.lastUsedAt })
-  await writeAudit(c, { userId: c.get('userId') || null, action: 'staff_pin.create', target: row.id, meta: { label } }).catch(() => {})
+  const role = body.role === 'manager' ? 'manager' : 'staff'
+  const [row] = await db.insert(staffPinsTbl).values({ label, role, pinHash: await bcrypt.hash(pin, 10) }).returning({ id: staffPinsTbl.id, label: staffPinsTbl.label, role: staffPinsTbl.role, isActive: staffPinsTbl.isActive, createdAt: staffPinsTbl.createdAt, lastUsedAt: staffPinsTbl.lastUsedAt })
+  await writeAudit(c, { userId: c.get('userId') || null, action: 'staff_pin.create', target: row.id, meta: { label, role } }).catch(() => {})
   return c.json({ pin: row }, 201)
+})
+
+// Make a PIN a manager (can OK voids of sent food, payments and checks) or back to staff.
+app.patch('/staff-pins/:id', authMiddleware, async (c) => {
+  const id = String(c.req.param('id') || '')
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const role = body.role === 'manager' ? 'manager' : body.role === 'staff' ? 'staff' : null
+  if (!role) return c.json({ error: 'Role must be staff or manager.' }, 400)
+  const [row] = await db.update(staffPinsTbl).set({ role }).where(eq(staffPinsTbl.id, id)).returning({ id: staffPinsTbl.id })
+  if (!row) return c.json({ error: 'PIN not found' }, 404)
+  await writeAudit(c, { userId: c.get('userId') || null, action: 'staff_pin.role', target: id, meta: { role } }).catch(() => {})
+  return c.json({ ok: true })
 })
 
 app.delete('/staff-pins/:id', authMiddleware, async (c) => {

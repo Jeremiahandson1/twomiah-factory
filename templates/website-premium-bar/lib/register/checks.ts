@@ -11,7 +11,7 @@
 import { EventEmitter } from 'events'
 import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm'
 import type { db as DB } from '../../db'
-import { checkItems, checkPayments, checks, kitchenTickets, menuItems, menuSections, settings as settingsTbl } from '../../db/schema'
+import { checkItems, checkPayments, checks, kitchenTickets, menuItems, menuSections, onlineOrders, settings as settingsTbl } from '../../db/schema'
 import { sizesOf } from '../menu/sizes'
 import { fireTicket, notifyKitchen } from '../kitchen/tickets'
 import { changeDue, checkTotals, type CheckTotals } from './money'
@@ -276,6 +276,32 @@ export async function voidCheck(db: typeof DB, checkId: string, reason: string, 
   await db.update(checks).set({ status: 'void', voidReason: why || 'empty', closedAt: new Date(), closedBy: by, updatedAt: new Date() }).where(eq(checks.id, checkId))
   notifyRegister()
   return getCheck(db, checkId)
+}
+
+/**
+ * A paid web order, recorded as a closed check so the night's sales include it.
+ * Idempotent on the order id (unique index), so a retried payment call can't double it.
+ */
+export async function recordWebOrder(db: typeof DB, orderId: string, ticketId: string | null): Promise<void> {
+  const [o] = await db.select().from(onlineOrders).where(eq(onlineOrders.id, orderId)).limit(1)
+  if (!o || !o.totalCents) return
+  const [prior] = await db.select({ id: checks.id }).from(checks).where(eq(checks.onlineOrderId, o.id)).limit(1)
+  if (prior) return
+  const lines = (Array.isArray(o.lines) ? o.lines : []) as Array<{ itemId?: string; name: string; variation?: string; qty: number; note?: string; priceCents: number }>
+  await db.transaction(async (tx) => {
+    const now = new Date()
+    const [c] = await tx.insert(checks).values({
+      kind: 'online', label: 'Web · ' + o.customerName, status: 'paid', onlineOrderId: o.id,
+      subtotalCents: o.subtotalCents, taxCents: o.taxCents, totalCents: o.totalCents, tipCents: 0,
+      openedAt: o.createdAt, openedBy: 'Website', closedAt: now, closedBy: 'Website',
+    }).returning({ id: checks.id })
+    if (lines.length) await tx.insert(checkItems).values(lines.map(l => ({
+      checkId: c.id, menuItemId: l.itemId || null, name: l.name, size: l.variation && l.variation !== 'Regular' ? l.variation : null,
+      qty: l.qty, unitPriceCents: l.priceCents, note: l.note || null, state: 'sent', ticketId, sentAt: now, addedBy: 'Website',
+    })))
+    await tx.insert(checkPayments).values({ checkId: c.id, tender: 'card_online', amountCents: o.totalCents as number, tipCents: 0, squarePaymentId: o.squarePaymentId, takenBy: 'Website' })
+  })
+  notifyRegister()
 }
 
 /** Rename or move a check ("Mike" → "Booth 3"). */

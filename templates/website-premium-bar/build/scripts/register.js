@@ -24,8 +24,22 @@
     return fetch(url, { method: method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
       .then(function (r) {
         if (r.status === 401) { location.href = '/console/login?next=/register'; return Promise.reject(new Error('signed out')); }
-        return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error || 'That did not save.'); return j; });
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          // A manager has to OK this one: ask for their PIN, then send it again with it.
+          if (r.status === 403 && j.needsManager) return askManager(j.error).then(function (pin) { var b = Object.assign({}, body || {}, { managerPin: pin }); return api(method, url, b); });
+          if (!r.ok) throw new Error(j.error || 'That did not save.');
+          return j;
+        });
       });
+  }
+  var mgrResolve = null, mgrReject = null;
+  function askManager(msg) {
+    return new Promise(function (resolve, reject) {
+      mgrResolve = resolve; mgrReject = reject;
+      $('d-mgr-msg').textContent = msg || 'A manager needs to OK that.';
+      $('f-mgr-pin').value = '';
+      $('d-mgr').showModal(); setTimeout(function () { $('f-mgr-pin').focus(); }, 30);
+    });
   }
   function fail(e) { if (e && e.message !== 'signed out') toast(esc(e.message || 'No connection. Not saved.'), true, 5000); }
   function setCurrent(check) {
@@ -282,6 +296,16 @@
   $('f-more-void').addEventListener('click', function () {
     if (!current) return;
     api('POST', '/api/register/check/' + current.id + '/void', { reason: $('f-more-reason').value }).then(function () { $('d-more').close(); toast('Check voided.'); setCurrent(null); refreshOpen(); }).catch(fail);
+  });
+
+  $('f-mgr').addEventListener('submit', function (e) {
+    var cancel = e.submitter && e.submitter.value === 'cancel';
+    if (!cancel) e.preventDefault();
+    var pin = $('f-mgr-pin').value.replace(/\D/g, '');
+    $('d-mgr').close();
+    if (cancel || !pin) { if (mgrReject) mgrReject(new Error('Not voided.')); }
+    else if (mgrResolve) mgrResolve(pin);
+    mgrResolve = mgrReject = null;
   });
 
   // ─── clicks on the check and lists ───────────────────────────────────────

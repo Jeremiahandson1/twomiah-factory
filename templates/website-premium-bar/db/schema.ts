@@ -478,6 +478,7 @@ export const staffPins = pgTable('staff_pins', {
   id: uuid('id').primaryKey().defaultRandom(),
   label: text('label').notNull(),              // "Bar phone", "Jess"
   pinHash: text('pin_hash').notNull(),
+  role: text('role').notNull().default('staff'),   // 'staff' | 'manager' — managers can void sent food, payments and checks
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
@@ -544,7 +545,7 @@ export const onlineOrders = pgTable('online_orders', {
 export const checks = pgTable('checks', {
   id: uuid('id').primaryKey().defaultRandom(),
   number: serial('number'),                         // "#214" on the screen and the receipt
-  kind: text('kind').notNull(),                     // 'tab' | 'table' | 'walkup'
+  kind: text('kind').notNull(),                     // 'tab' | 'table' | 'walkup' | 'online'
   label: text('label').notNull(),                   // "Mike", "Booth 2", "Walk-up"
   spot: text('spot'),                               // "Bar seat 6", "Booth 2" — where it's delivered
   note: text('note'),
@@ -552,6 +553,7 @@ export const checks = pgTable('checks', {
   status: text('status').notNull().default('open'), // 'open' | 'paid' | 'void'
   voidReason: text('void_reason'),
   splitFromId: uuid('split_from_id'),
+  onlineOrderId: uuid('online_order_id'),           // web orders are recorded as paid checks so the night's totals include them
   // Frozen at close so reports never recompute history with a later tax rate.
   subtotalCents: integer('subtotal_cents'),
   taxCents: integer('tax_cents'),
@@ -564,6 +566,7 @@ export const checks = pgTable('checks', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusIdx: index('checks_status_idx').on(t.status, t.openedAt),
+  onlineIdx: uniqueIndex('checks_online_order_idx').on(t.onlineOrderId),
   closedIdx: index('checks_closed_idx').on(t.closedAt),
 }))
 
@@ -592,7 +595,7 @@ export const checkItems = pgTable('check_items', {
 export const checkPayments = pgTable('check_payments', {
   id: uuid('id').primaryKey().defaultRandom(),
   checkId: uuid('check_id').notNull().references(() => checks.id, { onDelete: 'cascade' }),
-  tender: text('tender').notNull(),                 // 'cash' | 'card_external' (run on Square's own reader) | 'card' (our Square SDK, Phase B)
+  tender: text('tender').notNull(),                 // 'cash' | 'card_external' (run on Square's own reader) | 'card_online' (/order) | 'card' (our Square SDK, Phase B)
   amountCents: integer('amount_cents').notNull(),   // toward the check, tip not included
   tipCents: integer('tip_cents').notNull().default(0),
   cashTenderedCents: integer('cash_tendered_cents'),
@@ -605,6 +608,24 @@ export const checkPayments = pgTable('check_payments', {
 }, (t) => ({
   checkIdx: index('check_payments_check_idx').on(t.checkId),
   takenIdx: index('check_payments_taken_idx').on(t.takenAt),
+}))
+
+// One row per night closed. The summary is frozen as it was at close, so a
+// report never changes after the fact.
+export const closeouts = pgTable('closeouts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  businessDay: text('business_day').notNull(),        // YYYY-MM-DD the night started (6 AM to 6 AM)
+  cashExpectedCents: integer('cash_expected_cents').notNull(),
+  cashCountedCents: integer('cash_counted_cents'),
+  floatCents: integer('float_cents').notNull().default(0),
+  overShortCents: integer('over_short_cents'),
+  note: text('note'),
+  summary: jsonb('summary').notNull(),
+  closedBy: text('closed_by'),
+  closedAt: timestamp('closed_at', { withTimezone: true }).notNull().defaultNow(),
+  emailedAt: timestamp('emailed_at', { withTimezone: true }),
+}, (t) => ({
+  dayIdx: index('closeouts_day_idx').on(t.businessDay),
 }))
 
 // ═══ THE GRILL SCREEN ═══════════════════════════════════════════════════════

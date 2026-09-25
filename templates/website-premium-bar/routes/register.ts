@@ -20,15 +20,19 @@
  */
 import { Hono, type Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import ejs from 'ejs'
 import path from 'path'
 import { db } from '../db'
-import { menuItems, menuSections, settings as settingsTbl } from '../db/schema'
+import { checkItems, menuItems, menuSections, settings as settingsTbl, staffPins } from '../db/schema'
 import { sizesOf } from '../lib/menu/sizes'
 import { addItem, addPayment, CheckError, getCheck, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
 import { localDateString, localToUtc } from '../lib/hours'
 import { requireStaff, type Vars } from './console'
+import { managerApproval } from '../lib/register/managers'
+import { barTimezone, businessDayOf, loadDay } from '../lib/register/reports'
+import { closeDay, closeoutsFor } from '../lib/register/closeout'
+import { addDays } from '../lib/hours'
 
 const viewsDir = path.join(import.meta.dir, '..', 'views', 'console')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -88,9 +92,44 @@ registerPages.get('/', async (c) => {
   return c.html(html)
 })
 
+// The night's close-out: the report, the open-check warning, the cash count.
+registerPages.get('/closeout', async (c) => {
+  const tz = await barTimezone(db)
+  const q = c.req.query('day') || ''
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : businessDayOf(new Date(), tz)
+  const [{ summary, open }, closes, [s], managers] = await Promise.all([
+    loadDay(db, day), closeoutsFor(db, day),
+    db.select({ name: settingsTbl.companyName, email: settingsTbl.email }).from(settingsTbl).limit(1),
+    db.select({ id: staffPins.id }).from(staffPins).where(and(eq(staffPins.isActive, true), eq(staffPins.role, 'manager'))),
+  ])
+  const isManager = managers.some(m => m.id === c.get('staff').id)
+  const html = await ejs.renderFile(path.join(viewsDir, 'closeout.ejs'), {
+    companyName: s?.name || 'Bar', ownerEmail: s?.email || '', staff: c.get('staff'), day, prevDay: addDays(day, -1), nextDay: addDays(day, 1),
+    today: businessDayOf(new Date(), tz), summary, open, closes, needPin: managers.length > 0 && !isManager,
+  })
+  c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
+  return c.html(html)
+})
+
 // ─── API ────────────────────────────────────────────────────────────────────
 export const registerApi = new Hono<{ Variables: Vars }>()
 registerApi.use('*', requireStaff)
+
+registerApi.get('/day', async (c) => {
+  const q = c.req.query('day') || ''
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : businessDayOf(new Date(), await barTimezone(db))
+  const { summary, open } = await loadDay(db, day)
+  c.header('Cache-Control', 'no-store')
+  return c.json({ day, summary, open, closes: await closeoutsFor(db, day) })
+})
+
+// Close the night: a manager's OK (once the bar has manager PINs), then freeze and email.
+registerApi.post('/closeout', async (c) => {
+  const b = await body(c)
+  const m = await managerApproval(db, c.get('staff'), b.managerPin)
+  if (!m.ok) return c.json({ error: m.error, needsManager: true }, 403)
+  return act(c, async () => ({ closeout: await closeDay(db, { day: String(b.day || ''), floatCents: b.floatCents, countedCents: b.countedCents, note: b.note, force: b.force === true }, m.by) }))
+})
 
 registerApi.get('/state', async (c) => { c.header('Cache-Control', 'no-store'); return c.json(await registerState()) })
 
@@ -129,7 +168,31 @@ registerApi.post('/check/:id/pay', async (c) => {
   return act(c, async () => { const r = await addPayment(db, i, b as any, who(c)); const { changeCents, ...check } = r; return { check, changeCents } })
 })
 registerApi.post('/check/:id/split', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => splitItems(db, i, Array.isArray(b.itemIds) ? b.itemIds.map(String) : [], b.label ?? null, who(c))) : c.json({ error: 'Which check?' }, 400) })
-registerApi.post('/check/:id/void', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => ({ check: await voidCheck(db, i, String(b.reason || ''), who(c)) })) : c.json({ error: 'Which check?' }, 400) })
+/** Voids that need a manager: food already sent, payments, a check with sent food on it. */
+async function needManager(c: Context<{ Variables: Vars }>, b: Record<string, any>): Promise<{ by: string } | Response> {
+  const m = await managerApproval(db, c.get('staff'), b.managerPin)
+  return m.ok ? { by: m.by } : c.json({ error: m.error, needsManager: true }, 403)
+}
+registerApi.post('/check/:id/void', async (c) => {
+  const i = id(c); const b = await body(c)
+  if (!i) return c.json({ error: 'Which check?' }, 400)
+  const sent = await db.select({ id: checkItems.id }).from(checkItems).where(and(eq(checkItems.checkId, i), eq(checkItems.state, 'sent'))).limit(1)
+  let by = who(c)
+  if (sent.length) { const m = await needManager(c, b); if (m instanceof Response) return m; by = m.by }
+  return act(c, async () => ({ check: await voidCheck(db, i, String(b.reason || ''), by) }))
+})
 registerApi.patch('/item/:id', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => ({ check: await updateItem(db, i, b) })) : c.json({ error: 'Which item?' }, 400) })
-registerApi.post('/item/:id/void', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => ({ check: await voidItem(db, i, String(b.reason || ''), who(c)) })) : c.json({ error: 'Which item?' }, 400) })
-registerApi.post('/payment/:id/void', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => ({ check: await voidPayment(db, i, String(b.reason || ''), who(c)) })) : c.json({ error: 'Which payment?' }, 400) })
+registerApi.post('/item/:id/void', async (c) => {
+  const i = id(c); const b = await body(c)
+  if (!i) return c.json({ error: 'Which item?' }, 400)
+  const [it] = await db.select({ state: checkItems.state }).from(checkItems).where(eq(checkItems.id, i)).limit(1)
+  let by = who(c)
+  if (it?.state === 'sent') { const m = await needManager(c, b); if (m instanceof Response) return m; by = m.by }   // taking a held item back needs no one
+  return act(c, async () => ({ check: await voidItem(db, i, String(b.reason || ''), by) }))
+})
+registerApi.post('/payment/:id/void', async (c) => {
+  const i = id(c); const b = await body(c)
+  if (!i) return c.json({ error: 'Which payment?' }, 400)
+  const m = await needManager(c, b); if (m instanceof Response) return m
+  return act(c, async () => ({ check: await voidPayment(db, i, String(b.reason || ''), m.by) }))
+})

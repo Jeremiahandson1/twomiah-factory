@@ -25,6 +25,7 @@ import { formatCents, onlineOrderingEnabled, squareConfig, verifySquareSignature
 import { charge, orderableMenu, paymentErrorMessage, resolveCart, totals } from '../lib/square/orders'
 import { handleSquareEvent, webhookCredentials } from '../lib/square/webhook'
 import { fireWebOrder } from '../lib/kitchen/tickets'
+import { recordWebOrder } from '../lib/register/checks'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -157,7 +158,8 @@ orderApi.post('/order/pay', async (c) => {
       customerName: name, phone, textUpdates: body.textUpdates === true, lines, error: null, updatedAt: new Date(),
     }).where(eq(onlineOrders.id, row.id))
     // Paid → straight onto the grill screen. A failure here must not look like a failed payment.
-    await fireWebOrder(db, row.id).catch((e) => console.error('[order] could not fire to the grill:', e?.message || e))
+    const ticketId = await fireWebOrder(db, row.id).catch((e) => { console.error('[order] could not fire to the grill:', e?.message || e); return null })
+    await recordWebOrder(db, row.id, ticketId).catch((e) => console.error('[order] could not record the sale:', e?.message || e))
     return c.json({ ok: true, id: row.id, url: '/order/' + row.id })
   } catch (e: any) {
     console.warn('[order] payment failed:', e?.message || e)

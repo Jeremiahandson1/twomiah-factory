@@ -7,7 +7,7 @@
  */
 import { eq } from 'drizzle-orm'
 import type { db as DB } from '../../db'
-import { onlineOrders } from '../../db/schema'
+import { checks, onlineOrders } from '../../db/schema'
 import { squareApi, squareConfig } from './client'
 import { getState, upsertState } from './state'
 
@@ -50,6 +50,8 @@ export async function handleSquareEvent(db: typeof DB, event: any): Promise<stri
       const [o] = await db.select().from(onlineOrders).where(eq(onlineOrders.squarePaymentId, String(refund.payment_id))).limit(1)
       if (o && (refund.amount_money?.amount ?? 0) >= (o.totalCents || 0)) {
         await db.update(onlineOrders).set({ status: 'canceled', error: 'Refunded in Square', updatedAt: new Date() }).where(eq(onlineOrders.id, o.id))
+        // The sale comes out of the night's totals too.
+        await db.update(checks).set({ status: 'void', voidReason: 'Refunded in Square', updatedAt: new Date() }).where(eq(checks.onlineOrderId, o.id))
         return 'order refunded'
       }
     }
