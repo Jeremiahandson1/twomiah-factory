@@ -21,6 +21,7 @@ import { barTimezone, businessDayOf, dayWindow, loadDay } from '../lib/register/
 import { closeoutsFor } from '../lib/register/closeout'
 import { GuestError, guestProfile, saveGuest } from '../lib/crm/guests'
 import { loyaltyConfig } from '../lib/crm/loyalty'
+import { floorConfig } from '../lib/register/floor'
 import { birthdayConfig, birthdayEmailHtml, sendBirthdays, unsubscribeUrl } from '../lib/crm/birthday'
 import { sendEmail } from '../lib/email'
 import { bustSiteData } from '../lib/site-data'
@@ -171,6 +172,21 @@ export function barAdminRoutes(auth: any, requireAdmin: any, audit: (c: any, e: 
     bustSiteData()
     await audit(c, { action: 'loyalty.update', meta: cfg })
     return c.json({ ok: true, loyalty: cfg })
+  })
+
+  // ── The floor (tables for the floor phone) ─────────────────────────────
+  app.get('/floor', auth, async (c) => {
+    const [s] = await db.select({ floor: settingsTbl.floor }).from(settingsTbl).limit(1)
+    return c.json({ floor: floorConfig(s?.floor) })
+  })
+  app.put('/floor', auth, requireAdmin, async (c) => {
+    const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
+    if (!Array.isArray(b.tables) || !b.tables.length) return c.json({ error: 'Add at least one table.' }, 400)
+    const cfg = floorConfig(b)
+    const [s] = await db.select({ id: settingsTbl.id }).from(settingsTbl).limit(1)
+    if (!s) return c.json({ error: 'Settings not initialized' }, 409)
+    await db.update(settingsTbl).set({ floor: cfg, updatedAt: new Date() }).where(eq(settingsTbl.id, s.id))
+    return c.json({ ok: true, floor: cfg })
   })
 
   // ── Birthday email ─────────────────────────────────────────────────────

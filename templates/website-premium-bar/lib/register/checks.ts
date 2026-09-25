@@ -64,23 +64,29 @@ export async function getCheck(db: typeof DB, id: string): Promise<CheckView> {
   }
 }
 
-export interface OpenCheckRow { id: string; number: number; kind: string; label: string; spot: string | null; openedAt: string; totalCents: number; balanceCents: number; itemCount: number; heldCount: number }
+export interface OpenCheckRow { id: string; number: number; kind: string; label: string; spot: string | null; openedAt: string; openedBy: string | null; totalCents: number; balanceCents: number; itemCount: number; heldCount: number; foodUpAt: string | null; onGrill: number }
 
 export async function listOpen(db: typeof DB): Promise<OpenCheckRow[]> {
   const open = await db.select().from(checks).where(eq(checks.status, 'open')).orderBy(asc(checks.openedAt)).limit(200)
   if (!open.length) return []
   const ids = open.map(c => c.id)
-  const [items, payments, rate] = await Promise.all([
+  const [items, payments, rate, tickets] = await Promise.all([
     db.select().from(checkItems).where(inArray(checkItems.checkId, ids)),
     db.select().from(checkPayments).where(inArray(checkPayments.checkId, ids)),
     taxRate(db),
+    db.select({ checkId: kitchenTickets.checkId, bumpedAt: kitchenTickets.bumpedAt }).from(kitchenTickets).where(inArray(kitchenTickets.checkId, ids)),
   ])
+  const upSince = Date.now() - 15 * 60000
   return open.map(c => {
+    const mine = tickets.filter(t => t.checkId === c.id)
+    const lastUp = mine.filter(t => t.bumpedAt && t.bumpedAt.getTime() > upSince).reduce<Date | null>((m, t) => (!m || (t.bumpedAt as Date) > m ? t.bumpedAt as Date : m), null)
     const its = items.filter(i => i.checkId === c.id)
     const t = checkTotals(its, payments.filter(p => p.checkId === c.id), rate)
     return {
-      id: c.id, number: c.number, kind: c.kind, label: c.label, spot: c.spot, openedAt: c.openedAt.toISOString(),
+      id: c.id, number: c.number, kind: c.kind, label: c.label, spot: c.spot, openedAt: c.openedAt.toISOString(), openedBy: c.openedBy,
       totalCents: t.totalCents, balanceCents: t.balanceCents,
+      foodUpAt: lastUp ? lastUp.toISOString() : null,
+      onGrill: mine.filter(t => !t.bumpedAt).length,
       itemCount: its.filter(i => i.state !== 'void').reduce((s, i) => s + i.qty, 0),
       heldCount: its.filter(i => i.state === 'held').length,
     }
@@ -183,9 +189,11 @@ export async function voidItem(db: typeof DB, itemId: string, reason: string, by
 }
 
 /** Fire held food to the grill as one ticket; held drinks just become sent. */
-export async function sendCheck(db: typeof DB, checkId: string, by: string): Promise<CheckView> {
+export async function sendCheck(db: typeof DB, checkId: string, by: string, onlyItemIds?: string[]): Promise<CheckView> {
   const c = await openRow(db, checkId)
-  const held = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), eq(checkItems.state, 'held'))).orderBy(asc(checkItems.addedAt))
+  let held = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), eq(checkItems.state, 'held'))).orderBy(asc(checkItems.addedAt))
+  // Coursing: send just the chosen items (apps now); the rest wait on the check.
+  if (onlyItemIds) held = held.filter(i => onlyItemIds.includes(i.id))
   if (!held.length) throw new CheckError('Nothing new to send.', 409)
   const food = held.filter(i => i.toKitchen)
   let ticketId: string | null = null
@@ -269,6 +277,21 @@ export async function splitItems(db: typeof DB, checkId: string, itemIds: string
   await db.update(checkItems).set({ checkId: n.id }).where(inArray(checkItems.id, movable.map(i => i.id)))
   notifyRegister()
   return { from: await getCheck(db, checkId), to: await getCheck(db, n.id) }
+}
+
+/** Split by seat: every seat after the first goes to its own check ("Booth 2 · Seat 3"). Items with no seat stay. */
+export async function splitBySeat(db: typeof DB, checkId: string, by: string): Promise<{ from: CheckView; created: CheckView[] }> {
+  const c = await openRow(db, checkId)
+  const items = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), eq(checkItems.kind, 'item')))
+  const live = items.filter(i => i.state !== 'void')
+  const seats = [...new Set(live.map(i => i.seat).filter((s): s is number => s !== null))].sort((a, b) => a - b)
+  if (seats.length < 2) throw new CheckError('Put items on at least two seats first.')
+  const created: CheckView[] = []
+  for (const seat of seats.slice(1)) {
+    const r = await splitItems(db, checkId, live.filter(i => i.seat === seat).map(i => i.id), `${c.spot || c.label} · Seat ${seat}`, by)
+    created.push(r.to)
+  }
+  return { from: await getCheck(db, checkId), created }
 }
 
 /** Void a whole check: only with nothing paid on it. */

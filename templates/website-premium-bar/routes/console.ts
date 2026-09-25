@@ -126,7 +126,7 @@ consolePages.post('/login', async (c) => {
   const body = await bodyOf(c)
   const pin = String(body.pin || '').replace(/\D/g, '')
   // Back to where they were headed: the console, the grill screen or the register, never anywhere else.
-  const next = /^\/(console|kitchen|register)(\/|$)/.test(String(body.next || '')) ? String(body.next) : '/console'
+  const next = /^\/(console|kitchen|register)(\/|$)/.test(String(body.next || '')) ? String(body.next) : '/console'   // /register/floor included
   if (pin.length < 4) return c.redirect('/console/login?error=' + encodeURIComponent('Enter your PIN.'))
   const rows = await db.select().from(staffPins).where(eq(staffPins.isActive, true))
   let match: typeof rows[number] | null = null

@@ -5,6 +5,7 @@ import { Label, TextField, TextAreaField, ImageUrlField, StringListField } from 
 import { HoursEditor, type HoursConfig } from '../components/HoursEditor'
 import { StaffPinsCard } from '../components/StaffPinsCard'
 import { SquareCard } from '../components/SquareCard'
+import { FloorCard } from '../components/FloorCard'
 
 interface NavItem { label: string; href: string }
 
@@ -283,6 +284,7 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <FloorCard />
       <SquareCard />
       <StaffPinsCard />
     </div>

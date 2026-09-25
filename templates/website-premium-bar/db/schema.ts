@@ -28,7 +28,9 @@ export const settings = pgTable('settings', {
   // The Regulars: { enabled, pointsPerDollar, rewardPoints, rewardCents }. null = the defaults in lib/crm/loyalty.ts.
   loyalty: jsonb('loyalty'),
   // Birthday email: { enabled, daysBefore, subject, message }. Off until the owner writes the offer.
-  birthdayEmail: jsonb('birthday_email'),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
+  birthdayEmail: jsonb('birthday_email'),
+  // The floor: { tables: [{ id, name, kind: 'booth'|'table'|'bar', seats }] }. null = lib/register/floor.ts defaults.
+  floor: jsonb('floor'),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),

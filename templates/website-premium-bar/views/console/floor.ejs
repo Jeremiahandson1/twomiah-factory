@@ -1,0 +1,107 @@
+<%
+  // THE FLOOR PHONE. Table map → the table's check → order by seat → send
+  // what's ready (the rest waits) → pay or split by seat. floor.js draws it
+  // from the state below and keeps it live over the register's stream.
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0A08">
+  <title>Floor — <%= companyName %></title>
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/register.css">
+  <link rel="stylesheet" href="/styles/floor.css">
+</head>
+<body class="reg flr">
+  <header class="reg-top flr-top">
+    <button class="reg-btn reg-btn--ghost flr-back" type="button" id="fl-back" hidden>← Floor</button>
+    <div class="reg-top__brand" id="fl-title">Floor <span class="reg-top__who"><%= staff.label %></span></div>
+    <span class="reg-conn" id="fl-conn" data-state="down">Connecting…</span>
+  </header>
+  <noscript><p class="reg-noscript">The floor phone needs JavaScript.</p></noscript>
+
+  <main class="flr-main">
+    <section id="fl-map" aria-label="Tables"></section>
+    <section id="fl-check" aria-label="Check" hidden></section>
+  </main>
+
+  <div class="flr-bar" id="fl-bar" hidden></div>
+
+  <!-- Line -->
+  <dialog class="reg-dlg" id="fd-line" aria-labelledby="fd-line-h">
+    <form method="dialog" class="reg-dlg__body" id="ff-line">
+      <h2 class="reg-dlg__h" id="fd-line-h">Item</h2>
+      <div id="ff-line-held">
+        <div class="reg-qty">
+          <button class="reg-btn reg-btn--sq" type="button" data-q="-1" aria-label="One less">−</button>
+          <output class="reg-qty__n" id="ff-line-qty">1</output>
+          <button class="reg-btn reg-btn--sq" type="button" data-q="1" aria-label="One more">+</button>
+        </div>
+        <fieldset class="reg-fieldset"><legend>Seat</legend><div class="reg-chips" id="ff-line-seats"></div></fieldset>
+        <label class="reg-field">Note for the cook<input class="reg-input" id="ff-line-note" maxlength="140" placeholder="No onions, side of fries…"></label>
+      </div>
+      <div id="ff-line-sent">
+        <p class="reg-muted">Already on the grill. Void it to take it off; the grill ticket gets a VOID note.</p>
+        <div class="reg-chips" id="ff-line-reasons"></div>
+      </div>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Close</button>
+        <button class="reg-btn reg-btn--stop" type="button" id="ff-line-remove">Remove</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok" id="ff-line-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Pay -->
+  <dialog class="reg-dlg" id="fd-pay" aria-labelledby="fd-pay-h">
+    <form method="dialog" class="reg-dlg__body" id="ff-pay">
+      <h2 class="reg-dlg__h" id="fd-pay-h">Pay</h2>
+      <p class="reg-pay__bal">Balance <strong id="ff-pay-bal"></strong></p>
+      <div class="reg-chips" role="group" aria-label="Split evenly">
+        <button class="reg-chip" type="button" data-split="1">All</button><button class="reg-chip" type="button" data-split="2">÷ 2</button><button class="reg-chip" type="button" data-split="3">÷ 3</button><button class="reg-chip" type="button" data-split="4">÷ 4</button>
+      </div>
+      <label class="reg-field">Amount<input class="reg-input reg-input--money" id="ff-pay-amount" inputmode="decimal" autocomplete="off"></label>
+      <div class="reg-seg" role="radiogroup" aria-label="Paid with">
+        <label class="reg-seg__opt"><input type="radio" name="ftender" value="cash" checked> Cash</label>
+        <label class="reg-seg__opt"><input type="radio" name="ftender" value="card_external"> Card (Square reader)</label>
+      </div>
+      <div id="ff-pay-cash">
+        <div class="reg-chips" id="ff-pay-quick" aria-label="Cash handed over"></div>
+        <p class="reg-pay__change">Change <strong id="ff-pay-change">—</strong></p>
+      </div>
+      <label class="reg-field">Tip<input class="reg-input reg-input--money" id="ff-pay-tip" inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok" id="ff-pay-go">Take payment</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Manager OK -->
+  <dialog class="reg-dlg" id="fd-mgr" aria-labelledby="fd-mgr-h">
+    <form method="dialog" class="reg-dlg__body" id="ff-mgr">
+      <h2 class="reg-dlg__h" id="fd-mgr-h">Manager PIN</h2>
+      <p class="reg-muted" id="fd-mgr-msg">A manager needs to OK that.</p>
+      <label class="reg-field">PIN<input class="reg-input reg-input--money" id="ff-mgr-pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></label>
+      <div class="reg-dlg__actions"><button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button><button class="reg-btn reg-btn--go" type="submit" value="ok">OK</button></div>
+    </form>
+  </dialog>
+
+  <!-- Open price -->
+  <dialog class="reg-dlg" id="fd-price" aria-labelledby="fd-price-h">
+    <form method="dialog" class="reg-dlg__body" id="ff-price">
+      <h2 class="reg-dlg__h" id="fd-price-h">Price</h2>
+      <p class="reg-muted">No price on file for this one yet.</p>
+      <label class="reg-field">Price<input class="reg-input reg-input--money" id="ff-price-amount" inputmode="decimal" autocomplete="off"></label>
+      <div class="reg-dlg__actions"><button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button><button class="reg-btn reg-btn--go" type="submit" value="ok">Add</button></div>
+    </form>
+  </dialog>
+
+  <div class="reg-toast" id="fl-toast" role="status" aria-live="polite" hidden></div>
+  <script type="application/json" id="fl-state"><%- JSON.stringify(state).replace(/</g, '\\u003c') %></script>
+  <script src="/scripts/floor.js" defer></script>
+</body>
+</html>

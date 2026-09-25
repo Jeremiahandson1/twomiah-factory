@@ -26,10 +26,12 @@ import path from 'path'
 import { db } from '../db'
 import { checkItems, menuItems, menuSections, settings as settingsTbl, staffPins } from '../db/schema'
 import { sizesOf } from '../lib/menu/sizes'
-import { addItem, addPayment, attachGuest, CheckError, getCheck, redeemReward, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
+import { addItem, addPayment, attachGuest, CheckError, getCheck, redeemReward, splitBySeat, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
 import { localDateString, localToUtc } from '../lib/hours'
 import { requireStaff, type Vars } from './console'
 import { managerApproval } from '../lib/register/managers'
+import { kitchenBus } from '../lib/kitchen/tickets'
+import { floorConfig } from '../lib/register/floor'
 import { EMAIL_CONSENT_TEXT, GuestError, guestProfile, loyaltySettings, saveGuest, searchGuests } from '../lib/crm/guests'
 import { barTimezone, businessDayOf, loadDay } from '../lib/register/reports'
 import { closeDay, closeoutsFor } from '../lib/register/closeout'
@@ -89,6 +91,14 @@ registerPages.use('*', requireStaff)
 registerPages.get('/', async (c) => {
   const [s] = await db.select({ name: settingsTbl.companyName }).from(settingsTbl).limit(1)
   const html = await ejs.renderFile(path.join(viewsDir, 'register.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), state: await registerState() })
+  c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
+  return c.html(html)
+})
+
+// The floor phone: table map, order by seat, coursing, split by seat, "Food's up".
+registerPages.get('/floor', async (c) => {
+  const [s] = await db.select({ name: settingsTbl.companyName, floor: settingsTbl.floor }).from(settingsTbl).limit(1)
+  const html = await ejs.renderFile(path.join(viewsDir, 'floor.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), state: { ...(await registerState()), floor: floorConfig(s?.floor) } })
   c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
   return c.html(html)
 })
@@ -161,7 +171,8 @@ registerApi.get('/stream', (c) => {
     let wake: (() => void) | null = null
     const onChange = () => { dirty = true; wake?.() }
     registerBus.on('changed', onChange)
-    stream.onAbort(() => { closed = true; registerBus.off('changed', onChange); wake?.() })
+    kitchenBus.on('changed', onChange)   // a bump on the grill is "Food's up" on the floor
+    stream.onAbort(() => { closed = true; registerBus.off('changed', onChange); kitchenBus.off('changed', onChange); wake?.() })
     try {
       while (!closed) {
         if (dirty) { dirty = false; await stream.writeSSE({ event: 'checks', data: JSON.stringify({ serverNow: Date.now(), open: await listOpen(db), recent: await listRecentClosed(db, await businessDayStart()) }) }) }
@@ -171,7 +182,7 @@ registerApi.get('/stream', (c) => {
         })
         if (timedOut && !closed && !dirty) await stream.writeSSE({ event: 'ping', data: String(Date.now()) })
       }
-    } finally { registerBus.off('changed', onChange) }
+    } finally { registerBus.off('changed', onChange); kitchenBus.off('changed', onChange) }
   })
 })
 
@@ -181,7 +192,13 @@ registerApi.get('/check/:id', (c) => { const i = id(c); return i ? act(c, async 
 registerApi.post('/check', async (c) => { const b = await body(c); return act(c, async () => ({ check: await openCheck(db, b as any, who(c)) })) })
 registerApi.patch('/check/:id', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => ({ check: await renameCheck(db, i, b) })) : c.json({ error: 'Which check?' }, 400) })
 registerApi.post('/check/:id/items', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => ({ check: await addItem(db, i, b as any, who(c)) })) : c.json({ error: 'Which check?' }, 400) })
-registerApi.post('/check/:id/send', (c) => { const i = id(c); return i ? act(c, async () => ({ check: await sendCheck(db, i, who(c)) })) : c.json({ error: 'Which check?' }, 400) })
+registerApi.post('/check/:id/send', async (c) => {
+  const i = id(c); const b = await body(c)
+  if (!i) return c.json({ error: 'Which check?' }, 400)
+  const only = Array.isArray(b.itemIds) ? b.itemIds.map(String).filter((x: string) => UUID.test(x)) : undefined
+  return act(c, async () => ({ check: await sendCheck(db, i, who(c), only) }))
+})
+registerApi.post('/check/:id/split-seats', (c) => { const i = id(c); return i ? act(c, async () => splitBySeat(db, i, who(c))) : c.json({ error: 'Which check?' }, 400) })
 registerApi.post('/check/:id/pay', async (c) => {
   const i = id(c); const b = await body(c)
   if (!i) return c.json({ error: 'Which check?' }, 400)
