@@ -34,8 +34,8 @@ const NAV: NavItem[] = [
 
   // Back Office
   { to: '/crm/accounting', icon: Receipt, label: 'Accounting', section: 'Back Office' },
-  { to: '/crm/invoices', icon: Receipt, label: 'Invoices', section: 'Back Office' },
-  { to: '/crm/quotes', icon: FileText, label: 'Quotes', section: 'Back Office' },
+  { to: '/crm/invoices', icon: Receipt, label: 'Invoices', section: 'Back Office', permission: 'invoices:read' },
+  { to: '/crm/quotes', icon: FileText, label: 'Quotes', section: 'Back Office', permission: 'quotes:read' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', section: 'Back Office' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', section: 'Back Office' },
 
@@ -46,8 +46,8 @@ const NAV: NavItem[] = [
   // tab is also the Follow-Up product: "Marketing" shows only with email_marketing, "Follow-Up" only with
   // follow_up_sequences, and the shell opens the page when either entry allows it. The page shows campaigns and
   // templates only with email_marketing, and the API gates them the same way. (T15 M5 → #167; RV T19 M6)
-  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'], section: 'Customers & Marketing' },
-  { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing' },
+  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'], section: 'Customers & Marketing', permission: 'marketing:read' },
+  { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing', permission: 'marketing:read' },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], section: 'Customers & Marketing' },
@@ -57,8 +57,8 @@ const NAV: NavItem[] = [
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'], section: 'Leads' },
 
   // Insights & Team
-  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], section: 'Insights & Team' },
-  { to: '/crm/team', icon: Users, label: 'Team', section: 'Insights & Team' },
+  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], section: 'Insights & Team', permission: 'reports:read' },
+  { to: '/crm/team', icon: Users, label: 'Team', section: 'Insights & Team', permission: 'team:read' },
 
   // Help
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'], section: 'Help' },

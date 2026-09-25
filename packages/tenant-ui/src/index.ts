@@ -76,6 +76,7 @@ export { DEFAULT_ROLES, ROLE_LABELS } from './shell/types'
 export { EMAIL_ALIAS_DEFAULTS, getAliasDefaultsForProduct } from './config/emailDefaults'
 // Auth — session provider + sign-in / forgot / reset pages + route guards, one implementation for every CRM.
 export { AuthProvider, useAuth } from './auth/AuthContext'
+export { PermissionsProvider, usePermissions, Can, RequireRole } from './auth/PermissionsContext'
 export { LoginPage } from './auth/LoginPage'
 export { ForgotPasswordPage } from './auth/ForgotPasswordPage'
 export { ResetPasswordPage } from './auth/ResetPasswordPage'

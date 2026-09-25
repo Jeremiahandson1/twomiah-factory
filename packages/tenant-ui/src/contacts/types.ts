@@ -48,6 +48,12 @@ export interface ContactsConfig {
   /** Sidebar quick actions. Default: Create Quote, Schedule Job, Create Invoice. */
   quickActions?: QuickAction[]
   hasFeature?: (id: string) => boolean
+  /**
+   * May this person add or change a contact? Threaded in from the template's own auth context, the way hasFeature is —
+   * a shared page must not reach for a provider a given vertical may not mount. Absent means "do not
+   * ask", so a template that has not been rewired keeps every control it has today. (T30 M-R1)
+   */
+  can?: (permission: string) => boolean
 }
 
 export const DEFAULT_CONTACT_TYPES: ContactType[] = [
@@ -77,6 +83,7 @@ export function resolveContactsConfig(c?: ContactsConfig) {
     gateByFeature: !!cfg.gateByFeature,
     quickActions: cfg.quickActions || DEFAULT_QUICK_ACTIONS,
     hasFeature: cfg.hasFeature || (() => true),
+    can: cfg.can || (() => true),
   }
 }
 

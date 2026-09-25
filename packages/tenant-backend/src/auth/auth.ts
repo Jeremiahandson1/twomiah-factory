@@ -35,6 +35,12 @@ export interface AuthDeps {
     ROLE_HIERARCHY: string[]
     /** This vertical's word for a rung, for anything a person reads. Absent → the id is used. */
     roleLabel?: (role: string) => string
+    /**
+     * The extra permissions an owner granted this ONE person in Settings › Users. Optional only so a
+     * template that has not wired it still compiles; without it /me answers the role list, which is
+     * narrower than what the guards actually allow. (Field Service T30 M-R1)
+     */
+    getExtraPermissions?: (userId: string | undefined) => Promise<string[]>
   }
   emailService: { sendPasswordReset: (to: string, data: Record<string, unknown>) => Promise<unknown> }
   logger: { info: (msg: string, meta?: any) => void; warn: (msg: string, meta?: any) => void; error: (msg: string, meta?: any) => void }
@@ -79,6 +85,19 @@ export function createAuthRoutes(deps: AuthDeps) {
   // written against it — but /api/auth/me was telling a salon stylist their role was "field", which is
   // scaffolding wording from the trades. Anything a PERSON reads should use roleLabel. (Salon T29 L5)
   const roleLabelOf = (role: string) => (permissions as any)?.roleLabel?.(role) ?? role
+
+  /**
+   * Everything this person may do: the role's list plus the grants an owner gave them by name. This is
+   * what the guards decide on (hasPermission takes `extra`), so it is what the screen has to be told —
+   * a menu built from the role list alone hides the button from exactly the person who was let through
+   * on purpose. (Field Service T30 M-R1)
+   */
+  const effectivePermissions = async (userId: string, role: string): Promise<string[]> => {
+    const base = permissions.getPermissions(role)
+    if (base.includes('*')) return base
+    const extra = (await permissions.getExtraPermissions?.(userId)) || []
+    return Array.from(new Set([...base, ...extra]))
+  }
   const userPayload = (u: any, role: string) => ({ id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, phone: u.phone, role, roleLabel: roleLabelOf(role), avatar: u.avatar })
 
   async function storeRefreshToken(userId: string, token: string, extra: Record<string, any> = {}) {
@@ -170,7 +189,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     return c.json({
       user: userPayload(foundUser, permissions.normalizeRole(foundUser.role)),
       company: companyPayload(foundCompany),
-      permissions: permissions.getPermissions(foundUser.role),
+      permissions: await effectivePermissions(foundUser.id, foundUser.role),
     })
   })
 
@@ -180,7 +199,7 @@ export function createAuthRoutes(deps: AuthDeps) {
     return c.json({
       role,
       roleLevel: permissions.ROLE_HIERARCHY.indexOf(role),
-      permissions: permissions.getPermissions(role),
+      permissions: await effectivePermissions(currentUser.userId, currentUser.role),
       can: {
         manageTeam: permissions.hasPermission(role, 'team:create'),
         manageFinancials: permissions.hasPermission(role, 'invoices:create'),

@@ -204,6 +204,19 @@ app.post('/logout', authenticate, async (c) => {
   return c.json({ message: 'Logged out' })
 })
 
+/** Role list plus the per-user grants, deduped — what the guards decide on, so what the screen is told. */
+const effectivePermissions = async (
+  getPermissions: (role: string) => string[],
+  getExtraPermissions: (userId: string | undefined) => Promise<string[]>,
+  userId: string,
+  role: string,
+): Promise<string[]> => {
+  const base = getPermissions(role)
+  if (base.includes('*')) return base
+  const extra = (await getExtraPermissions(userId)) || []
+  return Array.from(new Set([...base, ...extra]))
+}
+
 // Get current user
 app.get('/me', authenticate, async (c) => {
   const currentUser = c.get('user') as any
@@ -214,8 +227,10 @@ app.get('/me', authenticate, async (c) => {
   if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
   // Import permissions
-  const { getPermissions, normalizeRole } = await import('../middleware/permissions.ts')
-  const permissions = getPermissions(foundUser.role)
+  const { getPermissions, normalizeRole, getExtraPermissions } = await import('../middleware/permissions.ts')
+  // The grants an owner handed this ONE person in Settings > Users count too: hasPermission() honours
+  // them, so a list without them is narrower than what the guards actually allow. (T30 M-R1)
+  const permissions = await effectivePermissions(getPermissions, getExtraPermissions, foundUser.id, foundUser.role)
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar },
@@ -227,9 +242,9 @@ app.get('/me', authenticate, async (c) => {
 // Get user permissions
 app.get('/permissions', authenticate, async (c) => {
   const currentUser = c.get('user') as any
-  const { getPermissions, normalizeRole, hasPermission, ROLE_HIERARCHY } = await import('../middleware/permissions.ts')
+  const { getPermissions, normalizeRole, hasPermission, ROLE_HIERARCHY, getExtraPermissions } = await import('../middleware/permissions.ts')
   const role = normalizeRole(currentUser.role)
-  const permissions = getPermissions(role)
+  const permissions = await effectivePermissions(getPermissions, getExtraPermissions, currentUser.userId, currentUser.role)
 
   return c.json({
     role,

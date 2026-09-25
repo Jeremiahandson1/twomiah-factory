@@ -23,6 +23,17 @@ export interface NavItem {
    * got the API's raw 403 text when they opened one. (Salon T28 M5)
    */
   minRole?: string
+  /**
+   * The permission needed to open this page — the same one its API asks for. Prefer this to `minRole`
+   * wherever the server gates on a permission, because rank and permission are different orders: a
+   * `viewer` outranks nobody and still holds invoices:read, so minRole: 'manager' on Invoices hides
+   * the page from someone the API would serve. Use minRole only where the server itself gates on rank
+   * (requireAdmin, requireRole).
+   *
+   * A field technician was shown Invoices, Quotes, Reports, Team and Marketing, which opened as empty
+   * lists with "New Invoice" buttons on them — they read as "no data", not "no access". (T30 M-R1)
+   */
+  permission?: string
   /** Optional stable id (external items have no unique route) */
   id?: string
 }
@@ -48,6 +59,12 @@ export interface ShellAuth {
   company: any
   logout: () => void | Promise<void>
   hasFeature: (id: string) => boolean
+  /**
+   * May this person do that? Comes from AuthContext, which reads the list /api/auth/me answered —
+   * the role's permissions plus any the owner granted this person by name. Optional so a template
+   * that has not been rewired still renders its whole menu rather than silently losing it.
+   */
+  can?: (permission: string) => boolean
 }
 
 export interface ShellConfig {
@@ -63,6 +80,11 @@ export interface ShellConfig {
    * Checked by URL exactly like `minRole` on a nav item. (Salon T28 M5)
    */
   routeRoles?: Record<string, string>
+  /**
+   * The permission needed for routes with no sidebar entry of their own, or whose entry is one of
+   * several — checked by URL exactly like `permission` on a nav item. (T30 M-R1)
+   */
+  routePermissions?: Record<string, string>
   brand?: {
     icon?: IconComponent
     /** Shown while the company has not loaded. Default "CRM". */

@@ -8,7 +8,6 @@ import { BookingSettingsTab } from './BookingSettingsTab'
 import type { BookableServiceRow, BookingPageProps, BookingRow, BookingSettings } from './types'
 import { resolveBookingConfig } from './types'
 import { useAuth } from '../auth/AuthContext'
-import { meetsRole } from '../shell/types'
 
 type Tab = 'bookings' | 'services' | 'settings' | 'embed'
 const STATUS_FILTERS: Array<[string, string]> = [['', 'All statuses'], ['pending', 'Pending (deposit unpaid)'], ['confirmed', 'Confirmed'], ['completed', 'Completed'], ['no_show', 'No-show'], ['cancelled', 'Cancelled']]
@@ -26,10 +25,15 @@ export function BookingsPage({ api, toast, config }: BookingPageProps) {
   const cfg = resolveBookingConfig(config)
   const [tab, setTab] = useState<Tab>('bookings')
   // Who is coming in is a stylist's day; the hours, the services and the embed code are configuration,
-  // and the server refuses those below manager. Showing the tabs anyway is how you learn about a gate by
-  // filling in a form and being told no. (Salon T28 H1 / M5)
-  const { user } = useAuth()
-  const configures = meetsRole((user as any)?.role, 'manager')
+  // and the server refuses anyone without company:update. Showing the tabs anyway is how you learn about
+  // a gate by filling in a form and being told no. (Salon T28 H1 / M5)
+  //
+  // It asks the server's own question now rather than a rank. The rank version said manager-and-up, which
+  // stopped agreeing with the API the moment booking setup became company:update — a manager would have
+  // been handed the Settings form and refused on Save, which is exactly the complaint. It also means an
+  // owner who grants one manager company:update sees the tabs appear for them. (T30 M-R1 / M-R2)
+  const { can } = useAuth()
+  const configures = can('company:update')
   const [rows, setRows] = useState<BookingRow[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [page, setPage] = useState(1)

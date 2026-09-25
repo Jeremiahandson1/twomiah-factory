@@ -8,13 +8,13 @@ const NAV: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
   { to: '/crm/contacts', icon: Users, label: 'Contacts' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Service Calls' },
-  { to: '/crm/quotes', icon: FileText, label: 'Quotes' },
-  { to: '/crm/invoices', icon: Receipt, label: 'Invoices' },
+  { to: '/crm/quotes', icon: FileText, label: 'Quotes', permission: 'quotes:read' },
+  { to: '/crm/invoices', icon: Receipt, label: 'Invoices', permission: 'invoices:read' },
   { to: '/crm/schedule', icon: Calendar, label: 'Schedule', features: ['scheduling'] },
   { to: '/crm/time', icon: Clock, label: 'Time' },
   { to: '/crm/expenses', icon: DollarSign, label: 'Expenses' },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
-  { to: '/crm/team', icon: Users, label: 'Team' },
+  { to: '/crm/team', icon: Users, label: 'Team', permission: 'team:read' },
   { to: '/crm/fleet', icon: Truck, label: 'Fleet', features: ['fleet'] },
   { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'] },
   { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'] },
@@ -22,7 +22,7 @@ const NAV: NavItem[] = [
   { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
   { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   // The Marketing page is email marketing (campaigns, templates, drips); Reviews has its own route gate below. (T15 M5)
-  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'] },
+  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['email_marketing'], permission: 'marketing:read' },
   { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },
@@ -30,13 +30,13 @@ const NAV: NavItem[] = [
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
   { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'] },
-  { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'] },
+  { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'], permission: 'invoices:read' },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'] },
-  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'] },
+  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], permission: 'reports:read' },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
-  { to: '/crm/ads', icon: Megaphone, label: 'Ads', features: ['paid_ads'] },
+  { to: '/crm/ads', icon: Megaphone, label: 'Ads', features: ['paid_ads'], permission: 'ads:read' },
   // Field Service
   { to: '/crm/tech', icon: Wrench, label: 'Tech View', section: 'Field Service', features: ['tech_mobile_view'] },
   { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Field Service', features: ['dispatch_board'] },
@@ -74,5 +74,21 @@ export const SHELL: ShellConfig = {
     // everyone it was written for: click FREE TRIAL, land on "Pricebook Trial isn't part of this CRM".
     // The page itself raises a support ticket and reads no pricebook data, so there is nothing to gate.
     // (Field Service T28 H2)
+  },
+  // Reachable by URL with no sidebar entry to gate them, and every one is requireAdmin (or
+  // requireRole('admin','owner')) on the server: emailAliases.ts, emailDomain.ts, billing.ts,
+  // integrations.ts, migration.ts, import.ts. Rank here, not a permission, because rank is what the
+  // server itself asks. Settings ITSELF stays open — Profile and Security live there, and the Company
+  // form is read-only for anyone without company:update. (Field Service T30 M-R1)
+  routeRoles: {
+    '/crm/settings/billing': 'admin',
+    '/crm/settings/email': 'admin',
+    '/crm/settings/email-domain': 'admin',
+    '/crm/settings/email-inbox': 'admin',
+    '/crm/settings/integrations': 'admin',
+    '/crm/settings/migration': 'admin',
+    '/crm/settings/import': 'admin',
+    '/crm/settings/features': 'admin',
+    '/crm/email': 'admin',
   },
 };

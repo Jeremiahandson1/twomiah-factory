@@ -2,12 +2,16 @@
 // this its api client and re-exports useAuth so the rest of the app keeps importing from there.
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import type { AuthApi, AuthContextValue, AuthUser, AuthCompany, AuthData } from './types'
+import { permissionAllows } from './types'
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ api, children }: { api: AuthApi; children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [company, setCompany] = useState<AuthCompany | null>(null)
+  // What this person may do, as the server answered it. `null` means "not asked yet", which is not the
+  // same as "nothing" — a menu built on the difference is the whole point. (T30 M-R1)
+  const [permissions, setPermissions] = useState<string[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,6 +25,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
         const data = await api.getMe() as Record<string, unknown>
         setUser(data.user as AuthUser)
         setCompany(data.company as AuthCompany)
+        setPermissions(Array.isArray(data.permissions) ? (data.permissions as string[]) : [])
         setError(null)
         setLoading(false)
         return
@@ -45,6 +50,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
         api.clearTokens()
         setUser(null)
         setCompany(null)
+        setPermissions(null)
         setLoading(false)
         return
       }
@@ -55,7 +61,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
 
   // The api client dispatches auth:expired when a refresh fails; drop the session without a hard reload.
   useEffect(() => {
-    const handleExpired = () => { setUser(null); setCompany(null) }
+    const handleExpired = () => { setUser(null); setCompany(null); setPermissions(null) }
     window.addEventListener('auth:expired', handleExpired)
     return () => window.removeEventListener('auth:expired', handleExpired)
   }, [])
@@ -66,6 +72,9 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
       const data = await api.login(email, password)
       setUser(data.user)
       setCompany(data.company)
+      // Login does not carry the list in every CRM; checkAuth() fills it in either way. Setting what we
+      // were given avoids one render with the menu short.
+      setPermissions(Array.isArray((data as any).permissions) ? ((data as any).permissions as string[]) : null)
       return data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
@@ -74,7 +83,7 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   }
 
   const logout = async () => {
-    try { await api.logout() } finally { setUser(null); setCompany(null) }
+    try { await api.logout() } finally { setUser(null); setCompany(null); setPermissions(null) }
   }
 
   const updateCompany = (updates: Partial<AuthCompany>) => {
@@ -95,9 +104,12 @@ export function AuthProvider({ api, children }: { api: AuthApi; children: React.
   const isManager = role === 'owner' || role === 'admin' || role === 'manager'
   const getToken = useCallback(() => localStorage.getItem('accessToken'), [])
   const hasFeature = (featureId: string): boolean => company?.enabledFeatures?.includes(featureId) ?? false
+  // False while the list is unknown, exactly like hasFeature above: show the menu a moment late rather
+  // than offer a button the API will refuse. Routes must wait for `company` instead — see types.ts.
+  const can = useCallback((permission: string): boolean => permissionAllows(permissions, permission), [permissions])
 
   return (
-    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, isAdmin, isManager, login, logout, checkAuth, updateCompany, updateUser, hasFeature, getToken }}>
+    <AuthContext.Provider value={{ user, company, loading, error, isAuthenticated, isAdmin, isManager, login, logout, checkAuth, updateCompany, updateUser, hasFeature, permissions, can, getToken }}>
       {children}
     </AuthContext.Provider>
   )

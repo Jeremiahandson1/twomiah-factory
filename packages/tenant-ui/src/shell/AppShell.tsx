@@ -21,7 +21,19 @@ const WHO_CAN_OPEN: Record<string, string> = {
   owner: 'This page is limited to the account owner',
   admin: 'This page is limited to admins and the owner',
   manager: 'This page is limited to managers and above',
+  // …and by permission, for the pages the server gates that way. Keyed by the permission string itself,
+  // so the sentence a person reads is looked up with the same key the guard checks. (T30 M-R1)
+  'invoices:read': 'Invoices are limited to the people who handle the money',
+  'quotes:read': 'Quotes are limited to the people who handle the money',
+  'reports:read': 'Reports are limited to managers and above',
+  'marketing:read': 'Marketing is limited to managers and above',
+  'team:read': 'The team roster is limited to managers and above',
+  'company:update': 'Company setup is limited to admins and the owner',
 }
+
+/** "/crm/lead-sources" → "Lead Sources", for a gated route with no menu entry to take a label from. */
+const labelFromPath = (to: string) =>
+  to.split('/').pop()!.replace(/-/g, ' ').replace(new RegExp('\\b\\w', 'g'), (c) => c.toUpperCase())
 
 // react-router's <NavLink> as JSX fails TS2786 in the typed templates (a second @types/react copy is
 // resolved from the packages path), so links are plain anchors driven by the router hooks.
@@ -48,6 +60,8 @@ const linkCls = (active: boolean) => `flex items-center gap-3 px-3 py-2 rounded-
 
 export function AppShell({ api, auth, connected = false, config }: AppShellProps) {
   const { user, company, logout, hasFeature } = auth
+  // A template that has not been rewired hands us no `can`, and its whole menu must still render.
+  const can = auth.can || (() => true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const { setTheme, isDark } = useTheme()
@@ -61,9 +75,16 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
   // only if the signed-in role may open the page at all. The role is checked FIRST: an item with no
   // `features` used to return true immediately, so a role gate placed after it would never have run on
   // precisely the core pages (Settings, Billing, Users) this is for. (Salon T28 M5)
+  // …and, since T30, only if they may do the thing the page is for. A rank could not express that:
+  // `viewer` outranks nobody and still reads invoices, so minRole on Invoices would hide the page
+  // from someone the API serves. All three gates run; a page clears whichever ones it declares.
   const navItems = useMemo(
-    () => config.nav.filter((i) => meetsRole(user?.role, i.minRole) && (!i.features || i.features.some((f) => hasFeature(f)))),
-    [config.nav, hasFeature, user?.role],
+    () => config.nav.filter((i) =>
+      meetsRole(user?.role, i.minRole)
+      && (!i.permission || can(i.permission))
+      && (!i.features || i.features.some((f) => hasFeature(f))),
+    ),
+    [config.nav, hasFeature, can, user?.role],
   )
 
   // Is there nav below the fold? Drives the fade at the bottom of the sidebar. Recomputed on scroll and on
@@ -110,12 +131,27 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
         || roleBlocked.split('/').pop()!.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
       return { to: roleBlocked, label, reason: 'role' as const, needs: roleOf(roleBlocked) }
     }
+    // Then the permission, for the same reason and in the same way: typing the URL of a page you may
+    // not use should say so, rather than render it and let the API answer "Failed to load: 403". This
+    // sits after the `if (!company) return null` above, so it never decides before /me lands — that
+    // race redirected fifteen owned routes in roof M7. (T30 M-R1)
+    const permissionOf = (to: string) =>
+      config.routePermissions?.[to] ?? config.nav.find((i) => i.to === to)?.permission
+    const permBlocked = [...config.nav.filter((i) => !i.external).map((i) => i.to), ...Object.keys(config.routePermissions || {})]
+      .filter((to) => path === to || path.startsWith(to + '/'))
+      .sort((a, b) => b.length - a.length)
+      .find((to) => { const need = permissionOf(to); return !!need && !can(need) })
+    if (permBlocked) {
+      const needs = permissionOf(permBlocked)
+      const label = config.nav.find((i) => i.to === permBlocked)?.label || labelFromPath(permBlocked)
+      return { to: permBlocked, label, reason: 'permission' as const, needs }
+    }
     const matches = candidates
       .filter((i) => i.features && i.features.length && (path === i.to || path.startsWith(i.to + '/')))
       .sort((a, b) => b.to.length - a.to.length)
     const blocked = blockedRoute(matches, hasFeature)
     return blocked ? { ...blocked, reason: 'feature' as const } : null
-  }, [location.pathname, company, hasFeature, config.nav, config.routeGates, config.routeRoles, user?.role])
+  }, [location.pathname, company, hasFeature, can, config.nav, config.routeGates, config.routeRoles, config.routePermissions, user?.role])
 
   useEffect(() => { if (isMobile) setSidebarOpen(false) }, [location, isMobile])
   useEffect(() => {
@@ -274,12 +310,12 @@ export function AppShell({ api, auth, connected = false, config }: AppShellProps
             {gatedItem ? (
               <div className="max-w-xl mx-auto mt-16 text-center bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-700 p-8">
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-slate-100 mb-2">
-                  {gatedItem.reason === 'role' ? `You don't have access to ${gatedItem.label}` : `${gatedItem.label} isn't part of this CRM`}
+                  {gatedItem.reason === 'feature' ? `${gatedItem.label} isn't part of this CRM` : `You don't have access to ${gatedItem.label}`}
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
-                  {gatedItem.reason === 'role'
-                    ? `${WHO_CAN_OPEN[String((gatedItem as any).needs || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`
-                    : 'This module is not included for your business type or plan. Everything you can use is in the left menu.'}
+                  {gatedItem.reason === 'feature'
+                    ? 'This module is not included for your business type or plan. Everything you can use is in the left menu.'
+                    : `${WHO_CAN_OPEN[String((gatedItem as any).needs || '')] || 'This page is limited to a higher access level'}. Ask them if you need something from it — everything you can use is in the left menu.`}
                 </p>
                 <RouterLink to="/crm" className="inline-block px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold dark:bg-slate-100 dark:text-slate-900">Back to dashboard</RouterLink>
               </div>

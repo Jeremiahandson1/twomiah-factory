@@ -1781,3 +1781,14 @@ jobs:
           bun-version: latest
       - name: "check booking config permission"
         run: bun run scripts/check-booking-config-permission.ts
+
+  nav-permission-gates:
+    name: "The sidebar does not offer a page the person will be refused"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check nav permission gates"
+        run: bun run scripts/check-nav-permission-gates.ts

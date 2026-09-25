@@ -19,6 +19,7 @@ const emptyForm = (type: string): ContactForm => ({ type, name: '', company: '',
 
 export function ContactsPage({ api, toast, config }: ContactsPageProps) {
   const cfg = resolveContactsConfig(config)
+  const mayCreate = cfg.can('contacts:create')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [contacts, setContacts] = useState<ContactRow[]>([])
@@ -180,10 +181,12 @@ export function ContactsPage({ api, toast, config }: ContactsPageProps) {
 
   return (
     <div>
+      {/* A technician may look a customer up and may not add one. Offering the button and answering 403
+          on Save is how someone finds that out. (T30 M-R1) */}
       <PageHeader
         title={cfg.title}
         subtitle={stats ? `${stats.total} total` : undefined}
-        action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Contact</Button>}
+        action={mayCreate ? <Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline" />Add Contact</Button> : undefined}
       />
 
       {stats && (

@@ -20,6 +20,10 @@ const label = (s: string) => s.replace(/_/g, ' ')
 
 export function JobsPage({ api, toast, config }: JobsPageProps) {
   const cfg = resolveJobsConfig(config)
+  // A technician's job is to work the calls, not to raise or assign them: `field` holds jobs:read and
+  // jobs:update, and since the T30 blocker fix the API enforces that. The button stayed on the page.
+  const mayCreate = cfg.can('jobs:create')
+  const maySeeRoster = cfg.can('team:read')
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [data, setData] = useState<JobRow[]>([])
@@ -73,7 +77,9 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
     api.get('/api/contacts', { limit: 200 }).then((r: any) => setContacts(r?.data || [])).catch(() => setContacts([]))
     // Assignable people: login users AND active roster crew (T21 M12 — crew without a login do the work). GET /api/team
     // drops users once a roster member exists, which erased everyone from the picker. (F-14 / assignee)
-    if (cfg.assignee) api.get('/api/team/assignable').then((r: any) => setTeam(r?.data || (Array.isArray(r) ? r : []))).catch(() => setTeam([]))
+    // …and only for someone who may read the roster. `field` has no team:read, so this answered 403 on
+    // every visit — swallowed by the catch, but printed in the console and paid for on every load.
+    if (cfg.assignee && maySeeRoster) api.get('/api/team/assignable').then((r: any) => setTeam(r?.data || (Array.isArray(r) ? r : []))).catch(() => setTeam([]))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
   useEffect(() => { setPage(1) }, [search, statusFilter])
@@ -174,7 +180,7 @@ export function JobsPage({ api, toast, config }: JobsPageProps) {
 
   return (
     <div>
-      <PageHeader title={cfg.labels.plural} action={<Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline" />{cfg.labels.add}</Button>} />
+      <PageHeader title={cfg.labels.plural} action={mayCreate ? <Button onClick={() => openCreate()}><Plus className="w-4 h-4 mr-2 inline" />{cfg.labels.add}</Button> : undefined} />
       <div className="mb-4 flex gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, ToggleLeft, AtSign, Globe, Inbox } from 'lucide-react'
 import { Button, Field, inputCls, errMsg } from '../invoicing/ui'
-import { DEFAULT_ROLES, ROLE_LABELS } from './types'
+import { meetsRole, DEFAULT_ROLES, ROLE_LABELS } from './types'
 import type { SettingsPageProps, RoleOption } from './types'
 import { useConfirm } from '../ui/ConfirmProvider'
 
@@ -13,15 +13,23 @@ interface CompanyForm { name: string; email: string; phone: string; address: str
 const DEFAULT_BRAND = '#f97316'
 interface NewUserForm { firstName: string; lastName: string; email: string; password: string; role: RoleOption['value'] }
 
+/**
+ * The side links, each with the lowest rung its own page will serve. Every one of these was shown to
+ * everybody: a manager could open Billing and Integrations and was offered Stripe "Disconnect" and
+ * "Save Twilio Config" on pages the API refuses them. A link that leads to a refusal is not a link.
+ * `needs` is a RANK here, not a permission, because these pages are gated on rank server-side
+ * (requireAdmin / owner-only billing) — where the server asks for a permission, so does the screen.
+ * (Field Service T30 M-R1)
+ */
 const SUB_PAGES = [
-  { to: '/crm/settings/features', label: 'Features', icon: ToggleLeft },
-  { to: '/crm/settings/billing', label: 'Billing', icon: CreditCard },
-  { to: '/crm/settings/email', label: 'Branded Email', icon: AtSign },
-  { to: '/crm/settings/email-domain', label: 'Email Domain', icon: Globe },
-  { to: '/crm/settings/email-inbox', label: 'Email Inbox', icon: Inbox },
-  { to: '/crm/settings/integrations', label: 'Integrations', icon: Plug },
-  { to: '/crm/settings/migration', label: 'Migrate Data', icon: ArrowRightLeft },
-  { to: '/crm/settings/import', label: 'Import from CSV', icon: Upload },
+  { to: '/crm/settings/features', label: 'Features', icon: ToggleLeft, needs: 'admin' },
+  { to: '/crm/settings/billing', label: 'Billing', icon: CreditCard, needs: 'admin' },
+  { to: '/crm/settings/email', label: 'Branded Email', icon: AtSign, needs: 'admin' },
+  { to: '/crm/settings/email-domain', label: 'Email Domain', icon: Globe, needs: 'admin' },
+  { to: '/crm/settings/email-inbox', label: 'Email Inbox', icon: Inbox, needs: 'admin' },
+  { to: '/crm/settings/integrations', label: 'Integrations', icon: Plug, needs: 'admin' },
+  { to: '/crm/settings/migration', label: 'Migrate Data', icon: ArrowRightLeft, needs: 'admin' },
+  { to: '/crm/settings/import', label: 'Import from CSV', icon: Upload, needs: 'admin' },
 ]
 const emptyUser = (): NewUserForm => ({ firstName: '', lastName: '', email: '', password: '', role: 'field' })
 
@@ -29,6 +37,13 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
   const confirm = useConfirm()
   const navigate = useNavigate()
   const { user, company, updateCompany } = auth
+  // May this person change the company? The server answers company:update (requireAdmin on PUT
+  // /api/company), and until now the screen never asked — so a manager filled the form in and learned
+  // the answer from Save. A template that has not been rewired hands us no `can`, and keeps today's
+  // behaviour. (T30 M-R1)
+  const can = (auth as any).can as ((permission: string) => boolean) | undefined
+  const editsCompany = can ? can('company:update') : true
+  const subPages = SUB_PAGES.filter((sp) => meetsRole((user as any)?.role, sp.needs))
   const roles = config?.roles && config.roles.length ? config.roles : DEFAULT_ROLES
   /**
    * What this vertical calls a rung. The table used the fleet-wide ROLE_LABELS ("field" → "Staff") while
@@ -41,7 +56,9 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
     return roles.find((r) => r.value === id)?.label || ROLE_LABELS[id] || ROLE_LABELS[String(role || '')] || role || '—'
   }
   const showLicense = config?.licenseNumber !== false
-  const [tab, setTab] = useState('company')
+  // Land on something you can use. Company is the right first tab for the person who runs the
+  // business and a dead end for everyone else.
+  const [tab, setTab] = useState(() => (((auth as any).can?.('company:update') ?? true) ? 'company' : 'profile'))
   const [form, setForm] = useState<CompanyForm>({ name: '', email: '', phone: '', address: '', city: '', state: '', zip: '', website: '', licenseNumber: '', defaultTaxRate: '', paymentTermsDays: '30', logo: '', primaryColor: '' })
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [profile, setProfileForm] = useState({ firstName: '', lastName: '', phone: '' })
@@ -175,15 +192,17 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
               <t.icon className="w-5 h-5" />{t.label}
             </button>
           ))}
+          {subPages.length > 0 && (
           <div className="border-t dark:border-slate-800 my-3 pt-3">
-            {SUB_PAGES.map((p) => (
+            {subPages.map((p) => (
               <button type="button" key={p.to} onClick={() => navigate(p.to)} className={sideBtn}><p.icon className="w-5 h-5" />{p.label}</button>
             ))}
           </div>
+          )}
         </div>
 
         <div className="flex-1 bg-white rounded-lg shadow-sm p-6 dark:bg-slate-900">
-          {tab === 'company' && (
+          {tab === 'company' && editsCompany && (
             <div className="space-y-4 max-w-xl">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Company Information</h2>
               <Field label="Company Name"><input value={form.name} onChange={set('name')} className={inputCls} /></Field>
@@ -241,6 +260,30 @@ export function SettingsPage({ api, auth, toast, config }: SettingsPageProps) {
                 <Field label="Invoice Payment Terms (days)" hint="Sets the due date when a quote is converted to an invoice."><input type="number" min="0" value={form.paymentTermsDays} onChange={set('paymentTermsDays')} className={inputCls} placeholder="30" /></Field>
               </div>
               <Button onClick={saveCompany} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
+            </div>
+          )}
+
+          {/* Your company's own details are not a secret from the people who work there — what they are
+              not is yours to change. Read-only beats a form that refuses on Save, and beats hiding the
+              page, which is how a stylist lost the ability to change their own password. (T30 M-R1) */}
+          {tab === 'company' && !editsCompany && (
+            <div className="space-y-4 max-w-xl">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Company Information</h2>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Company details are set by an admin or the account owner. Ask them if something here needs changing — your own name and password are under Profile and Security.</p>
+              <dl className="divide-y divide-gray-200 dark:divide-slate-800 text-sm">
+                {[
+                  ['Company Name', form.name],
+                  ['Email', form.email],
+                  ['Phone', form.phone],
+                  ['Address', [form.address, form.city, form.state, form.zip].filter(Boolean).join(', ')],
+                  ['Website', form.website],
+                ].map(([label, value]) => (
+                  <div key={label} className="py-2 flex gap-4">
+                    <dt className="w-40 shrink-0 text-gray-500 dark:text-slate-400">{label}</dt>
+                    <dd className="text-gray-900 dark:text-slate-100 break-words">{value || <span className="text-gray-500 dark:text-slate-400">Not set</span>}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           )}
 

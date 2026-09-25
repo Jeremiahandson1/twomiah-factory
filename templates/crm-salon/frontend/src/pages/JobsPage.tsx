@@ -8,6 +8,6 @@ import { JOBS } from '../jobsConfig';
 
 export default function JobsPage() {
   const toast = useToast();
-  const { hasFeature } = useAuth();
-  return <SharedJobsPage api={api as any} toast={toast} config={{ ...JOBS, hasFeature }} />;
+  const { hasFeature, can } = useAuth();
+  return <SharedJobsPage api={api as any} toast={toast} config={{ ...JOBS, hasFeature, can }} />;
 }

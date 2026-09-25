@@ -5,7 +5,7 @@ import { createAuthRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { getPermissions, normalizeRole, hasPermission, roleLabel, ROLE_HIERARCHY } from '../middleware/permissions.ts'
+import { getPermissions, normalizeRole, hasPermission, roleLabel, ROLE_HIERARCHY, getExtraPermissions } from '../middleware/permissions.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
 
@@ -14,7 +14,9 @@ export default createAuthRoutes({
   tables: { user, company },
   authenticate,
   // roleLabel: this vertical's word for a rung, so nothing a person reads says "field" in a salon.
-  permissions: { getPermissions, normalizeRole, hasPermission, roleLabel, ROLE_HIERARCHY },
+  // getExtraPermissions: so /me answers what this person may actually do — the role plus the grants
+  // the owner gave them by name — and not merely what the role allows. (T30 M-R1)
+  permissions: { getPermissions, normalizeRole, hasPermission, roleLabel, ROLE_HIERARCHY, getExtraPermissions },
   emailService,
   logger,
   options: {

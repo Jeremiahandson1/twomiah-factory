@@ -18,6 +18,12 @@ export interface JobsConfig {
   statuses?: string[]
   priorities?: string[]
   hasFeature?: (id: string) => boolean
+  /**
+   * May this person raise a job, or see the roster? Threaded in from the template's own auth context, the way hasFeature is —
+   * a shared page must not reach for a provider a given vertical may not mount. Absent means "do not
+   * ask", so a template that has not been rewired keeps every control it has today. (T30 M-R1)
+   */
+  can?: (permission: string) => boolean
 }
 
 export const DEFAULT_JOB_STATUSES = ['scheduled', 'dispatched', 'in_progress', 'completed', 'cancelled']
@@ -35,6 +41,7 @@ export function resolveJobsConfig(c?: JobsConfig) {
     statuses: cfg.statuses && cfg.statuses.length ? cfg.statuses : DEFAULT_JOB_STATUSES,
     priorities: cfg.priorities && cfg.priorities.length ? cfg.priorities : DEFAULT_JOB_PRIORITIES,
     hasFeature: cfg.hasFeature || (() => true),
+    can: cfg.can || (() => true),
   }
 }
 
