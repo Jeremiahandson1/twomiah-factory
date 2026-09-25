@@ -44,6 +44,14 @@ export interface JobDeps {
   db: any
   tables: JobTables
   authenticate: any
+  /**
+   * REQUIRED, not optional. This module took `authenticate` and nothing else, so every route under
+   * /api/jobs was open to any signed-in user: a field tech could create a service call, and delete
+   * anyone's. The matrix already said field gets jobs:read + jobs:update and no more; nothing asked
+   * it. Making this required means a template cannot mount the module unguarded by omission.
+   * (Field Service T30 BLOCKER)
+   */
+  requirePermission: (permission: string) => any
   emitToCompany: (companyId: string, event: string, data: any) => void
   EVENTS: { JOB_CREATED: string; JOB_UPDATED: string; JOB_DELETED: string; JOB_STATUS_CHANGED: string }
   cleanText: (min?: number) => z.ZodTypeAny
@@ -76,7 +84,7 @@ const validDate = (v: unknown) => {
 }
 
 export function createJobRoutes(deps: JobDeps) {
-  const { db, tables: t, authenticate, emitToCompany, EVENTS, cleanText } = deps
+  const { db, tables: t, authenticate, requirePermission, emitToCompany, EVENTS, cleanText } = deps
   const o = deps.options || {}
   const prefix = o.numbering?.prefix || 'JOB'
   const pad = o.numbering?.pad ?? 5
@@ -244,7 +252,7 @@ export function createJobRoutes(deps: JobDeps) {
   }
 
   // ---------------------------------------------------------------- list / today
-  app.get('/', async (c) => {
+  app.get('/', requirePermission('jobs:read'), async (c) => {
     const currentUser = c.get('user') as any
     const q = c.req.query()
     const page = Math.max(1, parseInt(q.page || '1', 10) || 1)
@@ -307,7 +315,7 @@ export function createJobRoutes(deps: JobDeps) {
     return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
   })
 
-  app.get('/today', async (c) => {
+  app.get('/today', requirePermission('jobs:read'), async (c) => {
     const currentUser = c.get('user') as any
     // The crew's day, not the server's: this listed tomorrow's work from 8pm in Ohio, because
     // setHours(0,0,0,0) is UTC midnight on Render. scheduled_date is a calendar-day marker for a job
@@ -326,7 +334,7 @@ export function createJobRoutes(deps: JobDeps) {
     const storage = o.storage
     const keyFromUrl = (url: string) => (url || '').startsWith(mediaPrefix) ? url.slice(mediaPrefix.length) : null
 
-    app.post('/:id/photos', async (c) => {
+    app.post('/:id/photos', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
@@ -345,14 +353,14 @@ export function createJobRoutes(deps: JobDeps) {
       return c.json(photo, 201)
     })
 
-    app.get('/:id/photos', async (c) => {
+    app.get('/:id/photos', requirePermission('jobs:read'), async (c) => {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
       return c.json(await db.select().from(t.jobPhoto).where(and(eq(t.jobPhoto.jobId, id), eq(t.jobPhoto.companyId, currentUser.companyId))).orderBy(desc(t.jobPhoto.createdAt)))
     })
 
-    app.delete('/:id/photos/:photoId', async (c) => {
+    app.delete('/:id/photos/:photoId', requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
       const [existing] = await db.select().from(t.jobPhoto).where(and(eq(t.jobPhoto.id, c.req.param('photoId')), eq(t.jobPhoto.jobId, c.req.param('id')), eq(t.jobPhoto.companyId, currentUser.companyId))).limit(1)
       if (!existing) return c.json({ error: 'Photo not found' }, 404)
@@ -364,7 +372,7 @@ export function createJobRoutes(deps: JobDeps) {
   }
 
   // ---------------------------------------------------------------- one job
-  app.get('/:id', async (c) => {
+  app.get('/:id', requirePermission('jobs:read'), async (c) => {
     const currentUser = c.get('user') as any
     const found = await findOwned(c.req.param('id'), currentUser.companyId)
     if (!found) return c.json({ error: 'Job not found' }, 404)
@@ -381,7 +389,7 @@ export function createJobRoutes(deps: JobDeps) {
     return c.json({ ...found, project: jobProject[0] || null, contact: jobContact[0] ? safeContact : null, assignedTo: assignedUser[0] ? { ...assignedUser[0], name: `${assignedUser[0].firstName || ''} ${assignedUser[0].lastName || ''}`.trim(), kind: 'user' } : withAssignee?.assignedTo || null, timeEntries: entries, ...(t.equipment ? { equipment: jobEquipment[0] || null } : {}) })
   })
 
-  app.post('/', async (c) => {
+  app.post('/', requirePermission('jobs:create'), async (c) => {
     const currentUser = c.get('user') as any
     const data: any = jobSchema.parse(await c.req.json())
     const who = await resolveAssignee(currentUser.companyId, data.assignedToId, data.assignedToMemberId)
@@ -416,7 +424,7 @@ export function createJobRoutes(deps: JobDeps) {
     return c.json(result, 201)
   })
 
-  app.put('/:id', async (c) => {
+  app.put('/:id', requirePermission('jobs:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     // The edit form posts back exactly what the API returned, including null for empty relations;
@@ -478,7 +486,7 @@ export function createJobRoutes(deps: JobDeps) {
     return c.json(result)
   })
 
-  app.delete('/:id', async (c) => {
+  app.delete('/:id', requirePermission('jobs:delete'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)
@@ -489,7 +497,7 @@ export function createJobRoutes(deps: JobDeps) {
 
   // ---------------------------------------------------------------- lifecycle
   const transition = (path: string, status: string, hook: () => JobHook | undefined, extra: () => Record<string, any> = () => ({})) => {
-    app.post(`/:id/${path}`, async (c) => {
+    app.post(`/:id/${path}`, requirePermission('jobs:update'), async (c) => {
       const currentUser = c.get('user') as any
       const id = c.req.param('id')
       if (!(await findOwned(id, currentUser.companyId))) return c.json({ error: 'Job not found' }, 404)

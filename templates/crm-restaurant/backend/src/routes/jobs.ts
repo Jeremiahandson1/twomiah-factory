@@ -8,11 +8,13 @@ import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { cleanText } from '../utils/sanitize.ts'
 import reviews from '../services/reviews.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 export default createJobRoutes({
   db,
   tables: { job, project, contact, user, timeEntry },
   authenticate,
+  requirePermission,
   emitToCompany,
   EVENTS,
   cleanText,

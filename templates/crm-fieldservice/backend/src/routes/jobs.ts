@@ -12,11 +12,13 @@ import smsService from '../services/sms.ts'
 import agreementService from '../services/agreements.ts'
 import reviews from '../services/reviews.ts'
 import { eq } from 'drizzle-orm'
+import { requirePermission } from '../middleware/permissions.ts'
 
 export default createJobRoutes({
   db,
   tables: { job, project, contact, user, timeEntry, equipment, jobPhoto, teamMember },
   authenticate,
+  requirePermission,
   emitToCompany,
   EVENTS,
   cleanText,
