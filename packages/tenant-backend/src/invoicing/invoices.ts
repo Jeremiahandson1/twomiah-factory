@@ -79,7 +79,12 @@ const lineItemSchema = z.object({
   // "more than zero" rather than "at least one". A genuinely free item is priced at 0, not counted 0.
   // (Field Service T26 L7)
   quantity: z.number().gt(0, 'Quantity must be more than zero').default(1),
-  unitPrice: z.number().min(0, 'Price cannot be negative').default(0),
+  // Money is kept to the cent, and the ROUNDED price is what everything downstream multiplies.
+  // A 3-decimal price was stored as 12.35 (the column holds two) while the line total was worked out
+  // from the raw 12.345 — so the document read "3.00 x .35 = .04", which does not multiply.
+  // Rounding here means the number the customer reads is the number the arithmetic used.
+  // (Field Service T28 L7)
+  unitPrice: z.number().min(0, 'Price cannot be negative').default(0).transform((v: number) => Math.round((v + Number.EPSILON) * 100) / 100),
 })
 const optionalId = z.string().optional().transform(v => (v === '' ? undefined : v))
 const invoiceSchema = z.object({
@@ -419,7 +424,10 @@ export function createInvoiceRoutes(deps: InvoiceDeps) {
   const statusFilters = [...new Set([...openStatuses, 'draft', 'paid', 'refunded', 'void', 'overdue'])]
   const numbering: NumberingOptions = deps.options?.numbering || { prefix: 'INV', pad: 5, seed: 0 }
   const tips = !!deps.options?.tips
-  const maxLimit = deps.options?.maxLimit ?? 100
+  // 500, the same ceiling jobs and contacts use. These two capped at 100 while asking for more
+  // was answered with a silent clamp, so limit=500 returned 100 rows and a caller paging by what it
+  // asked for read a short page as the end of the list. (Field Service T28 L3)
+  const maxLimit = deps.options?.maxLimit ?? 500
   const minLineItems = deps.options?.minLineItems ?? 0
   const derive = (inv: any) => deriveStatus(inv, openStatuses)
 

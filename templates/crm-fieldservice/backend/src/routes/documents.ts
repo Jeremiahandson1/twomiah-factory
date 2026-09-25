@@ -2,14 +2,18 @@
 // tenant as ../shared at generation. This file only wires the template's tables, storage and audit log in.
 import { createDocumentRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
-import { document, documentVersion, project, contact, user, planMarkup } from '../../db/schema.ts'
+import { document, documentVersion, project, contact, user } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 import storage from '../services/fileUpload.ts'
 import logger from '../services/logger.ts'
 
 export default createDocumentRoutes({
   db,
-  tables: { document, documentVersion, project, contact, user, planMarkup },
+  // planMarkup is NOT wired here. Plan markups are annotation layers over construction drawings —
+  // the shared module registers /:id/markups only where the table is passed, and field service
+  // passing it put a construction endpoint on a vertical that has no drawings to mark up.
+  // (Field Service T28 L10)
+  tables: { document, documentVersion, project, contact, user },
   storage,
   authenticate,
   audit: (event, actor, meta) => logger.audit(event, actor.userId, actor.companyId, meta),
