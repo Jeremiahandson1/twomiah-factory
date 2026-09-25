@@ -54,7 +54,27 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
   }, [currentDate]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { load() }, [load])
 
-  const jobsFor = (d: Date) => jobs.filter((j) => j.scheduledDate && String(j.scheduledDate).slice(0, 10) === localKey(d))
+  /**
+   * A day column is a diary: it has to read down the clock.
+   *
+   * These lists were filtered but never sorted, so a column came out in whatever order the API returned —
+   * creation order. Wednesday read 07:00, 10:30, 08:00, 09:30, 10:00, 09:00, which is not a schedule, it
+   * is a pile. (Field Service T28 M3)
+   *
+   * Work with no time set goes last rather than first: an untimed call is something to place, not the
+   * start of the day, and sorting it to the top would push the 07:00 down the column.
+   */
+  const MINUTES = (hhmm?: string | null) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim())
+    return m ? Number(m[1]) * 60 + Number(m[2]) : Number.MAX_SAFE_INTEGER
+  }
+  const byTime = <T,>(at: (x: T) => string | null | undefined) => (a: T, b: T) => MINUTES(at(a)) - MINUTES(at(b))
+  const clockOf = (iso?: string | null) => (iso ? new Date(iso).toTimeString().slice(0, 5) : null)
+
+  const jobsFor = (d: Date) => jobs
+    .filter((j) => j.scheduledDate && String(j.scheduledDate).slice(0, 10) === localKey(d))
+    .slice()
+    .sort(byTime((j: any) => j.scheduledTime))
   // A booking that became a job is ALREADY on this day as that job, so drawing the booking too puts the
   // same visit on the board twice. It always did; it only became obvious once both chips carried the same
   // time (T22 H1), which is what made the duplication visible rather than looking like two bookings at
@@ -64,10 +84,12 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
     const drawnAsJobs = new Set(jobsFor(d).map((j) => j.id))
     return bookings.filter((b) => b.startAt && localKey(new Date(b.startAt)) === localKey(d) && b.status !== 'cancelled'
       && !(b.calendarId && drawnAsJobs.has(b.calendarId)))
+      .slice().sort(byTime((b: any) => clockOf(b.startAt)))
   }
   // Cancelled appointments stay on the calendar (greyed), the way cancelled jobs do — hiding them made
   // a cancel look like the record had vanished.
   const eventsFor = (d: Date) => events.filter((e) => e.start && localKey(new Date(e.start)) === localKey(d))
+    .slice().sort(byTime((e: any) => clockOf(e.start)))
   const isToday = (d: Date) => localKey(d) === localKey(new Date())
   const shift = (n: number) => { const d = new Date(currentDate); d.setDate(d.getDate() + n); setCurrentDate(d) }
 
