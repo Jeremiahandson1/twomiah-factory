@@ -36,6 +36,25 @@ export function sanitizeCompany<T extends Record<string, any>>(row: T): T {
   return clone
 }
 
+/**
+ * A URL this app is willing to put in an href or an img src.
+ *
+ * Empty clears the field. Anything else must parse AND be http(s): "javascript:alert(1)" saved happily
+ * before, and company.website goes straight into the sidebar's "Live Website" anchor, where a javascript:
+ * href runs on click for whoever clicks it. Scheme is the whole question here — data:, vbscript: and
+ * file: are refused for the same reason.
+ *
+ * A bare "example.com" is accepted and stored as https://example.com, because refusing it would fail
+ * people typing the ordinary thing; "not a url" is still refused. (Field Service T28 M2)
+ */
+const safeUrl = z.string().trim().transform((v: string) => {
+  if (!v) return ''
+  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(v) ? v : `https://${v}`
+}).refine((v: string) => {
+  if (!v) return true
+  try { return ['http:', 'https:'].includes(new URL(v).protocol) } catch { return false }
+}, 'Enter a web address starting with http:// or https://')
+
 const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field']
 const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, isActive: user.isActive })
 
@@ -64,12 +83,22 @@ export function createCompanyRoutes(deps: CompanyDeps) {
       // "abcdefghij" and other junk used to save and then print on every invoice.
       phone: z.string().trim().optional().refine(v => !v || (v.replace(/\D/g, '').length >= 7 && v.replace(/\D/g, '').length <= 15), 'Enter a valid phone number (7–15 digits).'),
       address: z.string().optional(),
-      city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(),
+      city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(),
+      /**
+       * The logo is rendered as <img src> on the portal and the website goes into an <a href> in the
+       * sidebar. Both accepted anything, including "javascript:alert(1)" — and an href is the sink where
+       * that actually runs, so a company admin could leave a trap that fires for every user who clicks
+       * "Live Website". Only http(s) is allowed now, and only on write; existing values are untouched.
+       *
+       * null clears the field. It used to 400 with "Expected string, received null", so the Settings form
+       * could set a logo and never remove one. (Field Service T28 M2 + L9)
+       */
+      logo: safeUrl.optional().nullable(),
       // The colour on every invoice, email and portal page. It accepted "banana", which then went into
       // a CSS value and silently did nothing. The booking colour grew this same check in T27 N11 and
       // this one — the one customers actually see — was missed. (Salon T28 L1)
       primaryColor: z.string().trim().optional().refine((v: string | undefined) => !v || /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(v), 'Brand colour must be a hex value like #1d4ed8.'),
-      website: z.string().optional(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional(),
+      website: safeUrl.optional().nullable(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional(),
     })
     const body = await readBody(c)
     if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
