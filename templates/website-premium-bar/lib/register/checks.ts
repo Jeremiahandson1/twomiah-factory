@@ -1,0 +1,291 @@
+/**
+ * lib/register/checks.ts — the check lifecycle.
+ *
+ *   openCheck → addItem (held) → sendCheck (food → one grill ticket; drinks just marked sent)
+ *   → addPayment (cash / card run on Square's reader) … until the balance is zero → closed.
+ *   splitItems moves items to a new check; voidItem / voidPayment / voidCheck need a reason.
+ *
+ * Every write bumps the register bus so every open register screen repaints.
+ * Errors are thrown as CheckError with words a bartender can act on.
+ */
+import { EventEmitter } from 'events'
+import { and, asc, desc, eq, gte, inArray, or } from 'drizzle-orm'
+import type { db as DB } from '../../db'
+import { checkItems, checkPayments, checks, kitchenTickets, menuItems, menuSections, settings as settingsTbl } from '../../db/schema'
+import { sizesOf } from '../menu/sizes'
+import { fireTicket, notifyKitchen } from '../kitchen/tickets'
+import { changeDue, checkTotals, type CheckTotals } from './money'
+
+export class CheckError extends Error { constructor(message: string, public status = 400) { super(message) } }
+
+export const registerBus = new EventEmitter()
+registerBus.setMaxListeners(50)
+export function notifyRegister(): void { registerBus.emit('changed') }
+
+async function taxRate(db: typeof DB): Promise<number> {
+  const [s] = await db.select({ bps: settingsTbl.taxRateBps }).from(settingsTbl).limit(1)
+  return s?.bps ?? 550
+}
+
+async function openRow(db: typeof DB, id: string) {
+  const [c] = await db.select().from(checks).where(eq(checks.id, id)).limit(1)
+  if (!c) throw new CheckError('That check is gone.', 404)
+  if (c.status !== 'open') throw new CheckError(c.status === 'paid' ? 'That check is already paid.' : 'That check was voided.', 409)
+  return c
+}
+
+const clean = (v: unknown, max: number) => { const s = String(v ?? '').replace(/\s+/g, ' ').trim(); return s ? s.slice(0, max) : null }
+
+// ─── Reading ────────────────────────────────────────────────────────────────
+export interface CheckView {
+  id: string; number: number; kind: string; label: string; spot: string | null; note: string | null; status: string
+  openedAt: string; openedBy: string | null; closedAt: string | null
+  items: Array<typeof checkItems.$inferSelect>
+  payments: Array<typeof checkPayments.$inferSelect>
+  totals: CheckTotals
+  heldFood: number
+}
+
+export async function getCheck(db: typeof DB, id: string): Promise<CheckView> {
+  const [c] = await db.select().from(checks).where(eq(checks.id, id)).limit(1)
+  if (!c) throw new CheckError('That check is gone.', 404)
+  const [items, payments, rate] = await Promise.all([
+    db.select().from(checkItems).where(eq(checkItems.checkId, id)).orderBy(asc(checkItems.addedAt)),
+    db.select().from(checkPayments).where(eq(checkPayments.checkId, id)).orderBy(asc(checkPayments.takenAt)),
+    taxRate(db),
+  ])
+  return {
+    id: c.id, number: c.number, kind: c.kind, label: c.label, spot: c.spot, note: c.note, status: c.status,
+    openedAt: c.openedAt.toISOString(), openedBy: c.openedBy, closedAt: c.closedAt ? c.closedAt.toISOString() : null,
+    items, payments, totals: checkTotals(items, payments, rate),
+    heldFood: items.filter(i => i.state === 'held' && i.toKitchen).length,
+  }
+}
+
+export interface OpenCheckRow { id: string; number: number; kind: string; label: string; spot: string | null; openedAt: string; totalCents: number; balanceCents: number; itemCount: number; heldCount: number }
+
+export async function listOpen(db: typeof DB): Promise<OpenCheckRow[]> {
+  const open = await db.select().from(checks).where(eq(checks.status, 'open')).orderBy(asc(checks.openedAt)).limit(200)
+  if (!open.length) return []
+  const ids = open.map(c => c.id)
+  const [items, payments, rate] = await Promise.all([
+    db.select().from(checkItems).where(inArray(checkItems.checkId, ids)),
+    db.select().from(checkPayments).where(inArray(checkPayments.checkId, ids)),
+    taxRate(db),
+  ])
+  return open.map(c => {
+    const its = items.filter(i => i.checkId === c.id)
+    const t = checkTotals(its, payments.filter(p => p.checkId === c.id), rate)
+    return {
+      id: c.id, number: c.number, kind: c.kind, label: c.label, spot: c.spot, openedAt: c.openedAt.toISOString(),
+      totalCents: t.totalCents, balanceCents: t.balanceCents,
+      itemCount: its.filter(i => i.state !== 'void').reduce((s, i) => s + i.qty, 0),
+      heldCount: its.filter(i => i.state === 'held').length,
+    }
+  })
+}
+
+/** Closed today (for the "recent" list and reopening a mistake). */
+export async function listRecentClosed(db: typeof DB, since: Date): Promise<Array<{ id: string; number: number; label: string; status: string; totalCents: number | null; closedAt: string }>> {
+  const rows = await db.select().from(checks).where(and(or(eq(checks.status, 'paid'), eq(checks.status, 'void')), gte(checks.closedAt, since))).orderBy(desc(checks.closedAt)).limit(30)
+  return rows.map(c => ({ id: c.id, number: c.number, label: c.label, status: c.status, totalCents: c.totalCents, closedAt: (c.closedAt as Date).toISOString() }))
+}
+
+// ─── Writing ────────────────────────────────────────────────────────────────
+export async function openCheck(db: typeof DB, input: { kind: string; label: string; spot?: string | null; note?: string | null }, by: string): Promise<CheckView> {
+  const kind = ['tab', 'table', 'walkup'].includes(input.kind) ? input.kind : 'walkup'
+  const spot = clean(input.spot, 40)
+  const label = clean(input.label, 40) || spot || (kind === 'walkup' ? 'Walk-up' : null)
+  if (!label) throw new CheckError(kind === 'tab' ? 'Whose tab is it?' : 'Which table?')
+  const [row] = await db.insert(checks).values({ kind, label, spot, note: clean(input.note, 200), openedBy: by }).returning({ id: checks.id })
+  notifyRegister()
+  return getCheck(db, row.id)
+}
+
+export async function addItem(db: typeof DB, checkId: string, input: { menuItemId: string; sizeId?: string | null; qty?: number; note?: string | null; seat?: number | null; priceCents?: number | null }, by: string): Promise<CheckView> {
+  await openRow(db, checkId)
+  const [row] = await db.select({ item: menuItems, section: menuSections }).from(menuItems).leftJoin(menuSections, eq(menuSections.id, menuItems.sectionId)).where(eq(menuItems.id, input.menuItemId)).limit(1)
+  if (!row || !row.item.isActive) throw new CheckError('That item is off the menu.')
+  if (row.item.is86ed) throw new CheckError(`${row.item.name} is 86'd.`)
+  const sizes = sizesOf(row.item, row.section?.description)
+  const size = sizes.find(s => s.id === input.sizeId) || (sizes.length === 1 ? sizes[0] : null)
+  if (!size) throw new CheckError(`Which size of ${row.item.name}?`)
+  // Open price: the item has no price on file yet, so the bartender types one.
+  let price = size.priceCents
+  if (price === null) {
+    const typed = Math.round(Number(input.priceCents))
+    if (!Number.isFinite(typed) || typed < 0 || typed > 100000) throw new CheckError(`${row.item.name} has no price on file. Enter one.`)
+    price = typed
+  }
+  const qty = Math.floor(Number(input.qty ?? 1))
+  if (!Number.isFinite(qty) || qty < 1 || qty > 50) throw new CheckError('Check the quantity.')
+  const seat = input.seat === null || input.seat === undefined || String(input.seat) === '' ? null : Math.floor(Number(input.seat))
+  await db.insert(checkItems).values({
+    checkId, menuItemId: row.item.id, name: row.item.name, size: size.name === 'Regular' ? null : size.name,
+    qty, unitPriceCents: price, note: clean(input.note, 140), seat: seat !== null && seat >= 1 && seat <= 20 ? seat : null,
+    toKitchen: row.item.toKitchen ?? (row.section?.kind !== 'drink'), addedBy: by,
+  })
+  await db.update(checks).set({ updatedAt: new Date() }).where(eq(checks.id, checkId))
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+
+/** Change a held item (qty, note, seat). Sent items are the kitchen's now: void, don't edit. */
+export async function updateItem(db: typeof DB, itemId: string, patch: { qty?: number; note?: string | null; seat?: number | null }): Promise<CheckView> {
+  const [it] = await db.select().from(checkItems).where(eq(checkItems.id, itemId)).limit(1)
+  if (!it) throw new CheckError('That item is gone.', 404)
+  await openRow(db, it.checkId)
+  if (it.state !== 'held') throw new CheckError('Already sent to the grill. Void it instead.', 409)
+  const set: Partial<typeof checkItems.$inferInsert> = {}
+  if (patch.qty !== undefined) {
+    const q = Math.floor(Number(patch.qty))
+    if (q < 1) { await db.delete(checkItems).where(eq(checkItems.id, itemId)); notifyRegister(); return getCheck(db, it.checkId) }
+    if (q > 50) throw new CheckError('Check the quantity.')
+    set.qty = q
+  }
+  if (patch.note !== undefined) set.note = clean(patch.note, 140)
+  if (patch.seat !== undefined) { const s = patch.seat === null || String(patch.seat) === '' ? null : Math.floor(Number(patch.seat)); set.seat = s !== null && s >= 1 && s <= 20 ? s : null }
+  if (Object.keys(set).length) await db.update(checkItems).set(set).where(eq(checkItems.id, itemId))
+  notifyRegister()
+  return getCheck(db, it.checkId)
+}
+
+/** Take a sent item off the check (it stays on the record with the reason). */
+export async function voidItem(db: typeof DB, itemId: string, reason: string, by: string): Promise<CheckView> {
+  const [it] = await db.select().from(checkItems).where(eq(checkItems.id, itemId)).limit(1)
+  if (!it) throw new CheckError('That item is gone.', 404)
+  await openRow(db, it.checkId)
+  if (it.state === 'void') throw new CheckError('Already voided.', 409)
+  if (it.state === 'held') { await db.delete(checkItems).where(eq(checkItems.id, itemId)); notifyRegister(); return getCheck(db, it.checkId) }
+  const why = clean(reason, 80)
+  if (!why) throw new CheckError('Give a reason for the void.')
+  await db.update(checkItems).set({ state: 'void', voidReason: why, voidedBy: by }).where(eq(checkItems.id, itemId))
+  const view = await getCheck(db, it.checkId)
+  if (view.totals.balanceCents < 0) {
+    // Voiding below what's already paid would owe the guest money; undo and say so.
+    await db.update(checkItems).set({ state: it.state, voidReason: null, voidedBy: null }).where(eq(checkItems.id, itemId))
+    throw new CheckError('That would take the check below what has been paid. Void a payment first.', 409)
+  }
+  // Food already on the grill screen: tell the cook, on the ticket itself.
+  if (it.toKitchen && it.ticketId) {
+    const [t] = await db.select({ note: kitchenTickets.note, bumpedAt: kitchenTickets.bumpedAt }).from(kitchenTickets).where(eq(kitchenTickets.id, it.ticketId)).limit(1)
+    if (t && !t.bumpedAt) {
+      const line = `VOID: ${it.qty} × ${it.name}${it.size ? ' (' + it.size.toLowerCase() + ')' : ''}`
+      await db.update(kitchenTickets).set({ note: (t.note ? t.note + ' · ' : '') + line }).where(eq(kitchenTickets.id, it.ticketId))
+      notifyKitchen()
+    }
+  }
+  notifyRegister()
+  return view
+}
+
+/** Fire held food to the grill as one ticket; held drinks just become sent. */
+export async function sendCheck(db: typeof DB, checkId: string, by: string): Promise<CheckView> {
+  const c = await openRow(db, checkId)
+  const held = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), eq(checkItems.state, 'held'))).orderBy(asc(checkItems.addedAt))
+  if (!held.length) throw new CheckError('Nothing new to send.', 409)
+  const food = held.filter(i => i.toKitchen)
+  let ticketId: string | null = null
+  if (food.length) {
+    const label = c.spot && c.spot !== c.label ? `${c.spot} · ${c.label}` : c.label
+    const t = await fireTicket(db, {
+      label, source: c.kind === 'table' ? 'table' : 'bar', note: c.note, firedBy: by, checkId,
+      lines: food.map(i => ({ menuItemId: i.menuItemId, name: i.name, variation: i.size, qty: i.qty, note: i.note, seat: i.seat })),
+    })
+    ticketId = t?.id || null
+  }
+  const now = new Date()
+  const plain = held.filter(i => !i.toKitchen || !ticketId).map(i => i.id)
+  if (plain.length) await db.update(checkItems).set({ state: 'sent', sentAt: now }).where(inArray(checkItems.id, plain))
+  if (ticketId && food.length) await db.update(checkItems).set({ state: 'sent', sentAt: now, ticketId }).where(inArray(checkItems.id, food.map(i => i.id)))
+  await db.update(checks).set({ updatedAt: now }).where(eq(checks.id, checkId))
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+
+async function closeIfPaid(db: typeof DB, checkId: string, by: string): Promise<void> {
+  const view = await getCheck(db, checkId)
+  if (view.status !== 'open' || view.totals.balanceCents > 0 || view.totals.totalCents === 0) return
+  // Food still held on a paid check is food someone is waiting for: send it.
+  if (view.heldFood || view.items.some(i => i.state === 'held')) await sendCheck(db, checkId, by)
+  const t = view.totals
+  await db.update(checks).set({ status: 'paid', closedAt: new Date(), closedBy: by, subtotalCents: t.subtotalCents, taxCents: t.taxCents, totalCents: t.totalCents, tipCents: t.tipCents, updatedAt: new Date() }).where(eq(checks.id, checkId))
+}
+
+export async function addPayment(db: typeof DB, checkId: string, input: { tender: string; amountCents: number; tipCents?: number; cashTenderedCents?: number | null }, by: string): Promise<CheckView & { changeCents: number | null }> {
+  await openRow(db, checkId)
+  const tender = input.tender === 'cash' ? 'cash' : input.tender === 'card_external' ? 'card_external' : null
+  if (!tender) throw new CheckError('Cash or card?')
+  const before = await getCheck(db, checkId)
+  if (before.totals.totalCents <= 0) throw new CheckError('Nothing on the check to pay for.')
+  const amount = Math.round(Number(input.amountCents))
+  if (!Number.isFinite(amount) || amount <= 0) throw new CheckError('Enter an amount.')
+  if (amount > before.totals.balanceCents) throw new CheckError('That is more than the balance. For cash, enter what they handed you as cash tendered.')
+  const tip = Math.max(0, Math.round(Number(input.tipCents || 0)))
+  if (tip > Math.max(10000, amount * 2)) throw new CheckError('That tip looks wrong. Check it.')
+  let change: number | null = null, tendered: number | null = null
+  if (tender === 'cash' && input.cashTenderedCents !== undefined && input.cashTenderedCents !== null && String(input.cashTenderedCents) !== '') {
+    tendered = Math.round(Number(input.cashTenderedCents))
+    change = changeDue(amount + tip, tendered)
+    if (change === null) throw new CheckError('Not enough cash for that amount.')
+  }
+  await db.insert(checkPayments).values({ checkId, tender, amountCents: amount, tipCents: tip, cashTenderedCents: tendered, changeCents: change, takenBy: by })
+  await closeIfPaid(db, checkId, by)
+  notifyRegister()
+  return { ...(await getCheck(db, checkId)), changeCents: change }
+}
+
+export async function voidPayment(db: typeof DB, paymentId: string, reason: string, by: string): Promise<CheckView> {
+  const [p] = await db.select().from(checkPayments).where(eq(checkPayments.id, paymentId)).limit(1)
+  if (!p) throw new CheckError('That payment is gone.', 404)
+  await openRow(db, p.checkId)
+  if (p.voidedAt) throw new CheckError('Already voided.', 409)
+  const why = clean(reason, 80)
+  if (!why) throw new CheckError('Give a reason.')
+  await db.update(checkPayments).set({ voidedAt: new Date(), voidReason: `${why} (${by})` }).where(eq(checkPayments.id, paymentId))
+  notifyRegister()
+  return getCheck(db, p.checkId)
+}
+
+/** Split by item: the chosen items move to a new check for the same spot. */
+export async function splitItems(db: typeof DB, checkId: string, itemIds: string[], label: string | null, by: string): Promise<{ from: CheckView; to: CheckView }> {
+  const c = await openRow(db, checkId)
+  const items = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), inArray(checkItems.id, itemIds.slice(0, 100))))
+  const movable = items.filter(i => i.state !== 'void')
+  if (!movable.length) throw new CheckError('Pick what goes on the new check.')
+  const all = await getCheck(db, checkId)
+  if (movable.length === all.items.filter(i => i.state !== 'void').length) throw new CheckError('That is everything. Leave it on this check.')
+  const rate = await taxRate(db)
+  const remaining = checkTotals(all.items.filter(i => !movable.some(m => m.id === i.id)), all.payments, rate)
+  if (remaining.balanceCents < 0) throw new CheckError('This check already has payments that cover those items. Split before paying.', 409)
+  const [n] = await db.insert(checks).values({
+    kind: c.kind, label: clean(label, 40) || `${c.label} (split)`, spot: c.spot, note: c.note, openedBy: by, splitFromId: c.id,
+  }).returning({ id: checks.id })
+  await db.update(checkItems).set({ checkId: n.id }).where(inArray(checkItems.id, movable.map(i => i.id)))
+  notifyRegister()
+  return { from: await getCheck(db, checkId), to: await getCheck(db, n.id) }
+}
+
+/** Void a whole check: only with nothing paid on it. */
+export async function voidCheck(db: typeof DB, checkId: string, reason: string, by: string): Promise<CheckView> {
+  const view = await getCheck(db, checkId)
+  if (view.status !== 'open') throw new CheckError('Only an open check can be voided.', 409)
+  if (view.totals.paidCents > 0) throw new CheckError('Void its payments first.', 409)
+  const why = clean(reason, 80)
+  if (!why && view.items.length) throw new CheckError('Give a reason.')
+  await db.update(checks).set({ status: 'void', voidReason: why || 'empty', closedAt: new Date(), closedBy: by, updatedAt: new Date() }).where(eq(checks.id, checkId))
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+
+/** Rename or move a check ("Mike" → "Booth 3"). */
+export async function renameCheck(db: typeof DB, checkId: string, input: { label?: string | null; spot?: string | null }): Promise<CheckView> {
+  await openRow(db, checkId)
+  const set: Partial<typeof checks.$inferInsert> = { updatedAt: new Date() }
+  if (input.label !== undefined) { const l = clean(input.label, 40); if (!l) throw new CheckError('A check needs a name.'); set.label = l }
+  if (input.spot !== undefined) set.spot = clean(input.spot, 40)
+  await db.update(checks).set(set).where(eq(checks.id, checkId))
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+

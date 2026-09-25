@@ -40,14 +40,14 @@
                 <li class="menu-line order-line">
                   <div class="menu-line__head">
                     <span class="menu-line__name"><%= i.name %></span>
-                    <span class="menu-line__price mono"><%= i.variations.map(v => formatCents(v.priceCents)).join(' / ') %></span>
+                    <span class="menu-line__price mono"><%= i.sizes.map(v => formatCents(v.priceCents)).join(' / ') %></span>
                   </div>
                   <% if (i.description) { %><p class="menu-line__desc"><%= i.description %></p><% } %>
                   <div class="order-line__add" role="group" aria-label="Add <%= i.name %>">
-                    <% for (const v of i.variations) { %>
+                    <% for (const v of i.sizes) { %>
                       <button class="btn btn--outline order-add" type="button" disabled
                         data-item="<%= i.id %>" data-var="<%= v.id %>" data-name="<%= i.name %>" data-vname="<%= v.name %>" data-price="<%= v.priceCents %>">
-                        Add<%= i.variations.length > 1 ? ' ' + v.name.toLowerCase() : '' %> <span class="mono"><%= formatCents(v.priceCents) %></span>
+                        Add<%= i.sizes.length > 1 ? ' ' + v.name.toLowerCase() : '' %> <span class="mono"><%= formatCents(v.priceCents) %></span>
                       </button>
                     <% } %>
                   </div>

@@ -28,7 +28,8 @@
 import fs from 'fs'
 import path from 'path'
 import bcrypt from 'bcryptjs'
-import { eq, isNotNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { sizesFromLabel } from '../lib/menu/sizes'
 import { db } from '../db'
 import { users, settings, pages, serviceStatus, menuSections, menuItems, taps, staffPins, seedMarks, timelineEntries } from '../db/schema'
 
@@ -292,49 +293,63 @@ async function main() {
     console.log('[initDb] Created service_status row.')
   }
 
-  // ── Menu (content/menu.json → menu_sections + menu_items; Square takes over in Phase 2) ──
-  // There is no admin menu editor yet, so the file is the only source: when its hash
-  // changes (seed_marks "menu"), the sections/items are rebuilt from it. The console's
-  // 86 flags live on the items and are lost on rebuild — acceptable until Square.
+  // ── Menu (content/menu.json → menu_sections + menu_items), row by row ──
+  // Our database owns the menu (SYSTEM_DESIGN §0). The file seeds it and keeps
+  // flowing into rows nobody has touched; a row edited in the system (a price,
+  // an 86, a grill time) is never overwritten. Nothing is deleted: tickets and
+  // checks point at these ids. Sizes (sandwich/platter) are parsed from the
+  // printed price into menu_items.variations.
   const menuFile = readJson<any>(path.join(CONTENT_DIR, 'menu.json'))
-  // Once any item is linked to Square, the register owns the menu: the file must never
-  // rebuild it again (that would wipe the Square ids and every 86). Square sync takes over.
-  const squareLinked = (await db.select({ id: menuItems.id }).from(menuItems).where(isNotNull(menuItems.squareItemId)).limit(1)).length > 0
-  if (squareLinked) console.log('[initDb] Menu is linked to Square — content/menu.json is ignored.')
-  if (!squareLinked && menuFile && Array.isArray(menuFile.sections)) {
-    const menuHash = hashOf(menuFile.sections)
-    const mark = (await db.select().from(seedMarks).where(eq(seedMarks.key, 'menu')).limit(1))[0]
-    const existingSections = await db.select().from(menuSections).limit(1)
-    if (existingSections.length === 0 || FORCE || !mark || mark.hash !== menuHash) {
-      // One transaction: a bad item (e.g. a duplicate slug) must not leave half a menu behind or stop the seeds after this one.
-      try { await db.transaction(async (db) => {
-      await db.delete(menuItems)
-      await db.delete(menuSections)
-      let sIdx = 0, count = 0
-      for (const sec of menuFile.sections) {
-        if (!sec || !sec.slug || !sec.name) continue
-        const [row] = await db.insert(menuSections).values({
-          slug: sec.slug, name: sec.name, description: str(sec.description), kind: sec.kind === 'drink' ? 'drink' : 'food', sortOrder: sIdx++,
-        }).returning()
-        let iIdx = 0
-        for (const it of (sec.items || [])) {
-          if (!it || !it.slug || !it.name) continue
-          await db.insert(menuItems).values({
-            sectionId: row.id, slug: it.slug, name: it.name, description: str(it.description),
-            priceCents: typeof it.priceCents === 'number' ? it.priceCents : null, priceLabel: str(it.priceLabel),
-            dietary: Array.isArray(it.dietary) ? it.dietary : [], imageUrl: str(it.imageUrl), heroImageUrl: str(it.heroImageUrl),
-            story: str(it.story), isSignature: !!it.isSignature, sortOrder: iIdx++,
-          })
-          count++
-        }
+  if (menuFile && Array.isArray(menuFile.sections)) {
+    // Rows written by the old whole-menu rebuild have no per-row mark; they count as
+    // untouched if nobody changed them after that rebuild (the old "menu" mark).
+    const legacy = (await db.select().from(seedMarks).where(eq(seedMarks.key, 'menu')).limit(1))[0]
+    async function rowDecision(key: string, values: Record<string, any>, row: Record<string, any> | undefined): Promise<'apply' | 'same' | 'skip'> {
+      const hash = hashOf(values)
+      const mark = (await db.select().from(seedMarks).where(eq(seedMarks.key, key)).limit(1))[0]
+      const setMark = async () => {
+        if (mark) await db.update(seedMarks).set({ hash, appliedAt: new Date() }).where(eq(seedMarks.key, key))
+        else await db.insert(seedMarks).values({ key, hash })
       }
-      if (mark) await db.update(seedMarks).set({ hash: menuHash, appliedAt: new Date() }).where(eq(seedMarks.key, 'menu'))
-      else await db.insert(seedMarks).values({ key: 'menu', hash: menuHash })
-      console.log('[initDb] Menu (re)built from content: ' + count + ' items in ' + sIdx + ' sections.')
-      }) } catch (e: any) { console.error('[initDb] Menu rebuild FAILED, previous menu kept: ' + (e?.message || e)) }
-    } else {
-      console.log('[initDb] Menu up to date — skipping.')
+      if (!row || FORCE) { await setMark(); return 'apply' }
+      const touchedAfter = (at: Date) => !!row.updatedAt && new Date(row.updatedAt).getTime() > new Date(at).getTime() + 2000
+      if (mark) {
+        if (mark.hash === hash) return 'same'
+        if (touchedAfter(mark.appliedAt)) return 'skip'
+        await setMark(); return 'apply'
+      }
+      if ((legacy && !touchedAfter(legacy.appliedAt)) || sameAs(row, values)) { await setMark(); return 'apply' }
+      return 'skip'
     }
+    let sIdx = 0, created = 0, updated = 0, kept = 0, same = 0
+    const seenItems = new Set<string>()
+    for (const sec of menuFile.sections) {
+      if (!sec || !sec.slug || !sec.name) continue
+      const secValues = { name: sec.name, description: str(sec.description), kind: sec.kind === 'drink' ? 'drink' : 'food', sortOrder: sIdx++ }
+      let [secRow] = await db.select().from(menuSections).where(eq(menuSections.slug, sec.slug)).limit(1)
+      const secDecision = await rowDecision('menu-section:' + sec.slug, secValues, secRow)
+      if (!secRow) [secRow] = await db.insert(menuSections).values({ slug: sec.slug, ...secValues }).returning()
+      else if (secDecision === 'apply') await db.update(menuSections).set(secValues).where(eq(menuSections.id, secRow.id))
+      let iIdx = 0
+      for (const it of (sec.items || [])) {
+        if (!it || !it.slug || !it.name || seenItems.has(it.slug)) continue
+        seenItems.add(it.slug)
+        const priceCents = typeof it.priceCents === 'number' ? it.priceCents : null
+        const values = {
+          sectionId: secRow.id, name: it.name, description: str(it.description), priceCents, priceLabel: str(it.priceLabel),
+          dietary: Array.isArray(it.dietary) ? it.dietary : [], imageUrl: str(it.imageUrl), heroImageUrl: str(it.heroImageUrl),
+          story: str(it.story), isSignature: !!it.isSignature, sortOrder: iIdx++,
+          variations: sizesFromLabel(priceCents, str(it.priceLabel), str(sec.description)),
+        }
+        const [row] = await db.select().from(menuItems).where(eq(menuItems.slug, it.slug)).limit(1)
+        const decision = await rowDecision('menu-item:' + it.slug, values, row)
+        if (!row) { await db.insert(menuItems).values({ slug: it.slug, ...values }); created++ }
+        else if (decision === 'apply') { await db.update(menuItems).set({ ...values, updatedAt: new Date() }).where(eq(menuItems.id, row.id)); updated++ }
+        else if (decision === 'same') same++
+        else kept++
+      }
+    }
+    console.log('[initDb] Menu: ' + created + ' new, ' + updated + ' updated from content, ' + same + ' unchanged, ' + kept + ' kept as edited in the system.')
   }
 
   // ── Taps (content/taps.json; the console maintains these afterwards) ──

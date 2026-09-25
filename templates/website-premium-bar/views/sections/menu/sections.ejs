@@ -46,7 +46,7 @@
           <% if (s.description) { %><p class="menu-section__desc"><%= s.description %></p><% } %>
         </header>
         <ul class="menu-list" role="list">
-          <% for (const i of s.items) { if (i.isActive === false) continue; const link = showLinks && i.isSignature ? '/' + s.slug + '/' + i.slug : ''; const out = i.is86ed || i.squareSoldOut; %>
+          <% for (const i of s.items) { if (i.isActive === false) continue; const link = showLinks && i.isSignature ? '/' + s.slug + '/' + i.slug : ''; const out = i.is86ed; %>
             <li class="menu-line<%= out ? ' menu-line--86' : '' %><%= i.isSignature ? ' menu-line--signature' : '' %>" id="item-<%= i.slug %>">
               <div class="menu-line__head">
                 <span class="menu-line__name">

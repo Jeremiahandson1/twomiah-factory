@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, integer, boolean, index, uniqueIndex, numeric } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, jsonb, integer, boolean, index, uniqueIndex, numeric, serial } from 'drizzle-orm/pg-core'
 
 // Single-row company/settings — same row updated by the admin. Mirrors
 // the pattern in other templates but stripped to only what the
@@ -24,6 +24,7 @@ export const settings = pgTable('settings', {
   // Hours config for lib/hours: { timezone, bar: WeeklyHours, kitchen: WeeklyHours, holidays: [] }.
   // The ONLY place hours live. Console overrides go in service_status.
   hours: jsonb('hours'),
+  taxRateBps: integer('tax_rate_bps').notNull().default(550),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),
@@ -411,7 +412,7 @@ export const menuItems = pgTable('menu_items', {
   // Every priced size of the item — [{ id: square variation id | null, name: 'Sandwich', priceCents: 579 }].
   // From the price label before Square is connected, from the Catalog afterwards.
   variations: jsonb('variations').notNull().default([]),
-  squareSoldOut: boolean('square_sold_out').notNull().default(false),   // marked sold out on the register; OR'd with is86ed
+  squareSoldOut: boolean('square_sold_out').notNull().default(false),   // UNUSED since 2026-09-25 (our DB owns the menu); kept so the boot push never drops a column
   // Grill screen. null = follow the section (food goes to the grill, drinks don't).
   toKitchen: boolean('to_kitchen'),
   prepSeconds: integer('prep_seconds'),                 // what the owner says it takes; null = the house default
@@ -533,6 +534,77 @@ export const onlineOrders = pgTable('online_orders', {
 }, (t) => ({
   squareOrderIdx: index('online_orders_square_idx').on(t.squareOrderId),
   createdIdx: index('online_orders_created_idx').on(t.createdAt),
+}))
+
+// ═══ THE REGISTER ═══════════════════════════════════════════════════════════
+// Every sale is a check: a tab ("Mike"), a table ("Booth 2") or a walk-up.
+// Items sit on the check as held until Send fires the food to the grill.
+// Payments stack until the balance is zero (split evenly = several payments;
+// split by item = move items to a new check). Voids always carry a reason.
+export const checks = pgTable('checks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  number: serial('number'),                         // "#214" on the screen and the receipt
+  kind: text('kind').notNull(),                     // 'tab' | 'table' | 'walkup'
+  label: text('label').notNull(),                   // "Mike", "Booth 2", "Walk-up"
+  spot: text('spot'),                               // "Bar seat 6", "Booth 2" — where it's delivered
+  note: text('note'),
+  guestId: uuid('guest_id'),                        // the CRM, when it lands
+  status: text('status').notNull().default('open'), // 'open' | 'paid' | 'void'
+  voidReason: text('void_reason'),
+  splitFromId: uuid('split_from_id'),
+  // Frozen at close so reports never recompute history with a later tax rate.
+  subtotalCents: integer('subtotal_cents'),
+  taxCents: integer('tax_cents'),
+  totalCents: integer('total_cents'),
+  tipCents: integer('tip_cents'),
+  openedAt: timestamp('opened_at', { withTimezone: true }).notNull().defaultNow(),
+  openedBy: text('opened_by'),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  closedBy: text('closed_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index('checks_status_idx').on(t.status, t.openedAt),
+  closedIdx: index('checks_closed_idx').on(t.closedAt),
+}))
+
+export const checkItems = pgTable('check_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkId: uuid('check_id').notNull().references(() => checks.id, { onDelete: 'cascade' }),
+  menuItemId: uuid('menu_item_id'),
+  name: text('name').notNull(),                     // snapshot
+  size: text('size'),                               // "Platter"
+  qty: integer('qty').notNull().default(1),
+  unitPriceCents: integer('unit_price_cents').notNull(),
+  note: text('note'),
+  seat: integer('seat'),
+  toKitchen: boolean('to_kitchen').notNull().default(true),
+  state: text('state').notNull().default('held'),   // 'held' | 'sent' | 'void'
+  ticketId: uuid('ticket_id'),
+  voidReason: text('void_reason'),
+  voidedBy: text('voided_by'),
+  addedBy: text('added_by'),
+  addedAt: timestamp('added_at', { withTimezone: true }).notNull().defaultNow(),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+}, (t) => ({
+  checkIdx: index('check_items_check_idx').on(t.checkId, t.addedAt),
+}))
+
+export const checkPayments = pgTable('check_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  checkId: uuid('check_id').notNull().references(() => checks.id, { onDelete: 'cascade' }),
+  tender: text('tender').notNull(),                 // 'cash' | 'card_external' (run on Square's own reader) | 'card' (our Square SDK, Phase B)
+  amountCents: integer('amount_cents').notNull(),   // toward the check, tip not included
+  tipCents: integer('tip_cents').notNull().default(0),
+  cashTenderedCents: integer('cash_tendered_cents'),
+  changeCents: integer('change_cents'),
+  squarePaymentId: text('square_payment_id'),
+  takenBy: text('taken_by'),
+  takenAt: timestamp('taken_at', { withTimezone: true }).notNull().defaultNow(),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+  voidReason: text('void_reason'),
+}, (t) => ({
+  checkIdx: index('check_payments_check_idx').on(t.checkId),
+  takenIdx: index('check_payments_taken_idx').on(t.takenAt),
 }))
 
 // ═══ THE GRILL SCREEN ═══════════════════════════════════════════════════════

@@ -24,7 +24,7 @@ export function notifyKitchen(): void { kitchenBus.emit('changed') }
 
 // ─── Firing ─────────────────────────────────────────────────────────────────
 export interface FireLine { menuItemId: string | null; name: string; variation?: string | null; qty: number; note?: string | null; seat?: number | null }
-export interface FireInput { label: string; source: 'bar' | 'table' | 'web'; note?: string | null; firedBy?: string | null; onlineOrderId?: string | null; lines: FireLine[] }
+export interface FireInput { label: string; source: 'bar' | 'table' | 'web'; note?: string | null; firedBy?: string | null; onlineOrderId?: string | null; checkId?: string | null; lines: FireLine[] }
 
 async function houseSettings(db: typeof DB) {
   const [s] = await db.select({ warn: serviceStatus.ticketWarnSeconds, late: serviceStatus.ticketLateSeconds, def: serviceStatus.defaultPrepSeconds }).from(serviceStatus).limit(1)
@@ -54,7 +54,7 @@ export async function fireTicket(db: typeof DB, input: FireInput): Promise<{ id:
   const id = await db.transaction(async (tx) => {
     const [t] = await tx.insert(kitchenTickets).values({
       label: input.label.slice(0, 80), source: input.source, note: input.note?.slice(0, 200) || null,
-      firedBy: input.firedBy || null, onlineOrderId: input.onlineOrderId || null,
+      firedBy: input.firedBy || null, onlineOrderId: input.onlineOrderId || null, checkId: input.checkId || null,
     }).returning({ id: kitchenTickets.id })
     await tx.insert(kitchenTicketItems).values(food.map((l, n) => {
       const r = l.menuItemId ? byId.get(l.menuItemId) : undefined

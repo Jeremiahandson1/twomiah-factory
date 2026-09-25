@@ -42,6 +42,7 @@ import { partyInquiries as partyInquiriesTbl, serviceStatus } from './db/schema'
 import { ASSET_VERSION, renderBase } from './lib/render'
 import { orderPages, orderApi } from './routes/order'
 import { kitchenPages, kitchenApi } from './routes/kitchen'
+import { registerPages, registerApi } from './routes/register'
 
 const app = new Hono()
 
@@ -393,13 +394,17 @@ app.route('/api', orderApi)
 app.get('/kitchen/', (c) => c.redirect('/kitchen'))
 app.route('/kitchen', kitchenPages)
 app.route('/api/kitchen', kitchenApi)
+// ── The register (staff PIN) ──
+app.get('/register/', (c) => c.redirect('/register'))
+app.route('/register', registerPages)
+app.route('/api/register', registerApi)
 
 app.get('/:slug', async (c, next) => {
   const slug = c.req.param('slug')
   // Reserved names and unknown pages fall THROUGH (next()) so the routes
   // registered after this one — /sitemap.xml, /robots.txt, the console,
   // nested pages — still get their turn instead of a premature 404.
-  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'kitchen', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'kitchen', 'register', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return next()
   countView('/' + slug)
@@ -968,7 +973,7 @@ async function renderItemPage(sectionSlug: string, itemSlug: string): Promise<st
 // FULL path in its slug, so loadPage() matches directly and the sitemap emits
 // the nested URL. Falls back to a signature item page. These MUST come after
 // every /api/* and /admin/* route: Hono dispatches the first-registered match.
-const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'kitchen', 'parties', 'order', '.well-known']
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'kitchen', 'register', 'parties', 'order', '.well-known']
 app.get('/:a/:b', async (c, next) => {
   const { a, b } = c.req.param()
   if (NESTED_RESERVED.includes(a)) return next()   // fall through to /admin/*, /console/*, /media/* etc. registered later

@@ -1,0 +1,190 @@
+<%
+  // THE REGISTER. The shell and the first state are server-rendered;
+  // register.js draws the checks, the menu and the open check, and keeps
+  // every register screen in step over server-sent events.
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0A08">
+  <title>Register — <%= companyName %></title>
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/register.css">
+</head>
+<body class="reg">
+  <header class="reg-top">
+    <div class="reg-top__brand">Register <span class="reg-top__who"><%= staff.label %></span></div>
+    <nav class="reg-top__nav" aria-label="Staff screens">
+      <a href="/kitchen">Grill</a>
+      <a href="/console">Console</a>
+      <span class="reg-conn" id="r-conn" data-state="down">Connecting…</span>
+      <span class="reg-clock" id="r-clock"></span>
+    </nav>
+  </header>
+
+  <noscript><p class="reg-noscript">The register needs JavaScript. Use Square's app until it's back.</p></noscript>
+
+  <div class="reg-app">
+    <aside class="reg-checks" aria-labelledby="h-open">
+      <h2 class="reg-h" id="h-open">Open checks</h2>
+      <div class="reg-new" role="group" aria-label="Start a check">
+        <button class="reg-btn" type="button" data-new="tab">New tab</button>
+        <button class="reg-btn" type="button" data-new="table">Table</button>
+        <button class="reg-btn" type="button" data-new="walkup">Walk-up</button>
+      </div>
+      <ul class="reg-list" id="r-open" aria-live="polite"></ul>
+      <details class="reg-recent">
+        <summary>Closed today</summary>
+        <ul class="reg-list reg-list--recent" id="r-recent"></ul>
+      </details>
+    </aside>
+
+    <section class="reg-menu" aria-labelledby="h-menu">
+      <h2 class="visually-hidden" id="h-menu">Menu</h2>
+      <div class="reg-tabs" role="tablist" aria-label="Menu sections" id="r-tabs"></div>
+      <div class="reg-grid" id="r-grid" role="tabpanel"></div>
+    </section>
+
+    <section class="reg-check" aria-labelledby="h-check" id="r-check">
+      <h2 class="reg-h" id="h-check">No check open</h2>
+      <p class="reg-muted">Start a tab, pick a table, or just tap food for a walk-up.</p>
+    </section>
+  </div>
+
+  <!-- New check -->
+  <dialog class="reg-dlg" id="d-new" aria-labelledby="d-new-h">
+    <form method="dialog" class="reg-dlg__body" id="f-new">
+      <h2 class="reg-dlg__h" id="d-new-h">New tab</h2>
+      <label class="reg-field" id="f-new-name-wrap">Name on the tab
+        <input class="reg-input" id="f-new-name" maxlength="40" autocomplete="off" placeholder="Mike">
+      </label>
+      <fieldset class="reg-fieldset" id="f-new-spots">
+        <legend>Where</legend>
+        <div class="reg-chips" id="f-new-spot-chips"></div>
+      </fieldset>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok">Open</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- One line on the check -->
+  <dialog class="reg-dlg" id="d-line" aria-labelledby="d-line-h">
+    <form method="dialog" class="reg-dlg__body" id="f-line">
+      <h2 class="reg-dlg__h" id="d-line-h">Item</h2>
+      <div id="f-line-held">
+        <div class="reg-qty">
+          <button class="reg-btn reg-btn--sq" type="button" data-q="-1" aria-label="One less">−</button>
+          <output class="reg-qty__n" id="f-line-qty">1</output>
+          <button class="reg-btn reg-btn--sq" type="button" data-q="1" aria-label="One more">+</button>
+        </div>
+        <fieldset class="reg-fieldset"><legend>Seat</legend><div class="reg-chips" id="f-line-seats"></div></fieldset>
+        <label class="reg-field">Note for the cook<input class="reg-input" id="f-line-note" maxlength="140" placeholder="No onions, side of fries…"></label>
+      </div>
+      <div id="f-line-sent">
+        <p class="reg-muted">Already sent to the grill. Void it to take it off the check. The grill ticket gets a VOID note.</p>
+        <fieldset class="reg-fieldset"><legend>Why</legend>
+          <div class="reg-chips" id="f-line-reasons"></div>
+          <input class="reg-input" id="f-line-reason" maxlength="80" placeholder="Or type a reason" aria-label="Void reason">
+        </fieldset>
+      </div>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Close</button>
+        <button class="reg-btn reg-btn--stop" type="button" id="f-line-remove">Remove</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok" id="f-line-save">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Payment -->
+  <dialog class="reg-dlg reg-dlg--wide" id="d-pay" aria-labelledby="d-pay-h">
+    <form method="dialog" class="reg-dlg__body" id="f-pay">
+      <h2 class="reg-dlg__h" id="d-pay-h">Pay</h2>
+      <p class="reg-pay__bal">Balance <strong id="f-pay-bal"></strong></p>
+      <div class="reg-chips" role="group" aria-label="Split evenly">
+        <button class="reg-chip" type="button" data-split="1">All</button>
+        <button class="reg-chip" type="button" data-split="2">÷ 2</button>
+        <button class="reg-chip" type="button" data-split="3">÷ 3</button>
+        <button class="reg-chip" type="button" data-split="4">÷ 4</button>
+      </div>
+      <label class="reg-field">Amount toward the check<input class="reg-input reg-input--money" id="f-pay-amount" inputmode="decimal" autocomplete="off"></label>
+      <fieldset class="reg-fieldset">
+        <legend>Paid with</legend>
+        <div class="reg-seg" role="radiogroup">
+          <label class="reg-seg__opt"><input type="radio" name="tender" value="cash" checked> Cash</label>
+          <label class="reg-seg__opt"><input type="radio" name="tender" value="card_external"> Card on the Square reader</label>
+        </div>
+      </fieldset>
+      <div id="f-pay-cash">
+        <fieldset class="reg-fieldset"><legend>They handed you</legend><div class="reg-chips" id="f-pay-quick"></div>
+          <input class="reg-input reg-input--money" id="f-pay-tendered" inputmode="decimal" placeholder="Other amount" aria-label="Cash handed over"></fieldset>
+        <p class="reg-pay__change">Change <strong id="f-pay-change">—</strong></p>
+      </div>
+      <label class="reg-field">Tip<input class="reg-input reg-input--money" id="f-pay-tip" inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
+      <p class="reg-muted" id="f-pay-cardnote" hidden>Run the card on Square's reader first, then record it here with the same amount and tip.</p>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok" id="f-pay-go">Take payment</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Split by item -->
+  <dialog class="reg-dlg" id="d-split" aria-labelledby="d-split-h">
+    <form method="dialog" class="reg-dlg__body" id="f-split">
+      <h2 class="reg-dlg__h" id="d-split-h">Split by item</h2>
+      <p class="reg-muted">Pick what goes on a new check.</p>
+      <ul class="reg-picks" id="f-split-items"></ul>
+      <label class="reg-field">Name the new check<input class="reg-input" id="f-split-label" maxlength="40" placeholder="Seat 2"></label>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok">Move to new check</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Open price -->
+  <dialog class="reg-dlg" id="d-price" aria-labelledby="d-price-h">
+    <form method="dialog" class="reg-dlg__body" id="f-price">
+      <h2 class="reg-dlg__h" id="d-price-h">Price</h2>
+      <p class="reg-muted">No price on file for this one yet. What are you charging?</p>
+      <label class="reg-field">Price<input class="reg-input reg-input--money" id="f-price-amount" inputmode="decimal" required autocomplete="off"></label>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok">Add</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Rename / void check -->
+  <dialog class="reg-dlg" id="d-more" aria-labelledby="d-more-h">
+    <form method="dialog" class="reg-dlg__body" id="f-more">
+      <h2 class="reg-dlg__h" id="d-more-h">Check</h2>
+      <label class="reg-field">Name<input class="reg-input" id="f-more-label" maxlength="40"></label>
+      <label class="reg-field">Where<input class="reg-input" id="f-more-spot" maxlength="40" list="r-spots" placeholder="Booth 2, Bar seat 6"></label>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Close</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok">Save</button>
+      </div>
+      <fieldset class="reg-fieldset reg-danger">
+        <legend>Void the whole check</legend>
+        <input class="reg-input" id="f-more-reason" maxlength="80" placeholder="Why" aria-label="Why void the check">
+        <button class="reg-btn reg-btn--stop" type="button" id="f-more-void">Void check</button>
+      </fieldset>
+    </form>
+  </dialog>
+
+  <datalist id="r-spots">
+    <% for (let n = 1; n <= 10; n++) { %><option value="Bar seat <%= n %>"><% } %>
+    <% for (let n = 1; n <= 5; n++) { %><option value="Booth <%= n %>"><option value="Table <%= n %>"><% } %>
+  </datalist>
+
+  <div class="reg-toast" id="r-toast" role="status" aria-live="polite" hidden></div>
+  <script type="application/json" id="r-state"><%- JSON.stringify(state).replace(/</g, '\\u003c') %></script>
+  <script src="/scripts/register.js" defer></script>
+</body>
+</html>

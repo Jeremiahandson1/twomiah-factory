@@ -15,7 +15,6 @@ export interface MenuItemRow {
   heroImageUrl?: string | null
   isSignature?: boolean | null
   is86ed?: boolean | null
-  squareSoldOut?: boolean | null
   isActive?: boolean | null
 }
 
@@ -48,7 +47,7 @@ function offer(item: MenuItemRow): object | undefined {
     '@type': 'Offer',
     price: (item.priceCents / 100).toFixed(2),
     priceCurrency: 'USD',
-    availability: item.is86ed || item.squareSoldOut ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+    availability: item.is86ed ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
   }
 }
 

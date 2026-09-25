@@ -6,7 +6,7 @@
   var root = document.querySelector('.order[data-app-id]');
   if (!root) return;
   var OPEN = root.getAttribute('data-open') === '1';
-  var KEY = 'amber-order-v1';
+  var KEY = 'amber-order-v2';   // v2: sizes are ours (item + size id); v1 carts held Square ids
   var $ = function (id) { return document.getElementById(id); };
   var msg = $('order-msg'), payBtn = $('pay'), form = $('checkout');
   var cart = load();
@@ -25,18 +25,18 @@
   // Items still on the menu (the page is the truth for what can be added).
   var onMenu = {};
   document.querySelectorAll('.order-add').forEach(function (b) {
-    onMenu[b.getAttribute('data-var')] = true;
+    onMenu[b.getAttribute('data-item') + '|' + b.getAttribute('data-var')] = true;
     if (OPEN) b.disabled = false;
   });
-  cart = cart.filter(function (l) { return onMenu[l.variationId]; });
+  cart = cart.filter(function (l) { return onMenu[l.itemId + '|' + l.sizeId]; });
 
   root.addEventListener('click', function (e) {
     var add = e.target.closest('.order-add');
     if (add && OPEN) {
-      var v = add.getAttribute('data-var');
-      var line = cart.find(function (l) { return l.variationId === v && !l.note; });
+      var v = add.getAttribute('data-var'), itemId = add.getAttribute('data-item');
+      var line = cart.find(function (l) { return l.itemId === itemId && l.sizeId === v && !l.note; });
       if (line) line.qty = Math.min(20, line.qty + 1);
-      else cart.push({ itemId: add.getAttribute('data-item'), variationId: v, qty: 1, note: '', name: add.getAttribute('data-name'), variation: add.getAttribute('data-vname'), priceCents: Number(add.getAttribute('data-price')) });
+      else cart.push({ itemId: itemId, sizeId: v, qty: 1, note: '', name: add.getAttribute('data-name'), variation: add.getAttribute('data-vname'), priceCents: Number(add.getAttribute('data-price')) });
       changed();
       say(add.getAttribute('data-name') + ' added.');
       return;
@@ -97,7 +97,7 @@
 
   function changed() { save(); attemptKey = null; render(); requote(); if (cart.length) loadCard(); }
 
-  function lines() { return cart.map(function (l) { return { itemId: l.itemId, variationId: l.variationId, qty: l.qty, note: l.note }; }); }
+  function lines() { return cart.map(function (l) { return { itemId: l.itemId, sizeId: l.sizeId, qty: l.qty, note: l.note }; }); }
 
   function requote() {
     totals = null; paintTotals();

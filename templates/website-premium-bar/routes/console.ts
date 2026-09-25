@@ -24,7 +24,7 @@ import { addDays, localDateString, localToUtc } from '../lib/hours'
 import { loginRateLimit } from '../lib/security'
 import { onlineOrderingEnabled } from '../lib/square/client'
 import { fireTicket } from '../lib/kitchen/tickets'
-import { variationsFromLabel } from '../lib/square/catalog'
+import { sizesOf } from '../lib/menu/sizes'
 
 const COOKIE = 'bar_console'
 const SESSION_DAYS = 30
@@ -125,8 +125,8 @@ consolePages.use('/login', loginRateLimit())
 consolePages.post('/login', async (c) => {
   const body = await bodyOf(c)
   const pin = String(body.pin || '').replace(/\D/g, '')
-  // Back to where they were headed: the console or the grill screen, never anywhere else.
-  const next = /^\/(console|kitchen)(\/|$)/.test(String(body.next || '')) ? String(body.next) : '/console'
+  // Back to where they were headed: the console, the grill screen or the register, never anywhere else.
+  const next = /^\/(console|kitchen|register)(\/|$)/.test(String(body.next || '')) ? String(body.next) : '/console'
   if (pin.length < 4) return c.redirect('/console/login?error=' + encodeURIComponent('Enter your PIN.'))
   const rows = await db.select().from(staffPins).where(eq(staffPins.isActive, true))
   let match: typeof rows[number] | null = null
@@ -167,7 +167,7 @@ consolePages.get('/', requireStaff, async (c) => {
   const grillSections = sections.filter(sec => sec.isActive).map(sec => ({
     name: sec.name,
     items: items.filter(it => it.sectionId === sec.id && (it.toKitchen ?? (sec.kind !== 'drink'))).map(it => {
-      const vs = (Array.isArray(it.variations) && it.variations.length ? it.variations as Array<{ name: string }> : variationsFromLabel(it.priceCents, it.priceLabel, sec.description))
+      const vs = sizesOf(it, sec.description)
       return {
         id: it.id, name: it.name, is86ed: it.is86ed,
         sizes: vs.map(v => v.name).filter(n => n && n !== 'Regular'),

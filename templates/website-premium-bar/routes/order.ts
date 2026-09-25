@@ -22,7 +22,7 @@ import { bustSiteData, loadSiteData } from '../lib/site-data'
 import { renderBase, viewsDir } from '../lib/render'
 import { toE164 } from '../lib/sms/twilio'
 import { formatCents, onlineOrderingEnabled, squareConfig, verifySquareSignature } from '../lib/square/client'
-import { orderableMenu, paymentErrorMessage, placeOrder, quote, resolveCart } from '../lib/square/orders'
+import { charge, orderableMenu, paymentErrorMessage, resolveCart, totals } from '../lib/square/orders'
 import { handleSquareEvent, webhookCredentials } from '../lib/square/webhook'
 import { fireWebOrder } from '../lib/kitchen/tickets'
 
@@ -105,8 +105,13 @@ function limited(c: Context, max = 30, windowMs = 10 * 60 * 1000): boolean {
 }
 
 async function freshMenu() {
-  bustSiteData()   // 86 and sold-out must be current at the moment of payment
+  bustSiteData()   // 86 must be current at the moment of payment
   return orderableMenu((await loadSiteData()).menu)
+}
+
+async function taxRate(): Promise<number> {
+  const [s] = await db.select({ bps: settingsTbl.taxRateBps }).from(settingsTbl).limit(1)
+  return s?.bps ?? 550
 }
 
 orderApi.post('/order/quote', async (c) => {
@@ -115,12 +120,7 @@ orderApi.post('/order/quote', async (c) => {
   const body = await c.req.json().catch(() => ({})) as Record<string, any>
   const cart = resolveCart(body.lines, await freshMenu())
   if ('error' in cart) return c.json({ error: cart.error }, 400)
-  try {
-    return c.json({ ok: true, ...(await quote(cart.lines)) })
-  } catch (e: any) {
-    console.error('[order] quote failed:', e?.message || e)
-    return c.json({ error: 'Could not price the order. Try again, or call the bar.' }, 502)
-  }
+  return c.json({ ok: true, ...totals(cart.lines, await taxRate()) })
 })
 
 orderApi.post('/order/pay', async (c) => {
@@ -144,16 +144,16 @@ orderApi.post('/order/pay', async (c) => {
   const cart = resolveCart(body.lines, await freshMenu())
   if ('error' in cart) return c.json({ error: cart.error }, 400)
 
-  const lines = cart.lines.map(l => ({ itemId: l.itemId, name: l.name, variation: l.variation, qty: l.qty, note: l.note, priceCents: l.priceCents }))
+  // Stored as the receipt and the grill ticket read it ("variation" = the size's name).
+  const lines = cart.lines.map(l => ({ itemId: l.itemId, name: l.name, variation: l.size, qty: l.qty, note: l.note, priceCents: l.priceCents }))
+  const t = totals(cart.lines, await taxRate())
+  const pickupAt = new Date(Date.now() + live.ordering.prepMinutes * 60000)
   const row = prior || (await db.insert(onlineOrders).values({ idempotencyKey: key, customerName: name, phone, textUpdates: body.textUpdates === true, lines }).returning())[0]
   try {
-    const r = await placeOrder({
-      lines: cart.lines, name, phone, sourceId, idempotencyKey: key, referenceId: row.id,
-      prepMinutes: live.ordering.prepMinutes, pickupNote: 'Website order — ' + name,
-    })
+    const r = await charge({ amountCents: t.totalCents, sourceId, idempotencyKey: key, referenceId: row.id, note: 'Website pickup order — ' + name, phone })
     await db.update(onlineOrders).set({
-      status: 'paid', squareOrderId: r.squareOrderId, squarePaymentId: r.squarePaymentId,
-      subtotalCents: r.subtotalCents, taxCents: r.taxCents, totalCents: r.totalCents, pickupAt: r.pickupAt,
+      status: 'paid', squarePaymentId: r.squarePaymentId,
+      subtotalCents: t.subtotalCents, taxCents: t.taxCents, totalCents: t.totalCents, pickupAt,
       customerName: name, phone, textUpdates: body.textUpdates === true, lines, error: null, updatedAt: new Date(),
     }).where(eq(onlineOrders.id, row.id))
     // Paid → straight onto the grill screen. A failure here must not look like a failed payment.
