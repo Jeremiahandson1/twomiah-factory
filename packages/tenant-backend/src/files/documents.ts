@@ -25,6 +25,13 @@ export interface DocumentDeps {
   tables: DocumentTables
   storage: FileStorage
   authenticate: any
+  /**
+   * Permission guard. REQUIRED, deliberately: this module had NO authorisation of any kind, so every
+   * write was open to any signed-in user of the company — upload, rename, delete, version rollback,
+   * and markups on a drawing. Optional would let a template ship that again in silence; required
+   * means one that forgets does not compile. (T30 debt)
+   */
+  requirePermission: (permission: string) => any
   /** audit hook: (event, actor, meta) */
   audit?: (event: string, actor: { userId: string; companyId: string }, meta: Record<string, unknown>) => void
   options?: {
@@ -60,7 +67,7 @@ const str = (v: unknown, max = 500) => (typeof v === 'string' ? v.trim().slice(0
 const idOrNull = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 export function createDocumentRoutes(deps: DocumentDeps) {
-  const { db, tables: t, storage, authenticate } = deps
+  const { db, tables: t, storage, authenticate, requirePermission } = deps
   const audit = deps.audit || (() => {})
   const maxLimit = deps.options?.maxLimit || 100
   const links: Record<string, any> = deps.options?.links || {}
@@ -99,8 +106,17 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     return { values }
   }
   const app = new Hono()
+
+  /**
+   * Below manager you may change the markup you made, not somebody else's — the same own-or-manager
+   * rule tasks uses. Gating markup edits on documents:update instead would read tidier and would stop
+   * a technician fixing a typo in their own annotation.
+   */
+  const MANAGER_ROLES = new Set(['owner', 'admin', 'manager'])
+  const ownsOrManages = (u: any, markup: any) =>
+    MANAGER_ROLES.has(u?.role) || markup?.createdById === u?.userId
   app.use('*', authenticate)
-  const actor = (c: any) => { const u = c.get('user') as any; return { userId: u.userId, companyId: u.companyId } }
+  const actor = (c: any) => { const u = c.get('user') as any; return { userId: u.userId, companyId: u.companyId, role: u.role } }
 
   // Not every CRM has projects. The contractor lineage does; a roofing or salon CRM hangs a document
   // off a JOB instead, and passing `project: undefined` used to crash the first list request with
@@ -229,7 +245,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
 
   // ---------------------------------------------------------------- upload
 
-  app.post('/', async (c) => {
+  app.post('/', requirePermission('documents:create'), async (c) => {
     const { userId, companyId } = actor(c)
     const body = await parseMultipart(c)
     if (!body) return c.json({ error: 'Expected multipart/form-data with a file.' }, 400)
@@ -258,7 +274,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     return c.json(doc, 201)
   })
 
-  app.post('/bulk', async (c) => {
+  app.post('/bulk', requirePermission('documents:create'), async (c) => {
     const { userId, companyId } = actor(c)
     const body = await parseMultipart(c, true)
     if (!body) return c.json({ error: 'Expected multipart/form-data with files.' }, 400)
@@ -287,7 +303,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
 
   // ---------------------------------------------------------------- update / delete
 
-  app.put('/:id', async (c) => {
+  app.put('/:id', requirePermission('documents:update'), async (c) => {
     const { companyId } = actor(c)
     const doc = await owned(c)
     if (!doc) return c.json({ error: 'Document not found' }, 404)
@@ -311,7 +327,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     return c.json(flat(row))
   })
 
-  app.delete('/:id', async (c) => {
+  app.delete('/:id', requirePermission('documents:delete'), async (c) => {
     const { userId, companyId } = actor(c)
     const doc = await owned(c)
     if (!doc) return c.json({ error: 'Document not found' }, 404)
@@ -372,7 +388,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
     })
 
     // Replace the file: the outgoing file is kept as a version, and the row (path, url, thumbnail) points at the new one.
-    app.post('/:id/versions', async (c) => {
+    app.post('/:id/versions', requirePermission('documents:create'), async (c) => {
       const { userId, companyId } = actor(c)
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
@@ -387,7 +403,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
       return c.json(updated, 201)
     })
 
-    app.post('/:id/versions/:versionId/restore', async (c) => {
+    app.post('/:id/versions/:versionId/restore', requirePermission('documents:update'), async (c) => {
       const { userId, companyId } = actor(c)
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
@@ -422,7 +438,7 @@ export function createDocumentRoutes(deps: DocumentDeps) {
       if (!doc) return c.json({ error: 'Document not found' }, 404)
       return c.json({ data: await db.select().from(m).where(eq(m.documentId, doc.id)).orderBy(desc(m.updatedAt)) })
     })
-    app.post('/:id/markups', async (c) => {
+    app.post('/:id/markups', requirePermission('documents:create'), async (c) => {
       const { userId } = actor(c)
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
@@ -431,9 +447,12 @@ export function createDocumentRoutes(deps: DocumentDeps) {
       const [markup] = await db.insert(m).values({ documentId: doc.id, name: str(body.name, 100) || 'Markup', data: body.data, createdById: userId }).returning()
       return c.json(markup, 201)
     })
-    app.put('/:id/markups/:markupId', async (c) => {
+    app.put('/:id/markups/:markupId', requirePermission('documents:create'), async (c) => {
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
+      const [existing] = await db.select().from(m).where(and(eq(m.id, c.req.param('markupId')), eq(m.documentId, doc.id))).limit(1)
+      if (!existing) return c.json({ error: 'Markup not found' }, 404)
+      if (!ownsOrManages(actor(c), existing)) return c.json({ error: 'You can only change a markup you made' }, 403)
       const body = (await c.req.json().catch(() => null)) ?? {}
       const u: Record<string, unknown> = { updatedAt: new Date() }
       if (typeof body.data === 'string' && body.data.length) u.data = body.data
@@ -442,9 +461,12 @@ export function createDocumentRoutes(deps: DocumentDeps) {
       if (!updated) return c.json({ error: 'Markup not found' }, 404)
       return c.json(updated)
     })
-    app.delete('/:id/markups/:markupId', async (c) => {
+    app.delete('/:id/markups/:markupId', requirePermission('documents:create'), async (c) => {
       const doc = await owned(c)
       if (!doc) return c.json({ error: 'Document not found' }, 404)
+      const [existing] = await db.select().from(m).where(and(eq(m.id, c.req.param('markupId')), eq(m.documentId, doc.id))).limit(1)
+      if (!existing) return c.json({ error: 'Markup not found' }, 404)
+      if (!ownsOrManages(actor(c), existing)) return c.json({ error: 'You can only remove a markup you made' }, 403)
       const deleted = await db.delete(m).where(and(eq(m.id, c.req.param('markupId')), eq(m.documentId, doc.id))).returning()
       if (!deleted.length) return c.json({ error: 'Markup not found' }, 404)
       return c.body(null, 204)

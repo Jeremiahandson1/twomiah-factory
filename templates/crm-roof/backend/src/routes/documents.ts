@@ -13,6 +13,7 @@ import { createDocumentRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { document, documentVersion, contact, job, invoice, user, planMarkup } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import storage from '../services/fileUpload.ts'
 
 // No `audit` hook: unlike the contractor lineage, roof has no audit-log service and its logger has no
@@ -24,6 +25,7 @@ export default createDocumentRoutes({
   tables: { document, documentVersion, contact, user, planMarkup },
   storage,
   authenticate,
+  requirePermission,
   options: {
     types: ['general', 'contract', 'permit', 'warranty', 'insurance', 'scope', 'inspection', 'photo', 'invoice', 'receipt', 'other'],
     links: { jobId: job, contactId: contact, invoiceId: invoice },

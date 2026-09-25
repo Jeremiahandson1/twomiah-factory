@@ -4,6 +4,7 @@ import { createDocumentRoutes } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { document, documentVersion, project, contact, user } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import storage from '../services/fileUpload.ts'
 import logger from '../services/logger.ts'
 
@@ -12,6 +13,7 @@ export default createDocumentRoutes({
   tables: { document, documentVersion, project, contact, user },
   storage,
   authenticate,
+  requirePermission,
   audit: (event, actor, meta) => logger.audit(event, actor.userId, actor.companyId, meta),
   // Only what this vertical actually files — the API used to keep any string it was sent. (roof T18 D4)
   options: { types: ['general', 'contract', 'title', 'inspection', 'photo', 'invoice', 'receipt', 'other'] },
