@@ -33,11 +33,19 @@ const NOT_A_USER = /webhook|inbound|factory-event|\/process|portal\//
 /**
  * Public by design — the customer portal (the token IS the identity), public booking, and auth itself.
  * Named rather than pattern-matched, so adding one is a decision somebody makes on purpose.
+ *
+ * An entry may name a whole file, or one factory inside it as `path#createXRoutes`. ads/ads.ts holds
+ * both an authenticated router and an anonymous one: createAdsPublicRoutes is mounted at
+ * /api/public/ads-experiments with open CORS and no authenticate, because POST /assign hands a
+ * website visitor a sticky A/B variant and POST /convert records that they converted. There is no
+ * user there to authorise, and judging it by the authenticated half put two public endpoints on the
+ * debt list — where following the guard would have meant breaking A/B testing on every premium site.
  */
 const PUBLIC_BY_DESIGN = new Set([
   'packages/tenant-backend/src/portal/portal.ts',
   'packages/tenant-backend/src/booking/routes.ts',
   'packages/tenant-backend/src/auth/auth.ts',
+  'packages/tenant-backend/src/ads/ads.ts#createAdsPublicRoutes',
 ])
 
 /**
@@ -52,7 +60,6 @@ const PUBLIC_BY_DESIGN = new Set([
  * counted as debt. (Field Service T30, triaged after)
  */
 const BASELINE: Record<string, number> = {
-  'packages/tenant-backend/src/ads/ads.ts': 2,
   'packages/tenant-backend/src/files/documents.ts': 9,
   'packages/tenant-backend/src/fleet/fleet.ts': 4,
   'packages/tenant-backend/src/integrations/quickbooks.ts': 3,
@@ -139,10 +146,26 @@ const walk = (rel: string) => {
 walk('packages/tenant-backend/src')
 
 let clean = 0, checked = 0, debt = 0, mounted = 0
+/**
+ * One file can export several routers with opposite contracts, so each is judged on its own: the
+ * block from one `export function createXRoutes` to the next.
+ */
+function factoryBlocks(src: string): { name: string; body: string }[] {
+  const marks = [...src.matchAll(/export function (create\w*Routes)/g)]
+  return marks.map((m, i) => ({
+    name: m[1],
+    body: src.slice(m.index!, i + 1 < marks.length ? marks[i + 1].index! : undefined),
+  }))
+}
+
 for (const rel of files) {
-  const src = stripComments(readFileSync(ROOT + rel, 'utf8').replace(/\r\n/g, '\n'))
-  if (!/export function create\w*Routes/.test(src)) continue
+  const whole = stripComments(readFileSync(ROOT + rel, 'utf8').replace(/\r\n/g, '\n'))
+  if (!/export function create\w*Routes/.test(whole)) continue
   if (PUBLIC_BY_DESIGN.has(rel)) continue
+
+  for (const factory of factoryBlocks(whole)) {
+  if (PUBLIC_BY_DESIGN.has(`${rel}#${factory.name}`)) continue
+  const src = factory.body
 
   const writes = [...src.matchAll(/^\s*app\.(post|put|patch|delete)\(([^\n]*)$/gm)]
     .filter((m) => !NOT_A_USER.test(m[2]))
@@ -176,6 +199,7 @@ for (const rel of files) {
     fail(`${rel}: unauthorised write routes went from ${allowed} to ${unguarded.length} — the debt list is a ceiling, not a licence`)
   } else if (unguarded.length < allowed) {
     fail(`${rel}: down to ${unguarded.length} unauthorised write route(s) from ${allowed} — good, now lower the number in BASELINE (or delete the line at 0) so it cannot creep back`)
+  }
   }
 }
 
