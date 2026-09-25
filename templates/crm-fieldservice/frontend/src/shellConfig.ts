@@ -13,7 +13,7 @@ const NAV: NavItem[] = [
   { to: '/crm/schedule', icon: Calendar, label: 'Schedule', features: ['scheduling'] },
   { to: '/crm/time', icon: Clock, label: 'Time' },
   { to: '/crm/expenses', icon: DollarSign, label: 'Expenses' },
-  { to: '/crm/documents', icon: FolderOpen, label: 'Documents' },
+  { to: '/crm/documents', icon: FolderOpen, label: 'Documents', features: ['documents'] },
   { to: '/crm/team', icon: Users, label: 'Team' },
   { to: '/crm/fleet', icon: Truck, label: 'Fleet', features: ['fleet'] },
   { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'] },
@@ -53,6 +53,20 @@ export const SHELL: ShellConfig = {
   searchPlaceholder: 'Search contacts, service calls, invoices...',
   routeGates: {
     '/crm/reviews': ['google_reviews'],
+    // Reachable by typing the URL, with no sidebar entry to gate them. /crm/geofences rendered and then
+    // logged "Failed to load geofences" against its own 403; the rest are CONSTRUCTION modules the
+    // registry does not offer this vertical at all, so gating on the real feature removes them here
+    // without hardcoding "never" — if one is ever offered to field service, it opens by itself.
+    // (Field Service T28 M1)
+    '/crm/geofences': ['gps_tracking'],
+    '/crm/projects': ['projects'],
+    '/crm/change-orders': ['change_orders'],
+    '/crm/selections': ['selections'],
+    '/crm/lien-waivers': ['lien_waivers'],
+    '/crm/submittal-review': ['submittals'],
+    '/crm/rfis-assigned': ['rfis'],
+    '/crm/shared-documents': ['documents'],
+    '/crm/payment-methods': ['online_payments'],
     // NOT '/crm/pricebook-trial': ['pricebook'].
     //
     // That page exists to sell Pricebook to a tenant who does not have it — the home tile only appears

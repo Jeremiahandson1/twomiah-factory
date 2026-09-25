@@ -238,6 +238,17 @@ app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'
 // so it belongs to the same switch as the tracking itself.
 app.use('/api/geofencing', authenticate, requireEnabledFeature('gps_tracking'))
 app.use('/api/geofencing/*', authenticate, requireEnabledFeature('gps_tracking'))
+// Documents is an optional feature this vertical is offered, and the API was mounted with no gate at
+// all: with the switch off the sidebar still showed Documents and an upload still answered 201. The
+// nav entry was ungated for the same reason — it was written as though the module were core. (T28 M1)
+app.use('/api/documents', authenticate, requireEnabledFeature('documents'))
+app.use('/api/documents/*', authenticate, requireEnabledFeature('documents'))
+// NOT gated: /api/support. T28 M1 reads "POST /api/support/tickets answers 200 with the module off" as a
+// leak, and on its own it looks like one — but that endpoint is also how "Contact Twomiah" (a core,
+// ungated sidebar item) reaches us, and how the Pricebook FREE TRIAL page submits its request. Gating the
+// prefix on support_tickets would take both of those out to close a reporting inconsistency. What was
+// actually wrong is the Help page advertising a Support MODULE the tenant does not have; that is fixed on
+// the page instead. (T28 M1 / L2)
 // `projects` is the CONSTRUCTION module — multi-phase management with draw schedules, AIA pay
 // applications and lien waivers — and the registry offers it to `crm` only. Field service models the
 // same day-to-day work as a JOB, which is what its geofences attach to. Gating on the real feature
