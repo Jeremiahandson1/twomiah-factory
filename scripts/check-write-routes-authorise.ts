@@ -62,7 +62,7 @@ const PUBLIC_BY_DESIGN = new Set([
 const BASELINE: Record<string, number> = {
   'packages/tenant-backend/src/fleet/fleet.ts': 4,
   'packages/tenant-backend/src/integrations/reviews.ts': 3,
-  'packages/tenant-backend/src/integrations/sms.ts': 9,
+  'packages/tenant-backend/src/integrations/sms.ts': 3,
   'packages/tenant-backend/src/warranties/warranties.ts': 1,
 }
 

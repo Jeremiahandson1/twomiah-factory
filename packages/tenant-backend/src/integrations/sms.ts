@@ -383,6 +383,15 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   // ── Webhooks (Twilio, no session) — signature-checked, form-encoded
   // The signing token is the receiving company's own Twilio auth token when it configured one, else the platform's.
   const tokenFor = async (params: Record<string, string>) => deps.twilioAuthToken || (await sms.webhookAuthToken(params))
+  /**
+   * What the company SAYS when nobody is typing: the canned messages and the automatic replies. A
+   * technician does not write those, and an auto-responder answers in the business's name at 3am.
+   * manager and above, the same people who own customer messaging everywhere else. (T30 debt)
+   */
+  const writesTheScript = requirePermission('marketing:update')
+  /** Tidying a thread. Nothing leaves the building, so: whoever may see the customer. */
+  const tidiesTheInbox = requirePermission('contacts:read')
+
   app.post('/webhook/incoming', async (c) => {
     const params = await parseTwilioBody(c)
     const v = verifyTwilioRequest(c, params, await tokenFor(params))
@@ -413,8 +422,8 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     const conversation = await sms.getConversation(c.req.param('id'), ((c as any).get('user')).companyId)
     return conversation ? c.json(conversation) : c.json({ error: 'Conversation not found' }, 404)
   })
-  app.post('/conversations/:id/archive', async (c) => { await sms.archiveConversation(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
-  app.post('/conversations/:id/link', async (c) => {
+  app.post('/conversations/:id/archive', tidiesTheInbox, async (c) => { await sms.archiveConversation(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
+  app.post('/conversations/:id/link', tidiesTheInbox, async (c) => {
     const { contactId } = await c.req.json().catch(() => ({}))
     if (!contactId) return c.json({ error: 'contactId is required' }, 400)
     await sms.linkToContact(c.req.param('id'), ((c as any).get('user')).companyId, contactId)
@@ -432,6 +441,10 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
     if (result?.status === 'failed') return c.json({ error: result.errorMessage || 'Text could not be sent', message: result }, 502)
     return c.json(result)
   }
+  // NOT guarded, and not by oversight. Sending a text reaches a customer and spends from the
+  // messaging wallet, and who may do that is the open question from T30 L-RB: a technician texting
+  // "on my way" is the product working, while contacts:update would stop that in field service and
+  // allow it in salon and vet, which widen the field rung. It is on the debt list until it is decided.
   app.post('/send', async (c) => {
     const user = (c as any).get('user')
     const { contactId, toPhone, message, jobId, templateId } = await c.req.json().catch(() => ({}))
@@ -474,16 +487,16 @@ export function createSmsRoutes(deps: SmsRoutesDeps) {
   })
 
   app.get('/templates', async (c) => c.json(await sms.getTemplates(((c as any).get('user')).companyId, { category: c.req.query('category') })))
-  app.post('/templates', async (c) => {
+  app.post('/templates', writesTheScript, async (c) => {
     const body = await c.req.json().catch(() => ({}))
     if (!body?.name || !body?.message) return c.json({ error: 'name and message are required' }, 400)
     return c.json(await sms.createTemplate(((c as any).get('user')).companyId, body), 201)
   })
-  app.put('/templates/:id', async (c) => { await sms.updateTemplate(c.req.param('id'), ((c as any).get('user')).companyId, await c.req.json().catch(() => ({}))); return c.json({ success: true }) })
-  app.delete('/templates/:id', async (c) => { await sms.deleteTemplate(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
+  app.put('/templates/:id', writesTheScript, async (c) => { await sms.updateTemplate(c.req.param('id'), ((c as any).get('user')).companyId, await c.req.json().catch(() => ({}))); return c.json({ success: true }) })
+  app.delete('/templates/:id', writesTheScript, async (c) => { await sms.deleteTemplate(c.req.param('id'), ((c as any).get('user')).companyId); return c.json({ success: true }) })
 
   app.get('/auto-responders', async (c) => c.json(await sms.getAutoResponders(((c as any).get('user')).companyId)))
-  app.post('/auto-responders', async (c) => {
+  app.post('/auto-responders', writesTheScript, async (c) => {
     const body = await c.req.json().catch(() => ({}))
     if (!body?.name || !body?.trigger || !body?.message) return c.json({ error: 'name, trigger and message are required' }, 400)
     return c.json(await sms.createAutoResponder(((c as any).get('user')).companyId, body), 201)
