@@ -41,6 +41,7 @@ import { partyInquiries as partyInquiriesTbl, serviceStatus } from './db/schema'
 // ASSET_VERSION (cache-busting per deploy) and renderBase (the base.ejs wrapper) live in lib/render.ts.
 import { ASSET_VERSION, renderBase } from './lib/render'
 import { orderPages, orderApi } from './routes/order'
+import { giftCardApi, giftCardPages } from './routes/giftcards'
 import { GuestError, saveGuest } from './lib/crm/guests'
 import { checkUnsubscribeToken, startBirthdayJob, unsubscribe } from './lib/crm/birthday'
 import { kitchenPages, kitchenApi } from './routes/kitchen'
@@ -445,6 +446,9 @@ app.get('/api/live/fresh', async (c) => {
 // ── Pickup ordering (Square) + the Square webhook — dormant until configured ──
 app.route('/order', orderPages)
 app.route('/api', orderApi)
+// ── Gift cards: balance check always; buying online behind GIFT_CARDS_ONLINE=on ──
+app.route('/gift-cards', giftCardPages)
+app.route('/api/gift-cards', giftCardApi)
 // ── The grill screen (staff PIN, same as the console) ──
 app.get('/kitchen/', (c) => c.redirect('/kitchen'))
 app.route('/kitchen', kitchenPages)
@@ -510,6 +514,7 @@ app.get('/sitemap.xml', async (c) => {
       urls.push(`  <url><loc>${escapeXml(origin + '/' + sec.slug + '/' + it.slug)}</loc><lastmod>${lastmod}</lastmod></url>`)
     }
   } catch { /* sitemap must never 500 over menu data */ }
+  urls.push(`  <url><loc>${escapeXml(origin + '/gift-cards')}</loc></url>`)
   if (postRows.length > 0) {
     urls.push(`  <url><loc>${escapeXml(origin + '/blog')}</loc></url>`)
     for (const r of postRows) {
@@ -1028,7 +1033,7 @@ async function renderItemPage(sectionSlug: string, itemSlug: string): Promise<st
 // FULL path in its slug, so loadPage() matches directly and the sitemap emits
 // the nested URL. Falls back to a signature item page. These MUST come after
 // every /api/* and /admin/* route: Hono dispatches the first-registered match.
-const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'kitchen', 'register', 'parties', 'regulars', 'order', '.well-known']
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'kitchen', 'register', 'parties', 'regulars', 'order', 'gift-cards', '.well-known']
 app.get('/:a/:b', async (c, next) => {
   const { a, b } = c.req.param()
   if (NESTED_RESERVED.includes(a)) return next()   // fall through to /admin/*, /console/*, /media/* etc. registered later

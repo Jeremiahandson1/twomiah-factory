@@ -11,7 +11,9 @@
  *   PATCH /api/register/check/:id           { label, spot }
  *   POST /api/register/check/:id/items      { menuItemId, sizeId, qty, note, seat, priceCents }
  *   POST /api/register/check/:id/send
- *   POST /api/register/check/:id/pay        { tender, amountCents, tipCents, cashTenderedCents }
+ *   POST /api/register/check/:id/pay        { tender, amountCents, tipCents, cashTenderedCents, giftCardCode }
+ *   POST /api/register/check/:id/giftcard   { amountCents, code? }  sell a gift card (issued when the check is paid)
+ *   GET  /api/register/giftcard?code=       balance lookup
  *   POST /api/register/check/:id/split      { itemIds, label }
  *   POST /api/register/check/:id/void       { reason }
  *   PATCH /api/register/item/:id            { qty, note, seat }
@@ -26,7 +28,7 @@ import path from 'path'
 import { db } from '../db'
 import { checkItems, menuItems, menuSections, settings as settingsTbl, staffPins } from '../db/schema'
 import { sizesOf } from '../lib/menu/sizes'
-import { addItem, addPayment, attachGuest, CheckError, getCheck, redeemReward, splitBySeat, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
+import { addGiftCardLine, addItem, addPayment, attachGuest, CheckError, getCheck, redeemReward, splitBySeat, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
 import { localDateString, localToUtc } from '../lib/hours'
 import { requireStaff, type Vars } from './console'
 import { managerApproval } from '../lib/register/managers'
@@ -36,6 +38,7 @@ import { EMAIL_CONSENT_TEXT, GuestError, guestProfile, loyaltySettings, saveGues
 import { barTimezone, businessDayOf, loadDay } from '../lib/register/reports'
 import { closeDay, closeoutsFor } from '../lib/register/closeout'
 import { addDays } from '../lib/hours'
+import { findCard } from '../lib/giftcards/cards'
 
 const viewsDir = path.join(import.meta.dir, '..', 'views', 'console')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -202,7 +205,18 @@ registerApi.post('/check/:id/split-seats', (c) => { const i = id(c); return i ? 
 registerApi.post('/check/:id/pay', async (c) => {
   const i = id(c); const b = await body(c)
   if (!i) return c.json({ error: 'Which check?' }, 400)
-  return act(c, async () => { const r = await addPayment(db, i, b as any, who(c)); const { changeCents, ...check } = r; return { check, changeCents } })
+  return act(c, async () => { const r = await addPayment(db, i, b as any, who(c)); const { changeCents, giftCard, ...check } = r; return { check, changeCents, giftCard: giftCard || null } })
+})
+registerApi.post('/check/:id/giftcard', async (c) => {
+  const i = id(c); const b = await body(c)
+  if (!i) return c.json({ error: 'Which check?' }, 400)
+  return act(c, async () => ({ check: await addGiftCardLine(db, i, { amountCents: Number(b.amountCents), code: b.code ? String(b.code) : null }, who(c)) }))
+})
+registerApi.get('/giftcard', async (c) => {
+  c.header('Cache-Control', 'no-store')
+  const card = await findCard(db, c.req.query('code') || '')
+  if (!card) return c.json({ error: 'No gift card with that number.' }, 404)
+  return c.json({ code: card.code, balanceCents: card.balanceCents, status: card.status, initialCents: card.initialCents })
 })
 registerApi.post('/check/:id/split', async (c) => { const i = id(c); const b = await body(c); return i ? act(c, async () => splitItems(db, i, Array.isArray(b.itemIds) ? b.itemIds.map(String) : [], b.label ?? null, who(c))) : c.json({ error: 'Which check?' }, 400) })
 /** Voids that need a manager: food already sent, payments, a check with sent food on it. */
@@ -222,9 +236,10 @@ registerApi.patch('/item/:id', async (c) => { const i = id(c); const b = await b
 registerApi.post('/item/:id/void', async (c) => {
   const i = id(c); const b = await body(c)
   if (!i) return c.json({ error: 'Which item?' }, 400)
-  const [it] = await db.select({ state: checkItems.state }).from(checkItems).where(eq(checkItems.id, i)).limit(1)
+  const [it] = await db.select({ state: checkItems.state, kind: checkItems.kind, giftCardId: checkItems.giftCardId }).from(checkItems).where(eq(checkItems.id, i)).limit(1)
   let by = who(c)
-  if (it?.state === 'sent') { const m = await needManager(c, b); if (m instanceof Response) return m; by = m.by }   // taking a held item back needs no one
+  const unissuedCard = it?.kind === 'giftcard' && !it.giftCardId   // not a real card yet: nothing to protect
+  if (it?.state === 'sent' && !unissuedCard) { const m = await needManager(c, b); if (m instanceof Response) return m; by = m.by }   // taking a held item back needs no one
   return act(c, async () => ({ check: await voidItem(db, i, String(b.reason || ''), by) }))
 })
 registerApi.post('/payment/:id/void', async (c) => {

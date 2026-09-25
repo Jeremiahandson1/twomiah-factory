@@ -4,9 +4,11 @@
   var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, '');
   var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : '';
   var ogImage = settings.logoUrl || settings.heroPhotoUrl || '';
-  // Theme: 'auto' follows prefers-color-scheme (dark-first palette in main.css);
-  // 'dark' / 'light' pin it via data-theme, which wins in both directions.
-  var theme = settings.theme === 'dark' || settings.theme === 'light' ? settings.theme : '';
+  // Theme: the leather cover (main.css "THE COVER") is dark in every mode, so
+  // 'auto' pins the dark palette too. Following a phone's light setting put dark
+  // ink straight on black leather (intro text, nav) and failed contrast.
+  // 'light' is still honoured when the owner picks it on purpose.
+  var theme = settings.theme === 'light' ? 'light' : 'dark';
   // Typography from settings. Each family also needs a real fallback stack in
   // CSS (main.css) — these vars only override the family name.
   var fD = settings.fontDisplay || 'Limelight';
@@ -41,7 +43,7 @@
   };
   function stack(n, generic) { var f = fallback[n]; return q(n) + (f ? ", '" + n + " Fallback', " : ", ") + generic; }
 %><!doctype html>
-<html lang="en"<%= theme ? ' data-theme="' + theme + '"' : '' %>>
+<html lang="en" data-theme="<%= theme %>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">

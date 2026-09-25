@@ -67,12 +67,17 @@
       <div class="reg-seg" role="radiogroup" aria-label="Paid with">
         <label class="reg-seg__opt"><input type="radio" name="ftender" value="cash" checked> Cash</label>
         <label class="reg-seg__opt"><input type="radio" name="ftender" value="card_external"> Card (Square reader)</label>
+        <label class="reg-seg__opt"><input type="radio" name="ftender" value="giftcard"> Gift card</label>
+      </div>
+      <div id="ff-pay-gc" hidden>
+        <label class="reg-field">Gift card number<input class="reg-input" id="ff-pay-gc-code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="AMBR-XXXX-XXXX"></label>
+        <p class="reg-pay__change">On the card <strong id="ff-pay-gc-bal">—</strong></p>
       </div>
       <div id="ff-pay-cash">
         <div class="reg-chips" id="ff-pay-quick" aria-label="Cash handed over"></div>
         <p class="reg-pay__change">Change <strong id="ff-pay-change">—</strong></p>
       </div>
-      <label class="reg-field">Tip<input class="reg-input reg-input--money" id="ff-pay-tip" inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
+      <label class="reg-field" id="ff-pay-tipwrap">Tip<input class="reg-input reg-input--money" id="ff-pay-tip" inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
       <div class="reg-dlg__actions">
         <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
         <button class="reg-btn reg-btn--go" type="submit" value="ok" id="ff-pay-go">Take payment</button>

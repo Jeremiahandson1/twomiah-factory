@@ -1388,3 +1388,19 @@ body { background: transparent; }
 .regulars__consent input { width: 22px; height: 22px; margin-top: 1px; accent-color: var(--brand); flex: none; }
 .regulars__bday { border: 0; padding: 0; margin: 0; }
 .regulars__error { padding: 10px 14px; border: 1px solid var(--oxblood); border-radius: var(--radius); color: color-mix(in srgb, var(--oxblood) 45%, var(--ink)); }
+
+/* Gift cards (shares the order page's layout) */
+.giftcards__amounts { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.giftcards__pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.giftcards__amt { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); cursor: pointer; }
+.giftcards__amt input { width: 20px; height: 20px; accent-color: var(--brand); margin: 0; }
+.giftcards__amt:has(input:checked) { border-color: var(--brand); color: var(--brand); }
+.giftcards__buy input[type="email"], .giftcards__buy input[type="text"] { padding: 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); font: inherit; font-size: 16px; background: var(--paper); color: var(--ink); min-height: 48px; }
+#gc-balance input { padding: 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); font: inherit; font-size: 16px; background: var(--paper); color: var(--ink); min-height: 48px; text-transform: uppercase; }
+#gc-balance input::placeholder { text-transform: none; color: var(--muted); }
+.giftcards__balance { margin: 14px 0 0; color: var(--ink); font-size: 18px; }
+.giftcards__balance:empty { display: none; }
+.giftcards__done { background: var(--white); border: 1px solid var(--brand); border-radius: var(--radius); padding: 24px; }
+.giftcards__code { font-size: 28px; color: var(--brand); letter-spacing: .04em; margin: 4px 0 12px; }
+.giftcards [hidden] { display: none !important; }   /* .parties__field's display:flex would otherwise show hidden fields */
+#gc-balance .btn { min-height: 48px; }

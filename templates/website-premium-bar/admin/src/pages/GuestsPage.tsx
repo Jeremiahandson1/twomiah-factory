@@ -42,7 +42,7 @@ function LoyaltyCard() {
         <div><Label htmlFor="ly-rv">Reward is worth ($)</Label><input id="ly-rv" className="input" inputMode="decimal" value={(l.rewardCents / 100).toFixed(2)} onChange={(e) => setL({ ...l, rewardCents: Math.round(Number(e.target.value.replace(/[^\d.]/g, '')) * 100) || 0 })} /></div>
       </div>
       <Hint>Right now: {l.enabled ? `${l.pointsPerDollar} point${l.pointsPerDollar === 1 ? '' : 's'} per dollar; ${l.rewardPoints} points is ${money(l.rewardCents)} off. That works out to about ${((l.rewardCents * l.pointsPerDollar) / l.rewardPoints).toFixed(1)}% back on food and drink.` : 'off.'}</Hint>
-      <button type="button" className="btn-primary inline-flex items-center mt-3" onClick={save}>Save terms</button>
+      <button type="button" className="btn-primary btn-md inline-flex items-center mt-3" onClick={save}>Save terms</button>
     </section>
   )
 }
@@ -81,9 +81,9 @@ function BirthdayCard() {
         </div>
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
-        <button type="button" className="btn-primary inline-flex items-center" onClick={() => save({ ...b, enabled: !b.enabled })} disabled={!b.enabled && !b.message.trim()}>{b.enabled ? 'Turn off' : 'Turn on'}</button>
-        <button type="button" className="btn-secondary inline-flex items-center" onClick={() => save(b)}>Save</button>
-        <button type="button" className="btn-secondary inline-flex items-center" onClick={test} disabled={!b.message.trim()}>Send me a test</button>
+        <button type="button" className="btn-primary btn-md inline-flex items-center" onClick={() => save({ ...b, enabled: !b.enabled })} disabled={!b.enabled && !b.message.trim()}>{b.enabled ? 'Turn off' : 'Turn on'}</button>
+        <button type="button" className="btn-secondary btn-md inline-flex items-center" onClick={() => save(b)}>Save</button>
+        <button type="button" className="btn-secondary btn-md inline-flex items-center" onClick={test} disabled={!b.message.trim()}>Send me a test</button>
         <span className="text-sm self-center text-muted">Now: {b.enabled ? 'on' : 'off'}</span>
       </div>
     </section>
@@ -132,13 +132,13 @@ function GuestPanel({ id, onClose, onChanged }: { id: string; onClose: () => voi
         <div><Label htmlFor="g-bd">Day</Label><input id="g-bd" className="input" inputMode="numeric" value={form.birthdayDay || ''} onChange={(e) => setForm({ ...form, birthdayDay: e.target.value })} /></div>
         <div className="col-span-2"><Label htmlFor="g-note">Note for the bar</Label><input id="g-note" className="input" value={form.note || ''} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
       </div>
-      <button type="button" className="btn-primary inline-flex items-center mt-3" onClick={save}>Save details</button>
+      <button type="button" className="btn-primary btn-md inline-flex items-center mt-3" onClick={save}>Save details</button>
 
       <h3 className="text-sm font-semibold text-ink mt-6 mb-2">Adjust points</h3>
       <div className="grid grid-cols-[100px_1fr_auto] gap-2 items-end">
         <div><Label htmlFor="g-pts">Points</Label><input id="g-pts" className="input" inputMode="numeric" placeholder="25 or -25" value={pts.points} onChange={(e) => setPts({ ...pts, points: e.target.value })} /></div>
         <div><Label htmlFor="g-why">Why</Label><input id="g-why" className="input" placeholder="Made up for a long wait" value={pts.reason} onChange={(e) => setPts({ ...pts, reason: e.target.value })} /></div>
-        <button type="button" className="btn-secondary" onClick={adjust} disabled={!pts.points || !pts.reason}>Apply</button>
+        <button type="button" className="btn-secondary btn-md" onClick={adjust} disabled={!pts.points || !pts.reason}>Apply</button>
       </div>
 
       <h3 className="text-sm font-semibold text-ink mt-6 mb-2">Recent visits</h3>
@@ -174,7 +174,7 @@ export function GuestsPage() {
           <h1 className="text-3xl text-ink">Guests</h1>
           <p className="text-muted text-sm mt-1">The Regulars{data ? `: ${data.total} on the list, ${data.emailable} who said yes to email` : ''}.</p>
         </div>
-        <a className="btn-secondary inline-flex items-center gap-2" href="/api/admin/guests/emails.csv" download><Download className="w-4 h-4" />Email list (CSV)</a>
+        <a className="btn-secondary btn-md inline-flex items-center gap-2" href="/api/admin/guests/emails.csv" download><Download className="w-4 h-4" />Email list (CSV)</a>
       </div>
       <LoyaltyCard />
       <BirthdayCard />

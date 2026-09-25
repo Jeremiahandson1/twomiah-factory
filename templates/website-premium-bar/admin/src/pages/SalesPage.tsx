@@ -14,6 +14,7 @@ interface Summary {
   byHour: Array<{ hour: number; label: string; totalCents: number; checks: number }>
   voids: Array<{ kind: string; what: string; amountCents: number; reason: string; by: string | null; checkNumber: number }>
   cash: { salesCents: number; tipsCents: number; inCents: number }
+  giftCardsSold?: { count: number; cents: number }
 }
 interface Close { id: string; closedAt: string; closedBy: string | null; cashExpectedCents: number; cashCountedCents: number | null; overShortCents: number | null; note: string | null; emailedAt: string | null }
 interface SalesResp { day: string; today: string; summary: Summary; open: Array<{ id: string; number: number; label: string; balanceCents: number }>; closes: Close[]; trend: Array<{ day: string; totalCents: number; checks: number; tipsCents: number }> }
@@ -100,7 +101,9 @@ export function SalesPage() {
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <Table title="Sales" empty="No sales." rows={[
-          ['Food & drink', money(s.subtotalCents)], ['Sales tax', money(s.taxCents)], ['Total', money(s.totalCents)],
+          ['Food & drink', money(s.subtotalCents)], ['Sales tax', money(s.taxCents)],
+          ...(s.giftCardsSold?.count ? [[`Gift cards sold (${s.giftCardsSold.count})`, money(s.giftCardsSold.cents), 'Owed back later; not a sale'] as [string, string, string]] : []),
+          ['Total', money(s.totalCents)],
           ...s.byChannel.map((c) => [`${c.channel} (${c.count})`, money(c.totalCents)] as [string, string]),
         ]} />
         <Table title="By payment" empty="No payments." rows={s.byTender.map((t) => [`${t.label} (${t.count})`, money(t.amountCents) + (t.tipsCents ? ' + ' + money(t.tipsCents) : '')])} />

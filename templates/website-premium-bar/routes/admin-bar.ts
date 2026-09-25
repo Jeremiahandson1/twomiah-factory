@@ -11,11 +11,16 @@
  *   POST  /guests/:id/points         { points, reason } adjust (logged)
  *   GET   /loyalty                   the Regulars terms
  *   PUT   /loyalty                   { enabled, pointsPerDollar, rewardPoints, rewardCents }
+ *   GET   /giftcards?q=&status=      cards + what's still owed on them
+ *   GET   /giftcards/:id             one card and its history
+ *   POST  /giftcards/:id/adjust      { cents, reason }  (+ adds, − takes off; logged)
+ *   POST  /giftcards/:id/void        { reason }
  */
 import { Hono } from 'hono'
 import { and, asc, desc, eq, gte, ilike, isNull, lt, or, sql } from 'drizzle-orm'
 import { db } from '../db'
-import { checkItems, checks, guests, loyaltyLedger, settings as settingsTbl, subscribers } from '../db/schema'
+import { checkItems, checks, giftCardLedger, giftCards, guests, loyaltyLedger, settings as settingsTbl, subscribers } from '../db/schema'
+import { adjustCard, cardHistory, GiftCardError, normalizeCode, voidCard } from '../lib/giftcards/cards'
 import { addDays } from '../lib/hours'
 import { barTimezone, businessDayOf, dayWindow, loadDay } from '../lib/register/reports'
 import { closeoutsFor } from '../lib/register/closeout'
@@ -218,6 +223,59 @@ export function barAdminRoutes(auth: any, requireAdmin: any, audit: (c: any, e: 
     const origin = process.env.SITE_ORIGIN || process.env.SITE_URL || s?.siteOrigin || ''
     const ok = await sendEmail({ to, subject: '[Test] ' + cfg.subject, html: birthdayEmailHtml({ company: s?.companyName || 'The bar', name: 'Test Guest', message: cfg.message, address: [s?.streetAddress, s?.addressLocality, s?.addressRegion].filter(Boolean).join(', '), unsubUrl: unsubscribeUrl(origin, to) }) })
     return ok ? c.json({ ok: true, to }) : c.json({ error: 'The email service refused it. Check the sender setup.' }, 502)
+  })
+
+  // ── Gift cards ───────────────────────────────────────────────────────────
+  app.get('/giftcards', auth, requireAdmin, async (c) => {
+    const q = String(c.req.query('q') || '').trim().slice(0, 60)
+    const status = c.req.query('status') === 'void' ? 'void' : c.req.query('status') === 'all' ? null : 'active'
+    const conds: any[] = []
+    if (status) conds.push(eq(giftCards.status, status))
+    if (q) {
+      const code = normalizeCode(q)
+      conds.push(or(ilike(giftCards.code, `%${code || q}%`), ilike(giftCards.purchaserName, `%${q}%`), ilike(giftCards.recipientName, `%${q}%`), ilike(giftCards.purchaserEmail, `%${q}%`), ilike(giftCards.recipientEmail, `%${q}%`)))
+    }
+    const rows = await db.select().from(giftCards).where(conds.length ? and(...conds) : undefined).orderBy(desc(giftCards.createdAt)).limit(200)
+    const [t] = await db.select({
+      count: sql<number>`count(*) filter (where ${giftCards.status} = 'active' and ${giftCards.balanceCents} > 0)::int`,
+      owedCents: sql<number>`coalesce(sum(${giftCards.balanceCents}) filter (where ${giftCards.status} = 'active'), 0)::int`,
+      soldCents: sql<number>`coalesce(sum(${giftCards.initialCents}), 0)::int`,
+    }).from(giftCards)
+    c.header('Cache-Control', 'no-store')
+    return c.json({ cards: rows, totals: t })
+  })
+  app.get('/giftcards/:id', auth, requireAdmin, async (c) => {
+    const id = c.req.param('id')
+    if (!UUID.test(id)) return c.json({ error: 'Which card?' }, 400)
+    const [card] = await db.select().from(giftCards).where(eq(giftCards.id, id)).limit(1)
+    if (!card) return c.json({ error: 'No such card.' }, 404)
+    const history = await cardHistory(db, id)
+    const checkIds = [...new Set(history.map(h => h.checkId).filter(Boolean) as string[])]
+    const nums = checkIds.length ? await db.select({ id: checks.id, number: checks.number, label: checks.label }).from(checks).where(or(...checkIds.map(x => eq(checks.id, x)))) : []
+    const byId = new Map(nums.map(n => [n.id, n]))
+    return c.json({ card, history: history.map(h => ({ ...h, check: h.checkId ? byId.get(h.checkId) || null : null })) })
+  })
+  const who = (c: any) => String(c.get('userEmail') || 'admin')
+  app.post('/giftcards/:id/adjust', auth, requireAdmin, async (c) => {
+    const id = c.req.param('id')
+    if (!UUID.test(id)) return c.json({ error: 'Which card?' }, 400)
+    const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
+    try {
+      const card = await adjustCard(db, id, Number(b.cents), String(b.reason || ''), who(c))
+      await audit(c, { action: 'giftcard.adjust', target: card.code, meta: { cents: Number(b.cents), reason: b.reason } })
+      return c.json({ ok: true, card })
+    } catch (e) { if (e instanceof GiftCardError) return c.json({ error: e.message }, e.status as any); throw e }
+  })
+  app.post('/giftcards/:id/void', auth, requireAdmin, async (c) => {
+    const id = c.req.param('id')
+    if (!UUID.test(id)) return c.json({ error: 'Which card?' }, 400)
+    const b = await c.req.json().catch(() => ({})) as Record<string, unknown>
+    try {
+      await voidCard(db, id, String(b.reason || ''), who(c))
+      const [card] = await db.select().from(giftCards).where(eq(giftCards.id, id)).limit(1)
+      await audit(c, { action: 'giftcard.void', target: card?.code, meta: { reason: b.reason } })
+      return c.json({ ok: true, card })
+    } catch (e) { if (e instanceof GiftCardError) return c.json({ error: e.message }, e.status as any); throw e }
   })
 
   return app

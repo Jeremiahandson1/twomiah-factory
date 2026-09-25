@@ -588,7 +588,8 @@ export const checkItems = pgTable('check_items', {
   note: text('note'),
   seat: integer('seat'),
   toKitchen: boolean('to_kitchen').notNull().default(true),
-  kind: text('kind').notNull().default('item'),     // 'item' | 'reward' (a Regulars reward: negative price; points come back if it's removed)
+  kind: text('kind').notNull().default('item'),     // 'item' | 'reward' (Regulars reward, negative) | 'giftcard' (a card sold; not taxed)
+  giftCardId: uuid('gift_card_id'),                 // the card this line issued (set when the check is paid)
   state: text('state').notNull().default('held'),   // 'held' | 'sent' | 'void'
   ticketId: uuid('ticket_id'),
   voidReason: text('void_reason'),
@@ -603,7 +604,8 @@ export const checkItems = pgTable('check_items', {
 export const checkPayments = pgTable('check_payments', {
   id: uuid('id').primaryKey().defaultRandom(),
   checkId: uuid('check_id').notNull().references(() => checks.id, { onDelete: 'cascade' }),
-  tender: text('tender').notNull(),                 // 'cash' | 'card_external' (run on Square's own reader) | 'card_online' (/order) | 'card' (our Square SDK, Phase B)
+  tender: text('tender').notNull(),                 // 'cash' | 'card_external' (Square reader) | 'card_online' (/order) | 'giftcard' | 'card' (our Square SDK)
+  giftCardId: uuid('gift_card_id'),                 // tender 'giftcard': the card it came off
   amountCents: integer('amount_cents').notNull(),   // toward the check, tip not included
   tipCents: integer('tip_cents').notNull().default(0),
   cashTenderedCents: integer('cash_tendered_cents'),
@@ -634,6 +636,49 @@ export const closeouts = pgTable('closeouts', {
   emailedAt: timestamp('emailed_at', { withTimezone: true }),
 }, (t) => ({
   dayIdx: index('closeouts_day_idx').on(t.businessDay),
+}))
+
+// ═══ GIFT CARDS ═══════════════════════════════════════════════════════════
+// Our own stored value. No expiration and no fees, ever (federal rule: not
+// within 5 years; none is simplest). A sale is not revenue until it's spent,
+// so reports keep "gift cards sold" apart from sales. Every change to a
+// balance is a ledger row; balance_cents is the running total.
+export const giftCards = pgTable('gift_cards', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull(),                     // "AMBR-7K2Q-9XMP" (or a pre-printed card's number)
+  initialCents: integer('initial_cents').notNull(),
+  balanceCents: integer('balance_cents').notNull(),
+  status: text('status').notNull().default('active'),   // 'active' | 'void'
+  soldVia: text('sold_via').notNull(),              // 'register' | 'online'
+  soldBy: text('sold_by'),
+  checkId: uuid('check_id'),
+  purchaserName: text('purchaser_name'),
+  purchaserEmail: text('purchaser_email'),
+  recipientName: text('recipient_name'),
+  recipientEmail: text('recipient_email'),
+  message: text('message'),
+  squarePaymentId: text('square_payment_id'),
+  idempotencyKey: text('idempotency_key'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+  voidReason: text('void_reason'),
+}, (t) => ({
+  codeIdx: uniqueIndex('gift_cards_code_idx').on(t.code),
+  keyIdx: uniqueIndex('gift_cards_key_idx').on(t.idempotencyKey),
+}))
+
+export const giftCardLedger = pgTable('gift_card_ledger', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  cardId: uuid('card_id').notNull().references(() => giftCards.id, { onDelete: 'cascade' }),
+  amountCents: integer('amount_cents').notNull(),   // + issued / refunded back, − spent
+  kind: text('kind').notNull(),                     // 'issue' | 'redeem' | 'refund' | 'adjust' | 'void'
+  checkId: uuid('check_id'),
+  paymentId: uuid('payment_id'),
+  by: text('by'),
+  note: text('note'),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  cardIdx: index('gift_card_ledger_card_idx').on(t.cardId, t.at),
 }))
 
 // ═══ THE CRM ═══════════════════════════════════════════════════════════════

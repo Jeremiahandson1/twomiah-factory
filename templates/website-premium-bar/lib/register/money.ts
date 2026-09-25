@@ -5,13 +5,16 @@
  */
 import { taxOn } from '../menu/sizes'
 
-export interface MoneyItem { qty: number; unitPriceCents: number; state: string }
+export interface MoneyItem { qty: number; unitPriceCents: number; state: string; kind?: string }
 export interface MoneyPayment { amountCents: number; tipCents: number; voidedAt?: Date | string | null }
 export interface CheckTotals { subtotalCents: number; taxCents: number; totalCents: number; paidCents: number; tipCents: number; balanceCents: number }
 
 export function checkTotals(items: MoneyItem[], payments: MoneyPayment[], taxRateBps: number): CheckTotals {
-  const subtotalCents = items.filter(i => i.state !== 'void').reduce((s, i) => s + i.qty * i.unitPriceCents, 0)
-  const taxCents = taxOn(subtotalCents, taxRateBps)
+  const liveItems = items.filter(i => i.state !== 'void')
+  const subtotalCents = liveItems.reduce((s, i) => s + i.qty * i.unitPriceCents, 0)
+  // A gift card sold is stored money, not a sale: no tax on it (the food is taxed when it's spent).
+  const taxable = liveItems.filter(i => i.kind !== 'giftcard').reduce((s, i) => s + i.qty * i.unitPriceCents, 0)
+  const taxCents = taxOn(Math.max(0, taxable), taxRateBps)
   const totalCents = subtotalCents + taxCents
   const live = payments.filter(p => !p.voidedAt)
   const paidCents = live.reduce((s, p) => s + p.amountCents, 0)

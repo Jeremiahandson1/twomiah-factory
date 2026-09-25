@@ -1,0 +1,92 @@
+<%
+  // /gift-cards — check a balance (a plain form, works with JS off) and, when
+  // GIFT_CARDS_ONLINE=on, buy one with Square's card form (giftcards.js).
+  const tel = String(settings.phone || '').replace(/[^\d+]/g, '')
+  const money = (c) => '$' + (c / 100).toFixed(2)
+  const amounts = [2500, 5000, 7500, 10000]
+%>
+<section class="order giftcards" aria-labelledby="gc-heading"
+  <% if (square) { %>data-app-id="<%= square.applicationId %>" data-location-id="<%= square.locationId %>" data-sdk="<%= square.sdkUrl %>"<% } %>>
+  <div class="container">
+    <div class="section-head section-head--left">
+      <div class="eyebrow">Gift cards</div>
+      <h1 class="section-title" id="gc-heading">A burger and a beer, paid ahead</h1>
+      <p class="section-intro">Any amount from $5 to $500. Good on food, drink and anything else at the bar. They don't expire and there are no fees.</p>
+    </div>
+
+    <div class="order__layout">
+      <div>
+        <% if (online) { %>
+          <form class="order__form parties__form giftcards__buy" id="gc-buy" novalidate>
+            <fieldset class="giftcards__amounts">
+              <legend class="parties__label">Amount</legend>
+              <div class="giftcards__pick">
+                <% for (const a of amounts) { %>
+                  <label class="giftcards__amt"><input type="radio" name="amount" value="<%= a %>"<%= a === 5000 ? ' checked' : '' %>> <span class="mono"><%= money(a) %></span></label>
+                <% } %>
+                <label class="giftcards__amt giftcards__amt--other"><input type="radio" name="amount" value="other"> <span>Other</span></label>
+              </div>
+              <div class="parties__field" id="gc-other-wrap" hidden>
+                <label class="parties__label" for="gc-other">Other amount, in dollars</label>
+                <input id="gc-other" type="text" inputmode="decimal" placeholder="40">
+              </div>
+            </fieldset>
+            <div class="parties__field">
+              <label class="parties__label" for="gc-to-name">Who's it for</label>
+              <input id="gc-to-name" type="text" autocomplete="off" maxlength="60">
+            </div>
+            <div class="parties__field">
+              <label class="parties__label" for="gc-to-email">Their email (optional, we send them the number)</label>
+              <input id="gc-to-email" type="email" autocomplete="off" maxlength="120">
+            </div>
+            <div class="parties__field">
+              <label class="parties__label" for="gc-msg">A note (optional)</label>
+              <input id="gc-msg" type="text" maxlength="300">
+            </div>
+            <div class="parties__field">
+              <label class="parties__label" for="gc-from-name">Your name</label>
+              <input id="gc-from-name" type="text" autocomplete="name" required maxlength="60">
+            </div>
+            <div class="parties__field">
+              <label class="parties__label" for="gc-from-email">Your email</label>
+              <input id="gc-from-email" type="email" autocomplete="email" required maxlength="120">
+            </div>
+            <div class="parties__field">
+              <span class="parties__label" id="gc-card-label">Card</span>
+              <div class="order__card" id="gc-card" aria-labelledby="gc-card-label"></div>
+            </div>
+            <button class="btn btn--primary btn--xl order__pay" id="gc-pay" type="submit" disabled>Buy</button>
+            <p class="order__fine">Charged by <%= settings.companyName %> through Square. Card details go straight to Square, not to us.</p>
+            <p class="order__msg" id="gc-msg-out" role="alert" aria-live="assertive"></p>
+          </form>
+          <div class="giftcards__done" id="gc-done" hidden tabindex="-1">
+            <h2 class="order__cart-title">Done.</h2>
+            <p>The card number is</p>
+            <p class="giftcards__code mono" id="gc-code"></p>
+            <p id="gc-done-note"></p>
+          </div>
+          <noscript><p class="order__noscript">Buying online needs JavaScript for the card form. Stop in or call <a href="tel:<%= tel %>"><%= settings.phone %></a>.</p></noscript>
+        <% } else { %>
+          <div class="order__status">
+            <strong>Sold at the bar.</strong> Any amount, on the spot. Ask whoever's pouring<% if (tel) { %>, or call <a href="tel:<%= tel %>"><%= settings.phone %></a><% } %>.
+          </div>
+        <% } %>
+      </div>
+
+      <aside class="order__cart" aria-labelledby="bal-heading">
+        <div class="order__cart-inner">
+          <h2 class="order__cart-title" id="bal-heading">Check a balance</h2>
+          <form class="order__form" method="post" action="/gift-cards/balance" id="gc-balance">
+            <div class="parties__field">
+              <label class="parties__label" for="gc-code-in">Card number</label>
+              <input id="gc-code-in" name="code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="24" placeholder="AMBR-XXXX-XXXX" value="<%= typeof lookup !== 'undefined' && lookup && lookup.code ? lookup.code : '' %>">
+            </div>
+            <button class="btn btn--outline" type="submit">Check</button>
+          </form>
+          <p class="giftcards__balance" id="gc-balance-out" role="status" aria-live="polite"><% if (typeof lookup !== 'undefined' && lookup) { %><%= lookup.error ? lookup.error : money(lookup.balanceCents) + ' left on ' + lookup.code + '.' %><% } %></p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+<% if (online) { %><script src="/scripts/giftcards.js" defer></script><% } %>

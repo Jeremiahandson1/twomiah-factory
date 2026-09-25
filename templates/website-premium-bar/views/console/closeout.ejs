@@ -103,6 +103,7 @@
         <table class="co-table">
           <tr><td>Food &amp; drink</td><td class="n"><%= m(s.subtotalCents) %></td></tr>
           <tr><td>Sales tax</td><td class="n"><%= m(s.taxCents) %></td></tr>
+          <% if (s.giftCardsSold && s.giftCardsSold.count) { %><tr><td>Gift cards sold (<%= s.giftCardsSold.count %>)</td><td class="n"><%= m(s.giftCardsSold.cents) %></td></tr><% } %>
           <tr><td><strong>Total</strong></td><td class="n"><strong><%= m(s.totalCents) %></strong></td></tr>
           <% for (const ch of s.byChannel) { %><tr><td><%= ch.channel %> (<%= ch.count %>)</td><td class="n"><%= m(ch.totalCents) %></td></tr><% } %>
         </table>

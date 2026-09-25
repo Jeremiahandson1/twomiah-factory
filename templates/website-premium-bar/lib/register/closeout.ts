@@ -54,7 +54,7 @@ export function closeoutEmail(company: string, s: DaySummary, row: typeof closeo
     <h2 style="margin:6px 0 16px;font-size:22px;">${esc(s.day)} · ${esc(formatMoney(s.totalCents))}</h2>
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px;">
       ${tr('Checks', String(s.checksPaid))}${tr('Average check', formatMoney(s.averageCheckCents))}
-      ${tr('Food & drink', formatMoney(s.subtotalCents))}${tr('Sales tax', formatMoney(s.taxCents))}${tr('Total', formatMoney(s.totalCents), true)}${tr('Tips', formatMoney(s.tipsCents))}
+      ${tr('Food & drink', formatMoney(s.subtotalCents))}${tr('Sales tax', formatMoney(s.taxCents))}${s.giftCardsSold?.count ? tr(`Gift cards sold (${s.giftCardsSold.count})`, formatMoney(s.giftCardsSold.cents)) : ''}${tr('Total', formatMoney(s.totalCents), true)}${tr('Tips', formatMoney(s.tipsCents))}
     </table>
     <h3 style="font-size:15px;margin:18px 0 6px;">By payment</h3>
     <table width="100%" cellpadding="0" cellspacing="0" style="font-size:15px;">${s.byTender.map(t => tr(`${t.label} (${t.count})`, formatMoney(t.amountCents) + (t.tipsCents ? ' + ' + formatMoney(t.tipsCents) + ' tips' : ''))).join('')}</table>

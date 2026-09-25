@@ -163,7 +163,8 @@
   var tendered = null;
   function payTender() { var r = document.querySelector('input[name="ftender"]:checked'); return r ? r.value : 'cash'; }
   function drawPay() {
-    var cash = payTender() === 'cash'; $('ff-pay-cash').hidden = !cash;
+    var cash = payTender() === 'cash', gc = payTender() === 'giftcard'; $('ff-pay-cash').hidden = !cash;
+    $('ff-pay-gc').hidden = !gc; $('ff-pay-tipwrap').hidden = gc; if (gc) $('ff-pay-tip').value = '';
     var due = (toCents($('ff-pay-amount').value) || 0) + (toCents($('ff-pay-tip').value) || 0);
     var q = [due]; [100, 500, 1000, 2000].forEach(function (st) { var v = Math.ceil(due / st) * st; if (q.indexOf(v) < 0) q.push(v); });
     q = q.filter(function (v) { return v >= due && v - due <= 10000; }).sort(function (a, b) { return a - b; }).slice(0, 4);
@@ -172,7 +173,7 @@
   }
   function openPay() {
     tendered = null; $('ff-pay-bal').textContent = money(current.totals.balanceCents);
-    $('ff-pay-amount').value = (current.totals.balanceCents / 100).toFixed(2); $('ff-pay-tip').value = '';
+    $('ff-pay-amount').value = (current.totals.balanceCents / 100).toFixed(2); $('ff-pay-tip').value = ''; $('ff-pay-gc-code').value = ''; $('ff-pay-gc-bal').textContent = '—';
     document.querySelector('input[name="ftender"][value="cash"]').checked = true; drawPay(); $('fd-pay').showModal();
   }
   $('fd-pay').addEventListener('click', function (e) {
@@ -181,13 +182,22 @@
   });
   ['ff-pay-amount', 'ff-pay-tip'].forEach(function (id) { $(id).addEventListener('input', function () { tendered = null; drawPay(); }); });
   document.querySelectorAll('input[name="ftender"]').forEach(function (r) { r.addEventListener('change', drawPay); });
+  var gcTimer = null;
+  $('ff-pay-gc-code').addEventListener('input', function () {
+    clearTimeout(gcTimer); var code = $('ff-pay-gc-code').value, out = $('ff-pay-gc-bal');
+    if (code.replace(/[^A-Za-z0-9]/g, '').length < 6) { out.textContent = '—'; return; }
+    gcTimer = setTimeout(function () {
+      api('GET', '/api/register/giftcard?code=' + encodeURIComponent(code)).then(function (j) { out.textContent = j.status === 'active' ? money(j.balanceCents) : 'voided'; }).catch(function () { out.textContent = 'no such card'; });
+    }, 300);
+  });
   $('ff-pay').addEventListener('submit', function (e) {
     if (e.submitter && e.submitter.value === 'cancel') return; e.preventDefault();
     var body = { tender: payTender(), amountCents: toCents($('ff-pay-amount').value), tipCents: toCents($('ff-pay-tip').value) || 0 };
     if (body.tender === 'cash' && tendered !== null) body.cashTenderedCents = tendered;
+    if (body.tender === 'giftcard') { body.tipCents = 0; body.giftCardCode = $('ff-pay-gc-code').value.trim(); if (!body.giftCardCode) { toast('Enter the gift card number.', true); return; } }
     api('POST', '/api/register/check/' + current.id + '/pay', body).then(function (j) {
       $('fd-pay').close();
-      toast(j.changeCents ? 'Change ' + money(j.changeCents) + (j.check.status !== 'open' ? ' · closed' : '') : j.check.status !== 'open' ? 'Paid. Table is free.' : 'Payment taken. ' + money(j.check.totals.balanceCents) + ' left.', false, 8000);
+      toast(j.giftCard ? money(j.giftCard.balanceCents) + ' left on the card.' + (j.check.status !== 'open' ? ' Table is free.' : ' ' + money(j.check.totals.balanceCents) + ' still owed.') : j.changeCents ? 'Change ' + money(j.changeCents) + (j.check.status !== 'open' ? ' · closed' : '') : j.check.status !== 'open' ? 'Paid. Table is free.' : 'Payment taken. ' + money(j.check.totals.balanceCents) + ' left.', false, 8000);
       if (j.check.status !== 'open') showMap(); else { current = j.check; renderCheck(); }
     }).catch(fail);
   });

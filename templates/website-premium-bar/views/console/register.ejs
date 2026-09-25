@@ -119,18 +119,55 @@
         <div class="reg-seg" role="radiogroup">
           <label class="reg-seg__opt"><input type="radio" name="tender" value="cash" checked> Cash</label>
           <label class="reg-seg__opt"><input type="radio" name="tender" value="card_external"> Card on the Square reader</label>
+          <label class="reg-seg__opt"><input type="radio" name="tender" value="giftcard"> Gift card</label>
         </div>
       </fieldset>
+      <div id="f-pay-gc" hidden>
+        <label class="reg-field">Gift card number<input class="reg-input" id="f-pay-gc-code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="AMBR-XXXX-XXXX"></label>
+        <p class="reg-pay__change">On the card <strong id="f-pay-gc-bal">—</strong></p>
+      </div>
       <div id="f-pay-cash">
         <fieldset class="reg-fieldset"><legend>They handed you</legend><div class="reg-chips" id="f-pay-quick"></div>
           <input class="reg-input reg-input--money" id="f-pay-tendered" inputmode="decimal" placeholder="Other amount" aria-label="Cash handed over"></fieldset>
         <p class="reg-pay__change">Change <strong id="f-pay-change">—</strong></p>
       </div>
-      <label class="reg-field">Tip<input class="reg-input reg-input--money" id="f-pay-tip" inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
+      <label class="reg-field" id="f-pay-tipwrap">Tip<input class="reg-input reg-input--money" id="f-pay-tip" inputmode="decimal" placeholder="0.00" autocomplete="off"></label>
       <p class="reg-muted" id="f-pay-cardnote" hidden>Run the card on Square's reader first, then record it here with the same amount and tip.</p>
       <div class="reg-dlg__actions">
         <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
         <button class="reg-btn reg-btn--go" type="submit" value="ok" id="f-pay-go">Take payment</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Sell a gift card -->
+  <dialog class="reg-dlg" id="d-gc" aria-labelledby="d-gc-h">
+    <form method="dialog" class="reg-dlg__body" id="f-gc">
+      <h2 class="reg-dlg__h" id="d-gc-h">Sell a gift card</h2>
+      <div class="reg-chips" role="group" aria-label="Amount">
+        <button class="reg-chip" type="button" data-gc-amt="2500">$25</button>
+        <button class="reg-chip" type="button" data-gc-amt="5000">$50</button>
+        <button class="reg-chip" type="button" data-gc-amt="7500">$75</button>
+        <button class="reg-chip" type="button" data-gc-amt="10000">$100</button>
+      </div>
+      <label class="reg-field">Amount<input class="reg-input reg-input--money" id="f-gc-amount" inputmode="decimal" required autocomplete="off"></label>
+      <label class="reg-field">Card number, if it's a printed card<input class="reg-input" id="f-gc-code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="Leave blank and we make one"></label>
+      <p class="reg-muted">It goes on this check like anything else. The card works once the check is paid. No tax on it.</p>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel" formnovalidate>Cancel</button>
+        <button class="reg-btn reg-btn--go" type="submit" value="ok">Add to check</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Gift card balance -->
+  <dialog class="reg-dlg" id="d-gcb" aria-labelledby="d-gcb-h">
+    <form method="dialog" class="reg-dlg__body">
+      <h2 class="reg-dlg__h" id="d-gcb-h">Gift card balance</h2>
+      <label class="reg-field">Card number<input class="reg-input" id="f-gcb-code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="24" placeholder="AMBR-XXXX-XXXX"></label>
+      <p class="reg-pay__change" role="status">On the card <strong id="f-gcb-out">—</strong></p>
+      <div class="reg-dlg__actions">
+        <button class="reg-btn reg-btn--ghost" value="cancel">Close</button>
       </div>
     </form>
   </dialog>

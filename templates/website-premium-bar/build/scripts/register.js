@@ -87,7 +87,8 @@
   function renderCheck() {
     var box = $('r-check');
     if (!current) {
-      box.innerHTML = '<h2 class="reg-h" id="h-check">No check open</h2><p class="reg-muted">Start a tab, pick a table, or just tap food for a walk-up.</p>';
+      box.innerHTML = '<h2 class="reg-h" id="h-check">No check open</h2><p class="reg-muted">Start a tab, pick a table, or just tap food for a walk-up.</p>' +
+        '<div class="reg-guest__row"><button class="reg-btn" type="button" id="a-gc">Sell a gift card</button><button class="reg-btn reg-btn--ghost" type="button" id="a-gc-bal">Gift card balance</button></div>';
       return;
     }
     var c = current, t = c.totals;
@@ -95,14 +96,15 @@
     var lines = c.items.map(function (i) {
       var word = i.state === 'held' ? 'Not sent' : i.state === 'sent' ? (i.toKitchen ? 'On the grill' : 'Sent') : 'Void';
       if (i.kind === 'reward') word = 'Regulars reward · tap twice to take off';
-      return '<li><button class="reg-line" type="button" data-line="' + esc(i.id) + '" data-kind="' + esc(i.kind || 'item') + '" data-state="' + esc(i.state) + '"' + (i.state === 'void' ? ' disabled' : '') + '>' +
+      if (i.kind === 'giftcard') word = i.giftCardId ? 'Gift card ' + (i.note || '') : 'Gift card · works once paid · tap twice to take off';
+      return '<li><button class="reg-line" type="button" data-line="' + esc(i.id) + '" data-kind="' + esc(i.kind || 'item') + '" data-state="' + esc(i.state) + '"' + (i.state === 'void' || i.giftCardId ? ' disabled' : '') + '>' +
         '<span class="reg-line__name">' + (i.qty > 1 ? i.qty + ' × ' : '') + esc(i.name) + (i.size ? ' <span class="reg-muted">(' + esc(i.size.toLowerCase()) + ')</span>' : '') + '</span>' +
         '<span class="reg-line__price">' + money(i.qty * i.unitPriceCents) + '</span>' +
         '<span class="reg-line__meta"><span class="reg-line__state">' + word + '</span>' + (i.seat ? '<span>seat ' + i.seat + '</span>' : '') +
-        (i.note ? '<span>' + esc(i.note) + '</span>' : '') + (i.voidReason ? '<span>' + esc(i.voidReason) + '</span>' : '') + '</span></button></li>';
+        (i.note && !(i.kind === 'giftcard' && i.giftCardId) ? '<span>' + esc(i.note) + '</span>' : '') + (i.voidReason ? '<span>' + esc(i.voidReason) + '</span>' : '') + '</span></button></li>';
     }).join('');
     var pays = c.payments.map(function (p) {
-      var what = (p.tender === 'cash' ? 'Cash' : 'Card') + ' ' + money(p.amountCents) + (p.tipCents ? ' + tip ' + money(p.tipCents) : '');
+      var what = (p.tender === 'cash' ? 'Cash' : p.tender === 'giftcard' ? 'Gift card' : 'Card') + ' ' + money(p.amountCents) + (p.tipCents ? ' + tip ' + money(p.tipCents) : '');
       return '<li class="reg-pay' + (p.voidedAt ? ' reg-pay--void' : '') + '"><span>' + what + '</span>' +
         (p.voidedAt ? '<span>void</span>' : '<button class="reg-btn reg-btn--ghost" type="button" data-voidpay="' + esc(p.id) + '">Void</button>') + '</li>';
     }).join('');
@@ -120,6 +122,7 @@
         '<button class="reg-btn reg-btn--go reg-btn--wide" type="button" id="a-pay"' + (t.balanceCents > 0 ? '' : ' disabled') + '>Pay ' + money(Math.max(0, t.balanceCents)) + '</button>' +
         '<button class="reg-btn" type="button" id="a-split"' + (c.items.filter(function (i) { return i.state !== 'void'; }).length > 1 ? '' : ' disabled') + '>Split</button>' +
         '<button class="reg-btn" type="button" id="a-more">Rename · void</button>' +
+        '<button class="reg-btn" type="button" id="a-gc">Gift card</button>' +
         '<button class="reg-btn reg-btn--ghost" type="button" id="a-close">Put it away</button>' +
       '</div>';
   }
@@ -294,8 +297,10 @@
   function payDue() { return (toCents($('f-pay-amount').value) || 0) + (toCents($('f-pay-tip').value) || 0); }
   function payTender() { var r = document.querySelector('input[name="tender"]:checked'); return r ? r.value : 'cash'; }
   function drawPay() {
-    var cash = payTender() === 'cash';
-    $('f-pay-cash').hidden = !cash; $('f-pay-cardnote').hidden = cash;
+    var t = payTender(), cash = t === 'cash', gc = t === 'giftcard';
+    $('f-pay-cash').hidden = !cash; $('f-pay-cardnote').hidden = t !== 'card_external';
+    $('f-pay-gc').hidden = !gc; $('f-pay-tipwrap').hidden = gc;   // no tips off a gift card
+    if (gc) $('f-pay-tip').value = '';
     var due = payDue();
     var q = [due]; [100, 500, 1000, 2000].forEach(function (st) { var v = Math.ceil(due / st) * st; if (q.indexOf(v) < 0) q.push(v); });
     if (due < 5000 && q.indexOf(5000) < 0) q.push(5000);
@@ -310,7 +315,7 @@
     tendered = null;
     $('f-pay-bal').textContent = money(current.totals.balanceCents);
     $('f-pay-amount').value = dollars(current.totals.balanceCents);
-    $('f-pay-tip').value = ''; $('f-pay-tendered').value = '';
+    $('f-pay-tip').value = ''; $('f-pay-tendered').value = ''; $('f-pay-gc-code').value = ''; $('f-pay-gc-bal').textContent = '—';
     document.querySelector('input[name="tender"][value="cash"]').checked = true;
     drawPay(); $('d-pay').showModal();
   }
@@ -321,7 +326,19 @@
     var td = e.target.closest('[data-tender]'); if (td) { tendered = Number(td.getAttribute('data-tender')); $('f-pay-tendered').value = ''; drawPay(); }
   });
   ['f-pay-amount', 'f-pay-tip', 'f-pay-tendered'].forEach(function (id) { $(id).addEventListener('input', function () { if (id !== 'f-pay-tendered') tendered = null; drawPay(); }); });
-  document.querySelectorAll('input[name="tender"]').forEach(function (r) { r.addEventListener('change', drawPay); });
+  document.querySelectorAll('input[name="tender"]').forEach(function (r) { r.addEventListener('change', function () { drawPay(); if (payTender() === 'giftcard') $('f-pay-gc-code').focus(); }); });
+  // Look the card up as the number is typed, so the bartender sees what's on it before charging.
+  var gcTimer = null;
+  function gcLookup(code, out) {
+    clearTimeout(gcTimer);
+    if (code.replace(/[^A-Za-z0-9]/g, '').length < 6) { out.textContent = '—'; return; }
+    gcTimer = setTimeout(function () {
+      api('GET', '/api/register/giftcard?code=' + encodeURIComponent(code)).then(function (j) {
+        out.textContent = j.status === 'active' ? money(j.balanceCents) : 'voided';
+      }).catch(function () { out.textContent = 'no such card'; });
+    }, 300);
+  }
+  $('f-pay-gc-code').addEventListener('input', function () { gcLookup($('f-pay-gc-code').value, $('f-pay-gc-bal')); });
   $('f-pay').addEventListener('submit', function (e) {
     if (e.submitter && e.submitter.value === 'cancel') return;
     e.preventDefault(); if (!current) return;
@@ -330,16 +347,34 @@
     var typed = toCents($('f-pay-tendered').value);
     var body = { tender: tender, amountCents: amount, tipCents: tip };
     if (tender === 'cash') body.cashTenderedCents = typed !== null ? typed : tendered;
+    if (tender === 'giftcard') { body.giftCardCode = $('f-pay-gc-code').value.trim(); body.tipCents = 0; if (!body.giftCardCode) { toast('Enter the gift card number.', true); return; } }
     $('f-pay-go').disabled = true;
     api('POST', '/api/register/check/' + current.id + '/pay', body).then(function (j) {
       $('d-pay').close();
       var closed = j.check.status !== 'open';
       if (closed && j.check.guestId) delete guestCache[j.check.guestId];   // visits and points just changed
-      if (j.changeCents) toast('Change <strong>' + money(j.changeCents) + '</strong>' + (closed ? ' · check closed' : ''), false, 10000);
+      if (j.giftCard) toast('<strong>' + money(j.giftCard.balanceCents) + '</strong> left on the card.' + (closed ? ' Check closed.' : ' ' + money(j.check.totals.balanceCents) + ' still owed.'), false, 10000);
+      else if (j.changeCents) toast('Change <strong>' + money(j.changeCents) + '</strong>' + (closed ? ' · check closed' : ''), false, 10000);
       else toast(closed ? 'Paid. Check closed.' : 'Payment taken. ' + money(j.check.totals.balanceCents) + ' left.');
       setCurrent(j.check); refreshOpen();
     }).catch(fail).then(function () { $('f-pay-go').disabled = false; });
   });
+
+  // ─── gift cards ──────────────────────────────────────────────────────────
+  function openGc() { $('f-gc-amount').value = ''; $('f-gc-code').value = ''; $('d-gc').showModal(); }
+  $('d-gc').addEventListener('click', function (e) { var a = e.target.closest('[data-gc-amt]'); if (a) $('f-gc-amount').value = dollars(Number(a.getAttribute('data-gc-amt'))); });
+  $('f-gc').addEventListener('submit', function (e) {
+    if (e.submitter && e.submitter.value === 'cancel') return;
+    e.preventDefault();
+    var cents = toCents($('f-gc-amount').value);
+    if (!cents || cents < 500 || cents > 50000) { toast('A gift card is $5 to $500.', true); return; }
+    var code = $('f-gc-code').value.trim();
+    ensureCheck().then(function (c) {
+      return api('POST', '/api/register/check/' + c.id + '/giftcard', { amountCents: cents, code: code || null });
+    }).then(function (j) { $('d-gc').close(); toast('Gift card on the check. It works once the check is paid.'); setCurrent(j.check); refreshOpen(); }).catch(fail);
+  });
+  function gcBalance() { $('f-gcb-code').value = ''; $('f-gcb-out').textContent = '—'; $('d-gcb').showModal(); }
+  $('f-gcb-code').addEventListener('input', function () { gcLookup($('f-gcb-code').value, $('f-gcb-out')); });
 
   // ─── split, rename, void ─────────────────────────────────────────────────
   $('f-split').addEventListener('submit', function (e) {
@@ -377,7 +412,7 @@
     var ob = e.target.closest('[data-open]'); if (ob) { loadCheck(ob.getAttribute('data-open')); return; }
     var rb = e.target.closest('[data-recent]'); if (rb) { api('GET', '/api/register/check/' + rb.getAttribute('data-recent')).then(function (j) { var c = j.check; toast('#' + c.number + ' ' + esc(c.label) + ' · ' + (c.status === 'void' ? 'voided' : 'paid ' + money(c.totals.paidCents) + (c.totals.tipCents ? ' + tip ' + money(c.totals.tipCents) : '')), false, 6000); }).catch(fail); return; }
     var lb = e.target.closest('[data-line]');
-    if (lb && !lb.disabled && lb.getAttribute('data-kind') === 'reward') {
+    if (lb && !lb.disabled && (lb.getAttribute('data-kind') === 'reward' || lb.getAttribute('data-kind') === 'giftcard')) {
       // Taking a reward off gives the points back; two taps so it isn't an accident.
       if (lb.getAttribute('data-armed') !== '1') { lb.setAttribute('data-armed', '1'); var st = lb.querySelector('.reg-line__state'); if (st) st.textContent = 'Tap again to take it off'; setTimeout(function () { if (lb.isConnected) renderCheck(); }, 4000); return; }
       api('POST', '/api/register/item/' + lb.getAttribute('data-line') + '/void', {}).then(function (j) { if (current && current.guestId) delete guestCache[current.guestId]; setCurrent(j.check); refreshOpen(); }).catch(fail);
@@ -399,6 +434,8 @@
     }
     if (e.target.id === 'a-send' && current) { api('POST', '/api/register/check/' + current.id + '/send').then(function (j) { toast('On the grill screen.'); setCurrent(j.check); refreshOpen(); }).catch(fail); return; }
     if (e.target.id === 'a-pay') { openPay(); return; }
+    if (e.target.id === 'a-gc') { openGc(); return; }
+    if (e.target.id === 'a-gc-bal') { gcBalance(); return; }
     if (e.target.id === 'a-split' && current) {
       $('f-split-items').innerHTML = current.items.filter(function (i) { return i.state !== 'void'; }).map(function (i) {
         return '<li><label><input type="checkbox" value="' + esc(i.id) + '"> ' + (i.qty > 1 ? i.qty + ' × ' : '') + esc(i.name) + (i.seat ? ' · seat ' + i.seat : '') + ' <span class="reg-muted">' + money(i.qty * i.unitPriceCents) + '</span></label></li>';

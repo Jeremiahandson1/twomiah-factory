@@ -13,7 +13,7 @@ import { addDays, localDateString, localToUtc } from '../hours'
 import { listOpen, type OpenCheckRow } from './checks'
 
 export interface DayCheck { id: string; number: number; kind: string; label: string; status: string; subtotalCents: number | null; taxCents: number | null; totalCents: number | null; tipCents: number | null; closedAt: Date | null; closedBy: string | null; voidReason: string | null }
-export interface DayItem { checkId: string; name: string; size: string | null; qty: number; unitPriceCents: number; state: string; voidReason: string | null; voidedBy: string | null }
+export interface DayItem { checkId: string; name: string; size: string | null; qty: number; unitPriceCents: number; state: string; voidReason: string | null; voidedBy: string | null; kind?: string }
 export interface DayPayment { checkId: string; tender: string; amountCents: number; tipCents: number; takenBy: string | null; voidedAt: Date | null; voidReason: string | null; takenAt: Date }
 
 export interface DaySummary {
@@ -32,9 +32,11 @@ export interface DaySummary {
   byHour: Array<{ hour: number; label: string; totalCents: number; checks: number }>
   voids: Array<{ kind: 'item' | 'payment' | 'check'; what: string; amountCents: number; reason: string; by: string | null; checkNumber: number }>
   cash: { salesCents: number; tipsCents: number; inCents: number }
+  /** Gift cards sold: money in, but owed back as food later — not sales. subtotalCents excludes them; totalCents includes them. */
+  giftCardsSold: { count: number; cents: number }
 }
 
-const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card (Square reader)', card_online: 'Card (website)', card: 'Card' }
+const TENDER_LABEL: Record<string, string> = { cash: 'Cash', card_external: 'Card (Square reader)', card_online: 'Card (website)', card: 'Card', giftcard: 'Gift card' }
 const CHANNEL: Record<string, string> = { tab: 'Bar', walkup: 'Bar', table: 'Tables', online: 'Website' }
 
 function hourLabel(h: number): string { return h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM` }
@@ -44,7 +46,10 @@ export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], ite
   const paidIds = new Set(paid.map(c => c.id))
   const number = new Map(dayChecks.map(c => [c.id, c.number]))
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
-  const subtotalCents = sum(paid.map(c => c.subtotalCents || 0))
+  // A gift card sold is money in, but it isn't food or drink: keep it out of sales.
+  const soldCards = items.filter(i => i.kind === 'giftcard' && i.state !== 'void' && paidIds.has(i.checkId))
+  const giftCardCents = soldCards.reduce((n, i) => n + i.qty * i.unitPriceCents, 0)
+  const subtotalCents = sum(paid.map(c => c.subtotalCents || 0)) - giftCardCents
   const taxCents = sum(paid.map(c => c.taxCents || 0))
   const totalCents = sum(paid.map(c => c.totalCents || 0))
   const livePays = payments.filter(p => !p.voidedAt && paidIds.has(p.checkId))
@@ -73,7 +78,7 @@ export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], ite
   }
   const sold = new Map<string, { qty: number; salesCents: number }>()
   for (const i of items) {
-    if (i.state === 'void' || !paidIds.has(i.checkId)) continue
+    if (i.state === 'void' || !paidIds.has(i.checkId) || i.kind === 'giftcard' || i.kind === 'reward') continue
     const key = i.name + (i.size ? ` (${i.size.toLowerCase()})` : '')
     const s = sold.get(key) || { qty: 0, salesCents: 0 }
     s.qty += i.qty; s.salesCents += i.qty * i.unitPriceCents
@@ -110,6 +115,7 @@ export function summarizeDay(day: string, tz: string, dayChecks: DayCheck[], ite
     byHour: [...hours].map(([hour, t]) => ({ hour, label: hourLabel(hour), ...t })).sort((a, b) => nightOrder(a.hour) - nightOrder(b.hour)),
     voids,
     cash: { salesCents: cash.amountCents, tipsCents: cash.tipsCents, inCents: cash.amountCents + cash.tipsCents },
+    giftCardsSold: { count: soldCards.reduce((n, i) => n + i.qty, 0), cents: giftCardCents },
   }
 }
 

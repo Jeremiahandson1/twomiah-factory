@@ -9,11 +9,12 @@
  * Errors are thrown as CheckError with words a bartender can act on.
  */
 import { EventEmitter } from 'events'
-import { and, asc, desc, eq, gte, inArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { db as DB } from '../../db'
-import { checkItems, checkPayments, checks, guests, kitchenTickets, loyaltyLedger, menuItems, menuSections, onlineOrders, settings as settingsTbl } from '../../db/schema'
+import { checkItems, checkPayments, checks, giftCards, guests, kitchenTickets, loyaltyLedger, menuItems, menuSections, onlineOrders, settings as settingsTbl } from '../../db/schema'
 import { guestByPhone, loyaltySettings, recordVisit } from '../crm/guests'
 import { rewardAmount } from '../crm/loyalty'
+import { findCard, GiftCardError, issueCard, normalizeCode, refundTo, spend, validAmount } from '../giftcards/cards'
 import { sizesOf } from '../menu/sizes'
 import { fireTicket, notifyKitchen } from '../kitchen/tickets'
 import { changeDue, checkTotals, type CheckTotals } from './money'
@@ -165,6 +166,7 @@ export async function voidItem(db: typeof DB, itemId: string, reason: string, by
   await openRow(db, it.checkId)
   if (it.state === 'void') throw new CheckError('Already voided.', 409)
   if (it.kind === 'reward') return unredeem(db, it)
+  if (it.kind === 'giftcard' && !it.giftCardId) { await db.delete(checkItems).where(eq(checkItems.id, itemId)); notifyRegister(); return getCheck(db, it.checkId) }
   if (it.state === 'held') { await db.delete(checkItems).where(eq(checkItems.id, itemId)); notifyRegister(); return getCheck(db, it.checkId) }
   const why = clean(reason, 80)
   if (!why) throw new CheckError('Give a reason for the void.')
@@ -221,12 +223,22 @@ async function closeIfPaid(db: typeof DB, checkId: string, by: string): Promise<
   if (view.heldFood || view.items.some(i => i.state === 'held')) await sendCheck(db, checkId, by)
   const t = view.totals
   await db.update(checks).set({ status: 'paid', closedAt: new Date(), closedBy: by, subtotalCents: t.subtotalCents, taxCents: t.taxCents, totalCents: t.totalCents, tipCents: t.tipCents, updatedAt: new Date() }).where(eq(checks.id, checkId))
+  // Gift cards sold on this check come to life now that they're paid for.
+  const cards = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), eq(checkItems.kind, 'giftcard'), isNull(checkItems.giftCardId)))
+  for (const line of cards) {
+    if (line.state === 'void') continue
+    await db.transaction(async (tx) => {
+      const card = await issueCard(tx, { cents: line.unitPriceCents, soldVia: 'register', soldBy: by, checkId, code: line.note || null })
+      await tx.update(checkItems).set({ giftCardId: card.id, note: card.code }).where(eq(checkItems.id, line.id))
+    }).catch((e) => console.error('[register] gift card not issued:', e?.message || e))
+  }
   // A regular's visit, spend and points. Never lets a loyalty hiccup undo a paid check.
   await recordVisit(db, checkId).catch((e) => console.error('[register] visit not recorded:', e?.message || e))
 }
 
-export async function addPayment(db: typeof DB, checkId: string, input: { tender: string; amountCents: number; tipCents?: number; cashTenderedCents?: number | null }, by: string): Promise<CheckView & { changeCents: number | null }> {
+export async function addPayment(db: typeof DB, checkId: string, input: { tender: string; amountCents: number; tipCents?: number; cashTenderedCents?: number | null; giftCardCode?: string | null }, by: string): Promise<CheckView & { changeCents: number | null; giftCard?: { code: string; balanceCents: number } }> {
   await openRow(db, checkId)
+  if (input.tender === 'giftcard') return payWithGiftCard(db, checkId, input, by)
   const tender = input.tender === 'cash' ? 'cash' : input.tender === 'card_external' ? 'card_external' : null
   if (!tender) throw new CheckError('Cash or card?')
   const before = await getCheck(db, checkId)
@@ -248,6 +260,47 @@ export async function addPayment(db: typeof DB, checkId: string, input: { tender
   return { ...(await getCheck(db, checkId)), changeCents: change }
 }
 
+/** Take what's owed (up to the card's balance) off a gift card. No tips from a gift card. */
+async function payWithGiftCard(db: typeof DB, checkId: string, input: { amountCents: number; tipCents?: number; giftCardCode?: string | null }, by: string) {
+  if (Math.round(Number(input.tipCents || 0)) > 0) throw new CheckError('Take the tip in cash or on a card; gift cards pay for the check.')
+  const card = await findCard(db, String(input.giftCardCode || ''))
+  if (!card) throw new CheckError('No gift card with that number.', 404)
+  const before = await getCheck(db, checkId)
+  const want = Math.min(Math.round(Number(input.amountCents) || before.totals.balanceCents), before.totals.balanceCents)
+  if (want <= 0) throw new CheckError('Nothing left to pay on this check.')
+  let taken = 0
+  try {
+    await db.transaction(async (tx) => {
+      const [p] = await tx.insert(checkPayments).values({ checkId, tender: 'giftcard', amountCents: want, tipCents: 0, takenBy: by, giftCardId: card.id }).returning({ id: checkPayments.id })
+      taken = await spend(tx, card.id, want, { checkId, paymentId: p.id, by })
+      if (taken !== want) await tx.update(checkPayments).set({ amountCents: taken }).where(eq(checkPayments.id, p.id))
+    })
+  } catch (e) {
+    if (e instanceof GiftCardError) throw new CheckError(e.message, e.status)
+    throw e
+  }
+  await closeIfPaid(db, checkId, by)
+  notifyRegister()
+  const [after] = await db.select({ code: giftCards.code, balanceCents: giftCards.balanceCents }).from(giftCards).where(eq(giftCards.id, card.id)).limit(1)
+  return { ...(await getCheck(db, checkId)), changeCents: null, giftCard: after }
+}
+
+/** Sell a gift card on this check. It's issued (and its number is final) when the check is paid. */
+export async function addGiftCardLine(db: typeof DB, checkId: string, input: { amountCents: number; code?: string | null }, by: string): Promise<CheckView> {
+  await openRow(db, checkId)
+  const cents = Math.round(Number(input.amountCents))
+  if (!validAmount(cents)) throw new CheckError('A gift card is $5 to $500.')
+  let code: string | null = null
+  if (input.code && String(input.code).trim()) {
+    code = normalizeCode(String(input.code))
+    if (code.length < 6) throw new CheckError('That card number is too short.')
+    if (await findCard(db, code)) throw new CheckError('That card number is already in use.', 409)
+  }
+  await db.insert(checkItems).values({ checkId, name: 'Gift card', qty: 1, unitPriceCents: cents, kind: 'giftcard', toKitchen: false, state: 'sent', sentAt: new Date(), note: code, addedBy: by })
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+
 export async function voidPayment(db: typeof DB, paymentId: string, reason: string, by: string): Promise<CheckView> {
   const [p] = await db.select().from(checkPayments).where(eq(checkPayments.id, paymentId)).limit(1)
   if (!p) throw new CheckError('That payment is gone.', 404)
@@ -255,7 +308,11 @@ export async function voidPayment(db: typeof DB, paymentId: string, reason: stri
   if (p.voidedAt) throw new CheckError('Already voided.', 409)
   const why = clean(reason, 80)
   if (!why) throw new CheckError('Give a reason.')
-  await db.update(checkPayments).set({ voidedAt: new Date(), voidReason: `${why} (${by})` }).where(eq(checkPayments.id, paymentId))
+  await db.transaction(async (tx) => {
+    await tx.update(checkPayments).set({ voidedAt: new Date(), voidReason: `${why} (${by})` }).where(eq(checkPayments.id, paymentId))
+    // Money that came off a gift card goes back on it.
+    if (p.tender === 'giftcard' && p.giftCardId) await refundTo(tx, p.giftCardId, p.amountCents, { checkId: p.checkId, paymentId, by, note: why })
+  })
   notifyRegister()
   return getCheck(db, p.checkId)
 }
@@ -264,7 +321,7 @@ export async function voidPayment(db: typeof DB, paymentId: string, reason: stri
 export async function splitItems(db: typeof DB, checkId: string, itemIds: string[], label: string | null, by: string): Promise<{ from: CheckView; to: CheckView }> {
   const c = await openRow(db, checkId)
   const items = await db.select().from(checkItems).where(and(eq(checkItems.checkId, checkId), inArray(checkItems.id, itemIds.slice(0, 100))))
-  const movable = items.filter(i => i.state !== 'void' && i.kind === 'item')   // a reward stays with the regular's check
+  const movable = items.filter(i => i.state !== 'void' && i.kind !== 'reward')   // a reward stays with the regular's check
   if (!movable.length) throw new CheckError('Pick what goes on the new check.')
   const all = await getCheck(db, checkId)
   if (movable.length === all.items.filter(i => i.state !== 'void').length) throw new CheckError('That is everything. Leave it on this check.')

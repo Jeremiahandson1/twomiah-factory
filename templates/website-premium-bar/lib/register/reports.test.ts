@@ -73,3 +73,31 @@ describe('business day', () => {
     expect(w.to.toISOString()).toBe('2026-09-26T11:00:00.000Z')
   })
 })
+
+describe('gift cards in the night', () => {
+  // A $50 card and a $10 burger on one check; a second check paid partly off a card.
+  const gcChecks: DayCheck[] = [
+    chk({ id: 'g', number: 20, subtotalCents: 6000, taxCents: 55, totalCents: 6055, closedAt: at('2026-09-26T01:00:00Z') }),
+    chk({ id: 'h', number: 21, subtotalCents: 1000, taxCents: 55, totalCents: 1055, closedAt: at('2026-09-26T01:30:00Z') }),
+  ]
+  const gcItems: DayItem[] = [
+    { checkId: 'g', name: 'Gift card', size: null, qty: 1, unitPriceCents: 5000, state: 'sent', voidReason: null, voidedBy: null, kind: 'giftcard' },
+    { checkId: 'g', name: 'Hamburger', size: null, qty: 1, unitPriceCents: 1000, state: 'sent', voidReason: null, voidedBy: null, kind: 'item' },
+    { checkId: 'h', name: 'Hamburger', size: null, qty: 1, unitPriceCents: 1000, state: 'sent', voidReason: null, voidedBy: null, kind: 'item' },
+  ]
+  const gcPays: DayPayment[] = [
+    { checkId: 'g', tender: 'cash', amountCents: 6055, tipCents: 0, takenBy: 'Jess', voidedAt: null, voidReason: null, takenAt: at('2026-09-26T01:00:00Z') },
+    { checkId: 'h', tender: 'giftcard', amountCents: 1055, tipCents: 0, takenBy: 'Jess', voidedAt: null, voidReason: null, takenAt: at('2026-09-26T01:30:00Z') },
+  ]
+  const g = summarizeDay('2026-09-25', TZ, gcChecks, gcItems, gcPays)
+  test('a card sold is not food and drink', () => {
+    expect(g.subtotalCents).toBe(2000)
+    expect(g.giftCardsSold).toEqual({ count: 1, cents: 5000 })
+    expect(g.totalCents).toBe(7110)
+    expect(g.items.find(i => i.name === 'Gift card')).toBeUndefined()
+  })
+  test('paying with a card shows as its own tender and is not cash', () => {
+    expect(g.byTender.find(t => t.tender === 'giftcard')).toMatchObject({ label: 'Gift card', amountCents: 1055 })
+    expect(g.cash.salesCents).toBe(6055)
+  })
+})
