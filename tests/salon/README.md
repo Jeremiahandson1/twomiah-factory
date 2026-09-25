@@ -12,15 +12,15 @@ KEEP=1 bun tests/salon/harness/run.ts   # leave the sandbox in place to poke at
 
 ## What actually runs
 
-`harness/run.ts` assembles a tenant in a temp directory, per run, out of the current tree:
+`tests/harness/runSuite.ts` assembles a tenant in a temp directory, per run, out of the current tree. It is shared: `tests/salon/harness/run.ts` is a three-line entry naming this suite's template, and `tests/fieldservice` has its own. Copying the runner per vertical is how two copies drift until one quietly tests the wrong template.
 
 | | |
 |---|---|
 | `templates/crm-salon/backend` | the real routes, services and schema |
 | `packages/tenant-backend/src` | vendored in as `src/shared`, exactly as the Factory does it |
-| `harness/fixtures/db-index.ts` | the node-postgres Pool → in-process PGlite |
-| `harness/fixtures/middleware-auth.ts` | bearer verification → an `x-test-user` header |
-| `harness/fixtures/setup.ts` | the tenant's own migrations in journal order, then the boot reconcile |
+| `../harness/fixtures/db-index.ts` | the node-postgres Pool → in-process PGlite |
+| `../harness/fixtures/middleware-auth.ts` | bearer verification → an `x-test-user` header |
+| `../harness/fixtures/setup.ts` | the tenant's own migrations in journal order, then the boot reconcile |
 
 Assembling it per run rather than committing a sandbox is the point: the suite cannot drift away from the
 templates it tests, and no generated code lands in git.
