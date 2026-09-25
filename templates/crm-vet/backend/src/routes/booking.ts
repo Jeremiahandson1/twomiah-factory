@@ -5,7 +5,7 @@ import { createBookingRoutes, appointmentCalendar } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { company, contact, bookingSettings, bookableService, onlineBooking, appointment, patient } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
-import { requireRole } from '../middleware/permissions.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { SPECIES, SPECIES_FALLBACK } from '../config/species.ts'
 import { sendRaw } from '../services/email.ts'
 import { sendSMS } from '../services/sms.ts'
@@ -14,9 +14,10 @@ export default createBookingRoutes({
   db,
   tables: { company, contact, bookingSettings, bookableService, onlineBooking },
   authenticate,
-  // Configuring booking (hours, notice, on/off, which services) is manager-and-up. It used to be
-  // anyone with a login. (Salon T28 H1)
-  requireRole,
+  // Configuring booking (hours, notice, on/off, which services) needs company:update — it is company
+  // setup, not day-to-day work. It used to be anyone with a login (Salon T28 H1), then anyone from
+  // manager up, which left a manager the one company switch they are refused everywhere else (T30 M-R2).
+  requirePermission,
   calendar: appointmentCalendar(appointment, {
     contactColumn: 'ownerId', reasonColumn: 'reason', defaults: { type: 'wellness' },
     // Public booking captures the pet → create a linked patient chart so the visit isn't ownerless.

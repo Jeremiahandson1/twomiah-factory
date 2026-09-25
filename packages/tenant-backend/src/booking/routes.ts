@@ -50,11 +50,16 @@ export function externalBookingsProxy() {
 }
 
 export function createBookingRoutes(deps: BookingDeps) {
-  const { db, tables: t, authenticate, requireRole } = deps
+  const { db, tables: t, authenticate, requirePermission } = deps
   // Who may CONFIGURE booking — the hours, the notice, whether it is on at all, and which services are
   // offered. Everything else here is day-to-day work on the bookings themselves and keeps its old
   // access. qa.staff switched online booking off and the public page went to 403. (Salon T28 H1)
-  const configuresBooking = requireRole('manager')
+  //
+  // company:update, not a rank. These are company settings, and a manager — refused Settings, Users,
+  // Billing, Features, Integrations, Twilio and QuickBooks — kept this one switch because "at least
+  // manager" was standing in for "may configure the company". An owner who wants a particular manager
+  // setting the hours grants them company:update in Settings › Users. (Field Service T30 M-R2)
+  const configuresBooking = requirePermission('company:update')
   const svc = createBookingService(deps)
   const app = new Hono()
 

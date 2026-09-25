@@ -60,7 +60,14 @@ const pub = async (method: string, path: string, body?: unknown) => {
 }
 
 // ── H1 ───────────────────────────────────────────────────────────────────────────────────────────
-console.log('\n── H1: configuring online booking is manager-and-up ──')
+// The rule this asserts CHANGED at Field Service T30 M-R2, and deliberately: what T28 fixed was a stylist
+// switching online booking off for the whole salon, and the guard reached for then was
+// requireRole('manager') — right instinct, wrong lattice. Rank cannot express "may configure the company"
+// (a `viewer` outranks nobody and still holds invoices:read), and a manager kept the one company-wide
+// switch they are refused everywhere else: Settings, Users, Billing, Features, Integrations. It is
+// company:update now, the same right that opens Settings. A salon owner who does want Morgan setting the
+// hours grants them company:update in Settings › Users — which is a thing a rank could never offer.
+console.log('\n── H1: configuring online booking is company setup, and needs company:update ──')
 {
   const { co, owner, manager, staff } = await mkCompany('h1')
   await mkBookingSettings(co.id)
@@ -69,9 +76,14 @@ console.log('\n── H1: configuring online booking is manager-and-up ──')
   check('…and the salon is still taking bookings', (await as(co, owner)('GET', '/api/booking/settings')).json?.enabled !== false)
   check('staff cannot add a bookable service', (await as(co, staff)('POST', '/api/booking/services', { name: 'X', durationMinutes: 30 })).status === 403)
   const m = await as(co, manager)('PUT', '/api/booking/settings', { leadTimeDays: 1 })
-  check('a manager still can', m.status === 200, m.json)
+  check('a manager cannot either — the hours are company setup (T30 M-R2)', m.status === 403, m.json)
+  check('…and the refusal names the right it needs', m.json?.required === 'company:update', m.json)
+  const [granted] = await db.insert(user).values({ email: `granted-h1${n}@t.local`, passwordHash: 'x', firstName: 'Gia', lastName: 'X', role: 'manager', companyId: co.id, extraPermissions: ['company:update'] } as any).returning()
+  const g = await as(co, granted)('PUT', '/api/booking/settings', { leadTimeDays: 1 })
+  check('…but a manager the owner handed company:update can', g.status === 200, g.json)
   const o = await as(co, owner)('PUT', '/api/booking/settings', { leadTimeDays: 0 })
   check('…and so can the owner', o.status === 200, o.json)
+  check('the setting the owner set is the one that stuck', (await as(co, owner)('GET', '/api/booking/settings')).json?.leadTimeDays === 0)
 }
 
 // ── H2 ───────────────────────────────────────────────────────────────────────────────────────────

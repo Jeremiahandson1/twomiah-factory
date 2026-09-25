@@ -128,12 +128,16 @@ export interface BookingDeps {
   tables: BookingTables
   authenticate: any
   /**
-   * Minimum-role guard, e.g. requireRole('manager'). REQUIRED, deliberately: the admin half of these
-   * routes sat behind authenticate and nothing else, so any signed-in user could switch online booking
-   * off for the whole company (Salon T28 H1). Making it optional would let a template ship that hole
-   * again silently; required means a template that forgets it does not compile.
+   * Permission guard, e.g. requirePermission('company:update'). REQUIRED, deliberately: the admin half
+   * of these routes sat behind authenticate and nothing else, so any signed-in user could switch online
+   * booking off for the whole company (Salon T28 H1). Making it optional would let a template ship that
+   * hole again silently; required means a template that forgets it does not compile.
+   *
+   * It replaced requireRole('manager'), which was the right instinct and the wrong lattice: rank cannot
+   * express "may configure the company", and a manager kept the one company-wide switch they are
+   * refused everywhere else. (Field Service T30 M-R2)
    */
-  requireRole: (minRole: string) => any
+  requirePermission: (permission: string) => any
   calendar: BookingCalendar
   options?: BookingOptions
 }
