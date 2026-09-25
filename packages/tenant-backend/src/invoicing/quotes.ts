@@ -5,7 +5,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { eq, and, or, count, desc, asc, ilike, inArray } from 'drizzle-orm'
-import { round2, calcTotals, rawSubtotal, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
+import { round2, calcTotals, rawSubtotal, businessToday, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { checkFilter } from '../listFilter'
 
 /** Today at 00:00 UTC — dates are stored as calendar days at UTC midnight, so compare on the same boundary. */
@@ -40,6 +40,15 @@ export interface QuoteOptions {
   conversions?: Array<'invoice' | 'job'>
   numbering?: { quote?: NumberingOptions; invoice?: NumberingOptions; job?: NumberingOptions }
   maxLimit?: number
+  /**
+   * The zone this business keeps its calendar in, for deciding what "today" is when an expiry is
+   * defaulted. Render runs UTC, so from 19:00 Central a quote raised in the evening expired a day late
+   * and the customer portal printed the wrong "Valid until" date. Invoices were given this in T27 H1;
+   * quotes were not, so the same evening produced an invoice dated one day and a quote another.
+   * Optional and UTC by default, so a template that does not wire it keeps today's behaviour.
+   * (Field Service T28 M4)
+   */
+  timeZoneFor?: (companyId: string) => Promise<string | null | undefined> | string | null | undefined
   /** Optional: text the customer when a quote is sent (field service). */
   onSent?: (ctx: { companyId: string; quote: any; contact: any; company: any }) => Promise<void>
 }
@@ -205,7 +214,9 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // literal null, which is not a missing date but an open-ended price: no "Valid until" line for the
     // customer, no way for the status to reach `expired`, and convertible to an invoice for ever at a months-old
     // price. (Field Service T26 L2)
-    const values: any = { companyId: cid, expiryDate: exp.value ?? quoteExpiryFromTerms(settings), subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
+    // TODAY on the business's own calendar, not the server's. (Field Service T28 M4)
+    const today = businessToday(await deps.options?.timeZoneFor?.(cid))
+    const values: any = { companyId: cid, expiryDate: exp.value ?? quoteExpiryFromTerms(settings, today), subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
     for (const k of COPY_FIELDS) if (data[k] !== undefined) values[k] = data[k]
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
     const result = await db.transaction(async (tx: any) => {

@@ -1,7 +1,7 @@
 // Invoices — shared implementation (packages/tenant-backend/src/invoicing/invoices.ts), vendored into
 // this tenant as ../shared at generation. This file only wires the template's tables and services in;
 // behaviour lives in one place for every CRM.
-import { createInvoiceRoutes } from '../shared/index.ts'
+import { createInvoiceRoutes, companyTimeZone } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, contact, project, quote, payment, company } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
@@ -17,6 +17,8 @@ export default createInvoiceRoutes({
   emitToCompany,
   EVENTS,
   sendInvoiceEmail: (to, data) => emailService.sendInvoice(to, data),
-  loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
-  options: { minLineItems: 1 },
+  loadPdf: () => import('../services/pdf.ts').then(m => m.generateInvoicePDF),
+  // timeZoneFor: the business's own clock decides what "today" is, so an invoice or quote raised
+  // in the evening is not stamped with tomorrow. Render runs UTC. (Field Service T28 M4)
+  options: { timeZoneFor: (companyId: string) => companyTimeZone(db, companyId), minLineItems: 1 },
 })

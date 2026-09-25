@@ -1,7 +1,7 @@
 // Invoices — shared implementation (packages/tenant-backend/src/invoicing/invoices.ts), vendored into
 // this tenant as ../shared at generation. This file only wires the template's tables and services in;
 // behaviour lives in one place for every CRM.
-import { createInvoiceRoutes } from '../shared/index.ts'
+import { createInvoiceRoutes, companyTimeZone } from '../shared/index.ts'
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, contact, project, quote, payment, company } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
@@ -31,5 +31,7 @@ export default createInvoiceRoutes({
   // Event invoices are raised by the ledger service, not this route, so they are unaffected.
   // onPayment: money books the date — a deposit on an enquiry confirms it (and is refused while the room is
   // held), inside the same transaction as the payment (T16 M8).
-  options: { numbering: INVOICE_NUMBERING, minLineItems: 1, onPayment: bookOnDepositForInvoice },
+  // timeZoneFor: the business's own clock decides what "today" is, so an invoice or quote raised
+  // in the evening is not stamped with tomorrow. Render runs UTC. (Field Service T28 M4)
+  options: { timeZoneFor: (companyId: string) => companyTimeZone(db, companyId), numbering: INVOICE_NUMBERING, minLineItems: 1, onPayment: bookOnDepositForInvoice },
 })

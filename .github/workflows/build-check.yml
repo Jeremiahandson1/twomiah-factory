@@ -1737,3 +1737,14 @@ jobs:
           bun-version: latest
       - name: "Upsell not self-gated"
         run: bun run scripts/check-upsell-not-self-gated.ts
+
+  business-day-wired:
+    name: "every template tells the shared invoicing what day it is"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Business day wired"
+        run: bun run scripts/check-business-day-wired.ts
