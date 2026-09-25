@@ -47,13 +47,32 @@ export function sanitizeCompany<T extends Record<string, any>>(row: T): T {
  * A bare "example.com" is accepted and stored as https://example.com, because refusing it would fail
  * people typing the ordinary thing; "not a url" is still refused. (Field Service T28 M2)
  */
-const safeUrl = z.string().trim().transform((v: string) => {
-  if (!v) return ''
-  return /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(v) ? v : `https://${v}`
-}).refine((v: string) => {
+/**
+ * The RAW input is what gets judged, and only then normalised. Order matters here: a `.refine()` after a
+ * `.transform()` sees the transformed value, so a rule about "did the user type a scheme" has to run
+ * first or it is always answering yes.
+ *
+ * Accepting a bare "example.com" means prepending https:// — and `new URL('https://nope')` parses
+ * perfectly happily, because "nope" is a valid hostname the way "localhost" is. So the convenience that
+ * rescued people typing a bare domain also turned any single word into a website: T30 found "nope" saved
+ * as https://nope. A bare host must therefore look like a domain — a dot with letters after it. An
+ * explicit scheme is still trusted, since someone typing http://localhost means it.
+ * (Field Service T30, my regression from T28 M2)
+ */
+const HAS_SCHEME = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
+const looksLikeWebAddress = (raw: string): boolean => {
+  const v = raw.trim()
   if (!v) return true
-  try { return ['http:', 'https:'].includes(new URL(v).protocol) } catch { return false }
-}, 'Enter a web address starting with http:// or https://')
+  const typedScheme = HAS_SCHEME.test(v)
+  let u: URL
+  try { u = new URL(typedScheme ? v : `https://${v}`) } catch { return false }
+  if (!['http:', 'https:'].includes(u.protocol)) return false
+  if (!typedScheme && !/\.[a-zA-Z]{2,}$/.test(u.hostname)) return false
+  return true
+}
+const safeUrl = z.string().trim()
+  .refine(looksLikeWebAddress, 'Enter a web address like https://example.com')
+  .transform((v: string) => (!v ? '' : HAS_SCHEME.test(v) ? v : `https://${v}`))
 
 const DEFAULT_ROLES = ['admin', 'manager', 'user', 'field']
 const USER_COLUMNS = (user: any) => ({ id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role, isActive: user.isActive })

@@ -93,7 +93,7 @@ export async function runSuite(o: SuiteOptions): Promise<number> {
     const r = spawnSync('bun', [f], { cwd: SB, encoding: 'utf8', shell: true, env: { ...process.env, TZ: 'UTC', NODE_ENV: 'test', FACTORY_ROOT: o.root } })
     // Strip ANSI before matching: a coloured "error:" that no longer starts the line is the easiest way
     // for a pattern match on raw output to go quiet exactly when it is needed.
-    const out = ((r.stdout || '') + (r.stderr || '')).replace(/\[[0-9;]*m/g, '')
+    const out = ((r.stdout || '') + (r.stderr || '')).replace(/\u001b\[[0-9;]*m/g, '')
     const line = out.split(/\r?\n/).reverse().find((l) => /\d+ passed, \d+ failed/.test(l)) || ''
     const passed = Number(/(\d+) passed/.exec(line)?.[1] || 0)
     const failed = Number(/(\d+) failed/.exec(line)?.[1] || 0)

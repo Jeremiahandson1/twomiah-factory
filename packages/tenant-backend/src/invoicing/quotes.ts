@@ -61,6 +61,12 @@ export interface QuoteDeps {
   emitToCompany: (companyId: string, event: string, data: any) => void
   EVENTS: Record<string, string>
   loadPdf: () => Promise<(quote: any, company: any) => Promise<Buffer>>
+  /**
+   * Email the quote when it is sent. Optional ONLY so a template that has not wired it keeps the
+   * behaviour it has today; every template email service already exports sendQuote(), it was simply
+   * never called from here. (Field Service T30)
+   */
+  sendQuoteEmail?: (to: string, data: Record<string, unknown>) => Promise<unknown>
   options?: QuoteOptions
 }
 
@@ -73,7 +79,7 @@ const lineItemSchema = z.object({
   quantity: z.number().gt(0, 'Quantity must be more than zero').default(1),
   // Money is kept to the cent, and the ROUNDED price is what everything downstream multiplies.
   // A 3-decimal price was stored as 12.35 (the column holds two) while the line total was worked out
-  // from the raw 12.345 — so the document read "3.00 x .35 = .04", which does not multiply.
+  // from the raw 12.345 — so the document read "3.00 x $12.35 = $37.04", which does not multiply.
   // Rounding here means the number the customer reads is the number the arithmetic used.
   // (Field Service T28 L7)
   unitPrice: z.number().min(0, 'Price cannot be negative').default(0).transform((v: number) => Math.round((v + Number.EPSILON) * 100) / 100),
@@ -305,8 +311,48 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     return { updated, existing, cid }
   }
 
-  app.post('/:id/send', requirePermission('quotes:update'), async (c) => {
-    const r: any = await setStatus(c, c.req.param('id'), { status: 'sent', sentAt: new Date() }, ['draft', 'sent'], EVENTS.QUOTE_SENT)
+  /**
+   * "Send quote" now actually sends the quote.
+   *
+   * This route set the status to `sent` and called onSent — which is the SMS hook — so the customer got a
+   * text if they had a mobile and nothing at all otherwise. Every template's email service has had a
+   * sendQuote() the whole time; nothing ever called it. T30 caught it the only way it can be caught from
+   * outside: the app reported INV-00163 and QTE-00050 both sent in the same minute, the invoice arrived,
+   * and the provider had no record of a quote ever existing. Marked as sent, never sent.
+   *
+   * The email goes out BEFORE the status moves, the same order invoices use: a quote that could not be
+   * delivered must not be sitting in the list claiming it was. sendQuoteEmail is optional, so a template
+   * that has not wired it keeps exactly the behaviour it has today rather than starting to 502.
+   */
+  // `c: any` matches setStatus below — the typed Hono context makes c.get('user') an error in this file,
+  // which is why every other handler that needs the user is written the same way. Adding a fourteenth
+  // instance of that error to buy nothing is not worth it.
+  app.post('/:id/send', requirePermission('quotes:update'), async (c: any) => {
+    const cid = (c.get('user') as any).companyId
+    const id = c.req.param('id')
+    let recipient: { email: string; name: string } | null = null
+    if (deps.sendQuoteEmail) {
+      const [found] = await db.select().from(t.quote).where(and(eq(t.quote.id, id), eq(t.quote.companyId, cid))).limit(1)
+      if (found?.contactId) {
+        const [ct] = await db.select().from(t.contact).where(and(eq(t.contact.id, found.contactId), eq(t.contact.companyId, cid))).limit(1)
+        if (ct?.email) recipient = { email: ct.email, name: ct.name || 'there' }
+      }
+      if (found && !recipient) return c.json({ error: 'This quote has no contact email address to send to. Add an email to the contact first.' }, 400)
+      if (found && recipient) {
+        const [co] = await db.select().from(t.company).where(eq(t.company.id, cid)).limit(1)
+        try {
+          await deps.sendQuoteEmail(recipient.email, {
+            quoteNumber: found.number, companyName: co?.name || 'Your provider', companyEmail: co?.email || '',
+            contactName: recipient.name, total: found.total,
+            expiryDate: found.expiryDate ? new Date(found.expiryDate as any).toLocaleDateString() : '',
+          })
+        } catch (err: any) {
+          console.error('[quotes] send failed', { quote: found.number, to: recipient.email, error: err?.message })
+          return c.json({ error: `Could not send the quote email. ${err?.message || 'The mail provider refused it.'} It was not marked as sent.` }, 502)
+        }
+      }
+    }
+    const r: any = await setStatus(c, id, { status: 'sent', sentAt: new Date() }, ['draft', 'sent'], EVENTS.QUOTE_SENT)
     if (!r.updated) return r
     if (o.onSent && r.updated.contactId) {
       const [ct] = await db.select().from(t.contact).where(and(eq(t.contact.id, r.updated.contactId), eq(t.contact.companyId, r.cid))).limit(1)

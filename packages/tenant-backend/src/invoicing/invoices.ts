@@ -81,7 +81,7 @@ const lineItemSchema = z.object({
   quantity: z.number().gt(0, 'Quantity must be more than zero').default(1),
   // Money is kept to the cent, and the ROUNDED price is what everything downstream multiplies.
   // A 3-decimal price was stored as 12.35 (the column holds two) while the line total was worked out
-  // from the raw 12.345 — so the document read "3.00 x .35 = .04", which does not multiply.
+  // from the raw 12.345 — so the document read "3.00 x $12.35 = $37.04", which does not multiply.
   // Rounding here means the number the customer reads is the number the arithmetic used.
   // (Field Service T28 L7)
   unitPrice: z.number().min(0, 'Price cannot be negative').default(0).transform((v: number) => Math.round((v + Number.EPSILON) * 100) / 100),

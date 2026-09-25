@@ -6,6 +6,7 @@ import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, compa
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import emailService from '../services/email.ts'
 
 export default createQuoteRoutes({
   db,
@@ -14,6 +15,7 @@ export default createQuoteRoutes({
   requirePermission,
   emitToCompany,
   EVENTS,
+  sendQuoteEmail: (to: string, data: Record<string, unknown>) => emailService.sendQuote(to, data),
   loadPdf: () => import('../services/pdf.ts').then(m => m.generateQuotePDF),
   // timeZoneFor: the business's own clock decides what "today" is, so an invoice or quote raised
   // in the evening is not stamped with tomorrow. Render runs UTC. (Field Service T28 M4)

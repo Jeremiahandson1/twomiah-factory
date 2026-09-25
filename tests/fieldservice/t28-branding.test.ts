@@ -52,6 +52,21 @@ console.log('\n── …and the ordinary things people type still work ──')
   check('an http logo saves', http.status === 200, { status: http.status, error: http.json?.error })
 }
 
+console.log('\n── T30 regression: a bare word is not a website ──')
+{
+  // Accepting "example.com" means prepending https://, and new URL('https://nope') parses perfectly
+  // happily — "nope" is a valid hostname the way "localhost" is. So the convenience that rescued people
+  // typing a bare domain turned any single word into a website. My regression, from the T28 M2 fix.
+  for (const junk of ['nope', 'asdf', 'hello world', 'localhost']) {
+    const r = await call('PUT', '/api/company', { website: junk })
+    check(`"${junk}" is refused, not saved as https://${junk}`, r.status === 400, { status: r.status, error: r.json?.error })
+  }
+  const typed = await call('PUT', '/api/company', { website: 'http://localhost:3000' })
+  check('…but an explicit scheme is still trusted — someone typing localhost means it', typed.status === 200, { status: typed.status, error: typed.json?.error })
+  const bare = await call('PUT', '/api/company', { website: 'example.co.uk' })
+  check('…and a real bare domain still works', bare.status === 200, { status: bare.status, error: bare.json?.error })
+}
+
 console.log('\n── L9: a logo can be removed again ──')
 {
   await call('PUT', '/api/company', { logo: 'https://cdn.example.com/logo.png' })
