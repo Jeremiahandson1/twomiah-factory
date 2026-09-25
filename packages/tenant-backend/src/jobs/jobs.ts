@@ -158,23 +158,57 @@ export function createJobRoutes(deps: JobDeps) {
   // salon/vet appointment lock (#116); job volume is low, so a per-company lock is simplest and safe.
   const jobLock = (tx: any, companyId: string) => tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${companyId + ':job'}))`)
 
+  /**
+   * A call occupies a RANGE, not an instant.
+   *
+   * The check used to be `scheduledTime = scheduledTime`, so one tech could be given 08:00 (1.5h), 09:00
+   * (2h), 09:30 (1h) and 10:00 (2h) on the same day and only a second 09:00 was refused — six overlapping
+   * calls on one person, and dragging a call into an overlap saved too. An identical start is the one
+   * overlap that check caught, not the rule.
+   *
+   * A job with no estimatedHours still occupies the diary, so a blank counts as one hour rather than zero
+   * — treating it as a point would let a call with no duration hide inside any other. (FS T28 H1)
+   */
+  const DEFAULT_JOB_MINUTES = 60
+  const minutesOfTime = (hhmm?: string | null) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim())
+    if (!m) return null
+    const h = Number(m[1]), min = Number(m[2])
+    return h < 24 && min < 60 ? h * 60 + min : null
+  }
+  const minutesOfHours = (hours: unknown) => {
+    const h = Number(hours)
+    return Number.isFinite(h) && h > 0 ? Math.max(1, Math.round(h * 60)) : DEFAULT_JOB_MINUTES
+  }
+
   // `who` is whichever kind of assignee the job has — a roster member can be double-booked just as a login user can.
-  const assigneeConflict = async (companyId: string, who?: Assignee | null, scheduledDate?: any, scheduledTime?: string, excludeId?: string, exec: any = db) => {
+  const assigneeConflict = async (companyId: string, who?: Assignee | null, scheduledDate?: any, scheduledTime?: string, excludeId?: string, exec: any = db, hours?: unknown) => {
     const assignedToId = who?.assignedToId || null, memberId = who?.assignedToMemberId || null
     if ((!assignedToId && !memberId) || !scheduledDate || !scheduledTime) return null
+    const start = minutesOfTime(scheduledTime); if (start === null) return null
+    const end = start + minutesOfHours(hours)
     const dayStart = new Date(scheduledDate); if (isNaN(dayStart.getTime())) return null
     dayStart.setUTCHours(0, 0, 0, 0)
     const dayEnd = new Date(dayStart.getTime() + 86400000)
     const conds = [
       eq(t.job.companyId, companyId),
       assignedToId ? eq(t.job.assignedToId, assignedToId) : eq(t.job.assignedToMemberId, memberId as string),
-      eq(t.job.scheduledTime, scheduledTime),
       gte(t.job.scheduledDate, dayStart), lt(t.job.scheduledDate, dayEnd),
       notInArray(t.job.status, ['cancelled', 'completed']),
     ]
     if (excludeId) conds.push(ne(t.job.id, excludeId))
-    const [dupe] = await exec.select({ id: t.job.id, number: t.job.number }).from(t.job).where(and(...conds)).limit(1)
-    return dupe || null
+    // estimatedHours is not on every vertical's job table; selecting a column that is not there throws
+    // inside drizzle and would 500 the whole save.
+    const cols: any = { id: t.job.id, number: t.job.number, scheduledTime: t.job.scheduledTime }
+    if (t.job.estimatedHours) cols.estimatedHours = t.job.estimatedHours
+    const sameDay = await exec.select(cols).from(t.job).where(and(...conds))
+    for (const other of sameDay) {
+      const s = minutesOfTime(other.scheduledTime)
+      if (s === null) continue                       // unscheduled work holds no slot
+      const e = s + minutesOfHours(other.estimatedHours)
+      if (start < e && end > s) return other         // half-open: 09:00–10:00 and 10:00–11:00 do NOT clash
+    }
+    return null
   }
   const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter(Boolean) as string[])]
 
@@ -330,7 +364,7 @@ export function createJobRoutes(deps: JobDeps) {
     let clash: any = null
     const created = await db.transaction(async (tx: any) => {
       await jobLock(tx, currentUser.companyId)
-      clash = await assigneeConflict(currentUser.companyId, who, data.scheduledDate, data.scheduledTime, undefined, tx)
+      clash = await assigneeConflict(currentUser.companyId, who, data.scheduledDate, data.scheduledTime, undefined, tx, data.estimatedHours)
       if (clash) return null
       const number = await nextNumber(tx, t.job, t.job.number, t.job.companyId, currentUser.companyId, { prefix, pad })
       const [row] = await tx.insert(t.job).values({
@@ -343,7 +377,9 @@ export function createJobRoutes(deps: JobDeps) {
       }).returning()
       return row
     })
-    if (clash) return c.json({ error: `That person is already booked at this time on ${clash.number}. Pick another time or assignee.`, conflictId: clash.id }, 409)
+    // Name the call AND when it starts: the clash is now an overlap, so "at this time" would be a lie
+    // for a 09:30 call refused because an 09:00 two-hour one is already there. (FS T28 H1)
+    if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const [result] = await withRelations([created], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, result)
     return c.json(result, 201)
@@ -378,12 +414,15 @@ export function createJobRoutes(deps: JobDeps) {
     const effAssignee = who
     const effDate = data.scheduledDate !== undefined ? data.scheduledDate : existing.scheduledDate
     const effTime = data.scheduledTime !== undefined ? data.scheduledTime : existing.scheduledTime
+    // The length matters as much as the start: shortening or lengthening a call changes what it overlaps,
+    // so the re-check uses the duration the job will HAVE, not the one it had. (FS T28 H1)
+    const effHours = data.estimatedHours !== undefined ? data.estimatedHours : existing.estimatedHours
     // Re-check + update in one transaction under the same per-company job lock, so a concurrent write
     // (create or edit) can't sneak the same tech/slot in between the check and the update.
     let clash: any = null
     const updated = await db.transaction(async (tx: any) => {
       await jobLock(tx, currentUser.companyId)
-      clash = await assigneeConflict(currentUser.companyId, effAssignee, effDate, effTime, id, tx)
+      clash = await assigneeConflict(currentUser.companyId, effAssignee, effDate, effTime, id, tx, effHours)
       if (clash) return null
       // Completing a job from the status dropdown must stamp completedAt the same way POST /:id/complete does —
       // it was only stamped by that route, so "Completed today" stayed 0 and the job had no completion time.
@@ -400,7 +439,9 @@ export function createJobRoutes(deps: JobDeps) {
       }).where(and(eq(t.job.id, id), eq(t.job.companyId, currentUser.companyId))).returning()
       return row
     })
-    if (clash) return c.json({ error: `That person is already booked at this time on ${clash.number}. Pick another time or assignee.`, conflictId: clash.id }, 409)
+    // Name the call AND when it starts: the clash is now an overlap, so "at this time" would be a lie
+    // for a 09:30 call refused because an 09:00 two-hour one is already there. (FS T28 H1)
+    if (clash) return c.json({ error: `That person is already booked on ${clash.number}${clash.scheduledTime ? ` at ${clash.scheduledTime}` : ''}, which overlaps this one. Pick another time or assignee.`, conflictId: clash.id }, 409)
     const [result] = await withRelations([updated], currentUser.companyId)
     emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, result)
     return c.json(result)

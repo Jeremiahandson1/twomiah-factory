@@ -52,7 +52,13 @@ export const SHELL: ShellConfig = {
   nav: NAV,
   searchPlaceholder: 'Search contacts, service calls, invoices...',
   routeGates: {
-  '/crm/reviews': ['google_reviews'],
-  '/crm/pricebook-trial': ['pricebook'],
+    '/crm/reviews': ['google_reviews'],
+    // NOT '/crm/pricebook-trial': ['pricebook'].
+    //
+    // That page exists to sell Pricebook to a tenant who does not have it — the home tile only appears
+    // when hasFeature('pricebook') is false — so gating it behind `pricebook` made the offer refuse
+    // everyone it was written for: click FREE TRIAL, land on "Pricebook Trial isn't part of this CRM".
+    // The page itself raises a support ticket and reads no pricebook data, so there is nothing to gate.
+    // (Field Service T28 H2)
   },
 };

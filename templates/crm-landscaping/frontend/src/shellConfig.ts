@@ -56,7 +56,10 @@ export const SHELL: ShellConfig = {
   nav: NAV,
   searchPlaceholder: 'Search contacts, service calls, invoices...',
   routeGates: {
-  '/crm/reviews': ['google_reviews'],
-  '/crm/pricebook-trial': ['pricebook'],
+    '/crm/reviews': ['google_reviews'],
+    // The Pricebook trial page is deliberately NOT gated on `pricebook` — it exists to sell Pricebook to a
+    // tenant who does not have it, and the home tile only appears when hasFeature('pricebook') is false.
+    // Gating it made the offer refuse everyone it was written for. Found here by
+    // scripts/check-upsell-not-self-gated.ts while fixing the same bug on field service. (T28 H2)
   },
 };

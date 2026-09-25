@@ -1726,3 +1726,14 @@ jobs:
           bun-version: latest
       - name: "Field service suite"
         run: bun run tests/fieldservice/harness/run.ts
+
+  upsell-not-self-gated:
+    name: "an upsell is not gated behind the thing it sells"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "Upsell not self-gated"
+        run: bun run scripts/check-upsell-not-self-gated.ts
