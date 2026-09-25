@@ -164,8 +164,23 @@ export function SchedulePage({ api, toast, config }: SchedulePageProps) {
                   ))}
                   {bookingsFor(day).map((b) => (
                     <div key={`${b.source}-${b.id}`} className="p-2 rounded text-xs bg-orange-100 border-l-4 border-orange-500 dark:bg-orange-900/30 text-gray-900 dark:text-slate-100" title={`${b.serviceName || 'Booking'} — ${b.customerName}${b.customerAddress ? ' @ ' + b.customerAddress : ''}`}>
-                      <p className="font-medium truncate flex items-center gap-1"><Calendar className="w-3 h-3 shrink-0" />{b.customerName}</p>
-                      <p className="text-gray-500 truncate dark:text-slate-400">{timeOf(b.startAt)}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
+                      {/*
+                        The word, not the colour.
+
+                        This chip has been given a brand tint, a thicker edge and its own icon across two
+                        rounds and still read as "the same as a service call" — because orange-* IS the
+                        tenant's brand, so the difference was a pale blue beside a pale grey on a chip two
+                        lines tall. Which shade reads as distinct depends on the hue the tenant picked,
+                        and that is not something to keep guessing at. A label says it at any hue, in
+                        either theme, and to someone who cannot separate those two pastels at all.
+                        (Field Service T29/T30 L5)
+                      */}
+                      <p className="font-medium truncate flex items-center gap-1">
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide">Booking</span>
+                        <span className="truncate">{b.customerName}</span>
+                      </p>
+                      <p className="text-gray-600 truncate dark:text-slate-300">{timeOf(b.startAt)}{b.serviceName ? ' · ' + b.serviceName : ''}</p>
                     </div>
                   ))}
                   {eventsFor(day).map((e) => (
