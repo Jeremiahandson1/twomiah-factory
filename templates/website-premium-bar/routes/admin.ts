@@ -39,6 +39,11 @@ import {
 } from '../db/schema'
 import { isHoursConfig } from '../lib/hours'
 import { bustSiteData } from '../lib/site-data'
+import { onlineOrderingEnabled, squareApi, squareConfig } from '../lib/square/client'
+import { getState, pushMenuToSquare, syncFromSquare } from '../lib/square/catalog'
+import { connectWebhooks } from '../lib/square/webhook'
+import { onlineOrders as onlineOrdersTbl, menuItems as menuItemsTbl } from '../db/schema'
+import { isNotNull, sql as dsql } from 'drizzle-orm'
 import { isNull } from 'drizzle-orm'
 import { uploadImage, deleteImage } from '../services/storage'
 import { validatePasswordStrength } from '../lib/security'
@@ -843,6 +848,86 @@ function hoursProblem(v: unknown): string | null {
   }
   return null
 }
+
+// ─── Square (menu source of truth + pickup ordering) ────────────────────────
+// Credentials are env-only (Render dashboard). These routes report status and
+// run the three go-live steps: push the menu, sync it back, connect webhooks.
+
+app.get('/square', authMiddleware, requireAdmin, async (c) => {
+  const cfg = squareConfig()
+  const state = await getState(db)
+  const [{ linked }] = await db.select({ linked: dsql<number>`count(*)::int` }).from(menuItemsTbl).where(isNotNull(menuItemsTbl.squareItemId))
+  const recent = await db.select({
+    id: onlineOrdersTbl.id, status: onlineOrdersTbl.status, customerName: onlineOrdersTbl.customerName,
+    totalCents: onlineOrdersTbl.totalCents, createdAt: onlineOrdersTbl.createdAt, error: onlineOrdersTbl.error,
+  }).from(onlineOrdersTbl).orderBy(desc(onlineOrdersTbl.createdAt)).limit(15)
+  return c.json({
+    configured: !!cfg,
+    environment: cfg?.environment || null,
+    locationId: cfg?.locationId || null,
+    hasApplicationId: !!cfg?.applicationId,
+    orderingSwitch: (process.env.ONLINE_ORDERING || '').toLowerCase() === 'on',
+    orderingEnabled: onlineOrderingEnabled(),
+    linkedItems: linked,
+    catalogPushedAt: state?.catalogPushedAt || null,
+    lastSyncAt: state?.lastSyncAt || null,
+    lastSyncResult: state?.lastSyncResult || null,
+    webhookUrl: state?.webhookUrl || process.env.SQUARE_WEBHOOK_URL || null,
+    webhookConnected: !!(state?.webhookSignatureKey || process.env.SQUARE_WEBHOOK_SIGNATURE_KEY),
+    lastWebhookAt: state?.lastWebhookAt || null,
+    recentOrders: recent,
+  })
+})
+
+// Is the token good, and is the location id one of this account's locations?
+app.post('/square/check', authMiddleware, requireAdmin, async (c) => {
+  const cfg = squareConfig()
+  if (!cfg) return c.json({ error: 'Set SQUARE_ACCESS_TOKEN and SQUARE_LOCATION_ID on the Render service first.' }, 400)
+  try {
+    const { locations = [] } = await squareApi<{ locations?: any[] }>('/v2/locations')
+    const loc = locations.find((l: any) => l.id === cfg.locationId)
+    if (!loc) return c.json({ error: 'The token works, but SQUARE_LOCATION_ID is not one of its locations.', locations: locations.map((l: any) => ({ id: l.id, name: l.name, address: l.address?.address_line_1 || '' })) }, 400)
+    return c.json({ ok: true, location: { id: loc.id, name: loc.name, address: loc.address?.address_line_1 || '', status: loc.status, currency: loc.currency, capabilities: loc.capabilities || [] } })
+  } catch (e: any) {
+    return c.json({ error: 'Square rejected the access token: ' + (e?.message || e) }, 400)
+  }
+})
+
+app.post('/square/push-menu', authMiddleware, requireAdmin, async (c) => {
+  try {
+    const r = await pushMenuToSquare(db)
+    if (r.skippedBecauseCatalogHasItems) return c.json({ error: `Square already has ${r.skippedBecauseCatalogHasItems} items, so nothing was pushed (it would duplicate the menu). Use "Pull from Square" instead.` }, 409)
+    await writeAudit(c, { userId: c.get('userId') || null, action: 'square.push_menu', meta: r as any }).catch(() => {})
+    return c.json({ ok: true, ...r })
+  } catch (e: any) {
+    return c.json({ error: 'Push failed: ' + (e?.message || e) }, 502)
+  }
+})
+
+app.post('/square/sync', authMiddleware, requireAdmin, async (c) => {
+  try {
+    const r = await syncFromSquare(db)
+    bustSiteData()
+    await writeAudit(c, { userId: c.get('userId') || null, action: 'square.sync', meta: r as any }).catch(() => {})
+    return c.json({ ok: true, ...r })
+  } catch (e: any) {
+    return c.json({ error: 'Sync failed: ' + (e?.message || e) }, 502)
+  }
+})
+
+app.post('/square/webhooks', authMiddleware, requireAdmin, async (c) => {
+  const [s] = await db.select({ siteOrigin: settingsTbl.siteOrigin }).from(settingsTbl).limit(1)
+  const url = new URL(c.req.url)
+  const proto = (c.req.header('x-forwarded-proto') || url.protocol.replace(':', '')).split(',')[0].trim()
+  const origin = process.env.SITE_ORIGIN || process.env.SITE_URL || s?.siteOrigin || `${proto}://${url.host}`
+  try {
+    const r = await connectWebhooks(db, origin)
+    await writeAudit(c, { userId: c.get('userId') || null, action: 'square.webhooks', meta: r as any }).catch(() => {})
+    return c.json({ ok: true, ...r })
+  } catch (e: any) {
+    return c.json({ error: 'Could not connect webhooks: ' + (e?.message || e) }, 502)
+  }
+})
 
 // ─── Staff console PINs (/console login) ───────────────────────────────────
 // PINs are bcrypt-hashed; only the label, status and last use are ever shown.

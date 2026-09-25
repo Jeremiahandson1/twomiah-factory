@@ -25,6 +25,9 @@
     <div class="section-head">
       <<%= H %> class="section-title" id="menu-heading"><%= heading %></<%= H %>>
       <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+      <% if (typeof site !== 'undefined' && site && site.live && site.live.ordering && site.live.ordering.available && kind !== 'drink') { %>
+        <p class="menu__order"><a class="btn btn--primary btn--lg" href="/order">Order for pickup</a></p>
+      <% } %>
       <% if (legend.size) { %>
         <ul class="menu__legend" aria-label="Dietary key">
           <% for (const code of legend) { %><li class="menu__legend-chip"><span class="menu__chip menu__chip--<%= code.toLowerCase() %>"><%= code %></span><%= DIET[code] || code %></li><% } %>
@@ -43,12 +46,12 @@
           <% if (s.description) { %><p class="menu-section__desc"><%= s.description %></p><% } %>
         </header>
         <ul class="menu-list" role="list">
-          <% for (const i of s.items) { if (i.isActive === false) continue; const link = showLinks && i.isSignature ? '/' + s.slug + '/' + i.slug : ''; %>
-            <li class="menu-line<%= i.is86ed ? ' menu-line--86' : '' %><%= i.isSignature ? ' menu-line--signature' : '' %>" id="item-<%= i.slug %>">
+          <% for (const i of s.items) { if (i.isActive === false) continue; const link = showLinks && i.isSignature ? '/' + s.slug + '/' + i.slug : ''; const out = i.is86ed || i.squareSoldOut; %>
+            <li class="menu-line<%= out ? ' menu-line--86' : '' %><%= i.isSignature ? ' menu-line--signature' : '' %>" id="item-<%= i.slug %>">
               <div class="menu-line__head">
                 <span class="menu-line__name">
                   <% if (link) { %><a href="<%= link %>"><%= i.name %></a><% } else { %><%= i.name %><% } %>
-                  <% if (i.is86ed) { %><span class="menu-line__out">out tonight</span><% } %>
+                  <% if (out) { %><span class="menu-line__out">out tonight</span><% } %>
                 </span>
                 <span class="menu-line__price mono"><%= price(i) %></span>
               </div>

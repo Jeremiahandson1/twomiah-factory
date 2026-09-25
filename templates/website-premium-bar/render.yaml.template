@@ -55,6 +55,18 @@ services:
         sync: false
       - key: OWNER_ALERT_NUMBER
         sync: false
+      # Square (menu source of truth + /order pickup). Dormant until set.
+      # SQUARE_ENVIRONMENT: sandbox | production. ONLINE_ORDERING=on opens /order.
+      - key: SQUARE_ACCESS_TOKEN
+        sync: false
+      - key: SQUARE_LOCATION_ID
+        sync: false
+      - key: SQUARE_APPLICATION_ID
+        sync: false
+      - key: SQUARE_ENVIRONMENT
+        value: sandbox
+      - key: ONLINE_ORDERING
+        value: "off"
 
 databases:
   - name: {{COMPANY_SLUG}}-site-db

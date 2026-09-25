@@ -33,7 +33,7 @@
         <h1 class="item-hero__title foil"><%= item.name %></h1>
         <div class="item-hero__meta mono">
           <% if (p) { %><span class="item-hero__price"><%= p %></span><% } %>
-          <% if (item.is86ed) { %><span class="item-hero__out">Out tonight</span><% } %>
+          <% if (item.is86ed || item.squareSoldOut) { %><span class="item-hero__out">Out tonight</span><% } %>
           <% if (Array.isArray(item.dietary) && item.dietary.length) { %><span class="item-hero__diet"><%= item.dietary.map(d => String(d).toUpperCase()).join(' · ') %></span><% } %>
         </div>
         <% if (item.description) { %><p class="item-hero__desc"><%= item.description %></p><% } %>

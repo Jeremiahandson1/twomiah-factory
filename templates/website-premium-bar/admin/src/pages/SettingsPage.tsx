@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { Label, TextField, TextAreaField, ImageUrlField, StringListField } from '../components/Field'
 import { HoursEditor, type HoursConfig } from '../components/HoursEditor'
 import { StaffPinsCard } from '../components/StaffPinsCard'
+import { SquareCard } from '../components/SquareCard'
 
 interface NavItem { label: string; href: string }
 
@@ -282,6 +283,7 @@ export function SettingsPage() {
         </div>
       </section>
 
+      <SquareCard />
       <StaffPinsCard />
     </div>
   )

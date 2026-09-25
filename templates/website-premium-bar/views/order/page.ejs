@@ -1,0 +1,98 @@
+<%
+  // /order — pickup ordering. The menu is server-rendered (readable with JS
+  // off); the cart, the Square card form and the payment are order.js. Prices
+  // shown here are for the customer — the server re-prices every cart.
+  const tel = String(settings.phone || '').replace(/[^\d+]/g, '')
+  const O = live.ordering
+  const address = [settings.streetAddress, settings.addressLocality].filter(Boolean).join(', ')
+%>
+<section class="order" aria-labelledby="order-heading"
+  data-app-id="<%= square.applicationId %>" data-location-id="<%= square.locationId %>" data-sdk="<%= square.sdkUrl %>"
+  data-open="<%= O.available ? '1' : '0' %>">
+  <div class="container">
+    <div class="section-head section-head--left">
+      <div class="eyebrow">Pickup</div>
+      <h1 class="section-title" id="order-heading">Order ahead</h1>
+      <p class="section-intro">Paid here, cooked when it comes in, waiting at the bar<%= address ? ' at ' + address : '' %>. Usually about <%= O.prepMinutes %> minutes.</p>
+    </div>
+
+    <div class="order__status<%= O.available ? '' : ' order__status--closed' %>" role="status">
+      <% if (O.available) { %>
+        <strong>Kitchen's open.</strong> <%= live.kitchen.short ? live.kitchen.short[0].toUpperCase() + live.kitchen.short.slice(1) + '.' : '' %><% if (O.lastCallAt) { %> Last online order <%= new Intl.DateTimeFormat('en-US', { timeZone: live.timezone, hour: 'numeric', minute: '2-digit' }).format(new Date(O.lastCallAt)) %>.<% } %>
+      <% } else { %>
+        <strong><%= O.reason %></strong> <%= live.kitchen.isOpen ? '' : live.kitchen.line + '.' %><% if (tel) { %> <a href="tel:<%= tel %>"><%= settings.phone %></a><% } %>
+      <% } %>
+    </div>
+
+    <noscript><p class="order__noscript">Paying online needs JavaScript for the card form. Call <a href="tel:<%= tel %>"><%= settings.phone %></a> and we'll take it over the phone.</p></noscript>
+
+    <div class="order__layout">
+      <div class="order__menu">
+        <% if (!menu.length) { %><p class="menu-full__empty">Nothing is on for online orders right now. Call <a href="tel:<%= tel %>"><%= settings.phone %></a>.</p><% } %>
+        <% for (const s of menu) { %>
+          <section class="menu-section" aria-labelledby="om-<%= s.slug %>">
+            <header class="menu-section__head">
+              <h2 class="menu-section__title" id="om-<%= s.slug %>"><%= s.name %></h2>
+            </header>
+            <% if (s.description) { %><p class="menu-section__desc order__secdesc"><%= s.description %></p><% } %>
+            <ul class="menu-list" role="list">
+              <% for (const i of s.items) { %>
+                <li class="menu-line order-line">
+                  <div class="menu-line__head">
+                    <span class="menu-line__name"><%= i.name %></span>
+                    <span class="menu-line__price mono"><%= i.variations.map(v => formatCents(v.priceCents)).join(' / ') %></span>
+                  </div>
+                  <% if (i.description) { %><p class="menu-line__desc"><%= i.description %></p><% } %>
+                  <div class="order-line__add" role="group" aria-label="Add <%= i.name %>">
+                    <% for (const v of i.variations) { %>
+                      <button class="btn btn--outline order-add" type="button" disabled
+                        data-item="<%= i.id %>" data-var="<%= v.id %>" data-name="<%= i.name %>" data-vname="<%= v.name %>" data-price="<%= v.priceCents %>">
+                        Add<%= i.variations.length > 1 ? ' ' + v.name.toLowerCase() : '' %> <span class="mono"><%= formatCents(v.priceCents) %></span>
+                      </button>
+                    <% } %>
+                  </div>
+                </li>
+              <% } %>
+            </ul>
+          </section>
+        <% } %>
+      </div>
+
+      <aside class="order__cart" aria-labelledby="cart-heading">
+        <div class="order__cart-inner">
+          <h2 class="order__cart-title" id="cart-heading">Your order <span class="order__count mono" id="cart-count"></span></h2>
+          <p class="order__empty" id="cart-empty">Nothing yet. Tap Add on anything.</p>
+          <ul class="order__lines" id="cart-lines" role="list"></ul>
+          <dl class="order__totals mono" id="cart-totals" hidden>
+            <div><dt>Food</dt><dd id="t-sub"></dd></div>
+            <div><dt>Tax</dt><dd id="t-tax"></dd></div>
+            <div class="order__total"><dt>Total</dt><dd id="t-total"></dd></div>
+          </dl>
+
+          <form class="order__form" id="checkout" hidden novalidate>
+            <div class="parties__field">
+              <label class="parties__label" for="o-name">Name for the order</label>
+              <input id="o-name" name="name" type="text" autocomplete="name" required maxlength="60">
+            </div>
+            <div class="parties__field">
+              <label class="parties__label" for="o-phone">Phone</label>
+              <input id="o-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required>
+            </div>
+            <label class="order__check">
+              <input type="checkbox" name="textUpdates" id="o-texts">
+              <span>Text me when it's on the grill and when it's ready. Two texts about this order, nothing else. Msg &amp; data rates may apply.</span>
+            </label>
+            <div class="parties__field">
+              <span class="parties__label" id="card-label">Card</span>
+              <div class="order__card" id="card" aria-labelledby="card-label"></div>
+            </div>
+            <button class="btn btn--primary btn--xl order__pay" id="pay" type="submit" disabled>Pay</button>
+            <p class="order__fine">Charged by <%= settings.companyName %> through Square. Card details go straight to Square, not to us.</p>
+          </form>
+          <p class="order__msg" id="order-msg" role="alert" aria-live="assertive"></p>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+<script src="/scripts/order.js" defer></script>

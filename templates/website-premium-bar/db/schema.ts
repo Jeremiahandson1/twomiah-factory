@@ -289,6 +289,13 @@ export const serviceStatus = pgTable('service_status', {
   note: text('note'),                                                          // free-text line on the board
   speakeasyPassword: text('speakeasy_password'),                               // the Back Room reward (home-page door game)
   speakeasyNote: text('speakeasy_note'),                                       // what it is good for ("$1 off a root beer")
+  orderingPaused: boolean('ordering_paused').notNull().default(false),         // console "stop online orders" (slammed, fryer down)
+  orderingPausedUntil: timestamp('ordering_paused_until', { withTimezone: true }), // lapses at end of business day like every override
+  orderPrepMinutes: integer('order_prep_minutes').notNull().default(20),       // quoted pickup time for online orders
+  // Grill screen: when a ticket turns gold, then red; the prep time for items nobody has timed yet.
+  ticketWarnSeconds: integer('ticket_warn_seconds').notNull().default(600),
+  ticketLateSeconds: integer('ticket_late_seconds').notNull().default(900),
+  defaultPrepSeconds: integer('default_prep_seconds').notNull().default(480),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedBy: text('updated_by'),                                               // staff pin label
 })
@@ -401,6 +408,15 @@ export const menuItems = pgTable('menu_items', {
   isActive: boolean('is_active').notNull().default(true),
   squareItemId: text('square_item_id'),
   squareVariationId: text('square_variation_id'),
+  // Every priced size of the item — [{ id: square variation id | null, name: 'Sandwich', priceCents: 579 }].
+  // From the price label before Square is connected, from the Catalog afterwards.
+  variations: jsonb('variations').notNull().default([]),
+  squareSoldOut: boolean('square_sold_out').notNull().default(false),   // marked sold out on the register; OR'd with is86ed
+  // Grill screen. null = follow the section (food goes to the grill, drinks don't).
+  toKitchen: boolean('to_kitchen'),
+  prepSeconds: integer('prep_seconds'),                 // what the owner says it takes; null = the house default
+  learnedPrepSeconds: integer('learned_prep_seconds'),  // what bumps say it takes (moving average)
+  learnedSamples: integer('learned_samples').notNull().default(0),
   sortOrder: integer('sort_order').notNull().default(0),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -476,6 +492,83 @@ export const staffSessions = pgTable('staff_sessions', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
 })
+
+// Square connection state (singleton). Credentials live in env; this holds what
+// the app learns at runtime: the webhook subscription it created and its
+// signature key, and the result of the last catalog sync.
+export const squareState = pgTable('square_state', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  webhookSubscriptionId: text('webhook_subscription_id'),
+  webhookSignatureKey: text('webhook_signature_key'),
+  webhookUrl: text('webhook_url'),
+  catalogPushedAt: timestamp('catalog_pushed_at', { withTimezone: true }),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  lastSyncResult: text('last_sync_result'),
+  lastWebhookAt: timestamp('last_webhook_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Pickup orders placed on /order. Square holds the real order + payment; this
+// row is what the confirmation page and the order texts read.
+export const onlineOrders = pgTable('online_orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  idempotencyKey: text('idempotency_key').notNull().unique(),
+  squareOrderId: text('square_order_id'),
+  squarePaymentId: text('square_payment_id'),
+  // 'pending' | 'paid' | 'in_progress' | 'ready' | 'completed' | 'canceled' | 'failed'
+  status: text('status').notNull().default('pending'),
+  customerName: text('customer_name').notNull(),
+  phone: text('phone').notNull(),
+  textUpdates: boolean('text_updates').notNull().default(false),   // unchecked by default; transactional only
+  lines: jsonb('lines').notNull().default([]),                     // [{ name, variation, qty, note, priceCents }]
+  subtotalCents: integer('subtotal_cents'),
+  taxCents: integer('tax_cents'),
+  totalCents: integer('total_cents'),
+  pickupAt: timestamp('pickup_at', { withTimezone: true }),
+  error: text('error'),
+  firedSmsAt: timestamp('fired_sms_at', { withTimezone: true }),
+  readySmsAt: timestamp('ready_sms_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  squareOrderIdx: index('online_orders_square_idx').on(t.squareOrderId),
+  createdIdx: index('online_orders_created_idx').on(t.createdAt),
+}))
+
+// ═══ THE GRILL SCREEN ═══════════════════════════════════════════════════════
+// One ticket per fire. Items live on the ticket for now; when the register
+// arrives, tickets get a check_id and items come from the check.
+export const kitchenTickets = pgTable('kitchen_tickets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  label: text('label').notNull(),                 // "Bar seat 6 · Mike", "Booth 2", "Web · Pat · 7:40"
+  source: text('source').notNull(),               // 'bar' | 'table' | 'web'
+  note: text('note'),
+  onlineOrderId: uuid('online_order_id'),         // web tickets: the order to text when it's up
+  checkId: uuid('check_id'),                      // reserved for the register
+  firedAt: timestamp('fired_at', { withTimezone: true }).notNull().defaultNow(),
+  firedBy: text('fired_by'),
+  bumpedAt: timestamp('bumped_at', { withTimezone: true }),
+  bumpedBy: text('bumped_by'),
+  recalledAt: timestamp('recalled_at', { withTimezone: true }),
+  startedNotifiedAt: timestamp('started_notified_at', { withTimezone: true }),   // "on the grill" text sent
+}, (t) => ({
+  openIdx: index('kitchen_tickets_open_idx').on(t.bumpedAt, t.firedAt),
+}))
+
+export const kitchenTicketItems = pgTable('kitchen_ticket_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ticketId: uuid('ticket_id').notNull().references(() => kitchenTickets.id, { onDelete: 'cascade' }),
+  menuItemId: uuid('menu_item_id'),
+  name: text('name').notNull(),                   // snapshot at fire time
+  variation: text('variation'),                   // "Platter"
+  qty: integer('qty').notNull().default(1),
+  note: text('note'),                             // "no onions", "side: fries"
+  seat: integer('seat'),
+  prepSeconds: integer('prep_seconds').notNull(), // snapshot: what pacing used
+  sortOrder: integer('sort_order').notNull().default(0),
+}, (t) => ({
+  ticketIdx: index('kitchen_ticket_items_ticket_idx').on(t.ticketId),
+}))
 
 // Phase 3: every voice-agent call, with transcript, surfaced in the console.
 export const callLogs = pgTable('call_logs', {

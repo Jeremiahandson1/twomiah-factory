@@ -1,0 +1,62 @@
+<%
+  // /order/:id — the receipt and where the order is. Right on first paint;
+  // a tiny poll moves the status along as the kitchen works it in Square.
+  const tel = String(settings.phone || '').replace(/[^\d+]/g, '')
+  const STEPS = [['paid', 'Sent to the kitchen'], ['in_progress', 'On the grill'], ['ready', 'Ready at the bar']]
+  const at = (d) => d ? new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(d)) : ''
+  const rank = { paid: 0, in_progress: 1, ready: 2, completed: 3 }
+  const cur = rank[order.status] ?? -1
+  const address = [settings.streetAddress, settings.addressLocality].filter(Boolean).join(', ')
+%>
+<section class="order order--status" aria-labelledby="st-heading" data-order="<%= order.id %>" data-status="<%= order.status %>">
+  <div class="container container--narrow">
+    <div class="eyebrow">Order for <%= order.customerName %></div>
+    <h1 class="section-title order__st-title" id="st-heading">
+      <% if (order.status === 'canceled') { %>This order was canceled.<% } else if (order.status === 'completed') { %>Picked up. Thanks.<% } else if (order.status === 'ready') { %>It's ready.<% } else { %>Got it.<% } %>
+    </h1>
+    <% if (order.status === 'canceled') { %>
+      <p class="section-intro">Call the bar at <a href="tel:<%= tel %>"><%= settings.phone %></a> and we'll sort out the charge.</p>
+    <% } else { %>
+      <p class="section-intro">Ready around <strong class="mono"><%= at(order.pickupAt) %></strong>. Come to the bar<%= address ? ' at ' + address : '' %> and give the name <strong><%= order.customerName %></strong>.</p>
+      <ol class="order__steps" id="steps">
+        <% STEPS.forEach(([key, label], n) => { %>
+          <li class="order__step<%= cur >= n ? ' is-done' : '' %>" data-step="<%= key %>"<%= cur === n ? ' aria-current="step"' : '' %>><%= label %></li>
+        <% }) %>
+      </ol>
+      <p class="order__live" id="st-live" aria-live="polite"></p>
+    <% } %>
+
+    <ul class="order__lines order__lines--receipt" role="list">
+      <% for (const l of order.lines) { %>
+        <li><span><%= l.qty %> × <%= l.name %><%= l.variation && l.variation !== 'Regular' ? ' (' + l.variation.toLowerCase() + ')' : '' %><% if (l.note) { %><em class="order__note"> — <%= l.note %></em><% } %></span><span class="mono"><%= formatCents(l.priceCents * l.qty) %></span></li>
+      <% } %>
+    </ul>
+    <dl class="order__totals mono">
+      <div><dt>Food</dt><dd><%= formatCents(order.subtotalCents) %></dd></div>
+      <div><dt>Tax</dt><dd><%= formatCents(order.taxCents) %></dd></div>
+      <div class="order__total"><dt>Paid</dt><dd><%= formatCents(order.totalCents) %></dd></div>
+    </dl>
+    <p class="order__fine">Something wrong? Call <a href="tel:<%= tel %>"><%= settings.phone %></a>. Keep this page; it updates itself.</p>
+  </div>
+</section>
+<script>
+(function () {
+  var el = document.querySelector('[data-order]'); if (!el) return;
+  var id = el.getAttribute('data-order'), last = el.getAttribute('data-status');
+  var LABEL = { in_progress: 'On the grill.', ready: 'Ready at the bar.', completed: 'Picked up.', canceled: 'Canceled. Call the bar.' };
+  var ORDER = ['paid', 'in_progress', 'ready'];
+  function tick() {
+    if (document.hidden || last === 'completed' || last === 'canceled') return;
+    fetch('/api/order/' + id, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || j.status === last) return;
+      last = j.status;
+      if (last === 'canceled' || last === 'completed') { location.reload(); return; }
+      var n = ORDER.indexOf(last);
+      document.querySelectorAll('.order__step').forEach(function (li, i) { li.classList.toggle('is-done', i <= n); if (i === n) li.setAttribute('aria-current', 'step'); else li.removeAttribute('aria-current'); });
+      var live = document.getElementById('st-live'); if (live) live.textContent = LABEL[last] || '';
+    }).catch(function () {});
+  }
+  setInterval(tick, 20000);
+  document.addEventListener('visibilitychange', tick);
+})();
+</script>

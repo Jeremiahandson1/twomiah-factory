@@ -128,8 +128,12 @@
           <%= settings.companyName || 'Your Company' %>
         <% } %>
       </a>
+      <%
+        // "Order" joins the nav by itself while online ordering is on (lib/render.ts sets orderNav).
+        const _nav = (settings.nav || []).concat(typeof orderNav !== 'undefined' && orderNav && !(settings.nav || []).some(function (n) { return n.href === '/order' }) ? [{ label: 'Order', href: '/order' }] : [])
+      %>
       <nav class="primary-nav" aria-label="Primary">
-        <% (settings.nav || []).forEach(function(item) { %>
+        <% _nav.forEach(function(item) { %>
           <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
         <% }) %>
       </nav>
@@ -139,7 +143,7 @@
       </button>
     </div>
     <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile primary" hidden>
-      <% (settings.nav || []).forEach(function(item) { %>
+      <% _nav.forEach(function(item) { %>
         <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
       <% }) %>
       <a class="mobile-nav__cta" href="<%= settings.contactHref || '/visit' %>"><%= settings.contactCtaLabel || 'Visit' %></a>

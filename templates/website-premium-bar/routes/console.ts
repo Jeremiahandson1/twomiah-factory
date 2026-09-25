@@ -11,7 +11,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
-import { and, asc, desc, eq, gte, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import ejs from 'ejs'
@@ -22,13 +22,16 @@ import { bustSiteData, loadSiteData } from '../lib/site-data'
 import { buildLiveState } from '../lib/live'
 import { addDays, localDateString, localToUtc } from '../lib/hours'
 import { loginRateLimit } from '../lib/security'
+import { onlineOrderingEnabled } from '../lib/square/client'
+import { fireTicket } from '../lib/kitchen/tickets'
+import { variationsFromLabel } from '../lib/square/catalog'
 
 const COOKIE = 'bar_console'
 const SESSION_DAYS = 30
 const viewsDir = path.join(import.meta.dir, '..', 'views', 'console')
 const isProd = process.env.NODE_ENV === 'production'
 
-type Vars = { staff: { id: string; label: string; sessionId: string } }
+export type Vars = { staff: { id: string; label: string; sessionId: string } }
 
 function hashToken(t: string): string { return crypto.createHash('sha256').update(t).digest('hex') }
 
@@ -43,7 +46,7 @@ async function sessionFromCookie(c: Context<{ Variables: Vars }>) {
   return { id: row.pinId, label: row.label, sessionId: row.id }
 }
 
-async function requireStaff(c: Context<{ Variables: Vars }>, next: () => Promise<void>) {
+export async function requireStaff(c: Context<{ Variables: Vars }>, next: () => Promise<void>) {
   const staff = await sessionFromCookie(c)
   if (!staff) {
     if (c.req.path.startsWith('/api/')) return c.json({ error: 'Sign in with your PIN.' }, 401)
@@ -102,7 +105,7 @@ consolePages.get('/icon.svg', (c) => {
 consolePages.get('/sw.js', (c) => {
   c.header('Content-Type', 'application/javascript'); c.header('Cache-Control', 'no-cache')
   // Shell-only cache. HTML is always network-first so the board is never stale.
-  return c.body(`const SHELL='bar-console-v1';const ASSETS=['/styles/console.css','/scripts/console.js','/console/icon.svg'];
+  return c.body(`const SHELL='bar-console-v2';const ASSETS=['/styles/console.css','/scripts/console.js','/console/icon.svg'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(SHELL).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==SHELL).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET')return;
@@ -122,7 +125,8 @@ consolePages.use('/login', loginRateLimit())
 consolePages.post('/login', async (c) => {
   const body = await bodyOf(c)
   const pin = String(body.pin || '').replace(/\D/g, '')
-  const next = String(body.next || '/console').startsWith('/console') ? String(body.next) : '/console'
+  // Back to where they were headed: the console or the grill screen, never anywhere else.
+  const next = /^\/(console|kitchen)(\/|$)/.test(String(body.next || '')) ? String(body.next) : '/console'
   if (pin.length < 4) return c.redirect('/console/login?error=' + encodeURIComponent('Enter your PIN.'))
   const rows = await db.select().from(staffPins).where(eq(staffPins.isActive, true))
   let match: typeof rows[number] | null = null
@@ -158,8 +162,23 @@ consolePages.get('/', requireStaff, async (c) => {
     db.select().from(events).where(gte(events.startsAt, new Date(now.getTime() - 4 * 3600000))).orderBy(asc(events.startsAt)).limit(10),
   ])
   const live = await buildLiveState(db, now)
+  // The grill pad: food items by section, each with its sizes (Square's when linked, else read from the printed price).
+  const defaultPrep = status.defaultPrepSeconds || 480
+  const grillSections = sections.filter(sec => sec.isActive).map(sec => ({
+    name: sec.name,
+    items: items.filter(it => it.sectionId === sec.id && (it.toKitchen ?? (sec.kind !== 'drink'))).map(it => {
+      const vs = (Array.isArray(it.variations) && it.variations.length ? it.variations as Array<{ name: string }> : variationsFromLabel(it.priceCents, it.priceLabel, sec.description))
+      return {
+        id: it.id, name: it.name, is86ed: it.is86ed,
+        sizes: vs.map(v => v.name).filter(n => n && n !== 'Regular'),
+        prepMin: it.prepSeconds ? Math.round(it.prepSeconds / 60) : null,
+        learnedMin: it.learnedPrepSeconds && it.learnedSamples ? Math.round(it.learnedPrepSeconds / 60) : null,
+        learnedSamples: it.learnedSamples,
+      }
+    }),
+  })).filter(sec => sec.items.length)
   const html = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), {
-    staff, settings: s, live, status, sections, items, taps: tapRows, inquiries, games: upcomingGames, events: upcomingEvents,
+    staff, settings: s, live, status, sections, items, taps: tapRows, inquiries, games: upcomingGames, events: upcomingEvents, orderingEnabled: onlineOrderingEnabled(), grillSections, defaultPrepMin: Math.round(defaultPrep / 60),
     timezone: live.timezone, hoursToday: { bar: site.live.bar, kitchen: site.live.kitchen },
   })
   c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
@@ -228,6 +247,70 @@ consoleApi.post('/speakeasy', async (c) => {
   const row = await statusRow()
   await db.update(serviceStatus).set({ speakeasyPassword: str(b.password, 40), speakeasyNote: str(b.note, 120), updatedAt: new Date(), updatedBy: c.get('staff').label }).where(eq(serviceStatus.id, row.id))
   return done(c)
+})
+
+// Send to the grill: the bar's order pad until the register exists. Names come from
+// the menu (never the client); drinks drop off by themselves in fireTicket.
+consoleApi.post('/ticket', async (c) => {
+  const b = await bodyOf(c)
+  const label = str(b.label, 60)
+  if (!label) return c.json({ error: 'Who is it for? Bar seat, booth or a name.' }, 400)
+  const raw = Array.isArray(b.lines) ? b.lines.slice(0, 30) : []
+  if (!raw.length) return c.json({ error: 'Add something to cook.' }, 400)
+  const ids = [...new Set(raw.map((l: any) => String(l?.menuItemId || '')).filter(Boolean))] as string[]
+  const rows = ids.length ? await db.select({ id: menuItems.id, name: menuItems.name, isActive: menuItems.isActive, is86ed: menuItems.is86ed }).from(menuItems).where(inArray(menuItems.id, ids)) : []
+  const byId = new Map(rows.map(r => [r.id, r]))
+  const lines = []
+  for (const l of raw as any[]) {
+    const item = byId.get(String(l?.menuItemId || ''))
+    if (!item || !item.isActive) return c.json({ error: 'Something on that order is off the menu.' }, 400)
+    if (item.is86ed) return c.json({ error: `${item.name} is 86'd.` }, 400)
+    const qty = Math.floor(Number(l?.qty))
+    if (!Number.isFinite(qty) || qty < 1 || qty > 20) return c.json({ error: `Check the count on ${item.name}.` }, 400)
+    lines.push({ menuItemId: item.id, name: item.name, variation: str(l?.variation, 40), qty, note: str(l?.note, 140) })
+  }
+  const source = /^(booth|table)\b/i.test(label) ? 'table' : 'bar'
+  const t = await fireTicket(db, { label, source, note: str(b.note, 200), firedBy: c.get('staff').label, lines })
+  if (!t) return c.json({ error: 'Nothing on that order goes to the grill.' }, 400)
+  return c.json({ ok: true, ticketId: t.id })
+})
+
+// Grill time for one item, in minutes. Blank = the house default. The screen also learns real times from bumps.
+consoleApi.post('/prep', async (c) => {
+  const b = await bodyOf(c)
+  const id = str(b.id, 80)
+  if (!id) return c.json({ error: 'Which item?' }, 400)
+  const raw = String(b.minutes ?? '').trim()
+  let seconds: number | null = null
+  if (raw) {
+    const m = Number(raw)
+    if (!Number.isFinite(m) || m < 1 || m > 60) return c.json({ error: 'Minutes between 1 and 60, or blank for the default.' }, 400)
+    seconds = Math.round(m * 60)
+  }
+  // A new time from a person resets what the screen learned, so it starts learning from the right place.
+  await db.update(menuItems).set({ prepSeconds: seconds, learnedPrepSeconds: null, learnedSamples: 0, updatedAt: new Date() }).where(eq(menuItems.id, id))
+  return c.json({ ok: true })
+})
+
+// Online orders: pause for the night (lapses at end of business day) and the quoted prep time.
+consoleApi.post('/ordering', async (c) => {
+  const b = await bodyOf(c)
+  const row = await statusRow()
+  const patch: Partial<typeof serviceStatus.$inferInsert> = { updatedAt: new Date(), updatedBy: c.get('staff').label }
+  if (b.paused !== undefined) {
+    const paused = b.paused === true || String(b.paused) === 'true'
+    patch.orderingPaused = paused
+    patch.orderingPausedUntil = paused ? await endOfBusinessDay() : null
+  }
+  if (b.prepMinutes !== undefined) {
+    const m = Number(b.prepMinutes)
+    if (![15, 20, 30, 45].includes(m)) return c.json({ error: 'Pick 15, 20, 30 or 45 minutes.' }, 400)
+    patch.orderPrepMinutes = m
+  }
+  await db.update(serviceStatus).set(patch).where(eq(serviceStatus.id, row.id))
+  const fresh = await statusRow()
+  const pausedNow = fresh.orderingPaused && (!fresh.orderingPausedUntil || fresh.orderingPausedUntil.getTime() > Date.now())
+  return done(c, { ordering: { paused: pausedNow, prepMinutes: fresh.orderPrepMinutes } })
 })
 
 // Tonight's special: one active row until end of business day. Empty title clears it.

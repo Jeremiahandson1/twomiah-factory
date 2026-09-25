@@ -10,6 +10,8 @@ import { and, asc, desc, eq, gte, isNull, lte, or, sql } from 'drizzle-orm'
 import type { db as DB } from '../db'
 import { games, serviceStatus, settings as settingsTbl, specials, taps } from '../db/schema'
 import { describe, evaluate, formatCountdown, formatTime, isHoursConfig, localDateString, EMPTY_HOURS, type DateOverride, type DepartmentStatus, type HoursConfig, type ManualOverride } from './hours'
+import { onlineOrderingEnabled } from './square/client'
+import { orderingWindow, type OrderingState } from './square/orders'
 
 export type RoomStatus = 'quiet' | 'filling' | 'packed'
 
@@ -37,6 +39,8 @@ export interface LiveState {
   special: { title: string; description: string | null; price: string | null } | null
   game: { league: string; home: string; away: string; startsAt: string; startsAtLabel: string; note: string | null; isToday: boolean } | null
   taps: { count: number; featured: Array<{ name: string; brewery: string | null; style: string | null; status: string; badge: string | null }>; updatedAt: string | null }
+  /** Online pickup ordering: open right now? (Square connected + ONLINE_ORDERING=on + kitchen open + not paused) */
+  ordering: OrderingState
   updatedAt: string | null
   updatedBy: string | null
 }
@@ -136,11 +140,18 @@ export async function buildLiveState(db: typeof DB, now: Date = new Date()): Pro
   const room = (status?.roomStatus === 'filling' || status?.roomStatus === 'packed') ? status.roomStatus : 'quiet'
   const overrideLive = !!status?.overrideUntil && status.overrideUntil.getTime() > now.getTime()
 
+  const kitchen = dept(h.kitchen, now, tz, 'kitchen')
+  const ordering = orderingWindow({
+    enabled: onlineOrderingEnabled(), kitchen,
+    paused: !!status?.orderingPaused, pausedUntil: status?.orderingPausedUntil || null,
+    prepMinutes: status?.orderPrepMinutes || 20, now,
+  })
+
   return {
     generatedAt: now.toISOString(),
     timezone: tz,
     localDate: h.localDate,
-    kitchen: dept(h.kitchen, now, tz, 'kitchen'),
+    kitchen,
     bar: dept(h.bar, now, tz, 'bar'),
     room: { status: room, label: ROOM_LABEL[room] },
     note: overrideLive || !status?.overrideUntil ? (status?.note || null) : null,
@@ -155,6 +166,7 @@ export async function buildLiveState(db: typeof DB, now: Date = new Date()): Pro
       featured: pouring.slice(0, 4).map(t => ({ name: t.beerName, brewery: t.brewery, style: t.style, status: t.status, badge: t.badge })),
       updatedAt: tapsUpdated ? tapsUpdated.toISOString() : null,
     },
+    ordering,
     updatedAt: status?.updatedAt ? status.updatedAt.toISOString() : null,
     updatedBy: status?.updatedBy || null,
   }
@@ -169,6 +181,7 @@ export function liveStateFromHours(hours: HoursConfig, now: Date = new Date(), e
     kitchen: dept(h.kitchen, now, tz, 'kitchen'), bar: dept(h.bar, now, tz, 'bar'),
     room: { status: 'quiet', label: ROOM_LABEL.quiet }, note: null, special: null, game: null,
     taps: { count: 0, featured: [], updatedAt: null }, updatedAt: null, updatedBy: null,
+    ordering: { available: false, reason: 'Online ordering is not open yet.', prepMinutes: 20, lastCallAt: null },
     ...extras,
   }
 }

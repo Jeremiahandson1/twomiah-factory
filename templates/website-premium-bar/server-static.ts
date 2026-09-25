@@ -38,10 +38,10 @@ import { markdownToHtml } from './lib/markdown'
 import { alertOwner } from './lib/sms/twilio'
 import { partyInquiries as partyInquiriesTbl, serviceStatus } from './db/schema'
 
-// Cache-busting version for local stylesheets: changes every deploy (Render
-// sets RENDER_GIT_COMMIT) so browsers can keep long max-age but never serve
-// a stale CSS bundle after a redeploy.
-const ASSET_VERSION = (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || String(Date.now())
+// ASSET_VERSION (cache-busting per deploy) and renderBase (the base.ejs wrapper) live in lib/render.ts.
+import { ASSET_VERSION, renderBase } from './lib/render'
+import { orderPages, orderApi } from './routes/order'
+import { kitchenPages, kitchenApi } from './routes/kitchen'
 
 const app = new Hono()
 
@@ -230,7 +230,7 @@ async function renderPage(slug: string, currentPath: string): Promise<string | n
   // Sitewide BarOrPub JSON-LD from the settings row with bar + kitchen
   // hours from lib/hours (kitchen as a `department`).
   const jsonLd = pageJsonLd({ slug, title: page.title, sections: homepage.sections as any[], settings: effectiveSettings as any, hoursSchema: site.hoursSchema, menu: site.menu as any, events: site.events as any })
-  return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage, jsonLd }) as Promise<string>
+  return renderBase({ body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage, jsonLd }) as Promise<string>
 }
 
 // Default placeholder served when the pages.home row doesn't exist yet
@@ -282,7 +282,7 @@ app.get('/blog', async (c) => {
     seoDescription: settings.seoDescription || 'Recent posts from ' + (settings.companyName || 'the team') + '.',
     nav: settings.nav || [],
   }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog' }) as string
+  const html = await renderBase({ body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog' }) as string
   return c.html(html)
 })
 
@@ -312,7 +312,7 @@ app.get('/blog/:slug', async (c) => {
     seoDescription: post.metaDescription || post.excerpt || '',
     nav: settings.nav || [],
   }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog/' + slug }) as string
+  const html = await renderBase({ body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog/' + slug }) as string
   return c.html(html)
 })
 
@@ -358,7 +358,7 @@ app.get('/parties/thanks', async (c) => {
   const body = `<section class="thanks"><div class="container thanks__inner"><div class="eyebrow">Got it</div><h1 class="thanks__title foil">We'll call you back.</h1>` +
     `<p class="thanks__lead">The owner has your request. If it's urgent, call ${tel ? `<a href="tel:${tel}">${(settings as any).phone}</a>` : 'the bar'}.</p>` +
     `<a class="btn btn--outline btn--lg" href="/">Back to tonight's board</a></div></section>`
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: { ...settings, seoTitle: 'Thanks — ' + settings.companyName }, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/parties/thanks' }) as string
+  const html = await renderBase({ body, assetV: ASSET_VERSION, settings: { ...settings, seoTitle: 'Thanks — ' + settings.companyName }, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/parties/thanks' }) as string
   c.header('X-Robots-Tag', 'noindex')
   return c.html(html)
 })
@@ -386,12 +386,20 @@ app.get('/api/live/fresh', async (c) => {
   return c.json(await buildLiveState(db))
 })
 
+// ── Pickup ordering (Square) + the Square webhook — dormant until configured ──
+app.route('/order', orderPages)
+app.route('/api', orderApi)
+// ── The grill screen (staff PIN, same as the console) ──
+app.get('/kitchen/', (c) => c.redirect('/kitchen'))
+app.route('/kitchen', kitchenPages)
+app.route('/api/kitchen', kitchenApi)
+
 app.get('/:slug', async (c, next) => {
   const slug = c.req.param('slug')
   // Reserved names and unknown pages fall THROUGH (next()) so the routes
   // registered after this one — /sitemap.xml, /robots.txt, the console,
   // nested pages — still get their turn instead of a premature 404.
-  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'kitchen', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return next()
   countView('/' + slug)
@@ -952,7 +960,7 @@ async function renderItemPage(sectionSlug: string, itemSlug: string): Promise<st
   const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings, site, live: site.live, md: markdownToHtml, currentPath }) as string
   const jsonLd = pageJsonLd({ slug: section.slug + '/' + item.slug, title: item.name, sections: homepage.sections, settings: effectiveSettings as any, hoursSchema: site.hoursSchema, item: { section: section as any, item: item as any } })
   const lcpImage = item.heroImageUrl || item.imageUrl || ''
-  return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage, jsonLd }) as Promise<string>
+  return renderBase({ body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage, jsonLd }) as Promise<string>
 }
 
 // ── Nested CMS page paths (registered LAST, on purpose) ────────────────────
@@ -960,7 +968,7 @@ async function renderItemPage(sectionSlug: string, itemSlug: string): Promise<st
 // FULL path in its slug, so loadPage() matches directly and the sitemap emits
 // the nested URL. Falls back to a signature item page. These MUST come after
 // every /api/* and /admin/* route: Hono dispatches the first-registered match.
-const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'parties', '.well-known']
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'customize', 'console', 'kitchen', 'parties', 'order', '.well-known']
 app.get('/:a/:b', async (c, next) => {
   const { a, b } = c.req.param()
   if (NESTED_RESERVED.includes(a)) return next()   // fall through to /admin/*, /console/*, /media/* etc. registered later

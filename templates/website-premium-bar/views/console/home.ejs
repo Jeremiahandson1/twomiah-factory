@@ -48,6 +48,39 @@
       <a class="con-card__link" href="/" target="_blank" rel="noopener">See the site →</a>
     </section>
 
+    <% if (typeof grillSections !== 'undefined') { %>
+    <!-- SEND TO THE GRILL (the order pad until the register exists) -->
+    <section class="con-card" aria-labelledby="h-grill" id="grill-pad">
+      <h2 class="con-card__title" id="h-grill">Send to the grill</h2>
+      <a class="con-card__link" href="/kitchen">Open the grill screen →</a>
+      <label class="con-label" for="gp-label">For</label>
+      <input class="con-input" id="gp-label" list="gp-spots" maxlength="60" placeholder="Bar seat 6, Booth 2, Mike…" autocomplete="off">
+      <datalist id="gp-spots">
+        <% for (let n = 1; n <= 10; n++) { %><option value="Bar seat <%= n %>"><% } %>
+        <% for (let n = 1; n <= 5; n++) { %><option value="Booth <%= n %>"><option value="Table <%= n %>"><% } %>
+      </datalist>
+      <ul class="gp-lines" id="gp-lines" aria-live="polite"><li class="con-empty">Tap food below to add it.</li></ul>
+      <input class="con-input" id="gp-note" maxlength="200" placeholder="Note for the cook (optional)">
+      <button class="con-btn con-btn--good" type="button" id="gp-fire" disabled>Fire to the grill</button>
+      <div class="gp-menu">
+        <% grillSections.forEach(function (sec, n) { %>
+          <details class="gp-sec"<%= n === 0 ? ' open' : '' %>>
+            <summary class="gp-sec__name"><%= sec.name %></summary>
+            <div class="gp-items">
+              <% for (const it of sec.items) { %>
+                <% if (it.sizes.length) { for (const size of it.sizes) { %>
+                  <button class="con-btn gp-add" type="button" data-gp-add="<%= it.id %>" data-name="<%= it.name %>" data-variation="<%= size %>"<%= it.is86ed ? ' disabled' : '' %>><%= it.name %> <span class="gp-size"><%= size.toLowerCase() %></span><%= it.is86ed ? ' · out' : '' %></button>
+                <% } } else { %>
+                  <button class="con-btn gp-add" type="button" data-gp-add="<%= it.id %>" data-name="<%= it.name %>" data-variation=""<%= it.is86ed ? ' disabled' : '' %>><%= it.name %><%= it.is86ed ? ' · out' : '' %></button>
+                <% } %>
+              <% } %>
+            </div>
+          </details>
+        <% }) %>
+      </div>
+    </section>
+    <% } %>
+
     <!-- KITCHEN -->
     <section class="con-card" aria-labelledby="h-kitchen">
       <h2 class="con-card__title" id="h-kitchen">Kitchen</h2>
@@ -86,6 +119,25 @@
       </div>
     </section>
 
+    <% if (typeof orderingEnabled !== 'undefined' && orderingEnabled) { %>
+    <!-- ONLINE ORDERS (only once Square + ONLINE_ORDERING are on) -->
+    <section class="con-card" aria-labelledby="h-orders">
+      <h2 class="con-card__title" id="h-orders">Online orders</h2>
+      <p class="con-help" data-live="ordering.text"><%= L.ordering.available ? 'Taking orders, ' + L.ordering.prepMinutes + ' min' : L.ordering.reason %></p>
+      <div class="con-grid con-grid--2" role="group" aria-label="Online ordering">
+        <button class="con-btn con-btn--seg<%= status.orderingPaused ? '' : ' is-on' %>" data-post="/api/console/ordering" data-body='{"paused":false}' data-seg="ordering" data-val="on">Taking orders</button>
+        <button class="con-btn con-btn--seg<%= status.orderingPaused ? ' is-on' : '' %>" data-post="/api/console/ordering" data-body='{"paused":true}' data-seg="ordering" data-val="paused">Pause tonight</button>
+      </div>
+      <p class="con-help">Ready in</p>
+      <div class="con-grid con-grid--2" role="group" aria-label="Quoted prep time">
+        <% for (const m of [15, 20, 30, 45]) { %>
+          <button class="con-btn con-btn--seg<%= status.orderPrepMinutes === m ? ' is-on' : '' %>" data-post="/api/console/ordering" data-body='{"prepMinutes":<%= m %>}' data-seg="prep" data-val="<%= m %>"><%= m %> min</button>
+        <% } %>
+      </div>
+      <p class="con-help">Orders ring in on the Square register. Mark one in progress there and the customer gets the "on the grill" text.</p>
+    </section>
+    <% } %>
+
     <!-- SPECIAL -->
     <section class="con-card" aria-labelledby="h-special">
       <h2 class="con-card__title" id="h-special">Tonight's special</h2>
@@ -119,6 +171,31 @@
         <% if (!items.length) { %><li class="con-empty">No menu items yet.</li><% } %>
       </ul>
     </section>
+
+    <% if (typeof grillSections !== 'undefined') { %>
+    <!-- GRILL TIMES (pacing) -->
+    <section class="con-card" aria-labelledby="h-prep">
+      <h2 class="con-card__title" id="h-prep">Grill times</h2>
+      <p class="con-help">How long each item takes, start to plate. The grill screen uses these to say what to start first. Blank means <%= defaultPrepMin %> min. After a few tickets it learns the real time from when you bump.</p>
+      <details class="gp-sec">
+        <summary class="gp-sec__name">Set times</summary>
+        <ul class="con-list gp-prep">
+          <% grillSections.forEach(function (sec) { sec.items.forEach(function (it) { %>
+            <li>
+              <form class="gp-prep__row" data-form="/api/console/prep">
+                <input type="hidden" name="id" value="<%= it.id %>">
+                <label class="gp-prep__name" for="prep-<%= it.id %>"><%= it.name %>
+                  <% if (it.learnedMin && it.learnedSamples >= 3) { %><span class="con-row__meta">learned <%= it.learnedMin %> min from <%= it.learnedSamples %> tickets</span><% } else if (it.learnedSamples) { %><span class="con-row__meta">learning (<%= it.learnedSamples %> of 3)</span><% } %>
+                </label>
+                <input class="con-input gp-prep__min" id="prep-<%= it.id %>" name="minutes" inputmode="numeric" placeholder="<%= defaultPrepMin %>" value="<%= it.prepMin || '' %>" aria-label="Minutes for <%= it.name %>">
+                <button class="con-btn con-btn--sm" type="submit">Save</button>
+              </form>
+            </li>
+          <% }) }) %>
+        </ul>
+      </details>
+    </section>
+    <% } %>
 
     <!-- TAPS -->
     <section class="con-card" aria-labelledby="h-taps">
@@ -163,13 +240,13 @@
       <% if (featuredGame) { %><p class="con-help">On the board: <strong><%= featuredGame.away %> @ <%= featuredGame.home %></strong>, <%= when(featuredGame.startsAt) %><%= featuredGame.note ? ' — ' + featuredGame.note : '' %></p><% } %>
       <form class="con-form" data-form="/api/console/game">
         <div class="con-grid con-grid--3">
-          <select class="con-input" name="league"><option>NFL</option><option>NCAAF</option><option>MLB</option><option>NBA</option><option>NHL</option><option>Other</option></select>
+          <select class="con-input" name="league" aria-label="League"><option>NFL</option><option>NCAAF</option><option>MLB</option><option>NBA</option><option>NHL</option><option>Other</option></select>
           <input class="con-input" name="away" placeholder="Away (Packers)" required maxlength="60">
           <input class="con-input" name="home" placeholder="Home (Bears)" required maxlength="60">
         </div>
         <div class="con-grid con-grid--3">
-          <input class="con-input" type="date" name="date" value="<%= today %>" required>
-          <input class="con-input" type="time" name="time" value="19:15" required>
+          <input class="con-input" type="date" name="date" aria-label="Game date" value="<%= today %>" required>
+          <input class="con-input" type="time" name="time" aria-label="Game time" value="19:15" required>
           <input class="con-input" name="note" placeholder="doors at 6" maxlength="80">
         </div>
         <div class="con-grid con-grid--2">
@@ -185,8 +262,8 @@
       <form class="con-form" data-form="/api/console/event">
         <input class="con-input" name="title" placeholder="Live music: the Wednesday Night Regulars" required maxlength="140">
         <div class="con-grid con-grid--2">
-          <input class="con-input" type="date" name="date" value="<%= today %>" required>
-          <input class="con-input" type="time" name="time" value="19:00" required>
+          <input class="con-input" type="date" name="date" aria-label="Event date" value="<%= today %>" required>
+          <input class="con-input" type="time" name="time" aria-label="Event time" value="19:00" required>
         </div>
         <textarea class="con-input" name="description" rows="2" placeholder="One or two lines (optional)"></textarea>
         <button class="con-btn con-btn--good" type="submit">Post to /events</button>

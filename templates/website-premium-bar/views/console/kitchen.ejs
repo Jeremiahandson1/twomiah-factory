@@ -1,0 +1,80 @@
+<%
+  // THE GRILL SCREEN. Server-rendered with the same pacing arithmetic the
+  // browser runs (lib/kitchen/pacing.ts), so the first paint is right and a
+  // tablet with JS off can still bump. kitchen.js takes over: live updates,
+  // ticking timers, sound, keep-awake, undo.
+  const AGE_WORD = { fresh: '', warn: 'Waiting', late: 'Late' }
+  const line = (i) => (i.qty > 1 ? i.qty + ' × ' : '') + i.name + (i.variation ? ' (' + String(i.variation).toLowerCase() + ')' : '')
+  const group = (list) => list.map(x => (x.qty > 1 ? x.qty + ' ' : '') + x.name).join(' · ')
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0A08">
+  <title>Grill — <%= companyName %></title>
+  <link rel="manifest" href="/console/manifest.webmanifest">
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/kitchen.css">
+</head>
+<body class="kds">
+  <header class="kds-top">
+    <div class="kds-top__brand">Grill <span class="kds-top__count" id="k-count"><%= view.length %> open</span></div>
+    <div class="kds-top__right">
+      <span class="kds-conn" id="k-conn" data-state="static">Refresh to update</span>
+      <span class="kds-clock mono" id="k-clock"></span>
+      <button class="kds-btn kds-btn--ghost" type="button" id="k-sound" aria-pressed="false" hidden>Sound off</button>
+      <details class="kds-recall" id="k-recall">
+        <summary class="kds-btn kds-btn--ghost">Recall</summary>
+        <div class="kds-recall__panel">
+          <p class="kds-recall__help">Bumped in the last 30 minutes. Bring one back if it went up by mistake.</p>
+          <ul id="k-bumped">
+            <% for (const b of state.bumped) { %><li><span><%= b.label %></span><button class="kds-btn" type="button" data-recall="<%= b.id %>">Bring back</button></li><% } %>
+            <% if (!state.bumped.length) { %><li class="kds-muted">Nothing bumped yet.</li><% } %>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </header>
+
+  <main class="kds-main">
+    <h1 class="visually-hidden">Grill orders</h1>
+    <section class="kds-strip kds-strip--now" id="k-now" aria-label="Start now"<%= startNow.length ? '' : ' hidden' %>>
+      <span class="kds-strip__k">Start now</span><span class="kds-strip__v" id="k-now-v"><%= group(startNow) %></span>
+    </section>
+    <section class="kds-strip" id="k-allday" aria-label="All day"<%= allDay.length ? '' : ' hidden' %>>
+      <span class="kds-strip__k">All day</span><span class="kds-strip__v" id="k-allday-v"><%= group(allDay) %></span>
+    </section>
+
+    <div class="kds-tickets" id="k-tickets" aria-live="polite">
+      <% for (const t of view) { %>
+        <article class="kds-ticket" data-id="<%= t.id %>" data-age="<%= t.age %>" data-source="<%= t.source %>">
+          <header class="kds-ticket__head">
+            <h2 class="kds-ticket__label"><%= t.label %></h2>
+            <span class="kds-ticket__age mono"><%= t.ageMin %> min<% if (AGE_WORD[t.age]) { %> · <%= AGE_WORD[t.age] %><% } %></span>
+          </header>
+          <% if (t.recalled) { %><p class="kds-ticket__flag">Recalled</p><% } %>
+          <ul class="kds-ticket__items">
+            <% for (const i of t.items) { %>
+              <li><span class="kds-ticket__item"><%= line(i) %></span><% if (i.seat) { %><span class="kds-ticket__seat">seat <%= i.seat %></span><% } %><% if (i.note) { %><span class="kds-ticket__note"><%= i.note %></span><% } %></li>
+            <% } %>
+          </ul>
+          <% if (t.note) { %><p class="kds-ticket__tnote"><%= t.note %></p><% } %>
+          <p class="kds-ticket__cue" data-state="<%= t.cue.state %>"><%= t.cue.text %></p>
+          <form method="POST" action="/kitchen/bump/<%= t.id %>" class="kds-ticket__bumpform">
+            <button class="kds-bump" type="submit">Bump</button>
+          </form>
+        </article>
+      <% } %>
+    </div>
+    <p class="kds-empty" id="k-empty"<%= view.length ? ' hidden' : '' %>>No orders. The grill is clear.</p>
+  </main>
+
+  <div class="kds-toast" id="k-toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="application/json" id="k-state"><%- JSON.stringify(state).replace(/</g, '\\u003c') %></script>
+  <script type="module" src="/scripts/kitchen.js"></script>
+</body>
+</html>

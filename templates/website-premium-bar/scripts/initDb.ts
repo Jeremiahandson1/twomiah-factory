@@ -28,7 +28,7 @@
 import fs from 'fs'
 import path from 'path'
 import bcrypt from 'bcryptjs'
-import { eq } from 'drizzle-orm'
+import { eq, isNotNull } from 'drizzle-orm'
 import { db } from '../db'
 import { users, settings, pages, serviceStatus, menuSections, menuItems, taps, staffPins, seedMarks, timelineEntries } from '../db/schema'
 
@@ -297,7 +297,11 @@ async function main() {
   // changes (seed_marks "menu"), the sections/items are rebuilt from it. The console's
   // 86 flags live on the items and are lost on rebuild — acceptable until Square.
   const menuFile = readJson<any>(path.join(CONTENT_DIR, 'menu.json'))
-  if (menuFile && Array.isArray(menuFile.sections)) {
+  // Once any item is linked to Square, the register owns the menu: the file must never
+  // rebuild it again (that would wipe the Square ids and every 86). Square sync takes over.
+  const squareLinked = (await db.select({ id: menuItems.id }).from(menuItems).where(isNotNull(menuItems.squareItemId)).limit(1)).length > 0
+  if (squareLinked) console.log('[initDb] Menu is linked to Square — content/menu.json is ignored.')
+  if (!squareLinked && menuFile && Array.isArray(menuFile.sections)) {
     const menuHash = hashOf(menuFile.sections)
     const mark = (await db.select().from(seedMarks).where(eq(seedMarks.key, 'menu')).limit(1))[0]
     const existingSections = await db.select().from(menuSections).limit(1)
