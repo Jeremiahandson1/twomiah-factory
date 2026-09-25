@@ -66,7 +66,23 @@ if (!/statNew: '#90caf9', statContacted: '#ffb74d', statConverted: '#81c784',/.t
 // The field-service report lists six failures on this page; the three above are half of them.
 if (!/link: '#90caf9'/.test(leadTheme)) fail('the lead-sources link must be themed too — an inline #2563eb measured 2.83:1 on the dark card (FS T20 M4)')
 if (!/faint: '#8193a6'/.test(leadTheme)) fail('…and the faint tier must clear AA: #64748b was 3.07:1 under "No leads yet" (FS T20 M4)')
-if (!/statNew: '#1565c0', statContacted: '#e65100', statConverted: '#2e7d32',/.test(leadTheme)) fail('…and the original hexes kept for light mode')
+// The light tier used to be pinned as the literal `statContacted: '#e65100'`, "the original hexes kept
+// for light mode" — written when only the DARK values were being fixed. #e65100 measures 3.79:1 on white
+// and #999 measures 2.85:1, so that line froze two values that never met AA; T28 measured both on the
+// live build and found exactly those numbers. Assert the RATIO instead: the literal was only ever a proxy
+// for "readable", and it outlived being true. (Field Service T28 L8)
+{
+  const chan = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+  const lum = (h: string) => { const c = chan(h).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] }
+  const ratio = (a: string, b: string) => { const l1 = lum(a), l2 = lum(b); const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1]; return (hi + 0.05) / (lo + 0.05) }
+  const light = /LIGHT[^=]*=\s*\{([\s\S]*?)\n\}/.exec(leadTheme)?.[1] || leadTheme
+  for (const key of ['statNew', 'statContacted', 'statConverted', 'faint']) {
+    const hex = new RegExp(`${key}:\\s*'(#[0-9a-fA-F]{6})'`).exec(light)?.[1]
+    if (!hex) { fail(`the Lead Inbox light palette has no ${key}`); continue }
+    const r = ratio(hex, '#ffffff')
+    if (r < 4.5) fail(`Lead Inbox light ${key} is ${hex} — ${r.toFixed(2)}:1 on white, under AA`)
+  }
+}
 const inbox = read('packages/tenant-ui/src/leads/LeadInboxPage.tsx')
 if (/<span style=\{\{ color: '#1565c0' \}\}>\{stats/.test(inbox)) fail('the stat labels must not be inline hexes any more')
 if (!/color: c\.statNew/.test(inbox)) fail('…they must read the palette')

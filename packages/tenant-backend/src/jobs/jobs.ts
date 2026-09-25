@@ -268,8 +268,20 @@ export function createJobRoutes(deps: JobDeps) {
     if (q.startDate) { const d = new Date(q.startDate); if (!isNaN(d.getTime())) conditions.push(gte(t.job.scheduledDate, d)) }
     if (q.endDate) { const d = new Date(q.endDate); if (!isNaN(d.getTime())) conditions.push(lte(t.job.scheduledDate, d)) }
     const where = and(...conditions)
+    /**
+     * Browsing the list opens on the NEWEST work; a requested date range still reads forwards.
+     *
+     * One ascending order served both, so the Service Calls page opened on JOB-00001 — "Page 1 of 21,
+     * 503 total" of the oldest, mostly finished work, with no sortable headers to escape it. Ascending
+     * is right for the week view, which asks for a range and reads down the days; it is the wrong first
+     * screen for someone opening the list to find what is happening now. (Field Service T28 L4)
+     */
+    const viewingRange = !!(q.startDate || q.endDate || q.date)
+    const order = viewingRange
+      ? [asc(t.job.scheduledDate), desc(t.job.createdAt)]
+      : [desc(t.job.scheduledDate), desc(t.job.createdAt)]
     const [rows, [{ value: total }]] = await Promise.all([
-      db.select().from(t.job).where(where).orderBy(asc(t.job.scheduledDate), desc(t.job.createdAt)).offset((page - 1) * limit).limit(limit),
+      db.select().from(t.job).where(where).orderBy(...order).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.job).where(where),
     ])
     const data = (await withRelations(rows, currentUser.companyId)).map((j) => ({ ...j, isOverdue: isOverdue(j) }))

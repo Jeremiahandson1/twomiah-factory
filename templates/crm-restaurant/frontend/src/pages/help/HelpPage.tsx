@@ -28,7 +28,7 @@ type Article = {
 };
 
 export default function HelpPage() {
-  const { user } = useAuth();
+  const { user, hasFeature } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,7 +167,7 @@ export default function HelpPage() {
           </div>
         </div>
         <p className="text-xs text-gray-600 mt-2 dark:text-slate-400">
-          Can't find an answer? <a href="/crm/support" className="text-blue-600 dark:text-blue-400 hover:underline">Submit a support ticket</a>
+          Can't find an answer? <a href={hasFeature('support_tickets') ? '/crm/support' : '/crm/contact-support'} className="text-blue-600 dark:text-blue-400 hover:underline">{hasFeature('support_tickets') ? 'Submit a support ticket' : 'Contact Twomiah'}</a>
         </p>
       </div>
     );
@@ -330,10 +330,12 @@ export default function HelpPage() {
         </div>
       )}
 
-      {/* Support ticket link */}
+      {/* Support ticket link — points at Contact Twomiah when the Support MODULE is off, rather than
+          at a page that answers "isn't part of this CRM". text-blue-400 on white was 2.54:1.
+          (Field Service T28 L2 + L8) */}
       <div className="mt-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 text-center">
         <p className="text-sm text-gray-600 dark:text-gray-400">Can't find what you need?</p>
-        <a href="/crm/support" className="text-blue-400 hover:underline text-sm font-medium">Submit a support ticket</a>
+        <a href={hasFeature('support_tickets') ? '/crm/support' : '/crm/contact-support'} className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium">{hasFeature('support_tickets') ? 'Submit a support ticket' : 'Contact Twomiah'}</a>
       </div>
     </div>
   );

@@ -38,13 +38,15 @@ export interface LeadPalette {
 }
 
 const LIGHT: LeadPalette = {
-  text: '#111827', muted: '#666', faint: '#999',
+  // faint was #999 — 2.85:1 on white, the Lead Inbox "No leads yet". #767676 measures 4.54 and
+  // stays dimmer than muted (5.74), so the three tiers still read as tiers. (FS T28 L8)
+  text: '#111827', muted: '#666', faint: '#767676',
   surface: '#fff', hover: '#fafafa', border: '#e5e7eb', divider: '#f0f0f0',
   inputBorder: '#ddd', activeBtn: '#f0f0f0', mutedBtnBg: '#f5f5f5', codeBg: '#f5f5f5',
   errBg: '#fdecea', errText: '#b71c1c',
   infoBg: '#f8f9ff', infoBorder: '#e8ecff', infoHead: '#333', infoBody: '#555',
   link: '#2563eb',
-  statNew: '#1565c0', statContacted: '#e65100', statConverted: '#2e7d32',
+  statNew: '#1565c0', statContacted: '#c2410c', statConverted: '#2e7d32',
 }
 
 const DARK: LeadPalette = {
