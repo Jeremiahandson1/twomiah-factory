@@ -184,8 +184,33 @@ export function createPortalRoutes(deps: PortalDeps) {
     return { success: true, portalUrl: portalUrlFor(portalToken), expiresAt: portalTokenExp }
   }
 
+  /**
+   * Handing a customer a portal link requires the tenant to HAVE the portal.
+   *
+   * The sections inside were gated, and the Payment Method tab with them, but the switch that creates the
+   * link never asked: a tenant without Client Portal could still turn it on for a contact and email them
+   * in. Gating what is behind a door and leaving the door open is the same half-fix as gating a nav item
+   * and leaving its API answering.
+   *
+   * A missing or failed feature lookup ALLOWS, matching sectionsFor above — a tenant whose feature list
+   * cannot be read must not suddenly lose a working portal.
+   */
+  const portalFeatureOff = async (companyId: string): Promise<boolean> => {
+    if (!deps.enabledFeaturesFor) return false
+    try {
+      const enabled = await deps.enabledFeaturesFor(companyId)
+      if (!enabled.length) return false
+      return !enabled.includes('client_portal')
+    } catch (err) {
+      log.warn('[portal] enabled-features lookup failed on enable', { error: (err as Error).message })
+      return false
+    }
+  }
+  const PORTAL_OFF = { error: 'The Client Portal is not switched on for this account.', code: 'FEATURE_NOT_ENABLED' } as const
+
   app.post('/contacts/:contactId/enable', authenticate, requirePermission('contacts:update'), async (c) => {
     const user = c.get('user') as any
+    if (await portalFeatureOff(user.companyId)) return c.json(PORTAL_OFF, 403)
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
     if (!found.email) return c.json({ error: 'Contact must have an email to enable portal access' }, 400)
@@ -194,6 +219,8 @@ export function createPortalRoutes(deps: PortalDeps) {
 
   app.post('/contacts/:contactId/regenerate', authenticate, requirePermission('contacts:update'), async (c) => {
     const user = c.get('user') as any
+    // Reissuing a link is the same door as opening it — gating only /enable would leave the way back in.
+    if (await portalFeatureOff(user.companyId)) return c.json(PORTAL_OFF, 403)
     const found = await ownContact(c.req.param('contactId'), user.companyId)
     if (!found) return c.json({ error: 'Contact not found' }, 404)
     return c.json(await issueToken(found.id))
