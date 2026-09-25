@@ -275,11 +275,15 @@ export function createJobRoutes(deps: JobDeps) {
      * 503 total" of the oldest, mostly finished work, with no sortable headers to escape it. Ascending
      * is right for the week view, which asks for a range and reads down the days; it is the wrong first
      * screen for someone opening the list to find what is happening now. (Field Service T28 L4)
+     *
+     * NULLS LAST is the whole reason this is written as raw SQL: Postgres sorts NULLs FIRST on a DESC
+     * column, so plain desc() opened the list on every UNSCHEDULED call — work with no date at all,
+     * which is no more "what is happening now" than JOB-00001 was. Dated work leads; undated trails.
      */
     const viewingRange = !!(q.startDate || q.endDate || q.date)
     const order = viewingRange
       ? [asc(t.job.scheduledDate), desc(t.job.createdAt)]
-      : [desc(t.job.scheduledDate), desc(t.job.createdAt)]
+      : [sql`${t.job.scheduledDate} DESC NULLS LAST`, desc(t.job.createdAt)]
     const [rows, [{ value: total }]] = await Promise.all([
       db.select().from(t.job).where(where).orderBy(...order).offset((page - 1) * limit).limit(limit),
       db.select({ value: count() }).from(t.job).where(where),
