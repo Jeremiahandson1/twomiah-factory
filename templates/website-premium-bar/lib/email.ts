@@ -2,7 +2,8 @@
  * Resend send + branded HTML wrap. One module so every transactional
  * email shares the same look and we can swap providers from one place.
  */
-const RESEND_API = 'https://api.resend.com/emails'
+// RESEND_API_URL is for tests only (a local stand-in); production always uses Resend.
+const RESEND_API = process.env.RESEND_API_URL || 'https://api.resend.com/emails'
 
 function escape(s: string): string {
   return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
@@ -24,6 +25,7 @@ export async function sendEmail(opts: {
   html: string
   replyTo?: { email: string; name?: string }
   attachments?: Array<{ content: string; filename: string; type: string; disposition?: 'attachment' | 'inline' }>
+  headers?: Record<string, string>   // e.g. List-Unsubscribe for marketing mail
 }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) { console.warn('[email] RESEND_API_KEY not set; skipping send'); return false }
@@ -34,6 +36,7 @@ export async function sendEmail(opts: {
     html: opts.html,
   }
   if (opts.replyTo) body.reply_to = opts.replyTo.email
+  if (opts.headers) body.headers = opts.headers
   if (opts.attachments && opts.attachments.length > 0) {
     body.attachments = opts.attachments.map(a => ({
       filename: a.filename,

@@ -49,6 +49,7 @@ import { validatePasswordStrength } from '../lib/security'
 import { generateSecret, verifyTotp, otpauthUri, generateRecoveryCodes } from '../lib/totp'
 import { sendPasswordResetEmail, sendEmailVerificationEmail, sendLoginNotificationEmail } from '../lib/email'
 import { writeAudit, clientIp } from '../lib/audit'
+import { barAdminRoutes } from './admin-bar'
 
 // In-memory 2FA challenge store. After a successful password check we
 // hand the client a one-time challenge ID; they POST it back with the
@@ -1317,5 +1318,8 @@ app.get('/analytics', authMiddleware, async (c) => {
   for (const l of leadRows) { if (l.createdAt >= cut) leads30++; else leadsPrev30++ }
   return c.json({ viewsLast30: last30, viewsPrev30: prev30, leadsLast30: leads30, leadsPrev30, topPages })
 })
+
+// Sales by night, the Regulars list, and the loyalty terms (routes/admin-bar.ts). Mutations are logged by the audit middleware above; the CSV export and points adjustments add their own richer entries.
+app.route('/', barAdminRoutes(authMiddleware, requireAdmin, (c: any, e) => writeAudit(c, { userId: c.get('userId') || null, userEmail: c.get('userEmail') || null, ...e }).catch(() => {})))
 
 export default app

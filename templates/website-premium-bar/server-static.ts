@@ -42,6 +42,7 @@ import { partyInquiries as partyInquiriesTbl, serviceStatus } from './db/schema'
 import { ASSET_VERSION, renderBase } from './lib/render'
 import { orderPages, orderApi } from './routes/order'
 import { GuestError, saveGuest } from './lib/crm/guests'
+import { checkUnsubscribeToken, startBirthdayJob, unsubscribe } from './lib/crm/birthday'
 import { kitchenPages, kitchenApi } from './routes/kitchen'
 import { registerPages, registerApi } from './routes/register'
 
@@ -373,6 +374,28 @@ app.post('/api/regulars', async (c) => {
   return c.redirect('/regulars/thanks', 303)
 })
 
+// ── Unsubscribe (link in every marketing email). GET shows a button so link-scanners
+// can't unsubscribe anyone; POST does it, including mail apps' one-click (RFC 8058).
+function unsubPage(title: string, body: string): string {
+  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>' + title + '</title>' +
+    '<style>body{margin:0;background:#0e0d08;color:#efe6d2;font:18px/1.5 Georgia,serif;padding:48px 20px}main{max-width:520px;margin:auto}h1{color:#e6c77a;font-weight:normal}button{font:inherit;padding:12px 22px;border-radius:6px;border:0;background:#c9a24e;color:#1a1410;cursor:pointer}a{color:#e6c77a}</style></head><body><main>' + body + '</main></body></html>'
+}
+app.get('/unsubscribe', (c) => {
+  const e = String(c.req.query('e') || ''), t = String(c.req.query('t') || '')
+  c.header('X-Robots-Tag', 'noindex')
+  if (!e || !checkUnsubscribeToken(e, t)) return c.html(unsubPage('Link not valid', '<h1>That link is not valid.</h1><p>Ask at the bar and we will take you off the list.</p>'), 400)
+  const safe = e.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch] || ch))
+  return c.html(unsubPage('Unsubscribe', '<h1>Stop the emails?</h1><p>' + safe + ' will stop getting email from us. You stay a Regular at the bar.</p>' +
+    '<form method="POST"><input type="hidden" name="e" value="' + safe + '"><input type="hidden" name="t" value="' + t.replace(/[^\w-]/g, '') + '"><button type="submit">Unsubscribe</button></form>'))
+})
+app.post('/unsubscribe', async (c) => {
+  const form: Record<string, any> = Object.fromEntries((await c.req.formData().catch(() => new FormData())).entries())
+  const e = String(form.e || c.req.query('e') || ''), t = String(form.t || c.req.query('t') || '')
+  if (!e || !checkUnsubscribeToken(e, t)) return c.text('Link not valid', 400)
+  await unsubscribe(db, e)
+  return c.html(unsubPage('Unsubscribed', "<h1>Done. No more emails.</h1><p>You're still a Regular at the bar. <a href=\"/\">Back to tonight's board</a></p>"))
+})
+
 app.get('/regulars/thanks', async (c) => {
   const settingsRow = await loadSettings()
   const settings = settingsRow || { companyName: 'Your Company', nav: [], contactCtaLabel: 'Visit' }
@@ -436,7 +459,7 @@ app.get('/:slug', async (c, next) => {
   // Reserved names and unknown pages fall THROUGH (next()) so the routes
   // registered after this one — /sitemap.xml, /robots.txt, the console,
   // nested pages — still get their turn instead of a premature 404.
-  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'kitchen', 'register', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'fonts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'console', 'kitchen', 'register', 'unsubscribe', 'favicon.svg', 'favicon.ico', 'favicon.png'].includes(slug)) return next()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return next()
   countView('/' + slug)
@@ -1054,6 +1077,9 @@ if (hasAdminBuild) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
+// Birthday emails: an hourly check that does nothing until the owner turns it on.
+startBirthdayJob(db)
+
 const port = Number(process.env.PORT || '3000')
 console.log('[Premium-Contractor] Serving on port', port)
 

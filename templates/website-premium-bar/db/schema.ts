@@ -26,7 +26,9 @@ export const settings = pgTable('settings', {
   hours: jsonb('hours'),
   taxRateBps: integer('tax_rate_bps').notNull().default(550),
   // The Regulars: { enabled, pointsPerDollar, rewardPoints, rewardCents }. null = the defaults in lib/crm/loyalty.ts.
-  loyalty: jsonb('loyalty'),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
+  loyalty: jsonb('loyalty'),
+  // Birthday email: { enabled, daysBefore, subject, message }. Off until the owner writes the offer.
+  birthdayEmail: jsonb('birthday_email'),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),
@@ -657,6 +659,16 @@ export const guests = pgTable('guests', {
   phoneIdx: uniqueIndex('guests_phone_idx').on(t.phone),
   emailIdx: uniqueIndex('guests_email_idx').on(t.email),
   nameIdx: index('guests_name_idx').on(t.name),
+}))
+
+// One birthday email per person per year, whatever happens to the job.
+export const birthdaySends = pgTable('birthday_sends', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  subscriberId: uuid('subscriber_id').notNull(),
+  year: integer('year').notNull(),
+  sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  onePerYear: uniqueIndex('birthday_sends_one_per_year').on(t.subscriberId, t.year),
 }))
 
 export const loyaltyLedger = pgTable('loyalty_ledger', {
