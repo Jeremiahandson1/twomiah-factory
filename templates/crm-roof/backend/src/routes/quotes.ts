@@ -5,9 +5,27 @@ import { quote, contact, job, company, financingApplication } from '../../db/sch
 import { eq, and, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+import { businessToday, companyTimeZone, quoteExpiryFromTerms } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * Roof keeps its own invoicing because its schema differs (line items are JSON on the row, there is no
+ * payment table), but "what day is it and how long do we give them" is not roof-specific. These are the
+ * shared helpers the rest of the fleet uses, so a change to the rule reaches roof too.
+ *
+ * Before this, both documents defaulted to `Date.now() + 30 days`: an instant rather than a calendar
+ * day, thirty days regardless of what the company had configured, and the server's idea of today — so an
+ * invoice raised after 19:00 Central fell due a day late. (Field Service T28 M4, applied to roof)
+ */
+const companyDates = async (companyId: string) => {
+  const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  const settings = (co?.settings as any) || {}
+  const today = businessToday(await companyTimeZone(db, companyId))
+  return { settings, today }
+}
+
 
 const lineItemSchema = z.object({
   description: z.string().min(1),
@@ -124,6 +142,7 @@ app.get('/', requirePermission('quotes:read'), async (c) => {
 app.post('/', requirePermission('quotes:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = quoteSchema.parse(await c.req.json())
+  const { settings, today } = await companyDates(currentUser.companyId)
 
   // Auto-generate quoteNumber: Q-0001
   const [maxResult] = await db
@@ -156,7 +175,7 @@ app.post('/', requirePermission('quotes:create'), async (c) => {
     total: totals.total.toString(),
     notes: data.notes,
     customerMessage: data.customerMessage,
-    expiresAt: data.expiresAt ? new Date(data.expiresAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    expiresAt: data.expiresAt ? new Date(data.expiresAt) : quoteExpiryFromTerms(settings, today),
   }).returning()
 
   return c.json(newQuote, 201)

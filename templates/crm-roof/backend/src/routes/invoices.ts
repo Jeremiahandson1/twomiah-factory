@@ -4,9 +4,27 @@ import { db } from '../../db/index.ts'
 import { invoice, contact, job, company } from '../../db/schema.ts'
 import { eq, and, ne, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { businessToday, companyTimeZone, dueDateFromTerms } from '../shared/index.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+/**
+ * Roof keeps its own invoicing because its schema differs (line items are JSON on the row, there is no
+ * payment table), but "what day is it and how long do we give them" is not roof-specific. These are the
+ * shared helpers the rest of the fleet uses, so a change to the rule reaches roof too.
+ *
+ * Before this, both documents defaulted to `Date.now() + 30 days`: an instant rather than a calendar
+ * day, thirty days regardless of what the company had configured, and the server's idea of today — so an
+ * invoice raised after 19:00 Central fell due a day late. (Field Service T28 M4, applied to roof)
+ */
+const companyDates = async (companyId: string) => {
+  const [co] = await db.select({ settings: company.settings }).from(company).where(eq(company.id, companyId)).limit(1)
+  const settings = (co?.settings as any) || {}
+  const today = businessToday(await companyTimeZone(db, companyId))
+  return { settings, today }
+}
+
 
 const lineItemSchema = z.object({
   description: z.string().min(1),
@@ -120,6 +138,7 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
   const data = invoiceSchema.parse(await c.req.json())
+  const { settings, today } = await companyDates(currentUser.companyId)
   // Both relations must be this company's — an unknown id used to surface as a foreign-key 500.
   const [ownContact] = await db.select({ id: contact.id }).from(contact).where(and(eq(contact.id, data.contactId), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!ownContact) return c.json({ error: 'That contact does not exist.' }, 404)
@@ -157,7 +176,7 @@ app.post('/', async (c) => {
     amountPaid: '0',
     balance: totals.total.toString(),
     notes: data.notes,
-    dueDate: data.dueDate ? new Date(data.dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    dueDate: data.dueDate ? new Date(data.dueDate) : dueDateFromTerms(settings, today),
   }).returning()
 
   return c.json(newInvoice, 201)

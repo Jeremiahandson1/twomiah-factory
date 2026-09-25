@@ -17,7 +17,7 @@ const read = (p: string) => { try { return readFileSync(p, 'utf8').replace(/\r\n
 const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1')
 
 const templates = readdirSync(ROOT + 'templates').filter((d) => d.startsWith('crm-') || d === 'crm')
-let wired = 0, skipped: string[] = []
+let wired = 0, own: string[] = []
 
 for (const tpl of templates) {
   for (const kind of ['invoices', 'quotes'] as const) {
@@ -25,10 +25,29 @@ for (const tpl of templates) {
     if (!existsSync(path)) continue
     const src = stripComments(read(path))
 
-    // Only the templates that delegate to the shared module are in scope. crm-roof carries its own
-    // invoicing and is deliberately out of this contract — named here rather than silently skipped.
     const usesShared = /create(Invoice|Quote)Routes/.test(src) && /from '\.\.\/shared\/index\.ts'/.test(src)
-    if (!usesShared) { skipped.push(`${tpl}/${kind}`); continue }
+    if (!usesShared) {
+      /**
+       * A template with its OWN invoicing is still in scope for the RULE, just not for the wiring.
+       *
+       * crm-roof cannot use the shared routes — its line items are JSON on the invoice row and it has no
+       * payment table — so it was first written off as out of contract. That let it keep
+       * `Date.now() + 30 days`: an instant rather than a calendar day, thirty days regardless of what the
+       * company configured, and the server's idea of today. Being differently shaped is a reason to keep
+       * its own routes, not a reason to answer a different question about what day it is.
+       */
+      const ownDefaults = /Date\.now\(\)\s*\+\s*30\s*\*\s*24\s*\*\s*60\s*\*\s*60\s*\*\s*1000/.test(src)
+      if (ownDefaults) {
+        fail(`${tpl}/${kind}.ts has its own routes and defaults a date to Date.now() + 30 days — an instant, not a calendar day, ignoring the company's configured terms and the zone it trades in`)
+        continue
+      }
+      if (/dueDate|expiresAt|expiryDate/.test(src) && !/businessToday|FromTerms/.test(src)) {
+        fail(`${tpl}/${kind}.ts has its own routes and defaults a date without the shared helpers (businessToday / dueDateFromTerms / quoteExpiryFromTerms)`)
+        continue
+      }
+      own.push(`${tpl}/${kind}`)
+      continue
+    }
 
     if (!/timeZoneFor\s*:/.test(src)) {
       fail(`${tpl}/${kind}.ts uses the shared route but never wires timeZoneFor — dates default to the SERVER's day, so anything raised after ~19:00 US time is stamped tomorrow`)
@@ -55,4 +74,4 @@ for (const [rel, what] of [
 }
 
 if (failed) { console.error(`\nbusiness day wired: ${failed} check(s) FAILED`); process.exit(1) }
-console.log(`business day wired: ${wired} route(s) ask the business what day it is` + (skipped.length ? `; not on the shared module: ${skipped.join(', ')}` : ''))
+console.log(`business day wired: ${wired} route(s) ask the business what day it is` + (own.length ? `; own routes, checked for the same rule: ${own.join(', ')}` : ''))
