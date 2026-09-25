@@ -179,7 +179,12 @@ export function PortalServiceRequest() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState<{ jobNumber: string; responseHours: number } | null>(null)
+  // The confirmation has to repeat the promise the customer just chose. Routine says "Within a few
+  // days" on the button and the confirmation answered "within 24 hours" — the app over-promising
+  // against the customer's own selection, which is the worst direction for that mistake to run.
+  // (Field Service T28 L11)
+  const URGENCY_PROMISE: Record<string, string> = { routine: 'within a few days', urgent: 'today' }
+  const [done, setDone] = useState<{ jobNumber: string; responseHours: number; urgency?: string } | null>(null)
   const [form, setForm] = useState({ equipmentId: '', description: '', urgency: 'routine' as 'routine' | 'urgent', preferredContact: 'call' as 'call' | 'text' | 'email' })
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
 
@@ -200,7 +205,9 @@ export function PortalServiceRequest() {
       return
     }
     setSubmitting(true); setError('')
-    try { setDone(await portalFetch('/service-request', { method: 'POST', body: JSON.stringify({ equipmentId: form.equipmentId || null, description: form.description.trim(), urgency: form.urgency, preferredContact: form.preferredContact }) })) }
+    // Carry the urgency the customer chose into the confirmation, so it can repeat their own words back
+    // rather than a number the server picked. (Field Service T28 L11)
+    try { const res: any = await portalFetch('/service-request', { method: 'POST', body: JSON.stringify({ equipmentId: form.equipmentId || null, description: form.description.trim(), urgency: form.urgency, preferredContact: form.preferredContact }) }); setDone({ ...res, urgency: form.urgency }) }
     catch (err) { setError((err as Error).message || 'Failed to submit request') } finally { setSubmitting(false) }
   }
 
@@ -210,7 +217,7 @@ export function PortalServiceRequest() {
       <div className="py-12 max-w-lg mx-auto text-center">
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-green-600" /></div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2 dark:text-slate-100">Request Received</h1>
-        <p className="text-gray-600 mb-1 dark:text-slate-400">We'll be in touch within <strong>{done.responseHours} hours</strong>.</p>
+        <p className="text-gray-600 mb-1 dark:text-slate-400">We'll be in touch <strong>{URGENCY_PROMISE[done.urgency || 'routine'] || `within ${done.responseHours} hours`}</strong>.</p>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-8">Reference: {done.jobNumber}</p>
         <PLink to={`/portal/${token}`} className={btnPrimary}>Back to Dashboard</PLink>
       </div>
