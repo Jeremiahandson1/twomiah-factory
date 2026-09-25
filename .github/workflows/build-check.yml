@@ -1759,3 +1759,14 @@ jobs:
           bun-version: latest
       - name: "Write routes authorise"
         run: bun run scripts/check-write-routes-authorise.ts
+
+  search-permission-gates:
+    name: "Search requires the same permission as the route it links to"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check search permission gates"
+        run: bun run scripts/check-search-permission-gates.ts

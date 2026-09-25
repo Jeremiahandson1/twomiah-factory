@@ -11,10 +11,22 @@ export interface JobsDashboardDeps {
   db: any
   tables: JobsDashboardTables
   authenticate: any
+  /**
+   * May this caller see money? Invoice and quote screens are gated by invoices:read / quotes:read, but
+   * the dashboard is gated by dashboard:read, which every role has — so a field technician was shown
+   * outstanding balances, the open-invoice count and recent invoices with amounts, while the Invoices
+   * page correctly refused them. The lock on the page was decoration.
+   *
+   * Optional: a template that does not wire it keeps exactly the behaviour it has today, rather than
+   * silently hiding figures somebody relies on. (Field Service T30 HIGH)
+   */
+  canSee?: (role: string, permission: string, userId?: string) => Promise<boolean> | boolean
   options?: { openStatuses?: string[] }
 }
 
 const ISSUED = ['void', 'refunded', 'draft']
+/** Money is hidden only when we have been given a way to ask AND the answer is no. */
+const MONEY_PERMISSION = 'invoices:read'
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0 }
 const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 
@@ -22,6 +34,16 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
   const { db, tables: t } = deps
   const open = deps.options?.openStatuses || ['sent', 'open', 'viewed', 'partial']
   const app = new Hono()
+  /**
+   * True when the caller may see money. No `canSee` wired → true, so an un-migrated template is
+   * unchanged; a thrown lookup also answers true, because a dashboard that cannot read the permission
+   * list must not start hiding an owner's own figures.
+   */
+  const maySeeMoney = async (c: any) => {
+    if (!deps.canSee) return true
+    const u = c.get('user') as any
+    try { return await deps.canSee(u?.role, MONEY_PERMISSION, u?.userId) } catch { return true }
+  }
   app.use('*', deps.authenticate)
   const safe = async <T>(fn: () => Promise<T>, fallback: T): Promise<T> => { try { return await fn() } catch { return fallback } }
 
@@ -97,7 +119,8 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
         completedToday: Number(completedTodayRows[0]?.value ?? 0),
       },
       quotes: quoteStats,
-      invoices: invoiceStats,
+      // Money only for a caller entitled to it. The counts a technician needs (jobs, schedule) stay.
+      invoices: (await maySeeMoney(c)) ? invoiceStats : undefined,
     })
   })
 
@@ -112,10 +135,13 @@ export function createJobsDashboardRoutes(deps: JobsDashboardDeps) {
         .from(t.invoice).where(and(eq(t.invoice.companyId, companyId), sql`${t.invoice.status} <> 'draft'`)).orderBy(desc(t.invoice.updatedAt)).limit(5), [] as any[]),
     ])
     const now = new Date()
+    // A quote total and an invoice balance are both company money. Recent JOBS are the work itself and
+    // stay — that is what the panel is for on a technician's screen.
+    const money = await maySeeMoney(c)
     return c.json({
       recentJobs,
-      recentQuotes,
-      recentInvoices: recentInvoices.map((inv: any) => {
+      recentQuotes: money ? recentQuotes : [],
+      recentInvoices: !money ? [] : recentInvoices.map((inv: any) => {
         const balance = ISSUED.includes(inv.status) ? 0 : invoiceBalance(inv)
         const status = open.includes(inv.status) && inv.dueDate && new Date(inv.dueDate) < now ? 'overdue' : inv.status
         return { ...inv, balance: r2(balance), status }

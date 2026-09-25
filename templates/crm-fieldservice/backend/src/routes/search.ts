@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 import { enabledFeaturesFor } from '../middleware/enabledFeature.ts'
 import search from '../services/search.ts'
 
@@ -14,11 +15,42 @@ app.use('*', authenticate)
 // still returned project rows would hand back links the API refuses to open.
 const TYPE_FEATURES: Record<string, string[] | false> = { rfi: false, project: ['projects'] }
 
-async function shownTypes(companyId: string) {
+/**
+ * …and what the SEARCHER has to be allowed to read.
+ *
+ * The map above asks whether the tenant has the module. It never asked whether this person may read
+ * that kind of record, so a field technician — correctly refused 403 by /api/invoices — was handed
+ * invoice rows with amounts on them by the search box. A result is a door: returning one the API will
+ * refuse to open is a leak and a dead link at once.
+ *
+ * Each pair is the permission that type's OWN list route already requires, not a new rule invented here;
+ * scripts/check-search-permission-gates.ts holds the two together. A type whose list route asks for
+ * nothing (document, project, rfi) has no entry, because there is no door to mirror.
+ * (Field Service T30 HIGH)
+ */
+const TYPE_PERMISSIONS: Record<string, string> = {
+  invoice: 'invoices:read',
+  quote: 'quotes:read',
+  job: 'jobs:read',
+  team: 'team:read',
+  contact: 'contacts:read',
+  patient: 'contacts:read',
+  unit: 'contacts:read',
+  event: 'contacts:read',
+  service: 'contacts:read',
+  menu: 'contacts:read',
+  space: 'contacts:read',
+}
+
+async function shownTypes(companyId: string, user?: any) {
+  const extra = user ? await getExtraPermissions(user.userId) : []
   const enabled = await enabledFeaturesFor(companyId)
   return (type: string) => {
     const gate = TYPE_FEATURES[type]
-    return gate === undefined || (gate !== false && gate.some((f) => enabled.includes(f)))
+    const moduleOn = gate === undefined || (gate !== false && gate.some((f) => enabled.includes(f)))
+    if (!moduleOn) return false
+    const needs = TYPE_PERMISSIONS[type]
+    return !needs || !user || hasPermission(user.role, needs, extra)
   }
 }
 
@@ -28,7 +60,7 @@ app.get('/', async (c) => {
   const q = c.req.query('q')
   const limit = c.req.query('limit') || '20'
   const types = c.req.query('types')
-  const shown = await shownTypes(user.companyId)
+  const shown = await shownTypes(user.companyId, user)
 
   const result = await search.globalSearch(
     user.companyId,
@@ -48,7 +80,7 @@ app.get('/quick', async (c) => {
   const user = c.get('user') as any
   const q = c.req.query('q')
   const limit = c.req.query('limit') || '10'
-  const shown = await shownTypes(user.companyId)
+  const shown = await shownTypes(user.companyId, user)
   const results = await search.quickSearch(
     user.companyId,
     q,
@@ -61,7 +93,7 @@ app.get('/quick', async (c) => {
 app.get('/recent', async (c) => {
   const user = c.get('user') as any
   const limit = c.req.query('limit') || '10'
-  const shown = await shownTypes(user.companyId)
+  const shown = await shownTypes(user.companyId, user)
   const results = await search.getRecentItems(
     user.companyId,
     Math.min(parseInt(limit), 20)
