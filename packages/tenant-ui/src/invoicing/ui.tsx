@@ -360,8 +360,16 @@ export function LineItemsEditor({ items, onChange }: { items: { description: str
   const update = (i: number, patch: Partial<{ description: string; quantity: number; unitPrice: number }>) => onChange(items.map((li, idx) => (idx === i ? { ...li, ...patch } : li)))
   const lineError = moneyInputError(items, 0, 0)
   return (
-    <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="border border-gray-200 dark:border-slate-700 rounded-lg overflow-x-auto">
+      {/*
+        A money field has a width below which it stops being usable, and w-24 / w-36 are hints, not
+        floors: inside `w-full` on a phone the columns compressed until Qty and Unit Price were 31-36px —
+        wide enough to show two characters of a price someone is trying to check. `overflow-hidden` meant
+        the row had nowhere to go, so it crushed instead of scrolling. The table now has a minimum width
+        and this frame scrolls sideways when it will not fit: desktop unchanged, and a phone gets a table
+        it can push around rather than boxes it cannot type in. (Field Service T30, phone width)
+      */}
+      <table className="w-full min-w-[34rem] text-sm">
         <thead className="bg-gray-50 dark:bg-slate-800/60 text-gray-600 dark:text-slate-300"><tr><th className="px-3 py-2 text-left text-xs font-medium">Description</th><th className="px-3 py-2 text-left text-xs font-medium w-24">Qty</th><th className="px-3 py-2 text-left text-xs font-medium w-36">Unit Price</th><th className="px-3 py-2 text-right text-xs font-medium w-32">Total</th><th className="w-10" /></tr></thead>
         <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
           {items.map((li, i) => (

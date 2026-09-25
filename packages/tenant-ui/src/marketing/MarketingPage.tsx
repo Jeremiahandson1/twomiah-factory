@@ -54,8 +54,16 @@ export function MarketingPage({ api, toast, config, showCampaigns = true }: { ap
         </div>
       )}
       {tabs.length > 1 && (
-        <div className="flex gap-2 border-b dark:border-slate-800">
-          {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>)}
+        <div className="flex gap-2 border-b dark:border-slate-800 overflow-x-auto">
+          {/*
+            The strip scrolls; the PAGE does not. A plain flex row of tabs has no width limit, so on a
+            phone the row was wider than the screen and took the whole page with it — every other page
+            then scrolled sideways too, because the body had been widened. overflow-x-auto keeps the
+            overflow inside this strip, shrink-0 stops the tabs compressing into unreadable slivers
+            instead, and whitespace-nowrap keeps a two-word label on one line.
+            (Field Service T30, phone width)
+          */}
+          {tabs.map((t) => <button key={t.id} onClick={() => setTab(t.id)} className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-4 py-2 border-b-2 -mb-px ${tab === t.id ? 'border-orange-500 text-orange-600 dark:text-orange-200' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-slate-200 dark:text-slate-400'}`}><t.icon className="w-4 h-4" />{t.label}</button>)}
         </div>
       )}
       {tab === 'campaigns' && showCampaigns && <CampaignsTab api={api} toast={toast} contactTypes={contactTypes} onChanged={loadStats} />}
