@@ -330,6 +330,10 @@ export function createBookingService(deps: BookingDeps) {
   }
 
   async function getAvailableDates(companyId: string, days = 90) {
+    // Release stale holds before deciding which DAYS have room, the same as the slot list does. A day
+    // whose only remaining slot is held by an abandoned deposit was being advertised as full.
+    // (Field Service T30 deposit hold)
+    await expireStaleDepositHolds(companyId)
     const settings = await getSettings(companyId)
     const tz = settings.timezone
     const minTime = Date.now() + settings.leadTimeDays * DAY_MS
@@ -367,6 +371,12 @@ export function createBookingService(deps: BookingDeps) {
   }
 
   async function createBooking(companyId: string, data: BookingInput) {
+    // …and before TAKING a booking. The expiry only ever ran as a side effect of someone asking for
+    // slots, so an abandoned deposit went on blocking its time for any customer who arrived by a
+    // different route — a direct link, a second tab, the API — however long ago it was abandoned.
+    // Expiring here means the hold cannot outlive its window just because nobody happened to look.
+    // (Field Service T30 deposit hold)
+    await expireStaleDepositHolds(companyId)
     const { serviceId, date, time } = data
     if (!isIsoDate(date)) throw new BookingError('Date must be YYYY-MM-DD.')
     // A date that is not a day must be refused for THAT, not judged against the booking window and
