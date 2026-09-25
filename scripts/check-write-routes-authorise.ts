@@ -62,7 +62,6 @@ const PUBLIC_BY_DESIGN = new Set([
 const BASELINE: Record<string, number> = {
   'packages/tenant-backend/src/files/documents.ts': 9,
   'packages/tenant-backend/src/fleet/fleet.ts': 4,
-  'packages/tenant-backend/src/integrations/quickbooks.ts': 3,
   'packages/tenant-backend/src/integrations/reviews.ts': 3,
   'packages/tenant-backend/src/integrations/sms.ts': 9,
   'packages/tenant-backend/src/warranties/warranties.ts': 1,
@@ -172,7 +171,15 @@ for (const rel of files) {
   if (!writes.length) continue
   checked++
 
-  const unguarded = writes.filter((m) => !/require(Permission|AnyPermission|Role|Admin|Ownership)/.test(m[2]))
+  /**
+   * A guard given a name is still a guard. `const touchesTheBooks = requirePermission(...)` used on
+   * twelve routes is better than the same string inlined twelve times — booking does it as
+   * `configuresBooking` — so the reader learns the names rather than the code losing them.
+   */
+  const aliases = [...src.matchAll(/const (\w+) = require(?:Permission|AnyPermission|Role|Admin|Ownership)\(/g)].map((m) => m[1])
+  const guarded = new RegExp(`require(Permission|AnyPermission|Role|Admin|Ownership)${aliases.length ? '|\\b(' + aliases.join('|') + ')\\b' : ''}`)
+
+  const unguarded = writes.filter((m) => !guarded.test(m[2]))
 
   // Before judging the module, look at how it is mounted. A template that guards the mount has
   // authorised every route under it, and counting those as holes is how a real number becomes noise.

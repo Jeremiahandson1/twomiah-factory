@@ -256,13 +256,25 @@ export interface QuickBooksRoutesDeps {
   db: any
   tables: { contact: any; invoice: any; invoiceLineItem: any; payment: any }
   authenticate: any
-  requireRole: (...roles: string[]) => any
+  /**
+   * Permission guard. It was touchesTheBooks, which resolves to the same people —
+   * admin carries settings:*, owner carries * — but could not be asked on the screen, could not be
+   * granted to one person, and read like a list of allowed roles while the implementation took a
+   * minimum and ignored the second argument. (T30 debt)
+   */
+  requirePermission: (permission: string) => any
   audit?: { log: (input: any) => any }
   frontendUrl?: string
 }
 
 export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
-  const { service: qb, db, tables: t, authenticate, requireRole } = deps
+  const { service: qb, db, tables: t, authenticate, requirePermission } = deps
+  /**
+   * Connecting the books, disconnecting them, and pushing anything into them. settings:* is the
+   * admin tier the matrix already uses for company configuration, so this is admin and owner — plus
+   * anyone an owner has granted it by name.
+   */
+  const touchesTheBooks = requirePermission('settings:update')
   const audit = deps.audit || { log: () => {} }
   const app = new Hono()
   const settingsUrl = (q: string) => `${deps.frontendUrl || process.env.FRONTEND_URL || ''}/settings/integrations?${q}`
@@ -288,15 +300,15 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
   const user = (c: any) => c.get('user') as any
 
   app.get('/status', async (c) => c.json(await qb.getConnectionStatus(user(c).companyId)))
-  app.get('/auth-url', requireRole('admin', 'owner'), async (c) => {
+  app.get('/auth-url', touchesTheBooks, async (c) => {
     try { return c.json({ url: qb.getAuthUrl(user(c).companyId) }) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks is not configured' }, 503) }
   })
-  app.post('/disconnect', requireRole('admin', 'owner'), async (c) => {
+  app.post('/disconnect', touchesTheBooks, async (c) => {
     await qb.disconnect(user(c).companyId)
     audit.log({ action: 'INTEGRATION_DISCONNECT', entity: 'quickbooks', entityId: user(c).companyId, req: c.req })
     return c.json({ success: true })
   })
-  app.post('/auto-sync', requireRole('admin', 'owner'), async (c) => {
+  app.post('/auto-sync', touchesTheBooks, async (c) => {
     const body = await c.req.json().catch(() => ({}))
     try { return c.json(await qb.setAutoSync(user(c).companyId, body.enabled !== false)) } catch (e: any) { return c.json({ error: e?.message || 'QuickBooks not connected' }, 400) }
   })
@@ -304,7 +316,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
     try { return c.json(await qb.getCompanyInfo(user(c).companyId)) } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })
 
-  app.post('/sync/customer/:contactId', async (c) => {
+  app.post('/sync/customer/:contactId', touchesTheBooks, async (c) => {
     const u = user(c)
     const [foundContact] = await db.select().from(t.contact).where(and(eq(t.contact.id, c.req.param('contactId')), eq(t.contact.companyId, u.companyId))).limit(1)
     if (!foundContact) return c.json({ error: 'Contact not found' }, 404)
@@ -314,7 +326,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
     } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })
   const summary = (results: any[]) => ({ total: results.length, successful: results.filter((r) => r.success).length, failed: results.filter((r) => !r.success).length, results })
-  app.post('/sync/customers', requireRole('admin', 'owner'), async (c) => {
+  app.post('/sync/customers', touchesTheBooks, async (c) => {
     const u = user(c)
     try {
       const results = await qb.syncAllCustomers(u.companyId)
@@ -322,7 +334,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
       return c.json(summary(results))
     } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })
-  app.post('/sync/invoice/:invoiceId', async (c) => {
+  app.post('/sync/invoice/:invoiceId', touchesTheBooks, async (c) => {
     const u = user(c)
     const [foundInvoice] = await db.select().from(t.invoice).where(and(eq(t.invoice.id, c.req.param('invoiceId')), eq(t.invoice.companyId, u.companyId))).limit(1)
     if (!foundInvoice) return c.json({ error: 'Invoice not found' }, 404)
@@ -334,7 +346,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
       return c.json({ success: true, qboInvoiceId: result.Id })
     } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })
-  app.post('/sync/invoices', requireRole('admin', 'owner'), async (c) => {
+  app.post('/sync/invoices', touchesTheBooks, async (c) => {
     const u = user(c)
     const { startDate, endDate } = await c.req.json().catch(() => ({}))
     try {
@@ -343,7 +355,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
       return c.json(summary(results))
     } catch (e: any) { return c.json({ error: e?.message }, /not connected/i.test(e?.message || '') ? 400 : 502) }
   })
-  app.post('/sync/payment/:paymentId', async (c) => {
+  app.post('/sync/payment/:paymentId', touchesTheBooks, async (c) => {
     const u = user(c)
     const [foundPayment] = await db.select().from(t.payment).where(eq(t.payment.id, c.req.param('paymentId'))).limit(1)
     if (!foundPayment) return c.json({ error: 'Payment not found' }, 404)
@@ -352,7 +364,7 @@ export function createQuickBooksRoutes(deps: QuickBooksRoutesDeps) {
     try { const result = await qb.createPayment(u.companyId, foundPayment, foundInvoice); return c.json({ success: true, qboPaymentId: result.Id }) }
     catch (e: any) { return c.json({ error: e?.message }, /not connected|must be synced/i.test(e?.message || '') ? 400 : 502) }
   })
-  app.post('/import/customers', requireRole('admin', 'owner'), async (c) => {
+  app.post('/import/customers', touchesTheBooks, async (c) => {
     const u = user(c)
     try {
       const results = await qb.importCustomers(u.companyId)

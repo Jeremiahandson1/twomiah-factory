@@ -45,6 +45,12 @@ export interface InvoicingConfig {
    * (Field Service T29 M1)
    */
   hasFeature?: (feature: string) => boolean
+  /**
+   * May this person do that? Threaded in from the template's own auth context, the way hasFeature is.
+   * Absent means "do not ask", so a template that has not been rewired keeps every control it has.
+   * (T30 debt: the QuickBooks sync button)
+   */
+  can?: (permission: string) => boolean
 }
 
 export interface InvoicingPageProps {
