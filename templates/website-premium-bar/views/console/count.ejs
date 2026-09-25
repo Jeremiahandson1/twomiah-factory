@@ -1,0 +1,42 @@
+<%
+  // THE COUNT. On a phone, walking the walk-in and the back bar: every stock
+  // item, packs + loose, saved as it's typed. Several people can count into
+  // the same count. count.js draws it from the state below.
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0A08">
+  <title>Count — <%= companyName %></title>
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/register.css">
+  <link rel="stylesheet" href="/styles/floor.css">
+  <link rel="stylesheet" href="/styles/count.css">
+</head>
+<body class="reg flr cnt">
+  <header class="reg-top flr-top">
+    <div class="reg-top__brand">Count <span class="reg-top__who"><%= staff.label %></span></div>
+    <nav class="reg-top__nav" aria-label="Screens"><a href="/register">Register</a></nav>
+  </header>
+  <noscript><p class="reg-noscript">The count screen needs JavaScript.</p></noscript>
+
+  <main class="flr-main">
+    <p class="reg-muted" id="ct-status" role="status"></p>
+    <div class="reg-chips" role="group" aria-label="Show" id="ct-cats"></div>
+    <label class="reg-field"><span class="visually-hidden">Find an item</span><input class="reg-input" id="ct-q" type="search" placeholder="Find an item" autocomplete="off"></label>
+    <ul class="cnt-list" id="ct-list" role="list"></ul>
+    <p class="reg-muted" id="ct-empty" hidden>Nothing to count yet. The owner adds stock items in the admin under Inventory.</p>
+  </main>
+
+  <div class="flr-bar cnt-bar">
+    <button class="reg-btn reg-btn--go reg-btn--wide" type="button" id="ct-finish" disabled>Finish the count</button>
+  </div>
+  <div class="reg-toast" id="ct-toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="application/json" id="ct-state"><%- JSON.stringify(state).replace(/</g, '\\u003c') %></script>
+  <script src="/scripts/count.js" defer></script>
+</body>
+</html>

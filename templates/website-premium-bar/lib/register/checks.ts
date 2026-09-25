@@ -11,6 +11,7 @@
 import { EventEmitter } from 'events'
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { db as DB } from '../../db'
+import { taps } from '../../db/schema'
 import { checkItems, checkPayments, checks, giftCards, guests, kitchenTickets, loyaltyLedger, menuItems, menuSections, onlineOrders, settings as settingsTbl } from '../../db/schema'
 import { guestByPhone, loyaltySettings, recordVisit } from '../crm/guests'
 import { rewardAmount } from '../crm/loyalty'
@@ -113,6 +114,7 @@ export async function openCheck(db: typeof DB, input: { kind: string; label: str
 
 export async function addItem(db: typeof DB, checkId: string, input: { menuItemId: string; sizeId?: string | null; qty?: number; note?: string | null; seat?: number | null; priceCents?: number | null }, by: string): Promise<CheckView> {
   await openRow(db, checkId)
+  if (String(input.menuItemId || '').startsWith('tap:')) return addPour(db, checkId, { ...input, tapId: String(input.menuItemId).slice(4) }, by)
   const [row] = await db.select({ item: menuItems, section: menuSections }).from(menuItems).leftJoin(menuSections, eq(menuSections.id, menuItems.sectionId)).where(eq(menuItems.id, input.menuItemId)).limit(1)
   if (!row || !row.item.isActive) throw new CheckError('That item is off the menu.')
   if (row.item.is86ed) throw new CheckError(`${row.item.name} is 86'd.`)
@@ -133,6 +135,35 @@ export async function addItem(db: typeof DB, checkId: string, input: { menuItemI
     checkId, menuItemId: row.item.id, name: row.item.name, size: size.name === 'Regular' ? null : size.name,
     qty, unitPriceCents: price, note: clean(input.note, 140), seat: seat !== null && seat >= 1 && seat <= 20 ? seat : null,
     toKitchen: row.item.toKitchen ?? (row.section?.kind !== 'drink'), addedBy: by,
+  })
+  await db.update(checks).set({ updatedAt: new Date() }).where(eq(checks.id, checkId))
+  notifyRegister()
+  return getCheck(db, checkId)
+}
+
+/**
+ * A pour from the tap list. The line's keg and pour size are copied onto the
+ * check line, because tapping a new beer on that line later must not change
+ * what this one cost.
+ */
+async function addPour(db: typeof DB, checkId: string, input: { tapId: string; qty?: number; note?: string | null; seat?: number | null; priceCents?: number | null }, by: string): Promise<CheckView> {
+  const UUIDISH = /^[0-9a-f-]{36}$/i
+  if (!UUIDISH.test(input.tapId)) throw new CheckError('That tap is gone.')
+  const [t] = await db.select().from(taps).where(eq(taps.id, input.tapId)).limit(1)
+  if (!t || !t.isActive || t.status === 'blown') throw new CheckError('That keg is blown.')
+  let price = t.priceCents
+  if (price === null) {
+    const typed = Math.round(Number(input.priceCents))
+    if (!Number.isFinite(typed) || typed < 0 || typed > 100000) throw new CheckError(`${t.beerName} has no price on file. Enter one.`)
+    price = typed
+  }
+  const qty = Math.floor(Number(input.qty ?? 1))
+  if (!Number.isFinite(qty) || qty < 1 || qty > 50) throw new CheckError('Check the quantity.')
+  const seat = input.seat === null || input.seat === undefined || String(input.seat) === '' ? null : Math.floor(Number(input.seat))
+  await db.insert(checkItems).values({
+    checkId, menuItemId: null, tapId: t.id, stockItemId: t.stockItemId, stockQty: t.stockItemId ? String(t.pourOz) : null,
+    name: t.beerName, size: null, qty, unitPriceCents: price, note: clean(input.note, 140), seat: seat !== null && seat >= 1 && seat <= 20 ? seat : null,
+    toKitchen: false, addedBy: by,
   })
   await db.update(checks).set({ updatedAt: new Date() }).where(eq(checks.id, checkId))
   notifyRegister()

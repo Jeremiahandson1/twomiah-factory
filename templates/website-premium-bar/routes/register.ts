@@ -26,7 +26,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import ejs from 'ejs'
 import path from 'path'
 import { db } from '../db'
-import { checkItems, menuItems, menuSections, settings as settingsTbl, staffPins } from '../db/schema'
+import { checkItems, menuItems, menuSections, settings as settingsTbl, staffPins, taps } from '../db/schema'
 import { sizesOf } from '../lib/menu/sizes'
 import { addGiftCardLine, addItem, addPayment, attachGuest, CheckError, getCheck, redeemReward, splitBySeat, listOpen, listRecentClosed, openCheck, registerBus, renameCheck, sendCheck, splitItems, updateItem, voidCheck, voidItem, voidPayment } from '../lib/register/checks'
 import { localDateString, localToUtc } from '../lib/hours'
@@ -39,22 +39,36 @@ import { barTimezone, businessDayOf, loadDay } from '../lib/register/reports'
 import { closeDay, closeoutsFor } from '../lib/register/closeout'
 import { addDays } from '../lib/hours'
 import { findCard } from '../lib/giftcards/cards'
+import { CATEGORIES } from '../lib/inventory/costing'
+import { StockError, countItem, currentCount, finishCount, stockList } from '../lib/inventory/stock'
 
 const viewsDir = path.join(import.meta.dir, '..', 'views', 'console')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 async function menuForRegister() {
-  const [sections, items] = await Promise.all([
+  const [sections, items, lines] = await Promise.all([
     db.select().from(menuSections).where(eq(menuSections.isActive, true)).orderBy(asc(menuSections.sortOrder)),
     db.select().from(menuItems).where(eq(menuItems.isActive, true)).orderBy(asc(menuItems.sortOrder), asc(menuItems.name)),
+    db.select().from(taps).where(eq(taps.isActive, true)).orderBy(asc(taps.sortOrder), asc(taps.lineNumber)),
   ])
-  return sections.map(s => ({
+  // The tap list is a menu section of its own: whatever is on the lines right now, from the console's tap board.
+  const onTap = lines.filter(t => t.status !== 'blown').map(t => ({
+    id: 'tap:' + t.id, name: t.beerName, is86ed: false,
+    sizes: [{ id: 'regular', name: 'Regular', priceCents: t.priceCents }],
+  }))
+  const menu: Array<{ id: string; name: string; kind: string; items: Array<{ id: string; name: string; is86ed: boolean; sizes: Array<{ id: string; name: string; priceCents: number | null }> }> }> = sections.map(s => ({
     id: s.id, name: s.name, kind: s.kind,
     items: items.filter(i => i.sectionId === s.id).map(i => ({
       id: i.id, name: i.name, is86ed: i.is86ed,
       sizes: sizesOf(i, s.description).map(v => ({ id: v.id, name: v.name, priceCents: v.priceCents })),
     })),
   })).filter(s => s.items.length)
+  // Food first (the grill is the bar's first job); the taps lead the drinks.
+  if (onTap.length) {
+    const at = menu.findIndex(s => s.kind === 'drink')
+    menu.splice(at < 0 ? menu.length : at, 0, { id: 'taps', name: 'On tap', kind: 'drink', items: onTap })
+  }
+  return menu
 }
 
 async function businessDayStart(): Promise<Date> {
@@ -102,6 +116,18 @@ registerPages.get('/', async (c) => {
 registerPages.get('/floor', async (c) => {
   const [s] = await db.select({ name: settingsTbl.companyName, floor: settingsTbl.floor }).from(settingsTbl).limit(1)
   const html = await ejs.renderFile(path.join(viewsDir, 'floor.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), state: { ...(await registerState()), floor: floorConfig(s?.floor) } })
+  c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
+  return c.html(html)
+})
+
+// The count: walk the walk-in and the back bar with a phone.
+registerPages.get('/count', async (c) => {
+  const [s] = await db.select({ name: settingsTbl.companyName }).from(settingsTbl).limit(1)
+  const [stock, count] = await Promise.all([stockList(db), currentCount(db, c.get('staff').label, false)])
+  const html = await ejs.renderFile(path.join(viewsDir, 'count.ejs'), {
+    companyName: s?.name || 'Bar', staff: c.get('staff'),
+    state: { categories: CATEGORIES, count, stock: stock.map(r => ({ id: r.id, name: r.name, category: r.category, unitLabel: r.unitLabel, packName: r.packName, packSize: r.packSize })) },   // blind: no expected numbers
+  })
   c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
   return c.html(html)
 })
@@ -212,6 +238,24 @@ registerApi.post('/check/:id/giftcard', async (c) => {
   if (!i) return c.json({ error: 'Which check?' }, 400)
   return act(c, async () => ({ check: await addGiftCardLine(db, i, { amountCents: Number(b.amountCents), code: b.code ? String(b.code) : null }, who(c)) }))
 })
+// ─── The count ───────────────────────────────────────────────────────────────
+registerApi.post('/count/item', async (c) => {
+  const b = await body(c)
+  if (!UUID.test(String(b.stockItemId || ''))) return c.json({ error: 'Which item?' }, 400)
+  try {
+    const count = await currentCount(db, who(c))
+    const qty = await countItem(db, count!.id, String(b.stockItemId), { packs: b.packs, units: b.units, clear: !!b.clear }, who(c))
+    return c.json({ ok: true, qty, countId: count!.id })
+  } catch (e) { if (e instanceof StockError) return c.json({ error: e.message }, e.status as any); throw e }
+})
+registerApi.post('/count/finish', async (c) => {
+  try {
+    const count = await currentCount(db, who(c), false)
+    if (!count) return c.json({ error: 'Nothing counted yet.' }, 400)
+    return c.json({ ok: true, count: await finishCount(db, count.id, who(c)) })
+  } catch (e) { if (e instanceof StockError) return c.json({ error: e.message }, e.status as any); throw e }
+})
+
 registerApi.get('/giftcard', async (c) => {
   c.header('Cache-Control', 'no-store')
   const card = await findCard(db, c.req.query('code') || '')

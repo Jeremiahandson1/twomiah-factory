@@ -17,7 +17,7 @@ import crypto from 'crypto'
 import ejs from 'ejs'
 import path from 'path'
 import { db } from '../db'
-import { events, games, menuItems, menuSections, partyInquiries, serviceStatus, settings as settingsTbl, specials, staffPins, staffSessions, taps } from '../db/schema'
+import { events, games, menuItems, menuSections, partyInquiries, serviceStatus, settings as settingsTbl, specials, staffPins, staffSessions, stockItems, taps } from '../db/schema'
 import { bustSiteData, loadSiteData } from '../lib/site-data'
 import { buildLiveState } from '../lib/live'
 import { addDays, localDateString, localToUtc } from '../lib/hours'
@@ -350,7 +350,10 @@ consoleApi.post('/tap', async (c) => {
     if (!beerName) return c.json({ error: 'What is on the line?' }, 400)
     const abv = str(b.abv, 6)
     const cents = b.price !== undefined && String(b.price).trim() !== '' ? Math.round(Number(String(b.price).replace(/[^\d.]/g, '')) * 100) : null
-    const values = { lineNumber: line, beerName, brewery: str(b.brewery, 120), style: str(b.style, 80), abv: abv && !isNaN(Number(abv)) ? Number(abv).toFixed(1) : null, originCountry: str(b.origin, 60), priceCents: Number.isFinite(cents as number) ? cents : null, badge: str(b.badge, 60), status: 'just_tapped', isActive: true, tappedAt: now, blownAt: null, kegLevelPct: null, updatedAt: now, sortOrder: existing?.sortOrder ?? line }
+    // Inventory: the keg on the line is the beer stock item with the same name, if there is one.
+    const [keg] = await db.select({ id: stockItems.id }).from(stockItems)
+      .where(and(eq(stockItems.isActive, true), eq(stockItems.category, 'beer'), sql`lower(${stockItems.name}) = lower(${beerName})`)).limit(1)
+    const values = { stockItemId: keg?.id ?? null, lineNumber: line, beerName, brewery: str(b.brewery, 120), style: str(b.style, 80), abv: abv && !isNaN(Number(abv)) ? Number(abv).toFixed(1) : null, originCountry: str(b.origin, 60), priceCents: Number.isFinite(cents as number) ? cents : null, badge: str(b.badge, 60), status: 'just_tapped', isActive: true, tappedAt: now, blownAt: null, kegLevelPct: null, updatedAt: now, sortOrder: existing?.sortOrder ?? line }
     if (existing) await db.update(taps).set(values).where(eq(taps.id, existing.id))
     else await db.insert(taps).values(values)
   } else if (action === 'blow') {

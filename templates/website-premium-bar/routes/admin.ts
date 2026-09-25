@@ -50,6 +50,7 @@ import { generateSecret, verifyTotp, otpauthUri, generateRecoveryCodes } from '.
 import { sendPasswordResetEmail, sendEmailVerificationEmail, sendLoginNotificationEmail } from '../lib/email'
 import { writeAudit, clientIp } from '../lib/audit'
 import { barAdminRoutes } from './admin-bar'
+import { inventoryAdminRoutes } from './admin-inventory'
 
 // In-memory 2FA challenge store. After a successful password check we
 // hand the client a one-time challenge ID; they POST it back with the
@@ -1321,5 +1322,7 @@ app.get('/analytics', authMiddleware, async (c) => {
 
 // Sales by night, the Regulars list, and the loyalty terms (routes/admin-bar.ts). Mutations are logged by the audit middleware above; the CSV export and points adjustments add their own richer entries.
 app.route('/', barAdminRoutes(authMiddleware, requireAdmin, (c: any, e) => writeAudit(c, { userId: c.get('userId') || null, userEmail: c.get('userEmail') || null, ...e }).catch(() => {})))
+// Inventory: stock, recipes and plate cost, counts and variance, vendors and orders (routes/admin-inventory.ts).
+app.route('/inventory', inventoryAdminRoutes(authMiddleware, requireAdmin, (c: any, e) => writeAudit(c, { userId: c.get('userId') || null, userEmail: c.get('userEmail') || null, ...e }).catch(() => {})))
 
 export default app

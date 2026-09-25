@@ -1,0 +1,18 @@
+/* count.css — the count screen, on top of register.css + floor.css. */
+.cnt-bar { grid-template-columns: 1fr; }
+.cnt-bar .reg-btn--wide { grid-column: 1 / -1; }
+#ct-cats { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+#ct-cats .reg-chip { flex: none; }
+.cnt-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cnt-item { display: grid; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); }
+.cnt-item[data-done="1"] { border-color: #3E8E68; }
+.cnt-item__top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.cnt-item__name { font-weight: 800; font-size: 18px; }
+.cnt-item__meta { font-size: 14px; color: var(--muted); }
+.cnt-item__saved { font-size: 14px; color: #8FD3AE; white-space: nowrap; }
+.cnt-item__saved[data-bad="1"] { color: #F6D5D0; }
+.cnt-item__in { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cnt-item__in label { display: grid; gap: 4px; font-size: 14px; color: var(--ink-soft); }
+.cnt-item__in input { min-height: 52px; font-size: 20px; font-family: var(--mono); padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; }
+.cnt-item__in input:focus-visible { outline: 3px solid var(--brand-bright); outline-offset: 1px; }
+

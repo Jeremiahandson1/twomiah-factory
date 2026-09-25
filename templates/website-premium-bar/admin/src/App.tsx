@@ -10,6 +10,7 @@ import { LeadsPage } from './pages/LeadsPage'
 import { SalesPage } from './pages/SalesPage'
 import { GuestsPage } from './pages/GuestsPage'
 import { GiftCardsPage } from './pages/GiftCardsPage'
+import { InventoryPage } from './pages/InventoryPage'
 import { SiteAnalyticsPage } from './pages/SiteAnalyticsPage'
 import { UsersPage } from './pages/UsersPage'
 import { AccountPage } from './pages/AccountPage'
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/sales" element={<SalesPage />} />
           <Route path="/guests" element={<GuestsPage />} />
           <Route path="/gift-cards" element={<GiftCardsPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/analytics" element={<SiteAnalyticsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/account" element={<AccountPage />} />

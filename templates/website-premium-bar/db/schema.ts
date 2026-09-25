@@ -325,6 +325,9 @@ export const taps = pgTable('taps', {
   tappedAt: timestamp('tapped_at', { withTimezone: true }),
   blownAt: timestamp('blown_at', { withTimezone: true }),
   untappdId: text('untappd_id'),
+  // Inventory: the keg on this line (a stock item, fl oz) and how much a pour takes.
+  stockItemId: uuid('stock_item_id'),
+  pourOz: numeric('pour_oz', { precision: 6, scale: 2 }).notNull().default('16'),
   sortOrder: integer('sort_order').notNull().default(0),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -590,6 +593,10 @@ export const checkItems = pgTable('check_items', {
   toKitchen: boolean('to_kitchen').notNull().default(true),
   kind: text('kind').notNull().default('item'),     // 'item' | 'reward' (Regulars reward, negative) | 'giftcard' (a card sold; not taxed)
   giftCardId: uuid('gift_card_id'),                 // the card this line issued (set when the check is paid)
+  // A pour from a tap: the line, and the keg + ounces it took at the time (a line's beer changes).
+  tapId: uuid('tap_id'),
+  stockItemId: uuid('stock_item_id'),
+  stockQty: numeric('stock_qty', { precision: 10, scale: 3 }),
   state: text('state').notNull().default('held'),   // 'held' | 'sent' | 'void'
   ticketId: uuid('ticket_id'),
   voidReason: text('void_reason'),
@@ -777,4 +784,92 @@ export const callLogs = pgTable('call_logs', {
   summary: text('summary'),
   transcript: text('transcript'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// ─── Inventory ──────────────────────────────────────────────────────────────
+// Stock is bought by the pack (a case, a ½ bbl keg, a 750 ml bottle) and used
+// by the unit (each, oz, lb, fl oz). Cost per unit = pack cost / pack size.
+// On hand is estimated: last count + received since − what the register says
+// was used since (recipes × items sold, and each tap pour's snapshot).
+export const vendors = pgTable('vendors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  contact: text('contact'),
+  phone: text('phone'),
+  email: text('email'),
+  orderDays: text('order_days'),                    // "Tue, Fri" — what the rep said
+  note: text('note'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const stockItems = pgTable('stock_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  category: text('category').notNull().default('food'),   // 'food' | 'beer' | 'liquor' | 'wine' | 'na' | 'supplies'
+  unit: text('unit').notNull().default('each'),           // 'each' | 'oz' | 'lb' | 'floz'
+  packName: text('pack_name').notNull().default('each'),  // "case of 24", "½ bbl keg"
+  packSize: numeric('pack_size', { precision: 12, scale: 3 }).notNull().default('1'),   // units in a pack
+  packCostCents: integer('pack_cost_cents'),              // last price paid (updated when an order is received)
+  vendorId: uuid('vendor_id'),
+  parPacks: numeric('par_packs', { precision: 10, scale: 2 }),   // keep at least this many packs
+  isActive: boolean('is_active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// What goes into one of a menu item (per size). qty is in the stock item's unit.
+export const recipeLines = pgTable('recipe_lines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  menuItemId: uuid('menu_item_id').notNull().references(() => menuItems.id, { onDelete: 'cascade' }),
+  sizeId: text('size_id'),                                // null = every size
+  stockItemId: uuid('stock_item_id').notNull().references(() => stockItems.id, { onDelete: 'cascade' }),
+  qty: numeric('qty', { precision: 10, scale: 3 }).notNull(),
+}, (t) => ({
+  itemIdx: index('recipe_lines_item_idx').on(t.menuItemId),
+}))
+
+export const stockCounts = pgTable('stock_counts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  status: text('status').notNull().default('open'),       // 'open' (being counted) | 'done'
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  startedBy: text('started_by'),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  finishedBy: text('finished_by'),
+  note: text('note'),
+})
+
+export const stockCountLines = pgTable('stock_count_lines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  countId: uuid('count_id').notNull().references(() => stockCounts.id, { onDelete: 'cascade' }),
+  stockItemId: uuid('stock_item_id').notNull().references(() => stockItems.id, { onDelete: 'cascade' }),
+  qty: numeric('qty', { precision: 12, scale: 3 }).notNull(),     // units on hand
+  countedBy: text('counted_by'),
+  countedAt: timestamp('counted_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  lineIdx: uniqueIndex('stock_count_lines_idx').on(t.countId, t.stockItemId),
+}))
+
+export const purchaseOrders = pgTable('purchase_orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  number: serial('number'),
+  vendorId: uuid('vendor_id'),
+  status: text('status').notNull().default('draft'),     // 'draft' | 'sent' | 'received' | 'cancelled'
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  createdBy: text('created_by'),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  receivedAt: timestamp('received_at', { withTimezone: true }),
+  receivedBy: text('received_by'),
+})
+
+export const purchaseOrderLines = pgTable('purchase_order_lines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orderId: uuid('order_id').notNull().references(() => purchaseOrders.id, { onDelete: 'cascade' }),
+  stockItemId: uuid('stock_item_id').notNull().references(() => stockItems.id, { onDelete: 'cascade' }),
+  packs: numeric('packs', { precision: 10, scale: 2 }).notNull(),
+  packCostCents: integer('pack_cost_cents'),             // expected
+  receivedPacks: numeric('received_packs', { precision: 10, scale: 2 }),
+  receivedCostCents: integer('received_cost_cents'),     // what the invoice said, per pack
 })
