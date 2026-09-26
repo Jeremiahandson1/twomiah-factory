@@ -1825,3 +1825,14 @@ jobs:
           bun-version: latest
       - name: "check vertical vocabulary"
         run: bun run scripts/check-vertical-vocabulary.ts
+
+  dashboard-reports-what-exists:
+    name: "The Reports dashboard reports only on modules the tenant has"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check dashboard reports what exists"
+        run: bun run scripts/check-dashboard-reports-what-exists.ts

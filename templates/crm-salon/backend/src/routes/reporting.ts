@@ -6,6 +6,8 @@ import { invoice, payment, job, project, quote, timeEntry, user, contact, servic
 import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
+// So the dashboard does not report on modules this tenant does not have.
+import { enabledFeaturesFor } from '../middleware/enabledFeature.ts'
 
 /**
  * Team productivity, for a salon.
@@ -55,5 +57,5 @@ export default createReportingRoutes({
   tables: { invoice, payment, job, project, quote, timeEntry, user, contact },
   authenticate,
   requirePermission,
-  options: { teamProductivity: salonTeamProductivity },
+  options: { featuresFor: enabledFeaturesFor, teamProductivity: salonTeamProductivity },
 })

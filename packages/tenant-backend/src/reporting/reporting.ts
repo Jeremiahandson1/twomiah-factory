@@ -35,6 +35,18 @@ export interface ReportingOptions {
    * entries in this period" for every period since it launched. (Salon T28 M6)
    */
   teamProductivity?: (companyId: string, range: DateRange) => Promise<TeamProductivityRow[]>
+  /**
+   * The tenant's enabled features, so the dashboard does not report on modules this business does not
+   * have. An events venue with `quotes` switched off was still served a full quote breakdown —
+   * conversion rate and all — by an endpoint that had no idea the module was off, while /api/quotes
+   * answered 403 to the same session.
+   *
+   * Optional on purpose: without it the payload is exactly what it always was, so wiring this is a
+   * per-template decision rather than something that changes every vertical at once. Pass the template's
+   * own `enabledFeaturesFor` — the same 15-second cached reader the route gates use, so this costs no
+   * extra query.
+   */
+  featuresFor?: (companyId: string) => Promise<string[]>
 }
 
 export interface TeamProductivityRow {
@@ -299,13 +311,29 @@ export function createReportingService(deps: ReportingDeps) {
     const now = new Date()
     const effective: DateRange = range.gte || range.lte ? range : { gte: new Date(now.getTime() - 30 * DAY_MS), lte: now }
     const days = effective.gte && effective.lte ? Math.max(1, Math.round((effective.lte.getTime() - effective.gte.getTime()) / DAY_MS)) : null
+    // Only report on what this business actually has. Revenue and activity are not gated — every
+    // vertical bills and every vertical has a history — but jobs, projects and quotes are modules a
+    // tenant can be without, and reporting on a module whose own API answers 403 is how a
+    // Quote-conversion tile ended up on an events venue's Reports page.
+    const enabled = deps.options?.featuresFor ? await deps.options.featuresFor(companyId) : null
+    const has = (id: string) => enabled === null || enabled.includes(id)
     const [revenue, jobs, projects, quotes, activity] = await Promise.all([
-      revenueOverview(companyId, effective), jobStats(companyId, effective), projectStats(companyId), quoteStats(companyId, effective), recentActivity(companyId, 10),
+      revenueOverview(companyId, effective),
+      has('jobs') ? jobStats(companyId, effective) : Promise.resolve(null),
+      has('projects') ? projectStats(companyId) : Promise.resolve(null),
+      has('quotes') ? quoteStats(companyId, effective) : Promise.resolve(null),
+      recentActivity(companyId, 10),
     ])
     return {
       period: days ? `${days} days` : 'all time',
       range: { startDate: effective.gte?.toISOString() || null, endDate: effective.lte?.toISOString() || null },
-      revenue, jobs, projects, quotes, recentActivity: activity,
+      revenue,
+      // Omitted rather than zeroed: "this business has no quotes" and "this business quoted nothing this
+      // month" are different answers, and ReportsPage — the only consumer — already falls back to empty.
+      ...(jobs ? { jobs } : {}),
+      ...(projects ? { projects } : {}),
+      ...(quotes ? { quotes } : {}),
+      recentActivity: activity,
     }
   }
 
