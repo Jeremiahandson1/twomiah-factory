@@ -116,7 +116,13 @@ export default function AppLayout() {
                   // brand-*, not blue-*: tailwind.config.js maps orange/primary/brand to the tenant's
                   // generated palette, and blue is NOT mapped — so the roofer's own colour never reached
                   // their sidebar. Every other vertical's chrome already rides that mapping. (Summit M-06)
-                  ? 'bg-brand-600 text-white'
+                  //
+                  // A TINT, not white on a solid brand fill. generatePalette fixes lightness, so white on
+                  // shade 600 swings by hue: lime 2.29:1, yellow 2.38:1, cyan 2.68:1, green 2.96:1 — and
+                  // even the default orange is 4.31:1, all under AA. Shade 200 over a 10% tint clears it
+                  // for every hue (worst measured 8.39:1), which is why the shared AppShell draws its own
+                  // active row this way. (Salon T20 M6 measured the same effect on a tinted sidebar.)
+                  ? 'bg-brand-500/10 text-brand-200'
                   : 'text-gray-300 hover:bg-gray-800 hover:text-white'
               }`
             }
