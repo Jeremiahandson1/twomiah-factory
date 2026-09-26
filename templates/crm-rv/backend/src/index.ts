@@ -230,7 +230,13 @@ app.use('/api/inventory/*', authenticate, requireEnabledFeature(['inventory', 'p
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)
-app.route('/api/projects', projectsRoutes)
+// [rv-scope] app.route('/api/projects', projectsRoutes)
+//   `projects` is a Construction module the registry scopes to templates:['crm'], so a dealership can
+//   never enable it — yet this mount carried NO requireEnabledFeature, leaving the whole CRUD surface
+//   reachable on every RV tenant. Nothing here uses it: no ProjectsPage, no nav entry, no call to
+//   /api/projects anywhere in the frontend, and contactsConfig sets sections.projects = false. The
+//   customer portal's Projects pages are unaffected — portalFetch builds /api/portal/p/<token>/projects,
+//   a different mount entirely. Scoped out the same way crm-vet scopes its twelve non-clinical modules.
 app.route('/api/jobs', jobsRoutes)
 app.route('/api/quotes', quotesRoutes)
 app.route('/api/invoices', invoicesRoutes)

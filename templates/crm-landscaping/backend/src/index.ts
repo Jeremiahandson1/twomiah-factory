@@ -252,6 +252,11 @@ app.use('/api/jobs/:id/photos/*', authenticate, requireEnabledFeature('photo_cap
 app.route('/api/auth', authRoutes)
 app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/contacts', contactsRoutes)
+// Deliberately NOT behind requireEnabledFeature('projects'): `projects` is registry-scoped to
+// templates:['crm'], so landscaping can never enable it and the gate would make this a permanent 403.
+// Settings › Geofences reads it (GeofencesPage.tsx: api.get('/api/projects?status=active&limit=100'))
+// to populate its project picker, so gating or removing this mount breaks that page. Reads stay open
+// on purpose; the writes are gated on projects:create/update/delete inside routes/projects.ts.
 app.route('/api/projects', projectsRoutes)
 app.route('/api/jobs', jobsRoutes)
 app.route('/api/quotes', quotesRoutes)

@@ -11,7 +11,7 @@ app.use('*', authenticate)
 // does not have at all (false) — is left out of search, quick search and Recent, and cannot be asked for with
 // ?types=. The same gates the API applies (index.ts, #167); scripts/check-search-feature-gates.ts keeps the two
 // in step. Types not listed are always shown. (events T18: "review jobs" under Recent on a tenant with Jobs off)
-const TYPE_FEATURES: Record<string, string[] | false> = { rfi: false, unit: ['unit_inventory'] }
+const TYPE_FEATURES: Record<string, string[] | false> = { project: false, rfi: false, unit: ['unit_inventory'] }
 
 /**
  * …and what the SEARCHER has to be allowed to read.
