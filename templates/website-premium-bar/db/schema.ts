@@ -29,6 +29,7 @@ export const settings = pgTable('settings', {
   loyalty: jsonb('loyalty'),
   // Birthday email: { enabled, daysBefore, subject, message }. Off until the owner writes the offer.
   birthdayEmail: jsonb('birthday_email'),
+  payroll: jsonb('payroll'),   // { weekStart: 0-6 (0 = Sunday), periodDays: 7 | 14 }
   // The floor: { tables: [{ id, name, kind: 'booth'|'table'|'bar', seats }] }. null = lib/register/floor.ts defaults.
   floor: jsonb('floor'),   // sales tax in basis points; 550 = 5.5% (WI 5% + Eau Claire County 0.5%)
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
@@ -489,6 +490,9 @@ export const staffPins = pgTable('staff_pins', {
   label: text('label').notNull(),              // "Bar phone", "Jess"
   pinHash: text('pin_hash').notNull(),
   role: text('role').notNull().default('staff'),   // 'staff' | 'manager' — managers can void sent food, payments and checks
+  // Time clock: a PIN that belongs to a person on payroll (not a shared device), and their rate.
+  clocksIn: boolean('clocks_in').notNull().default(false),
+  hourlyCents: integer('hourly_cents'),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
@@ -873,3 +877,23 @@ export const purchaseOrderLines = pgTable('purchase_order_lines', {
   receivedPacks: numeric('received_packs', { precision: 10, scale: 2 }),
   receivedCostCents: integer('received_cost_cents'),     // what the invoice said, per pack
 })
+
+// ─── Time clock ─────────────────────────────────────────────────────────────
+// One row per shift worked: clocked in, clocked out. A missed punch is fixed
+// in the admin with a reason; the original times are kept for the record.
+export const timeShifts = pgTable('time_shifts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  pinId: uuid('pin_id').notNull().references(() => staffPins.id, { onDelete: 'cascade' }),
+  startAt: timestamp('start_at', { withTimezone: true }).notNull(),
+  endAt: timestamp('end_at', { withTimezone: true }),
+  inAt: text('in_at'),                                  // which screen: "Bar tablet"
+  outAt: text('out_at'),
+  originalStartAt: timestamp('original_start_at', { withTimezone: true }),
+  originalEndAt: timestamp('original_end_at', { withTimezone: true }),
+  editedBy: text('edited_by'),
+  editNote: text('edit_note'),
+  voidedAt: timestamp('voided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pinIdx: index('time_shifts_pin_idx').on(t.pinId, t.startAt),
+}))

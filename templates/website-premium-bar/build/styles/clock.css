@@ -1,0 +1,21 @@
+/* clock.css — the time clock, on top of register.css. */
+.clk-main { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 24px; padding: 20px; max-width: 900px; margin: 0 auto; }
+.clk-pad { display: grid; gap: 12px; }
+.clk-label { font-size: 15px; color: var(--ink-soft); }
+.clk-pin { width: 100%; min-width: 0; box-sizing: border-box; font: 32px/1 var(--mono); letter-spacing: .4em; text-align: center; min-height: 64px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink); }
+.clk-pin:focus-visible { outline: 3px solid var(--brand-bright); outline-offset: 2px; }
+.clk-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.clk-key { min-height: 72px; font-size: 28px; font-weight: 700; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--ink); }
+.clk-key:active { background: var(--panel-3); }
+.clk-key--soft { font-size: 17px; color: var(--ink-soft); }
+.clk-key--go { font-size: 18px; background: var(--go); color: var(--go-ink); border-color: var(--go); }
+.clk-msg { min-height: 1.4em; font-size: 20px; }
+.clk-msg[data-kind="in"] { color: #8FD3AE; }
+.clk-msg[data-kind="out"] { color: var(--brand-bright); }
+.clk-msg[data-kind="bad"] { color: #F6D5D0; }
+.clk-on h2 { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.clk-on ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.clk-on li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-size: 18px; }
+.clk-on li[data-forgot="1"] { border-color: var(--held); }
+.clk-on .clk-since { color: var(--muted); font-size: 15px; }
+@media (max-width: 720px) { .clk-main { grid-template-columns: minmax(0, 1fr); } }

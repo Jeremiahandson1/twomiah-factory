@@ -1,0 +1,43 @@
+<%
+  // THE TIME CLOCK. Any bar screen: type your own PIN, tap In/Out. The screen
+  // stays signed in as itself. clock.js does the keypad and the list.
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0A08">
+  <title>Time clock — <%= companyName %></title>
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/register.css">
+  <link rel="stylesheet" href="/styles/clock.css">
+</head>
+<body class="reg clk">
+  <header class="reg-top">
+    <div class="reg-top__brand">Time clock <span class="reg-top__who"><%= staff.label %></span></div>
+    <nav class="reg-top__nav" aria-label="Screens"><a href="/register">Register</a></nav>
+  </header>
+  <noscript><p class="reg-noscript">The time clock needs JavaScript.</p></noscript>
+  <main class="clk-main">
+    <form class="clk-pad" id="ck-form" autocomplete="off">
+      <label class="clk-label" for="ck-pin">Your PIN</label>
+      <input class="clk-pin" id="ck-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" aria-describedby="ck-msg">
+      <div class="clk-keys" role="group" aria-label="Keypad">
+        <% for (const k of ['1','2','3','4','5','6','7','8','9']) { %><button class="clk-key" type="button" data-k="<%= k %>"><%= k %></button><% } %>
+        <button class="clk-key clk-key--soft" type="button" data-k="clear" aria-label="Clear">Clear</button>
+        <button class="clk-key" type="button" data-k="0">0</button>
+        <button class="clk-key clk-key--go" type="submit">In / Out</button>
+      </div>
+      <p class="clk-msg" id="ck-msg" role="status" aria-live="assertive"></p>
+    </form>
+    <section class="clk-on" aria-labelledby="ck-on-h">
+      <h2 id="ck-on-h">On the clock</h2>
+      <ul id="ck-on" role="list"></ul>
+    </section>
+  </main>
+  <script type="application/json" id="ck-state"><%- JSON.stringify(state).replace(/</g, '\\u003c') %></script>
+  <script src="/scripts/clock.js" defer></script>
+</body>
+</html>

@@ -41,6 +41,7 @@ import { addDays } from '../lib/hours'
 import { findCard } from '../lib/giftcards/cards'
 import { CATEGORIES } from '../lib/inventory/costing'
 import { StockError, countItem, currentCount, finishCount, stockList } from '../lib/inventory/stock'
+import { ClockError, onTheClock, punch } from '../lib/staff/timeclock'
 
 const viewsDir = path.join(import.meta.dir, '..', 'views', 'console')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -116,6 +117,14 @@ registerPages.get('/', async (c) => {
 registerPages.get('/floor', async (c) => {
   const [s] = await db.select({ name: settingsTbl.companyName, floor: settingsTbl.floor }).from(settingsTbl).limit(1)
   const html = await ejs.renderFile(path.join(viewsDir, 'floor.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), state: { ...(await registerState()), floor: floorConfig(s?.floor) } })
+  c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
+  return c.html(html)
+})
+
+// The time clock: type your own PIN on any bar screen.
+registerPages.get('/clock', async (c) => {
+  const [s] = await db.select({ name: settingsTbl.companyName }).from(settingsTbl).limit(1)
+  const html = await ejs.renderFile(path.join(viewsDir, 'clock.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), state: { on: await onTheClock(db), serverNow: Date.now() } })
   c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
   return c.html(html)
 })
@@ -238,6 +247,17 @@ registerApi.post('/check/:id/giftcard', async (c) => {
   if (!i) return c.json({ error: 'Which check?' }, 400)
   return act(c, async () => ({ check: await addGiftCardLine(db, i, { amountCents: Number(b.amountCents), code: b.code ? String(b.code) : null }, who(c)) }))
 })
+// ─── The time clock ──────────────────────────────────────────────────────────
+registerApi.get('/clock', async (c) => { c.header('Cache-Control', 'no-store'); return c.json({ on: await onTheClock(db) }) })
+registerApi.post('/clock', async (c) => {
+  const b = await body(c)
+  const staff = c.get('staff')
+  try {
+    const r = await punch(db, b.pin, { sessionId: staff.sessionId, label: staff.label })
+    return c.json({ ok: true, ...r, on: await onTheClock(db) })
+  } catch (e) { if (e instanceof ClockError) return c.json({ error: e.message }, e.status as any); throw e }
+})
+
 // ─── The count ───────────────────────────────────────────────────────────────
 registerApi.post('/count/item', async (c) => {
   const b = await body(c)
