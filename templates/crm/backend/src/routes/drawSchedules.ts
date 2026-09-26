@@ -251,4 +251,17 @@ app.post('/requests/:id/reject', requirePermission('draw-schedules:update'), asy
   return c.json(updated)
 })
 
+// A draw request had no delete at all, and drawRequest.scheduleOfValuesId references
+// scheduleOfValues.id with no onDelete cascade — so one draw request made its schedule of values
+// undeletable (409 "still in use") and, through projectId, its project too. The row could be created
+// and then never removed by any route in the API.
+app.delete('/requests/:id', requirePermission('draw-schedules:delete'), async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(drawRequest).where(and(eq(drawRequest.id, id), eq(drawRequest.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'Draw request not found' }, 404)
+  return c.body(null, 204)
+})
+
 export default app

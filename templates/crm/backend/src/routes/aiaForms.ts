@@ -59,7 +59,13 @@ function computeSummary(input: z.infer<typeof aiaFormSchema>) {
   const retainageAmount = (totalCompletedAndStored * input.retainagePercent) / 100
   const totalEarnedLessRetainage = totalCompletedAndStored - retainageAmount
   const currentPaymentDue = totalEarnedLessRetainage - input.lessPreviousCertificates
-  const balanceToFinish = contractSumToDate - totalCompletedAndStored
+  // G702 line 9 is "BALANCE TO FINISH, INCLUDING RETAINAGE" = line 3 less line 6, i.e. the contract
+  // sum to date less TOTAL EARNED LESS RETAINAGE. Subtracting totalCompletedAndStored (line 4) instead
+  // leaves the retainage out of the balance, so the form understated what the owner still owes by
+  // exactly the amount being held back: $100k contract at 10% read 50,000 where line 9 is 55,000.
+  // The line-item "balance to finish" on G703 IS scheduledValue - totalCompletedAndStored; that one is
+  // computed in the frontend per row and is a different column, deliberately left alone.
+  const balanceToFinish = contractSumToDate - totalEarnedLessRetainage
 
   return {
     contractSumToDate,
