@@ -57,14 +57,23 @@ if (!/else if \(jobRow\.assignedToMemberId && t\.teamMember\)/.test(sms)) fail('
 
 const quotes = read('packages/tenant-backend/src/invoicing/quotes.ts')
 if (!/if \(!data\.lineItems\.length\) return c\.json\(\{ error: 'Add at least one line item\.' \}, 400\)/.test(quotes)) fail('a quote must have at least one line item')
-if (!/if \(exp\.value && exp\.value < startOfToday\(\)\) return c\.json\(\{ error: 'Expiry date is in the past — pick today or later\.' \}, 400\)/.test(quotes)) fail('a quote must not be created with an expiry date in the past')
-if (!/const startOfToday = \(\) =>/.test(quotes)) fail('startOfToday must compare on the UTC calendar day')
+if (!/if \(exp\.value && exp\.value < today\) return c\.json\(\{ error: 'Expiry date is in the past — pick today or later\.' \}, 400\)/.test(quotes)) fail('a quote must not be created with an expiry date in the past')
+// …measured on the BUSINESS's calendar. This guard used to require `startOfToday()`, which is the UTC day:
+// from 19:00 Central the server refused a quote expiring on the date the business was still living in, and
+// the guard had that defect written into it as the rule. (T28 M4 family)
+if (!/const today = businessToday\(await deps\.options\?\.timeZoneFor\?\.\(cid\)\)/.test(quotes)) fail('the expiry comparison must use the business day (businessToday), not the server clock')
+// Read the CODE for this one, not the prose: the file explains in a comment why startOfToday is gone,
+// and a bare search would fail the very file that carries the fix.
+const quotesCode = quotes.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+if (/startOfToday/.test(quotesCode)) fail('startOfToday is the UTC day — it must not decide whether a quote has already expired')
 const update = quotes.slice(quotes.indexOf("app.put('/:id'"), quotes.indexOf("app.delete('/:id'"))
 if (/await lineRows\(id\)/.test(update.slice(update.indexOf('db.transaction')))) fail('the quote edit must not read lines through the pool inside its transaction (deadlock)')
 if (!/items = await tx\.select\(\)\.from\(t\.quoteLineItem\)\.where\(eq\(t\.quoteLineItem\.quoteId, id\)\)/.test(update)) fail('the quote edit must read its lines on the transaction')
 
 const page = read('packages/tenant-ui/src/invoicing/QuotesPage.tsx')
 if (!/if \(linesForSave\.length === 0\) \{ toast\.error\('Add at least one line item'\); return \}/.test(page)) fail('the quote form must ask for a line item before saving')
-if (!/form\.expiryDate < new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(page)) fail('the quote form must refuse an expiry date in the past on a new quote')
+if (!/form\.expiryDate < todayKey\(\)/.test(page)) fail('the quote form must refuse an expiry date in the past on a new quote')
+// …against the VIEWER's own calendar; toISOString() is UTC and refused a date they were still living in.
+if (/expiryDate < new Date\(\)\.toISOString/.test(page)) fail('the quote form must not measure "past" against the UTC day')
 if (failed) { console.error(`\njob and quote rules: ${failed} check(s) FAILED`); process.exit(1) }
 console.log('job and quote rules: completion is stamped, a quote needs a line and a live expiry, the edit stays on its transaction')

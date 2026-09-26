@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Edit, Trash2, Send, Check, X, FileText, Briefcase, Search } from 'lucide-react'
 import type { InvoicingPageProps, LineItemInput } from './types'
 import { resolveConfig } from './types'
+import { todayKey } from '../time/day'
 import { Button, ConfirmModal, DataTable, Field, LineItemsEditor, Modal, NumberInput, PageHeader, StatusBadge, TotalsBox, calcTotals, dateOnly, errMsg, inputCls, money, moneyInputError, selectCls } from './ui'
 
 type Row = Record<string, any> & { id: string }
@@ -78,7 +79,9 @@ export function QuotesPage({ api, toast, settings, config }: InvoicingPageProps)
     if (!form.name.trim()) { toast.error('Name is required'); return }
     // a quote is a priced offer: something on it, and an expiry that hasn't passed (T14 L14)
     if (linesForSave.length === 0) { toast.error('Add at least one line item'); return }
-    if (!editing && form.expiryDate && form.expiryDate < new Date().toISOString().slice(0, 10)) { toast.error('Expiry date is in the past — pick today or later'); return }
+    // todayKey() is the viewer's own calendar day; toISOString() is UTC, which after 19:00 Central
+    // refused a date the person was still living in. (BUG-28 family)
+    if (!editing && form.expiryDate && form.expiryDate < todayKey()) { toast.error('Expiry date is in the past — pick today or later'); return }
     if (inputError) { toast.error(inputError); return }
     if (totals.discountTooBig) { toast.error('Discount cannot exceed the subtotal'); return }
     setSaving(true)

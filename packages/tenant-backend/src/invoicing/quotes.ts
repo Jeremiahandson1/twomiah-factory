@@ -8,8 +8,6 @@ import { eq, and, or, count, desc, asc, ilike, inArray } from 'drizzle-orm'
 import { round2, calcTotals, rawSubtotal, businessToday, defaultTaxRateFrom, dueDateFromTerms, quoteExpiryFromTerms, normalizeDateInput, nextNumber, type NumberingOptions } from './money'
 import { checkFilter } from '../listFilter'
 
-/** Today at 00:00 UTC — dates are stored as calendar days at UTC midnight, so compare on the same boundary. */
-const startOfToday = () => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())) }
 
 export interface QuoteTables {
   quote: any
@@ -218,7 +216,11 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     if (!data.lineItems.length) return c.json({ error: 'Add at least one line item.' }, 400)
     const exp = normalizeDateInput(data.expiryDate)
     if (exp.error) return c.json({ error: `Expiry date: ${exp.error}` }, 400)
-    if (exp.value && exp.value < startOfToday()) return c.json({ error: 'Expiry date is in the past — pick today or later.' }, 400)
+    // TODAY on the business's own calendar. This was `startOfToday()`, which is the UTC day, so from
+    // 19:00 Central the server had already moved to tomorrow and refused a quote expiring on the date the
+    // business was actually living in. Same clock the expiry fallback below uses. (T28 M4 family)
+    const today = businessToday(await deps.options?.timeZoneFor?.(cid))
+    if (exp.value && exp.value < today) return c.json({ error: 'Expiry date is in the past — pick today or later.' }, 400)
     // One read, two answers — the tax rate and how long the quote stands both come off the same settings blob.
     const settings = await companySettings(cid)
     const taxRate = data.taxRate ?? defaultTaxRateFrom(settings)
@@ -228,8 +230,6 @@ export function createQuoteRoutes(deps: QuoteDeps) {
     // literal null, which is not a missing date but an open-ended price: no "Valid until" line for the
     // customer, no way for the status to reach `expired`, and convertible to an invoice for ever at a months-old
     // price. (Field Service T26 L2)
-    // TODAY on the business's own calendar, not the server's. (Field Service T28 M4)
-    const today = businessToday(await deps.options?.timeZoneFor?.(cid))
     const values: any = { companyId: cid, expiryDate: exp.value ?? quoteExpiryFromTerms(settings, today), subtotal: totals.subtotal.toString(), taxRate: String(taxRate), taxAmount: totals.taxAmount.toString(), discount: totals.effectiveDiscount.toString(), total: totals.total.toString() }
     for (const k of COPY_FIELDS) if (data[k] !== undefined) values[k] = data[k]
     // A quote is born a draft; the lifecycle routes stamp sentAt/approvedAt. A status in the body cannot skip them.
