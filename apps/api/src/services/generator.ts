@@ -1500,7 +1500,9 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
   // password flow.
   readme += '## Admin Login\n\n- **Email:** `' + tokens['{{ADMIN_EMAIL}}'] + '`\n- **Password:** the one chosen at signup. Lost it? Use **Forgot password** on the login page.\n\n'
   if (products.includes('crm')) {
-    const crmDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'field_service' ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'landscaping' ? 'crm-landscaping' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
+    // industryRouting is the source of truth — this was a ninth copy of the mapping, and a stale one:
+    // no roof, no salon, no restaurant, no store, no vet, no rv, and it still named crm-automotive.
+    const crmDir = crmTemplateFor(config.company?.industry)
     readme += '## CRM (`/' + crmDir + '`)\n\n```bash\ncd ' + crmDir + '/backend && bun install\nbunx drizzle-kit migrate && bun db/seed.ts\nbun start\n```\n\n'
   }
   if (products.includes('pricing')) {
@@ -1519,7 +1521,8 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
 function generateDeployScript(workDir: string, config: GenerateConfig, products: string[]) {
   let script = '#!/bin/bash\nset -e\n\n'
   if (products.includes('website')) script += 'cd website && bun install && cd ..\n'
-  const crmScriptDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'roofing' ? 'crm-roof' : config.company?.industry === 'landscaping' ? 'crm-landscaping' : FIELD_SERVICE_INDUSTRIES.has(config.company?.industry || '') ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
+  // the same router the README above and the real build at line 319 use
+  const crmScriptDir = crmTemplateFor(config.company?.industry)
   if (products.includes('crm')) script += 'cd ' + crmScriptDir + '/backend && bun install && bunx drizzle-kit migrate && bun db/seed.ts && cd ../..\ncd ' + crmScriptDir + '/frontend && bun install && bun run build && cd ../..\n'
   script += '\necho "✅ Done!"\n'
   const scriptPath = path.join(workDir, 'deploy.sh')

@@ -1,0 +1,21 @@
+// Company settings / features / users — shared implementation (packages/tenant-backend/src/company/company.ts),
+// vendored into this tenant as ../shared at generation. This file only wires the template's tables and middleware in.
+import { createCompanyRoutes } from '../shared/index.ts'
+import { db } from '../../db/index.ts'
+import { company, user } from '../../db/schema.ts'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
+import { requirePermission, invalidateExtraPermissions, roleLabel } from '../middleware/permissions.ts'
+import { CRM_TEMPLATE } from '../config/template.ts'
+import { adsConnector } from './ads.ts'
+
+export default createCompanyRoutes({
+  db,
+  tables: { company, user },
+  authenticate,
+  requireAdmin,
+  requirePermission,
+  invalidateExtraPermissions,
+  roleLabel,
+  template: CRM_TEMPLATE,
+  onFeaturesChanged: (features) => adsConnector.onFeaturesChanged(features),
+})

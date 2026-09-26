@@ -25,7 +25,7 @@ const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(
 let failed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 
 /**
  * Sidebar route → the module whose list route it opens. `{t}` is the template, for families a vertical

@@ -33,6 +33,13 @@ export const INDUSTRY_OPTIONS = [
   { value: 'rv', label: 'RV / Powersports Dealership (Twomiah Roam)' },
   { value: 'veterinary', label: 'Veterinary Practice (Twomiah Vet)' },
   { value: 'dispensary', label: 'Cannabis Dispensary (Twomiah Leaf)' },
+  // These three CRMs were built, finished and deployable, and nothing in this list reached them — a
+  // prospect could only get one by TYPING "salon" / "restaurant" / "store" into what is a datalist, not a
+  // dropdown. crmTemplateFor() has routed all three correctly the whole time; the menu just never offered
+  // them. (Found auditing every option through the real router.)
+  { value: 'salon', label: 'Salon / Barber / Spa (Twomiah Salon)' },
+  { value: 'restaurant', label: 'Restaurant / Catering / Events (Twomiah Events)' },
+  { value: 'store', label: 'Online Store / Retail (Twomiah Store)' },
   { value: 'other', label: 'Other (blank slate)' },
 ]
 

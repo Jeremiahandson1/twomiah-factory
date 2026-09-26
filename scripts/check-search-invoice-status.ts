@@ -11,7 +11,7 @@ let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
 // crm-dispensary has no invoice block in search; crm-homecare and crm-automotive are parked.
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 
 for (const t of TEMPLATES) {
   const p = `templates/${t}/backend/src/services/search.ts`

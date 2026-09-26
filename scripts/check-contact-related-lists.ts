@@ -23,7 +23,7 @@ for (const col of ['amountRefunded: t.invoice.amountRefunded', 'dueDate: t.invoi
 }
 
 // every template asks for it
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 for (const t of TEMPLATES) {
   const src = read(`templates/${t}/backend/src/routes/contacts.ts`)
   if (!src) { fail(`templates/${t}/backend/src/routes/contacts.ts is missing`); continue }

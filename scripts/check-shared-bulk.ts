@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
 const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8'))
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 const FUNCTIONS = [
   'bulkUpdateContacts', 'bulkDeleteContacts', 'bulkAssignContactTags', 'bulkUpdateProjects', 'bulkDeleteProjects', 'bulkArchiveProjects',
   'bulkUpdateJobs', 'bulkDeleteJobs', 'bulkAssignJobs', 'bulkRescheduleJobs', 'bulkUpdateJobStatus', 'bulkUpdateInvoices', 'bulkDeleteInvoices',

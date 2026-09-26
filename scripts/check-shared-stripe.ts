@@ -7,7 +7,7 @@ const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\
 const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.url), 'utf8'))
 
 // Dispensary (no Stripe — policy) and homecare (parked) keep their own files and are not vendored here.
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 const APPOINTMENT_BOOK = new Set(['crm-salon', 'crm-vet'])
 
 let failed = 0

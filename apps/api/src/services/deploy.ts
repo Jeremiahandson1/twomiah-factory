@@ -943,6 +943,9 @@ export async function deployCustomer(
   const isSalon = vertical === 'salon' // salon / barber / spa CRM
   const isEvents = vertical === 'events' // restaurant / caterer / venue private-events CRM
   const isStore = vertical === 'store' // e-commerce: crm-store back-office + website-store storefront
+  // Everything with no vertical of its own: 'other', hotels, gyms, yoga, weddings, photographers,
+  // food trucks, and any industry no set recognises. These used to land on the contractor CRM.
+  const isBasic = vertical === 'basic' || vertical === 'showcase' || vertical === 'foodtruck'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')
@@ -1215,9 +1218,9 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isSalon ? slug + '-salon-api' : isEvents ? slug + '-events-api' : isStore ? slug + '-shop-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isSalon ? slug + '-salon' : isEvents ? slug + '-events' : isStore ? slug + '-shop' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isSalon ? 'crm-salon' : isEvents ? 'crm-restaurant' : isStore ? 'crm-store' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isSalon ? slug + '-salon-api' : isEvents ? slug + '-events-api' : isStore ? slug + '-shop-api' : isBasic ? slug + '-basic-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isSalon ? slug + '-salon' : isEvents ? slug + '-events' : isStore ? slug + '-shop' : isBasic ? slug + '-basic' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isSalon ? 'crm-salon' : isEvents ? 'crm-restaurant' : isStore ? 'crm-store' : isBasic ? 'crm-basic' : 'crm'
 
         // crm-store needs its own back-office URL for the merchant-facing webhook
         // setup screen. STOREFRONT_ORIGIN/URL are set later (Step 7) once the

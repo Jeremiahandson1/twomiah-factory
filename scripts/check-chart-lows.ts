@@ -22,7 +22,7 @@ if (!/if \(selectedLabel\) return/.test(picker)) fail('…and must not re-fetch 
 if (/'Selected owner'/.test(picker)) fail('"Selected owner" is the placeholder the report was about — it must be gone')
 
 // L4 — the dashboard URL, in every CRM
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-salon', 'crm-restaurant', 'crm-vet', 'crm-dispensary']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-salon', 'crm-restaurant', 'crm-vet', 'crm-dispensary']
 for (const t of TEMPLATES) {
   const app = read(`templates/${t}/frontend/src/App.tsx`)
   if (!app) { fail(`templates/${t}/frontend/src/App.tsx is missing`); continue }

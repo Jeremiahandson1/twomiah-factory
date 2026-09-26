@@ -342,12 +342,20 @@ const VET_INDUSTRIES = new Set(['veterinary'])
 const SALON_INDUSTRIES = new Set(['salon', 'hair_salon', 'barber', 'barbershop', 'nail_salon', 'spa', 'day_spa', 'med_spa', 'beauty', 'beauty_salon', 'esthetician', 'lash', 'brow_bar', 'waxing'])
 const EVENTS_INDUSTRIES = new Set(['restaurant', 'cafe', 'bar', 'pub', 'brewery', 'bakery', 'catering', 'caterer', 'events', 'event_venue', 'venue', 'banquet', 'private_events', 'wedding_venue'])
 const ROOFING_INDUSTRIES = new Set(['roofing'])
+const SHOWCASE_INDUSTRIES = new Set(['hospitality', 'hotel', 'fitness', 'gym', 'yoga', 'wedding', 'photography'])
+const CONTRACTOR_INDUSTRIES = new Set(['contractor', 'general_contractor', 'construction', 'remodeling', 'siding',
+  'home_improvement', 'kitchen', 'bath_remodeling', 'bathroom_remodeling', 'deck_builder', 'fence_installation',
+  'drywall', 'flooring', 'framing', 'concrete', 'masonry', 'tile', 'cabinet_maker', 'windows_doors', 'windows',
+  'doors', 'insulation', 'solar', 'pool_spa', 'pool', 'commercial_construction'])
 
 const DISPENSARY_INDUSTRIES = new Set(['dispensary'])
 
 const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm': new Set(['Core', 'Construction', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-fieldservice': new Set(['Core', 'Service Trade', 'Field Service', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
+  // No Construction and no Service Trade: a gym, a hotel or a photographer has neither. Without this
+  // entry the lookup below falls back to crm's categories and offers them Construction.
+  'crm-basic': new Set(['Core', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-roof': new Set(['Core', 'Construction', 'Roofing', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-automotive': new Set(['Core', 'Automotive', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-rv': new Set(['Core', 'RV / Powersports', 'Finance', 'Communication', 'Marketing', 'Advanced']),
@@ -357,8 +365,16 @@ const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm-dispensary': new Set(['Core', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
+/**
+ * NOTE: a third copy of the industry→template mapping. The real one is
+ * apps/api/src/config/industryRouting.ts; this file is a browser bundle and cannot import it, so the
+ * sets below are hand-mirrored and are narrower than the originals (FIELD_SERVICE has 4 entries
+ * against the router's 20+, and landscaping / homecare / store are missing entirely). Worth
+ * collapsing into a shared module one day — until then, a change here needs the same change there.
+ */
 function getTemplateFromIndustry(industry?: string): string {
-  if (!industry) return 'crm'
+  // No industry yet means the wizard has not asked — basic is the honest answer, not construction.
+  if (!industry) return 'crm-basic'
   if (FIELD_SERVICE_INDUSTRIES.has(industry)) return 'crm-fieldservice'
   if (ROOFING_INDUSTRIES.has(industry)) return 'crm-roof'
   if (AUTOMOTIVE_INDUSTRIES.has(industry)) return 'crm-automotive'
@@ -367,7 +383,10 @@ function getTemplateFromIndustry(industry?: string): string {
   if (SALON_INDUSTRIES.has(industry)) return 'crm-salon'
   if (EVENTS_INDUSTRIES.has(industry)) return 'crm-restaurant'
   if (DISPENSARY_INDUSTRIES.has(industry)) return 'crm-dispensary'
-  return 'crm'
+  if (SHOWCASE_INDUSTRIES.has(industry)) return 'crm-basic'
+  if (CONTRACTOR_INDUSTRIES.has(industry)) return 'crm'
+  // Anything unrecognised — including the explicit "other" — is basic, not a construction CRM.
+  return 'crm-basic'
 }
 
 function CRMFeatures({ selected, onChange, industry, plan }: { selected: string[], onChange: (f: string[]) => void, industry?: string, plan?: PlanSelection }) {

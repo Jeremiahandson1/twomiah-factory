@@ -50,7 +50,7 @@ if (!/await tx\.update\(w\.table\)\.set\(\{ \[w\.field\]: null \}\)/.test(del)) 
 if (/return c\.body\(null, 204\)/.test(del)) fail('a bare 204 tells the caller nothing — that is how the unassign stayed silent')
 
 // every template hands the roster its jobs
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 for (const t of TEMPLATES) {
   const src = read(`templates/${t}/backend/src/routes/team.ts`)
   if (!src) { fail(`templates/${t}/backend/src/routes/team.ts is missing`); continue }

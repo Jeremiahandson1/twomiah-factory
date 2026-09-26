@@ -1,0 +1,574 @@
+import './config/publicUrl.ts'
+import { Hono } from 'hono'
+import { startMarketingProcessor } from './services/marketing.ts'
+import { startAgreementBillingProcessor } from './services/agreements.ts'
+import type { Context, Next } from 'hono'
+import { cors } from 'hono/cors'
+import { secureHeaders } from 'hono/secure-headers'
+import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { db } from '../db/index.ts'
+import { eq } from 'drizzle-orm'
+import { company, user, emailLog } from '../db/schema.ts'
+import { createSubscriptionSyncRoute, refreshSubscriptionFromFactory, createFactoryApiClient, externalBookingsProxy, createEmailLogger } from './shared/index.ts'
+import logger from './services/logger.ts'
+import { setEmailRecorder } from './services/email.ts'
+import { initializeSocket, io } from './services/socket.ts'
+import { authenticate } from './middleware/auth.ts'
+import { requireEnabledFeature } from './middleware/enabledFeature.ts'
+import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
+import { syncFeatures } from './startup/featureSync.ts'
+import { startReviewProcessor } from './services/reviews.ts'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
+
+import authRoutes from './routes/auth.ts'
+import platformSupportRoutes from './routes/platformSupport.ts'
+import contactsRoutes from './routes/contacts.ts'
+import projectsRoutes from './routes/projects.ts'
+import jobsRoutes from './routes/jobs.ts'
+import quotesRoutes from './routes/quotes.ts'
+import invoicesRoutes from './routes/invoices.ts'
+import timeRoutes from './routes/time.ts'
+import expensesRoutes from './routes/expenses.ts'
+import teamRoutes from './routes/team.ts'
+import companyRoutes from './routes/company.ts'
+import dashboardRoutes from './routes/dashboard.ts'
+import documentsRoutes from './routes/documents.ts'
+import billingRoutes from './routes/billing.ts'
+import messagingBillingRoutes from './routes/messagingBilling.ts'
+import integrationsRoutes from './routes/integrations.ts'
+import agreementsRoutes from './routes/agreements.ts'
+import auditRoutes from './routes/audit.ts'
+import bookingRoutes from './routes/booking.ts'
+import bulkRoutes from './routes/bulk.ts'
+import calltrackingRoutes from './routes/calltracking.ts'
+import commentsRoutes from './routes/comments.ts'
+import equipmentRoutes from './routes/equipment.ts'
+import exportRoutes from './routes/export.ts'
+import fleetRoutes from './routes/fleet.ts'
+import locationsRoutes from './routes/locations.ts'
+import commissionsRoutes from './routes/commissions.ts'
+import gapFeaturesRoutes from './routes/gapFeatures.ts'
+import geofencingRoutes from './routes/geofencing.ts'
+import importRoutes from './routes/import.ts'
+import migrationRoutes from './routes/migration.ts'
+import inventoryRoutes from './routes/inventory.ts'
+import mapsRoutes from './routes/maps.ts'
+import marketingRoutes from './routes/marketing.ts'
+import payrollRoutes from './routes/payroll.ts'
+import photosRoutes from './routes/photos.ts'
+import portalRoutes from './routes/portal.ts'
+// portal-selections and portal-messages are handled inline in portal.ts under /p/:token/
+import pricebookRoutes from './routes/pricebook.ts'
+import pushRoutes from './routes/push.ts'
+import quickbooksRoutes from './routes/quickbooks.ts'
+import recurringRoutes from './routes/recurring.ts'
+import reportingRoutes from './routes/reporting.ts'
+import reviewsRoutes from './routes/reviews.ts'
+import routingRoutes from './routes/routing.ts'
+import schedulingRoutes from './routes/scheduling.ts'
+import searchRoutes from './routes/search.ts'
+import smsRoutes from './routes/sms.ts'
+import stripeRoutes from './routes/stripe.ts'
+import warrantiesRoutes from './routes/warranties.ts'
+import weatherRoutes from './routes/weather.ts'
+import supportRoutes from './routes/support.ts'
+import leadsRoutes from './routes/leads.ts'
+import wisetackRoutes from './routes/wisetack.ts'
+import adsRoutes, { adsConnector } from './routes/ads.ts'
+import aiReceptionistRoutes from './routes/aiReceptionist.ts'
+import emailAliasesRoutes from './routes/emailAliases.ts'
+import emailDomainRoutes from './routes/emailDomain.ts'
+import accountRoutes from './routes/account.ts'
+import inboundParseRoutes from './routes/inboundParse.ts'
+import inboundMessagesRoutes from './routes/inboundMessages.ts'
+import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
+import onboardingRoutes from './routes/onboarding.ts'
+import mediaRoutes from './routes/media.ts'
+let webhooksRoutes: any = null
+try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
+
+handleUncaughtExceptions()
+
+// Every email this tenant sends is recorded, so Settings > Integrations can count them. Only the marketing
+// campaign sender ever wrote to email_log before, so a tenant who had emailed invoices all month read 0.
+// Registered once here rather than at each send site, so a new kind of email cannot be added and forgotten.
+// (Contractor T14 M23)
+setEmailRecorder(createEmailLogger({ db, tables: { emailLog, company, user }, logger }))
+
+const app = new Hono()
+
+app.use('*', secureHeaders({
+  crossOriginResourcePolicy: 'cross-origin',
+}))
+
+// Content-Security-Policy (propagated from crm-dispensary go-live QA L-7). The SPA is served
+// from this origin; Vite emits external bundles (no inline scripts). Allowed third-party
+// script surfaces: Stripe, Google Maps (address autocomplete), Leaflet from unpkg.
+// img/connect stay broad (https:) because media lives on R2/customer URLs and the API host can
+// differ from the page host on custom domains.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://unpkg.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' blob: https:",
+  "connect-src 'self' https: wss:",
+  "frame-src blob: https://js.stripe.com https://hooks.stripe.com https://www.google.com https://maps.google.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+  'upgrade-insecure-requests',
+].join('; ')
+app.use('*', async (c, next) => {
+  await next()
+  if (!c.res.headers.has('Content-Security-Policy')) c.res.headers.set('Content-Security-Policy', CSP)
+})
+
+// Paging guard (propagated from crm-dispensary go-live QA F-10). List endpoints read
+// ?page/?limit with a bare cast: page=-1 produced a negative SQL OFFSET and limit=999999999
+// was accepted uncapped. Validate once here — invalid values are a 400, not a server error.
+const MAX_PAGE_LIMIT = 500
+app.use('/api/*', async (c, next) => {
+  const pageRaw = c.req.query('page')
+  const limitRaw = c.req.query('limit')
+  const isPosInt = (v: string) => /^\d+$/.test(v) && Number(v) >= 1
+  if (pageRaw !== undefined && pageRaw !== '' && !isPosInt(pageRaw)) {
+    return c.json({ error: 'Invalid page: must be an integer ≥ 1', code: 'invalid_pagination', page: pageRaw }, 400)
+  }
+  if (limitRaw !== undefined && limitRaw !== '' && (!isPosInt(limitRaw) || Number(limitRaw) > MAX_PAGE_LIMIT)) {
+    return c.json({ error: `Invalid limit: must be an integer between 1 and ${MAX_PAGE_LIMIT}`, code: 'invalid_pagination', limit: limitRaw, max: MAX_PAGE_LIMIT }, 400)
+  }
+  await next()
+})
+
+// Premium-website A/B endpoints are called by scripts/ab.js from the site's own origin. They are anonymous and send no
+// credentials, so they get an explicit open policy here, ahead of the global one (which on most CRMs is locked to
+// FRONTEND_URL and failed the site's preflight).
+app.use('/api/public/ads-experiments/*', cors({
+  origin: '*',
+  allowMethods: ['POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+}))
+
+// CORS — allow all origins; auth is handled by JWT, not origin checks
+app.use('*', cors({
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],
+}))
+
+function createRateLimiter(windowMs: number, max: number, countMethod?: (m: string) => boolean) {
+  const hits = new Map<string, { count: number; resetAt: number }>()
+  return async (c: Context, next: Next) => {
+    if (countMethod && !countMethod(c.req.method)) return next()
+    // Key on the CLIENT address only. x-forwarded-for is "client, hop, hop" and Render's edge appends a
+    // varying hop, so keying on the whole header gave every request its own counter — 30 wrong
+    // passwords in a row never hit the limit. (SALON-H5)
+    const key = c.req.header('cf-connecting-ip') || (c.req.header('x-forwarded-for') || '').split(',')[0].trim() || 'unknown'
+    const now = Date.now()
+    const entry = hits.get(key)
+    if (!entry || now > entry.resetAt) {
+      hits.set(key, { count: 1, resetAt: now + windowMs })
+    } else {
+      entry.count++
+      if (entry.count > max) {
+        return c.json({ error: 'Too many requests, please try again later' }, 429)
+      }
+    }
+    await next()
+  }
+}
+
+const isWrite = (m: string) => m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE'
+// Reads and writes get independent buckets so browsing can't lock out saving.
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 6000 : 100000, (m) => !isWrite(m)))
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1200 : 100000, isWrite))
+// Per ADDRESS, not per account — so this is a ceiling on a flood from one place, not the thing that
+// stops a person signing in. At 20 it was the latter: a salon is one Wi-Fi, and one stylist's twenty
+// typos locked out the front desk, the manager and everybody else for fifteen minutes, with a message
+// ("Too many requests") that named neither the cause nor the wait. The protection that belongs to a
+// PERSON already exists and is better — the shared auth locks one account after 10 failures and says
+// how long — it just never got to run. Ten accounts × ten failures is 100; 150 leaves room for a bad
+// afternoon and still stops credential stuffing. (Salon T28 L9)
+app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 150))
+app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
+app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
+
+app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
+
+// API routes
+if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
+
+// Modules outside this tenant's enabled features are refused at the API, not just hidden in the menu —
+// the families the sidebar gates (shellConfig `features`; the shared shell already bounces the URL). A
+// list means any of those features unlocks the family, exactly as the sidebar reads it. Email marketing
+// is gated inside its own routes so the public unsubscribe/tracking links stay open. (SALON-M1 → #167)
+app.use('/api/fleet', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/fleet/*', authenticate, requireEnabledFeature('fleet'))
+app.use('/api/locations', authenticate, requireEnabledFeature('multi_location'))
+app.use('/api/locations/*', authenticate, requireEnabledFeature('multi_location'))
+app.use('/api/commissions', authenticate, requireEnabledFeature('commission_tracking'))
+app.use('/api/commissions/*', authenticate, requireEnabledFeature('commission_tracking'))
+app.use('/api/inventory', authenticate, requireEnabledFeature(['inventory', 'parts_tracking']))
+app.use('/api/inventory/*', authenticate, requireEnabledFeature(['inventory', 'parts_tracking']))
+app.use('/api/equipment', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/equipment/*', authenticate, requireEnabledFeature('equipment_tracking'))
+app.use('/api/agreements', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/agreements/*', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/maintenance-contracts', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/maintenance-contracts/*', authenticate, requireEnabledFeature(['service_agreements', 'maintenance_contracts']))
+app.use('/api/warranties', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/warranties/*', authenticate, requireEnabledFeature('warranties'))
+app.use('/api/recurring', authenticate, requireEnabledFeature('recurring_jobs'))
+app.use('/api/recurring/*', authenticate, requireEnabledFeature('recurring_jobs'))
+// T18 M6: both of these answered 200 with the switch off.
+//
+// A geofence is a GPS boundary — it only means anything to a tenant tracking where their people are,
+// so it belongs to the same switch as the tracking itself.
+app.use('/api/geofencing', authenticate, requireEnabledFeature('gps_tracking'))
+app.use('/api/geofencing/*', authenticate, requireEnabledFeature('gps_tracking'))
+// Documents is an optional feature this vertical is offered, and the API was mounted with no gate at
+// all: with the switch off the sidebar still showed Documents and an upload still answered 201. The
+// nav entry was ungated for the same reason — it was written as though the module were core. (T28 M1)
+app.use('/api/documents', authenticate, requireEnabledFeature('documents'))
+app.use('/api/documents/*', authenticate, requireEnabledFeature('documents'))
+// NOT gated: /api/support. T28 M1 reads "POST /api/support/tickets answers 200 with the module off" as a
+// leak, and on its own it looks like one — but that endpoint is also how "Contact Twomiah" (a core,
+// ungated sidebar item) reaches us, and how the Pricebook FREE TRIAL page submits its request. Gating the
+// prefix on support_tickets would take both of those out to close a reporting inconsistency. What was
+// actually wrong is the Help page advertising a Support MODULE the tenant does not have; that is fixed on
+// the page instead. (T28 M1 / L2)
+// `projects` is the CONSTRUCTION module — multi-phase management with draw schedules, AIA pay
+// applications and lien waivers — and the registry offers it to `crm` only. Field service models the
+// same day-to-day work as a JOB, which is what its geofences attach to. Gating on the real feature
+// keeps that honest without hardcoding "never": if projects is ever offered here, this opens by
+// itself.
+app.use('/api/projects', authenticate, requireEnabledFeature('projects'))
+app.use('/api/projects/*', authenticate, requireEnabledFeature('projects'))
+// Photo Capture off means the API says so (403), not "No photo provided" from a validation check that never
+// should have been reached — job photos are uploaded by the mobile app, so the API is the only gate. (T21 L8)
+app.use('/api/photos', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/photos/*', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/jobs/:id/photos', authenticate, requireEnabledFeature('photo_capture'))
+app.use('/api/jobs/:id/photos/*', authenticate, requireEnabledFeature('photo_capture'))
+
+app.route('/api/auth', authRoutes)
+app.route('/api/platform-support', platformSupportRoutes)
+app.route('/api/contacts', contactsRoutes)
+app.route('/api/projects', projectsRoutes)
+app.route('/api/jobs', jobsRoutes)
+app.route('/api/quotes', quotesRoutes)
+app.route('/api/invoices', invoicesRoutes)
+app.route('/api/time', timeRoutes)
+app.route('/api/expenses', expensesRoutes)
+app.route('/api/team', teamRoutes)
+app.route('/api/company', companyRoutes)
+app.route('/api/email-aliases', emailAliasesRoutes)
+app.route('/api/email-domain', emailDomainRoutes)
+app.route('/api/account', accountRoutes)
+app.route('/api/internal/inbound-email', inboundParseRoutes)
+app.route('/api/inbound-messages', inboundMessagesRoutes)
+app.route('/api/gbp', gbpRoutes)
+app.route('/api/internal/gbp', gbpInternal)
+app.route('/api/onboarding', onboardingRoutes)
+app.route('/api/dashboard', dashboardRoutes)
+app.route('/api/documents', documentsRoutes)
+app.route('/api/billing', billingRoutes)
+app.route('/api/messaging-billing', messagingBillingRoutes)
+app.route('/api/integrations', integrationsRoutes)
+app.route('/api/agreements', agreementsRoutes)
+app.route('/api/maintenance-contracts', agreementsRoutes)
+app.route('/api/audit', auditRoutes)
+app.route('/api/booking', bookingRoutes)
+app.route('/api/bulk', bulkRoutes)
+app.route('/api/calltracking', calltrackingRoutes)
+app.route('/api/comments', commentsRoutes)
+app.route('/api/equipment', equipmentRoutes)
+app.route('/api/export', exportRoutes)
+app.route('/api/fleet', fleetRoutes)
+app.route('/api/locations', locationsRoutes)
+app.route('/api/commissions', commissionsRoutes)
+app.route('/api/gap-features', gapFeaturesRoutes)
+app.route('/api/geofencing', geofencingRoutes)
+app.route('/api/import', importRoutes)
+app.route('/api/migration', migrationRoutes)
+app.route('/api/inventory', inventoryRoutes)
+app.route('/api/maps', mapsRoutes)
+app.route('/api/marketing', marketingRoutes)
+app.route('/api/payroll', payrollRoutes)
+app.route('/api/photos', photosRoutes)
+app.route('/api/portal', portalRoutes)
+app.route('/api/pricebook', pricebookRoutes)
+app.route('/api/push', pushRoutes)
+app.route('/api/quickbooks', quickbooksRoutes)
+app.route('/api/recurring', recurringRoutes)
+app.route('/api/reports', reportingRoutes)
+app.route('/api/reviews', reviewsRoutes)
+app.route('/api/routing', routingRoutes)
+app.route('/api/scheduling', schedulingRoutes)
+app.route('/api/search', searchRoutes)
+app.route('/api/sms', smsRoutes)
+app.route('/api/stripe', stripeRoutes)
+app.route('/api/warranties', warrantiesRoutes)
+app.route('/api/weather', weatherRoutes)
+app.route('/api/support', supportRoutes)
+app.route('/api/leads', leadsRoutes)
+app.route('/api/wisetack', wisetackRoutes)
+app.route('/api/ads', adsRoutes)
+// Public visitor tracking — no auth, called from tenant public website JS
+const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
+app.route('/api/public/ads-experiments', adsPublicRoutes)
+app.route('/api/ai-receptionist', aiReceptionistRoutes)
+// Public media proxy for uploaded photos (streamed from private R2). Must be
+// registered before the static/SPA catch-all so /media/* is not swallowed.
+app.route('/media', mediaRoutes)
+
+app.post('/api/internal/sync-features', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  const authHeader = c.req.header('X-Factory-Key')
+  if (authHeader !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { features } = await c.req.json()
+  if (!Array.isArray(features)) return c.json({ error: 'features must be an array' }, 400)
+  const [comp] = await db.select().from(company).limit(1)
+  if (!comp) return c.json({ error: 'No company found' }, 404)
+  const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
+  adsConnector.onFeaturesChanged(updated.enabledFeatures) // Factory switched paid_ads on after deploy → register with Twomiah Ads (not awaited)
+  return c.json({ success: true, features: updated.enabledFeatures })
+})
+
+// Factory → tenant push of the subscription summary (same X-Factory-Key as sync-features). A tenant
+// never computes billing state itself: plans, trials and suspensions are decided in the Factory, and
+// Settings → Billing plus the trial gate read the mirror this writes into company.settings.
+const subscriptionDeps = { db, companyTable: company, userTable: user, factoryApiClient: createFactoryApiClient(), seatLimitEnv: process.env.SEAT_LIMIT }
+app.route('/api/internal/sync-subscription', createSubscriptionSyncRoute(subscriptionDeps))
+
+// Path A++ — SSO handoff from the premium admin. Premium signs a
+// short-lived JWT (60s, aud=twomiah-crm) using this CRM's
+// FACTORY_SYNC_KEY (the factory mints it on premium's behalf so
+// premium doesn't need the secret), browser is redirected here with
+// the token in the query. We verify, find the seeded user by email,
+// mint a normal CRM session, drop the access+refresh tokens into
+// localStorage via a tiny inline script, then send the customer to
+// the dashboard. Looks like one click to the customer.
+app.get('/auth/handoff', async (c) => {
+  const token = c.req.query('token') || ''
+  if (!token) return c.text('Missing handoff token', 400)
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.text('SSO not configured on this CRM', 503)
+  const jwtLib = (await import('jsonwebtoken')).default
+  let decoded: { sub?: string; aud?: string; iss?: string }
+  try {
+    decoded = jwtLib.verify(token, syncKey, { audience: 'twomiah-crm' }) as any
+  } catch (e: any) {
+    return c.text('Invalid or expired handoff token: ' + e?.message, 401)
+  }
+  const email = String(decoded.sub || '').toLowerCase().trim()
+  if (!email) return c.text('Token missing subject', 401)
+  const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1)
+  if (!foundUser || !foundUser.isActive) return c.text('User not found — try signing in directly.', 401)
+  const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
+  if (!foundCompany) return c.text('Company not found', 404)
+  const accessToken = jwtLib.sign(
+    { userId: foundUser.id, companyId: foundUser.companyId, email: foundUser.email, role: foundUser.role },
+    process.env.JWT_SECRET!,
+    { expiresIn: '15m' }
+  )
+  const refreshToken = jwtLib.sign(
+    { userId: foundUser.id, companyId: foundUser.companyId, type: 'refresh' },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: '7d' }
+  )
+  await db.update(user)
+    .set({ refreshToken, lastLogin: new Date(), updatedAt: new Date() })
+    .where(eq(user.id, foundUser.id))
+  // Inline-script landing page — writes tokens to localStorage (where
+  // the React SPA reads them) and bounces to the dashboard. JSON.stringify
+  // gives us safe escaping inside the script tag.
+  const safeAccess = JSON.stringify(accessToken)
+  const safeRefresh = JSON.stringify(refreshToken)
+  return c.html(`<!doctype html><meta charset="utf-8"><title>Signing you in…</title>
+<body style="margin:0;font:14px -apple-system,Segoe UI,Roboto,sans-serif;background:#fafaf7;color:#555;display:flex;align-items:center;justify-content:center;height:100vh;">
+  <div style="text-align:center;">
+    <div style="font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#888;margin-bottom:8px;">TWOMIAH</div>
+    <div>Signing you in to your CRM…</div>
+  </div>
+  <script>
+    try {
+      localStorage.setItem('accessToken', ${safeAccess});
+      localStorage.setItem('refreshToken', ${safeRefresh});
+      window.location.replace('/');
+    } catch (e) {
+      document.body.innerText = 'Could not complete sign-in: ' + (e && e.message ? e.message : e);
+    }
+  </script>
+</body>`)
+})
+
+// Path A++ — seed the CRM's owner row with credentials matching the
+// existing premium-website admin. Called by the factory script
+// provision-crm-for-tenant.ts immediately after a Premium customer
+// adds the CRM via Stripe. The bcrypt hash is taken verbatim — bcryptjs
+// (premium) and Bun.password.verify (CRM) both accept $2a$ and $2b$
+// prefixes, so cross-implementation hashes interoperate.
+app.post('/api/internal/seed-from-premium', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({})) as { email?: string; passwordHash?: string; name?: string }
+  const email = String(body.email || '').trim().toLowerCase()
+  const passwordHash = String(body.passwordHash || '')
+  if (!email || !passwordHash) return c.json({ error: 'email and passwordHash required' }, 400)
+  const [comp] = await db.select().from(company).limit(1)
+  if (!comp) return c.json({ error: 'No company found' }, 404)
+  const [firstName, ...rest] = (body.name || '').trim().split(/\s+/)
+  const lastName = rest.join(' ') || ''
+  // Drizzle ORM lacks a clean ON CONFLICT for this composite key in
+  // every version, so do find-or-create with a guarded update.
+  const existing = (await db.select().from(user).where(eq(user.email, email)).limit(1))[0]
+  if (existing) {
+    await db.update(user).set({
+      passwordHash, role: 'owner', isActive: true, updatedAt: new Date(),
+    }).where(eq(user.id, existing.id))
+    return c.json({ success: true, action: 'updated', userId: existing.id })
+  }
+  const [created] = await db.insert(user).values({
+    email, passwordHash,
+    firstName: firstName || 'Owner', lastName: lastName || '',
+    role: 'owner', isActive: true,
+    companyId: comp.id,
+  }).returning({ id: user.id })
+  return c.json({ success: true, action: 'created', userId: created.id })
+})
+
+// Bookings taken on the connected premium website, for the CRM schedule (shared handler; empty when no
+// site is connected). Auth-gated by the CRM's own JWT.
+app.get('/api/bookings/external', authenticate, externalBookingsProxy())
+
+// Internal SMS send for Twomiah Bookings — the website-premium service
+// POSTs here when a booking is confirmed so we send the SMS via this
+// tenant's Twilio credentials (which only live in the CRM env).
+app.post('/api/internal/send-sms', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const sid = process.env.TWILIO_ACCOUNT_SID
+  const token = process.env.TWILIO_AUTH_TOKEN
+  const from = process.env.TWILIO_PHONE_NUMBER
+  if (!sid || !token || !from) return c.json({ error: 'Twilio not configured' }, 503)
+  const { to, body } = await c.req.json().catch(() => ({})) as { to?: string; body?: string }
+  if (!to || !body) return c.json({ error: 'to + body required' }, 400)
+  try {
+    const url = 'https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json'
+    const form = new URLSearchParams({ To: to, From: from, Body: body })
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from(sid + ':' + token).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: form,
+    })
+    if (!res.ok) return c.json({ error: 'Twilio: ' + (await res.text().catch(() => res.statusText)) }, 502)
+    const data: any = await res.json()
+    return c.json({ ok: true, sid: data.sid })
+  } catch (e: any) {
+    return c.json({ error: e?.message || 'send failed' }, 500)
+  }
+})
+
+app.onError(errorHandler)
+
+// MIME type map for Bun runtime (serveStatic sometimes serves as text/plain)
+const MIME_TYPES: Record<string, string> = {
+  '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+  '.html': 'text/html',
+}
+
+// ─── Serve frontend SPA from backend (no separate static site needed) ────────
+const hasFrontendBuild = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'))
+if (hasFrontendBuild) {
+  // Serve static frontend assets with correct MIME types
+  app.use('*', async (c, next) => {
+    if (c.req.path.startsWith('/api/')) return next()
+    const filePath = path.join(FRONTEND_DIST, c.req.path)
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase()
+        const mime = MIME_TYPES[ext] || 'application/octet-stream'
+        const body = fs.readFileSync(filePath)
+        // Vite's own output is content-hashed (/assets/index-<hash>.js), so it can be cached hard: the
+        // name changes whenever the bytes do. Everything else — booking-widget.js above all, which is
+        // embedded on the customer's own website — keeps its name across deploys, so a long cache means
+        // a fix cannot reach anybody for a day. That is exactly what happened to the widget. (T29 L4)
+        // Vite's separator is a HYPHEN: index-BDFO1_KD.js. Matching only "name.hash.ext" meant no bundle
+        // was ever recognised as hashed, so they all revalidated every five minutes. (T29)
+        const hashed = /^\/assets\//.test(c.req.path) && /[-.][A-Za-z0-9_-]{8,}\.(js|css|woff2?|png|jpe?g|svg)$/.test(c.req.path)
+        const cache = hashed ? 'public, max-age=31536000, immutable' : 'public, max-age=300, must-revalidate'
+        return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': cache })
+      }
+    } catch {}
+    return next()
+  })
+
+  // SPA fallback: serve index.html for all non-API GET requests. The shell is sent with no-store so a
+  // reload after a deploy always picks up the new hashed bundle (assets themselves stay cacheable) — a
+  // tester on a stale shell re-reported fixes that were already live.
+  const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
+  // An unmatched /api/* request must 404 in JSON — NOT fall through to the SPA
+  // catch-all, which would hand back index.html with a 200 and break res.json().
+  app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+  app.get('*', (c) => c.html(indexHtml, 200, { 'Cache-Control': 'no-store' }))
+  logger.info('Serving frontend from ' + FRONTEND_DIST)
+} else {
+  app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+}
+
+const PORT = Number(process.env.PORT) || 3001
+
+const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
+  logger.info(`Server running on port ${info.port}`, {
+    env: process.env.NODE_ENV || 'development',
+    port: info.port,
+    websocket: 'enabled',
+  })
+})
+
+initializeSocket(server as any)
+
+startMarketingProcessor()
+startAgreementBillingProcessor()
+syncFeatures().catch(console.error)
+startReviewProcessor()
+// Pull the current subscription from the Factory at boot so the mirror is right even if a push was missed.
+refreshSubscriptionFromFactory(subscriptionDeps).catch(console.error)
+
+// Recurring scheduling background job — scan every 6 hours
+import('./services/agreements.ts').then(({ default: agreementService }) => {
+  const runScheduler = () => agreementService.scanAndGenerateJobs().catch(console.error)
+  runScheduler() // Run on startup
+  setInterval(runScheduler, 6 * 60 * 60 * 1000) // Then every 6 hours
+}).catch(console.error)
+
+const shutdown = async (signal: string) => {
+  logger.info(`${signal} received, shutting down gracefully`)
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+
+export { app, db, io }

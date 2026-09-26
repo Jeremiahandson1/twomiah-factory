@@ -22,6 +22,7 @@
 
 export type CrmTemplate =
   | 'crm'
+  | 'crm-basic'
   | 'crm-fieldservice'
   | 'crm-homecare'
   | 'crm-roof'
@@ -57,6 +58,7 @@ export type LegacyWebsiteTemplate =
   | 'website-store'
 
 export type Vertical =
+  | 'basic'
   | 'contractor'
   | 'fieldservice'
   | 'homecare'
@@ -212,6 +214,13 @@ export const CONTRACTOR_INDUSTRIES = new Set([
   // Other build-style trades:
   'deck_builder', 'fence_installation', 'drywall', 'flooring',
   'framing', 'concrete', 'masonry', 'tile', 'cabinet_maker',
+  // These five are OFFERED in the signup picker and were never in this set. While every unmatched
+  // industry fell through to 'contractor' that did not matter — they landed on the construction CRM by
+  // accident of the catch-all. Splitting "named trade" from "unrecognised" exposed it: without them
+  // listed, a windows-and-doors installer would have been handed the basic CRM and lost projects,
+  // change orders and punch lists. A fallback that happens to be right hides the cases it is carrying.
+  'windows_doors', 'windows', 'doors', 'insulation', 'solar',
+  'pool_spa', 'pool', 'spa_installation', 'commercial_construction',
 ])
 
 // ─── Resolvers ──────────────────────────────────────────────────────
@@ -264,10 +273,13 @@ export function verticalFor(industry: string | undefined | null): Vertical {
   // restaurant still gets the showcase-style website, but its own CRM.
   if (EVENTS_INDUSTRIES.has(i)) return 'events'
   if (SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
-  // Explicit contractor list + the empty/other fallback both land here.
-  // Showcase doesn't get the fallback — it's the most specialized vertical
-  // and would feel weird as a default for, say, a generic "services" intake.
-  return 'contractor'
+  // A NAMED trade is a contractor. Anything else — "other", a blank intake, or a business that
+  // typed something no set recognises (accountant, photographer, consultant, gym) — is basic.
+  // These two used to share the fallback, which is how a yoga studio ended up with RFIs and lien
+  // waivers: there was no way for the router to tell "builds houses" from "we did not recognise it".
+  // Showcase still does not take the fallback — it is a specific set, not a catch-all.
+  if (CONTRACTOR_INDUSTRIES.has(i)) return 'contractor'
+  return 'basic'
 }
 
 export function crmTemplateFor(industry: string | undefined | null): CrmTemplate {
@@ -283,15 +295,13 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     case 'salon':        return 'crm-salon'
     case 'events':       return 'crm-restaurant'
     case 'store':        return 'crm-store'
-    // Remaining showcase verticals (restaurants, gyms, photographers) don't
-    // have a dedicated CRM template yet — most don't need full job/quote
-    // workflows. Default to the contractor base, which is the most
-    // general-purpose CRM we have (contacts, jobs, invoices).
-    case 'showcase':     return 'crm'
-    // Food trucks share the showcase CRM model — contacts (catering
-    // leads), jobs (events), invoices. No specialized truck-CRM
-    // template yet; the contractor base is the right fit.
-    case 'foodtruck':    return 'crm'
+    // Hotels, gyms, yoga studios, wedding services and photographers. They keep the showcase-style
+    // WEBSITE, which is right for them; what they no longer get is a construction CRM.
+    case 'showcase':     return 'crm-basic'
+    // Contacts (catering leads), jobs (events), invoices — the basic set, exactly.
+    case 'foodtruck':    return 'crm-basic'
+    // Anything unmatched, and the explicit "Other (blank slate)" option.
+    case 'basic':        return 'crm-basic'
     case 'contractor':   return 'crm'
   }
 }
@@ -353,6 +363,8 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
   // family does — fall back to 'website-general' for cases without a
   // matching template.
   const map: Record<Vertical, LegacyWebsiteTemplate> = {
+    // no legacy website of its own — the general one, which is what this map says to do
+    basic:        'website-general',
     contractor:   'website-contractor',
     fieldservice: 'website-fieldservice',
     homecare:     'website-homecare',
@@ -390,6 +402,11 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
 export function crmServiceSuffixFor(industry: string | undefined | null): string {
   const v = verticalFor(industry)
   switch (v) {
+    // The three verticals that share crm-basic all take the same suffix, or the same template would be
+    // called different things depending on which door the tenant came in through. NOT 'crm': the
+    // contractor pair is already `slug-api` / `slug-crm`, so 'crm' would make the two FRONTENDS read
+    // identically — the exact ambiguity a suffix is for.
+    case 'basic':        return 'basic' // {slug}-basic-api.onrender.com
     case 'homecare':     return 'care'
     case 'fieldservice': return 'wrench'
     case 'roofing':      return 'roof'
@@ -400,8 +417,8 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'salon':        return 'salon' // {slug}-salon-api.onrender.com
     case 'events':       return 'events' // {slug}-events-api.onrender.com
     case 'store':        return 'shop' // {slug}-shop-api.onrender.com
-    case 'showcase':     return ''     // shares the contractor base CRM
-    case 'foodtruck':    return ''     // shares the contractor base CRM
+    case 'showcase':     return 'basic' // shares crm-basic
+    case 'foodtruck':    return 'basic' // shares crm-basic
     case 'contractor':   return ''
   }
 }
@@ -449,6 +466,7 @@ export type LayoutMode = 'single-page' | 'multi-page'
 
 const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
   foodtruck: 'single-page',
+  basic: 'multi-page',
   // Everything else is multi-page until we add intake-driven detection
   // for "solo-stylist salon", "neighborhood cafe", "personal trainer",
   // etc. that would benefit from single-page too.

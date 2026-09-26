@@ -79,7 +79,7 @@ function deriveServiceNames(slug: string, industry: string | null | undefined): 
   }
   // Always also try the vertical patterns we know exist, in case industry
   // was mis-classified or the deploy renamed something.
-  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-salon', '-events', '-shop']) {
+  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-salon', '-events', '-shop', '-basic']) {
     candidates.add(slug + s)
     candidates.add(slug + s + '-api')
   }
@@ -243,7 +243,7 @@ export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupRes
 
   // ─── 3) Render Postgres (vertical-suffix DB + premium site DB) ────
   const dbCandidates = new Set<string>([slug + '-db', slug + '-site-db'])
-  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-salon', '-events', '-shop']) {
+  for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive', '-rv', '-vet', '-salon', '-events', '-shop', '-basic']) {
     dbCandidates.add(slug + s + '-db')
   }
   let dbDeleted = 0

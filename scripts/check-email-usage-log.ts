@@ -30,7 +30,7 @@ if (/const \[row\] = await db\.select\(\{ id: t\.company\.id \}\)\.from\(t\.comp
 if (!/sentAt: entry\.status === 'sent' \? new Date\(\) : null/.test(mod)) fail('only a sent email gets a sent time')
 if (!/\.slice\(0, 500\)/.test(mod)) fail('the provider reason must be truncated before it is stored')
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 for (const t of TEMPLATES) {
   const email = read(`templates/${t}/backend/src/services/email.ts`)
   const index = read(`templates/${t}/backend/src/index.ts`)

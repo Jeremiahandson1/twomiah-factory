@@ -4,7 +4,7 @@
  * Gracefully no-ops if RESEND_API_KEY is not configured.
  */
 
-import { verticalFor } from '../config/industryRouting'
+import { verticalFor, crmTemplateFor } from '../config/industryRouting'
 
 const RESEND_API = 'https://api.resend.com/emails'
 
@@ -119,6 +119,9 @@ function getProductName(industry?: string, products?: string[]): string {
   if (verticalFor(industry) === 'salon') return 'Salon'
   if (verticalFor(industry) === 'events') return 'Events'
   if (industry === 'field_service' || industry === 'hvac' || industry === 'plumbing' || industry === 'electrical') return 'Wrench'
+  // basic, showcase and foodtruck all land on crm-basic, so key on the TEMPLATE rather than adding three
+  // vertical checks that could drift apart. 'Build' stays the contractor default below.
+  if (crmTemplateFor(industry) === 'crm-basic') return 'Basic'
   if (products?.includes('crm-fieldservice')) return 'Wrench'
   if (products?.includes('crm-homecare')) return 'Care'
   if (products?.includes('crm-automotive')) return 'Drive'

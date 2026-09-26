@@ -18,7 +18,7 @@ let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 const read = (rel: string) => { try { return readFileSync(ROOT + rel, 'utf8') } catch { fail(`${rel} is missing`); return '' } }
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-roof', 'crm-dispensary', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 
 // ── every write on a settings router is role-guarded, in every template that has one ──────────────
 {

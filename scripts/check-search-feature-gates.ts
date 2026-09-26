@@ -12,7 +12,7 @@ const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.ur
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 // search result type → the API family whose page it links to
 const FAMILY: Record<string, string> = { project: 'projects', job: 'jobs', quote: 'quotes', rfi: 'rfis' }
 

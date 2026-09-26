@@ -53,7 +53,7 @@ for (const [route, section] of GATED) {
 }
 
 // ── every template hands the portal the switches ────────────────────────────────────────────────────────────────
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 for (const t of TEMPLATES) {
   const src = read(`templates/${t}/backend/src/routes/portal.ts`)
   if (!src) { fail(`templates/${t}/backend/src/routes/portal.ts is missing`); continue }

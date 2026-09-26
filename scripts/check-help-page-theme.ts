@@ -13,7 +13,7 @@ let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
 // crm-automotive is parked and keeps its own copy
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 const REL = (t: string) => `templates/${t}/frontend/src/pages/help/HelpPage.tsx`
 
 const base = read(REL('crm'))

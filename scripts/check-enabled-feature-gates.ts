@@ -15,7 +15,7 @@ const read = (p: string) => strip(readFileSync(new URL(`../${p}`, import.meta.ur
 let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant']
 
 // one implementation, one id or any-of a list
 const shared = read('packages/tenant-backend/src/enabledFeature.ts')
@@ -41,6 +41,11 @@ const PHOTOS: Gate[] = [['/api/photos', 'photo_capture'], ['/api/jobs/:id/photos
 const GATES: Record<string, Gate[]> = {
   'crm': [['/api/projects', 'projects'], ['/api/tasks', 'projects'], ['/api/purchase-orders', 'purchase_orders'], ['/api/bills', 'vendor_bills'], ...CONSTRUCTION, ['/api/fleet', 'fleet'], ['/api/inventory', 'inventory'], ['/api/equipment', 'equipment_tracking'], ['/api/agreements', 'service_agreements'], ['/api/warranties', 'warranties'], ['/api/recurring', 'recurring_jobs'], ['/api/photos', 'photo_capture']],
   'crm-fieldservice': [...FS, ...PHOTOS],
+  // Same list as its parent: crm-basic is the field-service template with the field-WORK modules removed
+  // (tech view, dispatch board, parts, flat-rate pricebook), and none of those were gated at the mount.
+  // Everything FS does gate — fleet, locations, commissions, inventory, equipment, agreements,
+  // maintenance contracts, warranties, recurring — is still mounted and still gated here.
+  'crm-basic': [...FS, ...PHOTOS],
   'crm-landscaping': [...FS, ['/api/recurring-routes', 'recurring_routes'], ['/api/area-pricing', 'area_pricing'], ['/api/snow', 'snow_billing'], ...PHOTOS],
   'crm-rv': [['/api/warranties', 'warranties'], ['/api/inventory', ['inventory', 'parts_tracking']]],
   'crm-vet': [],

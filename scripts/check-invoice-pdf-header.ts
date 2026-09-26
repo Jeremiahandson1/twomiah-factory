@@ -14,7 +14,7 @@ let failed = 0
 const fail = (m: string) => { failed++; console.error(`FAIL: ${m}`) }
 
 // crm-homecare has its own, older generator and is parked; crm-automotive is parked.
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 const path = (t: string) => `templates/${t}/backend/src/services/pdf.ts`
 const base = read(path('crm-vet'))
 if (!base) fail(`${path('crm-vet')} is missing`)

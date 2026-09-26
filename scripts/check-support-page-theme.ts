@@ -17,7 +17,7 @@ let failed = 0
 const fail = (m: string) => { failed++; console.error('FAIL: ' + m) }
 
 // crm-automotive is PARKED and keeps its own copy \u2014 not checked, not touched.
-const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
+const TEMPLATES = ['crm', 'crm-fieldservice', 'crm-basic', 'crm-landscaping', 'crm-restaurant', 'crm-rv', 'crm-salon', 'crm-vet']
 
 // White on blue/purple/green/red/yellow, or on gray-700, reads in both themes \u2014 that is a coloured button,
 // not a theme-blind surface.
