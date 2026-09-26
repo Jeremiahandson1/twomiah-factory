@@ -100,5 +100,44 @@ for (const t of templates) {
   }
 }
 
+// ── 3. a vertical must ANSWER for every field, not inherit the contractor's answer for the silent ones ──
+//
+// Naming three fields and staying quiet about the rest is the subtle half of the same defect:
+// resolveReportingConfig spreads the contractor default underneath, so each unstated field becomes the
+// contractor's choice. crm-restaurant inherited `jobs: true, quotes: true` for two modules the feature
+// registry does not offer it, which put a Quote-conversion tile on an events venue's Reports page —
+// `showJobs` masked the jobs half, nothing masked quotes.
+//
+// Requiring every field is also what makes a NEW capability safe: add one to ReportingConfig and every
+// vertical has to say what it wants, rather than being handed the contractor's answer in silence.
+const defaultsOf = (modulePath: string, constName: string): string[] => {
+  const src = read(`${ROOT}packages/tenant-ui/src/${modulePath}/types.ts`)
+  const m = new RegExp(`${constName}[^=]*=\\s*\\{([^}]*)\\}`).exec(src)
+  return m ? (m[1].match(/(\w+)\s*:/g) || []).map((x) => x.replace(/\s*:$/, '')) : []
+}
+
+const PER_FIELD: Array<[label: string, modulePath: string, constName: string, file: string, exportName: string]> = [
+  ['reporting', 'reporting', 'defaultReportingConfig', 'reportingConfig.ts', 'REPORTING'],
+]
+
+let fieldChecks = 0
+for (const [label, modulePath, constName, file, exportName] of PER_FIELD) {
+  const fields = defaultsOf(modulePath, constName)
+  if (!fields.length) { fail(`could not read ${constName} — this guard cannot check ${label} fields`); continue }
+  for (const t of templates) {
+    const p = `${ROOT}templates/${t}/frontend/src/${file}`
+    if (!existsSync(p)) continue // a vertical with its own Reports page (roof, dispensary) has no such config
+    const src = read(p)
+    const block = new RegExp(`${exportName}[^=]*=\\s*\\{([^}]*)\\}`).exec(src)
+    if (!block) { fail(`${t}/${file} has no ${exportName} export`); continue }
+    const stated = new Set((block[1].match(/(\w+)\s*:/g) || []).map((x) => x.replace(/\s*:$/, '')))
+    fieldChecks++
+    const silent = fields.filter((f) => !stated.has(f))
+    if (silent.length) {
+      fail(`${t}/${file} does not state ${silent.join(', ')} — each one silently becomes the CONTRACTOR default (${constName}); say what this vertical wants`)
+    }
+  }
+}
+
 if (failed) { console.error(`\nvertical vocabulary: ${failed} check(s) FAILED`); process.exit(1) }
-console.log(`vertical vocabulary: ${wrappers} wrapper(s) hand their own vertical's config to a shared page rather than inheriting the contractor default, and ${configFiles} config file(s) across ${NON_TRADE.length} non-trade verticals carry no building-trade vocabulary`)
+console.log(`vertical vocabulary: ${wrappers} wrapper(s) pass their own config rather than inheriting the contractor default, ${fieldChecks} config(s) answer for EVERY field rather than leaving some to it, and ${configFiles} config file(s) across ${NON_TRADE.length} non-trade verticals carry no building-trade vocabulary`)
