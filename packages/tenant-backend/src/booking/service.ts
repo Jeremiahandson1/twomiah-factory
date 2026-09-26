@@ -566,7 +566,19 @@ ${b.depositRequired ? `<tr><td style="padding:2px 12px 2px 0;color:#555">Deposit
 
   async function setBookingStatus(companyId: string, id: string, status: string): Promise<boolean> {
     if (!BOOKING_STATUSES.includes(status as BookingStatus)) throw new BookingError(`Status must be one of ${BOOKING_STATUSES.join(', ')}.`)
-    const rows = await db.update(t.onlineBooking).set({ status, updatedAt: new Date() })
+    // Cancelling releases an UNPAID deposit hold. It was left as 'pending' for ever, so a cancelled
+    // booking went on reading "$25 deposit · pending" against a visit that is not happening — the hold
+    // expiry sweep already writes 'expired' for the identical situation when a hold simply times out, and
+    // this is that same event arriving by a different route. (Evergreen T12 M9)
+    //
+    // A PAID deposit is deliberately untouched: that is real money, and refunding it is something someone
+    // decides to do. Rewriting the row here would hide that it is owed back. The money is already safe
+    // either way — payments/stripe.ts auto-refunds a deposit that lands on a booking which is cancelled
+    // or whose hold expired, so writing 'expired' brings staff cancellations under that same guard.
+    const releaseHold = status === 'cancelled'
+      ? { depositStatus: sql`CASE WHEN ${t.onlineBooking.depositStatus} = 'pending' THEN 'expired' ELSE ${t.onlineBooking.depositStatus} END` }
+      : {}
+    const rows = await db.update(t.onlineBooking).set({ status, updatedAt: new Date(), ...releaseHold })
       .where(and(eq(t.onlineBooking.id, id), eq(t.onlineBooking.companyId, companyId)))
       .returning({ link: t.onlineBooking[calendar.linkField] })
     if (!rows.length) return false
