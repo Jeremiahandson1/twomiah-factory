@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { rfi, project } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -58,7 +59,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...foundRfi, project: rfiProject || null })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('rfis:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = rfiSchema.parse(await c.req.json())
 
@@ -74,34 +75,44 @@ app.post('/', async (c) => {
   return c.json(newRfi, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('rfis:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = rfiSchema.partial().parse(await c.req.json())
 
   const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
   if (data.dueDate) updateData.dueDate = new Date(data.dueDate)
 
-  const [updated] = await db.update(rfi).set(updateData).where(eq(rfi.id, id)).returning()
+  // Scoped to the caller's company like the reads above, not matched on id alone.
+  const [updated] = await db.update(rfi).set(updateData).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'RFI not found' }, 404)
   return c.json(updated)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('rfis:delete'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(rfi).where(eq(rfi.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(rfi).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'RFI not found' }, 404)
   return c.body(null, 204)
 })
 
-app.post('/:id/respond', async (c) => {
+app.post('/:id/respond', requirePermission('rfis:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { response, respondedBy } = await c.req.json()
 
-  const [updated] = await db.update(rfi).set({ response, respondedBy, respondedAt: new Date(), status: 'answered', updatedAt: new Date() }).where(eq(rfi.id, id)).returning()
+  const [updated] = await db.update(rfi).set({ response, respondedBy, respondedAt: new Date(), status: 'answered', updatedAt: new Date() }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'RFI not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/close', async (c) => {
+app.post('/:id/close', requirePermission('rfis:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(rfi).set({ status: 'closed', updatedAt: new Date() }).where(eq(rfi.id, id)).returning()
+  const [updated] = await db.update(rfi).set({ status: 'closed', updatedAt: new Date() }).where(and(eq(rfi.id, id), eq(rfi.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'RFI not found' }, 404)
   return c.json(updated)
 })
 

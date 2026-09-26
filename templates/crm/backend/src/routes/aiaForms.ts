@@ -18,6 +18,7 @@ import { aiaForm, project } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -107,7 +108,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...found, project: proj || null })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('aia-forms:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = aiaFormSchema.parse(await c.req.json())
 
@@ -147,7 +148,8 @@ app.post('/', async (c) => {
   return c.json(created, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('aia-forms:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = aiaFormSchema.partial().parse(await c.req.json())
 
@@ -159,7 +161,8 @@ app.put('/:id', async (c) => {
   if (data.contractSum !== undefined || data.netChangeByChangeOrders !== undefined ||
       data.retainagePercent !== undefined || data.lessPreviousCertificates !== undefined ||
       data.lineItems !== undefined) {
-    const [existing] = await db.select().from(aiaForm).where(eq(aiaForm.id, id)).limit(1)
+    // Scoped: this row's stored figures feed the recomputed payment summary below.
+    const [existing] = await db.select().from(aiaForm).where(and(eq(aiaForm.id, id), eq(aiaForm.companyId, currentUser.companyId))).limit(1)
     if (existing) {
       const merged = {
         ...data,
@@ -187,37 +190,48 @@ app.put('/:id', async (c) => {
     }
   }
 
-  const [updated] = await db.update(aiaForm).set(updateData).where(eq(aiaForm.id, id)).returning()
+  // Scoped to the caller's company like the reads above, not matched on id alone.
+  const [updated] = await db.update(aiaForm).set(updateData).where(and(eq(aiaForm.id, id), eq(aiaForm.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'AIA form not found' }, 404)
   return c.json(updated)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('aia-forms:delete'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(aiaForm).where(eq(aiaForm.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(aiaForm).where(and(eq(aiaForm.id, id), eq(aiaForm.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'AIA form not found' }, 404)
   return c.body(null, 204)
 })
 
 // Workflow: draft → signed → submitted → paid
-app.post('/:id/sign', async (c) => {
+app.post('/:id/sign', requirePermission('aia-forms:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { signedBy } = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(aiaForm)
     .set({ status: 'signed', signedBy, signedAt: new Date(), updatedAt: new Date() } as any)
-    .where(eq(aiaForm.id, id))
+    .where(and(eq(aiaForm.id, id), eq(aiaForm.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'AIA form not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/submit', async (c) => {
+app.post('/:id/submit', requirePermission('aia-forms:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(aiaForm).set({ status: 'submitted', updatedAt: new Date() } as any).where(eq(aiaForm.id, id)).returning()
+  const [updated] = await db.update(aiaForm).set({ status: 'submitted', updatedAt: new Date() } as any).where(and(eq(aiaForm.id, id), eq(aiaForm.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'AIA form not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/mark-paid', async (c) => {
+app.post('/:id/mark-paid', requirePermission('aia-forms:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(aiaForm).set({ status: 'paid', updatedAt: new Date() } as any).where(eq(aiaForm.id, id)).returning()
+  const [updated] = await db.update(aiaForm).set({ status: 'paid', updatedAt: new Date() } as any).where(and(eq(aiaForm.id, id), eq(aiaForm.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'AIA form not found' }, 404)
   return c.json(updated)
 })
 

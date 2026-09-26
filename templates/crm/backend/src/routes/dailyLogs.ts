@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { dailyLog, project, user } from '../../db/schema.ts'
 import { eq, and, gte, lte, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -56,7 +57,7 @@ app.get('/:id', async (c) => {
   return c.json(log)
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('daily-logs:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = schema.parse(await c.req.json())
   const [log] = await db.insert(dailyLog).values({
@@ -68,20 +69,26 @@ app.post('/', async (c) => {
   return c.json(log, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('daily-logs:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = schema.partial().parse(await c.req.json())
+  // Scoped to the caller's company like the reads above, not matched on id alone.
   const [log] = await db.update(dailyLog).set({
     ...data,
     date: data.date ? new Date(data.date) : undefined,
     updatedAt: new Date(),
-  }).where(eq(dailyLog.id, id)).returning()
+  }).where(and(eq(dailyLog.id, id), eq(dailyLog.companyId, currentUser.companyId))).returning()
+  if (!log) return c.json({ error: 'Daily log not found' }, 404)
   return c.json(log)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('daily-logs:delete'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(dailyLog).where(eq(dailyLog.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(dailyLog).where(and(eq(dailyLog.id, id), eq(dailyLog.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'Daily log not found' }, 404)
   return c.json(null, 204)
 })
 

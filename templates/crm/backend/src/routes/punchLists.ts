@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { punchListItem, project } from '../../db/schema.ts'
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -51,7 +52,7 @@ app.get('/:id', async (c) => {
   return c.json(item)
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('punch-lists:create'), async (c) => {
   const user = c.get('user') as any
   const data = schema.parse(await c.req.json())
   const [{ value: countVal }] = await db.select({ value: count() }).from(punchListItem).where(and(eq(punchListItem.companyId, user.companyId), eq(punchListItem.projectId, data.projectId)))
@@ -64,33 +65,43 @@ app.post('/', async (c) => {
   return c.json(item, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('punch-lists:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
   const data = schema.partial().parse(await c.req.json())
+  // Scoped to the caller's company like the reads above, not matched on id alone.
   const [item] = await db.update(punchListItem).set({
     ...data,
     dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
     updatedAt: new Date(),
-  }).where(eq(punchListItem.id, id)).returning()
+  }).where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, user.companyId))).returning()
+  if (!item) return c.json({ error: 'Punch list item not found' }, 404)
   return c.json(item)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('punch-lists:delete'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(punchListItem).where(eq(punchListItem.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(punchListItem).where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, user.companyId))).returning()
+  if (!gone) return c.json({ error: 'Punch list item not found' }, 404)
   return c.json(null, 204)
 })
 
-app.post('/:id/complete', async (c) => {
+app.post('/:id/complete', requirePermission('punch-lists:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  const [item] = await db.update(punchListItem).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(eq(punchListItem.id, id)).returning()
+  const [item] = await db.update(punchListItem).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, user.companyId))).returning()
+  if (!item) return c.json({ error: 'Punch list item not found' }, 404)
   return c.json(item)
 })
 
-app.post('/:id/verify', async (c) => {
+app.post('/:id/verify', requirePermission('punch-lists:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
   const { verifiedBy } = await c.req.json()
-  const [item] = await db.update(punchListItem).set({ status: 'verified', verifiedAt: new Date(), verifiedBy, updatedAt: new Date() }).where(eq(punchListItem.id, id)).returning()
+  const [item] = await db.update(punchListItem).set({ status: 'verified', verifiedAt: new Date(), verifiedBy, updatedAt: new Date() }).where(and(eq(punchListItem.id, id), eq(punchListItem.companyId, user.companyId))).returning()
+  if (!item) return c.json({ error: 'Punch list item not found' }, 404)
   return c.json(item)
 })
 

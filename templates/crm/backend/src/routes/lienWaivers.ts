@@ -18,6 +18,7 @@ import { db } from '../../db/index.ts'
 import { lienWaiver, project, contact } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -97,7 +98,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...found, project: proj || null })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('lien-waivers:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = lienWaiverSchema.parse(await c.req.json())
 
@@ -119,7 +120,8 @@ app.post('/', async (c) => {
   return c.json(created, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('lien-waivers:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = lienWaiverSchema.partial().parse(await c.req.json())
   const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
@@ -129,28 +131,36 @@ app.put('/:id', async (c) => {
   if (data.amountCurrent !== undefined) updateData.amountCurrent = String(data.amountCurrent)
   if (data.amountTotal !== undefined) updateData.amountTotal = String(data.amountTotal)
 
-  const [updated] = await db.update(lienWaiver).set(updateData).where(eq(lienWaiver.id, id)).returning()
+  // Scoped to the caller's company like the reads above, not matched on id alone.
+  const [updated] = await db.update(lienWaiver).set(updateData).where(and(eq(lienWaiver.id, id), eq(lienWaiver.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Lien waiver not found' }, 404)
   return c.json(updated)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('lien-waivers:delete'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(lienWaiver).where(eq(lienWaiver.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(lienWaiver).where(and(eq(lienWaiver.id, id), eq(lienWaiver.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'Lien waiver not found' }, 404)
   return c.body(null, 204)
 })
 
 // Workflow: draft → requested → received → approved / rejected
-app.post('/:id/request', async (c) => {
+app.post('/:id/request', requirePermission('lien-waivers:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [updated] = await db
     .update(lienWaiver)
     .set({ status: 'requested', requestedAt: new Date(), updatedAt: new Date() } as any)
-    .where(eq(lienWaiver.id, id))
+    .where(and(eq(lienWaiver.id, id), eq(lienWaiver.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Lien waiver not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/receive', async (c) => {
+app.post('/:id/receive', requirePermission('lien-waivers:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { documentUrl, signedDate } = await c.req.json().catch(() => ({}))
   const [updated] = await db
@@ -162,12 +172,13 @@ app.post('/:id/receive', async (c) => {
       signedDate: signedDate ? new Date(signedDate) : new Date(),
       updatedAt: new Date(),
     } as any)
-    .where(eq(lienWaiver.id, id))
+    .where(and(eq(lienWaiver.id, id), eq(lienWaiver.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Lien waiver not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('lien-waivers:update'), async (c) => {
   const id = c.req.param('id')
   const currentUser = c.get('user') as any
   const { notes } = await c.req.json().catch(() => ({}))
@@ -180,19 +191,22 @@ app.post('/:id/approve', async (c) => {
       approvalNotes: notes,
       updatedAt: new Date(),
     } as any)
-    .where(eq(lienWaiver.id, id))
+    .where(and(eq(lienWaiver.id, id), eq(lienWaiver.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Lien waiver not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/reject', async (c) => {
+app.post('/:id/reject', requirePermission('lien-waivers:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(lienWaiver)
     .set({ status: 'rejected', rejectedAt: new Date(), approvalNotes: notes, updatedAt: new Date() } as any)
-    .where(eq(lienWaiver.id, id))
+    .where(and(eq(lienWaiver.id, id), eq(lienWaiver.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Lien waiver not found' }, 404)
   return c.json(updated)
 })
 

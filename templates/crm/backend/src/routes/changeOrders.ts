@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { changeOrder, changeOrderLineItem, project } from '../../db/schema.ts'
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -82,7 +83,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...foundCo, project: coProject[0] || null, lineItems })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('change-orders:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = changeOrderSchema.parse(await c.req.json())
   const { lineItems, ...coData } = data
@@ -111,7 +112,9 @@ app.post('/', async (c) => {
   return c.json({ ...newCo, lineItems: insertedLineItems }, 201)
 })
 
-app.put('/:id', async (c) => {
+// The body below already proves ownership (`existing` is looked up with id AND companyId, 404 otherwise)
+// and every later statement operates on that proven row — so this one needs the permission gate only.
+app.put('/:id', requirePermission('change-orders:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = changeOrderSchema.partial().parse(await c.req.json())
@@ -144,28 +147,37 @@ app.put('/:id', async (c) => {
   return c.json(result)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('change-orders:delete'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(changeOrder).where(eq(changeOrder.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(changeOrder).where(and(eq(changeOrder.id, id), eq(changeOrder.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'Change order not found' }, 404)
   return c.body(null, 204)
 })
 
-app.post('/:id/submit', async (c) => {
+app.post('/:id/submit', requirePermission('change-orders:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(changeOrder).set({ status: 'submitted', submittedDate: new Date(), updatedAt: new Date() }).where(eq(changeOrder.id, id)).returning()
+  const [updated] = await db.update(changeOrder).set({ status: 'submitted', submittedDate: new Date(), updatedAt: new Date() }).where(and(eq(changeOrder.id, id), eq(changeOrder.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Change order not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('change-orders:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { approvedBy } = await c.req.json()
-  const [updated] = await db.update(changeOrder).set({ status: 'approved', approvedDate: new Date(), approvedBy, updatedAt: new Date() }).where(eq(changeOrder.id, id)).returning()
+  const [updated] = await db.update(changeOrder).set({ status: 'approved', approvedDate: new Date(), approvedBy, updatedAt: new Date() }).where(and(eq(changeOrder.id, id), eq(changeOrder.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Change order not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/reject', async (c) => {
+app.post('/:id/reject', requirePermission('change-orders:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(changeOrder).set({ status: 'rejected', updatedAt: new Date() }).where(eq(changeOrder.id, id)).returning()
+  const [updated] = await db.update(changeOrder).set({ status: 'rejected', updatedAt: new Date() }).where(and(eq(changeOrder.id, id), eq(changeOrder.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Change order not found' }, 404)
   return c.json(updated)
 })
 

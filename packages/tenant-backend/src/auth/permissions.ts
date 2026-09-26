@@ -12,6 +12,11 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:*', 'time:*',
     'expenses:*', 'documents:*', 'rfis:*', 'change-orders:*', 'punch-lists:*',
     'daily-logs:*', 'inspections:*', 'bids:*', 'team:*', 'company:read',
+    // The rest of the construction document set, same standing as change-orders above. These four
+    // shipped with no resource in this matrix at all, which is why their routes carried no gate: adding
+    // one without this line would have refused everyone but the owner (check-permission-vocabulary.ts
+    // fails the build on exactly that). Reads in those routes stay open, so field/viewer need no grant.
+    'submittals:*', 'aia-forms:*', 'draw-schedules:*', 'lien-waivers:*',
     'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*', 'marketing:*',
     'tasks:*',
     // operational modules (writes gated in their routes; reads are open)
@@ -30,6 +35,7 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
     'invoices:create', 'invoices:update', 'time:*', 'expenses:*', 'documents:*',
     'rfis:*', 'change-orders:*', 'punch-lists:*', 'daily-logs:*', 'inspections:*',
+    'submittals:*', 'aia-forms:*', 'draw-schedules:*', 'lien-waivers:*',
     'bids:read', 'team:read', 'company:read', 'dashboard:*', 'schedule:*', 'pricebook:*',
     'marketing:read', 'marketing:create', 'marketing:update',
     'ads:read', 'ads:update',

@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { inspection, project } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -40,7 +41,7 @@ app.get('/', async (c) => {
   return c.json({ data: flat, pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) } })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('inspections:create'), async (c) => {
   const user = c.get('user') as any
   const data = schema.parse(await c.req.json())
   const [{ value: countVal }] = await db.select({ value: count() }).from(inspection).where(eq(inspection.companyId, user.companyId))
@@ -53,33 +54,43 @@ app.post('/', async (c) => {
   return c.json(item, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('inspections:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
   const data = schema.partial().parse(await c.req.json())
+  // Scoped to the caller's company like the list above, not matched on id alone.
   const [item] = await db.update(inspection).set({
     ...data,
     scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : undefined,
     updatedAt: new Date(),
-  }).where(eq(inspection.id, id)).returning()
+  }).where(and(eq(inspection.id, id), eq(inspection.companyId, user.companyId))).returning()
+  if (!item) return c.json({ error: 'Inspection not found' }, 404)
   return c.json(item)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('inspections:delete'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(inspection).where(eq(inspection.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(inspection).where(and(eq(inspection.id, id), eq(inspection.companyId, user.companyId))).returning()
+  if (!gone) return c.json({ error: 'Inspection not found' }, 404)
   return c.json(null, 204)
 })
 
-app.post('/:id/pass', async (c) => {
+app.post('/:id/pass', requirePermission('inspections:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  const [item] = await db.update(inspection).set({ status: 'passed', result: 'pass', updatedAt: new Date() }).where(eq(inspection.id, id)).returning()
+  const [item] = await db.update(inspection).set({ status: 'passed', result: 'pass', updatedAt: new Date() }).where(and(eq(inspection.id, id), eq(inspection.companyId, user.companyId))).returning()
+  if (!item) return c.json({ error: 'Inspection not found' }, 404)
   return c.json(item)
 })
 
-app.post('/:id/fail', async (c) => {
+app.post('/:id/fail', requirePermission('inspections:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
   const { deficiencies } = await c.req.json()
-  const [item] = await db.update(inspection).set({ status: 'failed', result: 'fail', deficiencies, updatedAt: new Date() }).where(eq(inspection.id, id)).returning()
+  const [item] = await db.update(inspection).set({ status: 'failed', result: 'fail', deficiencies, updatedAt: new Date() }).where(and(eq(inspection.id, id), eq(inspection.companyId, user.companyId))).returning()
+  if (!item) return c.json({ error: 'Inspection not found' }, 404)
   return c.json(item)
 })
 

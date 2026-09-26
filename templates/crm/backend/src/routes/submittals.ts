@@ -14,6 +14,7 @@ import { db } from '../../db/index.ts'
 import { submittal, project } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -76,7 +77,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...found, project: proj || null })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('submittals:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = submittalSchema.parse(await c.req.json())
 
@@ -103,63 +104,77 @@ app.post('/', async (c) => {
   return c.json(created, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('submittals:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = submittalSchema.partial().parse(await c.req.json())
   const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
   if (data.dueDate) updateData.dueDate = new Date(data.dueDate)
 
-  const [updated] = await db.update(submittal).set(updateData).where(eq(submittal.id, id)).returning()
+  // Scoped to the caller's company like the reads above, not matched on id alone.
+  const [updated] = await db.update(submittal).set(updateData).where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
   return c.json(updated)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('submittals:delete'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(submittal).where(eq(submittal.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(submittal).where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'Submittal not found' }, 404)
   return c.body(null, 204)
 })
 
 // Workflow: submitted → reviewed → approved / revise_resubmit / rejected
-app.post('/:id/submit', async (c) => {
+app.post('/:id/submit', requirePermission('submittals:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [updated] = await db
     .update(submittal)
     .set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date() } as any)
-    .where(eq(submittal.id, id))
+    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('submittals:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(submittal)
     .set({ status: 'approved', approvedAt: new Date(), reviewNotes: notes, updatedAt: new Date() } as any)
-    .where(eq(submittal.id, id))
+    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/reject', async (c) => {
+app.post('/:id/reject', requirePermission('submittals:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(submittal)
     .set({ status: 'rejected', reviewNotes: notes, updatedAt: new Date() } as any)
-    .where(eq(submittal.id, id))
+    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
   return c.json(updated)
 })
 
-app.post('/:id/revise', async (c) => {
+app.post('/:id/revise', requirePermission('submittals:update'), async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(submittal)
     .set({ status: 'revise_resubmit', reviewNotes: notes, updatedAt: new Date() } as any)
-    .where(eq(submittal.id, id))
+    .where(and(eq(submittal.id, id), eq(submittal.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Submittal not found' }, 404)
   return c.json(updated)
 })
 
