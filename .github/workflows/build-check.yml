@@ -1814,3 +1814,14 @@ jobs:
           bun-version: latest
       - name: "check viewer local day"
         run: bun run scripts/check-viewer-local-day.ts
+
+  vertical-vocabulary:
+    name: "A vertical speaks its own language, not the contractor's"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check vertical vocabulary"
+        run: bun run scripts/check-vertical-vocabulary.ts
