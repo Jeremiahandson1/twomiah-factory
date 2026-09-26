@@ -410,7 +410,11 @@ app.delete('/users/:id', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   if (id === currentUser.userId) return c.json({ error: 'Cannot delete yourself' }, 400)
-  await db.delete(user).where(eq(user.id, id))
+  // Scoped to the caller's company, like the PUT above it — this matched on id alone, so it was the
+  // one route here that would delete a user row belonging to anyone. `returning()` makes a delete
+  // that matched nothing a 404 instead of a cheerful 204.
+  const [gone] = await db.delete(user).where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'User not found' }, 404)
   return c.json(null, 204)
 })
 

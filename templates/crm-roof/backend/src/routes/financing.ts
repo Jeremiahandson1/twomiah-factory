@@ -191,8 +191,12 @@ async function wisetackWebhook(c: any) {
   }
 }
 
-// Update with lender approval (called by lender webhook handler)
+// The comment that used to sit here said "called by lender webhook handler". It is not: the webhook
+// is the route registered ABOVE `app.use('*', authenticate)`, and these three sit below it, so every
+// caller is an authenticated user of some company. They matched the application on id alone, which
+// is why they are scoped here to the caller's company and 404 when nothing matched.
 app.post('/:id/approve', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { amountApproved, termMonths, apr, monthlyPayment } = await c.req.json()
   const [updated] = await db
@@ -206,35 +210,44 @@ app.post('/:id/approve', async (c) => {
       monthlyPayment: monthlyPayment !== undefined ? String(monthlyPayment) : undefined,
       updatedAt: new Date(),
     } as any)
-    .where(eq(financingApplication.id, id))
+    .where(and(eq(financingApplication.id, id), eq(financingApplication.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Financing application not found' }, 404)
   return c.json(updated)
 })
 
 app.post('/:id/decline', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(financingApplication)
     .set({ status: 'declined', notes, updatedAt: new Date() } as any)
-    .where(eq(financingApplication.id, id))
+    .where(and(eq(financingApplication.id, id), eq(financingApplication.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Financing application not found' }, 404)
   return c.json(updated)
 })
 
 app.post('/:id/mark-funded', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [updated] = await db
     .update(financingApplication)
     .set({ status: 'funded', fundedAt: new Date(), updatedAt: new Date() } as any)
-    .where(eq(financingApplication.id, id))
+    .where(and(eq(financingApplication.id, id), eq(financingApplication.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Financing application not found' }, 404)
   return c.json(updated)
 })
 
 app.delete('/:id', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(financingApplication).where(eq(financingApplication.id, id))
+  const [gone] = await db.delete(financingApplication)
+    .where(and(eq(financingApplication.id, id), eq(financingApplication.companyId, currentUser.companyId)))
+    .returning()
+  if (!gone) return c.json({ error: 'Financing application not found' }, 404)
   return c.body(null, 204)
 })
 
