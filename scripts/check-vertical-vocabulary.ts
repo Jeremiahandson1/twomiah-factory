@@ -110,10 +110,73 @@ for (const t of templates) {
 //
 // Requiring every field is also what makes a NEW capability safe: add one to ReportingConfig and every
 // vertical has to say what it wants, rather than being handed the contractor's answer in silence.
+/**
+ * The object literal starting at `from` (the index of its `{`), brace-matched and string-aware.
+ *
+ * A regex cannot do this. `/\{([^}]*)\}/` stops at the first closing brace, and every one of these
+ * defaults contains `\${id}` inside a template literal — so invoicing parsed as ONE field when it has
+ * thirteen, two of them the contractor-shaped `projects: true` and `jobs: true`. A guard built on that
+ * reads a truncated set and reports nothing wrong for ever.
+ */
+function objectAt(src: string, from: number): string {
+  let depth = 0
+  let str: string | null = null
+  const tmpl: number[] = []
+  for (let i = from; i < src.length; i++) {
+    const c = src[i]
+    if (str) {
+      if (c === '\\') { i++; continue }
+      if (c === str) { str = null; continue }
+      if (str === '\`' && c === '$' && src[i + 1] === '{') { tmpl.push(depth); str = null; i++; depth++; continue }
+      continue
+    }
+    if (c === "'" || c === '"' || c === '\`') { str = c; continue }
+    if (c === '{') { depth++; continue }
+    if (c === '}') {
+      depth--
+      if (tmpl.length && depth === tmpl[tmpl.length - 1]) { tmpl.pop(); str = '\`'; continue }
+      if (depth === 0) return src.slice(from, i + 1)
+    }
+  }
+  return ''
+}
+
+/** Top-level `name:` keys of an object literal, skipping anything nested inside it. */
+function keysOf(obj: string): string[] {
+  const inner = obj.slice(1, -1)
+  const keys: string[] = []
+  let depth = 0, token = ''
+  let str: string | null = null
+  const tmpl: number[] = []
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i]
+    if (str) {
+      if (c === '\\') { i++; continue }
+      if (c === str) { str = null; continue }
+      if (str === '\`' && c === '$' && inner[i + 1] === '{') { tmpl.push(depth); str = null; i++; depth++; continue }
+      continue
+    }
+    if (c === "'" || c === '"' || c === '\`') { str = c; token = ''; continue }
+    if (c === '{' || c === '[' || c === '(') { depth++; continue }
+    if (c === '}' || c === ']' || c === ')') {
+      depth--
+      if (tmpl.length && depth === tmpl[tmpl.length - 1]) { tmpl.pop(); str = '\`' }
+      continue
+    }
+    if (depth !== 0) continue
+    if (c === ':') { const k = token.trim(); if (/^\w+$/.test(k)) keys.push(k); token = ''; continue }
+    if (c === ',') { token = ''; continue }
+    token += c
+  }
+  return keys
+}
+
 const defaultsOf = (modulePath: string, constName: string): string[] => {
   const src = read(`${ROOT}packages/tenant-ui/src/${modulePath}/types.ts`)
-  const m = new RegExp(`${constName}[^=]*=\\s*\\{([^}]*)\\}`).exec(src)
-  return m ? (m[1].match(/(\w+)\s*:/g) || []).map((x) => x.replace(/\s*:$/, '')) : []
+  const at = new RegExp(`export const ${constName}\\b[\\s\\S]*?=\\s*\\{`).exec(src)
+  if (!at) return []
+  const body = objectAt(src, src.indexOf('{', at.index + at[0].length - 1))
+  return body ? keysOf(body) : []
 }
 
 const PER_FIELD: Array<[label: string, modulePath: string, constName: string, file: string, exportName: string]> = [
@@ -136,6 +199,47 @@ for (const [label, modulePath, constName, file, exportName] of PER_FIELD) {
     if (silent.length) {
       fail(`${t}/${file} does not state ${silent.join(', ')} — each one silently becomes the CONTRACTOR default (${constName}); say what this vertical wants`)
     }
+  }
+}
+
+// ── 4. the shared defaults are PINNED, so one cannot gain a field or flip a value unnoticed ─────
+//
+// Every vertical sits underneath these. When a default gains a field, each vertical silently inherits
+// whatever that field says — which is precisely how crm-restaurant came to render a Quote-conversion
+// tile for a module the registry does not offer it.
+//
+// All five were surveyed against all templates before this pin was written. Only `reporting` carried a
+// harmful default (jobs/quotes = true); it is now stated by every template and enforced by PER_FIELD
+// above. The other four are inherited safely, each verified rather than assumed:
+//   booking        every template already states every field
+//   documents      the silent ones are projects=false / markup=false (inheriting OFF adds nothing), and
+//                  versions=true is backed by a documentVersion table and GET /:id/versions everywhere
+//   invoicing      clientPath = /crm/contacts/:id, and vet / salon / restaurant / RV all route contacts/:id
+//   jobsDashboard  jobsPath = /crm/jobs is silent only in the four trade templates, where it is correct
+//
+// So this does not demand the field sets stay frozen — it demands that changing one is a decision
+// somebody makes on purpose, having looked at the verticals underneath.
+const PINNED: Record<string, { module: string; fields: string[] }> = {
+  defaultBookingConfig: { module: 'booking', fields: ['calendarLabel', 'calendarPath', 'serviceMenuPath', 'concurrentLabel', 'concurrentHelp'] },
+  defaultDocumentsConfig: { module: 'files', fields: ['projects', 'types', 'markup', 'versions'] },
+  // Thirteen fields, not one. `projects: true` and `jobs: true` here are contractor-shaped — every
+  // template does state both, which is why invoicing has no restaurant-style defect; the pin is what
+  // keeps it that way if a fourteenth field arrives.
+  defaultConfig: { module: 'invoicing', fields: ['clientLabel', 'clientPath', 'jobPath', 'projects', 'jobs', 'tips', 'quoteSites', 'quoteEquipment', 'quoteCustomerMessage', 'quoteDecline', 'extraInvoiceStatuses', 'quoteNamePlaceholder', 'quickbooks'] },
+  defaultReportingConfig: { module: 'reporting', fields: ['jobsLabel', 'jobs', 'quotes', 'projects', 'team', 'eventsPipeline', 'dealership'] },
+  defaultJobsDashboardConfig: { module: 'reporting', fields: ['jobsLabel', 'jobsPath', 'todayBoard', 'projects'] },
+}
+
+for (const [constName, { module, fields }] of Object.entries(PINNED)) {
+  const actual = defaultsOf(module, constName)
+  if (!actual.length) { fail(`${module}/types.ts no longer declares ${constName} — the pin below is stale`); continue }
+  const added = actual.filter((f) => !fields.includes(f))
+  const gone = fields.filter((f) => !actual.includes(f))
+  if (added.length) {
+    fail(`${constName} gained ${added.join(', ')} — every vertical now silently inherits whatever that says. Decide what each one wants, then add the field to the pin in this guard.`)
+  }
+  if (gone.length) {
+    fail(`${constName} no longer has ${gone.join(', ')} — if that was deliberate, update the pin in this guard so it keeps meaning something.`)
   }
 }
 
