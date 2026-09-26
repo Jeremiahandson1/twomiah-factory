@@ -1,0 +1,29 @@
+/* schedule.css — the published schedule, on top of register.css. Prints black on white. */
+.sch-main { padding: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; max-width: 1100px; margin: 0 auto; }
+.sch-week h2, .sch-off h2 { font-size: 22px; font-weight: 800; margin: 0 0 10px; color: var(--brand-bright); }
+.sch-range { font-size: 16px; font-weight: 400; color: var(--ink-soft); margin-left: 6px; }
+.sch-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.sch-scroll:focus-visible { outline: 3px solid var(--brand-bright); outline-offset: 2px; }
+.sch-table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 16px; }
+.sch-table th, .sch-table td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.sch-table thead th { font-size: 14px; color: var(--ink-soft); font-weight: 700; }
+.sch-table tbody th { font-weight: 800; white-space: nowrap; }
+.sch-table .is-today { background: var(--panel-2); }
+.sch-date { font-weight: 400; color: var(--muted); }
+.sch-shift { white-space: nowrap; }
+.sch-shift + .sch-shift { margin-top: 4px; }
+.sch-pos { display: block; font-size: 13px; color: var(--muted); }
+.sch-off__form { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px; align-items: end; max-width: 820px; }
+.sch-off__msg { grid-column: 1 / -1; min-height: 1.3em; margin: 0; }
+.sch-off__msg[data-bad="1"] { color: #F6D5D0; }
+@media print {
+  body.sch { background: #fff; color: #000; }
+  .reg-top, .sch-off, .sch-print { display: none; }
+  .sch-week h2 { color: #000; }
+  .sch-range, .sch-date, .sch-pos, .reg-muted { color: #333; }
+  .sch-table thead th { color: #000; }
+  .sch-scroll { border: 0; overflow: visible; }
+  .sch-table th, .sch-table td { border-bottom: 1px solid #999; color: #000; }
+  .sch-table .is-today { background: none; }
+  .sch-week { break-inside: avoid; }
+}

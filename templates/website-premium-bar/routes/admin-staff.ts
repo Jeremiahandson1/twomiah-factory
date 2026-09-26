@@ -10,12 +10,20 @@
  *   PATCH /shifts/:id                 { startAt, endAt, note }          fix a punch (originals kept)
  *   POST  /shifts/:id/void            { note }
  *
+ *   GET   /schedule?day=              the workweek holding day: shifts, coverage gaps, planned hours/OT, forecast, labor %
+ *   POST  /schedule/shifts            { pinId, day, start, end ('close' = the bar's close), position, note }
+ *   PATCH /schedule/shifts/:id · DELETE /schedule/shifts/:id
+ *   POST  /schedule/copy              { from, to, replace }
+ *   POST  /schedule/publish           { day }   staff see this copy
+ *   GET   /schedule/time-off          pending requests · POST /schedule/time-off/:id { status: approved|denied }
+ *
  * We report hours and tips. Pay, deposits and tax filing are the payroll service's job.
  */
 import { Hono } from 'hono'
 import { db } from '../db'
 import { barTimezone, businessDayOf } from '../lib/register/reports'
 import { payrollCsv, periodFor } from '../lib/staff/hours'
+import { RotaError, addScheduled, copyWeek, decideTimeOff, deleteScheduled, loadWeek, pendingTimeOff, publishWeek, updateScheduled } from '../lib/staff/rota'
 import { ClockError, addShift, editShift, loadPayrollConfig, savePayrollConfig, setPerson, timesheet, voidShift } from '../lib/staff/timeclock'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -27,7 +35,7 @@ export function staffHoursRoutes(auth: any, requireAdmin: any, audit: (c: any, e
   const body = async (c: any) => (await c.req.json().catch(() => ({}))) as Record<string, any>
   const run = async (c: any, fn: () => Promise<unknown>) => {
     try { c.header('Cache-Control', 'no-store'); return c.json(await fn()) } catch (e) {
-      if (e instanceof ClockError) return c.json({ error: e.message }, e.status as any)
+      if (e instanceof ClockError || e instanceof RotaError) return c.json({ error: e.message }, e.status as any)
       throw e
     }
   }
@@ -77,5 +85,18 @@ export function staffHoursRoutes(auth: any, requireAdmin: any, audit: (c: any, e
     const b = await body(c)
     return run(c, async () => { const shift = await voidShift(db, id, b.note, who(c)); await audit(c, { action: 'timeclock.void', target: id, meta: { note: b.note } }); return { shift } })
   })
+  // ── Schedule ──────────────────────────────────────────────────────────────
+  app.get('/schedule', ...g, (c) => run(c, async () => ({ ...(await loadWeek(db, c.req.query('day'))), pendingTimeOff: await pendingTimeOff(db) })))
+  app.post('/schedule/shifts', ...g, async (c) => { const b = await body(c); return run(c, async () => ({ shift: await addScheduled(db, b, who(c)) })) })
+  app.patch('/schedule/shifts/:id', ...g, async (c) => { const id = c.req.param('id'); if (!UUID.test(id)) return c.json({ error: 'Which shift?' }, 400); const b = await body(c); return run(c, async () => ({ shift: await updateScheduled(db, id, b) })) })
+  app.delete('/schedule/shifts/:id', ...g, async (c) => { const id = c.req.param('id'); if (!UUID.test(id)) return c.json({ error: 'Which shift?' }, 400); return run(c, async () => { await deleteScheduled(db, id); return { ok: true } }) })
+  app.post('/schedule/copy', ...g, async (c) => { const b = await body(c); return run(c, async () => ({ shifts: await copyWeek(db, String(b.from || ''), String(b.to || ''), !!b.replace, who(c)) })) })
+  app.post('/schedule/publish', ...g, async (c) => {
+    const b = await body(c)
+    return run(c, async () => { const r = await publishWeek(db, String(b.day || ''), who(c)); await audit(c, { action: 'schedule.publish', target: r.weekStart, meta: r }); return r })
+  })
+  app.get('/schedule/time-off', ...g, (c) => run(c, async () => ({ requests: await pendingTimeOff(db) })))
+  app.post('/schedule/time-off/:id', ...g, async (c) => { const id = c.req.param('id'); if (!UUID.test(id)) return c.json({ error: 'Which request?' }, 400); const b = await body(c); return run(c, async () => ({ request: await decideTimeOff(db, id, b.status, who(c)) })) })
+
   return app
 }

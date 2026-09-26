@@ -897,3 +897,42 @@ export const timeShifts = pgTable('time_shifts', {
 }, (t) => ({
   pinIdx: index('time_shifts_pin_idx').on(t.pinId, t.startAt),
 }))
+
+// ─── Schedule ───────────────────────────────────────────────────────────────
+// The owner builds a workweek; staff see the copy frozen when it was
+// published (edits after that wait for the next Publish).
+export const scheduleShifts = pgTable('schedule_shifts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  pinId: uuid('pin_id').notNull().references(() => staffPins.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),                  // local date 'YYYY-MM-DD'
+  start: text('start').notNull(),              // 'HH:MM'
+  end: text('end').notNull(),                  // 'HH:MM'; at or before start = past midnight
+  position: text('position'),                  // 'Bar', 'Grill', 'Floor'
+  note: text('note'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dayIdx: index('schedule_shifts_day_idx').on(t.day),
+}))
+
+export const scheduleWeeks = pgTable('schedule_weeks', {
+  weekStart: text('week_start').primaryKey(),  // the workweek's first day
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  publishedBy: text('published_by'),
+  snapshot: jsonb('snapshot'),                 // [{ name, day, start, end, position, note }] as published
+  changedAt: timestamp('changed_at', { withTimezone: true }),   // last edit to this week's shifts
+})
+
+export const timeOffRequests = pgTable('time_off_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  pinId: uuid('pin_id').notNull().references(() => staffPins.id, { onDelete: 'cascade' }),
+  day: text('day').notNull(),
+  note: text('note'),
+  status: text('status').notNull().default('pending'),   // 'pending' | 'approved' | 'denied'
+  decidedBy: text('decided_by'),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dayIdx: index('time_off_day_idx').on(t.day),
+}))

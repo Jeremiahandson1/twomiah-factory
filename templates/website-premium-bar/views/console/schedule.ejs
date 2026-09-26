@@ -1,0 +1,69 @@
+<%
+  // THE SCHEDULE, as the owner published it: this week and next, one row per
+  // person. Server-rendered (works with JS off) and prints clean for the wall.
+  // Asking for a day off takes your own PIN (schedule.js).
+  const dayName = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })
+  const dayNum = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', timeZone: 'UTC' })
+  const range = (w) => new Date(w.days[0] + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) + ' to ' + new Date(w.days[6] + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+%>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0A08">
+  <title>Schedule — <%= companyName %></title>
+  <link rel="icon" href="/console/icon.svg">
+  <link rel="stylesheet" href="/styles/register.css">
+  <link rel="stylesheet" href="/styles/schedule.css">
+</head>
+<body class="reg sch">
+  <header class="reg-top">
+    <div class="reg-top__brand">Schedule <span class="reg-top__who"><%= staff.label %></span></div>
+    <nav class="reg-top__nav" aria-label="Screens"><a href="/register/clock">Clock</a> <a href="/register">Register</a></nav>
+  </header>
+  <main class="sch-main">
+    <% for (const [i, w] of pub.weeks.entries()) {
+         const names = [...new Set(w.shifts.map(s => s.name))].sort() %>
+      <section class="sch-week" aria-labelledby="wk<%= i %>">
+        <h2 id="wk<%= i %>"><%= i === 0 ? 'This week' : 'Next week' %> <span class="sch-range"><%= range(w) %></span></h2>
+        <% if (!w.published) { %>
+          <p class="reg-muted">Not posted yet.</p>
+        <% } else if (!names.length) { %>
+          <p class="reg-muted">Posted with nobody on it.</p>
+        <% } else { %>
+          <div class="sch-scroll" role="region" aria-labelledby="wk<%= i %>" tabindex="0">
+            <table class="sch-table">
+              <thead><tr><th scope="col">Name</th><% for (const d of w.days) { %><th scope="col" class="<%= d === today ? 'is-today' : '' %>"><%= dayName(d) %><br><span class="sch-date"><%= dayNum(d) %></span></th><% } %></tr></thead>
+              <tbody>
+                <% for (const n of names) { %>
+                  <tr><th scope="row"><%= n %></th>
+                    <% for (const d of w.days) { const mine = w.shifts.filter(s => s.name === n && s.day === d) %>
+                      <td class="<%= d === today ? 'is-today' : '' %>"><% for (const s of mine) { %><div class="sch-shift"><%= formatClock(s.start) %>–<%= formatClock(s.end) %><% if (s.position) { %><span class="sch-pos"><%= s.position %></span><% } %></div><% } %></td>
+                    <% } %>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </section>
+    <% } %>
+
+    <section class="sch-off" aria-labelledby="off-h">
+      <h2 id="off-h">Ask for a day off</h2>
+      <form id="off-form" class="sch-off__form" autocomplete="off">
+        <label class="reg-field">Day<input class="reg-input" id="off-day" type="date" required min="<%= today %>"></label>
+        <label class="reg-field">Why (optional)<input class="reg-input" id="off-note" maxlength="200"></label>
+        <label class="reg-field">Your PIN<input class="reg-input" id="off-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" required></label>
+        <button class="reg-btn reg-btn--go" type="submit">Send to the owner</button>
+        <p class="sch-off__msg" id="off-msg" role="status" aria-live="polite"></p>
+      </form>
+      <noscript><p class="reg-muted">Asking for a day off here needs JavaScript. Tell the owner instead.</p></noscript>
+    </section>
+    <p class="sch-print"><button class="reg-btn reg-btn--ghost" type="button" id="sch-print">Print</button></p>
+  </main>
+  <script src="/scripts/schedule.js" defer></script>
+</body>
+</html>

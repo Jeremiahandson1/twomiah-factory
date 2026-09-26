@@ -32,10 +32,20 @@
       </div>
       <p class="clk-msg" id="ck-msg" role="status" aria-live="assertive"></p>
     </form>
-    <section class="clk-on" aria-labelledby="ck-on-h">
-      <h2 id="ck-on-h">On the clock</h2>
-      <ul id="ck-on" role="list"></ul>
-    </section>
+    <div class="clk-side">
+      <section class="clk-on" aria-labelledby="ck-on-h">
+        <h2 id="ck-on-h">On the clock</h2>
+        <ul id="ck-on" role="list"></ul>
+      </section>
+      <section class="clk-on" aria-labelledby="ck-today-h">
+        <h2 id="ck-today-h">Scheduled today</h2>
+        <ul role="list">
+          <% if (!state.today.length) { %><li><span class="clk-since">Nothing published for today.</span></li><% } %>
+          <% for (const t of state.today) { %><li><span><%= t.name %></span><span class="clk-since"><%= t.when %><%= t.position ? ' · ' + t.position : '' %></span></li><% } %>
+        </ul>
+        <p class="clk-link"><a href="/register/schedule">The whole schedule, and asking for a day off</a></p>
+      </section>
+    </div>
   </main>
   <script type="application/json" id="ck-state"><%- JSON.stringify(state).replace(/</g, '\\u003c') %></script>
   <script src="/scripts/clock.js" defer></script>

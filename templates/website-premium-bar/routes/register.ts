@@ -42,6 +42,8 @@ import { findCard } from '../lib/giftcards/cards'
 import { CATEGORIES } from '../lib/inventory/costing'
 import { StockError, countItem, currentCount, finishCount, stockList } from '../lib/inventory/stock'
 import { ClockError, onTheClock, punch } from '../lib/staff/timeclock'
+import { RotaError, publishedWeeks, requestTimeOff } from '../lib/staff/rota'
+import { formatClock } from '../lib/staff/schedule'
 
 const viewsDir = path.join(import.meta.dir, '..', 'views', 'console')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -124,7 +126,19 @@ registerPages.get('/floor', async (c) => {
 // The time clock: type your own PIN on any bar screen.
 registerPages.get('/clock', async (c) => {
   const [s] = await db.select({ name: settingsTbl.companyName }).from(settingsTbl).limit(1)
-  const html = await ejs.renderFile(path.join(viewsDir, 'clock.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), state: { on: await onTheClock(db), serverNow: Date.now() } })
+  const pub = await publishedWeeks(db)
+  const today = businessDayOf(new Date(), pub.tz)
+  const todays = pub.weeks[0].shifts.filter((x: any) => x.day === today).map((x: any) => ({ name: x.name, when: formatClock(x.start) + '–' + formatClock(x.end), position: x.position }))
+  const html = await ejs.renderFile(path.join(viewsDir, 'clock.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), state: { on: await onTheClock(db), today: todays, serverNow: Date.now() } })
+  c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
+  return c.html(html)
+})
+
+// The schedule as published (this week and next). Server-rendered and printable.
+registerPages.get('/schedule', async (c) => {
+  const [s] = await db.select({ name: settingsTbl.companyName }).from(settingsTbl).limit(1)
+  const pub = await publishedWeeks(db)
+  const html = await ejs.renderFile(path.join(viewsDir, 'schedule.ejs'), { companyName: s?.name || 'Bar', staff: c.get('staff'), pub, today: businessDayOf(new Date(), pub.tz), formatClock })
   c.header('Cache-Control', 'no-store'); c.header('X-Robots-Tag', 'noindex')
   return c.html(html)
 })
@@ -256,6 +270,14 @@ registerApi.post('/clock', async (c) => {
     const r = await punch(db, b.pin, { sessionId: staff.sessionId, label: staff.label })
     return c.json({ ok: true, ...r, on: await onTheClock(db) })
   } catch (e) { if (e instanceof ClockError) return c.json({ error: e.message }, e.status as any); throw e }
+})
+
+registerApi.post('/time-off', async (c) => {
+  const b = await body(c)
+  try {
+    const r = await requestTimeOff(db, b.pin, b.day, b.note, { sessionId: c.get('staff').sessionId })
+    return c.json({ ok: true, name: r.name, day: r.day })
+  } catch (e) { if (e instanceof RotaError) return c.json({ error: e.message }, e.status as any); throw e }
 })
 
 // ─── The count ───────────────────────────────────────────────────────────────

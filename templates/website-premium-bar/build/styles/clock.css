@@ -19,3 +19,6 @@
 .clk-on li[data-forgot="1"] { border-color: var(--held); }
 .clk-on .clk-since { color: var(--muted); font-size: 15px; }
 @media (max-width: 720px) { .clk-main { grid-template-columns: minmax(0, 1fr); } }
+.clk-side { display: grid; gap: 20px; align-content: start; }
+.clk-link { margin: 8px 0 0; font-size: 15px; }
+.clk-link a { color: var(--brand-bright); }
