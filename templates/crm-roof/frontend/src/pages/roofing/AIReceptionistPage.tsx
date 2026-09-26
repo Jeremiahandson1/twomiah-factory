@@ -200,14 +200,14 @@ export default function AIReceptionistPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-slate-900">
+      <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-slate-900">
         <RefreshCw className="animate-spin text-blue-400" size={32} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-full bg-slate-900 text-white p-6">
+    <div className="min-h-full bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -226,34 +226,34 @@ export default function AIReceptionistPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-          <p className="text-sm text-slate-400 mb-1">Status</p>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Status</p>
           <p className={`text-lg font-bold ${settings.isEnabled ? 'text-green-400' : 'text-red-400'}`}>
             {settings.isEnabled ? 'Active' : 'Inactive'}
           </p>
         </div>
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-          <p className="text-sm text-slate-400 mb-1">Total Rules</p>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Total Rules</p>
           <p className="text-lg font-bold">{rules.length}</p>
         </div>
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-          <p className="text-sm text-slate-400 mb-1">Active Rules</p>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Active Rules</p>
           <p className="text-lg font-bold text-blue-400">{activeRulesCount}</p>
         </div>
-        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-          <p className="text-sm text-slate-400 mb-1">Recent Calls</p>
+        <div className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-gray-200 dark:border-slate-700">
+          <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Recent Calls</p>
           <p className="text-lg font-bold">{recentCallsCount}</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-slate-800 rounded-lg p-1 w-fit">
+      <div className="flex gap-1 mb-6 bg-white dark:bg-slate-800 rounded-lg p-1 w-fit">
         {(['rules', 'calls', 'settings'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition capitalize ${
-              tab === t ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700'
+              tab === t ? 'bg-blue-600 text-white' : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700'
             }`}
           >
             {t === 'calls' ? 'Call Log' : t}
@@ -263,9 +263,9 @@ export default function AIReceptionistPage() {
 
       {/* Tab content */}
       {tab === 'rules' && (
-        <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
           {rules.length === 0 ? (
-            <div className="text-center py-16 text-slate-400">
+            <div className="text-center py-16 text-gray-500 dark:text-slate-400">
               <Bot size={48} className="mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium mb-2">No rules yet</p>
               <p className="text-sm mb-4">Create your first AI receptionist rule to get started.</p>
@@ -279,7 +279,7 @@ export default function AIReceptionistPage() {
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-700 text-left text-slate-400">
+                <tr className="border-b border-gray-200 dark:border-slate-700 text-left text-gray-500 dark:text-slate-400">
                   <th className="px-4 py-3 font-medium">Name</th>
                   <th className="px-4 py-3 font-medium">Trigger</th>
                   <th className="px-4 py-3 font-medium">Channel</th>
@@ -290,17 +290,17 @@ export default function AIReceptionistPage() {
               </thead>
               <tbody>
                 {rules.map(rule => (
-                  <tr key={rule.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                  <tr key={rule.id} className="border-b border-gray-200 dark:border-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700/30">
                     <td className="px-4 py-3 font-medium">{rule.name}</td>
-                    <td className="px-4 py-3 text-slate-300 capitalize">{rule.trigger.replace(/_/g, ' ')}</td>
-                    <td className="px-4 py-3 text-slate-300 uppercase">{rule.channel}</td>
-                    <td className="px-4 py-3 text-slate-300">{rule.delayMinutes}m</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-slate-300 capitalize">{rule.trigger.replace(/_/g, ' ')}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-slate-300 uppercase">{rule.channel}</td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{rule.delayMinutes}m</td>
                     <td className="px-4 py-3">
-                      <button onClick={() => toggleRule(rule)} className="text-slate-300 hover:text-white">
+                      <button onClick={() => toggleRule(rule)} className="text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white">
                         {rule.isActive ? (
                           <ToggleRight size={22} className="text-green-400" />
                         ) : (
-                          <ToggleLeft size={22} className="text-slate-500" />
+                          <ToggleLeft size={22} className="text-gray-500 dark:text-slate-400" />
                         )}
                       </button>
                     </td>
@@ -308,13 +308,13 @@ export default function AIReceptionistPage() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEdit(rule)}
-                          className="p-1.5 rounded hover:bg-slate-600 text-slate-400 hover:text-white transition"
+                          className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
                         >
                           <Pencil size={15} />
                         </button>
                         <button
                           onClick={() => deleteRule(rule.id)}
-                          className="p-1.5 rounded hover:bg-red-600/20 text-slate-400 hover:text-red-400 transition"
+                          className="p-1.5 rounded hover:bg-red-600/20 text-gray-500 dark:text-slate-400 hover:text-red-400 transition"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -329,9 +329,9 @@ export default function AIReceptionistPage() {
       )}
 
       {tab === 'calls' && (
-        <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
           {calls.length === 0 ? (
-            <div className="text-center py-16 text-slate-400">
+            <div className="text-center py-16 text-gray-500 dark:text-slate-400">
               <Phone size={48} className="mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium">No calls recorded yet</p>
             </div>
@@ -339,7 +339,7 @@ export default function AIReceptionistPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-700 text-left text-slate-400">
+                  <tr className="border-b border-gray-200 dark:border-slate-700 text-left text-gray-500 dark:text-slate-400">
                     <th className="px-4 py-3 font-medium">Type</th>
                     <th className="px-4 py-3 font-medium">Number</th>
                     <th className="px-4 py-3 font-medium">Duration</th>
@@ -350,10 +350,10 @@ export default function AIReceptionistPage() {
                 </thead>
                 <tbody>
                   {calls.map(call => (
-                    <tr key={call.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <tr key={call.id} className="border-b border-gray-200 dark:border-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700/30">
                       <td className="px-4 py-3 capitalize">{call.direction || '--'}</td>
-                      <td className="px-4 py-3 text-slate-300 font-mono">{call.caller_number || '--'}</td>
-                      <td className="px-4 py-3 text-slate-300">
+                      <td className="px-4 py-3 text-gray-700 dark:text-slate-300 font-mono">{call.caller_number || '--'}</td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-slate-300">
                         {call.duration ? `${Math.floor(call.duration / 60)}:${String(call.duration % 60).padStart(2, '0')}` : '--'}
                       </td>
                       <td className="px-4 py-3">
@@ -361,13 +361,13 @@ export default function AIReceptionistPage() {
                           call.status === 'completed' ? 'bg-green-500/20 text-green-400' :
                           call.status === 'missed' ? 'bg-red-500/20 text-red-400' :
                           call.status === 'voicemail' ? 'bg-yellow-500/20 text-yellow-400' :
-                          'bg-slate-600 text-slate-300'
+                          'bg-gray-200 dark:bg-slate-600 text-gray-700 dark:text-slate-300'
                         }`}>
                           {call.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-300 max-w-xs truncate">{call.ai_summary || '--'}</td>
-                      <td className="px-4 py-3 text-slate-400 whitespace-nowrap">
+                      <td className="px-4 py-3 text-gray-700 dark:text-slate-300 max-w-xs truncate">{call.ai_summary || '--'}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-slate-400 whitespace-nowrap">
                         {format(new Date(call.start_time || call.created_at), 'MMM d, yyyy h:mm a')}
                       </td>
                     </tr>
@@ -380,26 +380,26 @@ export default function AIReceptionistPage() {
       )}
 
       {tab === 'settings' && (
-        <div className="bg-slate-800 rounded-lg border border-slate-700 p-6 max-w-2xl space-y-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 max-w-2xl space-y-6">
           {/* Enable/Disable */}
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">AI Receptionist</p>
-              <p className="text-sm text-slate-400">Enable or disable the AI receptionist for your business</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Enable or disable the AI receptionist for your business</p>
             </div>
             <button
               onClick={() => setSettings(s => ({ ...s, isEnabled: !s.isEnabled }))}
-              className="text-slate-300 hover:text-white"
+              className="text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white"
             >
               {settings.isEnabled ? (
                 <ToggleRight size={32} className="text-green-400" />
               ) : (
-                <ToggleLeft size={32} className="text-slate-500" />
+                <ToggleLeft size={32} className="text-gray-500 dark:text-slate-400" />
               )}
             </button>
           </div>
 
-          <hr className="border-slate-700" />
+          <hr className="border-gray-200 dark:border-slate-700" />
 
           {/* Business hours */}
           <div>
@@ -409,14 +409,14 @@ export default function AIReceptionistPage() {
                 type="time"
                 value={settings.businessHoursStart}
                 onChange={e => setSettings(s => ({ ...s, businessHoursStart: e.target.value }))}
-                className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span className="text-slate-400">to</span>
+              <span className="text-gray-500 dark:text-slate-400">to</span>
               <input
                 type="time"
                 value={settings.businessHoursEnd}
                 onChange={e => setSettings(s => ({ ...s, businessHoursEnd: e.target.value }))}
-                className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -427,7 +427,7 @@ export default function AIReceptionistPage() {
             <select
               value={settings.timezone}
               onChange={e => setSettings(s => ({ ...s, timezone: e.target.value }))}
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               {TIMEZONES.map(tz => (
                 <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
@@ -443,7 +443,7 @@ export default function AIReceptionistPage() {
               onChange={e => setSettings(s => ({ ...s, greetingText: e.target.value }))}
               rows={3}
               placeholder="Hello! Thank you for calling..."
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-slate-500"
             />
           </div>
 
@@ -455,7 +455,7 @@ export default function AIReceptionistPage() {
               value={settings.forwardingNumber}
               onChange={e => setSettings(s => ({ ...s, forwardingNumber: e.target.value }))}
               placeholder="+1 (555) 123-4567"
-              className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500"
+              className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-slate-500"
             />
           </div>
 
@@ -473,10 +473,10 @@ export default function AIReceptionistPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={closeModal} />
-          <div className="relative bg-slate-800 border border-slate-700 rounded-xl w-full max-w-lg mx-4 p-6 shadow-2xl">
+          <div className="relative bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl w-full max-w-lg mx-4 p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold">{editingRule ? 'Edit Rule' : 'New Rule'}</h2>
-              <button onClick={closeModal} className="text-slate-400 hover:text-white">
+              <button onClick={closeModal} className="text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white">
                 <X size={20} />
               </button>
             </div>
@@ -488,7 +488,7 @@ export default function AIReceptionistPage() {
                 <input
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="Rule name"
                 />
               </div>
@@ -499,7 +499,7 @@ export default function AIReceptionistPage() {
                 <select
                   value={form.trigger}
                   onChange={e => setForm(f => ({ ...f, trigger: e.target.value }))}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="missed_call">Missed Call</option>
                   <option value="voicemail">Voicemail</option>
@@ -515,7 +515,7 @@ export default function AIReceptionistPage() {
                   <input
                     value={form.keywordMatch}
                     onChange={e => setForm(f => ({ ...f, keywordMatch: e.target.value }))}
-                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g. emergency, leak, urgent"
                   />
                 </div>
@@ -527,7 +527,7 @@ export default function AIReceptionistPage() {
                 <select
                   value={form.channel}
                   onChange={e => setForm(f => ({ ...f, channel: e.target.value }))}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="sms">SMS</option>
                   <option value="email">Email</option>
@@ -543,7 +543,7 @@ export default function AIReceptionistPage() {
                   min={0}
                   value={form.delayMinutes}
                   onChange={e => setForm(f => ({ ...f, delayMinutes: e.target.value }))}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-32 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -555,7 +555,7 @@ export default function AIReceptionistPage() {
                   onChange={e => setForm(f => ({ ...f, messageTemplate: e.target.value }))}
                   rows={3}
                   placeholder="Hi {{name}}, we noticed we missed your call..."
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500"
+                  className="bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white w-full focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-slate-500"
                 />
               </div>
 
@@ -565,7 +565,7 @@ export default function AIReceptionistPage() {
                   type="checkbox"
                   checked={form.isActive}
                   onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))}
-                  className="rounded bg-slate-700 border-slate-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
+                  className="rounded bg-gray-100 dark:bg-slate-700 border-gray-300 dark:border-slate-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
                 />
                 Active
               </label>
@@ -574,7 +574,7 @@ export default function AIReceptionistPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={closeModal}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-700 transition"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700 transition"
               >
                 Cancel
               </button>
