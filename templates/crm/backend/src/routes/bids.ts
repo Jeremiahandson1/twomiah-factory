@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { bid } from '../../db/schema.ts'
 import { eq, and, count, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -56,7 +57,7 @@ app.get('/:id', async (c) => {
   return c.json(result)
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('bids:create'), async (c) => {
   const user = c.get('user') as any
   const data = schema.parse(await c.req.json())
   const [{ value: countVal }] = await db.select({ value: count() }).from(bid).where(eq(bid.companyId, user.companyId))
@@ -70,39 +71,51 @@ app.post('/', async (c) => {
   return c.json(result, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('bids:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
   const data = schema.partial().parse(await c.req.json())
+  // Scoped to the caller's company like the list above, not matched on id alone.
   const [result] = await db.update(bid).set({
     ...data,
     dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
     prebidDate: data.prebidDate ? new Date(data.prebidDate) : undefined,
     updatedAt: new Date(),
-  }).where(eq(bid.id, id)).returning()
+  }).where(and(eq(bid.id, id), eq(bid.companyId, user.companyId))).returning()
+  if (!result) return c.json({ error: 'Bid not found' }, 404)
   return c.json(result)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('bids:delete'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(bid).where(eq(bid.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(bid).where(and(eq(bid.id, id), eq(bid.companyId, user.companyId))).returning()
+  if (!gone) return c.json({ error: 'Bid not found' }, 404)
   return c.json(null, 204)
 })
 
-app.post('/:id/submit', async (c) => {
+app.post('/:id/submit', requirePermission('bids:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  const [result] = await db.update(bid).set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date() }).where(eq(bid.id, id)).returning()
+  const [result] = await db.update(bid).set({ status: 'submitted', submittedAt: new Date(), updatedAt: new Date() }).where(and(eq(bid.id, id), eq(bid.companyId, user.companyId))).returning()
+  if (!result) return c.json({ error: 'Bid not found' }, 404)
   return c.json(result)
 })
 
-app.post('/:id/won', async (c) => {
+app.post('/:id/won', requirePermission('bids:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  const [result] = await db.update(bid).set({ status: 'won', resultDate: new Date(), updatedAt: new Date() }).where(eq(bid.id, id)).returning()
+  const [result] = await db.update(bid).set({ status: 'won', resultDate: new Date(), updatedAt: new Date() }).where(and(eq(bid.id, id), eq(bid.companyId, user.companyId))).returning()
+  if (!result) return c.json({ error: 'Bid not found' }, 404)
   return c.json(result)
 })
 
-app.post('/:id/lost', async (c) => {
+app.post('/:id/lost', requirePermission('bids:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  const [result] = await db.update(bid).set({ status: 'lost', resultDate: new Date(), updatedAt: new Date() }).where(eq(bid.id, id)).returning()
+  const [result] = await db.update(bid).set({ status: 'lost', resultDate: new Date(), updatedAt: new Date() }).where(and(eq(bid.id, id), eq(bid.companyId, user.companyId))).returning()
+  if (!result) return c.json({ error: 'Bid not found' }, 404)
   return c.json(result)
 })
 
