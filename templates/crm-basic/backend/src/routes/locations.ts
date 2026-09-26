@@ -67,24 +67,30 @@ app.post('/', async (c) => {
 })
 
 app.put('/:id', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = locationSchema.partial().parse(await c.req.json())
+  // Scoped to the caller's company like the reads above, not matched on id alone.
   const [updated] = await db
     .update(location)
     .set({ ...data, updatedAt: new Date() } as any)
-    .where(eq(location.id, id))
+    .where(and(eq(location.id, id), eq(location.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Location not found' }, 404)
   return c.json(updated)
 })
 
 app.delete('/:id', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  // Soft delete — set inactive so historical assignments still resolve
+  // Soft delete — set inactive so historical assignments still resolve. Scoped, and a 404 when the
+  // id is not this company's rather than a 200 carrying undefined.
   const [updated] = await db
     .update(location)
     .set({ isActive: false, updatedAt: new Date() } as any)
-    .where(eq(location.id, id))
+    .where(and(eq(location.id, id), eq(location.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Location not found' }, 404)
   return c.json(updated)
 })
 

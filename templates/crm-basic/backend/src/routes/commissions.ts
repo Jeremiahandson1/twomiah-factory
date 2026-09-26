@@ -56,6 +56,7 @@ app.post('/plans', async (c) => {
 })
 
 app.put('/plans/:id', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = planSchema.partial().parse(await c.req.json())
   const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
@@ -63,13 +64,18 @@ app.put('/plans/:id', async (c) => {
   if (data.percentRate !== undefined) updateData.percentRate = String(data.percentRate)
   if (data.effectiveFrom) updateData.effectiveFrom = new Date(data.effectiveFrom)
   if (data.effectiveTo) updateData.effectiveTo = new Date(data.effectiveTo)
-  const [updated] = await db.update(commissionPlan).set(updateData).where(eq(commissionPlan.id, id)).returning()
+  // Scoped to the caller's company like the list above, not matched on id alone.
+  const [updated] = await db.update(commissionPlan).set(updateData).where(and(eq(commissionPlan.id, id), eq(commissionPlan.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Commission plan not found' }, 404)
   return c.json(updated)
 })
 
 app.delete('/plans/:id', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.update(commissionPlan).set({ isActive: false, updatedAt: new Date() } as any).where(eq(commissionPlan.id, id))
+  // `returning()` so a soft-delete that matched nothing is a 404, not a cheerful 204.
+  const [gone] = await db.update(commissionPlan).set({ isActive: false, updatedAt: new Date() } as any).where(and(eq(commissionPlan.id, id), eq(commissionPlan.companyId, currentUser.companyId))).returning()
+  if (!gone) return c.json({ error: 'Commission plan not found' }, 404)
   return c.body(null, 204)
 })
 
@@ -122,21 +128,27 @@ app.post('/', async (c) => {
 })
 
 app.post('/:id/approve', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(commission).set({ status: 'approved', updatedAt: new Date() } as any).where(eq(commission.id, id)).returning()
+  const [updated] = await db.update(commission).set({ status: 'approved', updatedAt: new Date() } as any).where(and(eq(commission.id, id), eq(commission.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Commission not found' }, 404)
   return c.json(updated)
 })
 
 app.post('/:id/mark-paid', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const [updated] = await db.update(commission).set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() } as any).where(eq(commission.id, id)).returning()
+  const [updated] = await db.update(commission).set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() } as any).where(and(eq(commission.id, id), eq(commission.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Commission not found' }, 404)
   return c.json(updated)
 })
 
 app.post('/:id/dispute', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
-  const [updated] = await db.update(commission).set({ status: 'disputed', notes, updatedAt: new Date() } as any).where(eq(commission.id, id)).returning()
+  const [updated] = await db.update(commission).set({ status: 'disputed', notes, updatedAt: new Date() } as any).where(and(eq(commission.id, id), eq(commission.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Commission not found' }, 404)
   return c.json(updated)
 })
 
