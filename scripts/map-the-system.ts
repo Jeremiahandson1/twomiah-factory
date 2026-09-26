@@ -31,8 +31,14 @@ for (const t of templates) {
     : '—'
   const cfgs = has(fe) ? readdirSync(`${W}/${fe}`).filter((n) => /Config\.tsx?$/.test(n)).length : 0
   const routes = has(`${be}/routes`) ? readdirSync(`${W}/${be}/routes`).filter((n) => n.endsWith('.ts')).length : 0
-  const tokenPalette = /orange: brandPalette/.test(read(`templates/${t}/frontend/tailwind.config.js`))
-  console.log(`  ${t.padEnd(17)} shell:${shell.padEnd(15)} auth:${auth.padEnd(7)} configs:${String(cfgs).padStart(2)}  backend routes:${String(routes).padStart(3)}  brandPalette:${tokenPalette ? 'yes' : 'NO'}`)
+  // WHICH colour families this template maps to the tenant's palette — not whether it maps a
+  // particular one. Testing only for `orange:` reported crm-store as unbranded right after it was
+  // fixed: store maps primary+brand and leaves orange alone on purpose, because its only orange is a
+  // semantic status chip.
+  const twcfg = read(`templates/${t}/frontend/tailwind.config.js`)
+  const mapped = ['orange', 'primary', 'brand'].filter((f) => new RegExp(f + ': brandPalette').test(twcfg))
+  const tokenPalette = /generatePalette\(/.test(twcfg) && /PRIMARY_COLOR/.test(twcfg) && mapped.length > 0
+  console.log(`  ${t.padEnd(17)} shell:${shell.padEnd(15)} auth:${auth.padEnd(7)} configs:${String(cfgs).padStart(2)}  backend routes:${String(routes).padStart(3)}  brandPalette:${tokenPalette ? mapped.join('+') : 'NO'}`)
 }
 
 // ── 2. single sources of truth ─────────────────────────────────────────────────────────────────────
