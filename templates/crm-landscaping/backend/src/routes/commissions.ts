@@ -13,6 +13,7 @@ import { db } from '../../db/index.ts'
 import { commission, commissionPlan } from '../../db/schema.ts'
 import { eq, and, desc, sum } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission, hasPermission, getExtraPermissions } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -38,7 +39,7 @@ app.get('/plans', async (c) => {
   return c.json({ data: plans })
 })
 
-app.post('/plans', async (c) => {
+app.post('/plans', requirePermission('commissions:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = planSchema.parse(await c.req.json())
   const [created] = await db
@@ -55,7 +56,7 @@ app.post('/plans', async (c) => {
   return c.json(created, 201)
 })
 
-app.put('/plans/:id', async (c) => {
+app.put('/plans/:id', requirePermission('commissions:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = planSchema.partial().parse(await c.req.json())
@@ -70,7 +71,7 @@ app.put('/plans/:id', async (c) => {
   return c.json(updated)
 })
 
-app.delete('/plans/:id', async (c) => {
+app.delete('/plans/:id', requirePermission('commissions:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   // `returning()` so a soft-delete that matched nothing is a 404, not a cheerful 204.
@@ -101,15 +102,21 @@ app.get('/', async (c) => {
   const userId = c.req.query('userId')
   const status = c.req.query('status')
 
+  // What people are paid is not an open read. `userId` was only a filter, so anyone signed in could
+  // list the whole company's earnings by omitting it. Without commissions:read you see yourself.
+  const extra = await getExtraPermissions(currentUser.userId)
+  const canSeeEveryone = hasPermission(currentUser.role, 'commissions:read', extra)
+
   const conditions = [eq(commission.companyId, currentUser.companyId)]
-  if (userId) conditions.push(eq(commission.userId, userId))
+  if (!canSeeEveryone) conditions.push(eq(commission.userId, currentUser.userId))
+  else if (userId) conditions.push(eq(commission.userId, userId))
   if (status) conditions.push(eq(commission.status, status))
 
   const data = await db.select().from(commission).where(and(...conditions)).orderBy(desc(commission.earnedAt))
   return c.json({ data })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('commissions:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = commissionSchema.parse(await c.req.json())
   const [created] = await db
@@ -127,7 +134,7 @@ app.post('/', async (c) => {
   return c.json(created, 201)
 })
 
-app.post('/:id/approve', async (c) => {
+app.post('/:id/approve', requirePermission('commissions:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [updated] = await db.update(commission).set({ status: 'approved', updatedAt: new Date() } as any).where(and(eq(commission.id, id), eq(commission.companyId, currentUser.companyId))).returning()
@@ -135,7 +142,7 @@ app.post('/:id/approve', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/mark-paid', async (c) => {
+app.post('/:id/mark-paid', requirePermission('commissions:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [updated] = await db.update(commission).set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() } as any).where(and(eq(commission.id, id), eq(commission.companyId, currentUser.companyId))).returning()
@@ -143,7 +150,7 @@ app.post('/:id/mark-paid', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/dispute', async (c) => {
+app.post('/:id/dispute', requirePermission('commissions:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { notes } = await c.req.json().catch(() => ({}))
@@ -153,7 +160,7 @@ app.post('/:id/dispute', async (c) => {
 })
 
 // Summary: total earned / paid / pending per user for the current period
-app.get('/summary/by-user', async (c) => {
+app.get('/summary/by-user', requirePermission('commissions:read'), async (c) => {
   const currentUser = c.get('user') as any
   const data = await db
     .select({ userId: commission.userId, status: commission.status, total: sum(commission.commissionAmount) })
