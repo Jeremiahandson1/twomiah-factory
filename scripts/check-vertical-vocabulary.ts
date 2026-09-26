@@ -243,5 +243,42 @@ for (const [constName, { module, fields }] of Object.entries(PINNED)) {
   }
 }
 
+// ── 5. the chrome wears the TENANT's colour, not a hardcoded one ────────────────────────────────
+//
+// tailwind.config.js maps `orange`, `primary` and `brand` to generatePalette('{{PRIMARY_COLOR}}') in
+// every template, so a class in those families IS the tenant's colour — that mapping is how the fleet is
+// branded, and there is no CSS-variable system (nor any need for one). crm-roof's sidebar used
+// `bg-blue-600`; blue is NOT mapped, so a roofer's own colour never reached their own chrome, and the
+// defect read as "brand colour is never applied" (Summit Ridge M-06).
+//
+// Chrome only. Page content may legitimately be blue — a semantic "in progress" chip should stay blue
+// whatever the brand — so this checks the one file that draws the shell.
+const BRAND_FAMILIES = ['orange', 'primary', 'brand']
+const CHROME = ['components/layout/AppLayout.tsx']
+// Parked templates are excluded because they may not be modified (CLAUDE.md: 'Do NOT modify
+// crm-automotive'; homecare is parked too). crm-automotive's chrome IS blue and its tailwind.config.js
+// has no palette mapping at all — real, and deliberately left alone rather than failing a build over a
+// rule nobody is allowed to satisfy.
+const PARKED = ['crm-automotive', 'crm-homecare']
+let chromeFiles = 0
+for (const t of templates) {
+  if (PARKED.includes(t)) continue
+  for (const rel of CHROME) {
+    const p = `${ROOT}templates/${t}/frontend/src/${rel}`
+    if (!existsSync(p)) continue
+    const src = read(p)
+    // A shell that delegates to the shared AppShell has no accents of its own to check.
+    if (/AppShell/.test(src)) continue
+    chromeFiles++
+    const accents = [...src.matchAll(/(?:bg|text|border|ring|from|to)-([a-z]+)-[0-9]{2,3}/g)]
+      .map((m) => m[1])
+      .filter((hue) => !['gray', 'slate', 'zinc', 'neutral', 'stone', 'white', 'black', 'red', 'amber', 'yellow', 'green', 'emerald'].includes(hue))
+    const offPalette = [...new Set(accents.filter((hue) => !BRAND_FAMILIES.includes(hue)))]
+    if (offPalette.length) {
+      fail(`${t}/${rel} paints its chrome ${offPalette.map((h) => `${h}-*`).join(', ')} — those families are not mapped to the tenant's palette, so the customer's own colour never reaches their own sidebar. Use brand-* (or orange-*/primary-*), which tailwind.config.js maps to generatePalette('{{PRIMARY_COLOR}}').`)
+    }
+  }
+}
+
 if (failed) { console.error(`\nvertical vocabulary: ${failed} check(s) FAILED`); process.exit(1) }
-console.log(`vertical vocabulary: ${wrappers} wrapper(s) pass their own config rather than inheriting the contractor default, ${fieldChecks} config(s) answer for EVERY field rather than leaving some to it, and ${configFiles} config file(s) across ${NON_TRADE.length} non-trade verticals carry no building-trade vocabulary`)
+console.log(`vertical vocabulary: ${wrappers} wrapper(s) pass their own config rather than inheriting the contractor default, ${fieldChecks} config(s) answer for EVERY field rather than leaving some to it, ${configFiles} config file(s) across ${NON_TRADE.length} non-trade verticals carry no building-trade vocabulary, and ${chromeFiles} own-layout chrome(s) wear the tenant's palette rather than a hardcoded hue`)

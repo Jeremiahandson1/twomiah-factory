@@ -113,7 +113,10 @@ export default function AppLayout() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
                 isActive
-                  ? 'bg-blue-600 text-white'
+                  // brand-*, not blue-*: tailwind.config.js maps orange/primary/brand to the tenant's
+                  // generated palette, and blue is NOT mapped — so the roofer's own colour never reached
+                  // their sidebar. Every other vertical's chrome already rides that mapping. (Summit M-06)
+                  ? 'bg-brand-600 text-white'
                   : 'text-gray-300 hover:bg-gray-800 hover:text-white'
               }`
             }
