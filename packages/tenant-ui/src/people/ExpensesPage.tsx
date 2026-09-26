@@ -84,6 +84,10 @@ export function ExpensesPage({ api, toast, config }: { api: PeopleApi; toast: Pe
     { key: 'amount', label: 'Amount', render: (v: any) => money(v) },
     ...(showJobs ? [{ key: 'job', label: jobLabel, render: (v: any) => v?.title || '-' }] : []),
     ...(showProjects ? [{ key: 'project', label: 'Project', render: (v: any) => v?.name || '-' }] : []),
+    // Whether it can be passed on to the customer — the question an expense list exists to answer, and the
+    // one column it did not have. The form has always asked it and the row has always carried it; only the
+    // table was silent, so you had to open every row to find out. (Evergreen T12 L8)
+    { key: 'billable', label: 'Billable', render: (v: any) => (v ? <span className="text-blue-700 dark:text-blue-300">Yes</span> : '-') },
     { key: 'reimbursable', label: 'Reimburse', render: (v: any, row: Expense) => (row.reimbursed ? <span className="text-green-700 dark:text-green-400 inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Done</span> : v ? <span className="text-amber-700 dark:text-amber-300">Pending</span> : '-') },
   ]
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value })
