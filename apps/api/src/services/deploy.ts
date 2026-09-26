@@ -794,6 +794,52 @@ export async function refreshPlatformIntegrationEnv(serviceId: string): Promise<
   }
 }
 
+/**
+ * Backfill the CRM's sending identity on an EXISTING service.
+ *
+ * deployCustomer() sets FROM_EMAIL at service creation, with a comment explaining why: without it the
+ * CRM falls back to `noreply@<their domain>`, which the mail provider will not deliver from until that
+ * domain is verified. But those env vars live only in the CREATE payload — updateCustomerCode(), the
+ * path every redeploy takes, never touches env vars at all. So a tenant whose service was created
+ * before that fix has no FROM_EMAIL and no redeploy can ever give it one.
+ *
+ * The damage is silent, which is why it survived every QA round: the route reports success honestly
+ * (the provider accepts the message over SMTP), the invoice is stamped Sent, and the mail is dropped
+ * downstream for an unverified sender. Proven on ctrtest 2026-09-26 — a portal invite returned
+ * {"success":true} and nothing was ever delivered.
+ *
+ * Deliberately ADDITIVE: a key that already has a value is left alone, because a tenant that has
+ * verified its own branded domain must keep sending as itself. This only fills the gap where there is
+ * nothing at all.
+ */
+export async function refreshSendingIdentityEnv(
+  serviceId: string,
+  opts: { companyName?: string } = {},
+): Promise<{ added: string[]; error?: string }> {
+  try {
+    const verifiedSender = process.env.FACTORY_FROM_EMAIL || ''
+    if (!verifiedSender) return { added: [], error: 'FACTORY_FROM_EMAIL is not set — cannot supply a verified sender' }
+
+    const envRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars?limit=100', { headers: renderHeaders() })
+    if (!envRes.ok) return { added: [], error: 'env lookup ' + envRes.status }
+    const current = new Map<string, string>(((await envRes.json()) as any[]).map((e: any) => {
+      const v = e.envVar || e
+      return [String(v.key), String(v.value ?? '')]
+    }))
+
+    const desired: Array<{ key: string; value: string }> = [{ key: 'FROM_EMAIL', value: verifiedSender }]
+    if (opts.companyName) desired.push({ key: 'FROM_NAME', value: opts.companyName })
+    // only where the tenant has nothing — never overwrite a configured sender
+    const wanted = desired.filter((v) => !(current.get(v.key) || '').trim())
+    if (!wanted.length) return { added: [] }
+
+    const ok = await updateRenderEnvVars(serviceId, wanted)
+    return { added: wanted.map((v) => v.key), error: ok ? undefined : 'some env vars failed' }
+  } catch (e: any) {
+    return { added: [], error: e?.message || String(e) }
+  }
+}
+
 export async function updateRenderEnvVars(serviceId: string, envVars: Array<{ key: string; value: string }>) {
   let allOk = true
   for (const { key, value } of envVars) {
@@ -1965,6 +2011,12 @@ export async function updateCustomerCode(
       if (crmServiceId) {
         const platformEnv = await refreshPlatformIntegrationEnv(crmServiceId)
         steps.push({ step: 'platform_env', status: platformEnv.error ? 'warning' : 'ok', detail: platformEnv.added.length ? 'added ' + platformEnv.added.join(', ') : (platformEnv.error || 'already present') })
+        // Same reasoning as the start command above: the sending identity is frozen at service
+        // creation, so a tenant created before FROM_EMAIL was set has been silently unable to deliver
+        // ANY email — the provider accepts the message and drops it for an unverified sender, while
+        // the CRM reports it sent. Additive only; a tenant sending from its own verified domain keeps it.
+        const mailEnv = await refreshSendingIdentityEnv(crmServiceId, { companyName: factoryCustomer.name })
+        steps.push({ step: 'sending_identity', status: mailEnv.error ? 'warning' : 'ok', detail: mailEnv.added.length ? 'added ' + mailEnv.added.join(', ') : (mailEnv.error || 'already present') })
         const ok = await updateRenderServiceSettings(crmServiceId, { startCommand: crmBackendStartCommand() })
         steps.push({ step: 'start_command', status: ok ? 'ok' : 'warning', detail: ok ? 'CRM start command refreshed' : 'could not update the start command — boot will use the previous one' })
       }
