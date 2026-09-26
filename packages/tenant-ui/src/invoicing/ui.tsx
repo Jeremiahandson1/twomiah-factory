@@ -281,7 +281,7 @@ export interface Pagination { page: number; limit: number; total: number; pages:
 export function DataTable<T extends { id: string }>({ data, columns, loading, pagination, onPageChange, onRowClick, actions = [], emptyMessage = 'Nothing here yet.' }: {
   data: T[]; columns: Column<T>[]; loading?: boolean; pagination?: Pagination | null; onPageChange?: (p: number) => void; onRowClick?: (row: T) => void; actions?: RowAction<T>[]; emptyMessage?: string
 }) {
-  const [menu, setMenu] = useState<{ id: string; x: number; y: number; anchor: HTMLElement } | null>(null)
+  const [menu, setMenu] = useState<{ id: string; x: number; y: number; top: number; anchor: HTMLElement } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!menu) return
@@ -295,6 +295,18 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
   }, [menu])
   const menuRow = menu ? data.find(r => r.id === menu.id) : undefined
   const visible = menuRow ? actions.filter(a => !a.show || a.show(menuRow)) : []
+  // Open upwards when there is no room below. The menu is position:fixed, so nothing scrolls it back
+  // into view: on the last rows of a long table it ran off the bottom of the window and its actions
+  // could not be reached at all. The height is estimated from the number of items — it only has to be
+  // close enough to pick a side, and the flipped position is measured from the button's own top edge
+  // rather than from the menu after paint, so there is no visible jump. (Evergreen BUG-20)
+  const MENU_ITEM_H = 36, MENU_PAD = 8, MENU_MARGIN = 8
+  const menuH = visible.length * MENU_ITEM_H + MENU_PAD
+  const viewportH = typeof window === 'undefined' ? 0 : window.innerHeight
+  const menuTop = !menu ? 0
+    : viewportH && menu.y + 4 + menuH > viewportH - MENU_MARGIN
+      ? Math.max(MENU_MARGIN, menu.top - menuH - 4)
+      : menu.y + 4
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
       <div className="overflow-x-auto">
@@ -329,7 +341,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
                 })}
                 {actions.length > 0 && (
                   <td className="px-2 py-3 text-right" onClick={e => e.stopPropagation()}>
-                    <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"><MoreVertical className="w-4 h-4" /></button>
+                    <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, top: r.top, anchor: e.currentTarget as HTMLElement }) }} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"><MoreVertical className="w-4 h-4" /></button>
                   </td>
                 )}
               </tr>
@@ -338,7 +350,7 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
         </table>
       </div>
       {menu && menuRow && visible.length > 0 && (
-        <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menu.y + 4, left: Math.max(8, menu.x - 192) }} className="z-50 w-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl py-1">
+        <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menuTop, left: Math.max(8, menu.x - 192) }} className="z-50 w-48 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl py-1">
           {visible.map(a => <button key={a.label} role="menuitem" onClick={() => { setMenu(null); a.onClick(menuRow) }} className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-200 ${a.className || ''}`}>{a.icon && <a.icon className="w-4 h-4" />}{a.label}</button>)}
         </div>
       )}
