@@ -1803,3 +1803,14 @@ jobs:
           bun-version: latest
       - name: "check team roster includes logins"
         run: bun run scripts/check-team-roster-includes-logins.ts
+
+  viewer-local-day:
+    name: "A screen asks the viewer's calendar what day it is, not UTC"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: "check viewer local day"
+        run: bun run scripts/check-viewer-local-day.ts
