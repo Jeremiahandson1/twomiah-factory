@@ -228,6 +228,16 @@ const PUBLIC_WITHIN_GATED = [
   /^\/api\/calltracking\/webhook\//,        // CallRail / Twilio
   /^\/api\/ai-receptionist\/webhook\//,     // recording + call status
   /^\/api\/sms\/webhook$/,                  // Twilio inbound SMS — no bearer token, verifies itself
+  // Not machines this time — CUSTOMERS, following a link we sent them. Same failure though: both
+  // prefixes are gated ('/api/reviews' on google_reviews, '/api/roof-reports' on measurement_reports)
+  // so the gate put `authenticate` in front of routes whose whole purpose is to work without a login.
+  // A homeowner clicking the review link in their text got 401 and the tenant quietly stopped
+  // collecting reviews; a shared link to a report they had already paid for did the same.
+  // routes/reviews.ts registers /track ABOVE its own authenticate for exactly this reason, and
+  // routes/roofReports.ts calls aerial.png and html "public — shareable link"; the mount-level gate
+  // was overriding both.
+  /^\/api\/reviews\/track\//,                            // review click-tracking link (SMS/email)
+  /^\/api\/roof-reports\/[^/]+\/(html|aerial\.png)$/,    // shared view of an already-purchased report
 ]
 const skipPublic = (mw: any) => async (c: any, next: any) => {
   let pathname = ''
