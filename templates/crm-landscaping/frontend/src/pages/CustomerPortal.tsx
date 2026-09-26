@@ -7,6 +7,9 @@ import {
   Clock, LogOut, Camera, Sparkles, BookOpen
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+// One definition of what money looks like. Building the string here dropped the cents: bare
+// toLocaleString() renders $824.60 as "$824.6" — the defect T12 L1 named, on a screen its fix missed.
+import { money } from '../shared';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -126,7 +129,7 @@ export default function CustomerPortal() {
               { label: 'Contacts', value: (stats as any).contacts ?? 0, icon: Users, color: 'blue' },
               { label: 'Open Jobs', value: (stats as any).jobs?.open ?? 0, icon: Briefcase, color: 'emerald' },
               { label: 'Pending Quotes', value: (stats as any).quotes?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Total Invoiced', value: `$${Number((stats as any).invoices?.totalValue ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Total Invoiced', value: money((stats as any).invoices?.totalValue ?? 0), icon: DollarSign, color: 'green' },
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4 dark:bg-slate-900">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
