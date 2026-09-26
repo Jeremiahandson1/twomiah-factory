@@ -84,6 +84,7 @@ app.post('/experiments', async (c) => {
 })
 
 app.patch('/experiments/:id', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')!
   const body = await c.req.json().catch(() => ({})) as any
   const patch: any = { updatedAt: new Date() }
@@ -93,7 +94,9 @@ app.patch('/experiments/:id', async (c) => {
     if (body.status === 'completed' && !patch.endedAt) patch.endedAt = new Date()
   }
   if (typeof body.winnerKey === 'string') patch.winnerKey = body.winnerKey
-  const result = await db.update(adsExperiment).set(patch).where(eq(adsExperiment.id, id)).returning()
+  // Scoped to the caller's company — the 404 below was already here, but an id from another company
+  // would have satisfied it and been updated.
+  const result = await db.update(adsExperiment).set(patch).where(and(eq(adsExperiment.id, id), eq(adsExperiment.companyId, currentUser.companyId))).returning()
   if (result.length === 0) return c.json({ error: 'Not found' }, 404)
   return c.json({ experiment: await hydrateExperiment(result[0]) })
 })

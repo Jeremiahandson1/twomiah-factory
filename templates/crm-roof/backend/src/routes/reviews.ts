@@ -75,18 +75,27 @@ app.post('/requests', async (c) => {
 
 // Mark as sent (e.g., after SMS/email delivered)
 app.post('/requests/:id/mark-sent', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
+  // Scoped to the caller's company like the list above, not matched on id alone. (The public
+  // click-tracking route is the one registered ABOVE `app.use('*', authenticate)`; this is not it.)
   const [updated] = await db
     .update(reviewRequest)
     .set({ status: 'sent', sentAt: new Date() } as any)
-    .where(eq(reviewRequest.id, id))
+    .where(and(eq(reviewRequest.id, id), eq(reviewRequest.companyId, currentUser.companyId)))
     .returning()
+  if (!updated) return c.json({ error: 'Review request not found' }, 404)
   return c.json(updated)
 })
 
 app.delete('/requests/:id', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(reviewRequest).where(eq(reviewRequest.id, id))
+  // `returning()` so a delete that matched nothing is a 404 rather than a silent "deleted".
+  const [gone] = await db.delete(reviewRequest)
+    .where(and(eq(reviewRequest.id, id), eq(reviewRequest.companyId, currentUser.companyId)))
+    .returning()
+  if (!gone) return c.json({ error: 'Review request not found' }, 404)
   return c.body(null, 204)
 })
 

@@ -81,12 +81,15 @@ app.get('/matches', async (c) => {
 
 // Update match status (new → contacted → quoted → booked / not_interested)
 app.post('/matches/:id/status', async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const { status, notes } = await c.req.json()
   const updateData: any = { status, updatedAt: new Date() }
   if (status === 'contacted') updateData.contactedAt = new Date()
   if (notes !== undefined) updateData.notes = notes
-  const [updated] = await db.update(stormRadarEventMatch).set(updateData).where(eq(stormRadarEventMatch.id, id)).returning()
+  // Scoped to the caller's company like the /matches list above, not matched on id alone.
+  const [updated] = await db.update(stormRadarEventMatch).set(updateData).where(and(eq(stormRadarEventMatch.id, id), eq(stormRadarEventMatch.companyId, currentUser.companyId))).returning()
+  if (!updated) return c.json({ error: 'Storm match not found' }, 404)
   return c.json(updated)
 })
 

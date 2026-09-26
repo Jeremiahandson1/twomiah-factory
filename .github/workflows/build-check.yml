@@ -66,6 +66,17 @@ jobs:
       - name: Every resource gated in a route must be granted to a role in BASE_ROLE_PERMISSIONS (or owner-only by design)
         run: bun run scripts/check-permission-vocabulary.ts
 
+  companyid-scoping:
+    name: tenancy — a request id is tied to the caller before it is trusted
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: A route may not use a request-supplied id as a row id without scoping it to the caller (or PUBLIC_BY_DESIGN with a reason)
+        run: bun run scripts/check-companyid-scoping.ts
+
   shared-deps:
     name: shared packages — deps declared by every template
     runs-on: ubuntu-latest
