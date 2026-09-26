@@ -83,7 +83,11 @@ function balanced(src: string, open: number): string {
 }
 function handlers(src: string) {
   const out: Array<{ verb: string; path: string; body: string; line: number }> = []
-  const re = /app\.(get|post|put|patch|delete)\(\s*'([^']*)'/g
+  // Accept ' " and ` around the route path. Matching only single quotes made the guard blind to any
+  // route declared another way — a mutation test that added `app.delete("/matches/:id", ...)` with
+  // double quotes walked straight past it. The codebase happens to use single quotes today, which is
+  // exactly what makes that kind of hole survive unnoticed.
+  const re = /app\.(get|post|put|patch|delete)\(\s*['"`]([^'"`]*)['"`]/g
   let m: RegExpExecArray | null
   while ((m = re.exec(src))) {
     let depth = 0, i = re.lastIndex, started = false
