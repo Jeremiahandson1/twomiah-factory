@@ -5,6 +5,8 @@ import {
   ChevronRight, Phone, Wrench, Zap, Shield, Settings2, RefreshCw
 } from 'lucide-react';
 import api from '../../services/api';
+// The day on the wall behind the dispatcher, not the day in UTC. (Evergreen BUG-28)
+import { todayKey, dayKeyPlus } from '../../shared';
 import { useToast } from '../../contexts/ToastContext';
 
 const SERVICE_TYPES = ['install', 'repair', 'maintenance', 'emergency'] as const;
@@ -39,7 +41,7 @@ export default function DispatchBoard() {
   const [jobs, setJobs] = useState([]);
   const [techs, setTechs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(todayKey());
 
   useEffect(() => {
     loadData();
@@ -87,12 +89,13 @@ export default function DispatchBoard() {
   };
 
   const navigateDate = (direction) => {
-    const d = new Date(selectedDate);
-    d.setDate(d.getDate() + direction);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    // Stepped on the local calendar. The old version parsed the key as midnight UTC, moved it in local
+    // time and read it back in UTC — three clocks, which cancel out on an ordinary day and land in the
+    // deleted hour on a spring-forward one. dayKeyPlus steps from local noon instead.
+    setSelectedDate(dayKeyPlus(selectedDate, direction));
   };
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const isToday = selectedDate === todayKey();
 
   const dateDisplay = new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', {
     weekday: 'long',
@@ -130,7 +133,7 @@ export default function DispatchBoard() {
           </button>
           {!isToday && (
             <button
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              onClick={() => setSelectedDate(todayKey())}
               className="px-3 py-2 text-sm text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg"
             >
               Today

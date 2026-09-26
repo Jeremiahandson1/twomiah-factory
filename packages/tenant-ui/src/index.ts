@@ -125,3 +125,7 @@ export type { WarrantiesApi, WarrantiesPageProps } from './warranties/types'
 // Inventory — parts/materials across locations, stock ops, transfers, purchase orders (crm, crm-fieldservice, crm-landscaping, crm-rv).
 export { default as InventoryPage } from './inventory/InventoryPage'
 export type { InventoryApi, InventoryPageProps } from './inventory/types'
+
+// What day it is where the viewer is sitting — never the UTC day. The Dispatch Board and the
+// technician's Today tab rolled over at 19:00 Central while the Schedule page did not. (Evergreen BUG-28)
+export { localDayKey, todayKey, dayKeyPlus } from './time/day'

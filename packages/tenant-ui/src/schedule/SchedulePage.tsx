@@ -10,10 +10,13 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Calendar, Plus } from 'lucide-react'
 import { Button, Modal, ConfirmModal, Field, inputCls, errMsg } from '../invoicing/ui'
 import { resolveScheduleConfig } from './types'
+import { localDayKey } from '../time/day'
 import type { SchedulePageProps, ScheduleJob, ScheduleBooking, ScheduleEvent } from './types'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const localKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+// This page already asked for the day LOCALLY and was right; the Dispatch Board asked UTC and was not,
+// which is how the two screens came to disagree about what "today" was. One definition now. (BUG-28)
+const localKey = localDayKey
 const weekOf = (d: Date) => { const s = new Date(d); s.setDate(s.getDate() - s.getDay()); s.setHours(0, 0, 0, 0); const e = new Date(s); e.setDate(e.getDate() + 6); e.setHours(23, 59, 59, 999); return { start: s, end: e } }
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 const jobCls = (status: string) => status === 'completed' ? 'bg-green-50 border-l-2 border-green-500 dark:bg-green-900/20' : status === 'in_progress' ? 'bg-blue-50 border-l-2 border-blue-500 dark:bg-blue-900/20' : status === 'cancelled' ? 'bg-gray-50 border-l-2 border-gray-300 opacity-60 dark:bg-slate-800' : 'bg-gray-50 border-l-2 border-gray-300 dark:bg-slate-800'

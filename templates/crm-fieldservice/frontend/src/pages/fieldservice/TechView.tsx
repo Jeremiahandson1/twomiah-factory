@@ -7,6 +7,8 @@ import {
   Truck, Flag, X, FileText, Package, Trash2,
 } from 'lucide-react';
 import api from '../../services/api';
+// A technician's "today" is the day where they are standing, not the UTC day. (Evergreen BUG-28)
+import { todayKey } from '../../shared';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -195,7 +197,7 @@ export default function TechView() {
 
   // ─── Filter jobs by tab ──────────────────────────────────────
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayKey();
 
   const todayJobs = jobs.filter(j =>
     j.scheduledDate?.startsWith(today) && j.status !== 'completed' && j.status !== 'cancelled'
