@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { project, contact, job, rfi, changeOrder, punchListItem, activity } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -86,7 +87,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...foundProject, contact: projectContact[0] || null, jobs, rfis, changeOrders, punchListItems })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('projects:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = projectSchema.parse(await c.req.json())
 
@@ -104,7 +105,7 @@ app.post('/', async (c) => {
   return c.json(newProject, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('projects:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const data = projectSchema.partial().parse(await c.req.json())
@@ -155,7 +156,7 @@ app.get('/:id/activity', async (c) => {
   return c.json(rows)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('projects:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
