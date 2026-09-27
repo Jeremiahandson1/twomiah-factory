@@ -309,7 +309,38 @@ export function DataTable<T extends { id: string }>({ data, columns, loading, pa
       : menu.y + 4
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Phone: one card per row. A table cannot reflow to 390px — the Invoices list showed NUMBER and
+          CLIENT and pushed amount and status off-screen, which are the columns the list exists for. */}
+      <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-800">
+        {loading && <div className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">Loading…</div>}
+        {!loading && data.length === 0 && <div className="px-4 py-10 text-center text-gray-500 dark:text-slate-400">{emptyMessage}</div>}
+        {!loading && data.map(row => {
+          const head = columns[0]
+          const rest = columns.slice(1)
+          const cell = (c: Column<T>) => { const raw = (row as any)[c.key]; return c.render ? c.render(raw, row) : String(raw ?? '-') }
+          return (
+            <div key={row.id} onClick={onRowClick ? () => onRowClick(row) : undefined} className={`px-4 py-3 text-gray-900 dark:text-slate-100 ${onRowClick ? 'cursor-pointer active:bg-gray-50 dark:active:bg-slate-800' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 font-medium [&_p]:truncate">{head ? cell(head) : null}</div>
+                {actions.length > 0 && (
+                  <button aria-label="Row actions" aria-haspopup="menu" onClick={e => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu(menu?.id === row.id ? null : { id: row.id, x: r.right, y: r.bottom, top: r.top, anchor: e.currentTarget as HTMLElement }) }} className="-mr-1.5 -mt-1 shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:text-slate-200 dark:hover:bg-slate-800"><MoreVertical className="w-4 h-4" /></button>
+                )}
+              </div>
+              {rest.length > 0 && (
+                <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                  {rest.map(c => (
+                    <div key={c.key} className="min-w-0">
+                      <dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{c.label}</dt>
+                      <dd className="text-sm truncate [&_p]:truncate">{cell(c)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-slate-800/60">
             <tr>
