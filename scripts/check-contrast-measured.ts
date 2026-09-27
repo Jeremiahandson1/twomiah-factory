@@ -235,5 +235,48 @@ for (const t of BRAND_TEXT) {
   }
 }
 
+/**
+ * White text on the BRAND background — the primary button, and the pass the note above defers.
+ *
+ * `bg-*-500` carries text-white in 253 places and `bg-*-600` (its hover) in 153, at text-sm
+ * font-medium, so the 4.5:1 body-text bar applies. generatePalette used to pin those shades to a
+ * fixed HSL lightness, and lightness is not luminance: white on a yellow, lime, green, teal, cyan or
+ * even the fallback orange brand came out between 1.5:1 and 3.3:1. Every test tenant uses one blue
+ * (6.70:1), so no QA round could see it.
+ *
+ * The shades are now luminance-clamped at generation. This runs the REAL generatePalette from a
+ * template's tailwind.config.js over the whole hue circle — not a hand-copied shade table, because a
+ * table is the thing that goes stale.
+ */
+{
+  const cfgPath = ROOT + 'templates/crm/frontend/tailwind.config.js'
+  let palette: ((hex: string) => Record<string, string>) | null = null
+  try {
+    const src = readFileSync(cfgPath, 'utf8').replace(/\r/g, '')
+    const body = src.slice(0, src.search(/^(export default|module\.exports)/m))
+    palette = new Function(body + '; return generatePalette;')() as (hex: string) => Record<string, string>
+  } catch (e: any) {
+    fail('could not load generatePalette from ' + cfgPath + ': ' + (e?.message || e))
+  }
+  if (palette) {
+    const hslHex = (h: number) => {
+      const s = 1, l = 0.5, a = s * Math.min(l, 1 - l)
+      const f = (n: number) => { const k = (n + h / 30) % 12; return l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1) }
+      return '#' + [f(0), f(8), f(4)].map((x) => Math.round(x * 255).toString(16).padStart(2, '0')).join('')
+    }
+    let worst = { shade: '', hue: -1, r: Infinity }
+    for (let h = 0; h < 360; h++) {
+      const p = palette(hslHex(h))
+      for (const shade of ['500', '600']) {
+        const r = ratio('#ffffff', p[shade])
+        if (r < worst.r) worst = { shade, hue: h, r }
+      }
+    }
+    if (worst.r < AA) {
+      fail(`white text on the brand button: ${worst.r.toFixed(2)}:1 at hue ${worst.hue} on shade ${worst.shade} — generatePalette must keep 500 and 600 dark enough for white to clear ${AA}:1 at EVERY hue, or a tenant who picks yellow/lime/green/teal/cyan gets an unreadable primary button`)
+    }
+  }
+}
+
 if (failed) { console.error(`\ncontrast measured: ${failed} pair(s) below ${AA}:1`); process.exit(1) }
 console.log(`contrast measured: brand text on shades ${safeLight[0]}/${safeDark[0]} (the only pair safe for every hue); every chip (${platformColours.size} platform colours x 2 themes) and every coloured banner clears ${AA}:1`)
