@@ -46,14 +46,10 @@
         "booking.ts",
         "bulk.ts",
         "comments.ts",
-        "customForms.ts",
-        "drawSchedules.ts",
         "email.ts",
         "export.ts",
         "fileUpload.ts",
         "import.ts",
-        "jobCosting.ts",
-        "lienWaivers.ts",
         "logger.ts",
         "migration.ts",
         "pdf.ts",
@@ -587,7 +583,6 @@
           "reporting.ts"
         ],
         "services": [
-          "jobCosting.ts",
           "reporting.ts"
         ]
       },
