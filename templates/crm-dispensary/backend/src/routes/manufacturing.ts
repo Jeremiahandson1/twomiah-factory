@@ -100,7 +100,7 @@ app.get('/jobs/:id', async (c) => {
 })
 
 // Create manufacturing job
-app.post('/jobs', async (c) => {
+app.post('/jobs', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const jobSchema = z.object({
@@ -147,7 +147,7 @@ app.post('/jobs', async (c) => {
 })
 
 // Update manufacturing job
-app.put('/jobs/:id', async (c) => {
+app.put('/jobs/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -188,7 +188,7 @@ app.put('/jobs/:id', async (c) => {
 })
 
 // Start job
-app.put('/jobs/:id/start', async (c) => {
+app.put('/jobs/:id/start', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -222,7 +222,7 @@ app.put('/jobs/:id/start', async (c) => {
 })
 
 // Complete job
-app.put('/jobs/:id/complete', async (c) => {
+app.put('/jobs/:id/complete', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -284,7 +284,7 @@ app.put('/jobs/:id/complete', async (c) => {
 })
 
 // Mark job as failed
-app.put('/jobs/:id/fail', async (c) => {
+app.put('/jobs/:id/fail', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -325,7 +325,7 @@ app.put('/jobs/:id/fail', async (c) => {
 })
 
 // Delete manufacturing job
-app.delete('/jobs/:id', async (c) => {
+app.delete('/jobs/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

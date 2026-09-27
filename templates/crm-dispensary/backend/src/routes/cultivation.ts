@@ -99,7 +99,7 @@ app.get('/plants', async (c) => {
 })
 
 // Add plant(s)
-app.post('/plants', async (c) => {
+app.post('/plants', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const plantSchema = z.object({
@@ -139,7 +139,7 @@ app.post('/plants', async (c) => {
 })
 
 // Update plant
-app.put('/plants/:id', async (c) => {
+app.put('/plants/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -176,7 +176,7 @@ app.put('/plants/:id', async (c) => {
 })
 
 // Delete plant
-app.delete('/plants/:id', async (c) => {
+app.delete('/plants/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -204,7 +204,7 @@ app.delete('/plants/:id', async (c) => {
 })
 
 // Change plant phase (with growth log entry)
-app.put('/plants/:id/phase', async (c) => {
+app.put('/plants/:id/phase', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -251,7 +251,7 @@ app.put('/plants/:id/phase', async (c) => {
 })
 
 // Harvest plant
-app.post('/plants/:id/harvest', async (c) => {
+app.post('/plants/:id/harvest', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -302,7 +302,7 @@ app.post('/plants/:id/harvest', async (c) => {
 })
 
 // Destroy plant
-app.post('/plants/:id/destroy', async (c) => {
+app.post('/plants/:id/destroy', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -473,7 +473,7 @@ app.get('/harvests', async (c) => {
 })
 
 // Create harvest record
-app.post('/harvests', async (c) => {
+app.post('/harvests', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const harvestSchema = z.object({
@@ -511,7 +511,7 @@ app.post('/harvests', async (c) => {
 })
 
 // Update harvest
-app.put('/harvests/:id', async (c) => {
+app.put('/harvests/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

@@ -53,7 +53,7 @@ app.get('/customers', async (c) => {
 })
 
 // Create wholesale customer
-app.post('/customers', async (c) => {
+app.post('/customers', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const customerSchema = z.object({
@@ -95,7 +95,7 @@ app.post('/customers', async (c) => {
 })
 
 // Update wholesale customer
-app.put('/customers/:id', async (c) => {
+app.put('/customers/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -152,7 +152,7 @@ app.put('/customers/:id', async (c) => {
 })
 
 // Delete wholesale customer
-app.delete('/customers/:id', async (c) => {
+app.delete('/customers/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -259,7 +259,7 @@ app.get('/orders', async (c) => {
 })
 
 // Create wholesale order
-app.post('/orders', async (c) => {
+app.post('/orders', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const orderSchema = z.object({
@@ -312,7 +312,7 @@ app.post('/orders', async (c) => {
 })
 
 // Update wholesale order
-app.put('/orders/:id', async (c) => {
+app.put('/orders/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -395,7 +395,7 @@ app.put('/orders/:id/confirm', requireRole('manager'), async (c) => {
 class ShipStockError extends Error {}
 
 // Ship order — moves physical product OUT of inventory.
-app.put('/orders/:id/ship', async (c) => {
+app.put('/orders/:id/ship', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -465,7 +465,7 @@ app.put('/orders/:id/ship', async (c) => {
 })
 
 // Mark delivered
-app.put('/orders/:id/deliver', async (c) => {
+app.put('/orders/:id/deliver', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -702,7 +702,7 @@ app.get('/lab-tests', async (c) => {
 })
 
 // Create lab test
-app.post('/lab-tests', async (c) => {
+app.post('/lab-tests', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const testSchema = z.object({
@@ -743,7 +743,7 @@ app.post('/lab-tests', async (c) => {
 })
 
 // Update lab test results
-app.put('/lab-tests/:id', async (c) => {
+app.put('/lab-tests/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -792,7 +792,7 @@ app.put('/lab-tests/:id', async (c) => {
 // total_cannabinoids/total_terpenes (all text), the panels are pesticides/heavy_metals/
 // microbials/mycotoxins/residual_solvents/foreign_matter (pass|fail), and overall_result drives
 // status. (The generic PUT /lab-tests/:id above targets a different, older column set.)
-app.put('/lab-tests/:id/results', async (c) => {
+app.put('/lab-tests/:id/results', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

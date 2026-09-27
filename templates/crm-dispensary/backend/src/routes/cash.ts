@@ -206,7 +206,7 @@ app.get('/sessions/:id', async (c) => {
 })
 
 // Open cash drawer
-app.post('/sessions/open', async (c) => {
+app.post('/sessions/open', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
 
   const openSchema = z.object({
@@ -268,7 +268,7 @@ app.post('/sessions/open', async (c) => {
 })
 
 // Close & reconcile cash drawer
-app.post('/sessions/:id/close', async (c) => {
+app.post('/sessions/:id/close', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 

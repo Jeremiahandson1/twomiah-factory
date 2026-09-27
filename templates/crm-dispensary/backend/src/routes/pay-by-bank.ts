@@ -124,7 +124,7 @@ app.put('/config', requireRole('manager'), async (c) => {
 // ============================================
 
 // Create Plaid link token for a customer
-app.post('/link-token', async (c) => {
+app.post('/link-token', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const linkSchema = z.object({
@@ -175,7 +175,7 @@ app.post('/link-token', async (c) => {
 // ============================================
 
 // Exchange public token for access token and store account details
-app.post('/exchange-token', async (c) => {
+app.post('/exchange-token', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const exchangeSchema = z.object({
@@ -284,7 +284,7 @@ app.get('/accounts/:contactId', async (c) => {
 })
 
 // Deactivate a bank account
-app.delete('/accounts/:id', async (c) => {
+app.delete('/accounts/:id', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -314,7 +314,7 @@ app.delete('/accounts/:id', async (c) => {
 // ============================================
 
 // Initiate Pay by Bank payment
-app.post('/charge', async (c) => {
+app.post('/charge', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
 
   const chargeSchema = z.object({
@@ -459,7 +459,7 @@ app.get('/stats', async (c) => {
 
 // Initiate Plaid Link for a specific customer (contactId in the path). Returns a link
 // token the frontend hands to Plaid Link. Graceful 400 when Pay-by-Bank isn't configured.
-app.post('/link/:contactId', async (c) => {
+app.post('/link/:contactId', requireRole('manager'), async (c) => {
   const currentUser = c.get('user') as any
   const contactId = c.req.param('contactId')
 

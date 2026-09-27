@@ -183,7 +183,7 @@ app.delete('/shifts/:id', requireRole('manager'), async (c) => {
 })
 
 // Clock in
-app.post('/shifts/:id/clock-in', async (c) => {
+app.post('/shifts/:id/clock-in', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
@@ -216,7 +216,7 @@ app.post('/shifts/:id/clock-in', async (c) => {
 })
 
 // Clock out
-app.post('/shifts/:id/clock-out', async (c) => {
+app.post('/shifts/:id/clock-out', requireRole('budtender'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
