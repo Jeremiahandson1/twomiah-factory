@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 // ── F&I (Finance & Insurance) ───────────────────────────────────────────────
 // Two pieces a DMS needs: (1) the F&I product MENU (menu selling), and (2) LENDER
@@ -45,7 +46,7 @@ const lender: LenderProvider = notConfiguredLender
 // A credit application must make sense before it goes to a lender: an amount financed above $0, a term the F&I page
 // offers, and only products from the menu. (RV T19 L2: -$5, a 0-month term and product "banana" were accepted)
 const TERMS = [24, 36, 48, 60, 72, 84, 120, 144, 180, 240]
-app.post('/submit', async (c) => {
+app.post('/submit', requirePermission('financing:create'), async (c) => {
   const body = await c.req.json().catch(() => ({}))
   if (!body?.applicant?.name) return c.json({ error: 'Applicant name is required.' }, 400)
   const amount = Number(body.amountFinanced)

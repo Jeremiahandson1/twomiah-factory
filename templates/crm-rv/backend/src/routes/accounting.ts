@@ -3,6 +3,7 @@ import { and, eq, isNull, isNotNull, inArray, desc, count } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { invoice, contact } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import quickbooks from '../services/quickbooks.ts'
 
 // ── Accounting sync ─────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ app.get('/status', async (c) => {
   return c.json({ provider: 'QuickBooks Online', connected, configured, pending, postedCount: Number(postedCount) })
 })
 
-app.post('/sync', async (c) => {
+app.post('/sync', requirePermission('integrations:update'), async (c) => {
   const u = c.get('user') as any
   // Posting requires a real connection — never fabricate a synced batch. Once QuickBooks OAuth is wired,
   // this posts the real pending invoices and stamps qbInvoiceId/syncedAt on each.

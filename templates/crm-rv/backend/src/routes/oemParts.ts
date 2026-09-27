@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { db } from '../../db/index.ts'
 import { catalogPart } from '../../db/schema.ts'
 import { and, eq, or, ilike, sql } from 'drizzle-orm'
@@ -183,7 +184,7 @@ const HEADER_MAP: Record<string, string> = {
   'fitment': 'fitment', 'fits': 'fitment', 'model': 'fitment', 'application': 'fitment', 'models': 'fitment', 'fit': 'fitment', 'vehicle': 'fitment',
 }
 
-app.post('/import', async (c) => {
+app.post('/import', requirePermission('inventory:create'), async (c) => {
   const companyId = (c.get('user') as any).companyId
   const body = await c.req.json().catch(() => ({} as any))
   const csv: string = body.csv || ''
@@ -249,7 +250,7 @@ app.post('/import', async (c) => {
   return c.json({ ok: true, imported, skipped, total, mappedColumns: Object.keys(colIdx) })
 })
 
-app.post('/clear', async (c) => {
+app.post('/clear', requirePermission('inventory:delete'), async (c) => {
   const companyId = (c.get('user') as any).companyId
   try { await db.delete(catalogPart).where(eq(catalogPart.companyId, companyId)) } catch (e: any) { return c.json({ error: String(e?.message || e) }, 500) }
   return c.json({ ok: true })

@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 import { findCatalogPart } from './oemParts.ts'
 
 // ── Parts Ordering ──────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ const ORDERS: any[] = []
 // An order is priced by the server from the catalog, never from the browser: each item names a catalog part (and a
 // whole-number quantity 1–999); its name and price come from the dealer's catalog. (RV T19 L3: $0.01 and
 // -$5 × -2 = $10 were accepted as sent)
-app.post('/create', async (c) => {
+app.post('/create', requirePermission('inventory:create'), async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json().catch(() => ({}))
   const requested = Array.isArray(body.items) ? body.items : (body.item ? [body.item] : [])
