@@ -10,6 +10,7 @@ import { db } from '../../db/index.ts'
 import { vendorBill, jobPurchaseOrder as purchaseOrder, contact, job } from '../../db/schema.ts'
 import { eq, and, count, desc, sql, inArray, lt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -117,7 +118,7 @@ app.get('/summary/job/:jobId', async (c) => {
   })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('bills:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = billSchema.safeParse(((await c.req.json().catch(() => null)) ?? {}))
   if (!body.success) return c.json({ error: body.error.issues[0]?.message || 'Invalid bill' }, 400)
@@ -151,7 +152,7 @@ app.post('/', async (c) => {
   return c.json(bill, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('bills:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = billSchema.partial().safeParse(((await c.req.json().catch(() => null)) ?? {}))
@@ -179,7 +180,7 @@ app.put('/:id', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/record-payment', async (c) => {
+app.post('/:id/record-payment', requirePermission('bills:pay'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = z.object({ amount: z.number().positive() }).safeParse(((await c.req.json().catch(() => null)) ?? {}))
@@ -210,7 +211,7 @@ app.post('/:id/record-payment', async (c) => {
   return c.json(updated)
 })
 
-app.post('/:id/void', async (c) => {
+app.post('/:id/void', requirePermission('bills:pay'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [existing] = await db.select().from(vendorBill)
@@ -222,7 +223,7 @@ app.post('/:id/void', async (c) => {
   return c.json(updated)
 })
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('bills:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [existing] = await db.select().from(vendorBill)

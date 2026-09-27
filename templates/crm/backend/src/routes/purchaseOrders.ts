@@ -10,6 +10,7 @@ import { db } from '../../db/index.ts'
 import { jobPurchaseOrder as purchaseOrder, jobPurchaseOrderLine as purchaseOrderLine, vendorBill, contact, job, project } from '../../db/schema.ts'
 import { eq, and, count, desc, sql, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { requirePermission } from '../middleware/permissions.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -103,7 +104,7 @@ app.get('/:id', async (c) => {
   return c.json({ ...hydrated, lines })
 })
 
-app.post('/', async (c) => {
+app.post('/', requirePermission('purchase-orders:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = poSchema.safeParse(((await c.req.json().catch(() => null)) ?? {}))
   if (!body.success) return c.json({ error: body.error.issues[0]?.message || 'Invalid purchase order' }, 400)
@@ -148,7 +149,7 @@ app.post('/', async (c) => {
   return c.json(po, 201)
 })
 
-app.put('/:id', async (c) => {
+app.put('/:id', requirePermission('purchase-orders:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const body = poSchema.partial().safeParse(((await c.req.json().catch(() => null)) ?? {}))
@@ -206,7 +207,7 @@ const TRANSITIONS: Record<string, string[]> = {
 const TARGET: Record<string, string> = { send: 'sent', receive: 'received', cancel: 'cancelled', reopen: 'draft' }
 
 for (const action of Object.keys(TRANSITIONS)) {
-  app.post(`/:id/${action}`, async (c) => {
+  app.post(`/:id/${action}`, requirePermission('purchase-orders:update'), async (c) => {
     const currentUser = c.get('user') as any
     const id = c.req.param('id')
     const [existing] = await db.select().from(purchaseOrder)
@@ -222,7 +223,7 @@ for (const action of Object.keys(TRANSITIONS)) {
   })
 }
 
-app.delete('/:id', async (c) => {
+app.delete('/:id', requirePermission('purchase-orders:delete'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const [existing] = await db.select().from(purchaseOrder)

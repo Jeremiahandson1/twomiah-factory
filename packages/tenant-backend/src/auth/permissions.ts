@@ -41,6 +41,10 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'roof-reports:*', 'financing:*',
     // Connection + receptionist configuration — admin, the same line settings:* already draws.
     'integrations:*', 'ai-receptionist:*',
+    // Accounts payable (crm only). Purchase orders are a document lifecycle a construction manager
+    // runs; vendor bills carry two money operations, so paying and voiding get their own verb —
+    // `bills:pay` — and stay with payments:* rather than with the document work.
+    'purchase-orders:*', 'bills:*',
     // sms:send (text a customer) / sms:* (the canned messages and auto-responders live on
     // marketing:update). Its own resource rather than borrowing contacts:update, which would hand a
     // technician the right to EDIT customer records along with the right to text them. (T30 L-RB)
@@ -74,6 +78,11 @@ export const BASE_ROLE_PERMISSIONS: Record<string, string[]> = {
     'measurements:read', 'measurements:create', 'measurements:update', 'measurements:delete',
     // Connections and the receptionist are configuration: visible, not editable.
     'integrations:read', 'ai-receptionist:read',
+    // A construction manager runs purchase orders end to end — raise, send, receive, cancel, reopen.
+    // Vendor bills they enter and correct, but paying, voiding and deleting one is admin: `bills:pay`
+    // and `bills:delete` are withheld here on purpose, the same line payments:* already draws.
+    'purchase-orders:*',
+    'bills:read', 'bills:create', 'bills:update',
     'sms:*',
   ],
   field: [
