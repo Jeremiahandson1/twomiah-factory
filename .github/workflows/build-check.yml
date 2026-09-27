@@ -66,6 +66,17 @@ jobs:
       - name: Every resource gated in a route must be granted to a role in BASE_ROLE_PERMISSIONS (or owner-only by design)
         run: bun run scripts/check-permission-vocabulary.ts
 
+  forked-permission-matrix:
+    name: permissions — a template with its own matrix grants what it gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: crm-dispensary forks ROLE_PERMISSIONS, so the shared-matrix check cannot see it — verify against its own list
+        run: bun run scripts/check-forked-permission-matrix.ts
+
   companyid-scoping:
     name: tenancy — a request id is tied to the caller before it is trusted
     runs-on: ubuntu-latest

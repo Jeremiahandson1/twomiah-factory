@@ -10,6 +10,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'cash:*', 'analytics:*', 'audit:*', 'team:*', 'documents:*',
     'settings:*', 'merch:*', 'company:read', 'company:update',
     'dashboard:*', 'inventory:*', 'leads:*', 'support:*', 'marketing:*',
+    // support.ts gates the knowledge base and the SLA policy on these. THIS FILE IS A FORK: it
+    // does not read packages/tenant-backend BASE_ROLE_PERMISSIONS, and check-permission-vocabulary
+    // validates only against that shared matrix. So a resource can be granted there, pass CI, and
+    // still be owner-only here, because hasPermission falls back to this list. That is exactly
+    // what happened and it cost admin the knowledge base. Anything a dispensary route gates on
+    // must be granted in THIS list too — check-forked-permission-matrix.ts now enforces it.
+    'support-kb:*', 'support-sla:*',
   ],
   manager: [
     'contacts:*', 'products:*', 'orders:*', 'loyalty:*', 'delivery:*',
