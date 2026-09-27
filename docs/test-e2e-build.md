@@ -557,7 +557,7 @@ If URLs don't work, try these alternate patterns:
 - [ ] Navigate to Reports page (`/crm/reporting`)
 - [ ] Verify report dashboard loads
 - [ ] Run a revenue report if available
-- [ ] Run a job costing report if available
+- [ ] Job Costing (sidebar, under Reports; needs the `job_costing` feature): totals, By month, and a row click showing Estimated vs Actual + Variance
 - [ ] Check for project profitability report
 - [ ] Screenshot the reports page
 

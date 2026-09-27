@@ -77,7 +77,7 @@ page column, and verify the feature actually does the thing we claim.
 | Pricebook | `pricebook` | `PricebookPage` | ✅ |
 | QuickBooks sync | `quickbooks` | `IntegrationsPage` | ✅ |
 | Recurring jobs | `recurring` | `RecurringList`, `RecurringForm` | ✅ |
-| Job costing | (in `reporting`) | `ReportsDashboard` | 🔹 |
+| Job costing | `jobCosting` | `JobCostingPage` | ✅ |
 
 **Verdict:** All Pro features implemented. Route `routing` exists but the
 frontend surface is shared — verify the UI actually shows route optimization.

@@ -650,7 +650,7 @@ These features are ONLY available on Fleet tier. Test them thoroughly.
 ### 9.5 Reports
 - [ ] Navigate to Reports page
 - [ ] Run revenue report — verify invoice data appears
-- [ ] Run job costing report — verify job and labor data
+- [ ] Job Costing (sidebar, titled "Service Call Costing" here; needs the `job_costing` feature): totals, By month, and a row click showing Estimated vs Actual + Variance. Staff must be refused (reports:read)
 - [ ] Run technician productivity report — verify Tom and Dave appear
 - [ ] Check commission report (Fleet feature)
 - [ ] Check fleet/vehicle expense report
@@ -799,7 +799,8 @@ Fill in pass/fail for every feature tested:
 | Expenses | Pass/Fail | |
 | Documents & Photos | Pass/Fail | |
 | Lead Inbox | Pass/Fail | |
-| Reports (Revenue, Job Costing) | Pass/Fail | |
+| Reports (Revenue) | Pass/Fail | |
+| Service Call Costing (own page, job_costing feature) | Pass/Fail | |
 | Settings & Feature Flags | Pass/Fail | |
 | **CUSTOMER PORTAL (FULL)** | | |
 | Portal: View Equipment | Pass/Fail | |

@@ -348,7 +348,7 @@ These are the features that make crm-fieldservice different from the base CRM.
 
 ### 5.15 Reports
 - [ ] Navigate to Reports page
-- [ ] Run available reports (revenue, job costing, technician productivity)
+- [ ] Run available reports (revenue, technician productivity) — job costing is its own page, not a Reports tab
 
 ### 5.16 Customer Portal
 - [ ] Enable portal access for Bob Homeowner
