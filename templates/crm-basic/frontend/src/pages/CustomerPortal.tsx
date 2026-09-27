@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 // One definition of what money looks like. Building the string here dropped the cents: bare
 // toLocaleString() renders $824.60 as "$824.6" — the defect T12 L1 named, on a screen its fix missed.
 import { money } from '../shared';
+import { brandSurfaceUnderWhite } from '../shared';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -53,6 +54,10 @@ export default function CustomerPortal() {
   }
 
   const primaryColor = company?.primaryColor || '{{PRIMARY_COLOR}}';
+  // White text sits on this one, so it must be dark enough to carry it — 14px bold is under
+  // WCAG's large-text threshold, so the 4.5:1 bar applies. The raw brand colour is still used
+  // below for the accent rule, the washes and the icons, where bright is correct.
+  const primaryOnWhiteText = brandSurfaceUnderWhite(primaryColor);
   const companyName = company?.name || import.meta.env.VITE_COMPANY_NAME || 'My Company';
 
   // Determine which products are available based on company settings
@@ -86,7 +91,7 @@ export default function CustomerPortal() {
               ) : (
                 <div 
                   className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-                  style={{ backgroundColor: primaryColor }}
+                  style={{ backgroundColor: primaryOnWhiteText }}
                 >
                   {companyName.charAt(0)}
                 </div>

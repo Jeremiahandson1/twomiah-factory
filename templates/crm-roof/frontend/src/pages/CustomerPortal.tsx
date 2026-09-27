@@ -7,6 +7,7 @@ import {
   Camera, Sparkles, BookOpen, Ruler,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { brandSurfaceUnderWhite } from '../shared';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -32,6 +33,10 @@ export default function CustomerPortal() {
   }
 
   const primaryColor = company?.settings?.primaryColor || '#2563eb';
+  // White text sits on this one, so it must be dark enough to carry it — 14px bold is under
+  // WCAG's large-text threshold, so the 4.5:1 bar applies. The raw brand colour is still used
+  // below for the accent rule, the washes and the icons, where bright is correct.
+  const primaryOnWhiteText = brandSurfaceUnderWhite(primaryColor);
   const companyName = company?.name || 'My Company';
 
   let settings: Record<string, any> = {};
@@ -59,7 +64,7 @@ export default function CustomerPortal() {
             <div className="flex items-center gap-3">
               <div
                 className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
-                style={{ backgroundColor: primaryColor }}
+                style={{ backgroundColor: primaryOnWhiteText }}
               >
                 {companyName.charAt(0)}
               </div>
