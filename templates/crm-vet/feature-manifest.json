@@ -2,15 +2,98 @@
   "_comment": "CRM Feature Manifest — Maps feature IDs from features.ts to their implementation files and sidebar nav entries. The CRM uses runtime feature gating (FeatureGate middleware + component), so the generator copies the full codebase and configures enabledFeatures in the company seed.",
   "core": {
     "_comment": "Always included — cannot be disabled",
-    "features": ["contacts", "jobs", "quotes", "invoices", "scheduling", "team", "dashboard"],
+    "features": [
+      "contacts",
+      "jobs",
+      "quotes",
+      "invoices",
+      "scheduling",
+      "team",
+      "dashboard"
+    ],
     "backend": {
-      "routes": ["auth.ts", "contacts.ts", "jobs.ts", "quotes.ts", "invoices.ts", "time.ts", "team.ts", "company.ts", "dashboard.ts", "projects.ts", "expenses.ts", "documents.ts", "payroll.ts", "webhooks.ts", "audit.ts", "billing.ts", "bulk.ts", "comments.ts", "export.ts", "gapFeatures.ts", "import.ts", "integrations.ts", "migration.ts", "portal-messages.ts", "push.ts", "search.ts", "support.ts", "tasks.ts", "weather.ts"],
-      "services": ["audit.ts", "booking.ts", "bulk.ts", "comments.ts", "customForms.ts", "drawSchedules.ts", "email.ts", "export.ts", "fileUpload.ts", "import.ts", "jobCosting.ts", "lienWaivers.ts", "logger.ts", "migration.ts", "pdf.ts", "push.ts", "search.ts", "socket.ts", "tasks.ts", "weather.ts"],
-      "middleware": ["auth.ts", "featureGate.ts", "permissions.ts", "security.ts"]
+      "routes": [
+        "auth.ts",
+        "contacts.ts",
+        "jobs.ts",
+        "quotes.ts",
+        "invoices.ts",
+        "time.ts",
+        "team.ts",
+        "company.ts",
+        "dashboard.ts",
+        "projects.ts",
+        "expenses.ts",
+        "documents.ts",
+        "payroll.ts",
+        "webhooks.ts",
+        "audit.ts",
+        "billing.ts",
+        "bulk.ts",
+        "comments.ts",
+        "export.ts",
+        "import.ts",
+        "integrations.ts",
+        "migration.ts",
+        "portal-messages.ts",
+        "push.ts",
+        "search.ts",
+        "support.ts",
+        "tasks.ts",
+        "weather.ts"
+      ],
+      "services": [
+        "audit.ts",
+        "booking.ts",
+        "bulk.ts",
+        "comments.ts",
+        "customForms.ts",
+        "drawSchedules.ts",
+        "email.ts",
+        "export.ts",
+        "fileUpload.ts",
+        "import.ts",
+        "jobCosting.ts",
+        "lienWaivers.ts",
+        "logger.ts",
+        "migration.ts",
+        "pdf.ts",
+        "push.ts",
+        "search.ts",
+        "socket.ts",
+        "tasks.ts",
+        "weather.ts"
+      ],
+      "middleware": [
+        "auth.ts",
+        "featureGate.ts",
+        "permissions.ts",
+        "security.ts"
+      ]
     },
     "frontend": {
-      "pages": ["LoginPage.tsx", "RegisterPage.tsx", "ForgotPasswordPage.tsx", "ResetPasswordPage.tsx", "DashboardPage.tsx", "ContactsPage.tsx", "JobsPage.tsx", "QuotesPage.tsx", "InvoicesPage.tsx", "SchedulePage.tsx", "TeamPage.tsx", "SettingsPage.tsx"],
-      "components": ["auth/", "layout/", "common/", "ui/", "crm/", "detail/"]
+      "pages": [
+        "LoginPage.tsx",
+        "RegisterPage.tsx",
+        "ForgotPasswordPage.tsx",
+        "ResetPasswordPage.tsx",
+        "DashboardPage.tsx",
+        "ContactsPage.tsx",
+        "JobsPage.tsx",
+        "QuotesPage.tsx",
+        "InvoicesPage.tsx",
+        "SchedulePage.tsx",
+        "TeamPage.tsx",
+        "SettingsPage.tsx"
+      ],
+      "components": [
+        "auth/",
+        "layout/",
+        "common/",
+        "ui/",
+        "crm/",
+        "detail/"
+      ]
     },
     "sidebar": [
       {
@@ -60,33 +143,55 @@
   "features": {
     "google_reviews": {
       "backend": {
-        "routes": ["reviews.ts"],
-        "services": ["reviews.ts"]
+        "routes": [
+          "reviews.ts"
+        ],
+        "services": [
+          "reviews.ts"
+        ]
       },
       "frontend": {
-        "components": ["reviews/GoogleReviews.tsx"],
-        "features": ["MarketingPage.tsx"]
+        "components": [
+          "reviews/GoogleReviews.tsx"
+        ],
+        "features": [
+          "MarketingPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "email_marketing": {
       "backend": {
-        "routes": ["marketing.ts"],
-        "services": ["marketing.ts"]
+        "routes": [
+          "marketing.ts"
+        ],
+        "services": [
+          "marketing.ts"
+        ]
       },
       "frontend": {
-        "pages": ["marketing/MarketingPage.tsx"],
-        "features": ["MarketingPage.tsx"]
+        "pages": [
+          "marketing/MarketingPage.tsx"
+        ],
+        "features": [
+          "MarketingPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "referral_program": {
       "backend": {
-        "routes": ["marketing.ts"],
-        "services": ["marketing.ts"]
+        "routes": [
+          "marketing.ts"
+        ],
+        "services": [
+          "marketing.ts"
+        ]
       },
       "frontend": {
-        "features": ["MarketingPage.tsx"]
+        "features": [
+          "MarketingPage.tsx"
+        ]
       },
       "sidebar": null
     },
@@ -95,16 +200,23 @@
         "routes": []
       },
       "frontend": {
-        "features": ["AIReceptionistPage.tsx"]
+        "features": [
+          "AIReceptionistPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "lead_inbox": {
       "backend": {
-        "routes": ["leads.ts"]
+        "routes": [
+          "leads.ts"
+        ]
       },
       "frontend": {
-        "pages": ["leads/LeadInboxPage.tsx", "leads/LeadSourcesPage.tsx"]
+        "pages": [
+          "leads/LeadInboxPage.tsx",
+          "leads/LeadSourcesPage.tsx"
+        ]
       },
       "sidebar": [
         {
@@ -123,82 +235,137 @@
     },
     "consumer_financing": {
       "backend": {
-        "routes": ["wisetack.ts"],
-        "services": ["wisetack.ts"]
+        "routes": [
+          "wisetack.ts"
+        ],
+        "services": [
+          "wisetack.ts"
+        ]
       },
       "frontend": {
-        "features": ["FinancingPage.tsx"],
-        "components": ["financing/WisetackFinancing.tsx"]
+        "features": [
+          "FinancingPage.tsx"
+        ],
+        "components": [
+          "financing/WisetackFinancing.tsx"
+        ]
       },
       "sidebar": null
     },
     "drag_drop_calendar": {
       "backend": {
-        "routes": ["scheduling.ts"],
-        "services": ["scheduling.ts"]
+        "routes": [
+          "scheduling.ts"
+        ],
+        "services": [
+          "scheduling.ts"
+        ]
       },
       "frontend": {
-        "pages": ["SchedulePage.tsx"],
-        "components": ["schedule/DragDropCalendar.tsx"]
+        "pages": [
+          "SchedulePage.tsx"
+        ],
+        "components": [
+          "schedule/DragDropCalendar.tsx"
+        ]
       },
       "sidebar": null
     },
     "online_booking": {
       "backend": {
-        "routes": ["booking.ts"],
-        "services": ["booking.ts"]
+        "routes": [
+          "booking.ts"
+        ],
+        "services": [
+          "booking.ts"
+        ]
       },
       "frontend": {},
       "sidebar": null
     },
     "service_dispatch": {
       "backend": {
-        "routes": ["scheduling.ts"],
-        "services": ["scheduling.ts"]
+        "routes": [
+          "scheduling.ts"
+        ],
+        "services": [
+          "scheduling.ts"
+        ]
       },
       "frontend": {
-        "pages": ["SchedulePage.tsx"]
+        "pages": [
+          "SchedulePage.tsx"
+        ]
       },
       "sidebar": null
     },
     "route_optimization": {
       "backend": {
-        "routes": ["routing.ts"],
-        "services": ["routing.ts"]
+        "routes": [
+          "routing.ts"
+        ],
+        "services": [
+          "routing.ts"
+        ]
       },
       "frontend": {
-        "components": ["routing/RouteOptimizer.tsx"]
+        "components": [
+          "routing/RouteOptimizer.tsx"
+        ]
       },
       "sidebar": null
     },
     "map_view": {
       "backend": {
-        "routes": ["maps.ts"],
-        "services": ["geocoding.ts"]
+        "routes": [
+          "maps.ts"
+        ],
+        "services": [
+          "geocoding.ts"
+        ]
       },
       "frontend": {
-        "components": ["common/Maps.tsx"]
+        "components": [
+          "common/Maps.tsx"
+        ]
       },
       "sidebar": null
     },
     "recurring_jobs": {
       "backend": {
-        "routes": ["recurring.ts"],
-        "services": ["recurring.ts"]
+        "routes": [
+          "recurring.ts"
+        ],
+        "services": [
+          "recurring.ts"
+        ]
       },
       "frontend": {
-        "pages": ["recurring/RecurringForm.tsx", "recurring/RecurringList.tsx"]
+        "pages": [
+          "recurring/RecurringForm.tsx",
+          "recurring/RecurringList.tsx"
+        ]
       },
       "sidebar": null
     },
     "time_tracking": {
       "backend": {
-        "routes": ["time.ts", "timeTracking.ts"],
-        "services": ["timeTracking.ts"]
+        "routes": [
+          "time.ts",
+          "timeTracking.ts"
+        ],
+        "services": [
+          "timeTracking.ts"
+        ]
       },
       "frontend": {
-        "pages": ["TimePage.tsx", "time/TimesheetPage.tsx"],
-        "components": ["time/TimeClock.tsx"]
+        "pages": [
+          "TimePage.tsx",
+          "time/TimesheetPage.tsx"
+        ],
+        "components": [
+          "time/TimeClock.tsx"
+        ]
       },
       "sidebar": {
         "id": "time",
@@ -209,32 +376,53 @@
     },
     "gps_tracking": {
       "backend": {
-        "routes": ["geofencing.ts"],
-        "services": ["geofencing.ts", "geocoding.ts"]
+        "routes": [
+          "geofencing.ts"
+        ],
+        "services": [
+          "geofencing.ts",
+          "geocoding.ts"
+        ]
       },
       "frontend": {
-        "components": ["location/LocationTracker.tsx"],
-        "pages": ["settings/GeofencesPage.tsx"]
+        "components": [
+          "location/LocationTracker.tsx"
+        ],
+        "pages": [
+          "settings/GeofencesPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "photo_capture": {
       "backend": {
-        "routes": ["photos.ts"],
-        "services": ["photos.ts"]
+        "routes": [
+          "photos.ts"
+        ],
+        "services": [
+          "photos.ts"
+        ]
       },
       "frontend": {
-        "components": ["common/PhotoGallery.tsx"]
+        "components": [
+          "common/PhotoGallery.tsx"
+        ]
       },
       "sidebar": null
     },
     "daily_logs": {
       "backend": {
-        "routes": ["dailyLogs.ts"]
+        "routes": [
+          "dailyLogs.ts"
+        ]
       },
       "frontend": {
-        "pages": ["DailyLogsPage.tsx"],
-        "features": ["DailyLogsPage.tsx"]
+        "pages": [
+          "DailyLogsPage.tsx"
+        ],
+        "features": [
+          "DailyLogsPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "daily-logs",
@@ -245,11 +433,17 @@
     },
     "rfis": {
       "backend": {
-        "routes": ["rfis.ts"]
+        "routes": [
+          "rfis.ts"
+        ]
       },
       "frontend": {
-        "pages": ["RFIsPage.tsx"],
-        "features": ["RFIsPage.tsx"]
+        "pages": [
+          "RFIsPage.tsx"
+        ],
+        "features": [
+          "RFIsPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "rfis",
@@ -260,11 +454,17 @@
     },
     "punch_lists": {
       "backend": {
-        "routes": ["punchLists.ts"]
+        "routes": [
+          "punchLists.ts"
+        ]
       },
       "frontend": {
-        "pages": ["PunchListsPage.tsx"],
-        "features": ["PunchListsPage.tsx"]
+        "pages": [
+          "PunchListsPage.tsx"
+        ],
+        "features": [
+          "PunchListsPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "punch-lists",
@@ -275,11 +475,17 @@
     },
     "change_orders": {
       "backend": {
-        "routes": ["changeOrders.ts"]
+        "routes": [
+          "changeOrders.ts"
+        ]
       },
       "frontend": {
-        "pages": ["ChangeOrdersPage.tsx"],
-        "features": ["ChangeOrdersPage.tsx"]
+        "pages": [
+          "ChangeOrdersPage.tsx"
+        ],
+        "features": [
+          "ChangeOrdersPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "change-orders",
@@ -290,11 +496,17 @@
     },
     "inspections": {
       "backend": {
-        "routes": ["inspections.ts"]
+        "routes": [
+          "inspections.ts"
+        ]
       },
       "frontend": {
-        "pages": ["InspectionsPage.tsx"],
-        "features": ["QualityPage.tsx"]
+        "pages": [
+          "InspectionsPage.tsx"
+        ],
+        "features": [
+          "QualityPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "inspections",
@@ -305,11 +517,17 @@
     },
     "bid_management": {
       "backend": {
-        "routes": ["bids.ts"]
+        "routes": [
+          "bids.ts"
+        ]
       },
       "frontend": {
-        "pages": ["BidsPage.tsx"],
-        "features": ["BiddingPage.tsx"]
+        "pages": [
+          "BidsPage.tsx"
+        ],
+        "features": [
+          "BiddingPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "bids",
@@ -320,32 +538,53 @@
     },
     "takeoff_tools": {
       "backend": {
-        "routes": ["takeoffs.ts"],
-        "services": ["takeoffs.ts"]
+        "routes": [
+          "takeoffs.ts"
+        ],
+        "services": [
+          "takeoffs.ts"
+        ]
       },
       "frontend": {
-        "pages": ["takeoffs/TakeoffsPage.tsx"]
+        "pages": [
+          "takeoffs/TakeoffsPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "client_portal": {
       "backend": {
-        "routes": ["portal.ts", "portal-selections.ts"],
-        "services": ["selections.ts"]
+        "routes": [
+          "portal.ts",
+          "portal-selections.ts"
+        ],
+        "services": [
+          "selections.ts"
+        ]
       },
       "frontend": {
-        "components": ["portal/"]
+        "components": [
+          "portal/"
+        ]
       },
       "sidebar": null
     },
     "two_way_texting": {
       "backend": {
-        "routes": ["sms.ts"],
-        "services": ["sms.ts"]
+        "routes": [
+          "sms.ts"
+        ],
+        "services": [
+          "sms.ts"
+        ]
       },
       "frontend": {
-        "pages": ["messages/MessagesPage.tsx"],
-        "features": ["CommunicationPage.tsx"]
+        "pages": [
+          "messages/MessagesPage.tsx"
+        ],
+        "features": [
+          "CommunicationPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "messages",
@@ -356,41 +595,67 @@
     },
     "call_tracking": {
       "backend": {
-        "routes": ["calltracking.ts"],
-        "services": ["calltracking.ts"]
+        "routes": [
+          "calltracking.ts"
+        ],
+        "services": [
+          "calltracking.ts"
+        ]
       },
       "frontend": {
-        "pages": ["calltracking/CallTrackingPage.tsx"]
+        "pages": [
+          "calltracking/CallTrackingPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "online_payments": {
       "backend": {
-        "routes": ["stripe.ts"],
-        "services": ["stripe.ts"]
+        "routes": [
+          "stripe.ts"
+        ],
+        "services": [
+          "stripe.ts"
+        ]
       },
       "frontend": {
-        "components": ["payments/PaymentForm.tsx", "settings/StripeSettings.tsx"]
+        "components": [
+          "payments/PaymentForm.tsx",
+          "settings/StripeSettings.tsx"
+        ]
       },
       "sidebar": null
     },
     "job_costing": {
       "backend": {
-        "routes": ["reporting.ts"],
-        "services": ["jobCosting.ts", "reporting.ts"]
+        "routes": [
+          "reporting.ts"
+        ],
+        "services": [
+          "jobCosting.ts",
+          "reporting.ts"
+        ]
       },
       "frontend": {
-        "pages": ["reports/ReportsDashboard.tsx"]
+        "pages": [
+          "reports/ReportsDashboard.tsx"
+        ]
       },
       "sidebar": null
     },
     "expense_tracking": {
       "backend": {
-        "routes": ["expenses.ts"]
+        "routes": [
+          "expenses.ts"
+        ]
       },
       "frontend": {
-        "pages": ["ExpensesPage.tsx"],
-        "features": ["ExpensesPage.tsx"]
+        "pages": [
+          "ExpensesPage.tsx"
+        ],
+        "features": [
+          "ExpensesPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "expenses",
@@ -401,29 +666,43 @@
     },
     "quickbooks": {
       "backend": {
-        "routes": ["quickbooks.ts"],
-        "services": ["quickbooks.ts"]
+        "routes": [
+          "quickbooks.ts"
+        ],
+        "services": [
+          "quickbooks.ts"
+        ]
       },
       "frontend": {
-        "components": ["settings/QuickBooksSettings.tsx"]
+        "components": [
+          "settings/QuickBooksSettings.tsx"
+        ]
       },
       "sidebar": null
     },
     "custom_dashboards": {
       "backend": {
-        "routes": ["dashboard.ts"]
+        "routes": [
+          "dashboard.ts"
+        ]
       },
       "frontend": {
-        "pages": ["dashboard/CustomizableDashboard.tsx"]
+        "pages": [
+          "dashboard/CustomizableDashboard.tsx"
+        ]
       },
       "sidebar": null
     },
     "documents": {
       "backend": {
-        "routes": ["documents.ts"]
+        "routes": [
+          "documents.ts"
+        ]
       },
       "frontend": {
-        "pages": ["DocumentsPage.tsx"]
+        "pages": [
+          "DocumentsPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "documents",
@@ -434,11 +713,17 @@
     },
     "reports": {
       "backend": {
-        "routes": ["reporting.ts"],
-        "services": ["reporting.ts"]
+        "routes": [
+          "reporting.ts"
+        ],
+        "services": [
+          "reporting.ts"
+        ]
       },
       "frontend": {
-        "pages": ["reports/ReportsDashboard.tsx"]
+        "pages": [
+          "reports/ReportsDashboard.tsx"
+        ]
       },
       "sidebar": {
         "id": "reports",
@@ -449,11 +734,17 @@
     },
     "equipment_tracking": {
       "backend": {
-        "routes": ["equipment.ts"],
-        "services": ["equipment.ts"]
+        "routes": [
+          "equipment.ts"
+        ],
+        "services": [
+          "equipment.ts"
+        ]
       },
       "frontend": {
-        "pages": ["equipment/EquipmentPage.tsx"]
+        "pages": [
+          "equipment/EquipmentPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "equipment",
@@ -464,11 +755,17 @@
     },
     "service_agreements": {
       "backend": {
-        "routes": ["agreements.ts"],
-        "services": ["agreements.ts"]
+        "routes": [
+          "agreements.ts"
+        ],
+        "services": [
+          "agreements.ts"
+        ]
       },
       "frontend": {
-        "pages": ["agreements/AgreementsPage.tsx"]
+        "pages": [
+          "agreements/AgreementsPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "agreements",
@@ -479,11 +776,17 @@
     },
     "pricebook": {
       "backend": {
-        "routes": ["pricebook.ts"],
-        "services": ["pricebook.ts"]
+        "routes": [
+          "pricebook.ts"
+        ],
+        "services": [
+          "pricebook.ts"
+        ]
       },
       "frontend": {
-        "pages": ["pricebook/PricebookPage.tsx"]
+        "pages": [
+          "pricebook/PricebookPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "pricebook",
@@ -494,11 +797,17 @@
     },
     "fleet": {
       "backend": {
-        "routes": ["fleet.ts"],
-        "services": ["fleet.ts"]
+        "routes": [
+          "fleet.ts"
+        ],
+        "services": [
+          "fleet.ts"
+        ]
       },
       "frontend": {
-        "pages": ["fleet/FleetPage.tsx"]
+        "pages": [
+          "fleet/FleetPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "fleet",
@@ -509,11 +818,17 @@
     },
     "inventory": {
       "backend": {
-        "routes": ["inventory.ts"],
-        "services": ["inventory.ts"]
+        "routes": [
+          "inventory.ts"
+        ],
+        "services": [
+          "inventory.ts"
+        ]
       },
       "frontend": {
-        "pages": ["inventory/InventoryPage.tsx"]
+        "pages": [
+          "inventory/InventoryPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "inventory",
@@ -524,11 +839,17 @@
     },
     "projects": {
       "backend": {
-        "routes": ["projects.ts"]
+        "routes": [
+          "projects.ts"
+        ]
       },
       "frontend": {
-        "pages": ["ProjectsPage.tsx"],
-        "features": ["ProjectsPage.tsx"]
+        "pages": [
+          "ProjectsPage.tsx"
+        ],
+        "features": [
+          "ProjectsPage.tsx"
+        ]
       },
       "sidebar": {
         "id": "projects",
@@ -539,31 +860,57 @@
     },
     "selections": {
       "backend": {
-        "routes": ["selections.ts"],
-        "services": ["selections.ts"]
+        "routes": [
+          "selections.ts"
+        ],
+        "services": [
+          "selections.ts"
+        ]
       },
       "frontend": {
-        "pages": ["selections/SelectionsPage.tsx"]
+        "pages": [
+          "selections/SelectionsPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "warranties": {
       "backend": {
-        "routes": ["warranties.ts"],
-        "services": ["warranties.ts"]
+        "routes": [
+          "warranties.ts"
+        ],
+        "services": [
+          "warranties.ts"
+        ]
       },
       "frontend": {
-        "pages": ["warranties/WarrantiesPage.tsx"]
+        "pages": [
+          "warranties/WarrantiesPage.tsx"
+        ]
       },
       "sidebar": null
     },
     "instant_estimator": {
       "backend": {
-        "routes": ["estimator.ts", "roofReports.ts"],
-        "services": ["googleSolar.ts", "roofReport.ts", "roofReportRenderer.ts", "dsmProcessor.ts", "osmFootprint.ts"]
+        "routes": [
+          "estimator.ts",
+          "roofReports.ts"
+        ],
+        "services": [
+          "googleSolar.ts",
+          "roofReport.ts",
+          "roofReportRenderer.ts",
+          "dsmProcessor.ts",
+          "osmFootprint.ts"
+        ]
       },
       "frontend": {
-        "pages": ["EstimatorPage.tsx", "roofReports/RoofReportsPage.tsx", "roofReports/RoofReportDetail.tsx", "roofReports/RoofEdgeEditor.tsx"]
+        "pages": [
+          "EstimatorPage.tsx",
+          "roofReports/RoofReportsPage.tsx",
+          "roofReports/RoofReportDetail.tsx",
+          "roofReports/RoofEdgeEditor.tsx"
+        ]
       },
       "sidebar": [
         {

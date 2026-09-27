@@ -50,7 +50,6 @@ import calltrackingRoutes from './routes/calltracking.ts'
 import commentsRoutes from './routes/comments.ts'
 import equipmentRoutes from './routes/equipment.ts'
 import exportRoutes from './routes/export.ts'
-import gapFeaturesRoutes from './routes/gapFeatures.ts'
 import geofencingRoutes from './routes/geofencing.ts'
 import importRoutes from './routes/import.ts'
 import migrationRoutes from './routes/migration.ts'
@@ -263,7 +262,6 @@ app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/comments', commentsRoutes)
 app.route('/api/equipment', equipmentRoutes)
 app.route('/api/export', exportRoutes)
-app.route('/api/gap-features', gapFeaturesRoutes)
 app.route('/api/geofencing', geofencingRoutes)
 app.route('/api/import', importRoutes)
 app.route('/api/migration', migrationRoutes)
