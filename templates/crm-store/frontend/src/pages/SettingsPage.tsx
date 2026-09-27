@@ -179,7 +179,10 @@ export default function SettingsPage() {
             <div className="col-span-1"><button onClick={() => delTax(i)} className="text-red-600 text-sm pb-2">✕</button></div>
           </div>
         ))}
-        <button onClick={save} className="btn-primary mt-2" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+        {/* Store settings are owner-level on the server (PATCH /api/admin/settings requires owner), so
+            the control says so here rather than letting staff fill the form and collect a 403. */}
+        <button onClick={save} className="btn-primary mt-2" disabled={saving || !isOwner} title={isOwner ? undefined : 'Only the store owner can change these settings'}>{saving ? 'Saving…' : 'Save settings'}</button>
+        {!isOwner && <p className="text-xs text-gray-500 mt-1">Only the store owner can change these settings.</p>}
       </div>
 
       <div className="card p-5 space-y-3">

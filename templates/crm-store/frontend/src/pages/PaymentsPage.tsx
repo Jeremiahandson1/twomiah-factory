@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CreditCard, CheckCircle2, Copy } from 'lucide-react'
 import api, { PaymentStatus } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 
 // What the merchant pastes for each provider (all stored encrypted per-tenant).
 // `pub` is the second credential — optional for Stripe, required for Square/PayPal.
@@ -15,6 +16,11 @@ const PROVIDER_FIELDS: Record<string, {
 
 export default function PaymentsPage() {
   const { toast } = useToast()
+  // Connecting or disconnecting the processor is owner-level on the server (POST /api/admin/payments
+  // /connect and /disconnect require owner). Disconnecting stops the store taking orders at all, so
+  // the controls say who may do it rather than handing staff a 403 after they have typed their keys.
+  const { user } = useAuth()
+  const isOwner = user?.role === 'owner'
   const [status, setStatus] = useState<PaymentStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ provider: 'stripe', mode: 'test', secretKey: '', publishableKey: '', webhookSecret: '' })
@@ -55,7 +61,7 @@ export default function PaymentsPage() {
             <div>Mode: <span className="font-medium capitalize">{status?.config?.mode}</span>{status?.config?.mode === 'test' && ' (no real charges)'}</div>
             <div>Payment notifications: {status?.config?.hasWebhookSecret ? 'active' : <span className="text-yellow-600">not set up &mdash; orders confirm on the customer&apos;s receipt page instead</span>}</div>
           </div>
-          <button onClick={disconnect} className="btn-danger mt-4 text-xs">Disconnect</button>
+          <button onClick={disconnect} className="btn-danger mt-4 text-xs" disabled={!isOwner} title={isOwner ? undefined : 'Only the store owner can disconnect payments'}>Disconnect</button>
         </div>
       ) : (
         <div className="card p-5">
@@ -110,7 +116,8 @@ export default function PaymentsPage() {
             </div>
           </div>
         </details>
-        <button onClick={connect} className="btn-primary" disabled={saving || !form.secretKey || (f.pubRequired && !form.publishableKey)}>{saving ? 'Verifying…' : connected ? 'Update keys' : 'Connect'}</button>
+        <button onClick={connect} className="btn-primary" disabled={saving || !isOwner || !form.secretKey || (f.pubRequired && !form.publishableKey)} title={isOwner ? undefined : 'Only the store owner can connect a payment processor'}>{saving ? 'Verifying…' : connected ? 'Update keys' : 'Connect'}</button>
+        {!isOwner && <p className="text-xs text-gray-500">Only the store owner can connect or change the payment processor.</p>}
       </div>
     </div>
   )

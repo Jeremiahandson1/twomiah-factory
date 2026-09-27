@@ -4,7 +4,7 @@ import Stripe from 'stripe'
 import { db } from '../../db/index.ts'
 import { paymentConfig } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireOwner } from '../middleware/auth.ts'
 import { encryptJSON, encrypt } from '../lib/crypto.ts'
 import logger from '../services/logger.ts'
 
@@ -133,7 +133,7 @@ async function autoCreateWebhook(
   }
 }
 
-admin.post('/connect', async (c) => {
+admin.post('/connect', requireOwner, async (c) => {
   const parsed = connectSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid payment credentials' }, 400)
   const { provider, mode, secretKey, publishableKey, webhookSecret } = parsed.data
@@ -199,7 +199,7 @@ admin.post('/connect', async (c) => {
   return c.json({ config: { provider: saved.provider, mode: saved.mode, connected: saved.connected }, webhookConfigured: !!finalWebhookSecret, webhookNote })
 })
 
-admin.post('/disconnect', async (c) => {
+admin.post('/disconnect', requireOwner, async (c) => {
   const [existing] = await db.select().from(paymentConfig).limit(1)
   if (existing) {
     await db.update(paymentConfig).set({ connected: false, updatedAt: new Date() }).where(eq(paymentConfig.id, existing.id))

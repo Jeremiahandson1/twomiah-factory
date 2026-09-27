@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { storeSettings } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { authenticate, requireOwner } from '../middleware/auth.ts'
 
 const admin = new Hono()
 admin.use('*', authenticate)
@@ -37,7 +37,7 @@ const settingsSchema = z.object({
   storefrontOrigin: z.string().optional().nullable(),
 })
 
-admin.patch('/', async (c) => {
+admin.patch('/', requireOwner, async (c) => {
   const parsed = settingsSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid settings', details: parsed.error.flatten() }, 400)
   const [existing] = await db.select().from(storeSettings).limit(1)
